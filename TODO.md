@@ -155,14 +155,8 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 
-## Github
-Before public release, do these:
-* Setup Github Workflows for: Open PR(Lint, build), merge to master
-* Develop branch
-* Master branch protection
-
 # Build and Distribute
-* We need to setup packageDistributionForCurrentOS.
+* We need to setup packageDistributionForCurrentOS and associated Github Actions.
 
 ## Input
 
