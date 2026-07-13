@@ -36,6 +36,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Selection
 * Object mode - Need different tint for active selection, otherwise selection to active is amibiguous.
 
+## Zoom
+* Frame Selected - Make it work on edit mode as well.
+
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
@@ -47,18 +50,18 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 Implemented (2026-07): atlas underlay, session-shared selection (UV sync always on), modal G/S/R over texture coordinates with live GPU preview, box/circle select, select linked, UV cursor, Mirror U/V (uv.mirrorU / uv.mirrorV, the duplicated/flipped eyes workflow), header controls, and view commands over the hovered UV area.
 
 * Bugs
-	* Frame Selected does not work in the UV editor.(I assume this is what is meant by the UV zoom region mentioned below.)
+
 * Improvements
-	* The object mode for the UV editor should be edges and faces only, no vertices.  This matches the Blender overlay style and makes it easier to understand.
-	* Mirror X, Mirror Y in the UV context menu.
-* Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
-* UV snap pie and UV zoom-region - deferred (documented no-ops over a hovered UV area).
-* Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
+	* Gate the context menu to edit mode.
+* UV snap pie and UV zoom-region.
 * Background UI
 	* Panel Elevation (303030) ->
 		* Border 1.dp ->
 			* Grid Background (the UV editor already draws the grid backdrop; this is the panel-elevation framing around it.)
 				* UV Texture
+					* Gizmos
+* Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
+* Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
 
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.

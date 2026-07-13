@@ -8,7 +8,7 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 **Q:** Can I support the Umamo project financially?
 
-**A:** Umamo is completely open source and free, but if you would like to support the project you can [join the Patreon](https://patreon.com/Azxiana) or make a one time [donations through Ko-Fi](https://ko-fi.com/azxiana).  All received funds go directly to paying hosting bills, hardware for testing, and platform developer fees.  Excess funds will be banked for the future or distributed to other open source projects working with the Umamo Project.
+**A:** Umamo is completely open source and free, but if you would like to support the project you can [join the Patreon](https://patreon.com/Azxiana) or make a one time [donation through Ko-Fi](https://ko-fi.com/azxiana).  All received funds go directly to paying hosting bills, hardware for testing, and platform developer fees.  Excess funds will be banked for the future or distributed to other open source projects working with the Umamo Project.
 
 ---
 

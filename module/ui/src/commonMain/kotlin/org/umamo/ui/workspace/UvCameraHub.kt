@@ -4,8 +4,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * The camera operations one UV editor area exposes to the shell's view commands - the UV analogue of
- * the viewport's ViewportCameraController, minus zoom region (deferred there).  Implemented by the UV
- * space over its own parked Compose camera; every call acts on that one area.
+ * the viewport's ViewportCameraController.  Implemented by the UV space over the service's per-area
+ * camera; every call acts on that one area.
  */
 internal interface UvCameraOps {
 	/** Frames the whole atlas page. */
@@ -30,6 +30,13 @@ internal interface UvCameraOps {
 
 	/** Frames the selection's covered UV bounds (Blender's numpad-period); a no-op with nothing covered. */
 	fun frameSelected()
+
+	/**
+	 * Arms the drag-a-box-to-frame Zoom Region gesture (Blender's Shift+B) over this UV area.  The UV
+	 * space's mounted region overlay captures the drag and frames the box; area-generic like the 2D
+	 * viewport's, so no separate UV zoom-to-region path is needed.
+	 */
+	fun armZoomRegion()
 }
 
 /**

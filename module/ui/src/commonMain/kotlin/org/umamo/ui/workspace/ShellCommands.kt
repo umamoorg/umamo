@@ -210,11 +210,15 @@ internal fun shellViewportCommands(
 				viewportCamera?.zoomOut(coarse = true)
 			}
 		},
-		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the active viewport. Works in
-		// both Object and Edit mode; the top-level region overlay captures the drag and frames the box.
-		// Viewport-only for now - a hovered UV editor no-ops rather than arming a viewport the pointer left.
+		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the hovered surface. Works in
+		// both Object and Edit mode; each surface's region overlay captures the drag and frames the box - the
+		// UV editor now included (its overlay arms over the same area-keyed latch and calls the area-generic
+		// zoomToRegion).
 		Command("view.zoomRegion", title = Res.string.cmd_view_zoom_region, availability = hasViewport) {
-			if (hoveredUvOps() == null) {
+			val uvOps = hoveredUvOps()
+			if (uvOps != null) {
+				uvOps.armZoomRegion()
+			} else {
 				viewportCamera?.armZoomRegion()
 			}
 		},
