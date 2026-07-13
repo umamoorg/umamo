@@ -36,7 +36,7 @@ The version byte selects which sections exist; newer versions only **add** secti
 | ---: | ------- | ---------------------------------------------------------------------------------------------- |
 |    1 | 3.0–3.2 | Base Section Set                                                                               |
 |    2 | 3.3     | (Parameter Group Extras)                                                                       |
-|    3 | 4.0     | —                                                                                              |
+|    3 | 4.0     | -                                                                                              |
 |    4 | 4.2     | Warp/Rotation Deformer color & Extra Groups; `Parameter.Types`; blend shapes (art-mesh & warp) |
 |    5 | 5.0     | Blend Shapes                                                                                   |
 |    6 | 5.3     | Offscreen Rendering                                                                            |
@@ -55,9 +55,9 @@ Sections are stored in table order and partition the rest of the file: section _
 
 ## 5. Structural Sections
 
-### 5.1 CountInfo — section index 0
+### 5.1 CountInfo - Section Index 0
 
-A `u32[]` of element counts — `u32[32]` for moc ≤ 5, `u32[64]` for moc 6. Indices:
+A `u32[]` of element counts - `u32[32]` for moc ≤ 5, `u32[64]` for moc 6. Indices:
 
 | u32 index | Meaning                                                                           |
 | --------: | --------------------------------------------------------------------------------- |
@@ -95,8 +95,8 @@ These counts size every parallel array below.
 
 | Index | Contents                     | Element    |     Stride |
 | ----: | ---------------------------- | ---------- | ---------: |
-|     0 | CountInfo                    | `u32[]`    |          — |
-|     1 | CanvasInfo                   | `f32[6]`   |          — |
+|     0 | CountInfo                    | `u32[]`    |          - |
+|     1 | CanvasInfo                   | `f32[6]`   |          - |
 |     3 | Part IDs                     | `char[64]` |       64·T |
 |     9 | Part parent indices          | `i32`      |        4·T |
 |    33 | Drawable IDs                 | `char[64]` |       64·D |
@@ -116,23 +116,23 @@ These counts size every parallel array below.
 |    80 | Drawable mask indices        | `i32`      |   4·Σmasks |
 |   114 | Parameter types              | `i32`      |  4·P (v4+) |
 
-Note the **maximum-before-minimum** order at 51/52. The remaining indices hold the deformation payload (deformers, keyforms, parameter bindings, glue, blend shapes, offscreens) — see §5.6.  The per-frame interpolation/deformation *math* is out of scope (the runtime performs it); the on-disk tables are documented below and read into the typed model.
+Note the **maximum-before-minimum** order at 51/52. The remaining indices hold the deformation payload (deformers, keyforms, parameter bindings, glue, blend shapes, offscreens) - see §5.6.  The per-frame interpolation/deformation *math* is out of scope (the runtime performs it); the on-disk tables are documented below and read into the typed model.
 
 ### 5.3 CanvasInfo (index 1)
 
 `f32[6] = { pixelsPerUnit, originX, originY, canvasWidth, canvasHeight, 0 }` (pixel units).
 
-### 5.4 ID records
+### 5.4 ID Records
 
 Every ID is a fixed **64-byte** record: the identifier as ASCII, a `NUL` terminator, then zero padding.
 
-### 5.5 Constant flags & parameter types
+### 5.5 Constant Flags & Parameter Types
 
 `Drawable constant flags` (index 42) is a `u8` bitmask: `1` additive blend, `2` multiplicative blend, `4` double-sided, `8` inverted mask. `Parameter types` (index 114, present from v4) is an `i32` per parameter: `0` normal, `1` blend-shape.  `Parameter repeat flags` (index 54) is an `i32` per parameter: `1` wraps the value into `[min,max)` instead of clamping (a moc 5.3 feature; `0` in every earlier-version sample).
 
-### 5.6 Deformation sections
+### 5.6 Deformation Sections
 
-The remaining sections drive deformation.  Some indices shift by version; the values below are for moc 4 (`-1` = absent in that version). `W`=warp count, `R`=rotation count, `Df`=`W+R` deformers, `G`=glue count (from CountInfo indices 2/3/1/20). `TABLE` arrays carry no length field — they are indexed by the base/offset tables, so a reader spans the whole section slice.
+The remaining sections drive deformation.  Some indices shift by version; the values below are for moc 4 (`-1` = absent in that version). `W`=warp count, `R`=rotation count, `Df`=`W+R` deformers, `G`=glue count (from CountInfo indices 2/3/1/20). `TABLE` arrays carry no length field - they are indexed by the base/offset tables, so a reader spans the whole section slice.
 
 |       Index | Contents                                                                                                                    | Element           | Sizing                  |
 | ----------: | --------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------- |
@@ -161,8 +161,8 @@ The remaining sections drive deformation.  Some indices shift by version; the va
 |         104 | Per-parameter key count (v4+)                                                                                               | `i32`             | P                       |
 |    83/84/85 | Render-order group render count / max / min child draw order                                                                | `i32`             | per group               |
 |       72-77 | Keyform-binding grid (slot/start/count/keyOff/keyCnt/keyPos)                                                                | `i32`/`f32`       | TABLE                   |
-|       60/70 | Keyform → packed-position offset — **warps use 60, art meshes use 70** (both index into 71)                                 | `i32`             | TABLE                   |
-|          71 | Packed keyform `(x,y)` values — warp control-point blocks then art-mesh vertex blocks, each padded to 16 floats             | `f32`             | TABLE                   |
+|       60/70 | Keyform → packed-position offset - **warps use 60, art meshes use 70** (both index into 71)                                 | `i32`             | TABLE                   |
+|          71 | Packed keyform `(x,y)` values - warp control-point blocks then art-mesh vertex blocks, each padded to 16 floats             | `f32`             | TABLE                   |
 | 58/59/61-69 | Part draw-order (58); warp/rotation/art-mesh opacity; art-mesh draw-order; rotation angle/origin/scale/reflect-x/y keyforms | `f32`/`i32`       | TABLE                   |
 |     108-113 | Multiply/screen color channel tables (v4+)                                                                                  | `f32`             | TABLE                   |
 | 82/86/87/88 | Render-order group child count/kind/index/group-index                                                                       | `i32`             | TABLE (per group/child) |
@@ -173,13 +173,13 @@ The remaining sections drive deformation.  Some indices shift by version; the va
 
 Blend-shape records are shared across warp→mesh→rotation; each is driven by one parameter (key positions in the shared key table) relative to a neutral key, with additive deltas based at `RECORD_BASE` in the same value tables as base keyforms. The **offscreen blend mode** is stored as a single packed `i32` per offscreen (the runtime unpacks it into separate color/alpha modes).  The BS rotation-object table is section **146** in both v5 and v6.
 
-The blend-shape delta keyforms are **appended after the base keyforms** in the shared value tables — the packed position values (71), the keyform-index tables (60/70), the rotation affine tables (62–67), the per-keyform opacity/draw-order (59/61/68/69) and (v5+) the color tables (108–113). Likewise the mask-index block (80) holds the drawables' masks then (v6) the offscreens' masks. So for a model with blend shapes or offscreens these table sizes exceed the base-keyform totals; the per-object `base` fields still index the base prefix.
+The blend-shape delta keyforms are **appended after the base keyforms** in the shared value tables - the packed position values (71), the keyform-index tables (60/70), the rotation affine tables (62–67), the per-keyform opacity/draw-order (59/61/68/69) and (v5+) the color tables (108–113). Likewise the mask-index block (80) holds the drawables' masks then (v6) the offscreens' masks. So for a model with blend shapes or offscreens these table sizes exceed the base-keyform totals; the per-object `base` fields still index the base prefix.
 
 A **keyform binding** is the interpolation grid: parameter `p` owns `bindCount[p]` (index 57) parameter-bindings (cumulative); each parameter-binding has `keyCnt` key positions at `keyPos[keyOff…]`. A binding (indices 72-74) lists the parameter-bindings that drive it; its grid size is the product of their key counts. An object (art-mesh/warp/rotation/part/glue) names a binding and a `base`; its per-keyform values live at `base + grid` (and, for geometry, via the position-index table into the packed value array).  Deformers carry **no IDs** in moc3 (referenced by index).
 
 ---
 
-## 6. JSON sidecars
+## 6. JSON Sidecars
 
 The editor exports these plain-JSON (UTF-8, tab-indented) files alongside the `.moc3`; the manifest references the rest by path.  Keys are PascalCase, properties in the order below, and **integral floats are written without a trailing `.0`** (e.g. `"Y": -1`).  Optional keys are omitted when unset.
 
@@ -359,7 +359,7 @@ Example JSON
 
 Names and grouping are primarily for the editor and display purposes in the application consuming the runtime.
 
-### 6.4 `userdata3.json` — per-object user data
+### 6.4 `userdata3.json` - Per-Object User Data
 
 Example JSON
 ```json
@@ -383,9 +383,9 @@ The application using the SDK runtime consumes the `Target == "ArtMesh"` entries
 
 ---
 
-## 7. Decode / encode recipe
+## 7. Decode / Encode Recipe
 
 1. Verify magic `MOC3`, `version` in `1..6`, `isBigEndian == 0`.
 2. Read the offset table from `0x40` (run of non-zero `u32` until the zero padding).
 3. Slice section _k_ as `[offset[k], offset[k+1])` (last → EOF). Decode CountInfo (section 0) to size every other section; interpret the structural sections per §5; keep the rest verbatim.
-4. To re-encode: write the 64-byte header, the `u32` offsets, zero-pad the table region to the version's first-section offset (`0x7C0` for moc ≤5, `0x16C0` for moc 6 — the runtime reads a fixed-size table, so this region must be reserved), then the sections (64-byte aligned) in table order, with the whole file padded to 64 bytes. (For an unedited model, preserving the original offsets/padding reproduces the input byte-for-byte.)
+4. To re-encode: write the 64-byte header, the `u32` offsets, zero-pad the table region to the version's first-section offset (`0x7C0` for MOC ≤5, `0x16C0` for MOC 6 - the runtime reads a fixed-size table, so this region must be reserved), then the sections (64-byte aligned) in table order, with the whole file padded to 64 bytes. (For an unedited model, preserving the original offsets/padding reproduces the input byte-for-byte.)
