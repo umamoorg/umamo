@@ -1,0 +1,110 @@
+-- SQLDelight schema + queries for the embedded CLIP (Clip Studio Paint) database.
+--
+-- These CREATE TABLE statements declare ONLY the subset of columns the reader consumes — the real
+-- Canvas/Layer tables in a .clip carry dozens more (all `DEFAULT NULL`).  They exist purely so
+-- SQLDelight can type-check the SELECTs below and generate row classes; the reader NEVER runs
+-- Schema.create (the embedded database already has its tables).  Columns are left nullable to match
+-- CLIP's `DEFAULT NULL` definitions.  Citations: // CLIP: <table>.<column>.
+
+-- CLIP: Canvas — one row holding document geometry and the root-folder pointer.
+CREATE TABLE Canvas (
+	CanvasWidth REAL,        -- CLIP: Canvas.CanvasWidth  (pixels, stored as REAL)
+	CanvasHeight REAL,       -- CLIP: Canvas.CanvasHeight (pixels, stored as REAL)
+	CanvasRootFolder INTEGER -- CLIP: Canvas.CanvasRootFolder (MainId of the root layer folder)
+);
+
+-- CLIP: Layer — one row per layer/folder; the tree is encoded by MainId child/sibling links.
+CREATE TABLE Layer (
+	MainId INTEGER,               -- CLIP: Layer.MainId (stable internal id; tree node key)
+	LayerName TEXT,               -- CLIP: Layer.LayerName
+	LayerFolder INTEGER,          -- CLIP: Layer.LayerFolder (bit 0x10 set => folder/group)
+	LayerType INTEGER,            -- CLIP: Layer.LayerType (raster/adjustment/text/...; not yet mapped)
+	LayerVisibility INTEGER,      -- CLIP: Layer.LayerVisibility (0/1)
+	LayerOpacity INTEGER,         -- CLIP: Layer.LayerOpacity (0..256)
+	LayerComposite INTEGER,       -- CLIP: Layer.LayerComposite (blend-mode code)
+	LayerClip INTEGER,            -- CLIP: Layer.LayerClip (non-zero => clip to layer below)
+	LayerOffsetX INTEGER,         -- CLIP: Layer.LayerOffsetX (canvas X, may be negative)
+	LayerOffsetY INTEGER,         -- CLIP: Layer.LayerOffsetY (canvas Y, may be negative)
+	LayerFirstChildIndex INTEGER, -- CLIP: Layer.LayerFirstChildIndex (first child MainId, 0 => leaf)
+	LayerNextIndex INTEGER,       -- CLIP: Layer.LayerNextIndex (next sibling MainId, 0 => end)
+	LayerUuid TEXT,                  -- CLIP: Layer.LayerUuid (rename/reorder-stable; preferred id)
+	LayerRenderMipmap INTEGER,       -- CLIP: Layer.LayerRenderMipmap (MainId into Mipmap -> raster)
+	LayerRenderOffscrOffsetX INTEGER, -- CLIP: Layer.LayerRenderOffscrOffsetX (grid anchor = offset + this)
+	LayerRenderOffscrOffsetY INTEGER, -- CLIP: Layer.LayerRenderOffscrOffsetY
+	LayerLayerMaskMipmap INTEGER,    -- CLIP: Layer.LayerLayerMaskMipmap (MainId into Mipmap -> mask)
+	TextLayerType INTEGER            -- CLIP: Layer.TextLayerType (non-null => a text object layer)
+);
+
+-- CLIP: Mipmap — a layer's pyramid; BaseMipmapInfo points at the full-resolution level.
+CREATE TABLE Mipmap (
+	MainId INTEGER,         -- CLIP: Mipmap.MainId (== Layer.LayerRenderMipmap)
+	BaseMipmapInfo INTEGER  -- CLIP: Mipmap.BaseMipmapInfo (MainId into MipmapInfo, full-res level)
+);
+
+-- CLIP: MipmapInfo — one node per pyramid level; Offscreen points at that level's pixel store.
+CREATE TABLE MipmapInfo (
+	MainId INTEGER,    -- CLIP: MipmapInfo.MainId
+	Offscreen INTEGER  -- CLIP: MipmapInfo.Offscreen (MainId into Offscreen)
+);
+
+-- CLIP: Offscreen — the tiled pixel store: Attribute is the tile index, BlockData the external ref.
+CREATE TABLE Offscreen (
+	MainId INTEGER,   -- CLIP: Offscreen.MainId
+	Attribute BLOB,   -- CLIP: Offscreen.Attribute (Parameter: width/height/cols/rows; BlockSize array)
+	BlockData BLOB    -- CLIP: Offscreen.BlockData ("extrnlid"+GUID, keys ExternalChunk)
+);
+
+-- CLIP: ExternalChunk — maps an "extrnlid"+GUID to the absolute file offset of its CHNKExta chunk.
+CREATE TABLE ExternalChunk (
+	ExternalID BLOB,  -- CLIP: ExternalChunk.ExternalID ("extrnlid"+GUID; matches Offscreen.BlockData)
+	Offset INTEGER    -- CLIP: ExternalChunk.Offset (byte offset of the CHNKExta chunk in the file)
+);
+
+-- Document geometry + the id of the (never-emitted) root folder we descend from.
+selectCanvas:
+SELECT CanvasWidth, CanvasHeight, CanvasRootFolder
+FROM Canvas
+LIMIT 1;
+
+-- Every layer row; the reader maps these into the neutral model and walks the child/sibling links.
+-- LayerRenderOffscrOffsetX/Y give the tile-grid anchor: anchor = LayerOffset + LayerRenderOffscrOffset
+-- (canvas-aligned, observed to be 0 across the corpus).
+selectAllLayers:
+SELECT MainId, LayerName, LayerFolder, LayerType, LayerVisibility, LayerOpacity, LayerComposite,
+	LayerClip, LayerOffsetX, LayerOffsetY, LayerFirstChildIndex, LayerNextIndex, LayerUuid,
+	LayerRenderOffscrOffsetX, LayerRenderOffscrOffsetY
+FROM Layer;
+
+-- MainIds of text object layers.  TextLayerType only exists in newer CLIP schemas, so the reader
+-- runs this defensively (a missing column => no text layers); keep it OUT of selectAllLayers, whose
+-- columns must exist in every supported CLIP version.  See docs/CLIP.md §5 on schema-version robustness.
+selectTextLayerIds:
+SELECT MainId
+FROM Layer
+WHERE TextLayerType IS NOT NULL;
+
+-- The "extrnlid"+GUID -> file-offset map used to locate each layer's external pixel chunk.
+selectExternalChunks:
+SELECT ExternalID, Offset
+FROM ExternalChunk;
+
+-- Per-layer base-resolution raster: the tile-index Attribute and the external-chunk reference,
+-- resolved through the Mipmap -> MipmapInfo -> Offscreen chain.  Keyed by Layer.MainId.
+selectLayerRasters:
+SELECT L.MainId, O.Attribute, O.BlockData
+FROM Layer L
+JOIN Mipmap M ON M.MainId = L.LayerRenderMipmap
+JOIN MipmapInfo MI ON MI.MainId = M.BaseMipmapInfo
+JOIN Offscreen O ON O.MainId = MI.Offscreen
+WHERE L.LayerRenderMipmap IS NOT NULL AND O.BlockData IS NOT NULL;
+
+-- Per-layer raster MASK (single-channel grayscale), via the LayerLayerMaskMipmap chain.  The mask
+-- offscreen is canvas-anchored identically to the render offscreen, so mask tile (col,row) aligns
+-- with render tile (col,row).  Keyed by Layer.MainId.
+selectLayerMaskRasters:
+SELECT L.MainId, O.Attribute, O.BlockData
+FROM Layer L
+JOIN Mipmap M ON M.MainId = L.LayerLayerMaskMipmap
+JOIN MipmapInfo MI ON MI.MainId = M.BaseMipmapInfo
+JOIN Offscreen O ON O.MainId = MI.Offscreen
+WHERE L.LayerLayerMaskMipmap IS NOT NULL AND L.LayerLayerMaskMipmap <> 0 AND O.BlockData IS NOT NULL;

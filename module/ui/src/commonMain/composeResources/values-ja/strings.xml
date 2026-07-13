@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  日本語の UI 文字列カタログ。英語（既定）は values/strings.xml にある。
+  書式レベルの識別子（ParamAngleX 等）は翻訳しない。
+
+  Japanese UI string catalog; English default is in values/strings.xml. Format-level identifiers stay verbatim.
+-->
+<resources>
+	<string name="app_name">Umamo</string>
+
+	<string name="workspace_modelling">モデリング</string>
+	<string name="workspace_texture">テクスチャ</string>
+	<string name="workspace_physics">物理演算</string>
+	<string name="workspace_new">新しいワークスペース</string>
+	<string name="workspace_new_name">ワークスペース</string>
+	<string name="workspace_rename">名前を変更</string>
+	<string name="workspace_duplicate">複製</string>
+	<string name="workspace_copy_suffix">コピー</string>
+	<string name="workspace_delete">削除</string>
+	<string name="cmd_workspace_prev">前のワークスペース</string>
+	<string name="cmd_workspace_next">次のワークスペース</string>
+	<string name="cmd_workspace_reset">ワークスペースをリセット</string>
+
+	<string name="space_viewport2d">2D ビューポート</string>
+	<string name="space_uv">UV エディタ</string>
+	<string name="space_outliner">アウトライナー</string>
+	<string name="space_parameters">パラメータ</string>
+	<string name="space_inspector">インスペクター</string>
+	<string name="space_tooldetails">ツール設定</string>
+	<string name="space_history">履歴</string>
+
+	<string name="area_split_left_right">左右に分割</string>
+	<string name="area_split_top_bottom">上下に分割</string>
+	<string name="area_close">エリアを閉じる</string>
+	<string name="area_change_editor">エディタの種類を変更</string>
+
+	<string name="menu_file">ファイル</string>
+	<string name="menu_open">開く…</string>
+	<string name="menu_open_recent">最近使ったファイル</string>
+	<string name="menu_save_as">名前を付けて保存…</string>
+	<string name="menu_exit">終了</string>
+
+	<string name="menu_edit">編集</string>
+	<string name="menu_undo">元に戻す</string>
+	<string name="menu_redo">やり直す</string>
+	<string name="menu_preferences">設定…</string>
+
+	<string name="menu_workspace">ワークスペース</string>
+	<string name="menu_workspace_reset">ワークスペースをリセット</string>
+	<string name="menu_workspace_export_this">このワークスペースをエクスポート…</string>
+	<string name="menu_workspace_export_all">すべてのワークスペースをエクスポート…</string>
+	<string name="menu_workspace_import">ワークスペースをインポート…</string>
+
+	<string name="dialog_confirm">確定</string>
+	<string name="dialog_cancel">キャンセル</string>
+	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
+	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
+	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
+	<string name="dialog_ok">OK</string>
+	<string name="open_failed_read">%1$s を読み込めませんでした。</string>
+	<string name="open_failed_unrecognized">%1$s は Umamo が認識できるファイル形式ではありません。</string>
+	<string name="open_failed_not_openable">%1$s はまだエディタで開けないファイル形式です。</string>
+	<string name="open_failed_parse">%1$s を開けませんでした。ファイルが破損している可能性があります。</string>
+
+	<string name="menu_help">ヘルプ</string>
+	<string name="menu_source_code">ソースコード…</string>
+	<string name="menu_web_site">ホームページ…</string>
+	<string name="menu_documentation">文献集…</string>
+	<string name="menu_credits">クレジット…</string>
+	<string name="menu_about">Umamoについて…</string>
+	<!-- ヘルプダイアログ（クレジットは同梱の CREDITS.md、バージョン情報は名称・バージョン・ライセンス・リンク）。 -->
+	<string name="about_title">Umamoについて</string>
+	<!-- %1$s はアプリケーションのバージョン。 -->
+	<string name="about_version">バージョン %1$s</string>
+	<string name="about_license">GNU 一般公衆利用許諾書 v3.0 のもとで提供されます</string>
+	<string name="credits_title">クレジットとサードパーティライセンス</string>
+	<string name="dialog_close">閉じる</string>
+
+	<string name="cmd_view_fit">ビューをフィット</string>
+	<string name="cmd_view_actual_size">等倍 (100%)</string>
+	<string name="cmd_view_zoom_in">ズームイン</string>
+	<string name="cmd_view_zoom_out">ズームアウト</string>
+	<string name="cmd_view_zoom_in_coarse">ズームイン（大）</string>
+	<string name="cmd_view_zoom_out_coarse">ズームアウト（大）</string>
+	<string name="cmd_view_zoom_region">領域をズーム</string>
+
+	<string name="cmd_select_clear">選択を解除</string>
+	<string name="cmd_select_all">すべて選択</string>
+	<string name="cmd_select_invert">選択を反転</string>
+	<string name="cmd_mode_toggle_edit">編集モード切り替え</string>
+	<string name="cmd_mode_object">オブジェクトモード</string>
+	<string name="cmd_mode_edit">編集モード</string>
+	<string name="cmd_mesh_grab">頂点を移動</string>
+	<string name="cmd_mesh_scale">頂点を拡縮</string>
+	<string name="cmd_mesh_rotate">頂点を回転</string>
+	<string name="cmd_mesh_select_mode_vertex">頂点選択モード</string>
+	<string name="cmd_mesh_select_mode_edge">辺選択モード</string>
+	<string name="cmd_mesh_select_mode_face">面選択モード</string>
+	<string name="cmd_mesh_box_select">ボックス選択</string>
+	<string name="cmd_mesh_circle_select">サークル選択</string>
+	<string name="cmd_mesh_circle_grow">ブラシ半径を拡大</string>
+	<string name="cmd_mesh_circle_shrink">ブラシ半径を縮小</string>
+	<string name="cmd_uv_mirror_u">UV を左右反転</string>
+	<string name="cmd_uv_mirror_v">UV を上下反転</string>
+
+	<string name="cmd_undo">元に戻す</string>
+	<string name="cmd_redo">やり直す</string>
+	<string name="cmd_toggle_visibility">表示の切り替え</string>
+
+	<string name="search_hint">検索</string>
+	<string name="search_clear">検索をクリア</string>
+
+	<string name="inspector_nothing_selected">選択されていません</string>
+
+	<!-- 履歴パネルの段ラベル。Change.labelKey ごとに1つ。初期状態は history_open、未対応キーは history_unknown。 -->
+	<string name="history_open">開く</string>
+	<string name="history_unknown">編集</string>
+	<string name="history_selection">選択</string>
+	<string name="history_mode">モード変更</string>
+	<string name="history_part_visibility">パーツの表示を切り替え</string>
+	<string name="history_part_rename">パーツ名を変更</string>
+	<string name="history_part_selectable">パーツの選択可否を切り替え</string>
+	<string name="history_part_move">パーツを移動</string>
+	<string name="history_drawable_visibility">メッシュの表示を切り替え</string>
+	<string name="history_drawable_rename">メッシュ名を変更</string>
+	<string name="history_drawable_selectable">メッシュの選択可否を切り替え</string>
+	<string name="history_drawable_move">メッシュを移動</string>
+	<string name="history_deformer_rename">デフォーマ名を変更</string>
+	<string name="history_deformer_selectable">デフォーマの選択可否を切り替え</string>
+	<string name="history_deformer_move">デフォーマを移動</string>
+	<string name="history_parameter_value">パラメータを調整</string>
+	<string name="history_parameter_range">パラメータの範囲を編集</string>
+	<string name="history_parameter_link">パラメータをリンク</string>
+	<string name="history_parameter_unlink">パラメータのリンクを解除</string>
+	<string name="history_parameter_move">パラメータを移動</string>
+	<string name="history_parameter_group_create">グループを作成</string>
+	<string name="history_parameter_group_delete">グループを削除</string>
+	<string name="history_parameter_group_rename">グループ名を変更</string>
+	<string name="history_parameter_create">パラメータを追加</string>
+	<string name="history_parameter_rename">パラメータ名を変更</string>
+	<string name="history_parameter_delete">パラメータを削除</string>
+	<string name="history_mesh_move">頂点を移動</string>
+	<string name="history_mesh_move_uvs">UV を移動</string>
+	<string name="history_mesh_mirror_uvs">UV を反転</string>
+	<string name="history_object_move">オブジェクトを移動</string>
+	<string name="history_mesh_select">メッシュ要素を選択</string>
+	<string name="history_mesh_select_mode">選択モード変更</string>
+	<string name="history_part_delete">パーツを削除</string>
+	<string name="history_drawable_delete">メッシュを削除</string>
+	<string name="history_deformer_delete">デフォーマを削除</string>
+
+	<string name="outliner_root">人形</string>
+	<string name="outliner_armature">アーマチュア</string>
+	<string name="outliner_filter_parts">パーツ</string>
+	<string name="outliner_filter_deformers">デフォーマ</string>
+	<string name="outliner_filter_drawables">アートメッシュ</string>
+	<string name="outliner_filters">フィルター</string>
+	<string name="outliner_restriction_toggles">制限の切り替え</string>
+	<string name="outliner_column_selectable">選択可否列</string>
+	<string name="outliner_column_visibility">表示列</string>
+	<string name="placeholder_empty">空</string>
+
+	<!-- アウトライナー行のコンテキストメニュー（右クリック）。「削除」はその項目のみ（パーツは中身を残す）、
+	     「階層を削除」はパーツのサブツリー全体を削除する。 -->
+	<string name="outliner_menu_visibility">表示の切り替え</string>
+	<string name="outliner_menu_selectable">選択可否の切り替え</string>
+	<string name="outliner_menu_rename">名前を変更</string>
+	<string name="outliner_menu_delete">削除</string>
+	<string name="outliner_menu_delete_hierarchy">階層を削除</string>
+
+	<string name="inspector_model">モデル</string>
+	<string name="inspector_parts">パーツ: %1$d</string>
+	<string name="inspector_drawables">描画オブジェクト: %1$d</string>
+	<string name="inspector_parameters">パラメータ: %1$d</string>
+	<string name="inspector_deformers">デフォーマ: %1$d</string>
+	<string name="inspector_glues">グルー: %1$d</string>
+
+	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
+	<string name="status_bind_palette">コマンドパレット</string>
+	<string name="status_bind_confirm">LMB / Enter: 確定</string>
+	<string name="status_bind_cancel">RMB / Esc: キャンセル</string>
+	<string name="status_bind_edit_mode">編集モード</string>
+	<string name="status_bind_visibility">表示切替</string>
+	<string name="status_bind_grab">移動</string>
+	<string name="status_bind_scale">拡大縮小</string>
+	<string name="status_bind_rotate">回転</string>
+	<string name="status_select_mode">選択モード</string>
+	<string name="status_mesh_vertices">頂点 %1$d/%2$d</string>
+	<string name="status_mesh_edges">辺 %1$d/%2$d</string>
+	<string name="status_mesh_faces">面 %1$d/%2$d</string>
+	<string name="status_verts">頂点: %1$d</string>
+	<string name="status_verts_selected">頂点: %1$d/%2$d</string>
+	<string name="status_tris">三角形: %1$d</string>
+	<string name="status_tris_selected">三角形: %1$d/%2$d</string>
+
+	<string name="notice_transform_only_drawables">変形できるのは描画オブジェクトのみです。パーツとデフォーマは未対応です。</string>
+	<string name="notice_transform_deformed">メッシュの変形中は変形操作できません。先にパラメータをすべてリセットしてください。</string>
+	<string name="notice_unknown">この操作は実行できません。</string>
+
+	<string name="hud_along_x">X方向</string>
+	<string name="hud_along_z">Z方向</string>
+
+	<string name="cmd_transform_pivot_pie">ピボットポイント</string>
+	<string name="cmd_transform_pivot_median">中点</string>
+	<string name="cmd_transform_pivot_individual">それぞれの原点</string>
+	<string name="cmd_transform_pivot_active">アクティブ要素</string>
+	<string name="cmd_transform_pivot_cursor">2Dカーソル</string>
+	<string name="cmd_snap_pie">スナップ</string>
+	<string name="cmd_snap_cursor_world_origin">カーソル → ワールド原点</string>
+	<string name="cmd_snap_cursor_selected">カーソル → 選択物</string>
+	<string name="cmd_snap_cursor_active">カーソル → アクティブ</string>
+	<string name="cmd_snap_cursor_grid">カーソル → グリッド</string>
+	<string name="cmd_snap_selection_grid">選択物 → グリッド</string>
+	<string name="cmd_snap_selection_cursor">選択物 → カーソル</string>
+	<string name="cmd_snap_selection_cursor_offset">選択物 → カーソル（オフセット維持）</string>
+	<string name="cmd_snap_selection_active">選択物 → アクティブ</string>
+
+	<string name="cmd_mesh_select_linked_cursor">リンク選択（カーソル下）</string>
+	<string name="cmd_mesh_select_linked">リンク選択</string>
+	<string name="cmd_view_frame_selected">選択部分を画面に収める</string>
+	<string name="cmd_switch_object_under_cursor">編集メッシュを切り替え</string>
+	<string name="cmd_outliner_select_hierarchy">階層を選択</string>
+	<string name="outliner_menu_select_hierarchy">階層を選択</string>
+
+	<string name="cmd_mesh_duplicate">複製</string>
+	<string name="cmd_mesh_merge">頂点をマージ</string>
+	<string name="cmd_mesh_merge_at_center">中心にマージ</string>
+	<string name="cmd_mesh_merge_at_first">最初の頂点にマージ</string>
+	<string name="cmd_mesh_merge_at_last">最後の頂点にマージ</string>
+	<string name="cmd_mesh_rip">リップ</string>
+	<string name="cmd_mesh_connect">頂点を連結</string>
+	<string name="cmd_mesh_vertex_slide">頂点スライド</string>
+	<string name="history_mesh_duplicate">複製</string>
+	<string name="history_mesh_merge">頂点をマージ</string>
+	<string name="history_mesh_rip">リップ</string>
+	<string name="history_mesh_connect">頂点を連結</string>
+	<string name="history_drawable_duplicate">描画オブジェクトを複製</string>
+	<string name="notice_merge_needs_vertices">マージには2つ以上の選択頂点が必要です（頂点モード）。</string>
+	<string name="notice_connect_needs_two_vertices">連結にはちょうど2つの選択頂点が必要です（頂点モード）。</string>
+	<string name="notice_connect_refused">連結できません。カットが何も横断しないか、形状が退化しています。</string>
+	<string name="notice_rip_nothing">ここではリップできません。分割できる面の扇がありません。</string>
+	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
+
+	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
+	<string name="cmd_mesh_proportional_falloff_smooth">プロポーショナル減衰: スムーズ</string>
+	<string name="cmd_mesh_proportional_falloff_sphere">プロポーショナル減衰: 球状</string>
+	<string name="cmd_mesh_proportional_falloff_root">プロポーショナル減衰: ルート</string>
+	<string name="cmd_mesh_proportional_falloff_sharp">プロポーショナル減衰: シャープ</string>
+	<string name="cmd_mesh_proportional_falloff_linear">プロポーショナル減衰: リニア</string>
+	<string name="cmd_mesh_proportional_falloff_constant">プロポーショナル減衰: 一定</string>
+	<string name="falloff_smooth">スムーズ</string>
+	<string name="falloff_sphere">球状</string>
+	<string name="falloff_root">ルート</string>
+	<string name="falloff_sharp">シャープ</string>
+	<string name="falloff_linear">リニア</string>
+	<string name="falloff_constant">一定</string>
+	<string name="hud_proportional">プロポーショナル %1$s · %2$d</string>
+	<string name="notice_proportional_on">プロポーショナル編集: オン</string>
+	<string name="notice_proportional_off">プロポーショナル編集: オフ</string>
+	<string name="header_proportional_falloff">プロポーショナル減衰</string>
+	<string name="cmd_mesh_proportional_connected">プロポーショナル編集の「接続のみ」を切り替え</string>
+	<string name="hud_connected">接続のみ</string>
+	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
+	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
+
+	<string name="pie_title_pivot">ピボットポイント</string>
+	<string name="pie_title_snap">スナップ</string>
+	<string name="pie_title_merge">マージ</string>
+
+	<string name="cmd_view_toggle_toolbar">ツールバーの切り替え</string>
+	<string name="cmd_view_toggle_sidebar">サイドバーの切り替え</string>
+	<string name="sidebar_title">サイドバー</string>
+	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
+
+	<string name="inspector_part">パーツ</string>
+	<string name="inspector_drawable">描画オブジェクト</string>
+	<string name="inspector_deformer">デフォーマ</string>
+	<string name="inspector_name">名前: %1$s</string>
+	<string name="inspector_id">ID: %1$s</string>
+	<string name="inspector_visible">表示: %1$s</string>
+	<string name="inspector_sketch">ガイド画像: %1$s</string>
+	<string name="inspector_child_count">子: %1$d</string>
+	<string name="inspector_part_ref">パーツ: %1$s</string>
+	<string name="inspector_parent_deformer">親デフォーマ: %1$s</string>
+	<string name="inspector_blend_mode">合成: %1$s</string>
+	<string name="inspector_mask_count">マスク: %1$d</string>
+	<string name="inspector_invert_mask">マスク反転: %1$s</string>
+	<string name="inspector_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
+	<string name="inspector_no_mesh">メッシュなし</string>
+	<string name="inspector_deformer_kind">種類: %1$s</string>
+	<string name="inspector_deformer_warp">ワープ</string>
+	<string name="inspector_deformer_rotation">回転</string>
+	<string name="inspector_warp_grid">格子: %1$d × %2$d</string>
+	<string name="inspector_quad_transform">四角形補間: %1$s</string>
+	<string name="inspector_base_angle">基準角度: %1$s</string>
+	<string name="inspector_none">—</string>
+	<string name="inspector_yes">はい</string>
+	<string name="inspector_no">いいえ</string>
+	<string name="inspector_multi_selected">%1$d 個選択</string>
+	<string name="inspector_multi_breakdown">パーツ: %1$d   描画: %2$d   デフォーマ: %3$d</string>
+
+	<string name="parameter_reset">既定値にリセット</string>
+	<string name="parameter_reset_all">すべて既定値に</string>
+	<string name="parameter_range_section">範囲</string>
+	<string name="parameter_link">下のパラメータとリンク</string>
+	<string name="parameter_unlink">リンクを解除して2つのスライダーに戻す</string>
+	<string name="parameter_reorder_handle">ドラッグして並べ替え</string>
+	<string name="parameter_new_group">新規グループ</string>
+	<string name="parameter_group_default_name">新規グループ</string>
+	<string name="parameter_menu_rename">名前を変更</string>
+	<string name="parameter_menu_delete_group">グループを削除</string>
+	<string name="parameter_menu_add">パラメータを追加</string>
+	<string name="parameter_menu_delete">パラメータを削除</string>
+	<string name="parameter_default_name">新規パラメータ</string>
+	<string name="parameter_filter_selected">選択オブジェクトのパラメータのみ</string>
+	<string name="parameter_range_min">最小</string>
+	<string name="parameter_range_default">既定</string>
+	<string name="parameter_range_max">最大</string>
+
+	<!-- 設定ウィンドウ。edit.preferences コマンド（編集メニュー / Ctrl+, / パレット）で開く。 -->
+	<string name="cmd_preferences">設定</string>
+	<string name="settings_title">設定</string>
+	<string name="settings_close">設定を閉じる</string>
+	<string name="settings_category_interface">インターフェース</string>
+	<string name="settings_category_colors">カラー</string>
+	<string name="settings_category_viewport">ビューポート</string>
+	<string name="settings_category_keybindings">キーバインド</string>
+	<string name="settings_category_pen">ペン</string>
+	<!-- 言語名は自言語表記でそのまま表示するため、文字列リソースにはしない。 -->
+	<string name="settings_interface_theme">テーマ</string>
+	<string name="settings_theme_dark">ダーク</string>
+	<string name="settings_theme_light">ライト</string>
+	<string name="settings_theme_system">システム</string>
+	<string name="settings_interface_language">言語</string>
+	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
+	<string name="settings_keybindings_preset">プリセット</string>
+	<string name="settings_keymap_preset_default">デフォルト</string>
+	<string name="settings_keymap_preset_cubism">Cubism</string>
+	<string name="settings_keymap_preset_blender">Blender</string>
+	<string name="settings_keybindings_reset">プリセットに戻す</string>
+	<string name="settings_keybindings_press_shortcut">ショートカットを押してください…</string>
+	<string name="settings_keybindings_unbound">未割り当て</string>
+	<string name="settings_keybindings_clear">ショートカットを解除</string>
+	<!-- %1$s はショートカット、%2$s は既に割り当てられているコマンド。 -->
+	<string name="settings_keybindings_conflict">%1$s は既に「%2$s」に割り当てられています。再割り当てしますか？</string>
+	<string name="settings_keybindings_reassign">再割り当て</string>
+	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
+	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
+	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
+	<string name="settings_viewport_zoom_step">ズーム刻み (%)</string>
+	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>
+	<string name="settings_viewport_grid_scale">グリッド間隔（既定）</string>
+	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
+	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
+	<string name="settings_colors_viewport">ビューポート</string>
+	<string name="settings_colors_selection_highlight">選択ハイライト</string>
+	<string name="settings_colors_mesh_edit">メッシュ編集</string>
+	<string name="settings_colors_group_vertex">頂点</string>
+	<string name="settings_colors_group_edge">辺</string>
+	<string name="settings_colors_group_face">面</string>
+	<string name="settings_colors_role_idle">通常</string>
+	<string name="settings_colors_role_selected">選択中</string>
+	<string name="settings_colors_role_active">アクティブ</string>
+	<string name="settings_colors_role_offkey">キー外</string>
+</resources>

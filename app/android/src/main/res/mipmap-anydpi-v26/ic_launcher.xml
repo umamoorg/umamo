@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive launcher icon (API 26+; minSdk is 26, so this covers every target device).  The OS
+     masks the two layers to the device shape (circle/squircle/rounded square).  Background is the
+     solid backdrop color; foreground is the mascot rendered into the central safe zone.  The legacy
+     mipmap-*/ic_launcher.png bitmaps remain only as a fallback for contexts that request a raw icon. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+	<background android:drawable="@color/ic_launcher_background" />
+	<foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

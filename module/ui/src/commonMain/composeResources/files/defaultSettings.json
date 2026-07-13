@@ -1,0 +1,50 @@
+{
+	"localization": {
+		"locale": "en"
+	},
+	"input": {
+		"keybinding": {
+			"preset": "default",
+			"overrides": {}
+		},
+		"pen": {
+			"backend": "auto"
+		}
+	},
+	"interface": {
+		"theme": "dark",
+		"layout": {
+			"workspaces": []
+		},
+		"viewport": {
+			"showToolbar": true,
+			"showSidebar": false
+		}
+	},
+	"viewport": {
+		"zoomStepPercent": 1.0,
+		"zoomStepCoarsePercent": 5.0,
+		"selectionHighlightColor": "#338CFF",
+		"grid": {
+			"scale": 100.0,
+			"subdivisions": 10
+		},
+		"meshEdit": {
+			"vertexIdle": "#FFFF00EC",
+			"vertexSelected": "#FFFF7A00",
+			"vertexActive": "#FF7DE400",
+			"vertexOffKey": "#66888888",
+			"edgeIdle": "#99000000",
+			"edgeSelected": "#FFFF7A00",
+			"edgeActive": "#FF7DE400",
+			"edgeOffKey": "#44888888",
+			"faceIdle": "#22000000",
+			"faceSelected": "#66FF7A00",
+			"faceActive": "#FF7DE400",
+			"faceOffKey": "#44888888"
+		}
+	},
+	"app": {
+		"launchCount": 0
+	}
+}

@@ -1,0 +1,45 @@
+# EditorConfig — shared formatting rules across editors AND ktlint (which reads this file).
+# CLAUDE.md mandates TAB indentation, overriding Kotlin's space default.
+# 全エディタと ktlint 共通の整形ルール。CLAUDE.md の規定によりタブインデント。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+
+[*.{kt,kts}]
+indent_style = tab
+# Tell ktlint to use the official ruleset but honour tab indentation above.
+ktlint_code_style = ktlint_official
+# Bilingual EN/JA comments push some lines long; relax the line-length rule rather than
+# fight it (CLAUDE.md cares about *why*-comments, not column counts).
+ktlint_standard_max-line-length = disabled
+# Allow single-line call chains like `libs.versions.x.get().toInt()` (ubiquitous in Gradle
+# Kotlin DSL + version-catalog access); the forced-newline form hurts more than it helps.
+ktlint_standard_chain-method-continuation = disabled
+# Same reasoning for constructor and function signatures: these wrapping rules key off
+# max-line-length (disabled above), so with it off they over-wrap. Authors choose single- vs
+# multi-line by readability. The valuable structural rules (imports, spacing, trailing commas,
+# naming, no-wildcard-imports) remain enforced.
+ktlint_standard_class-signature = disabled
+ktlint_standard_function-signature = disabled
+# @Composable functions are PascalCase by Compose convention; exempt them from the
+# lowerCamelCase function-naming rule (the rule still applies to ordinary functions).
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# Compose Resources generates ONE top-level extension property per UI string (Res.string.menu_file,
+# …) in org.umamo.ui.resources, a set that grows unbounded with the catalog. Allow an on-demand
+# (wildcard) import for that single generated package so consumers write `import …resources.*`
+# instead of one line per string; no-wildcard-imports stays strict for every other package. This is
+# the precise form of the gen/ subtree's blanket disable — exempt the generated package, not the file.
+# EN: wildcard allowed only for the generated resources package. JA: 生成リソースパッケージのみ一括インポート許可。
+ij_kotlin_packages_to_use_import_on_demand = org.umamo.ui.resources.**
+
+[*.{yml,yaml,json,toml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false

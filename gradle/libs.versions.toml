@@ -1,0 +1,91 @@
+# Version catalog — single source of truth for dependency + plugin versions.
+# バージョンカタログ：依存とプラグインのバージョンを一元管理する。
+# Why: Gradle's typed `libs.*` accessors beat scattered string versions in each
+# build script — one place to bump, compile-checked references.
+[versions]
+kotlin = "2.4.0"
+agp = "9.2.1"
+composeMultiplatform = "1.11.1"
+ktlint = "14.2.0"
+lwjgl = "3.4.1"
+androidxActivity = "1.13.0"
+# JDOM 1.x (package org.jdom) — the exact XML library the Cubism editor uses. Pinned to 1.1.x
+# so XMLOutputter + Format.getPrettyFormat() reproduce main.xml byte-for-byte; JDOM2 (org.jdom2)
+# would re-order/re-format and break the round-trip. See docs/formats/CMO3.md §3.
+jdom = "1.1.3"
+kotlinxSerialization = "1.11.0"
+# okio — the de-facto multiplatform filesystem (Kotlin stdlib has no common File). Backs :storage's
+# file IO on desktop + Android with one API, and FakeFileSystem makes :settings testable with no disk.
+okio = "3.16.2"
+# kotlinx-coroutines — for :settings' change-event SharedFlow (the reactive spine the UI/History want).
+kotlinxCoroutines = "1.10.2"
+# FileKit — multiplatform native file pickers (desktop + Android one API). Replaces the AWT FileDialog
+# in :storage so the picker is OS-native everywhere and Android SAF comes for free. See module/storage.
+filekit = "0.14.2"
+# JNA — desktop-only FFI for small Win32 calls (e.g. the DWM title-bar tint via dwmapi.dll). Already on
+# the desktop runtime classpath transitively (FileKit's native dialogs use it); pinned to FileKit's
+# version and declared explicitly so :desktop can compile against it without a resolution bump.
+jna = "5.19.1"
+# SQLDelight — typed access to the embedded SQLite layer table in a .clip file.
+sqldelight = "2.3.2"
+
+# Android SDK levels (referenced from each android target).
+android-compileSdk = "36"
+android-minSdk = "26"
+android-targetSdk = "36"
+
+[libraries]
+# --- LWJGL (desktop GPU): managed via the BOM so module versions stay aligned. ---
+lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
+lwjgl-core = { module = "org.lwjgl:lwjgl" }
+lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
+# GLFW: a hidden-window GL context — the desktop app's offscreen viewport renderer and the
+# :render GPU-vs-CPU transform-feedback test both create their contexts through it.
+lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
+
+# AndroidX Activity + Compose interop: provides ComponentActivity.setContent { } for the
+# Android app entrypoint (not covered by the Compose MP `compose.*` accessors).
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
+
+# Compose Multiplatform artifacts as direct coordinates. The `compose.*` Gradle-plugin aliases
+# (compose.runtime, compose.ui, …) were deprecated in CMP 1.10/1.11 — the warning literally says
+# "Specify dependency directly". These org.jetbrains.compose artifacts still carry Gradle module
+# metadata that redirects to androidx.compose.* on the Android target, so per-target resolution is
+# unchanged; only the alias DSL went away. Kebab names map to nested accessors, so the call sites
+# read identically: `libs.compose.runtime`, `libs.compose.components.resources`, etc.
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
+
+# JDOM 1.x — main.xml read/write for the CMO3 serializer (jvmAndroidMain; works on Android via JAXP).
+jdom = { module = "org.jdom:jdom", version.ref = "jdom" }
+kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+# okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.
+okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
+kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+# FileKit dialogs — open/save pickers (FileKit.openFilePicker/openFileSaver) plus the PlatformFile type
+# the FilePicker contract returns. Pulls filekit-core transitively; multiplatform (jvm + android).
+filekitDialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }
+# JNA — small Win32 FFI from :desktop (DWM caption-color tinting). See the version note above.
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+# SQLDelight SQLite drivers: JVM JdbcSqliteDriver
+sqldelightSqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
+sqldelightAndroidDriver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+
+[plugins]
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+# Since Kotlin 2.0 the Compose compiler ships as a Kotlin Gradle plugin, version-locked
+# to Kotlin itself (replaces the old standalone composeCompiler version matrix).
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+# Modern KMP-aware Android library plugin (declare `android {}` inside `kotlin {}`),
+# the AGP-recommended replacement for `com.android.library` + manual androidTarget().
+androidKmpLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# SQLDelight code-gen plugin — generates the typed CLIP database from module/format .sq files.
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }

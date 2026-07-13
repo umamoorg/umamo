@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backdrop color for the adaptive launcher icon's background layer.  Keep in sync with the
+     `background` variable in docs/design/appicon/generate.sh (which bakes the same backdrop into the
+     opaque desktop/window/legacy bitmaps) so a re-skin changes every surface together. -->
+<resources>
+	<color name="ic_launcher_background">#FFFFFFFF</color>
+</resources>

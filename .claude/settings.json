@@ -1,0 +1,15 @@
+{
+	"hooks": {
+		"PreToolUse": [
+			{
+				"matcher": "Read|Write|Edit|Bash|NotebookEdit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-mnt.sh"
+					}
+				]
+			}
+		]
+	}
+}

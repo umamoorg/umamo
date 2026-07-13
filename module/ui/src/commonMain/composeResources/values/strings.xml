@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
+  generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
+  are NEVER localized — they are document/interop data, not chrome. The Japanese catalog lives at
+  values-ja/strings.xml.
+
+  英語（既定）の UI 文字列。書式レベルの識別子（ParamAngleX 等）は翻訳しない。日本語は values-ja/ に置く。
+-->
+<resources>
+	<string name="app_name">Umamo</string>
+
+	<!-- Workspaces (top-level tabs). -->
+	<string name="workspace_modelling">Modelling</string>
+	<string name="workspace_texture">Texture</string>
+	<string name="workspace_physics">Physics</string>
+	<!-- Workspace tab actions (the + button and the tab context menu). -->
+	<string name="workspace_new">New Workspace</string>
+	<string name="workspace_new_name">Workspace</string>
+	<string name="workspace_rename">Rename</string>
+	<string name="workspace_duplicate">Duplicate</string>
+	<string name="workspace_copy_suffix">copy</string>
+	<string name="workspace_delete">Delete</string>
+	<!-- Workspace navigation commands (action registry; palette + tab context menu). -->
+	<string name="cmd_workspace_prev">Previous Workspace</string>
+	<string name="cmd_workspace_next">Next Workspace</string>
+	<!-- Workspace management command (action registry; palette + the Workspace menu). -->
+	<string name="cmd_workspace_reset">Reset Workspace</string>
+
+	<!-- Editor space titles (the area header dropdown). -->
+	<string name="space_viewport2d">2D Viewport</string>
+	<string name="space_uv">UV Editor</string>
+	<string name="space_outliner">Outliner</string>
+	<string name="space_parameters">Parameters</string>
+	<string name="space_inspector">Inspector</string>
+	<string name="space_tooldetails">Tool Settings</string>
+	<string name="space_history">History</string>
+
+	<!-- Area header actions. Labelled by the visual result, not Blender's split nomenclature. -->
+	<string name="area_split_left_right">Split Left/Right</string>
+	<string name="area_split_top_bottom">Split Top/Bottom</string>
+	<string name="area_close">Close Area</string>
+	<string name="area_change_editor">Change Editor Type</string>
+
+	<!-- File menu. -->
+	<string name="menu_file">File</string>
+	<string name="menu_open">Open…</string>
+	<string name="menu_open_recent">Open Recent</string>
+	<string name="menu_save_as">Save As…</string>
+	<string name="menu_exit">Exit</string>
+
+	<!-- Edit menu. -->
+	<string name="menu_edit">Edit</string>
+	<string name="menu_undo">Undo</string>
+	<string name="menu_redo">Redo</string>
+	<string name="menu_preferences">Settings…</string>
+
+	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
+	<string name="menu_workspace">Workspace</string>
+	<string name="menu_workspace_reset">Reset Workspace</string>
+	<string name="menu_workspace_export_this">Export This Workspace…</string>
+	<string name="menu_workspace_export_all">Export All Workspaces…</string>
+	<string name="menu_workspace_import">Import Workspace…</string>
+
+	<!-- Dialogs (the reusable confirm dialog: actions + destructive-operation prompts). -->
+	<string name="dialog_confirm">Confirm</string>
+	<string name="dialog_cancel">Cancel</string>
+	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
+	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
+	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
+	<string name="dialog_ok">OK</string>
+	<string name="open_failed_read">Could not read %1$s.</string>
+	<string name="open_failed_unrecognized">%1$s is not a file format Umamo recognizes.</string>
+	<string name="open_failed_not_openable">%1$s cannot be opened in the editor yet.</string>
+	<string name="open_failed_parse">Could not open %1$s. The file may be damaged.</string>
+
+	<!-- Help menu. -->
+	<string name="menu_help">Help</string>
+	<string name="menu_source_code">Source Code…</string>
+	<string name="menu_web_site">Web Site…</string>
+	<string name="menu_documentation">Documentation…</string>
+	<string name="menu_credits">Credits…</string>
+	<string name="menu_about">About Umamo…</string>
+	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
+	<string name="about_title">About Umamo</string>
+	<!-- %1$s is the application version. -->
+	<string name="about_version">Version %1$s</string>
+	<string name="about_license">Licensed under the GNU General Public License v3.0</string>
+	<string name="credits_title">Credits &amp; Third-Party Licenses</string>
+	<string name="dialog_close">Close</string>
+
+	<!-- View commands (action registry; shown in the palette / a future View menu). -->
+	<string name="cmd_view_fit">Fit View</string>
+	<string name="cmd_view_actual_size">Actual Size (100%)</string>
+	<string name="cmd_view_zoom_in">Zoom In</string>
+	<string name="cmd_view_zoom_out">Zoom Out</string>
+	<string name="cmd_view_zoom_in_coarse">Zoom In (Large Step)</string>
+	<string name="cmd_view_zoom_out_coarse">Zoom Out (Large Step)</string>
+	<string name="cmd_view_zoom_region">Zoom Region</string>
+
+	<!-- Selection and editor-mode commands (action registry; palette / shortcuts). -->
+	<string name="cmd_select_clear">Clear Selection</string>
+	<string name="cmd_select_all">Select All</string>
+	<string name="cmd_select_invert">Invert Selection</string>
+	<string name="cmd_mode_toggle_edit">Toggle Edit Mode</string>
+	<string name="cmd_mode_object">Object Mode</string>
+	<string name="cmd_mode_edit">Edit Mode</string>
+	<string name="cmd_mesh_grab">Grab Vertices</string>
+	<string name="cmd_mesh_scale">Scale Vertices</string>
+	<string name="cmd_mesh_rotate">Rotate Vertices</string>
+	<string name="cmd_mesh_select_mode_vertex">Vertex Select Mode</string>
+	<string name="cmd_mesh_select_mode_edge">Edge Select Mode</string>
+	<string name="cmd_mesh_select_mode_face">Face Select Mode</string>
+	<string name="cmd_mesh_box_select">Box Select</string>
+	<string name="cmd_mesh_circle_select">Circle Select</string>
+	<string name="cmd_mesh_circle_grow">Grow Circle Radius</string>
+	<string name="cmd_mesh_circle_shrink">Shrink Circle Radius</string>
+	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
+	<string name="cmd_uv_mirror_v">Mirror UVs Vertically</string>
+
+	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
+	<string name="cmd_undo">Undo</string>
+	<string name="cmd_redo">Redo</string>
+	<string name="cmd_toggle_visibility">Toggle Visibility</string>
+
+	<!-- Command palette. -->
+	<string name="search_hint">Search</string>
+	<string name="search_clear">Clear search</string>
+
+	<!-- Space content placeholders / empty states. -->
+	<string name="inspector_nothing_selected">Nothing selected</string>
+
+	<!--
+	  History panel step labels. One per Change.labelKey (the stable key carried by every edit); the seed
+	  (initial open) row uses history_open and an unmapped key falls back to history_unknown. These name
+	  the editing action, not the affected object's name (that is document data, shown in the tree).
+	-->
+	<string name="history_open">Open</string>
+	<string name="history_unknown">Edit</string>
+	<string name="history_selection">Select</string>
+	<string name="history_mode">Change Mode</string>
+	<string name="history_part_visibility">Toggle Part Visibility</string>
+	<string name="history_part_rename">Rename Part</string>
+	<string name="history_part_selectable">Toggle Part Selectability</string>
+	<string name="history_part_move">Move Part</string>
+	<string name="history_drawable_visibility">Toggle Mesh Visibility</string>
+	<string name="history_drawable_rename">Rename Mesh</string>
+	<string name="history_drawable_selectable">Toggle Mesh Selectability</string>
+	<string name="history_drawable_move">Move Mesh</string>
+	<string name="history_deformer_rename">Rename Deformer</string>
+	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
+	<string name="history_deformer_move">Move Deformer</string>
+	<string name="history_parameter_value">Adjust Parameter</string>
+	<string name="history_parameter_range">Edit Parameter Range</string>
+	<string name="history_parameter_link">Link Parameters</string>
+	<string name="history_parameter_unlink">Unlink Parameters</string>
+	<string name="history_parameter_move">Move Parameter</string>
+	<string name="history_parameter_group_create">Create Group</string>
+	<string name="history_parameter_group_delete">Delete Group</string>
+	<string name="history_parameter_group_rename">Rename Group</string>
+	<string name="history_parameter_create">Add Parameter</string>
+	<string name="history_parameter_rename">Rename Parameter</string>
+	<string name="history_parameter_delete">Delete Parameter</string>
+	<string name="history_mesh_move">Move Vertices</string>
+	<string name="history_mesh_move_uvs">Move UVs</string>
+	<string name="history_mesh_mirror_uvs">Mirror UVs</string>
+	<string name="history_object_move">Move Objects</string>
+	<string name="history_mesh_select">Select Elements</string>
+	<string name="history_mesh_select_mode">Change Select Mode</string>
+	<string name="history_part_delete">Delete Part</string>
+	<string name="history_drawable_delete">Delete Mesh</string>
+	<string name="history_deformer_delete">Delete Deformer</string>
+
+	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature data naming. -->
+	<string name="outliner_root">Puppet</string>
+	<string name="outliner_armature">Armature</string>
+	<string name="outliner_filter_parts">Parts</string>
+	<string name="outliner_filter_deformers">Deformers</string>
+	<string name="outliner_filter_drawables">Art Meshes</string>
+	<string name="outliner_filters">Filters</string>
+	<string name="outliner_restriction_toggles">Restriction Toggles</string>
+	<string name="outliner_column_selectable">Selectable Column</string>
+	<string name="outliner_column_visibility">Visibility Column</string>
+	<string name="placeholder_empty">Empty</string>
+
+	<!-- Outliner row context menu (right-click). "Delete" removes the item itself (a part keeps its
+	     contents); "Delete Hierarchy" removes a part's whole subtree. -->
+	<string name="outliner_menu_visibility">Toggle Visibility</string>
+	<string name="outliner_menu_selectable">Toggle Selectability</string>
+	<string name="outliner_menu_rename">Rename</string>
+	<string name="outliner_menu_delete">Delete</string>
+	<string name="outliner_menu_delete_hierarchy">Delete Hierarchy</string>
+
+	<!-- Inspector model summary (a basic read-only view until per-entity selection lands). -->
+	<string name="inspector_model">Model</string>
+	<string name="inspector_parts">Parts: %1$d</string>
+	<string name="inspector_drawables">Drawables: %1$d</string>
+	<string name="inspector_parameters">Parameters: %1$d</string>
+	<string name="inspector_deformers">Deformers: %1$d</string>
+	<string name="inspector_glues">Glues: %1$d</string>
+
+	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
+	<string name="status_bind_palette">Command Palette</string>
+	<string name="status_bind_confirm">LMB / Enter: Confirm</string>
+	<string name="status_bind_cancel">RMB / Esc: Cancel</string>
+	<string name="status_bind_edit_mode">Edit Mode</string>
+	<string name="status_bind_visibility">Visibility</string>
+	<string name="status_bind_grab">Grab</string>
+	<string name="status_bind_scale">Scale</string>
+	<string name="status_bind_rotate">Rotate</string>
+	<string name="status_select_mode">Select Mode</string>
+	<string name="status_mesh_vertices">%1$d/%2$d vertices</string>
+	<string name="status_mesh_edges">%1$d/%2$d edges</string>
+	<string name="status_mesh_faces">%1$d/%2$d faces</string>
+	<string name="status_verts">Verts: %1$d</string>
+	<string name="status_verts_selected">Verts: %1$d/%2$d</string>
+	<string name="status_tris">Tris: %1$d</string>
+	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
+
+	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
+	<string name="notice_transform_only_drawables">Only drawables can be transformed - parts and deformers are not yet supported.</string>
+	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
+	<string name="notice_unknown">Action unavailable.</string>
+
+	<!-- Viewport HUD: the modal-operator status badge. -->
+	<string name="hud_along_x">Along X</string>
+	<string name="hud_along_z">Along Z</string>
+
+	<!-- Transform pivot modes (the Period pie) and the Shift+S snap operations. -->
+	<string name="cmd_transform_pivot_pie">Pivot Point</string>
+	<string name="cmd_transform_pivot_median">Median Point</string>
+	<string name="cmd_transform_pivot_individual">Individual Origins</string>
+	<string name="cmd_transform_pivot_active">Active Element</string>
+	<string name="cmd_transform_pivot_cursor">2D Cursor</string>
+	<string name="cmd_snap_pie">Snap</string>
+	<string name="cmd_snap_cursor_world_origin">Cursor to World Origin</string>
+	<string name="cmd_snap_cursor_selected">Cursor to Selected</string>
+	<string name="cmd_snap_cursor_active">Cursor to Active</string>
+	<string name="cmd_snap_cursor_grid">Cursor to Grid</string>
+	<string name="cmd_snap_selection_grid">Selection to Grid</string>
+	<string name="cmd_snap_selection_cursor">Selection to Cursor</string>
+	<string name="cmd_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
+	<string name="cmd_snap_selection_active">Selection to Active</string>
+
+	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select Hierarchy. -->
+	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
+	<string name="cmd_mesh_select_linked">Select Linked</string>
+	<string name="cmd_view_frame_selected">Frame Selected</string>
+	<string name="cmd_switch_object_under_cursor">Switch Edited Mesh</string>
+	<string name="cmd_outliner_select_hierarchy">Select Hierarchy</string>
+	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
+
+	<!-- Topology operators (Shift+D / M / V / J), their history labels, and their refusal notices. -->
+	<string name="cmd_mesh_duplicate">Duplicate</string>
+	<string name="cmd_mesh_merge">Merge Vertices</string>
+	<string name="cmd_mesh_merge_at_center">Merge at Center</string>
+	<string name="cmd_mesh_merge_at_first">Merge at First</string>
+	<string name="cmd_mesh_merge_at_last">Merge at Last</string>
+	<string name="cmd_mesh_rip">Rip</string>
+	<string name="cmd_mesh_connect">Connect Vertices</string>
+	<string name="cmd_mesh_vertex_slide">Vertex Slide</string>
+	<string name="history_mesh_duplicate">Duplicate</string>
+	<string name="history_mesh_merge">Merge Vertices</string>
+	<string name="history_mesh_rip">Rip</string>
+	<string name="history_mesh_connect">Connect Vertices</string>
+	<string name="history_drawable_duplicate">Duplicate Drawable</string>
+	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
+	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
+	<string name="notice_connect_refused">Can't connect - the cut crosses nothing, or the geometry is degenerate.</string>
+	<string name="notice_rip_nothing">Nothing to rip here - the selection has no fan to split.</string>
+	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
+
+	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
+	<string name="cmd_mesh_proportional_toggle">Toggle Proportional Editing</string>
+	<string name="cmd_mesh_proportional_falloff_smooth">Proportional Falloff: Smooth</string>
+	<string name="cmd_mesh_proportional_falloff_sphere">Proportional Falloff: Sphere</string>
+	<string name="cmd_mesh_proportional_falloff_root">Proportional Falloff: Root</string>
+	<string name="cmd_mesh_proportional_falloff_sharp">Proportional Falloff: Sharp</string>
+	<string name="cmd_mesh_proportional_falloff_linear">Proportional Falloff: Linear</string>
+	<string name="cmd_mesh_proportional_falloff_constant">Proportional Falloff: Constant</string>
+	<string name="falloff_smooth">Smooth</string>
+	<string name="falloff_sphere">Sphere</string>
+	<string name="falloff_root">Root</string>
+	<string name="falloff_sharp">Sharp</string>
+	<string name="falloff_linear">Linear</string>
+	<string name="falloff_constant">Constant</string>
+	<!-- %1$s is the falloff name, %2$d the influence radius in world units. -->
+	<string name="hud_proportional">Proportional %1$s · %2$d</string>
+	<string name="notice_proportional_on">Proportional editing on.</string>
+	<string name="notice_proportional_off">Proportional editing off.</string>
+	<string name="header_proportional_falloff">Proportional Falloff</string>
+	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
+	<string name="hud_connected">Connected</string>
+	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
+	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
+
+	<!-- Pie menu centre titles (the pie's name, Blender-style). -->
+	<string name="pie_title_pivot">Pivot Point</string>
+	<string name="pie_title_snap">Snap</string>
+	<string name="pie_title_merge">Merge</string>
+
+	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
+	<string name="cmd_view_toggle_toolbar">Toggle Toolbar</string>
+	<string name="cmd_view_toggle_sidebar">Toggle Sidebar</string>
+	<string name="sidebar_title">Sidebar</string>
+	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
+
+	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
+	<string name="inspector_part">Part</string>
+	<string name="inspector_drawable">Drawable</string>
+	<string name="inspector_deformer">Deformer</string>
+	<string name="inspector_name">Name: %1$s</string>
+	<string name="inspector_id">ID: %1$s</string>
+	<string name="inspector_visible">Visible: %1$s</string>
+	<string name="inspector_sketch">Guide image: %1$s</string>
+	<string name="inspector_child_count">Children: %1$d</string>
+	<string name="inspector_part_ref">Part: %1$s</string>
+	<string name="inspector_parent_deformer">Parent deformer: %1$s</string>
+	<string name="inspector_blend_mode">Blend: %1$s</string>
+	<string name="inspector_mask_count">Masks: %1$d</string>
+	<string name="inspector_invert_mask">Invert mask: %1$s</string>
+	<string name="inspector_mesh">Mesh: %1$d verts, %2$d tris</string>
+	<string name="inspector_no_mesh">No mesh</string>
+	<string name="inspector_deformer_kind">Type: %1$s</string>
+	<string name="inspector_deformer_warp">Warp</string>
+	<string name="inspector_deformer_rotation">Rotation</string>
+	<string name="inspector_warp_grid">Grid: %1$d × %2$d</string>
+	<string name="inspector_quad_transform">Quad interpolation: %1$s</string>
+	<string name="inspector_base_angle">Base angle: %1$s</string>
+	<string name="inspector_none">—</string>
+	<string name="inspector_yes">Yes</string>
+	<string name="inspector_no">No</string>
+	<string name="inspector_multi_selected">%1$d selected</string>
+	<string name="inspector_multi_breakdown">Parts: %1$d   Drawables: %2$d   Deformers: %3$d</string>
+
+	<!-- Parameters panel actions (reset a parameter / the whole rig to its default pose). -->
+	<string name="parameter_reset">Reset to default</string>
+	<string name="parameter_reset_all">Reset All</string>
+	<string name="parameter_range_section">Range</string>
+	<string name="parameter_link">Link with the parameter below</string>
+	<string name="parameter_unlink">Unlink into two sliders</string>
+	<string name="parameter_reorder_handle">Drag to reorder</string>
+	<string name="parameter_new_group">New Group</string>
+	<string name="parameter_group_default_name">New Group</string>
+	<string name="parameter_menu_rename">Rename</string>
+	<string name="parameter_menu_delete_group">Delete Group</string>
+	<string name="parameter_menu_add">Add Parameter</string>
+	<string name="parameter_menu_delete">Delete Parameter</string>
+	<string name="parameter_default_name">New Parameter</string>
+	<string name="parameter_filter_selected">Only the selected object's parameters</string>
+	<string name="parameter_range_min">Min</string>
+	<string name="parameter_range_default">Default</string>
+	<string name="parameter_range_max">Max</string>
+
+	<!-- Settings window. Opened by the edit.preferences command (Edit menu / Ctrl+, / palette). -->
+	<string name="cmd_preferences">Settings</string>
+	<string name="settings_title">Settings</string>
+	<string name="settings_close">Close settings</string>
+	<!-- Settings categories (the left rail). -->
+	<string name="settings_category_interface">Interface</string>
+	<string name="settings_category_colors">Colors</string>
+	<string name="settings_category_viewport">Viewport</string>
+	<string name="settings_category_keybindings">Keybindings</string>
+	<string name="settings_category_pen">Pen</string>
+	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string resources. -->
+	<string name="settings_interface_theme">Theme</string>
+	<string name="settings_theme_dark">Dark</string>
+	<string name="settings_theme_light">Light</string>
+	<string name="settings_theme_system">System</string>
+	<string name="settings_interface_language">Language</string>
+	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
+	<string name="settings_keybindings_preset">Preset</string>
+	<string name="settings_keymap_preset_default">Default</string>
+	<string name="settings_keymap_preset_cubism">Cubism</string>
+	<string name="settings_keymap_preset_blender">Blender</string>
+	<string name="settings_keybindings_reset">Reset to preset</string>
+	<string name="settings_keybindings_press_shortcut">Press a shortcut…</string>
+	<string name="settings_keybindings_unbound">Unbound</string>
+	<string name="settings_keybindings_clear">Clear shortcut</string>
+	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
+	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
+	<string name="settings_keybindings_reassign">Reassign</string>
+	<!-- Placeholder section (the real editor lands with the pen backend). -->
+	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
+	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
+	<string name="settings_viewport_zoom_step">Zoom Step (%)</string>
+	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>
+	<string name="settings_viewport_grid_scale">Grid Scale</string>
+	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
+	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette
+	     (viewport.meshEdit.*), grouped element × state. -->
+	<string name="settings_colors_viewport">Viewport</string>
+	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_mesh_edit">Mesh Editing</string>
+	<string name="settings_colors_group_vertex">Vertex</string>
+	<string name="settings_colors_group_edge">Edge</string>
+	<string name="settings_colors_group_face">Face</string>
+	<string name="settings_colors_role_idle">Idle</string>
+	<string name="settings_colors_role_selected">Selected</string>
+	<string name="settings_colors_role_active">Active</string>
+	<string name="settings_colors_role_offkey">Off-key</string>
+</resources>
