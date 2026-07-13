@@ -30,7 +30,7 @@ This spec describes the on-disk format only; it was derived empirically and vali
 ### Byte layout
 
 ```
-offset  size  field                     notes
+Offset  Size  Field                     Notes
 ------  ----  ------------------------  ------------------------------------------
 HEADER (not obfuscated)
   0     4     archive_identifier        "CAFF"
@@ -110,10 +110,7 @@ count = 926 entries:
 </root>
 ```
 
-`fileFormatVersion` is a packed decimal whose leading digit (value ÷ 100 000 000) is the Cubism
-major generation.  Corpus samples: `401010001` and `400050002` (Cubism 4.x editors), `501030000`
-(Cubism 5.x).  This attribute — not the CAFF header's `formatVersion`/`archiveVersion` triples,
-which are `{0,0,0}` in real files — is the schema generation a version probe should report.
+`fileFormatVersion` is a packed decimal whose leading digit is the Cubism major generation.  Corpus samples: `401010001` and `400050002` (Cubism 4.x editors), `501030000` (Cubism 5.x).  This attribute — not the CAFF header's `formatVersion`/`archiveVersion` triples, which are `{0,0,0}` in real files, is the schema generation a version probe should report.
 
 ### Serializer mechanics
 
@@ -122,12 +119,12 @@ which are `{0,0,0}` in real files — is the schema generation a version probe s
 - **`xs.id`** — id of a referenceable object (lives under `<shared>`).
 - **`xs.ref`** — a reference to an `xs.id` instead of inlining the object.  IDs look like `#427`. Objects used by more than one owner are hoisted into `<shared>`.
 - **`xs.idx`** — the object's index within the shared pool.
-- `<?version Class:N?>` PIs record each class's schema version so the reader can migrate older files.
+- `<?version Class:N?>` - Every internal Cubism's class version is recorded into the file.  This can be used for gating features.
 - A class's field **set and order can differ between schema versions** (fields are added, removed, or reordered, e.g. `FilterMode.owner` moved to the front in 5.3).  A faithful round-trip must reproduce each object's child sequence as read rather than imposing a fixed field order.
 
 ### Primitive & collection tags
 
-| tag     | type                                     |     | tag                       | type                           |
+| Tag     | Type                                     |     | Tag                       | Type                           |
 | ------- | ---------------------------------------- | --- | ------------------------- | ------------------------------ |
 | `i`     | int                                      |     | `int-array`               | int[]                          |
 | `f`     | float                                    |     | `float-array`             | float[]                        |
@@ -144,13 +141,13 @@ which are `{0,0,0}` in real files — is the schema generation a version probe s
 
 **The `<file>` element has two shapes** under the same tag, dispatched on the presence of the `path` attribute: `<file path="imageFileBuf.png"/>` names an **embedded CAFF blob** (the `path` attribute → an archive entry), whereas `<file>C:\path\to.psd</file>` stores a **plain filesystem path as element text** with no blob.  The former carries the layer/atlas PNG pixels; the latter is an external reference back to a source file on the importing machine, used by `CLayeredImage.psdFile` (see §4).
 
-Scalar fields serialize as typed child elements (`<f xs.n="opacity">1.0</f>`) unless the property is attribute-annotated (`name="value"`); object/collection fields become child elements.  Domain value-types mostly follow the same reflective child-element shape — `<GVector2>` / `<CPoint>` (`<f>` / `<i>` children), `<CRect>` (`<i>` children), `<CColor>` (serializes empty) — with `CAffine` the custom-serialized exception, packed as attributes: `<CAffine m00=.. m01=.. m02=.. m10=.. m11=.. m12=..>`.
+Scalar fields serialize as typed child elements (`<f xs.n="opacity">1.0</f>`) unless the property is attribute-annotated (`name="value"`); object/collection fields become child elements.  Domain value-types mostly follow the same reflective child-element shape — `<GVector2>` / `<CPoint>` (`<f>` / `<i>` children), `<CRect>` (`<i>` children), `<CColor>` (serializes empty), with `CAffine` the custom-serialized exception, packed as attributes: `<CAffine m00=.. m01=.. m02=.. m10=.. m11=.. m12=..>`.
 
-### Model object graph (under `<main><CModelSource>`)
+### Model Object Graph (Under `<main><CModelSource>`)
 
 `CModelSource` aggregates the editable model: `CParameterSourceSet` (parameters), `CDrawableSourceSet` → `CArtMeshSource` (mesh drawables: `int-array` indices + `float-array` vertices + UVs), `CDeformerSourceSet` → `CWarpDeformerSource` / `CRotationDeformerSource`, `CAffecterSourceSet` → `CGlueSource`, `CPartSourceSet` → `CPartSource`, `CParameterGroupSet`, `CPhysicsSettingsSourceSet`, `CTextureManager`, `CImageCanvas`, `CModelInfo`, plus editor settings.  Keyforms/animation bindings appear as `KeyformBindingSource`, `KeyformGridSource`, `KeyOnParameter`, `CControllerCurve`, etc.  Every domain object that can be cross-referenced carries a typed **GUID** object (`CDrawableGuid`, `CDeformerGuid`, `CPartGuid`, `CParameterGuid`, …) with `uuid`/`note`.
 
-### Parameters & combined (2D) links
+### Parameters & Combined (2D) Links
 
 Each `CParameterSource` (under `CParameterSourceSet._sources`, one per axis, in editor display order) carries: `CParameterId id` (`idstr`, e.g. `ParamAngleX` — a format-level identifier, kept verbatim for interop), `s name` (the localizable display label, e.g. `Angle X`), `f minValue` / `maxValue` / `defaultValue`, `i decimalPlaces`, `f snapEpsilon`, `b isRepeat`, `Type paramType` (`NORMAL`, …), `b combined`, and `CParameterGroupGuid parentGroupGuid` (the folder it sits in, or a `#0` ref for none).
 
