@@ -164,17 +164,17 @@ A reader reconstructs the pairs by walking the source set in order and, at each 
 
 ---
 
-## 4. Relationship to the PSD: layer images, model images & the texture atlas
+## 4. Relationship to the PSD: Layer Images, Model Images & The Texture Atlas
 
 On import Cubism decomposes each PSD into an editable representation and, for rendering, packs it into a texture atlas.  Three distinct image concepts therefore live in `main.xml`, chained by GUID references, and the editor can display the model from either end of that chain.  Additional PNG formatted images can also be imported as separately referenced textures.  This section traces the chain and the toggle between the two display modes.
 
-### The three levels of image indirection
+### The Three Levels of Image Indirection
 
 1. **Imported artwork** - a `CLayeredImage` tree of `CLayerGroup` / `CLayer` nodes in `<shared>` (one tree per imported file).  Each `CLayer` carries `CRect` (position/size), `CLayerIdentifier`, a blend mode (`CBlend_Normal`, `CBlend_Multiply`, …), a `CImageIcon` thumbnail, its owning `CLayeredImage`, and its opacity - the raw, editable artwork.  The class and its fields keep **legacy PSD naming** (`psdFile`, `psdBytes`, …) from when PSD was the only import format; a non-PSD import (e.g. a flat PNG) reuses the same structure but collapses to a single image layer - a root `CLayerGroup` wrapping one `CLayer`.
 2. **Model images** (`CModelImage`) - the *combined layer image* a drawable samples in layer mode.  A `CModelImage` is composited from one or more source `CLayer`s by its `inputFilterEnv` (a `CLayerSelectorMap` mapping the layered image to a list of `CLayerInputData`, each naming a `CLayer` + `CAffine`).  Its baked result is a `CImageResource` (`_filteredImage`) pointing at one embedded `imageFileBuf*.png`.  Model images are pooled under `CModelImageGroup`s (one per imported PSD), held by the `CTextureManager`.
 3. **Texture atlas** (`CTextureAtlas`) - a single packed page (here `TextureAtlas1`, 8192×8192) whose pixels are one `CImageResource` (`cachedAtlasImage`, wrapped at runtime as a `GTexture2D`).  Its `modelImages` list holds one `ModelImageEntry` per packed model image, giving that image's placement inside the page.
 
-### The imported source - `CLayeredImage` → the original artwork
+### The Imported Source - `CLayeredImage` → The Original Artwork
 
 `CLayeredImage` (one per imported file, held via `LayeredImageWrapper` by `CTextureManager._rawImages`) is the root of the decomposed artwork and the only object that points back at the source file.  Besides its pixel dimensions (`width` / `height`), the layer tree (`_rootLayer` → `CLayerGroup`, plus a flat `layerSet`), and `icon16` / `icon64` thumbnails, it records where the artwork came from:
 
@@ -196,7 +196,7 @@ On import Cubism decomposes each PSD into an editable representation and, for re
 
 > The username of the original modeller of `Erica Tamamo.cmo3` has been redacted for privacy.
 
-### How a drawable references its texture
+### How a Drawable References its Texture
 
 Every `CArtMeshSource` (drawable) carries, in its `_extensions`, a `CTextureInputExtension` whose `_textureInputs` list holds **both** ways of sampling the same artwork:
 
@@ -205,7 +205,7 @@ Every `CArtMeshSource` (drawable) carries, in its `_extensions`, a `CTextureInpu
 
 A sibling field `currentTextureInputData` points at whichever of the two is currently active.  The **`CModelImageGuid` is the join key**: the same GUID appears on the drawable's model-image input, on the `CModelImage` in the group pool, and on the atlas's `ModelImageEntry`.  That is how a drawable, its layer image, and its atlas slot are tied together - there is no direct drawable→atlas-tile pointer; both paths go through the model-image GUID.
 
-### The display-mode toggle (combined layers ⇆ texture atlas)
+### The Display-Mode Toggle (Combined Layers ⇆ Texture Atlas)
 
 The editor's *"show combined layer images"* vs *"show texture atlas"* view is a single boolean on the texture manager:
 
@@ -244,13 +244,13 @@ atlas side (#1699):
 
 Note the drawable's `inputImageLocalToCanvasTransform` equals the atlas entry's `atlasLocalToCanvasTransform`; the entry's `materialLocalToAtlasTransform` (position/scale/rotation within the page) is what yields the region's UV rectangle in the packed texture.
 
-### Sample inventory
+### Sample Inventory
 
 `Erica Tamamo.cmo3` imports **4** artwork sources, two PSD files and two PNG files, which creates four `CLayeredImage` + `CModelImageGroup` pairs under `CTextureManager` onto a **4500×6500** canvas.  The artwork decomposes to **176** `CModelImage`s, of which **128** are packed into the single `TextureAtlas1` (8192×8192) page.  PSD group folders and empty layers become `CLayerGroup` / `LayerSet` nodes with no `imageFileBuf`; the **180** `imageFileBuf*` blobs carry the model image pixel data plus the one rendered atlas page.
 
 ---
 
-## 5. Quick reference: decode order
+## 5. Quick Reference: Decode Order
 
 1. Read & verify the unobfuscated header → get `obfuscateKey`.
 2. Read the unobfuscated preview block.
