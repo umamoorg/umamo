@@ -14,8 +14,6 @@
 * Final pass on default settings.
 * Final pass on theme colors.
 	* This includes MeshEditColors.kt.(One full pass has already been done.)
-* AUDIT CMO3 AND MOC3 FILE FORMATS.
-	* Shit like this: module/format/src/commonMain/kotlin/org/umamo/format/cmo3/model/custom/CustomClasses.kt#L41 (What was the problem again?)
 
 ## Read/Write Filing Handling
 app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/EditorApp.kt
