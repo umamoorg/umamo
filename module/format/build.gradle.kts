@@ -109,7 +109,7 @@ sqldelight {
 // Absent → those tests self-skip, so CI stays green without committing a multi-megabyte corpus.
 tasks.withType<Test>().configureEach {
 	maxHeapSize = "4g"
-	for (samplePropertyName in listOf("cmo3.sample", "moc3.samples", "kra.sample", "clip.sample", "psd.sample")) {
+	for (samplePropertyName in listOf("cmo3.sample", "moc3.samples", "kra.sample", "clip.sample", "psd.sample", "png.sample", "bmp.sample")) {
 		System.getProperty(samplePropertyName)?.let { samplePath ->
 			systemProperty(samplePropertyName, samplePath)
 		}

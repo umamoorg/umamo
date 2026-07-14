@@ -7,6 +7,7 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.png.PngCodec
 
 /**
  * Extracts the atlas texture(s) a CMO3 model's art meshes sample. Walks each `CArtMeshSource`'s
@@ -38,7 +39,7 @@ fun extractPuppetTextures(model: Cmo3Model): PuppetTextures {
 		val resource = texture.srcImageResource as? CImageResource ?: continue
 		val index =
 			indexByResource.getOrPut(resource) {
-				val decoded = decodePngToRgba(model.extractLayerPng(resource)) ?: return@getOrPut -1
+				val decoded = decodeAtlasPng(model.extractLayerPng(resource)) ?: return@getOrPut -1
 				atlases.add(decoded)
 				atlases.size - 1
 			}
@@ -47,6 +48,29 @@ fun extractPuppetTextures(model: Cmo3Model): PuppetTextures {
 		}
 	}
 	return PuppetTextures(atlases, atlasIndexByDrawableId, premultiplied)
+}
+
+/**
+ * Decodes an embedded atlas PNG to a [DecodedImage] via the shared :format PNG codec, or null when
+ * the bytes are absent or undecodable (the drawable is then skipped, as before).
+ *
+ * Replaces the retired `decodePngToRgba` expect/actual: one pure-Kotlin decoder now serves desktop
+ * and Android identically, instead of javax.imageio (desktop) and BitmapFactory (Android).  The
+ * codec yields the same straight-alpha, top-first, tightly-packed RGBA byte stream GL upload expects.
+ *
+ * @param ByteArray? png The embedded PNG bytes, or null when the resource has none.
+ * @return DecodedImage? The decoded atlas page, or null when absent/undecodable.
+ */
+private fun decodeAtlasPng(png: ByteArray?): DecodedImage? {
+	if (png == null) {
+		return null
+	}
+	return try {
+		val image = PngCodec.read(png)
+		DecodedImage(image.rgba, image.width, image.height)
+	} catch (_: Exception) {
+		null
+	}
 }
 
 /**

@@ -1,10 +1,15 @@
 package org.umamo.format
 
+import org.umamo.format.bmp.BmpCodec
 import org.umamo.format.clip.ClipReader
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.jpeg.JpegReader
 import org.umamo.format.kra.KraReader
 import org.umamo.format.moc3.Moc3
+import org.umamo.format.png.PngCodec
 import org.umamo.format.psd.PsdReader
+import org.umamo.format.tiff.TiffReader
+import org.umamo.format.webp.WebPReader
 
 /**
  * The registry of binary container codecs Umamo can read/write, and the entry point for dispatching
@@ -20,10 +25,13 @@ import org.umamo.format.psd.PsdReader
 public object FormatRegistry {
 	/**
 	 * Every registered codec, in priority order (first magic match wins in [detect]). All of them work
-	 * on every target: the model codecs (CMO3/MOC3) and the art readers (CLIP, KRA, PSD) all live in
-	 * jvmAndroidMain and need only java.nio / java.util.zip / JDOM.
+	 * on every target: the model codecs (CMO3/MOC3), the layered art readers (CLIP, KRA, PSD), and the
+	 * flat raster codecs (PNG, BMP, plus the JPEG/WebP/TIFF read placeholders) all live in
+	 * jvmAndroidMain and need only java.nio / java.util.zip / JDOM.  The magics do not collide, so the
+	 * raster codecs sit last; BMP's short 2-byte "BM" magic is checked after the longer signatures.
 	 */
-	private val codecs: List<FormatCodec<*>> = listOf(Cmo3, Moc3, ClipReader, KraReader, PsdReader)
+	private val codecs: List<FormatCodec<*>> =
+		listOf(Cmo3, Moc3, ClipReader, KraReader, PsdReader, PngCodec, BmpCodec, JpegReader, WebPReader, TiffReader)
 
 	/**
 	 * Identifies the codec for [bytes], preferring a reliable magic-byte match and falling back to the
