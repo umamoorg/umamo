@@ -32,12 +32,6 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 
-## Selection
-* Object mode - Need different tint for active selection, otherwise selection to active is amibiguous.
-
-## Zoom
-* Frame Selected - Make it work on edit mode as well.
-
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
@@ -90,9 +84,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 # DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
-
-# Outliner/History
-* Show the background prefilled to height with zebra lines regardless of content length.
 
 ## Format
 
