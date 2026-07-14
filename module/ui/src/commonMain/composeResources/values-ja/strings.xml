@@ -358,6 +358,7 @@
 	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>
+	<string name="settings_colors_active_selection_highlight">アクティブ選択のハイライト</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>

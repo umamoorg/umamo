@@ -25,6 +25,7 @@ import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.rememberStringSetting
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.settings_colors_active_selection_highlight
 import org.umamo.ui.resources.settings_colors_group_edge
 import org.umamo.ui.resources.settings_colors_group_face
 import org.umamo.ui.resources.settings_colors_group_vertex
@@ -124,6 +125,11 @@ internal fun ColorsSection() {
 				stringResource(Res.string.settings_colors_selection_highlight),
 				ViewportSettings.SELECTION_HIGHLIGHT_KEY,
 				ViewportSettings.SELECTION_HIGHLIGHT_DEFAULT,
+			)
+			ColorSettingRow(
+				stringResource(Res.string.settings_colors_active_selection_highlight),
+				ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY,
+				ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT,
 			)
 
 			Text(text = stringResource(Res.string.settings_colors_mesh_edit), style = typography.titleSmall)
