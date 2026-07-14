@@ -36,8 +36,9 @@ Umamo is a Kotlin Multiplatform project (Gradle, Kotlin DSL) targeting desktop a
 | -------- | --------------------------------------------------------------------------------------------------- |
 | Windows  | Regularly built and tested                                                                          |
 | Linux    | Regularly built and tested                                                                          |
-| MacOS    | Needs testers!  Builds will be provided, but the developer does not have Mac hardware to test with. |
+| MacOS    | Blocked - Needs a MacOS specific renderer to work.                                                  |
 | Android  | Not yet, incomplete graphics layer implementation is blocking it.                                   |
+| iPadOS   | Application and UI loads, but there is no renderer and JDOM is incompatible.                        |
 
 ### Prerequisites
 
