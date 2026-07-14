@@ -25,9 +25,6 @@ internal const val RENDER_SUPERSAMPLE = 2
  * The draw target is a RENDER_SUPERSAMPLE x RGBA8 renderbuffer (the renderer draws puppet + masks + grid
  * here); the resolve target is a display-size RGBA8 texture (the draw buffer is downscaled into it, then
  * glReadPixels reads it - a renderbuffer draw target cannot be read back directly).
- *
- * オフスクリーン描画の 2 枚の FBO を所有する。スーパーサンプルの描画先と、読み戻し用の表示サイズ解決先。
- * すべての GL 操作はレンダースレッド上で行われる。
  */
 internal class SupersampleFramebuffer {
 	// Display-size resolve target + read-back source: the supersampled draw target is downscaled here, then
