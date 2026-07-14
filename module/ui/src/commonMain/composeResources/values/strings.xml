@@ -118,6 +118,10 @@
 	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
 	<string name="cmd_uv_mirror_v">Mirror UVs Vertically</string>
 
+	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
+	<string name="menu_uv_mirror_x">Mirror X</string>
+	<string name="menu_uv_mirror_y">Mirror Y</string>
+
 	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Undo</string>
 	<string name="cmd_redo">Redo</string>
@@ -391,6 +395,7 @@
 	     (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

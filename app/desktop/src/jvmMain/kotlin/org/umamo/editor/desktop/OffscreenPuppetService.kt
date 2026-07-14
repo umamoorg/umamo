@@ -223,6 +223,12 @@ class OffscreenPuppetService(
 	@Volatile
 	private var selectionBacking: Set<DrawableId> = emptySet()
 
+	// The active (last-selected) drawable, pushed from the UI alongside selectionBacking and read by the
+	// render thread to tint it apart from the rest of a multi-selection. Null when nothing is active. A new
+	// (different) value bumps puppetRenderBump so the area re-renders once; the volatile is a safe publish.
+	@Volatile
+	private var activeSelectionBacking: DrawableId? = null
+
 	// The drawables actually drawn (the resolved Parts-panel visibility cascade), pushed from the UI when
 	// the model's visibility changes (a toggle, or its undo) and read by the render thread each frame.
 	// Setting a new (different) set bumps puppetRenderBump so the area re-renders once. The wholesale immutable-set
@@ -254,6 +260,19 @@ class OffscreenPuppetService(
 
 	@Volatile
 	private var highlightBlue: Float = 1.0f
+
+	// The color the active drawable is tinted toward, fed from the editor settings alongside the selection
+	// highlight and read by the render thread before each render. RGB, each 0..1; defaults to the edit-mode
+	// active green (the renderer's own default) until the host pushes the configured color. A new (different)
+	// color bumps puppetRenderBump so a color-only change still forces one redraw.
+	@Volatile
+	private var activeHighlightRed: Float = 0.49f
+
+	@Volatile
+	private var activeHighlightGreen: Float = 0.89f
+
+	@Volatile
+	private var activeHighlightBlue: Float = 0.0f
 
 	// Per-drawable triangle indices for hit-testing, restricted to the drawables actually shown (the
 	// Parts-panel eyeball cascade) and to those carrying a triangle mesh. Picking iterates the pose's
@@ -496,6 +515,20 @@ class OffscreenPuppetService(
 	}
 
 	/**
+	 * Sets the active (last-selected) drawable, tinted apart from the rest of a multi-selection. A change
+	 * bumps puppetRenderBump so the render loop re-renders every area once with the new active tint; an
+	 * identical value is a no-op.
+	 *
+	 * @param DrawableId? id The active drawable id, or null when none is active.
+	 */
+	override fun setActiveSelection(id: DrawableId?) {
+		if (id != activeSelectionBacking) {
+			activeSelectionBacking = id
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
 	 * Sets which drawables are drawn (the resolved Parts-panel visibility cascade). The host pushes this
 	 * when the model's visibility changes — a part/drawable eyeball toggle or its undo — so the viewport
 	 * hides or re-shows that art. A change bumps puppetRenderBump so every area re-renders once; an identical
@@ -562,6 +595,24 @@ class OffscreenPuppetService(
 			highlightRed = red
 			highlightGreen = green
 			highlightBlue = blue
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the color the active drawable is tinted toward (the active-selection highlight). A change bumps
+	 * puppetRenderBump so the render loop re-renders every area once with the new tint; an identical color
+	 * is a no-op.
+	 *
+	 * @param Float red   The tint red,   0..1.
+	 * @param Float green The tint green, 0..1.
+	 * @param Float blue  The tint blue,  0..1.
+	 */
+	override fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) {
+		if (red != activeHighlightRed || green != activeHighlightGreen || blue != activeHighlightBlue) {
+			activeHighlightRed = red
+			activeHighlightGreen = green
+			activeHighlightBlue = blue
 			doPuppetRenderBump()
 		}
 	}
@@ -917,9 +968,11 @@ class OffscreenPuppetService(
 		val gridConfigApplied = gridConfigBacking
 		renderer.setGrid(gridColorsBacking, gridConfigApplied.scale, gridConfigApplied.subdivisions)
 		renderer.setSelection(selectionBacking)
+		renderer.setActiveSelection(activeSelectionBacking)
 
 		// The shown set is applied in the render-loop pose block (before setPose, which filters the draw list by it), so it is not re-pushed here.
 		renderer.setSelectionHighlightColor(highlightRed, highlightGreen, highlightBlue)
+		renderer.setActiveSelectionHighlightColor(activeHighlightRed, activeHighlightGreen, activeHighlightBlue)
 		renderer.setCamera(camera.copy(zoom = camera.zoom * RENDER_SUPERSAMPLE))
 
 		when (slot.scene) {

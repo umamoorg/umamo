@@ -26,6 +26,12 @@ https://www.youtube.com/watch?v=5AiZTgUx_WM
 
 Umamo's KRA file format reader was ported directly from the official Krita repository.
 
+## Clip Studio Paint CLIP File Format
+
+Umamo's CLIP file format reader is based on research by rasensuihei.
+https://github.com/rasensuihei/cliputils
+MIT License: https://github.com/rasensuihei/cliputils/blob/master/LICENSE
+
 ## TwelveMonkeys ImageIO — PSD reader (BSD 3-Clause)
 
 - Upstream: TwelveMonkeys ImageIO, `imageio-psd` module - https://github.com/haraldk/TwelveMonkeys

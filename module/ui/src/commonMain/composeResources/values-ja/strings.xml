@@ -103,6 +103,10 @@
 	<string name="cmd_uv_mirror_u">UV を左右反転</string>
 	<string name="cmd_uv_mirror_v">UV を上下反転</string>
 
+	<!-- UV editor viewport context menu. -->
+	<string name="menu_uv_mirror_x">X ミラー</string>
+	<string name="menu_uv_mirror_y">Y ミラー</string>
+
 	<string name="cmd_undo">元に戻す</string>
 	<string name="cmd_redo">やり直す</string>
 	<string name="cmd_toggle_visibility">表示の切り替え</string>
@@ -354,6 +358,7 @@
 	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>
+	<string name="settings_colors_active_selection_highlight">アクティブ選択のハイライト</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>

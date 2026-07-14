@@ -4,12 +4,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.viewport.ViewportSpaceCamera
 import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
 import org.umamo.ui.workspace.spaces.InspectorSpace
@@ -92,6 +96,21 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 private fun Viewport2DBody(scope: AreaScope) {
 	val host = LocalViewportHost.current
 	val chrome = LocalViewportChrome.current
+	// Register this viewport area's camera controller for its lifetime, into the same per-area hub the UV
+	// editor registers into, so the shell's view commands (Fit / 1:1 / zoom / Frame Selected) resolve THIS
+	// area when the pointer last touched it.  Only when a render service and session exist - with no
+	// viewport nothing registers, matching the hidden view commands.
+	val service = LocalPuppetViewportService.current
+	val session = LocalEditorSession.current
+	val areaCameraHub = LocalAreaCameraHub.current
+	DisposableEffect(scope.areaId, service, session, areaCameraHub) {
+		if (service != null && session != null && areaCameraHub != null) {
+			areaCameraHub.register(scope.areaId, ViewportSpaceCamera(service, session, scope.areaId))
+			onDispose { areaCameraHub.unregister(scope.areaId) }
+		} else {
+			onDispose { }
+		}
+	}
 	Box(modifier = Modifier.fillMaxSize()) {
 		if (host != null) {
 			host.Viewport2D(scope.areaId, Modifier.fillMaxSize())
