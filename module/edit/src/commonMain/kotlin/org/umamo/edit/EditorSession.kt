@@ -1130,6 +1130,25 @@ class EditorSession(
 	}
 
 	/**
+	 * Fires a UV snap (the UV editor's Shift+S pie) for one UV editor overlay to execute: the shown
+	 * atlas page's dimensions and display geometry live with the overlay, so it performs the snap over
+	 * the texture coordinates (the texture-space sibling of [snapRequests]).  The payload carries the
+	 * operation AND the dispatch-time resolved area (see [UvSnapRequest]), so the collector gates
+	 * deterministically on its own area id.
+	 */
+	val uvSnapRequests: SharedFlow<UvSnapRequest> = requestBus.uvSnapRequests
+
+	/**
+	 * Requests a UV snap (see [uvSnapRequests]).
+	 *
+	 * @param UvSnapRequest request The snap operation plus the executing overlay's area, resolved at
+	 *   command dispatch; a null area (the hovered surface was not a UV editor) no-ops.
+	 */
+	fun requestUvSnap(request: UvSnapRequest) {
+		requestBus.requestUvSnap(request)
+	}
+
+	/**
 	 * Fires "switch the edited mesh to the drawable under the cursor" (Alt+Q) for the Edit overlay to
 	 * execute - the pointer position and the pick live there (the same division as
 	 * [selectLinkedRequests]).
