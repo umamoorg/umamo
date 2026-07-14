@@ -395,6 +395,7 @@
 	     (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

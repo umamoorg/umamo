@@ -108,27 +108,39 @@ fun rememberPuppetViewportHost(
 	DisposableEffect(service) {
 		onDispose { service.dispose() }
 	}
-	// Bridge the session's selection to the render thread: push just the selected drawable ids (the only
-	// kind the viewport tints) so it re-renders the tint. The session is the source of truth, so this also
+	// Bridge the session's selection to the render thread: push the selected drawable ids (the only kind the
+	// viewport tints) plus the active (last-selected) one, so it re-renders the tint with the active drawable
+	// distinguished from the rest of a multi-selection. The session is the source of truth, so this also
 	// follows an undo/redo that changes the selection. Mirrors how settings/liveparams reach the render thread.
 	//
-	// Edit mode suppresses the tint entirely (an empty set): the object selection still holds the drawable
-	// being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay. Gated
-	// on the mode exactly like the pose override below, so entering Edit clears the tint and leaving restores
-	// it with no stash - session.selection is never touched.
+	// Edit mode suppresses the tint entirely (an empty set, no active): the object selection still holds the
+	// drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay.
+	// Gated on the mode exactly like the pose override below, so entering Edit clears the tint and leaving
+	// restores it with no stash - session.selection is never touched.
 	LaunchedEffect(service, session) {
 		combine(session.selection, session.mode, session.previewSelection) { selection, mode, previewSelection ->
-			if (mode == EditorMode.Edit) {
-				emptySet()
-			} else {
+			when {
+				mode == EditorMode.Edit -> emptySet<DrawableId>() to null
 				// An in-flight object circle stroke paints a transient preview; while it is live the tint shows
-				// exactly what the stroke has painted (previewSelection), so drawables light up under the brush
-				// before the stroke commits. Otherwise the committed object selection's drawables tint as usual.
-				previewSelection ?: selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { it.id }.toSet()
+				// exactly what the stroke has painted (previewSelection) with no active drawable yet, so drawables
+				// light up plain under the brush before the stroke commits.
+				previewSelection != null -> previewSelection to null
+				// Otherwise the committed object selection's drawables tint as usual, with its active
+				// (last-selected) drawable tinted apart. A Part/Deformer active target yields null, so every
+				// selected drawable tints plain - correct, since only drawables are tinted.
+				else -> {
+					val selectedDrawableIds =
+						selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { it.id }.toSet()
+					val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
+					selectedDrawableIds to activeDrawableId
+				}
 			}
 		}
 			.distinctUntilChanged()
-			.collect { drawableIds -> service.setSelection(drawableIds) }
+			.collect { (drawableIds, activeDrawableId) ->
+				service.setSelection(drawableIds)
+				service.setActiveSelection(activeDrawableId)
+			}
 	}
 	// Bridge the session's model to the render thread on every committed edit or undo/redo: push the whole
 	// model (so a layer reorder re-sorts the draw order) and the resolved Parts-panel visibility cascade (so
@@ -169,6 +181,9 @@ fun rememberPuppetViewportHost(
 				).toFloat()
 			val (red, green, blue) = parseSelectionHighlightColor(settings.getString(ViewportSettings.SELECTION_HIGHLIGHT_KEY))
 			service.setSelectionHighlightColor(red, green, blue)
+			val (activeRed, activeGreen, activeBlue) =
+				parseSelectionHighlightColor(settings.getString(ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
+			service.setActiveSelectionHighlightColor(activeRed, activeGreen, activeBlue)
 			// Resolve the global-default grid geometry into the session, the single source of truth the
 			// snap commands and the renderer both read.  A stored per-file value takes precedence here once
 			// the UMA format lands; formats that do not store grid info (CMO3) keep this default.

@@ -207,6 +207,16 @@ interface PuppetViewportService {
 	fun setSelection(ids: Set<DrawableId>)
 
 	/**
+	 * Pushes the active (last-selected) drawable, so the engine tints it toward the active-selection color
+	 * rather than the shared selection color and it reads apart from the rest of a multi-selection.  Null
+	 * when nothing is active (Object mode with no drawable active, an in-flight preview stroke, or Edit
+	 * mode, whose tint is suppressed anyway).  The engine re-renders on a change.
+	 *
+	 * @param DrawableId? id The active drawable id, or null when none is active.
+	 */
+	fun setActiveSelection(id: DrawableId?)
+
+	/**
 	 * Pushes the drawables actually shown (the resolved Parts-panel visibility cascade).
 	 *
 	 * @param Set<DrawableId> ids The shown drawable ids.
@@ -228,6 +238,16 @@ interface PuppetViewportService {
 	 * @param Float blue The blue component.
 	 */
 	fun setSelectionHighlightColor(red: Float, green: Float, blue: Float)
+
+	/**
+	 * Sets the color the active drawable is tinted toward (0..1 sRGB components, from settings), distinct
+	 * from the shared selection highlight so the active target of a multi-selection reads apart.
+	 *
+	 * @param Float red The red component.
+	 * @param Float green The green component.
+	 * @param Float blue The blue component.
+	 */
+	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float)
 
 	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.

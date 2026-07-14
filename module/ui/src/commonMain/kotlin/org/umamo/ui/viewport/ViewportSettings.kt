@@ -11,12 +11,18 @@ internal object ViewportSettings {
 	const val ZOOM_STEP_KEY = "viewport.zoomStepPercent"
 	const val ZOOM_STEP_COARSE_KEY = "viewport.zoomStepCoarsePercent"
 	const val SELECTION_HIGHLIGHT_KEY = "viewport.selectionHighlightColor"
+	const val ACTIVE_SELECTION_HIGHLIGHT_KEY = "viewport.activeSelectionHighlightColor"
 	const val GRID_SCALE_KEY = "viewport.grid.scale"
 	const val GRID_SUBDIVISIONS_KEY = "viewport.grid.subdivisions"
 
 	const val ZOOM_STEP_DEFAULT = 1.0
 	const val ZOOM_STEP_COARSE_DEFAULT = 5.0
 	const val SELECTION_HIGHLIGHT_DEFAULT = "#338CFF"
+
+	// The active (last-selected) object tints toward this instead of SELECTION_HIGHLIGHT_DEFAULT, so the
+	// primary target reads apart from the rest of a multi-selection.  Matches the edit-mode active green
+	// (viewport.meshEdit.*Active) so "active is green" is consistent across Object and Edit modes.
+	const val ACTIVE_SELECTION_HIGHLIGHT_DEFAULT = "#7DE400"
 	const val GRID_SCALE_DEFAULT = 100.0
 	const val GRID_SUBDIVISIONS_DEFAULT = 10
 

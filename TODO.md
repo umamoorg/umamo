@@ -1,7 +1,6 @@
 # TODO
 
 ## Documentation
-* Fix/Reevaluate Reverse Engineering Notices.
 * Have a full model/ map made in docs/. (When everything is done.)
 
 ## Deferred
@@ -111,6 +110,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 * Android GLES renderer backend (second Renderer impl) — see Claude Notes § Android GLES renderer backend.
+* MacOS/iPadOS renderer backend - Core GL(LWJGL CGL)
 
 ## Outliner
 * Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
