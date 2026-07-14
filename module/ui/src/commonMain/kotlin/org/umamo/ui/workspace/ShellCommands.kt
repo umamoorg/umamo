@@ -27,8 +27,8 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
-import org.umamo.ui.model.ViewportCameraController
 import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.CameraController
 
 /*
  * The editor shell's command tables: every command the shell itself registers, grouped by the state
@@ -128,109 +128,60 @@ internal fun shellWorkspaceCommands(
 	)
 
 /**
- * The viewport navigation commands, dispatching to the surface the pointer last touched: a hovered UV
- * editor's camera ops through the hub, else the active viewport via the injected controller (Blender's
- * hovered-area routing, the same rule as the transforms).  They apply whenever a viewport controller
- * exists (a document is open on a platform with a viewport); without one they hide from the palette
- * instead of registering as no-ops.
+ * The viewport navigation commands, dispatching to the surface the pointer last touched: each 2D
+ * viewport and UV editor registers a per-area camera controller into the shared hub, and every command
+ * resolves the hovered area's controller through it (Blender's hovered-area routing, the same rule as
+ * the transforms) - one lookup, no per-space branch.  They apply whenever a viewport is present (a
+ * document open on a platform with a renderer); without one they hide from the palette instead of
+ * registering as no-ops.
  *
- * @param ViewportCameraController? viewportCamera The active viewport handle, or null without one.
- * @param UvCameraHub uvCameras The UV editors' per-area camera ops registry.
+ * @param AreaCameraHub cameras The camera-bearing areas' per-area controller registry.
  * @param Function hoveredSurface Resolves the last-touched editor surface at dispatch time.
+ * @param Boolean viewportPresent Whether a viewport / render service exists (gates availability).
  * @return List<Command> The commands to register.
  */
 internal fun shellViewportCommands(
-	viewportCamera: ViewportCameraController?,
-	uvCameras: UvCameraHub,
+	cameras: AreaCameraHub,
 	hoveredSurface: () -> HoveredSurface?,
+	viewportPresent: Boolean,
 ): List<Command> {
-	val hasViewport = CommandAvailability { viewportCamera != null }
+	val hasViewport = CommandAvailability { viewportPresent }
 
 	/**
-	 * The hovered UV editor's live camera ops, or null when the pointer's last surface was not a UV
-	 * editor (then the command falls through to the viewport controller).
+	 * The camera controller of the area the pointer last touched (2D viewport or UV editor), or null
+	 * when none is registered under it - then the command is a no-op.
 	 *
-	 * @return UvCameraOps? The hovered UV area's ops, or null.
+	 * @return CameraController? The hovered area's camera controller, or null.
 	 */
-	fun hoveredUvOps(): UvCameraOps? {
-		val hovered = hoveredSurface()
-		return if (hovered?.kind == SpaceKind.UvEditor) {
-			uvCameras.opsFor(hovered.areaId)
-		} else {
-			null
-		}
-	}
+	fun hoveredCamera(): CameraController? = hoveredSurface()?.areaId?.let { areaId -> cameras.opsFor(areaId) }
 	return listOf(
 		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.fit()
-			} else {
-				viewportCamera?.fit()
-			}
+			hoveredCamera()?.fit()
 		},
 		Command("view.zoomActualSize", title = Res.string.cmd_view_actual_size, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.actualSize()
-			} else {
-				viewportCamera?.actualSize()
-			}
+			hoveredCamera()?.actualSize()
 		},
 		Command("view.zoomIn", title = Res.string.cmd_view_zoom_in, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.zoomIn(coarse = false)
-			} else {
-				viewportCamera?.zoomIn(coarse = false)
-			}
+			hoveredCamera()?.zoomIn(coarse = false)
 		},
 		Command("view.zoomOut", title = Res.string.cmd_view_zoom_out, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.zoomOut(coarse = false)
-			} else {
-				viewportCamera?.zoomOut(coarse = false)
-			}
+			hoveredCamera()?.zoomOut(coarse = false)
 		},
 		// Coarse (Shift) variants take a larger zoom step - they are titled so they also surface in the palette.
 		Command("view.zoomInCoarse", title = Res.string.cmd_view_zoom_in_coarse, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.zoomIn(coarse = true)
-			} else {
-				viewportCamera?.zoomIn(coarse = true)
-			}
+			hoveredCamera()?.zoomIn(coarse = true)
 		},
 		Command("view.zoomOutCoarse", title = Res.string.cmd_view_zoom_out_coarse, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.zoomOut(coarse = true)
-			} else {
-				viewportCamera?.zoomOut(coarse = true)
-			}
+			hoveredCamera()?.zoomOut(coarse = true)
 		},
-		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the hovered surface. Works in
-		// both Object and Edit mode; each surface's region overlay captures the drag and frames the box - the
-		// UV editor now included (its overlay arms over the same area-keyed latch and calls the area-generic
-		// zoomToRegion).
+		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the hovered surface.
 		Command("view.zoomRegion", title = Res.string.cmd_view_zoom_region, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.armZoomRegion()
-			} else {
-				viewportCamera?.armZoomRegion()
-			}
+			hoveredCamera()?.armZoomRegion()
 		},
 		// Frame Selected (Blender's numpad-period): fit the camera to the selection's bounds - world
 		// bounds in the viewport, covered UV bounds in a hovered UV editor.
 		Command("view.frameSelected", title = Res.string.cmd_view_frame_selected, availability = hasViewport) {
-			val uvOps = hoveredUvOps()
-			if (uvOps != null) {
-				uvOps.frameSelected()
-			} else {
-				viewportCamera?.frameSelected()
-			}
+			hoveredCamera()?.frameSelected()
 		},
 	)
 }

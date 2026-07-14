@@ -77,7 +77,7 @@ By default the desktop build bundles the natives for the machine running it.  Pa
 ```bash
 # Produce a Windows-native runnable uber-jar from WSL2/Linux:
 ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
-# → app/desktop/build/compose/jars/  (see the naming caveat below)
+# → app/desktop/build/compose/jars/
 ```
 
 This swaps both the Compose/Skiko renderer native and the LWJGL GL natives so the jar runs on the target.  It is **not** a cross-compiler: the result is portable JVM bytecode plus the target's natives, so you still need a **matching JVM on the target** to launch it.
@@ -167,6 +167,10 @@ By contributing you affirm:
 3. Are not a past or present employee of Live2D or Cybernoids.
 
 If you have been exposed to Live2D source code or decompiled binaries, please do not contribute.
+
+### AI Usage Disclaimer
+
+Large Language Models(LLM) are used to assist with [rubber ducking](https://en.wikipedia.org/wiki/Rubber_duck_debugging) and housekeeping tasks.  Assisted tasks include planning development road maps, function documentation, and helping to keep the developer focused.  AI has not been and will never be used to decompile or otherwise discover the source code of protected software.
 
 ## License
 
