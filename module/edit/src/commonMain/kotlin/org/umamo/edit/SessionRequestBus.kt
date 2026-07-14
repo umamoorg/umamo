@@ -27,6 +27,11 @@ internal class SessionRequestBus {
 	/** The Select Linked requests (see [EditorSession.selectLinkedRequests]). */
 	val selectLinkedRequests: SharedFlow<SelectLinkedRequest> = mutableSelectLinkedRequests.asSharedFlow()
 
+	private val mutableUvSnapRequests = MutableSharedFlow<UvSnapRequest>(extraBufferCapacity = 4)
+
+	/** The UV editor snap requests (see [EditorSession.uvSnapRequests]). */
+	val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
+
 	private val mutableSwitchObjectRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
 	/** The Alt+Q edited-mesh switch requests (see [EditorSession.switchObjectRequests]). */
@@ -65,6 +70,15 @@ internal class SessionRequestBus {
 		mutableSelectLinkedRequests.tryEmit(request)
 	}
 
+	/**
+	 * Requests a UV snap for one UV editor area's overlay to execute.
+	 *
+	 * @param UvSnapRequest request The snap operation plus the dispatch-time resolved area.
+	 */
+	fun requestUvSnap(request: UvSnapRequest) {
+		mutableUvSnapRequests.tryEmit(request)
+	}
+
 	/** Requests an Alt+Q edited-mesh switch. */
 	fun requestSwitchObjectUnderCursor() {
 		mutableSwitchObjectRequests.tryEmit(Unit)
@@ -97,3 +111,15 @@ internal class SessionRequestBus {
  *   (then no collector matches and the request is a clean no-op).
  */
 data class SelectLinkedRequest(val fromSelection: Boolean, val areaId: String?)
+
+/**
+ * One UV snap request: which operation, and which UV editor area's overlay executes it.  The area is
+ * resolved ONCE at command dispatch (the hovered surface at that instant) and carried in the payload,
+ * exactly like [SelectLinkedRequest] - the UV editor deliberately does not stamp the render service's
+ * active area, so the collector cannot fall back on it and must gate on this id instead.
+ *
+ * @property UvSnapKind kind The snap operation to perform.
+ * @property String? areaId The UV editor area whose overlay executes, or null when the hovered surface
+ *   was not a UV editor (then no collector matches and the request is a clean no-op).
+ */
+data class UvSnapRequest(val kind: UvSnapKind, val areaId: String?)

@@ -25,18 +25,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
-* Deferred from the viewport overlay ownership refactor (see docs/plans/viewport-overlay-ownership.md)
-	* Request-payload area hardening: select-linked is done (payload carries the dispatch-resolved area).  The switch-object, rip, and snap collectors still read service.activeAreaId at collect time; same payload pattern closes them.
-	* Per-area toolbar highlight: an armed select tool lights the floating toolbar in every viewport, not just the arming one.  Cosmetic.
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
-
-## Selection
-* Object mode - Need different tint for active selection, otherwise selection to active is amibiguous.
-
-## Zoom
-* Frame Selected - Make it work on edit mode as well.
 
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
@@ -49,23 +40,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 * Bugs/Improvements
 	* Rip and Vertex Slide are activating the 2D viewport mesh rip/slide.  Needs to be implemented for UV and then properly gated.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
-* UV Snap Pie - DRY, reuse functionality from the existing mesh snapping.  Refactor where needed to share code.
-	* Selected to Pixels - Moves selection to nearest pixel.
-		* Implementation difficulty: Gizmos are in Compose, pixels on GPU, but we grab the PNG of the render so it might work fine as a reference point.
-		* The actual snap location is closest corner of the pixel and not the center of the pixel.  The workflow benefit is being able to snap the vertex to the corner of the pixel for artwork edge accuracy.
-	* Selected to Cursor - Moves selection to 2D cursor location.
-		* Same as mesh editing.
-	* Selected to Cursor (Offset) - Moves selection center to 2D cursor location, while preserving the offset of the vertices from the center.
-		* Same as mesh editing.
+* UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
-	* Selected to Grid
-		* Same as mesh editing.
-	* Cursor to Pixels - Snaps the cursor to the nearest pixels
-		* Implementation difficulty: Same as Selected to Pixels.
-	* Cursor to Selected - Moves the Cursor to the center of the selection
-	* Cursor to Grid
-		* Same as mesh editing.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
 * Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
 
@@ -91,9 +68,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 # DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 
-# Outliner/History
-* Show the background prefilled to height with zebra lines regardless of content length.
-
 ## Format
 
 ### UMA (Native File Format)
@@ -118,15 +92,11 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 	* TODO: touch long-press still starts a drag, so the context menu has no mobile trigger yet — the long-press-vs-drag arbitration needs resolving (or a dedicated touch affordance) before Android.
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
-	* Rename, drag reparent, functional eye/selectable, persisted expansion.  These need the structure-edit/undo pipeline, as planned.
 
 ## UI
-* Viewport tool chrome (overlaid gizmo controls, T toolbar, N sidebar drawer, header pivot/proportional/snap controls) - moved to docs/plans/tools-and-shortcuts.md (Phase 9).
 * The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
 * Viewport view styles - Top right, in the header area.
-
 * Viewport loading overlay and mouse busy pointer.
-
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
 	* When the width becomes too small the icons in the DropdownChip start shrinking, but the chip does not.  The icons should not shrink.

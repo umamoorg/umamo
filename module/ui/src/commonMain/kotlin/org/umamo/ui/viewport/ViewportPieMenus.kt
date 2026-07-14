@@ -36,6 +36,17 @@ fun pieMenuEntriesFor(kind: PieMenuKind): List<PieMenuEntry> =
 				PieMenuEntry("snap.selectionToActive", Res.string.cmd_snap_selection_active),
 			)
 
+		PieMenuKind.UvSnap ->
+			listOf(
+				PieMenuEntry("uv.snap.selectionToPixels", Res.string.cmd_uv_snap_selection_pixels),
+				PieMenuEntry("uv.snap.selectionToCursor", Res.string.cmd_uv_snap_selection_cursor),
+				PieMenuEntry("uv.snap.selectionToCursorOffset", Res.string.cmd_uv_snap_selection_cursor_offset),
+				PieMenuEntry("uv.snap.selectionToGrid", Res.string.cmd_uv_snap_selection_grid),
+				PieMenuEntry("uv.snap.cursorToPixels", Res.string.cmd_uv_snap_cursor_pixels),
+				PieMenuEntry("uv.snap.cursorToSelected", Res.string.cmd_uv_snap_cursor_selected),
+				PieMenuEntry("uv.snap.cursorToGrid", Res.string.cmd_uv_snap_cursor_grid),
+			)
+
 		PieMenuKind.MergeTarget ->
 			listOf(
 				PieMenuEntry("mesh.merge.atCenter", Res.string.cmd_mesh_merge_at_center),
@@ -54,5 +65,6 @@ fun pieMenuTitleFor(kind: PieMenuKind): StringResource =
 	when (kind) {
 		PieMenuKind.PivotMode -> Res.string.pie_title_pivot
 		PieMenuKind.Snap -> Res.string.pie_title_snap
+		PieMenuKind.UvSnap -> Res.string.pie_title_uv_snap
 		PieMenuKind.MergeTarget -> Res.string.pie_title_merge
 	}
