@@ -124,6 +124,7 @@ enum class TransformAxisConstraint {
 enum class PieMenuKind {
 	PivotMode,
 	Snap,
+	UvSnap,
 	MergeTarget,
 }
 
@@ -162,6 +163,27 @@ enum class SnapKind {
 	SelectionToCursorOffset,
 	SelectionToGrid,
 	SelectionToActive,
+}
+
+/**
+ * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind].
+ * Every one edits or reads in the UV editor's texel display space, so the UV overlay - which owns the
+ * shown page's dimensions and display geometry - executes them, the same request-through-overlay split
+ * as [SnapKind].  The op set differs from the world snaps by design: UV has pixel-corner snaps (a
+ * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
+ * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
+ * display mapping).
+ *
+ * UV エディタのスナップ操作の種類。テクセル表示空間で動作し、UV オーバーレイが実行する。
+ */
+enum class UvSnapKind {
+	SelectionToPixels,
+	SelectionToCursor,
+	SelectionToCursorOffset,
+	SelectionToGrid,
+	CursorToPixels,
+	CursorToSelected,
+	CursorToGrid,
 }
 
 /**

@@ -18,6 +18,8 @@ import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.UvSnapKind
+import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.snapToGrid
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
@@ -347,7 +349,18 @@ internal fun shellSessionCommands(
 			editorSession?.setPivotMode(TransformPivotMode.Cursor)
 			editorSession?.closePieMenu()
 		},
-		Command("snap.pie", title = Res.string.cmd_snap_pie, availability = hasDocument) { editorSession?.openPieMenu(PieMenuKind.Snap) },
+		Command("snap.pie", title = Res.string.cmd_snap_pie, availability = hasDocument) {
+			// Blender's hovered-area routing (the key acts where the pointer is): over the UV editor in
+			// Edit mode this opens the UV snap pie, whose entries snap texture coordinates; everywhere
+			// else the world snap pie - mirroring how mesh.grab / scale / rotate route to beginUvOperator.
+			editorSession?.let { live ->
+				if (live.mode.value == EditorMode.Edit && hoveredSurface()?.kind == SpaceKind.UvEditor) {
+					live.openPieMenu(PieMenuKind.UvSnap)
+				} else {
+					live.openPieMenu(PieMenuKind.Snap)
+				}
+			}
+		},
 		Command("snap.cursorToWorldOrigin", title = Res.string.cmd_snap_cursor_world_origin, availability = hasDocument) {
 			editorSession?.let { live ->
 				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginY)
@@ -391,6 +404,38 @@ internal fun shellSessionCommands(
 		},
 		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = hasDocument) {
 			editorSession?.requestSnap(SnapKind.SelectionToActive)
+			editorSession?.closePieMenu()
+		},
+		// The UV editor's snap pie (opened by the same Shift+S, routed by hovered surface above).  Every
+		// entry runs through the session's UV snap request flow to the hovered UV editor's overlay, which
+		// owns the shown page's dimensions and display geometry; the area is resolved HERE, at dispatch,
+		// into the payload (like Select Linked), so the collector gates deterministically on its area id.
+		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.SelectionToPixels, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.SelectionToCursor, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.SelectionToCursorOffset, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.SelectionToGrid, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.CursorToPixels, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.CursorToSelected, hoveredSurface()?.areaId))
+			editorSession?.closePieMenu()
+		},
+		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = inEditMode) {
+			editorSession?.requestUvSnap(UvSnapRequest(UvSnapKind.CursorToGrid, hoveredSurface()?.areaId))
 			editorSession?.closePieMenu()
 		},
 		// The topology operators (Blender's Shift+D / M / V / J).  Duplicate dispatches by mode like

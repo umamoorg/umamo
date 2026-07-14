@@ -219,6 +219,14 @@
 	<string name="cmd_snap_selection_cursor_offset">選択物 → カーソル（オフセット維持）</string>
 	<string name="cmd_snap_selection_active">選択物 → アクティブ</string>
 
+	<string name="cmd_uv_snap_selection_pixels">選択物 → ピクセル</string>
+	<string name="cmd_uv_snap_selection_cursor">選択物 → カーソル</string>
+	<string name="cmd_uv_snap_selection_cursor_offset">選択物 → カーソル（オフセット維持）</string>
+	<string name="cmd_uv_snap_selection_grid">選択物 → グリッド</string>
+	<string name="cmd_uv_snap_cursor_pixels">カーソル → ピクセル</string>
+	<string name="cmd_uv_snap_cursor_selected">カーソル → 選択物</string>
+	<string name="cmd_uv_snap_cursor_grid">カーソル → グリッド</string>
+
 	<string name="cmd_mesh_select_linked_cursor">リンク選択（カーソル下）</string>
 	<string name="cmd_mesh_select_linked">リンク選択</string>
 	<string name="cmd_view_frame_selected">選択部分を画面に収める</string>
@@ -269,6 +277,7 @@
 
 	<string name="pie_title_pivot">ピボットポイント</string>
 	<string name="pie_title_snap">スナップ</string>
+	<string name="pie_title_uv_snap">UV スナップ</string>
 	<string name="pie_title_merge">マージ</string>
 
 	<string name="cmd_view_toggle_toolbar">ツールバーの切り替え</string>
