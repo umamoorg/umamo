@@ -36,6 +36,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Selection
 * Object mode - Need different tint for active selection, otherwise selection to active is amibiguous.
 
+## Zoom
+* Frame Selected - Make it work on edit mode as well.
+
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
@@ -44,21 +47,28 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 	* 3D Cursor
 
 ## UV Editor
-Implemented (2026-07): atlas underlay, session-shared selection (UV sync always on), modal G/S/R over texture coordinates with live GPU preview, box/circle select, select linked, UV cursor, Mirror U/V (uv.mirrorU / uv.mirrorV, the duplicated/flipped eyes workflow), header controls, and view commands over the hovered UV area.
-
-* Bugs
-	* Frame Selected does not work in the UV editor.(I assume this is what is meant by the UV zoom region mentioned below.)
-* Improvements
-	* The object mode for the UV editor should be edges and faces only, no vertices.  This matches the Blender overlay style and makes it easier to understand.
-	* Mirror X, Mirror Y in the UV context menu.
+* Bugs/Improvements
+	* Rip and Vertex Slide are activating the 2D viewport mesh rip/slide.  Needs to be implemented for UV and then properly gated.
+		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
+* UV Snap Pie - DRY, reuse functionality from the existing mesh snapping.  Refactor where needed to share code.
+	* Selected to Pixels - Moves selection to nearest pixel.
+		* Implementation difficulty: Gizmos are in Compose, pixels on GPU, but we grab the PNG of the render so it might work fine as a reference point.
+		* The actual snap location is closest corner of the pixel and not the center of the pixel.  The workflow benefit is being able to snap the vertex to the corner of the pixel for artwork edge accuracy.
+	* Selected to Cursor - Moves selection to 2D cursor location.
+		* Same as mesh editing.
+	* Selected to Cursor (Offset) - Moves selection center to 2D cursor location, while preserving the offset of the vertices from the center.
+		* Same as mesh editing.
+	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
+		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
+	* Selected to Grid
+		* Same as mesh editing.
+	* Cursor to Pixels - Snaps the cursor to the nearest pixels
+		* Implementation difficulty: Same as Selected to Pixels.
+	* Cursor to Selected - Moves the Cursor to the center of the selection
+	* Cursor to Grid
+		* Same as mesh editing.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
-* UV snap pie and UV zoom-region - deferred (documented no-ops over a hovered UV area).
 * Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
-* Background UI
-	* Panel Elevation (303030) ->
-		* Border 1.dp ->
-			* Grid Background (the UV editor already draws the grid backdrop; this is the panel-elevation framing around it.)
-				* UV Texture
 
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
@@ -151,6 +161,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.
+* Really good edge detection for auto-mesh.
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.

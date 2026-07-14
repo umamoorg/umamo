@@ -26,6 +26,11 @@ import org.umamo.render.ViewportCamera
  * or per-vertex command count would be re-rasterized every frame, not just on an edit.  The single
  * active edge, vertex, or face dot draws on its own so it layers over its batched neighbours.
  *
+ * When [objectOverlay] is set (the UV editor's read-only Object-mode preview) the draw is the
+ * Blender object-overlay style regardless of [selectMode]: every face filled idle plus the edges, and
+ * NO click-affordance dots (neither vertex dots nor face centroid dots) - there is nothing to pick in a
+ * read-only preview, so the handles would only add clutter.
+ *
  * @param FloatArray positions The interleaved (x, y) vertex positions in world units.
  * @param IntArray indices The triangle vertex indices (three per triangle).
  * @param List<MeshElement.Edge> edges The unique edges to stroke.
@@ -34,6 +39,7 @@ import org.umamo.render.ViewportCamera
  * @param MeshEditColors colors The settings-backed gizmo palette.
  * @param ViewportCamera camera The area camera (world<->screen affine).
  * @param IntSize size The area size in pixels.
+ * @param Boolean objectOverlay Draw the read-only object-overlay style (all faces filled, edges, no dots).
  */
 internal fun DrawScope.drawMeshWireframe(
 	positions: FloatArray,
@@ -44,6 +50,7 @@ internal fun DrawScope.drawMeshWireframe(
 	colors: MeshEditColors,
 	camera: ViewportCamera,
 	size: IntSize,
+	objectOverlay: Boolean = false,
 ) {
 	val vertexRadius = 3.5.dp.toPx()
 	val edgeWidth = 1.dp.toPx()
@@ -92,11 +99,16 @@ internal fun DrawScope.drawMeshWireframe(
 		target.close()
 	}
 
-	// Face fills first, under the wireframe.  Face mode fills every face (the face is the click
-	// target); vertex and edge modes fill only the derived-selected faces.  One path per color.
+	// Face fills first, under the wireframe.  The object overlay fills every face idle (a read-only tint,
+	// no selection); otherwise Face mode fills every face (the face is the click target) split by
+	// selection, and vertex and edge modes fill only the derived-selected faces.  One path per color.
 	val idleFaceFill = Path()
 	val selectedFaceFill = Path()
-	if (selectMode == MeshSelectMode.Face) {
+	if (objectOverlay) {
+		for (triangleIndex in 0 until triangleCount) {
+			addFace(idleFaceFill, triangleIndex)
+		}
+	} else if (selectMode == MeshSelectMode.Face) {
 		for (triangleIndex in 0 until triangleCount) {
 			if (triangleIndex in highlight.selectedFaceIndices) {
 				addFace(selectedFaceFill, triangleIndex)
@@ -148,8 +160,8 @@ internal fun DrawScope.drawMeshWireframe(
 	}
 
 	// Vertex dots only in vertex mode (Blender hides them in edge / face modes), batched by color; the
-	// active vertex draws on top.
-	if (selectMode == MeshSelectMode.Vertex) {
+	// active vertex draws on top.  The read-only object overlay draws no handles at all.
+	if (!objectOverlay && selectMode == MeshSelectMode.Vertex) {
 		val idleVertices = ArrayList<Offset>()
 		val selectedVertices = ArrayList<Offset>()
 		for (vertexIndex in 0 until vertexCount) {
@@ -169,7 +181,8 @@ internal fun DrawScope.drawMeshWireframe(
 
 	// Face centroid dots only in face mode - the click affordance, like Blender's face dots.  The
 	// alpha in the face colors is meant for fills, so dots render fully opaque.  Batched by color.
-	if (selectMode == MeshSelectMode.Face) {
+	// The read-only object overlay draws no handles at all.
+	if (!objectOverlay && selectMode == MeshSelectMode.Face) {
 		val idleFaceDots = ArrayList<Offset>()
 		val selectedFaceDots = ArrayList<Offset>()
 		var activeFaceDot: Offset? = null

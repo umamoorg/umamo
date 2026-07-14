@@ -55,8 +55,8 @@ import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
-import org.umamo.ui.model.LocalViewportCamera
 import org.umamo.ui.resources.*
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
@@ -128,10 +128,10 @@ fun EditorShell(
 	// pointer loops and read by command handlers at dispatch time - the space-aware generalization of
 	// the camera controller's activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
 	val hoveredSurfaces = remember { HoveredSurfaceTracker() }
-	// The UV editors' per-area camera ops, registered by each UV space for its lifetime; the view
-	// commands resolve the hovered UV area here at dispatch (the UV analogue of the viewport service's
-	// per-area cameras).
-	val uvCameras = remember { UvCameraHub() }
+	// The camera-bearing areas' per-area controllers, registered by each 2D viewport and UV space for
+	// its lifetime; the view commands resolve the hovered area here at dispatch time (one hub for both
+	// surfaces).
+	val areaCameras = remember { AreaCameraHub() }
 	// The pointer's last position in shell-root pixels (null before any pointer event), observed on the
 	// Initial pass below so it tracks through any gesture.  Anchors the shell-level cursor overlays -
 	// the pie menu ring and near-cursor notices - which render above the area tree so they escape area
@@ -151,13 +151,14 @@ fun EditorShell(
 		val cleanup = commandRegistry.registerAll(shellWorkspaceCommands(workspaces, overlays, newWorkspaceBaseName))
 		onDispose { cleanup() }
 	}
-	// Viewport navigation commands dispatch to the hovered surface at invocation time: a UV editor's
-	// camera ops through the hub, else the active viewport via the injected controller (null on a
-	// platform with no viewport → no-op). Re-registered if the controller changes (a new document).
-	val viewportCamera = LocalViewportCamera.current
-	DisposableEffect(commandRegistry, viewportCamera) {
+	// Viewport navigation commands dispatch to the hovered surface at invocation time: the hovered
+	// area's camera controller through the hub (2D viewport or UV editor), a no-op when none is
+	// registered. Re-registered when the render service changes (a new document / renderer), which also
+	// flips the availability gate.
+	val service = LocalPuppetViewportService.current
+	DisposableEffect(commandRegistry, service) {
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
-		val cleanup = commandRegistry.registerAll(shellViewportCommands(viewportCamera, uvCameras, hoveredSurface))
+		val cleanup = commandRegistry.registerAll(shellViewportCommands(areaCameras, hoveredSurface, service != null))
 		onDispose { cleanup() }
 	}
 	val selection = LocalSelection.current
@@ -167,11 +168,11 @@ fun EditorShell(
 		onDispose { cleanup() }
 	}
 	// Re-registered on a document swap so the handlers close over the current session.  The latching
-	// commands resolve the pointer's viewport at dispatch time through the camera controller (the
-	// armZoomRegion precedent), so the effect also keys on it.
+	// commands resolve the pointer's viewport at dispatch time from the render service's active area
+	// (the armZoomRegion precedent), so the effect also keys on it.
 	val editorSession = LocalEditorSession.current
-	DisposableEffect(commandRegistry, editorSession, selection, viewportCamera) {
-		val activeViewportArea: () -> String? = { viewportCamera?.activeAreaId() }
+	DisposableEffect(commandRegistry, editorSession, selection, service) {
+		val activeViewportArea: () -> String? = { service?.activeAreaId }
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
 		val cleanup = commandRegistry.registerAll(shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface))
 		onDispose { cleanup() }
@@ -231,7 +232,7 @@ fun EditorShell(
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
-				LocalUvCameraHub provides uvCameras,
+				LocalAreaCameraHub provides areaCameras,
 			) {
 				Surface(
 					modifier =

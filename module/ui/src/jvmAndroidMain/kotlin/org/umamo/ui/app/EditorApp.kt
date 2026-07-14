@@ -48,7 +48,6 @@ import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
-import org.umamo.ui.model.LocalViewportCamera
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_open
@@ -417,7 +416,6 @@ private fun DocumentViewport(
 					LocalPuppet provides model,
 					LocalEditorSession provides activeSession,
 					LocalLiveParams provides liveParamsHandle,
-					LocalViewportCamera provides viewport?.cameraController,
 					LocalDrawableThumbnails provides thumbnails,
 					LocalPuppetTextures provides document.textures,
 					LocalPuppetRenderSync provides viewport?.renderSync,
