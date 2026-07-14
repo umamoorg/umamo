@@ -4,7 +4,7 @@ package org.umamo.editor.desktop.viewport
  * An off-screen GL 3.3+ core context owned by a single render thread. The offscreen viewport renderer
  * ([OffscreenRenderEngine]) renders only to framebuffer objects, so a context needs no visible window and no
  * presentable drawable - just a current GL context on the thread that issues the draw and read-back calls.
- * 
+ *
  * Threading contract: [createAndMakeCurrent], [describeContext], and [destroy] all run on the one render
  * thread, in that order across the context's life; the context is never migrated to another thread.
  */
