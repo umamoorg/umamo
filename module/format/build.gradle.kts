@@ -82,6 +82,10 @@ kotlin {
 			// and Buffer, the growable byte sink the codecs assemble output into. `implementation`,
 			// not `api`: no okio type appears in :format's public surface.
 			implementation(libs.okio)
+			// kotlinx-datetime: the local wall clock CaffZip stamps into the CAFF zip timestamp, to
+			// match what the official editor writes. The stdlib's common Clock has no time zone and a
+			// DOS timestamp is local, so this closes the gap without an expect/actual.
+			implementation(libs.kotlinxDatetime)
 		}
 
 		// Shared by desktop JVM + Android: the CMO3 CAFF/XML codec. JDOM lives here (not jvmMain)

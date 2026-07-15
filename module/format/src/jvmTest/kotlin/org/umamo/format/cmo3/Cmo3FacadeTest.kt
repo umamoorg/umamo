@@ -19,9 +19,6 @@ class Cmo3FacadeTest {
 
 	private fun ByteArray.isPng() = size >= 4 && pngMagic.indices.all { this[it] == pngMagic[it] }
 
-	// NOT whole-file byte identity, despite what the old name implied: both sides of the assertion are
-	// main.xml INFLATED back out of a CAFF container, so the zip framing is decoded away. Re-emitting
-	// the whole file does differ from the original (see CLAUDE.md's fidelity contract).
 	@Test
 	fun readsModelExposesLayersAndReemitsMainXmlByteIdentical() {
 		val file =

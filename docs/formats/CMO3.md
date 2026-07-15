@@ -109,7 +109,6 @@ Consequences for anyone touching this seam:
 - **Do not write a central directory or EOCD.** `java.util.zip.ZipOutputStream` emits both unconditionally on close, so it cannot produce this blob - despite the shape being otherwise Java-like. Using it appends 76 bytes per compressed entry, growing the file on every save. Our writer frames the bytes directly (`CaffZip`).
 - **Python's `zipfile` rejects the blob because the EOCD is missing**, not because of the data descriptor - `zipfile` reads data-descriptor entries happily when a central directory is present.
 - **Read by inflating, not by trusting the header.** The local header's crc/csize/usize are zero, so a reader that believes them reads nothing. Skip 30 + name length + extra length, then raw-inflate to the stream's own end; the trailing data descriptor is bytes the inflater simply stops before.
-- **The DOS timestamp is a wall clock**, so the editor's own output is not reproducible. Ours pins it to the format's 1980 epoch (`0x0000`/`0x0021`) instead: the readers that matter ignore the field, and a constant is what makes re-saving the same model produce the same bytes. This is a deliberate, documented divergence from the editor's bytes.
 
 ---
 

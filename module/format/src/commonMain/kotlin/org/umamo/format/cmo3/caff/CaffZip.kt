@@ -1,9 +1,13 @@
 package org.umamo.format.cmo3.caff
 
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
 import okio.Buffer
 import org.umamo.format.binary.Crc32
 import org.umamo.format.binary.deflateRawDeflate
 import org.umamo.format.binary.inflateRawDeflate
+import kotlin.time.Clock
 
 /**
  * The single-entry zip framing CAFF wraps FAST/SMALL blobs in.
@@ -42,12 +46,15 @@ internal object CaffZip {
 	// ZIP: compression method 8 = DEFLATE.
 	private const val METHOD_DEFLATE = 8
 
-	// ZIP: MS-DOS timestamp, pinned to the format's own epoch (1980-01-01 00:00). The editor stamps a
-	// wall clock here instead (the corpus sample reads 2022-06-06 17:03:30), which is precisely why we
-	// do not: readers ignore the field, and a constant is what makes re-saving the same model produce
-	// the same bytes. A deliberate divergence from the editor's bytes — see CMO3.md §1.
-	private const val DOS_TIME = 0x0000
-	private const val DOS_DATE = 0x0021
+	// MS-DOS timestamp bounds. The date packs year-1980 into 7 bits, so the epoch is 1980 and the
+	// ceiling is 2107; a clock outside that range is clamped rather than allowed to wrap into a
+	// different year.
+	private const val DOS_EPOCH_YEAR = 1980
+	private const val DOS_MAXIMUM_YEAR = 2107
+
+	// MS-DOS 1980-01-01 00:00 — the clamp floor, and what an out-of-range clock falls back to.
+	private const val DOS_EPOCH_DATE = 0x0021
+	private const val DOS_EPOCH_TIME = 0x0000
 
 	/**
 	 * Inflates a single-entry CAFF zip stream back to the raw payload.
@@ -104,11 +111,14 @@ internal object CaffZip {
 	/**
 	 * Wraps [contents] in a single-entry ("contents") zip stream at the given level.
 	 *
-	 * @param ByteArray contents The raw payload to compress.
-	 * @param Int       level    DEFLATE level (CompressOption.zipLevel).
+	 * @param ByteArray contents  The raw payload to compress.
+	 * @param Int       level     DEFLATE level (CompressOption.zipLevel).
+	 * @param Int dosDateTime     The MS-DOS modification stamp: date in the high 16 bits, time in the
+	 *                            low 16.  Defaults to the local wall clock, which is what the editor
+	 *                            writes; injectable so tests can assert on the emitted bytes.
 	 * @return ByteArray The zip stream bytes (before any obfuscation).
 	 */
-	fun zipSingle(contents: ByteArray, level: Int): ByteArray {
+	fun zipSingle(contents: ByteArray, level: Int, dosDateTime: Int = currentDosDateTime()): ByteArray {
 		val deflated = deflateRawDeflate(contents, level)
 		val checksum = Crc32().also { it.update(contents) }.value.toInt()
 		val out = Buffer()
@@ -119,8 +129,9 @@ internal object CaffZip {
 		out.writeShortLe(VERSION)
 		out.writeShortLe(FLAGS)
 		out.writeShortLe(METHOD_DEFLATE)
-		out.writeShortLe(DOS_TIME)
-		out.writeShortLe(DOS_DATE)
+		// ZIP: local header @ +0x0A time, @ +0x0C date. Both little-endian 16-bit, in LOCAL time.
+		out.writeShortLe(dosDateTime and 0xFFFF)
+		out.writeShortLe((dosDateTime ushr 16) and 0xFFFF)
 		// Zeroed here and carried in the data descriptor instead — that is what flag bit 3 means.
 		out.writeIntLe(0)
 		out.writeIntLe(0)
@@ -144,6 +155,45 @@ internal object CaffZip {
 		// Writing them would append 76 bytes the format does not carry, growing the file on each save
 		// — and is why this cannot be ZipOutputStream, which emits both unconditionally on close.
 		return out.readByteArray()
+	}
+
+	/**
+	 * The local wall clock now, as an MS-DOS date/time pair.
+	 *
+	 * Local, not UTC: a DOS timestamp has no zone, and the editor writes local time — matching it is
+	 * the point of stamping a clock here at all.
+	 *
+	 * @return Int The stamp: date in the high 16 bits, time in the low 16.
+	 */
+	private fun currentDosDateTime(): Int {
+		val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+		return dosDateTimeOf(now.year, now.month.number, now.day, now.hour, now.minute, now.second)
+	}
+
+	/**
+	 * Packs a local date and time into the MS-DOS format ZIP local headers use.
+	 *
+	 * Date: year-1980 in bits 15..9, month in 8..5, day in 4..0.  Time: hour in 15..11, minute in
+	 * 10..5, and seconds HALVED into 4..0 — which is why a DOS stamp has two-second resolution.
+	 *
+	 * A year outside 1980..2107 cannot be expressed in the 7 bits available, so it clamps to the epoch
+	 * rather than wrapping into a wrong-but-plausible year.
+	 *
+	 * @param Int year   Local year.
+	 * @param Int month  Local month, 1..12.
+	 * @param Int day    Local day of month, 1..31.
+	 * @param Int hour   Local hour, 0..23.
+	 * @param Int minute Local minute, 0..59.
+	 * @param Int second Local second, 0..59.
+	 * @return Int The stamp: date in the high 16 bits, time in the low 16.
+	 */
+	internal fun dosDateTimeOf(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Int {
+		if (year < DOS_EPOCH_YEAR || year > DOS_MAXIMUM_YEAR) {
+			return (DOS_EPOCH_DATE shl 16) or DOS_EPOCH_TIME
+		}
+		val date = ((year - DOS_EPOCH_YEAR) shl 9) or (month shl 5) or day
+		val time = (hour shl 11) or (minute shl 5) or (second / 2)
+		return (date shl 16) or time
 	}
 
 	/**

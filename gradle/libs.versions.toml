@@ -19,6 +19,10 @@ kotlinxSerialization = "1.11.0"
 okio = "3.16.2"
 # kotlinx-coroutines — for :settings' change-event SharedFlow (the reactive spine the UI/History want).
 kotlinxCoroutines = "1.10.2"
+# kotlinx-datetime — the local wall clock the CAFF zip timestamp needs. The Kotlin stdlib has a common
+# Clock but no time ZONE, and a DOS timestamp is local time, so this is the smallest thing that closes
+# the gap without reintroducing an expect/actual. See docs/formats/CMO3.md §1.
+kotlinxDatetime = "0.8.0"
 # FileKit — multiplatform native file pickers (desktop + Android one API). Replaces the AWT FileDialog
 # in :storage so the picker is OS-native everywhere and Android SAF comes for free. See module/storage.
 filekit = "0.14.2"
@@ -65,6 +69,7 @@ okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 # okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.
 okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 # FileKit dialogs — open/save pickers (FileKit.openFilePicker/openFileSaver) plus the PlatformFile type
 # the FilePicker contract returns. Pulls filekit-core transitively; multiplatform (jvm + android).
