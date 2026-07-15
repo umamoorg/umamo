@@ -104,17 +104,62 @@ kotlin {
 	}
 }
 
-// Forward corpus + differential-oracle paths to the test JVM so the eval's gated tests can run:
+// Corpus + differential-oracle paths for the eval's gated tests:
 // `./gradlew :render:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
-// Absent properties skip, so CI needs no committed corpus or external oracle.
 //
-// `umamo.requireGl` is the exception, and it is forwarded for the opposite reason: it turns the GL
-// tests' missing-context SKIP into a hard failure (see HeadlessGlGate).  CI sets it so the GL suite
-// can never silently stop covering anything; a developer machine leaves it unset and gets the skip.
+// `cmo3.sample` additionally DEFAULTS to the local golden corpus, mirroring what :format already does
+// (module/format/build.gradle.kts § corpusDefaultFor — read its comment, it explains the reasoning in
+// full).  Without that default this module's corpus gates — the GPU-vs-CPU deform oracle above all —
+// only ran when someone remembered the flag, so in practice they never ran: GpuDeformValidationTest,
+// GlueCorpusTest, and RenderOrderCorpusTest all sat skipping on a machine that had the corpus the whole
+// time.  The deform oracle is the only pin on DEFORM_GLSL's math and the thing a Metal port will check
+// itself against, so "runs only if asked" was the wrong default for it.
+//
+// Absent entirely (a fresh clone, CI) → the tests skip and the build stays green, since test/corpus is
+// gitignored on purpose (see README).  That is deliberate; CI passes no sample flags.
+//
+// `umamo.requireGl` is forwarded for the opposite reason: it turns the GL tests' missing-context skip
+// into a hard failure (see HeadlessGlGate).  CI sets it so the GL suite can never silently stop covering
+// anything; a developer machine leaves it unset and gets the skip.
+
+/** The local golden corpus root. Gitignored, so absent on CI and on a fresh clone. */
+val corpusDirectory: File = rootDir.resolve("test/corpus")
+
+/**
+ * Resolves a sample path property, preferring an explicit `-D` over the corpus default.
+ *
+ * A relative `-D` resolves against the REPO ROOT, not the test JVM's working directory (which is this
+ * module).  That distinction bites: a gated test that cannot find its sample skips rather than fails, so
+ * a path that silently resolves to nothing disables the gate without a word.  An explicit value that
+ * does not exist therefore fails the build outright instead.
+ *
+ * @param String samplePropertyName The system property name.
+ * @return String? The absolute path to hand the test JVM, or null to leave the test skipping.
+ */
+fun resolveSampleProperty(samplePropertyName: String): String? {
+	val explicit =
+		System.getProperty(samplePropertyName)
+			?: return when (samplePropertyName) {
+				// Pinned to EricaTamamo: it is the model that actually carries glue affecters, so it is
+				// what makes the glue gates meaningful rather than vacuously green.
+				"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+				else -> null
+			}
+	val resolved = rootDir.resolve(explicit.trim()).absolutePath
+	// Fail loudly rather than let the gated test skip-and-pass on a typo.
+	require(File(resolved).exists()) {
+		"-D$samplePropertyName=$explicit resolves to '$resolved', which does not exist. " +
+			"Relative values resolve against the repo root ($rootDir)."
+	}
+	return resolved
+}
+
 tasks.withType<Test>().configureEach {
-	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib", "umamo.requireGl")) {
-		System.getProperty(property)?.let { value ->
+	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
+		resolveSampleProperty(property)?.let { value ->
 			systemProperty(property, value)
 		}
 	}
+	// A plain flag, not a path: forwarded verbatim.
+	System.getProperty("umamo.requireGl")?.let { systemProperty("umamo.requireGl", it) }
 }

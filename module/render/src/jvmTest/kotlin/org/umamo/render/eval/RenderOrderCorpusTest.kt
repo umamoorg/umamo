@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
@@ -30,10 +31,7 @@ class RenderOrderCorpusTest {
 	@Test
 	fun bumpedDrawOrderPaintsFrontmostOnCorpus() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
-		if (!file.isFile) {
-			println("[ord-e2e] no cmo3.sample; skip")
-			return
-		}
+		Assume.assumeTrue("[ord-e2e] no cmo3.sample corpus model", file.isFile)
 		val root = Cmo3.read(file).root as? CModelSource ?: return
 
 		// The backmost drawable at the default pose (parts-tree order, all draw orders equal - an empty
