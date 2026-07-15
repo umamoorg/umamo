@@ -26,6 +26,21 @@ import org.umamo.render.eval.applyCpuDeform
 import org.umamo.render.eval.paintOrder
 import org.umamo.render.eval.preparePose
 import org.umamo.render.eval.renderOrder
+import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.MAX_CORNERS
+import org.umamo.render.glsl.MAX_GLUES
+import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
+import org.umamo.render.glsl.UNIT_ATLAS
+import org.umamo.render.glsl.UNIT_CP
+import org.umamo.render.glsl.UNIT_DELTA
+import org.umamo.render.glsl.UNIT_MASK
+import org.umamo.render.glsl.UNIT_POSITION
+import org.umamo.render.glsl.atlasPageVertexShader
+import org.umamo.render.glsl.glueVertexShader
+import org.umamo.render.glsl.puppetFragmentShader
+import org.umamo.render.glsl.puppetVertexShader
+import org.umamo.render.glsl.tfDeformVertexShader
+import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.render.puppet.buildDeltaTexels
 import org.umamo.render.puppet.contentBoundsOf
 import org.umamo.render.puppet.fallbackColorFor
@@ -44,111 +59,8 @@ import org.umamo.runtime.model.visibleDrawableIds
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
 
-// Standard texture units, shared across all three programs so the per-mesh deform uniforms can be set the
-// same way regardless of which program is bound. atlas/mask are fragment-stage; delta/cp/position are
-// vertex-stage (texture fetch).
-private const val UNIT_ATLAS = 0
-private const val UNIT_MASK = 1
-private const val UNIT_DELTA = 2
-private const val UNIT_CP = 3
-private const val UNIT_POSITION = 4
-
-private const val MAX_GLUES = 64
-
-// How strongly a selected drawable is tinted toward the selection accent in the fragment shader (0 = no
-// tint, 1 = fully the accent color). A subtle wash so the art stays readable under the highlight.
-private const val SELECTION_TINT_STRENGTH = 0.35f
-
-// Live-render vertex shader: deforms (shared DEFORM_GLSL deformWorld) then projects. The deform body is
-// shared with the glue pass-1 TF shader and the GPU-vs-CPU test, so all three exercise identical math.
-private val VERTEX_SHADER =
-	"#version 330 core\n" +
-		"layout(location = 0) in vec2 inBase;\n" + // rest-pose position (parent-deformer-local space)
-		"layout(location = 1) in vec2 inUv;\n" + // atlas texture coordinate (CMO3 [0,1])
-		"uniform vec4 worldToNdc;\n" + // (scaleX, scaleY, offsetX, offsetY) - the camera's world→NDC affine
-		"out vec2 vUv;\n" +
-		DEFORM_GLSL.trimIndent() + "\n" +
-		"void main() {\n" +
-		"	vUv = inUv;\n" +
-		"	vec2 world = deformWorld(inBase);\n" +
-		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
-		"}\n"
-
-// Glue pass-2 vertex shader: positions are NOT deformed here - they were written to the shared position
-// buffer by pass 1 (already world, post-Y-flip). Each vertex reads its own deformed position and, when it
-// is a glued seam vertex, its partner's, and applies the weld `own + (partner − own)·w·intensity` on the
-// GPU (matching the CPU `applyGluesResolved`). Then projects. Non-glued verts pass through unchanged.
-private val GLUE_VERTEX_SHADER =
-	"#version 330 core\n" +
-		"layout(location = 1) in vec2 inUv;\n" +
-		"layout(location = 2) in int inPartnerIndex;\n" + // partner vertex's global index, or own when not glued
-		"layout(location = 3) in int inGlueIndex;\n" + // which glue (for its per-pose intensity), or -1
-		"layout(location = 4) in float inWeldWeight;\n" + // this vertex's weld weight (0 when not glued)
-		"uniform vec4 worldToNdc;\n" +
-		"uniform samplerBuffer positionBuffer;\n" + // RG = pass-1 deformed world positions, by global index
-		"uniform int baseOffset;\n" + // this mesh's base index in positionBuffer
-		"uniform float glueIntensity[$MAX_GLUES];\n" +
-		"out vec2 vUv;\n" +
-		"void main() {\n" +
-		"	vUv = inUv;\n" +
-		"	vec2 own = texelFetch(positionBuffer, baseOffset + gl_VertexID).rg;\n" +
-		"	vec2 world = own;\n" +
-		// Skip the partner read when the weld is a no-op: a zero per-pose intensity also flags an unposed
-		// partner (set CPU-side), whose position-buffer region is uninitialised - so it is never read.
-		"	if (inGlueIndex >= 0 && inWeldWeight != 0.0 && glueIntensity[inGlueIndex] != 0.0) {\n" +
-		"		vec2 partner = texelFetch(positionBuffer, inPartnerIndex).rg;\n" +
-		"		vec2 welded = own + (partner - own) * (inWeldWeight * glueIntensity[inGlueIndex]); if (welded.x == welded.x && welded.y == welded.y && distance(welded, own) < 100000.0) { world = welded; }\n" +
-		"	}\n" +
-		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
-		"}\n"
-
-private const val FRAGMENT_SHADER =
-	"""
-	#version 330 core
-	in vec2 vUv;
-	out vec4 fragColor;
-	uniform sampler2D atlas;
-	uniform int useTexture;
-	uniform vec4 drawColor;
-	uniform float opacity;
-	uniform int useMask;
-	uniform sampler2D maskTexture;
-	uniform vec2 viewportSize;
-	uniform int invertMask;
-	uniform float highlight;
-	uniform vec3 highlightColor;
-	void main() {
-		vec4 base = (useTexture == 1) ? texture(atlas, vUv) : drawColor;
-		float alpha = base.a * opacity;
-		if (useMask == 1) {
-			float coverage = texture(maskTexture, gl_FragCoord.xy / viewportSize).a;
-			alpha *= (invertMask == 1) ? (1.0 - coverage) : coverage;
-		}
-		vec3 rgb = mix(base.rgb, highlightColor, highlight);
-		fragColor = vec4(rgb * alpha, alpha);
-	}
-	"""
-
-// Atlas-page underlay vertex shader (UV editor): emits the four corners of the page rectangle from
-// gl_VertexID (no vertex buffer, only an empty VAO), directly in Y-up display / texel space - world
-// X in [0, W], Y in [0, H] - with NO Cubism Y negation (unlike deformWorld: the page is placed straight
-// into the already-Y-up display space).  The UVs carry the V-flip so atlas V=0 (the top texel row) lands
-// at the top of the Y-up quad - corner (0, H) -> uv (0, 0) - matching UvDisplayMapping's displayY=(1-v)*H.
-// Projects through the same worldToNdc affine as the puppet.
-private val PAGE_VERTEX_SHADER =
-	"#version 330 core\n" +
-		"uniform vec4 worldToNdc;\n" + // (scaleX, scaleY, offsetX, offsetY) - the camera's world→NDC affine
-		"uniform vec2 pageSize;\n" + // the atlas page size in texels (W, H)
-		"out vec2 vUv;\n" +
-		"void main() {\n" +
-		"	float cornerX = float(gl_VertexID & 1);\n" + // 0,1,0,1 across the triangle strip
-		"	float cornerY = float((gl_VertexID >> 1) & 1);\n" + // 0,0,1,1
-		"	vec2 world = vec2(cornerX * pageSize.x, cornerY * pageSize.y);\n" +
-		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: display top (Y=H) samples the atlas top row (v=0)
-		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
-		"}\n"
-
-private const val MAX_CORNERS = 16
+// This backend is desktop OpenGL 3.3 core; the shared GLSL in org.umamo.render.glsl is emitted for it.
+private val DIALECT = GlslDialect.Core330
 
 /**
  * GPU-deforming puppet renderer (`:render`, GL 3.3 core). The keyform morph + deformer cascade run in the
@@ -337,10 +249,10 @@ class GlPuppetRenderer(
 	 * attributes + a control-point texture as needed). Must run with a GL context current.
 	 */
 	fun initGl() {
-		programHandle = linkProgram(VERTEX_SHADER, FRAGMENT_SHADER.trimIndent())
+		programHandle = linkProgram(puppetVertexShader(DIALECT), puppetFragmentShader(DIALECT))
 		glueDeformProgram = linkTransformFeedbackProgram()
-		glueProgram = linkProgram(GLUE_VERTEX_SHADER, FRAGMENT_SHADER.trimIndent())
-		pageProgram = linkProgram(PAGE_VERTEX_SHADER, FRAGMENT_SHADER.trimIndent())
+		glueProgram = linkProgram(glueVertexShader(DIALECT), puppetFragmentShader(DIALECT))
+		pageProgram = linkProgram(atlasPageVertexShader(DIALECT), puppetFragmentShader(DIALECT))
 		pageVao = GL30.glGenVertexArrays() // core profile requires a bound VAO even for the attribute-less page quad
 		atlasHandles = textures.atlases.map { uploadAtlas(it) }
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
@@ -1415,7 +1327,7 @@ class GlPuppetRenderer(
 
 	/** Links the glue pass-1 program: the shared TF deform shader capturing `outWorld` via feedback. */
 	private fun linkTransformFeedbackProgram(): Int {
-		val program = attachShaders(TF_DEFORM_VERTEX_SHADER, "#version 330 core\nvoid main() {}\n")
+		val program = attachShaders(tfDeformVertexShader(DIALECT), tfDiscardFragmentShader(DIALECT))
 		GL30.glTransformFeedbackVaryings(program, arrayOf("outWorld"), GL30.GL_INTERLEAVED_ATTRIBS)
 		GL20.glLinkProgram(program)
 		check(GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) != GL11.GL_FALSE) {

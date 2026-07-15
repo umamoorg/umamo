@@ -20,6 +20,9 @@ import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.cellsByLinearIndex
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
+import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.tfDeformVertexShader
+import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
@@ -247,9 +250,8 @@ class GpuDeformValidationTest {
 	/** Compiles the deform vertex shader (shared [DEFORM_GLSL]) capturing `outWorld` via transform feedback,
 	 *  plus a no-op fragment shader (the rasterizer is discarded). */
 	private fun linkTransformFeedbackProgram(): Int {
-		val fragmentSource = "#version 330 core\nvoid main() {}\n"
-		val vertexShader = compileShader(GL20.GL_VERTEX_SHADER, TF_DEFORM_VERTEX_SHADER)
-		val fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, fragmentSource)
+		val vertexShader = compileShader(GL20.GL_VERTEX_SHADER, tfDeformVertexShader(GlslDialect.Core330))
+		val fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, tfDiscardFragmentShader(GlslDialect.Core330))
 		val program = GL20.glCreateProgram()
 		GL20.glAttachShader(program, vertexShader)
 		GL20.glAttachShader(program, fragmentShader)
