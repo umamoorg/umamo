@@ -114,10 +114,7 @@ class AtlasPageRenderTest {
 	@Test
 	fun atlasPageRendersUprightWithCorrectUvOrientation() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[atlas-page] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[atlas-page]", window)
 		try {
 			val page = quadrantPage(viewportSize)
 			val renderer = GlPuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false))
@@ -146,10 +143,7 @@ class AtlasPageRenderTest {
 	@Test
 	fun nullPageRendersGridOnly() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[atlas-page] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[atlas-page]", window)
 		try {
 			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
 			renderer.initGl()

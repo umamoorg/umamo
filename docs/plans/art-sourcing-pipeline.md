@@ -1,6 +1,6 @@
 # Art Sourcing Pipeline — Design Roadmap
 
-Status: roadmap (2026-07-12).  This is a multi-session design backbone, not a single implementation plan.  Each numbered phase below is sized to become its own planning session.  It supersedes and expands the "Art-first pipeline" Claude Note in [TODO.md](../../TODO.md) (the 9-step list at `## Art-first pipeline`), which stays as the terse status tracker; this document is the reasoning and the decision record behind it.
+Status: roadmap (2026-07-12; Phase A shipped and back-annotated 2026-07-15).  This is a multi-session design backbone, not a single implementation plan.  Each numbered phase below is sized to become its own planning session.  Phase A is now a record of what was built rather than a proposal — where the implementation diverged from the plan, the divergence and its reason are kept, because several of those reasons constrain the phases still ahead.  It supersedes and expands the "Art-first pipeline" Claude Note in [TODO.md](../../TODO.md) (the 9-step list at `## Art-first pipeline`), which stays as the terse status tracker; this document is the reasoning and the decision record behind it.
 
 ## Purpose
 
@@ -30,22 +30,28 @@ These are locked in [CLAUDE.md](../../.claude/CLAUDE.md) and the TODO Art-first 
 
 ## Where we are today (the starting line)
 
-Verified against the tree on 2026-07-12.
+Verified against the tree on 2026-07-12; the raster-codec entries re-verified 2026-07-15 after Phase A landed.
 
 Exists and works:
 
 - The codec seam: `FormatCodec<TModel>` / `ReadOnlyCodec` / `ArtReader : ReadOnlyCodec<SourceArt>` in
 	`:format` commonMain, with `FormatRegistry` (detect-by-magic, resolve-by-extension) in
 	jvmAndroidMain.
+- The raster codec family (Phase A, 2026-07-14): `RasterCodec` / `ReadOnlyRasterCodec` / `RasterImage`
+	plus pure-Kotlin PNG (read/write), BMP (read/write), JPEG (read), WebP VP8L (read), and TIFF (read),
+	all in `:format` commonMain and all registered.  See Phase A below for what shipped versus what was
+	planned.
 - The neutral ingest model: `SourceArt` / `SourceGroup` / `SourceLayer` / `LayerRaster` / `LayerId` /
 	`LayerBounds` / `LayerBlend` in `module/format/src/commonMain/.../art/SourceArt.kt`.
 - Three layered readers producing full `SourceArt` including decoded straight-alpha RGBA pixels: PSD
-	(pure-Kotlin TwelveMonkeys port, `java.nio` + `java.util.zip`), CLIP (CSFCHUNK container + embedded
-	SQLite + zlib tiles), KRA (ZIP + `maindoc.xml` via JDOM + pure-Kotlin LZF tiles).  All three live
-	in jvmAndroidMain, are registered, and are tested.
+	(pure-Kotlin TwelveMonkeys port), CLIP (CSFCHUNK container + embedded SQLite + zlib tiles), KRA
+	(ZIP + `maindoc.xml` via JDOM + pure-Kotlin LZF tiles).  All three are registered and tested.
+	Phase A moved PSD and CLIP to commonMain onto the shared `binary/` substrate; KRA stays in
+	jvmAndroidMain as the one genuine `java.util.zip` (`ZipInputStream`) user.
 - CMO3 → `PuppetModel` import end to end, with atlas textures.  UVs are read verbatim from the CMO3
 	art meshes; the atlas page(s) are extracted whole from the imported CMO3
-	(`extractPuppetTextures` + `Cmo3Model.extractLayerPng` + `decodePngToRgba`) and uploaded to GL.
+	(`extractPuppetTextures` + `Cmo3Model.extractLayerPng`, decoding through `PngCodec.read` since
+	Phase A) and uploaded to GL.
 - CMO3 read + write and MOC3 read + write (byte-exact for an unedited MOC3); JSON family as text
 	helpers on `Moc3`.
 - The UV editor (2026-07): edits existing UVs over an existing atlas page in texel space (v-axis
@@ -53,7 +59,7 @@ Exists and works:
 
 Absent — this is the work the roadmap is about:
 
-- No pure-common raster image decoder of any kind.  Standalone image decode is one PNG-only `decodePngToRgba` expect/actual in `:render` routing to `javax.imageio.ImageIO` (JVM) and `android.graphics.BitmapFactory` (Android).  There is no image encoder anywhere except a debug `GlPuppetRenderer.dumpPng`.  BMP, WebP, JPEG, JPEG 2000, and TIFF appear nowhere in the codebase.
+- ~~No pure-common raster image decoder of any kind.~~  Closed by Phase A — see below.  What remains of this gap: no encoder for anything but PNG and BMP, no JPEG 2000 at all, and `GlPuppetRenderer.dumpPng` is still on `javax.imageio` (the last `ImageIO` reference in production code, desktop-only debug).
 - No atlas packer.  No bin-packing / rect-placement / atlas-authoring code exists; the atlas is only ever consumed pre-packed from a CMO3.  `PuppetTextures` stores only a page index per drawable — the region rectangle is implicit in the mesh UVs, so there is no data model for a Umamo-built placement.
 - No auto-mesh (mesh from a layer's opaque region).
 - No `SourceArt → PuppetModel` bridge (no `fromPsd` / `fromLayered`).  Opening a PSD/CLIP/KRA is blocked in the UI (`Document.kt` returns `NotOpenable`; the picker only offers `.cmo3`).
@@ -101,40 +107,78 @@ Puppet")` is the first point where a non-CMO3 file becomes an editable rig, and 
 
 ---
 
-## Phase A — Raster image codec family
+## Phase A — Raster image codec family — SHIPPED (2026-07-14)
 
-Goal: a platform-agnostic image codec layer for PNG, BMP, WebP, JPEG, and TIFF, so Umamo can (1) import flat rasters as source art, (2) decode the CMO3 atlas the same way on desktop and Android, and (3) encode the atlas / thumbnails it will generate in later phases.  This is the leaf of the graph — nothing depends on the rest of the pipeline — so it can start immediately and in parallel with everything.
+Goal: a platform-agnostic image codec layer for PNG, BMP, WebP, JPEG, and TIFF, so Umamo can (1) import flat rasters as source art, (2) decode the CMO3 atlas the same way on desktop and Android, and (3) encode the atlas / thumbnails it will generate in later phases.  This is the leaf of the graph — nothing depends on the rest of the pipeline — so it could start immediately and in parallel with everything.
 
-Independent of the rest of the roadmap, but it unblocks: Phase E (flat-raster source import), Phase G (atlas + thumbnail encoding into UMA), and cleans up the `:render` PNG-decode seam that Phase H already relies on.
+Delivered in `b66bfa4` ("Raster artwork CODEC work.") and the follow-ups on the `newrasterformats` branch.  It unblocks: Phase E (flat-raster source import), Phase G (atlas + thumbnail encoding into UMA), and it cleaned up the `:render` PNG-decode seam that Phase H relies on.
+
+The phase landed considerably wider than it was scoped: all five formats decode, rather than PNG and BMP now with the rest deferred.  Two of the plan's central predictions were resolved differently — the DEFLATE dependency and the `:render` → `:format` edge — and both are load-bearing for later phases, so they are recorded rather than quietly overwritten.
 
 ### The seam and where it lives
 
-Model image I/O in `:format` (the module owns "art I/O" per the module graph), not in `:render`.
-Define a raster codec that produces / consumes RGBA pixels, distinct from the existing layered
-`ArtReader`:
+As planned, image I/O is modeled in `:format` (the module owns "art I/O" per the module graph), not in `:render`, and the raster codec is distinct from the layered `ArtReader`.  The name `RasterCodec` was ratified.  What differs is that the seam is two interfaces, not one, because read-only-ness is stated in the type rather than per-codec:
 
-- `ArtReader : ReadOnlyCodec<SourceArt>` (the existing name) is for layered art — it returns a layer tree.  Do not overload it.
-- A new `RasterCodec : FormatCodec<RasterImage>` (name to ratify) is the flat image codec — bytes ↔ `RasterImage(width, height, rgba)` (RGBA8888, straight alpha, top row first — invariant #6).  Read and, where the format supports it, write.
-- A flat raster imported as source art is a thin adapter: decode via `RasterCodec`, wrap the single decoded image in a one-layer `SourceArt` (root group wrapping one layer), exactly as Cubism collapses a non-PSD import.  That keeps flat rasters on the same `SourceArt` path as PSD/CLIP/KRA without a second import mechanism.
-- Replace `:render`'s `decodePngToRgba` expect/actual with a call into the `RasterCodec` PNG path. Decision to resolve in this phase: `:render` commonMain does not currently depend on `:format` commonMain — either add that dependency (image I/O is legitimately shared) or keep a thin decode seam in `:render` that delegates.  Recommend adding the dependency; it removes an entire platform-split and the debug `dumpPng` can move onto the encoder too.
+```kotlin
+public interface RasterCodec : FormatCodec<RasterImage>
+public interface ReadOnlyRasterCodec : RasterCodec, ReadOnlyCodec<RasterImage>
+```
 
-### Format matrix and priority
+PNG and BMP implement `RasterCodec`; JPEG, WebP, and TIFF implement `ReadOnlyRasterCodec` and inherit a refusing `write` from `ReadOnlyCodec`.  The matching `FileKind` declares `writable = false`, so a caller can tell before the call.
 
-Recommended read/write coverage and ordering.  "Pure Kotlin" means a commonMain decoder with no host image library, matching how PSD/CLIP/KRA already work — the only way to guarantee byte-identical decode on desktop and Android.
+`RasterImage(width, height, rgba)` is as designed — RGBA8888, straight alpha, top row first (invariant #6), 16-bit channels down-converted to 8.  It is deliberately a plain `class`, not a `data class`: a generated structural `equals` would deep-compare the pixel array.  It is field-compatible with `art.LayerRaster`, which has the identical shape for the identical reason.  There is no metadata slot — see the color-space note under Cross-cutting decisions.
 
-| Format    | Read | Write          | Priority    | Approach                                                                                                                                                                               |
-| --------- | ---- | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PNG       | yes  | yes            | 1           | Pure Kotlin. DEFLATE via `java.util.zip` (or okio), filter types 0–4, Adam7 read. The atlas / thumbnail / CMO3-atlas workhorse; replaces `decodePngToRgba`.                            |
-| BMP       | yes  | yes            | 2           | Pure Kotlin, trivial (uncompressed BGRA/RGB).  Cheap, and a good debug-dump + round-trip test vehicle.                                                                                 |
-| JPEG      | yes  | no             | 2           | Baseline decode (Huffman + IDCT + YCbCr→RGB).  Port from TwelveMonkeys imageio-jpeg.  Lossy → never used for the atlas.                                                                |
-| WebP      | yes  | no             | 3           | Lossless VP8L read + write first (a lossless-WebP atlas is smaller than PNG); lossy VP8 read deferred. Pure-Kotlin VP8L is substantial.                                                |
-| TIFF      | yes  | no             | 3           | Port from TwelveMonkeys imageio-tiff; scope to uncompressed / LZW / DEFLATE / PackBits strips first.  Some scan / archival pipelines.                                                  |
+The flat-raster → `SourceArt` adapter shipped as a top-level function, not an `ArtReader` implementation:
 
-The caller's guidance — "read or write will not necessarily be needed in all directions for each format, but it is better to build them now" — maps to: build the `RasterCodec` seam and the tractable formats (PNG, BMP) now, wire the heavy ones (JPEG, WebP, TIFF, JP2) behind the same seam and fill them in as capacity allows.  Register each in `FormatRegistry` as it lands.
+```kotlin
+public fun rasterToSourceArt(image: RasterImage, name: String): SourceArt
+```
 
-### Session scope
+It could not be an `ArtReader`: each codec object already registers as `FormatCodec<RasterImage>`, and one object cannot also be `ReadOnlyCodec<SourceArt>`.  So it is not registered, and the documented call path is `FormatRegistry.detect(bytes) as? RasterCodec` → `read(bytes)` → `rasterToSourceArt(...)`.  It produces one root-level full-canvas layer and passes the pixel buffer through by reference (the caller must not mutate afterwards).  It has no callers outside its own test — Phase E is what consumes it.
 
-The `RasterCodec` seam + `RasterImage` type + PNG (read/write) + BMP (read/write) + the flat-raster→ `SourceArt` adapter + retiring `decodePngToRgba` is a clean first session.  JPEG / WebP / TIFF are each a follow-up session (or a batch), gated on the cross-cutting pure-vs-platform decision below.
+`decodePngToRgba` is retired: the `expect` and both actuals (`ImageIO` / `BitmapFactory`) were deleted outright, and the CMO3 atlas path now decodes through `PngCodec.read` at `Cmo3PuppetTextures.decodeAtlasPng`.
+
+Two divergences from the plan's proposals here:
+
+- The `:render` commonMain → `:format` dependency was not added, and did not need to be.  The plan's premise was wrong: `:runtime` already declares `api(project(":format"))`, so `:format` commonMain was on `:render` commonMain's compile classpath transitively all along.  The decode call sites live in `jvmAndroidMain` regardless, because they need `Cmo3Model`.  The platform split was removed either way.
+- The debug `dumpPng` did NOT move onto the new encoder.  `GlPuppetRenderer.dumpPng` still builds a `BufferedImage` and calls `ImageIO.write`, and is now the only `javax.imageio` reference left in production code.  It is `jvmMain`, so it never compiles for Android, which is presumably why it was not urgent.  `PngCodec.write` encodes exactly the 8-bit RGBA form it needs; this is a loose end, not a blocked one.
+
+### Format matrix — as shipped
+
+"Pure Kotlin" means a commonMain decoder with no host image library, matching how PSD/CLIP/KRA already work.  Every raster codec met that bar, including the ones the plan was willing to concede to a platform fallback.
+
+| Format | Read | Write | Codec object | As shipped |
+| ------ | ---- | ----- | ------------ | ---------- |
+| PNG    | yes  | yes   | `PngCodec`   | Decode is complete: all five color types, bit depths 1/2/4/8/16, `tRNS`, Adam7 interlace, all five filter types, multi-`IDAT`, per-chunk CRC-32 verification (mismatch is a hard error).  Encode is deliberately narrow: 8-bit RGBA (type 6), non-interlaced, filter 0 on every scanline.  Round-trip is pixel-exact, not byte-exact. |
+| BMP    | yes  | yes   | `BmpCodec`   | Narrower than "trivial" implies: decode is 16/24/32-bit `BI_RGB` / `BI_BITFIELDS` / `BI_ALPHABITFIELDS` only — palette (≤8-bit) and RLE are explicitly rejected.  Handles negative-height top-down.  Encode is 32-bit `BITMAPV4HEADER` with explicit RGBA masks. |
+| JPEG   | yes  | no    | `JpegReader` | In-house, not a TwelveMonkeys port.  Baseline AND progressive (SOF0/SOF1/SOF2) — progressive was promoted into scope because Twitter, Pixiv, and Save-for-Web emit it.  Plus restart intervals and arbitrary sampling factors.  Rejects lossless/arithmetic/differential/12-bit/CMYK/YCCK. |
+| WebP   | yes  | no    | `WebPReader` | VP8L lossless read only, bare or inside VP8X.  The planned VP8L writer did NOT land, so the lossless-WebP-atlas idea is still unbuilt; lossy VP8 throws.  Ported from TwelveMonkeys imageio-webp. |
+| TIFF   | yes  | no    | `TiffReader` | Much wider than the planned "uncompressed / LZW / DEFLATE / PackBits strips first": also CCITT MH-RLE / T.4 / T.6, JPEG-in-TIFF (with `JPEGTables` splicing per TIFF TN2, delegating to our own `decodeJpeg`), strips and tiles, chunky and planar, the horizontal predictor, and ExtraSamples alpha un-premultiplication.  Classic TIFF, first IFD only. |
+
+All five are registered in `FormatRegistry.codecs`, ordered after the longer-magic formats so BMP's 2-byte `"BM"` cannot shadow them.  `FileKind` grew `Png` / `Bmp` / `Jpeg` / `WebP` / `Tiff`; the reserved `Uma` entry Phase G will claim already existed.
+
+Two extension gotchas worth knowing before Phase E wires the picker: `FileKind.Jpeg.extension` is `"jpg"` and `FileKind.Tiff.extension` is `"tiff"`, and `FormatRegistry.detect`'s fallback compares the extension exactly — so a `.jpeg` or `.tif` file would not resolve by name.  Magic detection covers this in practice; only the fallback path bites.
+
+### What Phase A established that the plan did not anticipate
+
+These emerged during implementation and bind the phases that follow:
+
+- The shared binary substrate.  `binary/Deflate.kt` (okio-backed zlib and raw-DEFLATE, in and out), `binary/Crc32.kt` (hand-written pure-Kotlin CRC-32), and `binary/ByteReader.kt` (the common-code replacement for `java.nio.ByteBuffer`).  Anything later needing compression or byte-level reads uses these rather than reaching for `java.*`.
+- No shared bit reader, on purpose.  The three bit orders genuinely differ, so `WebpLsbBitReader` (LSB-first), `JpegBitReader` (MSB-first with `0xFF00` de-stuffing), and CCITT's own tree walker stay independent.  `ByteReader` is shared; bit readers are not.
+- Whole-array, never streaming.  `FormatCodec`'s `read(ByteArray)` / `write(TModel): ByteArray` forces it, and both TwelveMonkeys ports were restructured away from `ImageInputStream` to match.  Phase C's atlas pages and Phase G's UMA entries inherit this: a page is encoded as one `ByteArray`.
+- Decompression-bomb bounding as an invariant.  Every inflate takes a `maximumSize` derived from container metadata; `PngCodec` reconstructs the exact expected IDAT size from IHDR alone (summed across Adam7 passes) so a hostile stream stops there, and rejects `width * height * 4 > Int.MAX_VALUE` before allocating.  Phase G's UMA reader should hold the same line.
+- Best-effort corruption tolerance, uniform across codecs: a truncated stream yields what was recovered plus zero fill rather than throwing (PNG short scanlines, TIFF short strips, CCITT `CcittEndOfInput`, WebP zero bits past EOF).  PNG chunk CRC mismatch is the deliberate exception and is fatal.
+- Provenance is load-bearing.  WebP, TIFF, and CCITT are attributed ports of TwelveMonkeys (BSD-3-Clause, Harald Kuhr) with per-file headers pointing at [CREDITS.md](../../CREDITS.md); PNG, BMP, and JPEG are in-house.  This matters to the clean-room story and any future port must carry the same attribution.
+- ImageIO survives as a test oracle.  `PngDecodeParityTest` / `PngImageIoParityTest` in `jvmTest` assert our decode against `javax.imageio` independently — purged from main, kept as a reference implementation in tests.  Corpus-gated tests self-skip when `test/corpus/` is absent; `bmp.sample` was dropped as unread.
+
+### Outstanding from Phase A
+
+Small, and none of it blocks Phase B–E:
+
+- `GlPuppetRenderer.dumpPng` → `PngCodec.write` (retires the last production `javax.imageio`).
+- The VP8L writer, if a lossless-WebP atlas is still wanted at Phase C.
+- Lossy VP8 read, JPEG 2000, BMP palette/RLE read — all unbuilt, none currently needed.
+- Stale KDoc in `:format` that predates the move to commonMain and misdescribes it: `FormatRegistry.kt` still says the raster codecs "live in jvmAndroidMain" and calls JPEG/WebP/TIFF "read placeholders" (they are complete); `TiffReader.kt` says "uses only `java.util.zip`"; `PngCodec.kt` / `PngChunks.kt` point at a zlib bridge in `org.umamo.format.raster` that actually lives in `org.umamo.format.binary`; `PsdReader.kt` claims `java.nio` + `java.util.zip`.  Worth a cleanup pass.
 
 ---
 
@@ -186,6 +230,8 @@ Session scope: a full session; the mesh-generation strategy alone is a meaningfu
 Goal: the first point where a non-CMO3 file becomes an editable rig.  Turn a `SourceArt` (layered or flat) into a `PuppetModel`: auto-mesh each layer (D), pack the layers (C), derive UVs from the placement, place each drawable by its layer bounds, and attach a source binding (the stable `LayerId`) to each drawable.  Then unblock the UI import path (`Document.kt` and the file picker currently reject everything but CMO3).
 
 Depends on: Phase C, Phase D.  Closes the "no `fromPsd`/`fromLayered`" gap and the "non-CMO3 import blocked" gap.
+
+Phase A left two things wired for this phase and nothing else consuming them: `rasterToSourceArt(image, name)` is the flat-raster entry point (currently caller-less), and the picker will need `FileKind` extensions for the five raster kinds — note `Jpeg.extension` is `"jpg"` and `Tiff.extension` is `"tiff"`, so accepting `.jpeg` / `.tif` by name needs the registry's extension fallback widened or the picker filter written independently of it.
 
 Decisions: how the source binding is stored on the model — `Drawable` needs a new source-layer field, and it must bridge the two identity models that exist today (reader `LayerId(String)` vs reimport typed `LayerKey`).  Recommend collapsing to one identity representation here so Phase F does not inherit the split.  Also: the display-name-from-layer-name affordance the mockup calls for (the parts tree speaks `Head` / `Ear R`, not `ArtMesh32`).
 
@@ -248,11 +294,15 @@ Session scope: two sessions realistically — the import-side binding attach, an
 
 These span phases and are worth deciding early because they constrain several downstream sessions.
 
-### Pure-Kotlin vs platform-fallback per raster format
+### Pure-Kotlin vs platform-fallback per raster format — RESOLVED in Phase A: pure Kotlin, no fallbacks
 
-The tension: the PSD/CLIP/KRA readers are pure Kotlin, so Umamo's art stack decodes identically on desktop and Android; `decodePngToRgba` cheats via ImageIO/BitmapFactory, which differ (ImageIO cannot decode WebP on the JVM; BitmapFactory can; neither does JP2 or TIFF well).  Since every current target is JVM-based, "platform agnostic" today means desktop-JVM and Android decode identically without a host image library — not iOS.
+The original tension: the PSD/CLIP/KRA readers are pure Kotlin, so Umamo's art stack decodes identically on desktop and Android; `decodePngToRgba` cheated via ImageIO/BitmapFactory, which differ.  The plan recommended pure Kotlin for formats the pipeline depends on end to end, with a platform fallback tolerable for import-only formats like JPEG.
 
-Recommendation: pure Kotlin for the formats Umamo's own pipeline depends on end to end (PNG above all — the atlas and UMA storage must be byte-identical on both platforms), platform-fallback tolerable only for import-only source formats where a minor decode difference is acceptable (JPEG).  Keep the `RasterCodec` seam common so a pure-Kotlin implementation can replace a fallback per format without touching callers.
+What was actually decided is stricter, and the reasoning changed underneath it.  Every raster codec is pure-Kotlin commonMain, including JPEG — no format took the fallback.  The plan's framing that "platform agnostic today means desktop-JVM and Android, not iOS" is dead: `:format` now declares an `iosArm64()` target, so commonMain purity is a compiler guarantee rather than a convention — `java.*` in commonMain is an unresolved reference, not a latent surprise.  The target is a real iPadOS device target and is deliberately not a stand-in (a proxy would prove "non-JVM" without proving Apple), and `check` depends on `compileKotlinIosArm64` and `compileTestKotlinIosArm64` explicitly, because a device target has no runnable test task to drag its compile in.
+
+This is why DEFLATE is okio, not `java.util.zip` as the Phase A table proposed: okio's `zlibMain` reaches every target including iosArm64.  The build's own comment records that `KraReader` sat in commonMain importing `java.util.zip` and CI caught it — the gate is not theoretical.  `KraReader` is now the one genuine `java.util.zip` user and lives in jvmAndroidMain accordingly.
+
+Consequence for later phases: any new common code — the packer (C), the auto-mesh (D), the UMA codec (G) — must stay off `java.*` or it will fail the iOS compile.  Reach for `binary/Deflate.kt`, `binary/Crc32.kt`, and `binary/ByteReader.kt`.  The `RasterCodec` seam is common, so a future fallback would still be swappable per format without touching callers — but nothing needs one today.
 
 ### Atlas packing algorithm, padding, and multi-page
 
@@ -260,7 +310,9 @@ Decided in Phase C, but it ripples into Phase F (repack churn), Phase G (page en
 
 ### Premultiplied alpha and color space
 
-Invariant #6 fixes straight-alpha RGBA8888 at the model boundary; the renderer premultiplies in-shader.  The packer and encoder must stay straight-alpha through UMA storage and only premultiply at upload.  Color-space handling (sRGB assumption, ICC profiles from TIFF/JPEG sources) is currently ignored — decide whether to keep ignoring it or to normalize to sRGB on ingest.
+Invariant #6 fixes straight-alpha RGBA8888 at the model boundary; the renderer premultiplies in-shader.  The packer and encoder must stay straight-alpha through UMA storage and only premultiply at upload.  Phase A holds this end: every decoder emits straight alpha, and TIFF's ExtraSamples associated-alpha un-premultiplies on the way in.
+
+Color space is still ignored, and Phase A hardened that by omission rather than by decision.  `RasterImage` has three fields and no metadata slot, so there is nowhere to put a profile even if a decoder read one: no `iCCP` / `gAMA` / `sRGB` chunk parsing, no EXIF, no orientation, no DPI.  The only traces are write-side hardcodes in `BmpCodec.write` (~72 DPI, CSType `'sRGB'`).  So the open question is unchanged but now has a cost attached: normalizing to sRGB on ingest means adding a metadata channel to `RasterImage` (or a parallel return), which is a signature change across all five codecs.  Decide before Phase G commits UMA's pixel storage, not after.
 
 ### One identity representation
 
@@ -270,10 +322,14 @@ The reader `LayerId(String)` vs reimport typed `LayerKey` split must collapse to
 
 - The CMO3 default-form reconciliation (Phase H) is the highest-risk correctness point for the interop promise; it gates the round-trip fidelity contract and has no obvious lossless answer.
 - Android page-size caps (GLES `GL_MAX_TEXTURE_SIZE`) may force multi-page atlases where Cubism uses one 8192² page — the packer and any CMO3 export must not assume a single page.
-- Pure-Kotlin JPEG / WebP decoders are large efforts; the pure-vs-fallback decision controls how much of that is on the critical path.
+- ~~Pure-Kotlin JPEG / WebP decoders are large efforts; the pure-vs-fallback decision controls how much of that is on the critical path.~~  Retired: both shipped pure-Kotlin in Phase A, and neither is on any critical path — the pipeline's mandatory format is PNG.  The residual risk moved rather than vanished: they are now large bodies of hand-ported decode logic under our maintenance, exercised only by corpus-gated tests that self-skip on a fresh clone or CI.
 - Mask / channel round-trip: CLIP masks are baked into alpha and PSD/KRA masks are not separately modeled, so masks cannot round-trip after import today.  A `SourceArt` model extension, not yet decided.
 - Repack determinism vs churn: re-import must repack with minimal UV disturbance for untouched layers while the invariant protects the vertex→pixel mapping — a real tension to design against in Phase F.
 
-## Suggested first session
+## Session order
 
-Phase A, scoped to the `RasterCodec` seam + PNG (read/write) + BMP (read/write) + the flat-raster→`SourceArt` adapter + retiring `decodePngToRgba`.  It has no upstream dependencies, is the caller's named near-term need, delivers a testable unit immediately (round-trip PNG/BMP; decode the corpus CMO3 atlas through the new path and assert pixel-identity with the old `decodePngToRgba`), and unblocks Phases E and G.  Phases B–D can be scoped in parallel since they do not depend on A.
+Phase A was the first session and is done (2026-07-14) — it shipped its planned scope (the `RasterCodec` seam, PNG and BMP read/write, the flat-raster→`SourceArt` adapter, retiring `decodePngToRgba`) plus the JPEG, WebP, and TIFF decoders that were meant to be follow-ups.
+
+Next: Phase B (alpha-shape analysis) or Phase C (atlas packer) with B folded into its front, since B is small and C is the first phase that needs it.  Phase D can run in parallel.  Phase E is the gate — it depends on C and D and is where a non-CMO3 file first becomes an editable rig, so nothing downstream of it (F, G) starts earlier.
+
+Carry into Phase C from A: pages encode via `PngCodec.write` (8-bit RGBA, filter 0 — fine for an atlas), page bytes are whole-`ByteArray` not streamed, and packer code lives in commonMain under the iosArm64 purity gate.

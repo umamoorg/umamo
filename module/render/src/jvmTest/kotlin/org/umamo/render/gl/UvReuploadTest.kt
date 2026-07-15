@@ -106,10 +106,7 @@ class UvReuploadTest {
 	@Test
 	fun artResamplesAfterUvEdit() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[uv-reupload] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[uv-reupload]", window)
 		try {
 			val source = probeModel()
 			val renderer = GlPuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false))

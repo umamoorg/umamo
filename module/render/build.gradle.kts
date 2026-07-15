@@ -106,9 +106,13 @@ kotlin {
 
 // Forward corpus + differential-oracle paths to the test JVM so the eval's gated tests can run:
 // `./gradlew :render:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
-// Absent properties self-skip, so CI needs no committed corpus or external oracle.
+// Absent properties skip, so CI needs no committed corpus or external oracle.
+//
+// `umamo.requireGl` is the exception, and it is forwarded for the opposite reason: it turns the GL
+// tests' missing-context SKIP into a hard failure (see HeadlessGlGate).  CI sets it so the GL suite
+// can never silently stop covering anything; a developer machine leaves it unset and gets the skip.
 tasks.withType<Test>().configureEach {
-	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
+	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib", "umamo.requireGl")) {
 		System.getProperty(property)?.let { value ->
 			systemProperty(property, value)
 		}

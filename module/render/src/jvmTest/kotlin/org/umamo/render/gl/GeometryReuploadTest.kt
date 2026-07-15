@@ -117,10 +117,7 @@ class GeometryReuploadTest {
 	 */
 	private fun runMotionCase(source: PuppetModel, label: String) {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[geometry-reupload] no GL context (display-less env); skip $label")
-			return
-		}
+		assumeGlContext("[geometry-reupload]", window)
 		try {
 			val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
 			renderer.initGl()

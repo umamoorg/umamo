@@ -75,10 +75,7 @@ class GridBackdropRenderTest {
 	@Test
 	fun majorLinesLandOnWorldMultiplesAndScaleWithZoom() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[grid-backdrop] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[grid-backdrop]", window)
 		try {
 			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
 			renderer.initGl()
@@ -117,10 +114,7 @@ class GridBackdropRenderTest {
 	@Test
 	fun majorLineFollowsWorldOrigin() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[grid-backdrop] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[grid-backdrop]", window)
 		try {
 			// Offset the world origin by half a major cell (a mid-division case): the grid must anchor on the
 			// origin, so the major line lands there, NOT at world 0.

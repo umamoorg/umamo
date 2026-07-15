@@ -30,7 +30,8 @@ import kotlin.test.assertTrue
  * on, the frame gains a horizontal red X axis row and a vertical blue Z axis column crossing at the
  * model's world origin, and with the flag off (the default, which keeps render-diff tests line-free)
  * the frame contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
- * pixel position is predictable.  Self-skips in a display-less environment, like [GeometryReuploadTest].
+ * pixel position is predictable.  Skips in a display-less environment, like [GeometryReuploadTest] - via a
+ * JUnit assumption, so the run reports SKIPPED rather than a green pass that asserted nothing.
  */
 class WorldAxisLinesTest {
 	private val viewportSize = 400
@@ -67,10 +68,7 @@ class WorldAxisLinesTest {
 	@Test
 	fun axisLinesDrawOnlyWhenEnabled() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[world-axis-lines] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[world-axis-lines]", window)
 		try {
 			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
 			renderer.initGl()

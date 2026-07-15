@@ -79,10 +79,7 @@ class StructuralReconcileTest {
 	@Test
 	fun duplicatedDrawableAppearsAndItsUndoRemovesIt() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[structural-reconcile] no GL context (display-less env); skip duplicate case")
-			return
-		}
+		assumeGlContext("[structural-reconcile]", window)
 		try {
 			val original = model(listOf(drawable(sourceId, quadPositions.copyOf(), quadIndices)))
 			val renderer = GlPuppetRenderer(original, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
@@ -147,10 +144,7 @@ class StructuralReconcileTest {
 	@Test
 	fun remeshedDrawableDrawsItsNewTopology() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[structural-reconcile] no GL context (display-less env); skip remesh case")
-			return
-		}
+		assumeGlContext("[structural-reconcile]", window)
 		try {
 			// Start with HALF the quad (one triangle); the remesh grows it to the full quad with a fresh
 			// indices array - the covered mass roughly doubles only if the EBO was rebuilt.

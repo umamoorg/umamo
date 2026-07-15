@@ -41,5 +41,26 @@ jobs:
       - name: Set up Gradle (with caching)
         uses: gradle/actions/setup-gradle@v6
 
+      # :render's GL tests drive a real GLFW / OpenGL 3.3 core context and assert on read-back pixels,
+      # so without a display they cover exactly nothing. Xvfb + Mesa's llvmpipe give the runner a real
+      # context. libgl1-mesa-dri is the load-bearing one — it carries swrast/llvmpipe, and Mesa cannot
+      # do software GL without it. The GLFW X11 libs are listed explicitly rather than trusted to the
+      # runner image, so an image change fails here instead of silently degrading the suite.
+      - name: Install headless OpenGL (Xvfb + Mesa software GL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 \
+            libxrandr2 libxinerama1 libxcursor1 libxi6 libxext6
+
+      # umamo.requireGl turns the GL tests' missing-context skip into a hard failure (HeadlessGlGate),
+      # so if this Xvfb setup ever stops yielding a context, CI says so instead of going green on a
+      # suite that ran nothing. That is the whole point of the step above — without this flag a broken
+      # Xvfb is indistinguishable from a pass. LIBGL_ALWAYS_SOFTWARE pins Mesa to llvmpipe, since the
+      # runner has no GPU.
       - name: Build, test, and lint
-        run: ./gradlew build --stacktrace
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: >
+          xvfb-run -a --server-args="-screen 0 1280x1024x24"
+          ./gradlew build --stacktrace -Dumamo.requireGl=true

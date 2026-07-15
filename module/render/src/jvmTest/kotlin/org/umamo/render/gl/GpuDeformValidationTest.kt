@@ -1,5 +1,6 @@
 package org.umamo.render.gl
 
+import org.junit.Assume
 import org.lwjgl.BufferUtils
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL
@@ -35,8 +36,10 @@ import kotlin.test.assertTrue
  * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
  * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
  *
- * Gated on `-Dcmo3.sample` (self-skips without it) and on a usable GL context (self-skips in a display-less
- * CI). Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
+ * Gated on `-Dcmo3.sample` and on a usable GL context, both via JUnit assumptions - so an ungated run
+ * reports SKIPPED rather than passing green having asserted nothing. That distinction matters here more
+ * than anywhere: this is the only pin on the deform math, and a Metal port will check itself against it.
+ * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
 	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
@@ -46,15 +49,9 @@ class GpuDeformValidationTest {
 	@Test
 	fun gpuDeformMatchesCpuPerVertex() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
-		if (!file.isFile) {
-			println("[gpu-tf] no cmo3.sample; skip")
-			return
-		}
+		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[gpu-tf] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[gpu-tf]", window)
 		try {
 			val root = Cmo3.read(file).root as? CModelSource ?: return
 			val model = Cmo3Import.fromModelSource(root)

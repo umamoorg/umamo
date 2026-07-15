@@ -84,10 +84,7 @@ class SelectionTintTest {
 	@Test
 	fun activeDrawableTintsApartFromSelected() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[selection-tint] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[selection-tint]", window)
 		try {
 			val model = twoQuadModel()
 			val renderer = GlPuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
