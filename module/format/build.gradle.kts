@@ -160,12 +160,6 @@ val corpusDirectory: File = rootDir.resolve("test/corpus")
 /**
  * The corpus default for [samplePropertyName], or null when there is none (or no corpus).
  *
- * `moc3.samples` is deliberately absent. Auto-wiring it would surface a known, pre-existing
- * MocLoweringTest failure on `miku_verycursed.moc3` ("section 77 synthesized too short"), turning the
- * local run red for a bug unrelated to whatever is being worked on. It also has no single correct
- * value: the recursive tests want the parent directory while JsonRoundTripTest uses a non-recursive
- * listFiles() and wants a leaf. Pass it explicitly, and triage that failure before wiring it here.
- *
  * @param String samplePropertyName The system property name.
  * @return String? The absolute path (or comma-separated paths), or null.
  */

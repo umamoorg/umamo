@@ -107,7 +107,6 @@ kotlin {
 // Forward corpus + differential-oracle paths to the test JVM so the eval's gated tests can run:
 // `./gradlew :render:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
 // Absent properties self-skip, so CI needs no committed corpus or external oracle.
-// (`probe.params` was dropped: nothing reads it.)
 tasks.withType<Test>().configureEach {
 	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
 		System.getProperty(property)?.let { value ->
