@@ -55,8 +55,9 @@ kotlin {
 	// nothing here needs Xcode's linker. Real iPadOS builds and native test runs happen on Apple
 	// hardware; this target is what makes the daily loop and CI fail fast instead of days later.
 	//
-	// iosArm64 is a DEVICE target, so it has no runnable test task — the gate is compile-time. Add
-	// iosSimulatorArm64() if native test execution on the Mac is wanted.
+	// iosArm64 is a DEVICE target, so it has no runnable test task — the gate is compile-time, and
+	// therefore nothing pulls it into `check` on its own (see the wiring below, which fixes that). Add
+	// iosSimulatorArm64() if native test EXECUTION on the Mac is wanted.
 	iosArm64()
 
 	// New AGP KMP-aware Android target: declared inside `kotlin {}` (not a separate
@@ -123,6 +124,22 @@ kotlin {
 			}
 		}
 	}
+}
+
+// Wire the iosArm64 compile into `check`, for main AND test.
+//
+// Neither task arrives on its own: `check` reaches a target's compile only by way of a runnable test
+// task, and iosArm64 is a device target with none. So the purity gate this module carries an Apple
+// target FOR only fired when someone typed its name — and `./gradlew check` passed over a commonMain
+// `java.*` leak exactly as if the target did not exist.
+//
+// The test source set matters as much as main, and is the half that actually broke: KraReader sat in
+// commonMain importing java.util.zip while a commonTest beside it referenced a symbol only it
+// declared. compileKotlinIosArm64 was green throughout — main compiled fine — and CI failed on
+// compileTestKotlinIosArm64, a task no local run touched. commonTest has to build for every target
+// commonMain does, so it gets the same gate.
+tasks.named("check") {
+	dependsOn("compileKotlinIosArm64", "compileTestKotlinIosArm64")
 }
 
 // SQLDelight: generate a typed ClipDatabase from src/commonMain/sqldelight/.../Clip.sq.
