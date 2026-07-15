@@ -5,7 +5,7 @@
 package org.umamo.format.psd
 
 import org.umamo.format.art.LayerRaster
-import org.umamo.format.raster.inflateZlib
+import org.umamo.format.binary.inflateZlib
 
 /**
  * Decodes one PSD layer's channel image data into a straight-alpha RGBA8888 [LayerRaster].

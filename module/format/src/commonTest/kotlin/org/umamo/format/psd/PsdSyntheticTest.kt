@@ -1,7 +1,7 @@
 package org.umamo.format.psd
 
-import org.umamo.format.raster.ByteBuilder
-import org.umamo.format.raster.deflateZlib
+import okio.Buffer
+import org.umamo.format.binary.deflateZlib
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -36,10 +36,10 @@ class PsdSyntheticTest {
 	 * @return ByteArray The PackBits-encoded row (a 1-byte control of size-1, then the bytes).
 	 */
 	private fun packBitsRow(row: ByteArray): ByteArray {
-		val out = ByteBuilder()
+		val out = Buffer()
 		out.writeByte(row.size - 1) // control n: copy the next n+1 literal bytes
-		out.writeBytes(row)
-		return out.toByteArray()
+		out.write(row)
+		return out.readByteArray()
 	}
 
 	/**
@@ -53,23 +53,23 @@ class PsdSyntheticTest {
 	 * @return ByteArray The complete channel block.
 	 */
 	private fun encodeChannel(plane: ByteArray, width: Int, height: Int, compression: Int): ByteArray {
-		val out = BigEndianWriter()
+		val out = Buffer()
 		out.writeShort(compression)
 		when (compression) {
-			compressionRaw -> out.writeBytes(plane)
+			compressionRaw -> out.write(plane)
 			compressionRle -> {
 				val encodedRows = (0 until height).map { rowIndex -> packBitsRow(plane.copyOfRange(rowIndex * width, rowIndex * width + width)) }
 				for (encoded in encodedRows) {
 					out.writeShort(encoded.size) // byte-count table entry
 				}
 				for (encoded in encodedRows) {
-					out.writeBytes(encoded)
+					out.write(encoded)
 				}
 			}
 
-			compressionZip -> out.writeBytes(deflate(plane))
+			compressionZip -> out.write(deflate(plane))
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/**
@@ -79,12 +79,12 @@ class PsdSyntheticTest {
 	 * @return ByteArray The 16-byte lyid block.
 	 */
 	private fun lyidBlock(layerId: Int): ByteArray {
-		val out = BigEndianWriter()
-		out.writeAscii("8BIM")
-		out.writeAscii("lyid")
+		val out = Buffer()
+		out.writeUtf8("8BIM")
+		out.writeUtf8("lyid")
 		out.writeInt(4)
 		out.writeInt(layerId)
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/**
@@ -116,12 +116,12 @@ class PsdSyntheticTest {
 		val channels = listOf(0 to red, 1 to green, 2 to blue, -1 to alpha)
 		val blocks = channels.map { (id, plane) -> id to encodeChannel(plane, width, height, compression) }
 
-		val out = BigEndianWriter()
+		val out = Buffer()
 
 		// File Header
-		out.writeAscii("8BPS")
+		out.writeUtf8("8BPS")
 		out.writeShort(1) // version 1 (PSD)
-		out.writeBytes(ByteArray(6)) // reserved
+		out.write(ByteArray(6)) // reserved
 		out.writeShort(3) // composite channel count
 		out.writeInt(height)
 		out.writeInt(width)
@@ -144,8 +144,8 @@ class PsdSyntheticTest {
 			out.writeShort(id)
 			out.writeInt(block.size)
 		}
-		out.writeAscii("8BIM")
-		out.writeAscii("norm")
+		out.writeUtf8("8BIM")
+		out.writeUtf8("norm")
 		out.writeByte(255) // opacity
 		out.writeByte(0) // clipping
 		out.writeByte(0) // flags (visible)
@@ -158,14 +158,14 @@ class PsdSyntheticTest {
 		out.writeInt(0) // layer mask data length
 		out.writeInt(0) // blending ranges length
 		out.writeByte(nameBytes.size)
-		out.writeBytes(nameBytes)
-		out.writeBytes(additional)
+		out.write(nameBytes)
+		out.write(additional)
 
 		// Channel image data, in channel-info order.
 		for ((_, block) in blocks) {
-			out.writeBytes(block)
+			out.write(block)
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	private val width = 2
@@ -257,68 +257,5 @@ class PsdSyntheticTest {
 
 		assertEquals(japaneseName, layer.name, "layer name")
 		assertEquals("$japaneseName#0", layer.id.raw, "name+order stable id")
-	}
-
-	/**
-	 * A big-endian byte writer standing in for java.io.DataOutputStream, so this test can live in
-	 * commonTest and run on every target.  PSD is big-endian throughout, so no byte order is exposed.
-	 */
-	private class BigEndianWriter {
-		private val buffer = ByteBuilder()
-
-		/**
-		 * Appends the low 8 bits of [value].
-		 *
-		 * @param Int value The byte to append.
-		 */
-		fun writeByte(value: Int) = buffer.writeByte(value)
-
-		/**
-		 * Appends [value] as a big-endian 16-bit field.
-		 *
-		 * @param Int value The value to append.
-		 */
-		fun writeShort(value: Int) {
-			buffer.writeByte((value ushr 8) and 0xFF)
-			buffer.writeByte(value and 0xFF)
-		}
-
-		/**
-		 * Appends [value] as a big-endian 32-bit field.
-		 *
-		 * @param Int value The value to append.
-		 */
-		fun writeInt(value: Int) {
-			buffer.writeByte((value ushr 24) and 0xFF)
-			buffer.writeByte((value ushr 16) and 0xFF)
-			buffer.writeByte((value ushr 8) and 0xFF)
-			buffer.writeByte(value and 0xFF)
-		}
-
-		/**
-		 * Appends every byte of [bytes].
-		 *
-		 * @param ByteArray bytes The bytes to append.
-		 */
-		fun writeBytes(bytes: ByteArray) = buffer.writeBytes(bytes)
-
-		/**
-		 * Appends [text] as one byte per character, matching DataOutputStream.writeBytes (each
-		 * character's high 8 bits are discarded).  Used for PSD's ASCII signatures and keys.
-		 *
-		 * @param String text The text to append.
-		 */
-		fun writeAscii(text: String) {
-			for (character in text) {
-				buffer.writeByte(character.code and 0xFF)
-			}
-		}
-
-		/**
-		 * Copies out the bytes written so far.
-		 *
-		 * @return ByteArray The assembled bytes.
-		 */
-		fun toByteArray(): ByteArray = buffer.toByteArray()
 	}
 }

@@ -26,10 +26,12 @@ kotlin {
 	// types (FormatRegistry, Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file
 	// layer and app shell need them — so that code lives in src/jvmAndroidMain and is shared verbatim
 	// by both targets. Promote this block to a convention plugin at the 4th user.
-	// NOTE: the source-set visibility above is enforced by the compiler; `java.*` is NOT — while every
-	// target here is JVM-based, commonMain CAN resolve it. Keeping JVM-only code out of commonMain is
-	// a convention that preserves the option of a non-JVM target (Kotlin/Native, for iPadOS); the root
-	// build's `checkCommonSourcePurity` task is what actually holds the line.
+	// NOTE: the source-set visibility above is enforced by the compiler; `java.*` is NOT — every target
+	// here is JVM-based, so commonMain CAN resolve it. Keeping JVM-only code out of commonMain is a
+	// convention in THIS module, preserving the option of a non-JVM target (Kotlin/Native, for iPadOS);
+	// the root build's `checkCommonSourcePurity` task is what holds the line. :format has gone further
+	// and carries an iosArm64 target, which turns the same rule into a compiler guarantee there — the
+	// pattern to copy if this module ever needs the same certainty.
 	applyDefaultHierarchyTemplate {
 		common {
 			group("jvmAndroid") {

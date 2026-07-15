@@ -1,9 +1,9 @@
 package org.umamo.format.png
 
-import org.umamo.format.raster.ByteBuilder
-import org.umamo.format.raster.Crc32
-import org.umamo.format.raster.deflateZlib
-import org.umamo.format.raster.inflateZlib
+import okio.Buffer
+import org.umamo.format.binary.Crc32
+import org.umamo.format.binary.deflateZlib
+import org.umamo.format.binary.inflateZlib
 
 /*
  * PNG datastream plumbing: the 8-byte signature, the length/type/data/CRC chunk framing, and the
@@ -106,29 +106,19 @@ internal fun crc32Of(type: ByteArray, data: ByteArray): Long {
 /**
  * Appends a complete chunk (length, type, data, CRC) to [out].
  *
- * @param ByteBuilder out The destination buffer.
- * @param String type     The 4-character chunk type (ASCII).
- * @param ByteArray data  The chunk data (may be empty, e.g. IEND).
- */
-internal fun writeChunk(out: ByteBuilder, type: String, data: ByteArray) {
-	val typeBytes = type.encodeToByteArray()
-	writeU32BE(out, data.size)
-	out.writeBytes(typeBytes)
-	out.writeBytes(data)
-	writeU32BE(out, crc32Of(typeBytes, data).toInt())
-}
-
-/**
- * Appends a big-endian 32-bit integer to [out].
+ * PNG's multi-byte fields are all big-endian, which is Buffer.writeInt's native order — hence no
+ * byte-order helper here.
  *
- * @param ByteBuilder out The destination buffer.
- * @param Int value       The value to write.
+ * @param Buffer out     The destination buffer.
+ * @param String type    The 4-character chunk type (ASCII).
+ * @param ByteArray data The chunk data (may be empty, e.g. IEND).
  */
-internal fun writeU32BE(out: ByteBuilder, value: Int) {
-	out.writeByte((value ushr 24) and 0xFF)
-	out.writeByte((value ushr 16) and 0xFF)
-	out.writeByte((value ushr 8) and 0xFF)
-	out.writeByte(value and 0xFF)
+internal fun writeChunk(out: Buffer, type: String, data: ByteArray) {
+	val typeBytes = type.encodeToByteArray()
+	out.writeInt(data.size)
+	out.write(typeBytes)
+	out.write(data)
+	out.writeInt(crc32Of(typeBytes, data).toInt())
 }
 
 /**

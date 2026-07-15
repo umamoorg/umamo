@@ -1,7 +1,7 @@
 package org.umamo.format.tiff
 
-import org.umamo.format.raster.ByteBuilder
-import org.umamo.format.raster.deflateZlib
+import okio.Buffer
+import org.umamo.format.binary.deflateZlib
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -34,7 +34,7 @@ class TiffDecodeTest {
 	 * Encodes a field's values little-endian.
 	 */
 	private fun encodeValues(field: Field): ByteArray {
-		val out = ByteBuilder()
+		val out = Buffer()
 		for (value in field.values) {
 			if (field.type == typeShort) {
 				out.writeByte(value and 0xFF)
@@ -46,7 +46,7 @@ class TiffDecodeTest {
 				out.writeByte((value ushr 24) and 0xFF)
 			}
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/**
@@ -205,15 +205,15 @@ class TiffDecodeTest {
 
 	/** PackBits-encodes [data] as one literal run per 128-byte chunk (valid; my decoder reads literals). */
 	private fun packBitsEncode(data: ByteArray): ByteArray {
-		val out = ByteBuilder()
+		val out = Buffer()
 		var index = 0
 		while (index < data.size) {
 			val runLength = minOf(128, data.size - index)
 			out.writeByte(runLength - 1) // control: copy next runLength literal bytes
-			out.writeBytes(data, index, runLength)
+			out.write(data, index, runLength)
 			index += runLength
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/**
@@ -234,7 +234,7 @@ class TiffDecodeTest {
 	 * TIFF-spec LZW encode (MSB-first, 9-12 bit codes, early change) matching [decodeLzw].
 	 */
 	private fun lzwEncode(data: ByteArray): ByteArray {
-		val out = ByteBuilder()
+		val out = Buffer()
 		var bitBuffer = 0
 		var bitCount = 0
 		var codeSize = 9
@@ -286,7 +286,7 @@ class TiffDecodeTest {
 		if (bitCount > 0) {
 			out.writeByte((bitBuffer shl (8 - bitCount)) and 0xFF)
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/** Applies the horizontal-differencing predictor forward (encoder side) to 8-bit sample rows. */

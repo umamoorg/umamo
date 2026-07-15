@@ -48,18 +48,24 @@ subprojects {
 // old ClipRaster reached zlib.
 //   1. No `java.*` / `javax.*`, whether imported or spelled out at the use site — put the code in
 //      jvmAndroidMain, or hide the platform behind an expect/actual (see
-//      org.umamo.format.raster.RasterZlib for the pattern).
+//      org.umamo.format.clip.useClipDatabase for the pattern).  Reach for a common-code library
+//      before either: okio covers DEFLATE and buffers, which is how org.umamo.format.binary.Deflate
+//      retired the expect/actual it used to need.
 //   2. `@Jvm*` annotations must be imported explicitly from `kotlin.jvm`.  They are optional
 //      expectations, so non-JVM targets ignore them — but `kotlin.jvm.*` is a default import only
 //      on JVM, so an unimported `@JvmInline` is an unresolved reference off-JVM.
 //   3. No `Charsets` — `kotlin.text.Charsets` is JVM-only, so `String(bytes, US_ASCII)` and
-//      `toByteArray(UTF_16BE)` do not exist off-JVM.  Use org.umamo.format.raster.BinaryText, or
+//      `toByteArray(UTF_16BE)` do not exist off-JVM.  Use org.umamo.format.binary.BinaryText, or
 //      `encodeToByteArray()` when the bytes really are meant to be UTF-8.
 //      (`decodeToString()` is NOT a general substitute: it is UTF-8 only.)
 //
 // This check is a net, not a proof: it catches the leak classes we have actually hit.  The definitive
-// check is compiling the common source sets against a real non-JVM target, which is possible once the
-// last two blockers (CArrayList/CHashMap extending java.util collections) are resolved.
+// check is compiling against a real non-JVM target — and `:format` now does exactly that: it carries
+// an `iosArm64()` target, so its commonMain purity is a compiler guarantee and this task is only a
+// faster pre-check there.  (The two blockers this note used to name — CArrayList/CHashMap extending
+// java.util collections — were resolved by delegating instead of inheriting.)  Every other module is
+// still JVM-only, and for those this task remains the only thing holding the line; the way to upgrade
+// one is to copy :format's target, not to grow this regex.
 val commonSources =
 	fileTree(rootDir) {
 		include(
@@ -122,7 +128,7 @@ val checkCommonSourcePurity by
 							violations +=
 								"$relativePath:${lineIndex + 1}: Charsets is JVM-only (kotlin.text.Charsets); use " +
 								"encodeToByteArray()/decodeToString() when the bytes are UTF-8, else " +
-								"org.umamo.format.raster.decodeAscii / encodeUtf16Be -> $trimmed"
+								"org.umamo.format.binary.decodeAscii / encodeUtf16Be -> $trimmed"
 						}
 					}
 				}

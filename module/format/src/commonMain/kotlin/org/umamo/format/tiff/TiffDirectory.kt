@@ -3,7 +3,7 @@
 
 package org.umamo.format.tiff
 
-import org.umamo.format.raster.ByteReader
+import org.umamo.format.binary.ByteReader
 
 /**
  * The parsed fields of one TIFF image file directory (IFD): each numeric tag mapped to its values as

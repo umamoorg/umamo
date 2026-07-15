@@ -1,7 +1,7 @@
 package org.umamo.format.bmp
 
+import okio.Buffer
 import org.umamo.format.png.PngCodec
-import org.umamo.format.raster.ByteBuilder
 import org.umamo.format.raster.RasterImage
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -16,18 +16,6 @@ import kotlin.test.assertTrue
  */
 class BmpCodecTest {
 	private fun bytes(vararg values: Int): ByteArray = ByteArray(values.size) { values[it].toByte() }
-
-	private fun writeU16LE(out: ByteBuilder, value: Int) {
-		out.writeByte(value and 0xFF)
-		out.writeByte((value ushr 8) and 0xFF)
-	}
-
-	private fun writeU32LE(out: ByteBuilder, value: Int) {
-		out.writeByte(value and 0xFF)
-		out.writeByte((value ushr 8) and 0xFF)
-		out.writeByte((value ushr 16) and 0xFF)
-		out.writeByte((value ushr 24) and 0xFF)
-	}
 
 	/**
 	 * Builds an uncompressed 24-bit BI_RGB BMP (bottom-up, 4-byte-padded rows) from top-first RGB.
@@ -51,26 +39,26 @@ class BmpCodecTest {
 			}
 		}
 		val offBits = 14 + 40
-		val out = ByteBuilder()
+		val out = Buffer()
 		out.writeByte(0x42)
 		out.writeByte(0x4D)
-		writeU32LE(out, offBits + pixelData.size)
-		writeU16LE(out, 0)
-		writeU16LE(out, 0)
-		writeU32LE(out, offBits)
-		writeU32LE(out, 40) // BITMAPINFOHEADER
-		writeU32LE(out, width)
-		writeU32LE(out, height)
-		writeU16LE(out, 1)
-		writeU16LE(out, 24)
-		writeU32LE(out, 0) // BI_RGB
-		writeU32LE(out, pixelData.size)
-		writeU32LE(out, 2835)
-		writeU32LE(out, 2835)
-		writeU32LE(out, 0)
-		writeU32LE(out, 0)
-		out.writeBytes(pixelData)
-		return out.toByteArray()
+		out.writeIntLe(offBits + pixelData.size)
+		out.writeShortLe(0)
+		out.writeShortLe(0)
+		out.writeIntLe(offBits)
+		out.writeIntLe(40) // BITMAPINFOHEADER
+		out.writeIntLe(width)
+		out.writeIntLe(height)
+		out.writeShortLe(1)
+		out.writeShortLe(24)
+		out.writeIntLe(0) // BI_RGB
+		out.writeIntLe(pixelData.size)
+		out.writeIntLe(2835)
+		out.writeIntLe(2835)
+		out.writeIntLe(0)
+		out.writeIntLe(0)
+		out.write(pixelData)
+		return out.readByteArray()
 	}
 
 	@Test

@@ -3,7 +3,7 @@
 
 package org.umamo.format.webp
 
-import org.umamo.format.raster.ByteReader
+import org.umamo.format.binary.ByteReader
 
 /**
  * The parsed VP8L header: image dimensions and the byte offset where the LSB-first VP8L bit stream

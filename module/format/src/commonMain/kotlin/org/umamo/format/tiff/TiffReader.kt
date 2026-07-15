@@ -6,11 +6,11 @@
 package org.umamo.format.tiff
 
 import org.umamo.format.FileKind
+import org.umamo.format.binary.inflateZlib
 import org.umamo.format.jpeg.JpegColorTransform
 import org.umamo.format.jpeg.decodeJpeg
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.ReadOnlyRasterCodec
-import org.umamo.format.raster.inflateZlib
 
 /**
  * Pure-Kotlin TIFF reader (desktop JVM and Android), read only.

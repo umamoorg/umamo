@@ -1,6 +1,6 @@
 package org.umamo.format.kra
 
-import org.umamo.format.raster.decodeAscii
+import org.umamo.format.binary.decodeAscii
 
 /*
  * Parser for one Krita layer's tiled pixel-data file (the imageName/layers/filename entry inside

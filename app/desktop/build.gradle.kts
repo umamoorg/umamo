@@ -85,7 +85,7 @@ compose.desktop {
 		mainClass = "org.umamo.editor.desktop.MainKt"
 		// Open the corpus CMO3 (gitignored; the puppet preview) by default. Absolute path resolved
 		// at configuration time so `:desktop:run` finds it regardless of cwd.
-		jvmArgs.add("-Dumamo.testCmo3=${rootProject.file("test/corpus/EricaTamamo.cmo3").absolutePath}")
+		jvmArgs.add("-Dumamo.testCmo3=${rootProject.file("test/corpus/cmo3/EricaTamamo.cmo3").absolutePath}")
 		// Decoding the 8192² atlas to RGBA is transiently heavy (~0.5 GB); give the preview headroom.
 		jvmArgs.add("-Xmx4g")
 		nativeDistributions {

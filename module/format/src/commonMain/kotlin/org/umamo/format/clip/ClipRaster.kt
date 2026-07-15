@@ -2,8 +2,8 @@ package org.umamo.format.clip
 
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
-import org.umamo.format.raster.encodeUtf16Be
-import org.umamo.format.raster.inflateZlib
+import org.umamo.format.binary.encodeUtf16Be
+import org.umamo.format.binary.inflateZlib
 
 /**
  * Decodes a CLIP layer's tiled raster into a cropped RGBA8888 buffer.

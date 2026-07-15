@@ -77,8 +77,39 @@ The on-disk `startPos` in the sample decodes to `0x28038E4E_xxxxxxxx`; the **hig
 ### Compression
 
 - `RAW` (16): blob is the file's raw bytes (PNGs are stored RAW - already compressed).
-- `FAST` (33) / `SMALL` (37): blob is a **Java `ZipOutputStream` stream** containing a single entry named `contents`. Decompress with raw DEFLATE (`zlib -15`) starting after the local file header.  Python's `zipfile` rejects it because Java writes a streaming data-descriptor zip. `main.xml` uses `FAST`.
+- `FAST` (33) / `SMALL` (37): blob is a **partial zip stream** holding a single entry named `contents`. `main.xml` uses `FAST`.
 - De-obfuscate (XOR) **before** decompressing.
+
+#### The `FAST`/`SMALL` blob layout (measured)
+
+The blob is a zip stream that **stops after the entry** - it is not a complete zip file:
+
+```
+local file header   PK\x03\x04   30 bytes + name, no extra
+raw DEFLATE payload              zlib windowBits -15, no zlib header/Adler-32
+data descriptor     PK\x07\x08   16 bytes: signature, crc32, csize, usize
+<end of blob>
+```
+
+Local header fields, as the editor writes them:
+
+| Field | Value | Note |
+|---|---|---|
+| version needed | 20 | minimum that understands DEFLATE |
+| general-purpose flags | `0x0808` | bit 3 = sizes follow in a data descriptor; bit 11 = name is UTF-8 |
+| method | 8 | DEFLATE |
+| DOS time / date | wall clock | `0x886F` / `0x54C6` = 2022-06-06 17:03:30 in the sample |
+| crc32, csize, usize | all `0` | zeroed - the real values are in the data descriptor (that is what flag bit 3 means) |
+| name | `contents` | 8 bytes, extra length 0 |
+
+There is **no central directory and no end-of-central-directory record**. Verified against `Erica Tamamo.cmo3` by de-obfuscating (XOR `0xB1`) and scanning for signatures: `PK\x03\x04` x1, `PK\x07\x08` x1, `PK\x01\x02` x0, `PK\x05\x06` x0. Independently confirmed by re-emission: writing the layout above reproduces the original's exact file size (33,904,442 bytes, delta 0), which it could not if the original carried the 76 bytes of records a full zip appends.
+
+Consequences for anyone touching this seam:
+
+- **Do not write a central directory or EOCD.** `java.util.zip.ZipOutputStream` emits both unconditionally on close, so it cannot produce this blob - despite the shape being otherwise Java-like. Using it appends 76 bytes per compressed entry, growing the file on every save. Our writer frames the bytes directly (`CaffZip`).
+- **Python's `zipfile` rejects the blob because the EOCD is missing**, not because of the data descriptor - `zipfile` reads data-descriptor entries happily when a central directory is present.
+- **Read by inflating, not by trusting the header.** The local header's crc/csize/usize are zero, so a reader that believes them reads nothing. Skip 30 + name length + extra length, then raw-inflate to the stream's own end; the trailing data descriptor is bytes the inflater simply stops before.
+- **The DOS timestamp is a wall clock**, so the editor's own output is not reproducible. Ours pins it to the format's 1980 epoch (`0x0000`/`0x0021`) instead: the readers that matter ignore the field, and a constant is what makes re-saving the same model produce the same bytes. This is a deliberate, documented divergence from the editor's bytes.
 
 ---
 

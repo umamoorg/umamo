@@ -1,7 +1,7 @@
 package org.umamo.format.png
 
+import okio.Buffer
 import org.umamo.format.FileKind
-import org.umamo.format.raster.ByteBuilder
 import org.umamo.format.raster.RasterCodec
 import org.umamo.format.raster.RasterImage
 
@@ -63,13 +63,13 @@ public object PngCodec : RasterCodec {
 		val transparency = chunks.firstOrNull { it.type == "tRNS" }?.data
 
 		// PNG spec §5.4 IDAT: the image data may be split across multiple IDAT chunks; concatenate then inflate once.
-		val idat = ByteBuilder()
+		val idat = Buffer()
 		for (chunk in chunks) {
 			if (chunk.type == "IDAT") {
-				idat.writeBytes(chunk.data)
+				idat.write(chunk.data)
 			}
 		}
-		val idatBytes = idat.toByteArray()
+		val idatBytes = idat.readByteArray()
 		val channels = channelCount(header.colorType)
 		val bitsPerPixel = channels * header.bitDepth
 		val raw = inflateIdat(idatBytes, 0, idatBytes.size, expectedRawSize(header, bitsPerPixel))
@@ -102,19 +102,19 @@ public object PngCodec : RasterCodec {
 	 * @return ByteArray The complete `.png` file.
 	 */
 	override fun write(model: RasterImage): ByteArray {
-		val out = ByteBuilder(model.rgba.size / 2 + 128)
-		out.writeBytes(PNG_SIGNATURE)
+		val out = Buffer()
+		out.write(PNG_SIGNATURE)
 
 		// PNG spec §11.2.2 IHDR: width, height, bitDepth=8, colourType=6 (RGBA), compression=0, filter=0, interlace=0.
-		val ihdr = ByteBuilder(13)
-		writeU32BE(ihdr, model.width)
-		writeU32BE(ihdr, model.height)
+		val ihdr = Buffer()
+		ihdr.writeInt(model.width)
+		ihdr.writeInt(model.height)
 		ihdr.writeByte(8)
 		ihdr.writeByte(COLOR_RGBA)
 		ihdr.writeByte(0)
 		ihdr.writeByte(0)
 		ihdr.writeByte(0)
-		writeChunk(out, "IHDR", ihdr.toByteArray())
+		writeChunk(out, "IHDR", ihdr.readByteArray())
 
 		// Raw filtered scanlines: a leading filter byte (0=None) then width*4 RGBA bytes per row.
 		val rowBytes = model.width * 4
@@ -129,7 +129,7 @@ public object PngCodec : RasterCodec {
 		}
 		writeChunk(out, "IDAT", deflateIdat(filtered))
 		writeChunk(out, "IEND", ByteArray(0))
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/** The IHDR fields the decoder needs. */

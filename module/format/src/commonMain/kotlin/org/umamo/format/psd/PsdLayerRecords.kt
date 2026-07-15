@@ -2,7 +2,7 @@ package org.umamo.format.psd
 
 import org.umamo.format.art.LayerBlend
 import org.umamo.format.art.LayerBounds
-import org.umamo.format.raster.ByteReader
+import org.umamo.format.binary.ByteReader
 import kotlin.math.abs
 
 /**

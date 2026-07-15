@@ -1,7 +1,7 @@
 package org.umamo.format.bmp
 
+import okio.Buffer
 import org.umamo.format.FileKind
-import org.umamo.format.raster.ByteBuilder
 import org.umamo.format.raster.RasterCodec
 import org.umamo.format.raster.RasterImage
 
@@ -122,36 +122,36 @@ public object BmpCodec : RasterCodec {
 		val pixelOffset = FILE_HEADER_SIZE + V4_HEADER_SIZE
 		val fileSize = pixelOffset + pixelDataSize
 
-		val out = ByteBuilder(fileSize)
+		val out = Buffer()
 		// BITMAPFILEHEADER.
 		out.writeByte(0x42)
 		out.writeByte(0x4D)
-		writeU32LE(out, fileSize)
-		writeU16LE(out, 0) // bfReserved1
-		writeU16LE(out, 0) // bfReserved2
-		writeU32LE(out, pixelOffset) // bfOffBits
+		out.writeIntLe(fileSize)
+		out.writeShortLe(0) // bfReserved1
+		out.writeShortLe(0) // bfReserved2
+		out.writeIntLe(pixelOffset) // bfOffBits
 
 		// BITMAPV4HEADER.
-		writeU32LE(out, V4_HEADER_SIZE)
-		writeU32LE(out, model.width)
-		writeU32LE(out, model.height) // positive: bottom-up
-		writeU16LE(out, 1) // planes
-		writeU16LE(out, 32) // bitCount
-		writeU32LE(out, BI_BITFIELDS)
-		writeU32LE(out, pixelDataSize)
-		writeU32LE(out, 2835) // xPelsPerMeter (~72 DPI)
-		writeU32LE(out, 2835) // yPelsPerMeter
-		writeU32LE(out, 0) // clrUsed
-		writeU32LE(out, 0) // clrImportant
-		writeU32LE(out, 0x00FF0000) // redMask
-		writeU32LE(out, 0x0000FF00) // greenMask
-		writeU32LE(out, 0x000000FF) // blueMask
-		writeU32LE(out, -0x1000000) // alphaMask 0xFF000000
-		writeU32LE(out, 0x73524742) // CSType 'sRGB'
-		repeat(9) { writeU32LE(out, 0) } // CIEXYZTRIPLE endpoints (ignored for BI_BITFIELDS)
-		writeU32LE(out, 0) // gammaRed
-		writeU32LE(out, 0) // gammaGreen
-		writeU32LE(out, 0) // gammaBlue
+		out.writeIntLe(V4_HEADER_SIZE)
+		out.writeIntLe(model.width)
+		out.writeIntLe(model.height) // positive: bottom-up
+		out.writeShortLe(1) // planes
+		out.writeShortLe(32) // bitCount
+		out.writeIntLe(BI_BITFIELDS)
+		out.writeIntLe(pixelDataSize)
+		out.writeIntLe(2835) // xPelsPerMeter (~72 DPI)
+		out.writeIntLe(2835) // yPelsPerMeter
+		out.writeIntLe(0) // clrUsed
+		out.writeIntLe(0) // clrImportant
+		out.writeIntLe(0x00FF0000) // redMask
+		out.writeIntLe(0x0000FF00) // greenMask
+		out.writeIntLe(0x000000FF) // blueMask
+		out.writeIntLe(-0x1000000) // alphaMask 0xFF000000
+		out.writeIntLe(0x73524742) // CSType 'sRGB'
+		repeat(9) { out.writeIntLe(0) } // CIEXYZTRIPLE endpoints (ignored for BI_BITFIELDS)
+		out.writeIntLe(0) // gammaRed
+		out.writeIntLe(0) // gammaGreen
+		out.writeIntLe(0) // gammaBlue
 
 		// Pixel array, bottom-up: file row 0 is the image's bottom row. Each pixel is B, G, R, A.
 		for (fileRow in 0 until model.height) {
@@ -165,7 +165,7 @@ public object BmpCodec : RasterCodec {
 				source += 4
 			}
 		}
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	/** The four channel bit-masks a BI_BITFIELDS (or defaulted BI_RGB) BMP uses. */
@@ -259,28 +259,4 @@ public object BmpCodec : RasterCodec {
 			((bytes[at + 1].toInt() and 0xFF) shl 8) or
 			((bytes[at + 2].toInt() and 0xFF) shl 16) or
 			((bytes[at + 3].toInt() and 0xFF) shl 24)
-
-	/**
-	 * Appends a little-endian 16-bit value to [out].
-	 *
-	 * @param ByteBuilder out The destination buffer.
-	 * @param Int value                 The value to write.
-	 */
-	private fun writeU16LE(out: ByteBuilder, value: Int) {
-		out.writeByte(value and 0xFF)
-		out.writeByte((value ushr 8) and 0xFF)
-	}
-
-	/**
-	 * Appends a little-endian 32-bit value to [out].
-	 *
-	 * @param ByteBuilder out The destination buffer.
-	 * @param Int value                 The value to write.
-	 */
-	private fun writeU32LE(out: ByteBuilder, value: Int) {
-		out.writeByte(value and 0xFF)
-		out.writeByte((value ushr 8) and 0xFF)
-		out.writeByte((value ushr 16) and 0xFF)
-		out.writeByte((value ushr 24) and 0xFF)
-	}
 }

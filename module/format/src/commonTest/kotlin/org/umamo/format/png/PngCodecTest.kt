@@ -1,6 +1,6 @@
 package org.umamo.format.png
 
-import org.umamo.format.raster.ByteBuilder
+import okio.Buffer
 import org.umamo.format.raster.RasterImage
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -35,32 +35,32 @@ class PngCodecTest {
 	 * @return ByteArray The complete `.png` file.
 	 */
 	private fun buildPng(width: Int, height: Int, bitDepth: Int, colorType: Int, samples: ByteArray, rowBytes: Int, palette: ByteArray? = null, trns: ByteArray? = null): ByteArray {
-		val filtered = ByteBuilder()
+		val filtered = Buffer()
 		for (rowIndex in 0 until height) {
 			filtered.writeByte(0) // filter type None
-			filtered.writeBytes(samples, rowIndex * rowBytes, rowBytes)
+			filtered.write(samples, rowIndex * rowBytes, rowBytes)
 		}
-		val ihdr = ByteBuilder()
-		writeU32BE(ihdr, width)
-		writeU32BE(ihdr, height)
+		val ihdr = Buffer()
+		ihdr.writeInt(width)
+		ihdr.writeInt(height)
 		ihdr.writeByte(bitDepth)
 		ihdr.writeByte(colorType)
 		ihdr.writeByte(0) // compression
 		ihdr.writeByte(0) // filter method
 		ihdr.writeByte(0) // interlace: none
 
-		val out = ByteBuilder()
-		out.writeBytes(PNG_SIGNATURE)
-		writeChunk(out, "IHDR", ihdr.toByteArray())
+		val out = Buffer()
+		out.write(PNG_SIGNATURE)
+		writeChunk(out, "IHDR", ihdr.readByteArray())
 		if (palette != null) {
 			writeChunk(out, "PLTE", palette)
 		}
 		if (trns != null) {
 			writeChunk(out, "tRNS", trns)
 		}
-		writeChunk(out, "IDAT", deflateIdat(filtered.toByteArray()))
+		writeChunk(out, "IDAT", deflateIdat(filtered.readByteArray()))
 		writeChunk(out, "IEND", ByteArray(0))
-		return out.toByteArray()
+		return out.readByteArray()
 	}
 
 	@Test

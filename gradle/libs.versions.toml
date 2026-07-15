@@ -74,6 +74,9 @@ jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 # SQLDelight SQLite drivers: JVM JdbcSqliteDriver
 sqldelightSqliteDriver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 sqldelightAndroidDriver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+# SQLDelight's Kotlin/Native driver (SQLiter), for CLIP on iPadOS — Clip Studio Paint runs on iPad,
+# so CLIP ingest is the native path that actually matters. Publishes iosArm64 alongside the rest.
+sqldelightNativeDriver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

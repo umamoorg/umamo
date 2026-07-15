@@ -1,6 +1,6 @@
 package org.umamo.format.clip
 
-import org.umamo.format.raster.decodeAscii
+import org.umamo.format.binary.decodeAscii
 
 /**
  * Parser for the outer CLIP (Clip Studio Paint) container: the CSFCHUNK wrapper.
