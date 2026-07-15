@@ -26,10 +26,14 @@ kotlin {
 
 	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by
-	// the two JVM-based targets (desktop JVM + Android/ART). commonMain cannot see `java.*`,
-	// but CMO3 read/write is a JDOM + Kotlin-reflection XML serializer (NOT Java object
-	// serialization — see docs/formats/CMO3.md) and those are JVM-only APIs — so that code lives
-	// in src/jvmAndroidMain and is shared verbatim by both, honouring CLAUDE.md's intent.
+	// the two JVM-based targets (desktop JVM + Android/ART). CMO3 read/write is a JDOM +
+	// Kotlin-reflection XML serializer (NOT Java object serialization — see docs/formats/CMO3.md)
+	// and those are JVM-only APIs — so that code lives in src/jvmAndroidMain and is shared verbatim
+	// by both, honouring CLAUDE.md's intent.
+	// NOTE: while every target here is JVM-based, commonMain CAN resolve `java.*` — the compiler does
+	// not enforce the split, so keeping JVM-only code out of commonMain is a convention, not a
+	// guarantee. It is what preserves the option of a non-JVM target (Kotlin/Native, for iPadOS);
+	// the root build's `checkCommonSourcePurity` task is what actually holds the line.
 	// Using a template group (rather than raw `dependsOn`) keeps the auto-wired commonMain
 	// edges intact and avoids the "default hierarchy not applied" warning.
 	applyDefaultHierarchyTemplate {
@@ -109,7 +113,7 @@ sqldelight {
 // Absent → those tests self-skip, so CI stays green without committing a multi-megabyte corpus.
 tasks.withType<Test>().configureEach {
 	maxHeapSize = "4g"
-	for (samplePropertyName in listOf("cmo3.sample", "moc3.samples", "kra.sample", "clip.sample", "psd.sample", "png.sample", "bmp.sample")) {
+	for (samplePropertyName in listOf("cmo3.sample", "moc3.samples", "kra.sample", "clip.sample", "psd.sample", "png.sample", "bmp.sample", "tiff.sample", "webp.sample", "jpeg.sample")) {
 		System.getProperty(samplePropertyName)?.let { samplePath ->
 			systemProperty(samplePropertyName, samplePath)
 		}

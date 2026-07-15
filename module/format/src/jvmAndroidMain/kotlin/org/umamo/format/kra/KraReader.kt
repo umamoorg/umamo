@@ -107,7 +107,7 @@ object KraReader : ArtReader {
 
 /**
  * True if bytes is a Krita archive: a ZIP whose first, stored entry is the mimetype file holding
- * application/x-kra. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
+ * application/x-krita. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
  * sits in the first few dozen bytes and a short prefix scan identifies the format without unzipping.
  * A .kra re-saved by a tool that drops the mimetype entry will not match here, in which case the
  * format registry's extension fallback covers it.
@@ -116,8 +116,13 @@ object KraReader : ArtReader {
  * @return Boolean Whether the archive announces itself as a Krita document.
  */
 private fun isKra(bytes: ByteArray): Boolean {
-	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content "application/x-kra"
-	// (KoQuaZipStore.cpp:165 writes it first/uncompressed; NATIVE_MIMETYPE kis_kra_tags.h:19).
+	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content (KoQuaZipStore.cpp:165
+	// writes it first/uncompressed).  A .kra carries TWO similar-looking Krita mime strings and they
+	// are not interchangeable: the mimetype entry holds "application/x-krita", while "application/x-kra"
+	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/formats/KRA.md §1).  Matching the
+	// latter here finds nothing — it is not even a prefix of the former, the two diverge at "kr|a" vs
+	// "kr|ita" — so scan for the real entry content.  Both are accepted anyway: neither string can
+	// occur this early in a non-Krita ZIP, so allowing both only buys tolerance of writer variation.
 	val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
 	if (bytes.size < zipMagic.size) {
 		return false
@@ -127,9 +132,18 @@ private fun isKra(bytes: ByteArray): Boolean {
 			return false
 		}
 	}
-	val marker = "application/x-kra".encodeToByteArray()
-	return indexOfBytes(bytes, marker, scanLimit = min(bytes.size, 128)) >= 0
+	val scanLimit = min(bytes.size, 128)
+	return KRA_MIMETYPE_MARKERS.any { marker -> indexOfBytes(bytes, marker.encodeToByteArray(), scanLimit) >= 0 }
 }
+
+/**
+ * The mimetype-entry contents that identify a Krita archive.
+ *
+ * "application/x-krita" is what Krita actually writes; "application/x-kra" is accepted defensively
+ * (it is the maindoc.xml `<IMAGE mime>` value, and is what an earlier version of this check looked
+ * for by mistake).
+ */
+private val KRA_MIMETYPE_MARKERS = listOf("application/x-krita", "application/x-kra")
 
 /**
  * Returns the start index of the first occurrence of needle within haystack[0, scanLimit), or -1.

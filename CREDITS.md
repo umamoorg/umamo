@@ -26,13 +26,22 @@ https://www.youtube.com/watch?v=5AiZTgUx_WM
 
 Umamo's KRA file format reader was ported directly from the official Krita repository.
 
-## TwelveMonkeys ImageIO — PSD reader (BSD 3-Clause)
+## TwelveMonkeys ImageIO — PSD, TIFF, and WEBP readers (BSD 3-Clause)
 
 - Upstream: TwelveMonkeys ImageIO, `imageio-psd` module - https://github.com/haraldk/TwelveMonkeys
 - Copyright (c) 2008-2020 Harald Kuhr
 - License: BSD 3-Clause
 
-Umamo's pure-Kotlin PSD reader ports the channel-decode logic of TwelveMonkeys' `imageio-psd` to Kotlin so it runs on Android (which lacks `javax.imageio`) as well as the desktop JVM.  The derived work is the channel decompression and pixel assembly in [`module/format/src/jvmAndroidMain/kotlin/org/umamo/format/psd/PsdRaster.kt`](module/format/src/jvmAndroidMain/kotlin/org/umamo/format/psd/PsdRaster.kt), which follows TwelveMonkeys' `PSDImageReader`, `PSDUtil`, `PSDColorData`, and `HorizontalDeDifferencingStream` (PackBits RLE, ZIP / ZIP-with-prediction decompression, the indexed palette layout, and the per-depth sample handling).  The surrounding layer-record parser (`PsdLayerRecords.kt`) and the neutral `SourceArt` mapping (`PsdReader.kt`) are Umamo's own.
+- Upstream: TwelveMonkeys ImageIO, `imageio-tiff` (and `imageio-metadata`, `common-io`) modules - https://github.com/haraldk/TwelveMonkeys
+- Copyright (c) 2012 Harald Kuhr, Oliver Schmidtmer
+- License: BSD 3-Clause
+
+  Covers the LZW, PackBits, horizontal-predictor, and CCITT (Modified Huffman RLE / T.4 / T.6) decoders.
+  The IFD parser, pixel assembly, and JPEG-in-TIFF handling are Umamo's own.
+
+- Upstream: TwelveMonkeys ImageIO, `imageio-webp` module - https://github.com/haraldk/TwelveMonkeys
+- Copyright (c) 2017 Harald Kuhr, Simon Kammermeier
+- License: BSD 3-Clause
 
 Per the BSD 3-Clause terms, the original copyright notice is retained here and in the header of the derived source file.  The ported code is distributed as part of Umamo under GPLv3.
 
@@ -67,6 +76,18 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Baseline JPEG Decoder — Independent JPEG Group
+
+- Upstream: Independent JPEG Group's reference JPEG library (libjpeg) - https://www.ijg.org/
+- Copyright (c) 1991-2020, Thomas G. Lane, Guido Vollbeding
+- License: IJG License (permissive, GPL-compatible)
+
+Umamo's JPEG decoder (`org.umamo.format.jpeg`) is an independent Kotlin implementation written from the public ITU-T T.81 specification; no IJG source was copied.  Several of its algorithms do, however, follow IJG's reference implementation and fixed-point constants — the accurate integer IDCT of `jidctint.c` (`jpeg_idct_islow`), the triangle chroma upsampling filters of `jdsample.c`, the scaled colour-conversion tables of `jdcolor.c`, and the progressive successive-approximation scan decoders of `jdphuff.c`.  This is deliberate: in a lossy codec the fixed-point rounding IS the output, so matching those algorithms is what makes Umamo decode a JPEG to the same bytes as every mainstream reader.  Accordingly, and per the IJG license's terms for distributing derived work:
+
+> This software is based in part on the work of the Independent JPEG Group.
+
+The decoder is distributed as part of Umamo under GPLv3.
 
 ## Bundled Libraries
 FileKit - https://github.com/vinceglb/FileKit/blob/main/LICENSE

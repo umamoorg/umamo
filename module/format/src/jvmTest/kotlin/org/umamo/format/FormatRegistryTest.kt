@@ -32,9 +32,20 @@ class FormatRegistryTest {
 	/** A buffer whose first four bytes are the PSD signature `8BPS`. */
 	private fun psdHeaderBytes(): ByteArray = "8BPS".encodeToByteArray() + ByteArray(60)
 
-	/** A ZIP header with the Krita `application/x-kra` mimetype marker placed in the first 128 bytes. */
+	/**
+	 * A ZIP header shaped like a real `.kra`: the local-file-header magic, then the stored `mimetype`
+	 * entry whose content is `application/x-krita`.
+	 *
+	 * The exact string matters and is the reason this helper is spelled out rather than approximated.
+	 * A `.kra` carries two similar Krita mime strings — `application/x-krita` in the mimetype entry and
+	 * `application/x-kra` in maindoc.xml's `<IMAGE mime>` — and they are not interchangeable (they
+	 * diverge at `kr|a` vs `kr|ita`, so neither contains the other).  This fixture previously used the
+	 * wrong one, which made the test pass against a header no Krita ever writes while
+	 * [org.umamo.format.kra.KraReader] rejected every real file; see docs/formats/KRA.md §1.
+	 */
 	private fun kraHeaderBytes(): ByteArray =
-		byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(30) + "application/x-kra".encodeToByteArray() + ByteArray(8)
+		byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(26) + "mimetype".encodeToByteArray() +
+			"application/x-krita".encodeToByteArray() + ByteArray(8)
 
 	/** A buffer whose first eight bytes are the CLIP container magic `CSFCHUNK`. */
 	private fun clipHeaderBytes(): ByteArray = "CSFCHUNK".encodeToByteArray() + ByteArray(56)

@@ -15,31 +15,52 @@ import kotlin.test.assertTrue
  * non-blank ids, and some actual pixel content.
  */
 class KraReaderTest {
-	private fun locateSample(): File? {
+	/**
+	 * Locates every KRA sample: `-Dkra.sample` when set, else every `.kra` under `test/corpus/krita`.
+	 *
+	 * @return List<File> The samples, empty when none are configured.
+	 */
+	private fun locateSamples(): List<File> {
 		System.getProperty("kra.sample")?.let { path ->
-			return File(path).takeIf(File::isFile)
+			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus/krita")
 			if (corpus.isDirectory) {
 				return corpus.listFiles { file -> file.extension.equals("kra", ignoreCase = true) }
-					?.minByOrNull { it.name }
+					?.sortedBy { it.name } ?: emptyList()
 			}
 			directory = directory.parentFile
 		}
-		return null
+		return emptyList()
 	}
 
 	@Test
 	fun readsLayersFromRealKra() {
-		val sample = locateSample()
-		if (sample == null) {
-			println("no kra.sample and no test/corpus/krita sample; skipping KRA reader test")
+		val samples = locateSamples()
+		if (samples.isEmpty()) {
+			println("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
 			return
 		}
+		for (sample in samples) {
+			checkSample(sample)
+		}
+	}
 
-		val art = KraReader.read(sample.readBytes())
+	/**
+	 * Asserts the reader's structural invariants for one sample.
+	 *
+	 * @param File sample The `.kra` to read.
+	 */
+	private fun checkSample(sample: File) {
+		val bytes = sample.readBytes()
+		// Asserting detection here is the regression guard for the magic check: KraReader once scanned
+		// for "application/x-kra" (the maindoc.xml <IMAGE mime> value) instead of the mimetype entry's
+		// "application/x-krita", so it rejected every real .kra while the synthetic registry fixture,
+		// built from the same wrong string, still passed.
+		assertTrue(KraReader.matches(bytes), "${sample.name}: detected as KRA by magic")
+		val art = KraReader.read(bytes)
 
 		assertTrue(art.widthPx > 0 && art.heightPx > 0, "${sample.name}: positive canvas size")
 		assertTrue(art.layers.isNotEmpty(), "${sample.name}: at least one paint layer")
@@ -87,5 +108,6 @@ class KraReaderTest {
 			// The cascade helper must run cleanly over real data (no path/parse surprises).
 			art.isEffectivelyVisible(layer)
 		}
+		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups")
 	}
 }
