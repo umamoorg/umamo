@@ -12,6 +12,7 @@ import androidx.compose.ui.window.application
 import io.github.vinceglb.filekit.FileKit
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.painterResource
+import org.umamo.editor.desktop.viewport.OffscreenPuppetService
 import org.umamo.format.FileKind
 import org.umamo.runtime.model.ParameterId
 import org.umamo.settings.Settings

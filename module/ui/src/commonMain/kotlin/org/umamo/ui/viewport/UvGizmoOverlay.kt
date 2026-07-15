@@ -378,6 +378,18 @@ internal fun UvGizmoOverlay(
 		}
 	}
 
+	// The UV snap pie (Shift+S over the UV editor): the executing area was resolved at dispatch into
+	// the payload, so this gate is deterministic.  The executor owns the shown page's dimensions and
+	// the covered display geometry, so it performs the snap over the texture coordinates here.
+	LaunchedEffect(session) {
+		session.uvSnapRequests.collect { request ->
+			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
+				return@collect
+			}
+			handleUvSnapRequest(session, liveGeometries.value, livePageWidth.value, livePageHeight.value, request.kind)
+		}
+	}
+
 	// Enter confirms the modal gesture (mirroring a primary click), gated to the INITIATING area
 	// through the UV latch itself - the mesh and object latches are mutually exclusive with it, so an
 	// Edit-overlay confirm can never double-commit with this one.

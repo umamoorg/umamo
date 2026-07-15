@@ -202,6 +202,19 @@ class GlPuppetRenderer(
 	@Volatile
 	private var highlightColor: FloatArray = floatArrayOf(0.20f, 0.55f, 1.0f)
 
+	// The active (last-selected) drawable, tinted toward activeHighlightColor instead of highlightColor so
+	// the primary target of a multi-selection reads apart from the rest. Set from the UI thread; null when
+	// nothing is active (single selection, or an in-flight preview stroke with no active yet). Always a
+	// member of selectedIds when non-null.
+	@Volatile
+	private var activeId: DrawableId? = null
+
+	// The color the active drawable is tinted toward, fed from the editor settings alongside highlightColor.
+	// Defaults to the edit-mode active green (#7DE400) until the host pushes the configured color. RGB, each
+	// 0..1; the immutable FloatArray swap makes the volatile reference a safe publish.
+	@Volatile
+	private var activeHighlightColor: FloatArray = floatArrayOf(0.49f, 0.89f, 0.0f)
+
 	// The last pose's resolved draw list (back-to-front; last = front), published for picking. This folds
 	// in the parts/group hierarchy, so it is the authoritative front/back order — unlike the raw per-drawable
 	// draw-order scalar. Render-thread-written, UI-thread-read; the immutable list swap is a safe publish.
@@ -615,6 +628,20 @@ class GlPuppetRenderer(
 	}
 
 	/**
+	 * Sets which drawable is active (the last-selected object of a multi-selection). The next [render] tints
+	 * it toward [activeHighlightColor] rather than the shared [highlightColor], so the primary target reads
+	 * apart from the rest. Null clears the distinction (every selected drawable tints plain). Kept concrete
+	 * (not on [Renderer]) like [setSelection], since selection is an editor concern the desktop host drives.
+	 *
+	 * アクティブ（最後に選択した）ドロウアブルを設定する。次の render でアクティブ色に反映される。
+	 *
+	 * @param DrawableId? id The active drawable id, or null when none is active.
+	 */
+	fun setActiveSelection(id: DrawableId?) {
+		activeId = id
+	}
+
+	/**
 	 * Updates the set of drawables that are actually drawn (the resolved Parts-panel visibility cascade),
 	 * so a visibility edit takes effect on the next [render]. The geometry buffers are unchanged by a
 	 * visibility toggle, so this only swaps the pass-2 draw filter. Concrete (not on [Renderer]) like
@@ -780,6 +807,21 @@ class GlPuppetRenderer(
 	}
 
 	/**
+	 * Sets the color the active drawable is tinted toward (the active-selection highlight). The next [render]
+	 * applies it through the fragment shader's highlightColor uniform for the active drawable only. Concrete
+	 * (not on [Renderer]) like [setSelectionHighlightColor], since it is an editor setting the host drives.
+	 *
+	 * アクティブ選択ハイライトの色を設定する。次の render でアクティブなドロウアブルに反映される。
+	 *
+	 * @param Float red   The tint red,   0..1.
+	 * @param Float green The tint green, 0..1.
+	 * @param Float blue  The tint blue,  0..1.
+	 */
+	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) {
+		activeHighlightColor = floatArrayOf(red, green, blue)
+	}
+
+	/**
 	 * Evaluates the current pose's deformed world geometry on the CPU for hit-testing (picking), or null
 	 * before the first pose. Pure CPU with no GL calls, so it is safe to call from the UI thread; it reuses
 	 * the immutable per-pose inputs cached by the last [setPose] rather than re-deforming every frame.
@@ -883,8 +925,9 @@ class GlPuppetRenderer(
 			GL20.glUniform1i(uniform(boundProgram, "useMask"), if (masked) 1 else 0)
 			GL20.glUniform1i(uniform(boundProgram, "invertMask"), if (masked && gpuDrawable.invertMask) 1 else 0)
 			applyBlendMode(gpuDrawable.blendMode)
-			val highlight = if (gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
-			drawDrawable(boundProgram, gpuDrawable, gpuDrawable.opacity, highlight)
+			val isActive = activeId != null && gpuDrawable.id == activeId
+			val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
+			drawDrawable(boundProgram, gpuDrawable, gpuDrawable.opacity, highlight, isActive)
 		}
 		GL30.glBindVertexArray(0)
 		GL20.glUseProgram(0)
@@ -1043,7 +1086,7 @@ class GlPuppetRenderer(
 	 * mesh ([GpuDrawable.isGlueMesh]) needs only its base offset (positions come from the shared buffer); a
 	 * non-glue mesh needs its deform uniforms set first.
 	 */
-	private fun drawDrawable(program: Int, gpuDrawable: GpuDrawable, opacity: Float, highlight: Float = 0f) {
+	private fun drawDrawable(program: Int, gpuDrawable: GpuDrawable, opacity: Float, highlight: Float = 0f, isActive: Boolean = false) {
 		if (gpuDrawable.isGlueMesh) {
 			GL20.glUniform1i(uniform(program, "baseOffset"), gpuDrawable.glueBaseOffset)
 		} else {
@@ -1065,7 +1108,8 @@ class GlPuppetRenderer(
 		}
 		GL20.glUniform1f(uniform(program, "opacity"), opacity)
 		GL20.glUniform1f(uniform(program, "highlight"), highlight)
-		GL20.glUniform3f(uniform(program, "highlightColor"), highlightColor[0], highlightColor[1], highlightColor[2])
+		val tint = if (isActive) activeHighlightColor else highlightColor
+		GL20.glUniform3f(uniform(program, "highlightColor"), tint[0], tint[1], tint[2])
 		GL30.glBindVertexArray(gpuDrawable.vao)
 		GL11.glDrawElements(GL11.GL_TRIANGLES, gpuDrawable.indexCount, GL11.GL_UNSIGNED_INT, 0L)
 	}

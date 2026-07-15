@@ -93,14 +93,14 @@ data descriptor     PK\x07\x08   16 bytes: signature, crc32, csize, usize
 
 Local header fields, as the editor writes them:
 
-| Field | Value | Note |
-|---|---|---|
-| version needed | 20 | minimum that understands DEFLATE |
-| general-purpose flags | `0x0808` | bit 3 = sizes follow in a data descriptor; bit 11 = name is UTF-8 |
-| method | 8 | DEFLATE |
-| DOS time / date | wall clock | `0x886F` / `0x54C6` = 2022-06-06 17:03:30 in the sample |
-| crc32, csize, usize | all `0` | zeroed - the real values are in the data descriptor (that is what flag bit 3 means) |
-| name | `contents` | 8 bytes, extra length 0 |
+| Field                 | Value      | Note                                                                                |
+| --------------------- | ---------- | ----------------------------------------------------------------------------------- |
+| version needed        | 20         | minimum that understands DEFLATE                                                    |
+| general-purpose flags | `0x0808`   | bit 3 = sizes follow in a data descriptor; bit 11 = name is UTF-8                   |
+| method                | 8          | DEFLATE                                                                             |
+| DOS time / date       | wall clock | `0x886F` / `0x54C6` = 2022-06-06 17:03:30 in the sample                             |
+| crc32, csize, usize   | all `0`    | zeroed - the real values are in the data descriptor (that is what flag bit 3 means) |
+| name                  | `contents` | 8 bytes, extra length 0                                                             |
 
 There is **no central directory and no end-of-central-directory record**. Verified against `Erica Tamamo.cmo3` by de-obfuscating (XOR `0xB1`) and scanning for signatures: `PK\x03\x04` x1, `PK\x07\x08` x1, `PK\x01\x02` x0, `PK\x05\x06` x0. Independently confirmed by re-emission: writing the layout above reproduces the original's exact file size (33,904,442 bytes, delta 0), which it could not if the original carried the 76 bytes of records a full zip appends.
 

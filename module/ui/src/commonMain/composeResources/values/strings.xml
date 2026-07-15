@@ -118,6 +118,10 @@
 	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
 	<string name="cmd_uv_mirror_v">Mirror UVs Vertically</string>
 
+	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
+	<string name="menu_uv_mirror_x">Mirror X</string>
+	<string name="menu_uv_mirror_y">Mirror Y</string>
+
 	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Undo</string>
 	<string name="cmd_redo">Redo</string>
@@ -242,6 +246,15 @@
 	<string name="cmd_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
 	<string name="cmd_snap_selection_active">Selection to Active</string>
 
+	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps over texture coordinates. -->
+	<string name="cmd_uv_snap_selection_pixels">Selection to Pixels</string>
+	<string name="cmd_uv_snap_selection_cursor">Selection to Cursor</string>
+	<string name="cmd_uv_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
+	<string name="cmd_uv_snap_selection_grid">Selection to Grid</string>
+	<string name="cmd_uv_snap_cursor_pixels">Cursor to Pixels</string>
+	<string name="cmd_uv_snap_cursor_selected">Cursor to Selected</string>
+	<string name="cmd_uv_snap_cursor_grid">Cursor to Grid</string>
+
 	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select Hierarchy. -->
 	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
 	<string name="cmd_mesh_select_linked">Select Linked</string>
@@ -297,6 +310,7 @@
 	<!-- Pie menu centre titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>
 	<string name="pie_title_snap">Snap</string>
+	<string name="pie_title_uv_snap">UV Snap</string>
 	<string name="pie_title_merge">Merge</string>
 
 	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
@@ -391,6 +405,7 @@
 	     (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
+	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

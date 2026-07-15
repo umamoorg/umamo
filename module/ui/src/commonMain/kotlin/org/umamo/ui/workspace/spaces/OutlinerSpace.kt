@@ -161,10 +161,10 @@ private class OutlinerRowBoundsHolder {
  */
 @Composable
 fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
+	val stripeColor = LocalUmamoColors.current.rowStripe
 	val puppet = LocalPuppet.current
 	if (puppet == null) {
-		// TODO: We should still have an empty zebra lined state to indicate being ready.
-		// No document: the bare panel fill is the empty state (no load hint).
+		Box(modifier = modifier.fillMaxSize().zebraFill(rememberLazyListState(), ROW_HEIGHT, stripeColor))
 		return
 	}
 	val selectionHandle = LocalSelection.current
@@ -271,11 +271,8 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 
 	Column(modifier = modifier.fillMaxSize()) {
 		Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-			BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+			BoxWithConstraints(modifier = Modifier.fillMaxSize().zebraFill(listState, ROW_HEIGHT, stripeColor)) {
 				val viewportWidth = maxWidth
-				// Every row is fixed to one width - the wider of the viewport and the longest measured row -
-				// so the zebra / selection backgrounds span the whole width and the horizontal scroll range
-				// stays constant as rows scroll in and out (no snap-back to the left).
 				val contentWidth =
 					remember(rows, viewportWidth, density, typography, viewState.showSelectableColumn, viewState.showVisibilityColumn) {
 						outlinerContentWidth(
@@ -291,7 +288,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 					}
 				LazyColumn(
 					state = listState,
-					modifier = Modifier.fillMaxSize().horizontalScroll(horizontalScroll).padding(vertical = 4.dp),
+					modifier = Modifier.fillMaxSize().horizontalScroll(horizontalScroll),
 				) {
 					itemsIndexed(
 						rows,
@@ -463,7 +460,7 @@ private fun performOutlinerDrop(
  * inline affordance always do the same thing.
  *
  * @param FlatRow row The node and its depth.
- * @param Int rowIndex The visible-row index, for zebra striping.
+ * @param Int rowIndex The visible-row index, for the ancestry-guide dash phase.
  * @param Dp rowWidth The fixed width shared by every row.
  * @param Boolean selected Whether the node is in the current selection.
  * @param Boolean ancestorOfSelection Whether this part folder contains the selection.
@@ -611,7 +608,7 @@ private fun outlinerRowMenuItems(
  * Renders one tree row: indent, a disclosure chevron (only when the node has children), a placeholder
  * type icon, the single-line label (or its inline rename editor while [renaming]), and - for parts /
  * drawables - a clickable visibility eye pinned to the right. Every row is fixed to [rowWidth] so the
- * zebra / selection / search-match backgrounds span the full width and the horizontal scroll range stays
+ * selection / hover / search-match backgrounds span the full width and the horizontal scroll range stays
  * put; a name longer than the viewport grows [rowWidth] and is reached by scrolling rather than wrapping.
  * A single click selects a real node or toggles a synthetic one; a double-click on a real node opens its
  * inline rename ([onStartRename]); the chevron and the eye consume their own press (only toggling
@@ -620,7 +617,7 @@ private fun outlinerRowMenuItems(
  * kept.
  *
  * @param FlatRow row The node and its depth.
- * @param Int rowIndex The visible-row index, for zebra striping.
+ * @param Int rowIndex The visible-row index, for the ancestry-guide dash phase.
  * @param Dp rowWidth The fixed width shared by every row (the wider of the viewport and the longest row).
  * @param Boolean selected Whether the node is in the current selection.
  * @param Boolean ancestorOfSelection Whether this part folder contains the selection (tinted to signal it).
@@ -725,11 +722,8 @@ private fun OutlinerRowBody(
 			isIntoTarget -> colors.dropTargetBackground
 			selected -> colors.selection
 			hovered -> colors.rowHover
-			// A stronger accent fill marks a folder that contains the selection (even while collapsed).
 			ancestorOfSelection -> colors.selectionAncestorBackground
-			// A faint accent band marks a search hit, like Blender's highlighted match rows.
 			matched -> colors.searchMatchBackground
-			rowIndex % 2 == 1 -> colors.rowStripe
 			else -> Color.Transparent
 		}
 	val borderColor =
@@ -739,7 +733,6 @@ private fun OutlinerRowBody(
 			hovered -> colors.rowHover
 			ancestorOfSelection -> colors.accent
 			matched -> colors.accent
-			rowIndex % 2 == 1 -> colors.rowStripe
 			else -> Color.Transparent
 		}
 	val labelColor =
@@ -757,12 +750,12 @@ private fun OutlinerRowBody(
 			Modifier.width(rowWidth)
 				.height(ROW_HEIGHT)
 				// Background and border paint on the full row, before padding insets the content - otherwise the
-				// zebra / selection band is drawn inside the 2dp vertical padding, so the colored rows read as
-				// having extra vertical padding while the transparent rows (no visible band) do not.
+				// selection / hover band is drawn inside the 2dp vertical padding, so the highlighted rows read
+				// as having extra vertical padding while the plain rows (no visible band) do not.
 				.background(background, shape = shapes.medium)
 				.border(BorderStroke(1.dp, borderColor), shapes.medium)
 				// Dashed vertical guide lines, one per ancestor indent column, so deep branches line up
-				// visually (Blender's outliner ancestry lines). Painted over the zebra band but behind the
+				// visually (Blender's outliner ancestry lines). Painted over the zebra fill but behind the
 				// content; depth 0 (the root) draws none. The dash phase is offset by the row's stacked height
 				// so the dashes stay continuous from one row to the next instead of resetting every row.
 				.drawBehind {
@@ -1132,8 +1125,8 @@ private fun selectionAfterClick(
 /**
  * Measures the single width every row is fixed to: the wider of the viewport and the longest row (its
  * indent + chevron + icon + gap + the measured label + the trailing restriction slots its row kind and
- * the active restriction toggles compose). Fixing all rows to one width is what keeps the zebra /
- * selection backgrounds full-width and the horizontal scroll range constant as rows scroll in and out.
+ * the active restriction toggles compose). Fixing all rows to one width is what keeps the selection /
+ * hover backgrounds full-width and the horizontal scroll range constant as rows scroll in and out.
  * Run once per visible-row set (memoised by the caller), not per frame.
  *
  * @param List rows The visible rows.

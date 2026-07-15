@@ -168,69 +168,6 @@ interface LiveParamsHandle {
 val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
 
 /**
- * A platform-neutral handle for the viewport navigation commands (Fit / 1:1 / zoom) to drive the camera
- * without `:ui` knowing about the platform render plumbing - the same decoupling as [LiveParamsHandle].
- * Each call acts on the controller's active viewport (the one the pointer last addressed), so the common
- * command handlers stay area-agnostic; the host resolves "which viewport". Pointer pan/zoom is handled
- * directly by the platform viewport and does not flow through here.
- *
- * ビューポート操作（フィット／等倍／ズーム）のためのプラットフォーム非依存ハンドル。各操作はアクティブな
- * ビューポートに作用する。
- */
-interface ViewportCameraController {
-	/** Frames the model to fit the active viewport. */
-	fun fit()
-
-	/** Sets the active viewport to true 1:1 (100%). */
-	fun actualSize()
-
-	/**
-	 * Zooms the active viewport in one step about its centre.
-	 *
-	 * @param Boolean coarse Use the larger (Shift) step.
-	 */
-	fun zoomIn(coarse: Boolean)
-
-	/**
-	 * Zooms the active viewport out one step about its centre.
-	 *
-	 * @param Boolean coarse Use the larger (Shift) step.
-	 */
-	fun zoomOut(coarse: Boolean)
-
-	/**
-	 * Arms the Zoom Region gesture (Blender's Shift+B) on the active viewport: the next drag frames a box.
-	 * The host resolves which viewport; a no-op when none is active.
-	 */
-	fun armZoomRegion()
-
-	/**
-	 * Frames the current selection in the active viewport (Blender's numpad-period): the selected
-	 * drawables' posed world bounds in Object mode, the covered vertices of the session selection at
-	 * the neutral pose in Edit mode.  A no-op when nothing is selected or no viewport is active.
-	 */
-	fun frameSelected()
-
-	/**
-	 * The area id of the viewport the pointer last addressed, or null when no viewport has been
-	 * touched yet.  Dispatch-time only: command handlers resolve it at invocation to record a
-	 * gesture's initiating area, never during composition (the value is a non-reactive pointer-side
-	 * latch, so a composition-time read goes stale without recomposing).
-	 *
-	 * @return String? The active viewport's area id, or null.
-	 */
-	fun activeAreaId(): String?
-}
-
-/**
- * The viewport camera controller for the composition, or null when no viewport host is present (e.g. a
- * platform without the offscreen renderer). View commands no-op when it is null.
- *
- * コンポジションのビューポートカメラコントローラ。ビューポートが無い場合は null。
- */
-val LocalViewportCamera = staticCompositionLocalOf<ViewportCameraController?> { null }
-
-/**
  * A thin, platform-neutral handle for reading and writing the current object-mode [Selection] from
  * common UI, mirroring [LiveParamsHandle]. The Outliner and viewport write gestures through it; the
  * Inspector and the highlight bridge read it. The desktop implementation backs it with Compose state

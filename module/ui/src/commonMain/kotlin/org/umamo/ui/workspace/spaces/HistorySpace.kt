@@ -49,7 +49,7 @@ import org.umamo.ui.theme.LocalUmamoTypography
 fun HistorySpace(modifier: Modifier = Modifier) {
 	val session = LocalEditorSession.current
 	if (session == null) {
-		// TODO: We should still have an empty zebra lined state to indicate being ready.
+		Box(modifier = modifier.fillMaxSize().zebraFill(rememberLazyListState(), ROW_HEIGHT, LocalUmamoColors.current.rowStripe))
 		return
 	}
 	val view by session.historyView.collectAsState()
@@ -64,7 +64,8 @@ fun HistorySpace(modifier: Modifier = Modifier) {
 			listState.animateScrollToItem(view.cursor)
 		}
 	}
-	Box(modifier = modifier.fillMaxSize()) {
+	val stripeColor = LocalUmamoColors.current.rowStripe
+	Box(modifier = modifier.fillMaxSize().zebraFill(listState, ROW_HEIGHT, stripeColor)) {
 		LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
 			itemsIndexed(view.steps) { index, step ->
 				HistoryStepRow(
@@ -72,7 +73,6 @@ fun HistorySpace(modifier: Modifier = Modifier) {
 					isCurrent = index == view.cursor,
 					isFuture = index > view.cursor,
 					saved = step.saved,
-					zebra = index % 2 == 1,
 					onClick = { session.jumpTo(index) },
 				)
 			}
@@ -90,7 +90,6 @@ fun HistorySpace(modifier: Modifier = Modifier) {
  * @param Boolean isCurrent Whether this is the live step (the highlighted row).
  * @param Boolean isFuture Whether this step is ahead of the cursor (a dimmed redo step).
  * @param Boolean saved Whether this is the last-saved step (draws the trailing dot).
- * @param Boolean zebra Whether this row takes the alternating stripe background.
  * @param Function onClick Jumps the session to this step.
  */
 @Composable
@@ -99,7 +98,6 @@ private fun HistoryStepRow(
 	isCurrent: Boolean,
 	isFuture: Boolean,
 	saved: Boolean,
-	zebra: Boolean,
 	onClick: () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -111,7 +109,6 @@ private fun HistoryStepRow(
 		when {
 			isCurrent -> colors.selection
 			hovered -> colors.rowHover
-			zebra -> colors.rowStripe
 			else -> Color.Transparent
 		}
 	val labelColor =

@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.spaces
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +15,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -23,32 +29,41 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.SelectionTarget
+import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.kit.ContextMenuArea
+import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.menu_uv_mirror_x
+import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvGizmoOverlay
+import org.umamo.ui.viewport.UvSpaceCamera
+import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.atlasPageIndexFor
 import org.umamo.ui.viewport.buildHighlightSets
 import org.umamo.ui.viewport.drawMeshWireframe
 import org.umamo.ui.viewport.rememberMeshEditColors
 import org.umamo.ui.viewport.uvToDisplay
+import org.umamo.ui.viewport.worldToScreen
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.HoveredSurfaceTracker
+import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
-import org.umamo.ui.workspace.LocalUvCameraHub
 import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.UvCameraOps
 
 /**
  * The UV editor space: the active drawable's atlas page drawn under its UV wireframe, with the
@@ -179,123 +194,162 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// zoom / frame-selected target this UV editor when the pointer last touched it.  The ops drive the
 	// SERVICE camera (the same per-area camera the pan / zoom / fit machinery the 2D viewport uses), so the
 	// zoom steps honor the same viewport.zoomStep settings fed into the service.
-	val uvCameraHub = LocalUvCameraHub.current
-	DisposableEffect(scope.areaId, uvCameraHub, session, service) {
-		val ops =
-			object : UvCameraOps {
-				override fun fit() {
-					service.fit(scope.areaId)
-				}
-
-				override fun actualSize() {
-					service.actualSize(scope.areaId)
-				}
-
-				override fun zoomIn(coarse: Boolean) {
-					service.zoomCentered(scope.areaId, zoomIn = true, coarse = coarse)
-				}
-
-				override fun zoomOut(coarse: Boolean) {
-					service.zoomCentered(scope.areaId, zoomIn = false, coarse = coarse)
-				}
-
-				override fun frameSelected() {
-					val selection = session.meshSelection.value
-					var minX = Float.MAX_VALUE
-					var minY = Float.MAX_VALUE
-					var maxX = -Float.MAX_VALUE
-					var maxY = -Float.MAX_VALUE
-					for (geometry in liveGeometries.value) {
-						val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.drawableId), geometry.indices)
-						for (vertexIndex in covered) {
-							minX = minOf(minX, geometry.positions[vertexIndex * 2])
-							maxX = maxOf(maxX, geometry.positions[vertexIndex * 2])
-							minY = minOf(minY, geometry.positions[vertexIndex * 2 + 1])
-							maxY = maxOf(maxY, geometry.positions[vertexIndex * 2 + 1])
-						}
-					}
-					if (minX > maxX) {
-						return
-					}
-					// A one-texel floor keeps a single-vertex frame from exploding the zoom to its clamp.
-					service.fitWorldRect(scope.areaId, minX, minY, maxOf(maxX, minX + 1f), maxOf(maxY, minY + 1f))
-				}
-			}
-		uvCameraHub?.register(scope.areaId, ops)
-		onDispose { uvCameraHub?.unregister(scope.areaId) }
+	val areaCameraHub = LocalAreaCameraHub.current
+	DisposableEffect(scope.areaId, areaCameraHub, session, service) {
+		// The UV camera reads liveGeometries.value lazily each Frame Selected, so it always frames the
+		// current shown geometries without re-registering on every mesh change.
+		val ops = UvSpaceCamera(service, session, scope.areaId) { liveGeometries.value }
+		areaCameraHub?.register(scope.areaId, ops)
+		onDispose { areaCameraHub?.unregister(scope.areaId) }
 	}
 
+	// The UV viewport's own contextual menu: right-click anywhere in the viewport for UV operations.  A
+	// context menu is contextual - this holds ONLY UV ops, not area actions.  Nested in the content below,
+	// it overrides the AreaLeaf area menu within the viewport (the same precedence the outliner's row menu
+	// has over the area menu); the area context stays on the header.  Mirror X / Mirror Y dispatch the
+	// existing uv.mirror* commands through the registry (never a hardcoded handler); rebuilt on mode change
+	// (mode is observed above), so the rows enable and disable with Edit / Object mode.
+	val commands = LocalCommands.current
+	val mirrorEnabled = mode == EditorMode.Edit
+	val uvContextItems =
+		listOf(
+			MenuItem.Action(
+				label = stringResource(Res.string.menu_uv_mirror_x),
+				onSelect = { commands.invoke("uv.mirrorU") },
+				enabled = mirrorEnabled,
+			),
+			MenuItem.Action(
+				label = stringResource(Res.string.menu_uv_mirror_y),
+				onSelect = { commands.invoke("uv.mirrorV") },
+				enabled = mirrorEnabled,
+			),
+		)
+
+	val uiColors = LocalUmamoColors.current
 	BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
 		val widthPx = constraints.maxWidth
 		val heightPx = constraints.maxHeight
 		LaunchedEffect(widthPx, heightPx) {
 			service.resize(scope.areaId, widthPx, heightPx)
 		}
-		Box(
-			modifier =
-				Modifier
-					.fillMaxSize()
-					// Cache boundary: promote the UV editor's overlay drawing to its own layer so a sibling
-					// repaint - the 2D viewport's own pan / zoom, a parameter scrub - composites this cached
-					// content instead of re-rasterizing the wireframe.  Only a real UV change re-records it.
-					.graphicsLayer()
-					.clipToBounds()
-					// Navigation lives on the PARENT box, not the drawing canvas.  In Edit mode the gizmo
-					// overlay is a child on top; as the parent, this loop sees the Main pass after the overlay,
-					// so pan / zoom and area stamping work in both modes - the 2D viewport's setup.
-					.pointerInput(session, scope.areaId) {
-						uvEditorNavigation(
-							session = session,
-							service = service,
-							areaId = scope.areaId,
-							hoveredTracker = hoveredTracker,
-						)
-					},
-		) {
-			// The themed grid backdrop, shown until the first GL frame lands (which carries its own grid
-			// behind the page and covers this).
-			EmptyViewportBackdrop()
-			// The atlas page rendered by the GL engine - upright, correctly sampled, sharing the puppet's
-			// texture.
-			image?.let { rendered ->
-				Image(
-					bitmap = rendered.bitmap,
-					contentDescription = null,
-					modifier = Modifier.fillMaxSize(),
-					contentScale = ContentScale.FillBounds,
+		// The atlas page's on-screen rectangle: the full UV tile (display space [0, 0]-[pageWidth, pageHeight])
+		// projected through the frame's camera, so it tracks pan / zoom glued to the rendered texture.  The grid
+		// + texture raster is clipped to it and the 1.dp frame drawn around it.
+		val rendered = image
+		val textureRect =
+			rendered?.let { frame ->
+				val cornerLowerLeft = worldToScreen(0f, 0f, frame.camera, IntSize(widthPx, heightPx))
+				val cornerUpperRight = worldToScreen(pageWidth.toFloat(), pageHeight.toFloat(), frame.camera, IntSize(widthPx, heightPx))
+				Rect(
+					left = minOf(cornerLowerLeft.x, cornerUpperRight.x),
+					top = minOf(cornerLowerLeft.y, cornerUpperRight.y),
+					right = maxOf(cornerLowerLeft.x, cornerUpperRight.x),
+					bottom = maxOf(cornerLowerLeft.y, cornerUpperRight.y),
 				)
 			}
-			// Object mode draws the mapping here, without selection emphasis - a read-only preview posed from
-			// the FRAME camera so it lags with the GL page during pan / zoom.  Edit mode's wireframes
-			// (selection highlights, previews) belong to the overlay below.
-			Canvas(modifier = Modifier.fillMaxSize()) {
-				val drawCamera = image?.camera ?: return@Canvas
-				if (mode != EditorMode.Edit) {
-					for (geometry in geometries) {
-						drawMeshWireframe(
-							positions = geometry.positions,
-							indices = geometry.indices,
-							edges = geometry.edges,
-							highlight = buildHighlightSets(emptySet(), null, meshSelection.selectMode, geometry.indices),
-							selectMode = meshSelection.selectMode,
-							colors = gizmoColors,
-							camera = drawCamera,
-							size = IntSize(widthPx, heightPx),
+		ContextMenuArea(items = uvContextItems, modifier = Modifier.fillMaxSize()) {
+			Box(
+				modifier =
+					Modifier
+						.fillMaxSize()
+						.background(uiColors.panelBackground)
+						// Cache boundary: promote the UV editor's overlay drawing to its own layer so a sibling
+						// repaint - the 2D viewport's own pan / zoom, a parameter scrub - composites this cached
+						// content instead of re-rasterizing the wireframe.  Only a real UV change re-records it.
+						.graphicsLayer()
+						.clipToBounds()
+						// Navigation lives on the PARENT box, not the drawing canvas.  In Edit mode the gizmo
+						// overlay is a child on top; as the parent, this loop sees the Main pass after the overlay,
+						// so pan / zoom and area stamping work in both modes - the 2D viewport's setup.
+						.pointerInput(session, scope.areaId) {
+							uvEditorNavigation(
+								session = session,
+								service = service,
+								areaId = scope.areaId,
+								hoveredTracker = hoveredTracker,
+							)
+						},
+			) {
+				if (rendered == null) {
+					// Pre-first-frame placeholder: the themed grid backdrop until the GL frame lands and the
+					// framed texture takes over.
+					EmptyViewportBackdrop()
+				} else {
+					// The atlas page rendered by the GL engine - upright, correctly sampled, sharing the puppet's
+					// texture.  Its grid + texture raster is clipped to the page rect so the grid does not spill
+					// past the texture onto the panel elevation.
+					Image(
+						bitmap = rendered.bitmap,
+						contentDescription = null,
+						modifier =
+							Modifier.fillMaxSize().drawWithContent {
+								val rect = textureRect
+								if (rect != null) {
+									clipRect(rect.left, rect.top, rect.right, rect.bottom) { this@drawWithContent.drawContent() }
+								} else {
+									drawContent()
+								}
+							},
+						contentScale = ContentScale.FillBounds,
+					)
+					// The 1.dp frame around the texture (the page-elevation border of the diagram).
+					Canvas(modifier = Modifier.fillMaxSize()) {
+						val rect = textureRect ?: return@Canvas
+						drawRect(
+							color = uiColors.panelBorder,
+							topLeft = Offset(rect.left, rect.top),
+							size = Size(rect.width, rect.height),
+							style = Stroke(width = 1.dp.toPx()),
 						)
 					}
 				}
-			}
-			// The Edit-mode interaction core: element selection, box select, and the modal G / S / R
-			// operators with live GPU preview.  Composed only in Edit mode, so the Object-mode preview
-			// stays read-only and input falls through to the navigation loop untouched.  Locked to the frame
-			// camera (image?.camera) for the same pan/zoom glue as the 2D viewport's overlays.
-			if (mode == EditorMode.Edit) {
-				UvGizmoOverlay(
+				// Object mode draws the mapping here, without selection emphasis - a read-only preview posed from
+				// the FRAME camera so it lags with the GL page during pan / zoom.  Unclipped, so UVs outside the
+				// page tile stay visible.  Edit mode's wireframes (selection highlights, previews) belong to the
+				// overlay below.
+				Canvas(modifier = Modifier.fillMaxSize()) {
+					val drawCamera = image?.camera ?: return@Canvas
+					if (mode != EditorMode.Edit) {
+						for (geometry in geometries) {
+							// The object-mode preview is the Blender object-overlay style: edges + a faint face fill,
+							// no vertex or face dots (objectOverlay ignores selectMode's handle rules).
+							drawMeshWireframe(
+								positions = geometry.positions,
+								indices = geometry.indices,
+								edges = geometry.edges,
+								highlight = buildHighlightSets(emptySet(), null, meshSelection.selectMode, geometry.indices),
+								selectMode = meshSelection.selectMode,
+								colors = gizmoColors,
+								camera = drawCamera,
+								size = IntSize(widthPx, heightPx),
+								objectOverlay = true,
+							)
+						}
+					}
+				}
+				// The Edit-mode interaction core: element selection, box select, and the modal G / S / R
+				// operators with live GPU preview.  Composed only in Edit mode, so the Object-mode preview
+				// stays read-only and input falls through to the navigation loop untouched.  Locked to the frame
+				// camera (image?.camera) for the same pan/zoom glue as the 2D viewport's overlays.
+				if (mode == EditorMode.Edit) {
+					UvGizmoOverlay(
+						areaId = scope.areaId,
+						session = session,
+						geometries = geometries,
+						pageWidth = pageWidth,
+						pageHeight = pageHeight,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+					)
+				}
+				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
+				// until armed.  Mounted last so an armed drag is captured above the gizmo overlay; on release it
+				// calls the area-generic service.zoomToRegion for this UV atlas-page area.
+				ViewportRegionOverlay(
 					areaId = scope.areaId,
+					service = service,
 					session = session,
-					geometries = geometries,
-					pageWidth = pageWidth,
-					pageHeight = pageHeight,
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,

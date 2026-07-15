@@ -1,7 +1,6 @@
 # TODO
 
 ## Documentation
-* Fix/Reevaluate Reverse Engineering Notices.
 * Have a full model/ map made in docs/. (When everything is done.)
 
 ## Deferred
@@ -26,15 +25,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
-* Deferred from the viewport overlay ownership refactor (see docs/plans/viewport-overlay-ownership.md)
-	* Request-payload area hardening: select-linked is done (payload carries the dispatch-resolved area).  The switch-object, rip, and snap collectors still read service.activeAreaId at collect time; same payload pattern closes them.
-	* Per-area toolbar highlight: an armed select tool lights the floating toolbar in every viewport, not just the arming one.  Cosmetic.
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
-
-## Selection
-* Object mode - Need different tint for active selection, otherwise selection to active is amibiguous.
 
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
@@ -44,21 +37,14 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 	* 3D Cursor
 
 ## UV Editor
-Implemented (2026-07): atlas underlay, session-shared selection (UV sync always on), modal G/S/R over texture coordinates with live GPU preview, box/circle select, select linked, UV cursor, Mirror U/V (uv.mirrorU / uv.mirrorV, the duplicated/flipped eyes workflow), header controls, and view commands over the hovered UV area.
-
-* Bugs
-	* Frame Selected does not work in the UV editor.(I assume this is what is meant by the UV zoom region mentioned below.)
-* Improvements
-	* The object mode for the UV editor should be edges and faces only, no vertices.  This matches the Blender overlay style and makes it easier to understand.
-	* Mirror X, Mirror Y in the UV context menu.
+* Bugs/Improvements
+	* Rip and Vertex Slide are activating the 2D viewport mesh rip/slide.  Needs to be implemented for UV and then properly gated.
+		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
+* UV Snap Pie
+	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
+		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
-* UV snap pie and UV zoom-region - deferred (documented no-ops over a hovered UV area).
 * Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
-* Background UI
-	* Panel Elevation (303030) ->
-		* Border 1.dp ->
-			* Grid Background (the UV editor already draws the grid backdrop; this is the panel-elevation framing around it.)
-				* UV Texture
 
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
@@ -82,9 +68,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 # DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 
-# Outliner/History
-* Show the background prefilled to height with zebra lines regardless of content length.
-
 ## Format
 
 ### UMA (Native File Format)
@@ -101,6 +84,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 * Android GLES renderer backend (second Renderer impl) — see Claude Notes § Android GLES renderer backend.
+* MacOS/iPadOS renderer backend - Core GL(LWJGL CGL)
 
 ## Outliner
 * Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
@@ -108,15 +92,11 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 	* TODO: touch long-press still starts a drag, so the context menu has no mobile trigger yet — the long-press-vs-drag arbitration needs resolving (or a dedicated touch affordance) before Android.
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
-	* Rename, drag reparent, functional eye/selectable, persisted expansion.  These need the structure-edit/undo pipeline, as planned.
 
 ## UI
-* Viewport tool chrome (overlaid gizmo controls, T toolbar, N sidebar drawer, header pivot/proportional/snap controls) - moved to docs/plans/tools-and-shortcuts.md (Phase 9).
 * The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
 * Viewport view styles - Top right, in the header area.
-
 * Viewport loading overlay and mouse busy pointer.
-
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
 	* When the width becomes too small the icons in the DropdownChip start shrinking, but the chip does not.  The icons should not shrink.
@@ -151,6 +131,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.
+* Really good edge detection for auto-mesh.
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
