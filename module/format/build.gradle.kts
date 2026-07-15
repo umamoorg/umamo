@@ -172,7 +172,11 @@ fun corpusDefaultFor(samplePropertyName: String): String? {
 		// (180 image resources, 926 CAFF entries, 158 import PIs) that only this model satisfies.
 		"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
 		// The cross-version gate wants every .cmo3 under cmo3/, spanning Cubism 3.x/4.x/5.3.
-		"cmo3.probe" ->
+		// ModelGenerator wants the same set, and for the same reason its own docblock gives: the
+		// generated model is the UNION over every sample, so a field or enum constant that only one
+		// project exercises still gets covered. Generating from one sample would silently drop the
+		// others' constants.
+		"cmo3.probe", "cmo3.gensample" ->
 			corpusDirectory
 				.resolve("cmo3")
 				.listFiles { candidate -> candidate.isFile && candidate.extension == "cmo3" }
@@ -224,10 +228,20 @@ tasks.withType<Test>().configureEach {
 			"tiff.sample",
 			"webp.sample",
 			"jpeg.sample",
+			// ModelGenerator's input set. Defaults to the whole cmo3/ corpus so the generated model is
+			// the union across every sample (see corpusDefaultFor).
+			"cmo3.gensample",
 		)
 	for (samplePropertyName in sampleProperties) {
 		resolveSampleProperty(samplePropertyName)?.let { samplePath ->
 			systemProperty(samplePropertyName, samplePath)
 		}
+	}
+	// ModelGenerator's on-switch. Forwarded separately because it is a boolean, not a path, so it must
+	// not go through resolveSampleProperty's file-existence check. Without this the generator reads a
+	// property the build never forwarded and returns immediately — a @Test reporting PASSED while
+	// generating nothing, the same skip-and-pass shape cmo3.probe had.
+	System.getProperty("cmo3.generate")?.let { generateFlag ->
+		systemProperty("cmo3.generate", generateFlag)
 	}
 }

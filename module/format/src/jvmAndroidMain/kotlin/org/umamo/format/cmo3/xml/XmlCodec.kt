@@ -10,24 +10,23 @@ import java.io.ByteArrayOutputStream
 /**
  * Parses and emits the serialized model XML (main.xml) using the editor's exact JDOM backend.
  *
- * EN: Matches the editor's writer exactly: XMLOutputter + Format.getPrettyFormat()
- *     with indent "" and TextMode NORMALIZE (line separator "\r\n", UTF-8). Using JDOM 1.1.3 with
- *     the same Format reproduces main.xml byte-for-byte; this class centralises that contract so
- *     every emit path (generic round-trip and the typed model) shares one formatter.
- * JA: エディタと同じ JDOM 設定で出力するため、main.xml をバイト単位で再現できる。
+ * Matches the editor's writer: XMLOutputter + Format.getPrettyFormat() with indent "" and
+ * TextMode TRIM (line separator "\r\n", UTF-8). Using JDOM 1.1.3 with the same Format reproduces
+ * main.xml byte-for-byte across the whole corpus; this class centralises that contract so every
+ * emit path (generic round-trip and the typed model) shares one formatter.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
 public object XmlCodec {
 	/**
-	 * The editor's output format: pretty layout, empty indent, NORMALIZE text mode.
+	 * The editor's output format: pretty layout, empty indent, TRIM text mode.
 	 *
 	 * @return Format A fresh Format instance (XMLOutputter mutates none of ours).
 	 */
 	private fun editorFormat(): Format =
 		Format.getPrettyFormat().apply {
 			setIndent("")
-			textMode = Format.TextMode.NORMALIZE
+			textMode = Format.TextMode.TRIM // Normalize would collapse spaces in user intended input so use trim instead.
 		}
 
 	/**

@@ -49,4 +49,5 @@ captures/
 
 #Don't commit my personal models.
 /test/corpus
+/test/tools
 /test/work
