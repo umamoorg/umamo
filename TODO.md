@@ -22,6 +22,10 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 		* Open/Import should ask to save before doing if the new document is dirty.
 * Drag and drop file opening.
 
+## Puppet Model, CMO3, MOC3
+* Handle Offscreen Toggle (Forces on grouping, enables opacity on parts.)
+* Handle opacity inheritance from parts.  Double check deformers as well.
+
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
@@ -84,7 +88,9 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 * Android GLES renderer backend (second Renderer impl) — see Claude Notes § Android GLES renderer backend.
+	* Now that `OffscreenPuppetService` has been refactored into `app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/` it will be easier to migrate functionality into modules when the Android renderer is needed.
 * MacOS/iPadOS renderer backend - Core GL(LWJGL CGL)
+	* app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/CglOffscreenGlContext.kt
 
 ## Outliner
 * Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
