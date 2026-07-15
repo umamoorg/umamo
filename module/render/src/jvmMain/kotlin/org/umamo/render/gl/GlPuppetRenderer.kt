@@ -23,9 +23,7 @@ import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.applyCpuDeform
-import org.umamo.render.eval.paintOrder
 import org.umamo.render.eval.preparePose
-import org.umamo.render.eval.renderOrder
 import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
@@ -41,10 +39,15 @@ import org.umamo.render.glsl.puppetFragmentShader
 import org.umamo.render.glsl.puppetVertexShader
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
+import org.umamo.render.puppet.DrawableAction
+import org.umamo.render.puppet.GlueVertexAttributes
 import org.umamo.render.puppet.buildDeltaTexels
 import org.umamo.render.puppet.contentBoundsOf
+import org.umamo.render.puppet.diffModel
 import org.umamo.render.puppet.fallbackColorFor
 import org.umamo.render.puppet.keyformCellCount
+import org.umamo.render.puppet.planGlueLayout
+import org.umamo.render.puppet.resolvePose
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -258,22 +261,13 @@ class GlPuppetRenderer(
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
 
 		// Glue addressing: every mesh in any glue pair (incl. zero-triangle anchors) gets a region in the
-		// shared position buffer, plus per-vertex weld attributes (partner global index, glue index, weight).
-		val glueMeshIds = HashSet<DrawableId>()
-		for (glue in model.glues) {
-			glueMeshIds.add(glue.meshA)
-			glueMeshIds.add(glue.meshB)
-		}
-		val glueBaseOffsetById = HashMap<DrawableId, Int>()
-		var globalVertexCount = 0
-		for (drawable in model.drawables) {
-			if (drawable.id !in glueMeshIds) {
-				continue
-			}
-			glueBaseOffsetById[drawable.id] = globalVertexCount
-			globalVertexCount += (drawable.mesh?.positions?.size ?: 0) / 2
-		}
-		val glueAttrById = buildGlueAttributes(glueMeshIds, glueBaseOffsetById)
+		// shared position buffer, plus per-vertex weld attributes. What welds to what is backend-neutral
+		// and planned in commonMain; only the byte layout below is GL's business.
+		val glueLayout = planGlueLayout(model)
+		val glueMeshIds = glueLayout.glueMeshIds
+		val glueBaseOffsetById = glueLayout.baseOffsetById
+		val globalVertexCount = glueLayout.globalVertexCount
+		val glueAttrById = glueLayout.attributesById.mapValues { (_, attributes) -> interleaveGlueAttributes(attributes) }
 		if (globalVertexCount > 0) {
 			globalPositionBuffer = GL15.glGenBuffers()
 			GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, globalPositionBuffer)
@@ -386,57 +380,47 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Builds the per-vertex glue attribute buffers (12 bytes/vertex: int partner global index, int glue
-	 * index, float weld weight). A non-glued vertex points at itself with weight 0 (a no-op weld). For each
-	 * glue pair, mesh A's vertex points at mesh B's (weight wA) and vice-versa.
+	 * Re-uploads a vertex buffer's contents in place, reusing the scratch buffer.
 	 *
-	 * @param Set glueMeshIds        Meshes participating in any glue.
-	 * @param Map glueBaseOffsetById Each glue mesh's base index in the shared position buffer.
-	 * @return Map DrawableId → its per-vertex glue attribute byte buffer.
+	 * Serves the positions and UVs tiers of [updateModel], which both re-specify a whole GL_DYNAMIC_DRAW
+	 * VBO whose length is unchanged.  The scratch grows on demand and is then reused, so a live preview
+	 * edit (~60/s, possibly several drawables) allocates nothing.  Render-thread only.
+	 *
+	 * @param Int        vertexBuffer The VBO to overwrite.
+	 * @param FloatArray values       The new contents.
 	 */
-	private fun buildGlueAttributes(
-		glueMeshIds: Set<DrawableId>,
-		glueBaseOffsetById: Map<DrawableId, Int>,
-	): Map<DrawableId, ByteBuffer> {
-		val byId = HashMap<DrawableId, ByteBuffer>()
-		for (id in glueMeshIds) {
-			val base = glueBaseOffsetById[id] ?: continue
-			val drawable = model.drawables.firstOrNull { it.id == id } ?: continue
-			val vertexCount = (drawable.mesh?.positions?.size ?: 0) / 2
-			val buffer = BufferUtils.createByteBuffer(vertexCount * 3 * Int.SIZE_BYTES)
-			for (vertexIndex in 0 until vertexCount) {
-				buffer.putInt(base + vertexIndex) // partner = self
-				buffer.putInt(-1) // not glued
-				buffer.putFloat(0f) // weld weight
-			}
-			byId[id] = buffer
+	private fun uploadInPlace(vertexBuffer: Int, values: FloatArray) {
+		if (positionUploadBuffer.capacity() < values.size) {
+			positionUploadBuffer = BufferUtils.createFloatBuffer(values.size)
 		}
-		for ((glueIndex, glue) in model.glues.withIndex()) {
-			val baseA = glueBaseOffsetById[glue.meshA] ?: continue
-			val baseB = glueBaseOffsetById[glue.meshB] ?: continue
-			val attrA = byId[glue.meshA] ?: continue
-			val attrB = byId[glue.meshB] ?: continue
-			for (pair in glue.pairs) {
-				writeGlueAttr(attrA, pair.indexA, baseB + pair.indexB, glueIndex, pair.weightA)
-				writeGlueAttr(attrB, pair.indexB, baseA + pair.indexA, glueIndex, pair.weightB)
-			}
-		}
-		byId.values.forEach { it.flip() }
-		return byId
+		positionUploadBuffer.clear()
+		positionUploadBuffer.put(values).flip()
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vertexBuffer)
+		GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0L, positionUploadBuffer)
 	}
 
-	/** Writes one vertex's glue attribute (partner global index, glue index, weld weight) at its slot. */
-	private fun writeGlueAttr(
-		buffer: ByteBuffer,
-		vertexIndex: Int,
-		partnerGlobalIndex: Int,
-		glueIndex: Int,
-		weight: Float,
-	) {
-		val slot = vertexIndex * 3 * Int.SIZE_BYTES
-		buffer.putInt(slot, partnerGlobalIndex)
-		buffer.putInt(slot + Int.SIZE_BYTES, glueIndex)
-		buffer.putFloat(slot + 2 * Int.SIZE_BYTES, weight)
+	/**
+	 * Packs a mesh's planned weld attributes into the interleaved vertex buffer the glue VAO expects:
+	 * 12 bytes per vertex - int partner global index, int glue index, float weld weight - in the native
+	 * byte order [BufferUtils] allocates, which is what `glVertexAttribIPointer` reads back.
+	 *
+	 * The layout is GL's, not the plan's: [planGlueLayout] decides what each vertex welds to, and this
+	 * turns that into the bytes this backend's attribute pointers describe.  Runs once per glue mesh at
+	 * [initGl], never per frame.
+	 *
+	 * @param GlueVertexAttributes attributes The mesh's planned per-vertex weld attributes.
+	 * @return ByteBuffer The interleaved buffer, flipped and ready to upload.
+	 */
+	private fun interleaveGlueAttributes(attributes: GlueVertexAttributes): ByteBuffer {
+		val vertexCount = attributes.partnerIndex.size
+		val buffer = BufferUtils.createByteBuffer(vertexCount * 3 * Int.SIZE_BYTES)
+		for (vertexIndex in 0 until vertexCount) {
+			buffer.putInt(attributes.partnerIndex[vertexIndex])
+			buffer.putInt(attributes.glueIndex[vertexIndex])
+			buffer.putFloat(attributes.weldWeight[vertexIndex])
+		}
+		buffer.flip()
+		return buffer
 	}
 
 	override fun setPose(parameters: Map<ParameterId, Float>) {
@@ -444,18 +428,22 @@ class GlPuppetRenderer(
 		val inputs = preparePose(currentModel, parameters)
 		lastPoseInputs = inputs // publish for on-demand picking (CPU deform re-run at click time)
 		glueBufferDirty = true // the pose moved: pass 1 must re-deform the shared glue buffer next render
+		// Resolve first, in backend-neutral terms; then apply onto the resident drawables and upload.
+		val resolved =
+			resolvePose(
+				inputs = inputs,
+				renderableById = gpuById.mapValues { (_, resident) -> resident.indexCount > 0 },
+				shownIds = shownDrawableIds,
+				baseOrder = baseOrder,
+				renderRoot = currentRenderRoot,
+			)
 		for (gpuDrawable in gpuById.values) {
 			gpuDrawable.visible = false
 		}
-		val drawOrderById = HashMap<DrawableId, Float>(inputs.drawables.size)
-		for (drawableInputs in inputs.drawables) {
-			val gpuDrawable = gpuById[drawableInputs.drawableId] ?: continue
-			val corners = drawableInputs.corners
-			if (corners == null || (drawableInputs.isParented && drawableInputs.parentWorld == null)) {
-				continue
-			}
-			gpuDrawable.corners = corners
-			val parentWorld = drawableInputs.parentWorld
+		for (posedDrawable in resolved.posed.values) {
+			val gpuDrawable = gpuById[posedDrawable.drawableId] ?: continue
+			gpuDrawable.corners = posedDrawable.corners
+			val parentWorld = posedDrawable.parentWorld
 			gpuDrawable.parentWorld = parentWorld
 			// Warp control points are pose-dependent but frame-INVARIANT: upload them here, once per pose
 			// change, NOT every frame in the draw loop. Re-specifying this texture (glTexImage2D) 60×/sec
@@ -464,35 +452,12 @@ class GlPuppetRenderer(
 			if (parentWorld is WarpWorld && gpuDrawable.cpTexture != 0) {
 				uploadControlPoints(gpuDrawable.cpTexture, parentWorld)
 			}
-			gpuDrawable.opacity = drawableInputs.opacity
+			gpuDrawable.opacity = posedDrawable.opacity
 			gpuDrawable.visible = true
-			drawOrderById[drawableInputs.drawableId] = drawableInputs.drawOrder
 		}
-		// Glue weld intensity per pose, gated on BOTH meshes being posed this frame. Pass 1 only writes a
-		// posed glue mesh's region of the shared position buffer; if a partner is unposed its region is
-		// uninitialised, so welding to it would read garbage (random spikes on a live, dirty GPU). Zeroing
-		// the intensity makes the pass-2 shader skip the partner read entirely - matching the CPU
-		// `applyGluesResolved`, which skips a glue whose partner produced no geometry.
-		for ((glueIndex, glue) in inputs.glues.withIndex()) {
-			if (glueIndex >= MAX_GLUES) {
-				continue
-			}
-			val bothPosed = gpuById[glue.meshA]?.visible == true && gpuById[glue.meshB]?.visible == true
-			glueIntensities[glueIndex] = if (bothPosed) glue.intensity else 0f
-		}
-		// Hierarchical render order over the draw-order group tree (with per-pose animated part order); flat
-		// base order if the model carries no groups.
-		val ordered =
-			if (currentRenderRoot.children.isEmpty()) {
-				paintOrder(baseOrder, drawOrderById)
-			} else {
-				renderOrder(currentRenderRoot, drawOrderById, inputs.partDrawOrders)
-			}
-		gpuDrawables =
-			ordered
-				.mapNotNull { gpuById[it] }
-				.filter { it.visible && it.indexCount > 0 && it.id in shownDrawableIds }
-		lastDrawnOrder = gpuDrawables.map { it.id } // publish the resolved back-to-front order for picking
+		resolved.glueIntensities.copyInto(glueIntensities)
+		gpuDrawables = resolved.drawOrder.mapNotNull { gpuById[it] }
+		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
 	}
 
 	override fun setCamera(camera: ViewportCamera) {
@@ -618,80 +583,41 @@ class GlPuppetRenderer(
 	 * @param PuppetModel newModel The current model.
 	 */
 	fun updateModel(newModel: PuppetModel) {
-		val oldDrawableById = currentModel.drawables.associateBy { it.id }
 		val warpDeformerIds = newModel.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
+		// Decide first, in backend-neutral terms, then apply. The diff reads currentModel as the state the
+		// GPU buffers still match, so it MUST run before the reassignment below.
+		val diff = diffModel(currentModel, newModel, gpuById.mapValues { (_, resident) -> resident.vertexCount })
 		val reconciled = LinkedHashMap<DrawableId, GpuDrawable>()
-		for (drawable in newModel.drawables) {
-			val existing = gpuById[drawable.id]
-			val newMesh = drawable.mesh
-			if (existing == null) {
-				// A drawable the GPU has never seen (an Object-mode duplicate, or one skipped at load for
-				// having no geometry): upload it whole.  Never part of the load-time glue layout.
-				val uploadedDrawable =
-					uploadDrawable(drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
-				if (uploadedDrawable != null) {
-					reconciled[drawable.id] = uploadedDrawable
+		for (action in diff.actions) {
+			when (action) {
+				is DrawableAction.Upload ->
+					uploadDrawable(action.drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
+						?.let { reconciled[action.drawableId] = it }
+
+				is DrawableAction.Reupload -> {
+					// A topology edit: the VAO / EBO / UV buffer / delta texture are all stale, so free the
+					// resident and re-upload against the new mesh + re-strided keyform grid.  A remeshed glue
+					// mesh comes back unwelded (see the docblock's structural limits).
+					gpuById[action.drawableId]?.let { deleteDrawable(it) }
+					uploadDrawable(action.drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
+						?.let { reconciled[action.drawableId] = it }
 				}
-				continue
-			}
-			val oldMesh = oldDrawableById[drawable.id]?.mesh
-			val oldKeyforms = oldDrawableById[drawable.id]?.keyforms
-			val remeshed =
-				newMesh != null &&
-					(
-						newMesh.positions.size != existing.vertexCount * 2 ||
-							(oldMesh != null && newMesh.indices !== oldMesh.indices) ||
-							drawable.keyforms !== oldKeyforms
-					)
-			if (remeshed) {
-				// A topology edit: the VAO / EBO / UV buffer / delta texture are all stale, so free the
-				// resident drawable and re-upload it against the new mesh + re-strided keyform grid.  A
-				// remeshed glue mesh comes back unwelded (see the docblock's structural limits).
-				deleteDrawable(existing)
-				val uploadedDrawable =
-					uploadDrawable(drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
-				if (uploadedDrawable != null) {
-					reconciled[drawable.id] = uploadedDrawable
+
+				is DrawableAction.Keep -> {
+					val existing = gpuById[action.drawableId] ?: continue
+					reconciled[action.drawableId] = existing
+					// The two in-place tiers. The scratch buffer is shared between them; uploads are
+					// sequential on this thread, so one buffer serves both.
+					action.positions?.let { uploadInPlace(existing.positionVbo, it) }
+					action.uvs?.let { uploadInPlace(existing.uvVbo, it) }
 				}
-				continue
-			}
-			reconciled[drawable.id] = existing
-			if (newMesh == null || oldMesh == null) {
-				continue
-			}
-			// Positions-only tier: re-upload the VBO in place when the array instance changed.
-			val newPositions = newMesh.positions
-			if (newPositions !== oldMesh.positions) {
-				if (positionUploadBuffer.capacity() < newPositions.size) {
-					positionUploadBuffer = BufferUtils.createFloatBuffer(newPositions.size)
-				}
-				positionUploadBuffer.clear()
-				positionUploadBuffer.put(newPositions).flip()
-				GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, existing.positionVbo)
-				GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0L, positionUploadBuffer)
-			}
-			// UVs-only tier: a UV edit retargets the sampled atlas texels with the topology unchanged, so
-			// only the UV VBO is stale - re-upload it in place (the scratch buffer is shared with the
-			// positions tier; uploads are sequential on this thread).  The length guard is defensive: the
-			// copy-on-write edit path (withMeshUvs) never changes the array length, so a mismatch can only
-			// mean a mesh this renderer padded at upload (uploadMesh's safeUvs) - leave that resident alone.
-			val newUvs = newMesh.uvs
-			if (newUvs !== oldMesh.uvs && newUvs.size == existing.vertexCount * 2) {
-				if (positionUploadBuffer.capacity() < newUvs.size) {
-					positionUploadBuffer = BufferUtils.createFloatBuffer(newUvs.size)
-				}
-				positionUploadBuffer.clear()
-				positionUploadBuffer.put(newUvs).flip()
-				GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, existing.uvVbo)
-				GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0L, positionUploadBuffer)
 			}
 		}
 		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0)
-		// Free residents whose drawable the edit removed (the undo of a duplicate).
-		for ((drawableId, gpuDrawable) in gpuById) {
-			if (drawableId !in reconciled) {
-				deleteDrawable(gpuDrawable)
-			}
+		// Free residents the edit dropped (the undo of a duplicate). A Reupload already freed its own and is
+		// never listed here, so nothing is freed twice.
+		for (drawableId in diff.removed) {
+			gpuById[drawableId]?.let { deleteDrawable(it) }
 		}
 		gpuById = reconciled
 		glueDeformList = reconciled.values.filter { it.isGlueMesh }
