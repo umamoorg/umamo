@@ -2,6 +2,7 @@ package org.umamo.format.art
 
 import org.umamo.format.FormatCodec
 import org.umamo.format.ReadOnlyCodec
+import kotlin.jvm.JvmInline
 
 /**
  * Stable identity of a source-art layer, format-agnostic.
@@ -11,6 +12,11 @@ import org.umamo.format.ReadOnlyCodec
  * raw layer name where a layer id is expected. This replaces the "stringly-typed" anti-pattern
  * (`Map<String, …>` keyed by ambiguous strings). The meaning of the wrapped value depends on
  * the source: CLIP supplies Celsys's rename-stable internal id; PSD can only offer a name/path.
+ *
+ * The `kotlin.jvm.JvmInline` import is load-bearing, not noise: `kotlin.jvm.*` is a default import
+ * only on JVM targets, so without it this file stops compiling the moment a non-JVM target
+ * (Kotlin/Native, for iPadOS) is added.  The annotation is an optional expectation, so non-JVM
+ * targets simply ignore it.
  *
  * ソースレイヤーの安定 ID。value class で型安全かつゼロコスト。
  */

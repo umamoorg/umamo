@@ -19,31 +19,50 @@ import kotlin.test.assertTrue
  * ported reader against any real .clip the developer points it at.
  */
 class ClipReaderTest {
-	private fun locateSample(): File? {
+	/**
+	 * Locates every CLIP sample: `-Dclip.sample` when set, else every `.clip` under `test/corpus/clip`.
+	 *
+	 * @return List<File> The samples, empty when none are configured.
+	 */
+	private fun locateSamples(): List<File> {
 		System.getProperty("clip.sample")?.let { path ->
-			return File(path).takeIf(File::isFile)
+			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
 		while (directory != null) {
 			val corpus = File(directory, "test/corpus/clip")
 			if (corpus.isDirectory) {
 				return corpus.listFiles { file -> file.extension.equals("clip", ignoreCase = true) }
-					?.minByOrNull { it.name }
+					?.sortedBy { it.name } ?: emptyList()
 			}
 			directory = directory.parentFile
 		}
-		return null
+		return emptyList()
 	}
 
 	@Test
 	fun readsLayerTreeFromRealClip() {
-		val sample = locateSample()
-		if (sample == null) {
-			println("no clip.sample and no test/corpus/clip sample; skipping CLIP reader test")
+		val samples = locateSamples()
+		if (samples.isEmpty()) {
+			println("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
 			return
 		}
+		for (sample in samples) {
+			checkSample(sample)
+		}
+	}
 
-		val art = ClipReader.read(sample.readBytes())
+	/**
+	 * Asserts the reader's structural invariants for one sample.
+	 *
+	 * @param File sample The `.clip` to read.
+	 */
+	private fun checkSample(sample: File) {
+		val bytes = sample.readBytes()
+		// Detection is asserted alongside the decode: reading directly would leave matches() untested,
+		// which is exactly how a broken magic check once reached the corpus unnoticed (see KraReader).
+		assertTrue(ClipReader.matches(bytes), "${sample.name}: detected as CLIP by magic")
+		val art = ClipReader.read(bytes)
 
 		assertTrue(art.widthPx > 0 && art.heightPx > 0, "${sample.name}: positive canvas size")
 		assertTrue(art.layers.isNotEmpty(), "${sample.name}: at least one layer")
@@ -84,5 +103,6 @@ class ClipReaderTest {
 				}
 			assertTrue(anyVisible, "${sample.name}: a decoded raster layer has non-transparent pixels")
 		}
+		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups")
 	}
 }

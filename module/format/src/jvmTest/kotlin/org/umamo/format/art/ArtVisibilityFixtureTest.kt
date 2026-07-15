@@ -20,12 +20,24 @@ import kotlin.test.assertTrue
  * Corpus-gated: each fixture self-skips when absent, so CI stays green without the binaries committed.
  */
 class ArtVisibilityFixtureTest {
-	private fun corpusFile(relativePath: String): File? {
+	/**
+	 * Finds a fixture by file name anywhere under `test/corpus`.
+	 *
+	 * Deliberately searches by name rather than a fixed relative path: these tests are corpus-gated, so
+	 * a path that stops resolving does not fail — it silently skips, and the fixture stops guarding
+	 * anything.  That is exactly what happened when the corpus was reorganized into per-format
+	 * subdirectories and these three lookups still pointed at `test/corpus/<name>`.  Searching by name
+	 * survives any further reshuffling.
+	 *
+	 * @param String fileName The fixture's file name, e.g. `EricaVisibilityTest.psd`.
+	 * @return File? The fixture, or null when the corpus does not hold it.
+	 */
+	private fun corpusFile(fileName: String): File? {
 		var directory: File? = File(System.getProperty("user.dir"))
 		while (directory != null) {
-			val candidate = File(directory, relativePath)
-			if (candidate.isFile) {
-				return candidate
+			val corpus = File(directory, "test/corpus")
+			if (corpus.isDirectory) {
+				return corpus.walkTopDown().firstOrNull { candidate -> candidate.isFile && candidate.name == fileName }
 			}
 			directory = directory.parentFile
 		}
@@ -39,9 +51,9 @@ class ArtVisibilityFixtureTest {
 	 */
 	@Test
 	fun psdFixtureHasKnownHiddenFolderAndLayer() {
-		val file = corpusFile("test/corpus/EricaVisibilityTest.psd")
+		val file = corpusFile("EricaVisibilityTest.psd")
 		if (file == null) {
-			println("no test/corpus/EricaVisibilityTest.psd; skipping PSD visibility fixture test")
+			println("no EricaVisibilityTest.psd under test/corpus; skipping PSD visibility fixture test")
 			return
 		}
 		val art = PsdReader.read(file.readBytes())
@@ -79,9 +91,9 @@ class ArtVisibilityFixtureTest {
 	 */
 	@Test
 	fun kraFixtureCascadesThroughNestedGroups() {
-		val file = corpusFile("test/corpus/KritaLayerVisibility.kra")
+		val file = corpusFile("KritaLayerVisibility.kra")
 		if (file == null) {
-			println("no test/corpus/KritaLayerVisibility.kra; skipping KRA visibility fixture test")
+			println("no KritaLayerVisibility.kra under test/corpus; skipping KRA visibility fixture test")
 			return
 		}
 		val art = KraReader.read(file.readBytes())
@@ -116,9 +128,9 @@ class ArtVisibilityFixtureTest {
 	 */
 	@Test
 	fun clipFixtureHasKnownHiddenLayer() {
-		val file = corpusFile("test/corpus/Greyscale.clip")
+		val file = corpusFile("Greyscale.clip")
 		if (file == null) {
-			println("no test/corpus/Greyscale.clip; skipping CLIP visibility fixture test")
+			println("no Greyscale.clip under test/corpus; skipping CLIP visibility fixture test")
 			return
 		}
 		val art = ClipReader.read(file.readBytes())

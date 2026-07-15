@@ -108,7 +108,7 @@ kotlin {
 // `./gradlew :render:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
 // Absent properties self-skip, so CI needs no committed corpus or external oracle.
 tasks.withType<Test>().configureEach {
-	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib", "probe.params")) {
+	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
 		System.getProperty(property)?.let { value ->
 			systemProperty(property, value)
 		}

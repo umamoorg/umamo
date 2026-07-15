@@ -16,36 +16,55 @@ import kotlin.test.assertTrue
  * group, the order values form a 0..n-1 permutation, and the visibility cascade runs cleanly.
  */
 class PsdReaderTest {
-	private fun locateSample(): File? {
+	/**
+	 * Locates every PSD sample: `-Dpsd.sample` when set, else every `.psd` under `test/corpus/psd`
+	 * (with `test/corpus` and `test` kept as fallbacks for a loose sample).
+	 *
+	 * @return List<File> The samples, empty when none are configured.
+	 */
+	private fun locateSamples(): List<File> {
 		System.getProperty("psd.sample")?.let { path ->
-			return File(path).takeIf(File::isFile)
+			return listOfNotNull(File(path).takeIf(File::isFile))
 		}
 		var directory: File? = File(System.getProperty("user.dir"))
 		while (directory != null) {
-			for (subdirectory in listOf("test/corpus", "test")) {
-				val corpus = File(directory, subdirectory)
-				val sample =
-					corpus.takeIf(File::isDirectory)
+			for (subdirectory in listOf("test/corpus/psd", "test/corpus", "test")) {
+				val samples =
+					File(directory, subdirectory).takeIf(File::isDirectory)
 						?.listFiles { file -> file.extension.equals("psd", ignoreCase = true) }
-						?.minByOrNull { it.name }
-				if (sample != null) {
-					return sample
+						?.sortedBy { it.name }
+						.orEmpty()
+				if (samples.isNotEmpty()) {
+					return samples
 				}
 			}
 			directory = directory.parentFile
 		}
-		return null
+		return emptyList()
 	}
 
 	@Test
 	fun readsLayersFromRealPsd() {
-		val sample = locateSample()
-		if (sample == null) {
-			println("no psd.sample and no test/corpus PSD sample; skipping PSD reader test")
+		val samples = locateSamples()
+		if (samples.isEmpty()) {
+			println("no psd.sample and no test/corpus PSD samples; skipping PSD reader test")
 			return
 		}
+		for (sample in samples) {
+			checkSample(sample)
+		}
+	}
 
-		val art = PsdReader.read(sample.readBytes())
+	/**
+	 * Asserts the reader's structural invariants for one sample.
+	 *
+	 * @param File sample The `.psd` to read.
+	 */
+	private fun checkSample(sample: File) {
+		val bytes = sample.readBytes()
+		// Detection is asserted with the decode so matches() cannot rot untested (see KraReader).
+		assertTrue(PsdReader.matches(bytes), "${sample.name}: detected as PSD by magic")
+		val art = PsdReader.read(bytes)
 
 		assertTrue(art.widthPx > 0 && art.heightPx > 0, "${sample.name}: positive canvas size")
 		assertTrue(art.layers.isNotEmpty(), "${sample.name}: at least one layer")
@@ -78,5 +97,6 @@ class PsdReaderTest {
 			)
 			art.isEffectivelyVisible(layer)
 		}
+		println("checked ${sample.name}: ${art.widthPx}x${art.heightPx}, ${art.layers.size} layers, ${art.groups.size} groups")
 	}
 }

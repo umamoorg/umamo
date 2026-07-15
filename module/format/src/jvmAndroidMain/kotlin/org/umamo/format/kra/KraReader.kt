@@ -107,7 +107,7 @@ object KraReader : ArtReader {
 
 /**
  * True if bytes is a Krita archive: a ZIP whose first, stored entry is the mimetype file holding
- * application/x-kra. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
+ * application/x-krita. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
  * sits in the first few dozen bytes and a short prefix scan identifies the format without unzipping.
  * A .kra re-saved by a tool that drops the mimetype entry will not match here, in which case the
  * format registry's extension fallback covers it.
@@ -116,8 +116,13 @@ object KraReader : ArtReader {
  * @return Boolean Whether the archive announces itself as a Krita document.
  */
 private fun isKra(bytes: ByteArray): Boolean {
-	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content "application/x-kra"
-	// (KoQuaZipStore.cpp:165 writes it first/uncompressed; NATIVE_MIMETYPE kis_kra_tags.h:19).
+	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content (KoQuaZipStore.cpp:165
+	// writes it first/uncompressed).  A .kra carries TWO similar-looking Krita mime strings and they
+	// are not interchangeable: the mimetype entry holds "application/x-krita", while "application/x-kra"
+	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/formats/KRA.md §1).  Matching the
+	// latter here finds nothing — it is not even a prefix of the former, the two diverge at "kr|a" vs
+	// "kr|ita" — so scan for the real entry content.  Both are accepted anyway: neither string can
+	// occur this early in a non-Krita ZIP, so allowing both only buys tolerance of writer variation.
 	val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
 	if (bytes.size < zipMagic.size) {
 		return false
@@ -127,9 +132,18 @@ private fun isKra(bytes: ByteArray): Boolean {
 			return false
 		}
 	}
-	val marker = "application/x-kra".encodeToByteArray()
-	return indexOfBytes(bytes, marker, scanLimit = min(bytes.size, 128)) >= 0
+	val scanLimit = min(bytes.size, 128)
+	return KRA_MIMETYPE_MARKERS.any { marker -> indexOfBytes(bytes, marker.encodeToByteArray(), scanLimit) >= 0 }
 }
+
+/**
+ * The mimetype-entry contents that identify a Krita archive.
+ *
+ * "application/x-krita" is what Krita actually writes; "application/x-kra" is accepted defensively
+ * (it is the maindoc.xml `<IMAGE mime>` value, and is what an earlier version of this check looked
+ * for by mistake).
+ */
+private val KRA_MIMETYPE_MARKERS = listOf("application/x-krita", "application/x-kra")
 
 /**
  * Returns the start index of the first occurrence of needle within haystack[0, scanLimit), or -1.
@@ -294,42 +308,6 @@ private fun buildLayer(
 	)
 }
 
-/**
- * Builds the neutral per-channel mask from Krita's channelflags attribute.
- *
- * channelflags is a per-channel enable mask in channel-index order ('0' disables a channel,
- * anything else enables it; indices beyond the string default to enabled), or empty meaning all
- * channels enabled. The channel-index order is the color space's own: for RGB it is Blue, Green,
- * Red, Alpha (the addChannel sequence in RgbU8ColorSpace.cpp), and for GRAYA it is Gray, Alpha.
- * Grayscale's single gray channel maps onto R, G, and B together, because the raster expands gray
- * to RGB.
- *
- * A disabled alpha is Krita's "Inherit Alpha", which the caller maps onto the neutral clipped flag.
- * That clipping is an approximation: PSD clips to the single base layer directly below, whereas
- * Krita clips to the composite of everything below in the group.
- *
- * @param String? channelFlags  The layer's channelflags attribute (null/empty means all enabled).
- * @param KraPixelFormat format  The resolved pixel format (gives channel family and order).
- * @return ChannelMask the enabled state of the output red/green/blue/alpha channels.
- */
-internal fun channelMaskFrom(channelFlags: String?, format: KraPixelFormat): ChannelMask {
-	// KRA: kis_kra_utils.cpp stringToFlags ('0' disables, default enabled); channel order from the
-	// color space addChannel sequence (RgbU8ColorSpace.cpp / GrayU8ColorSpace.cpp).
-	if (channelFlags.isNullOrEmpty()) {
-		return ChannelMask.ALL
-	}
-
-	fun channelEnabled(channelIndex: Int): Boolean =
-		channelIndex !in channelFlags.indices || channelFlags[channelIndex] != '0'
-	return if (format.isRgb) {
-		ChannelMask(red = channelEnabled(2), green = channelEnabled(1), blue = channelEnabled(0), alpha = channelEnabled(3))
-	} else {
-		val grayEnabled = channelEnabled(0)
-		ChannelMask(red = grayEnabled, green = grayEnabled, blue = grayEnabled, alpha = channelEnabled(1))
-	}
-}
-
-/** A layer's assembled placement and pixels. */
 private class AssembledRaster(val bounds: LayerBounds, val raster: LayerRaster)
 
 /**

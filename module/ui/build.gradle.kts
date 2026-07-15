@@ -22,10 +22,10 @@ kotlin {
 
 	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
-	// JVM-based targets (desktop JVM + Android/ART). commonMain cannot see `java.*` or :format's
-	// jvmAndroidMain types (FormatRegistry, Cmo3Model — the JDOM-backed CMO3 codec), but the shared
-	// document/file layer and app shell need them — so that code lives in src/jvmAndroidMain and is
-	// shared verbatim by both targets. Promote this block to a convention plugin at the 4th user.
+	// JVM-based targets (desktop JVM + Android/ART). commonMain cannot see :format's jvmAndroidMain
+	// types (FormatRegistry, Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file
+	// layer and app shell need them — so that code lives in src/jvmAndroidMain and is shared verbatim
+	// by both targets. Promote this block to a convention plugin at the 4th user.
 	applyDefaultHierarchyTemplate {
 		common {
 			group("jvmAndroid") {

@@ -124,17 +124,28 @@ Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black
 | MOC3   | △    | △    | Cubism Distribution Model File - Implemented, not fully tested.                          |
 
 
-#### **CMO3**
+#### Format Documents
 
-CMO3, the Cubism editor's project file, is a custom **CAFF** container bundling a reflection-serialized `main.xml` model graph plus embedded PNG layer images.  See [docs/formats/CMO3.md](docs/formats/CMO3.md) for the on-disk spec.
+Reverse engineered file formats have documentation in the [docs/formats/](docs/formats/) folder.
 
-The CMO3 codec has read / round-trip tests that run against a real sample you supply(no corpus is committed to the repo):
+#### Corpus Testing
 
-```bash
-./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3
+Each CODEC and reader have tests that run against real samples that you can supply.  Note: The `/test/corpus` is intentionally gitignored to prevent accidentally committing private data.  If you don't supply samples then the tests will automatically skip.
+
+Put your samples at `test/corpus/` and they are picked up automatically:
+
+```
+test/corpus/cmo3/    EricaTamamo.cmo3  (the model the CMO3 gate's exact counts are pinned to)
+test/corpus/moc3/    Put each model's files in a separate subdirectory.
+
+Artwork:
+test/corpus/clip/    test/corpus/psd/  test/corpus/krita/   test/corpus/tiff/  test/corpus/jpeg/
 ```
 
-Without `-Dcmo3.sample` those tests self-skip, and the rest of the suite still runs.
+```bash
+./gradlew :format:jvmTest                                   #Corpus automatic discovery.
+./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3 #Point at one explicitly.
+```
 
 ## Legal & Trademark Notice
 

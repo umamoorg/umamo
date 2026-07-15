@@ -103,7 +103,7 @@ Puppet")` is the first point where a non-CMO3 file becomes an editable rig, and 
 
 ## Phase A — Raster image codec family
 
-Goal: a platform-agnostic image codec layer for PNG, BMP, WebP, JPEG, JPEG 2000, and TIFF, so Umamo can (1) import flat rasters as source art, (2) decode the CMO3 atlas the same way on desktop and Android, and (3) encode the atlas / thumbnails it will generate in later phases.  This is the leaf of the graph — nothing depends on the rest of the pipeline — so it can start immediately and in parallel with everything.
+Goal: a platform-agnostic image codec layer for PNG, BMP, WebP, JPEG, and TIFF, so Umamo can (1) import flat rasters as source art, (2) decode the CMO3 atlas the same way on desktop and Android, and (3) encode the atlas / thumbnails it will generate in later phases.  This is the leaf of the graph — nothing depends on the rest of the pipeline — so it can start immediately and in parallel with everything.
 
 Independent of the rest of the roadmap, but it unblocks: Phase E (flat-raster source import), Phase G (atlas + thumbnail encoding into UMA), and cleans up the `:render` PNG-decode seam that Phase H already relies on.
 

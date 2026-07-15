@@ -20,7 +20,7 @@ class Cmo3FacadeTest {
 	private fun ByteArray.isPng() = size >= 4 && pngMagic.indices.all { this[it] == pngMagic[it] }
 
 	@Test
-	fun readsModelExposesLayersAndWritesBackByteIdentical() {
+	fun readsModelExposesLayersAndReemitsMainXmlByteIdentical() {
 		val file =
 			sample ?: run {
 				println("cmo3.sample not present; skipping facade test")

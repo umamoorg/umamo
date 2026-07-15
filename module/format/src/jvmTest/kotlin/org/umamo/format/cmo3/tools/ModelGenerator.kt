@@ -11,13 +11,22 @@ import java.io.File
 import kotlin.test.Test
 
 /**
- * One-shot, sample-driven code generator for the reflective Cubism model classes. Reads the sample's
- * main.xml, infers each tag's serialized field signature (name/type/order, <super> inheritance,
+ * Sample-driven code generator for the reflective Cubism model classes. Reads each sample's main.xml,
+ * infers every tag's serialized field signature (name/type/order, <super> inheritance,
  * @DontSerializeIfDefault for sometimes-present fields), detects enums, and reports custom
  * (attribute-bearing) tags for hand-writing. Emits model classes + a registration function.
  *
- * Run with: -Dcmo3.generate=true (writes into src/commonMain + src/jvmAndroidMain). The byte-identity gate
- * validates the output.
+ * ADDITIVE, never destructive. The previously generated model is an INPUT: the output is the union of
+ * what is already there and what the corpus proves. This is not a nicety. The generator only ever sees
+ * what the samples happen to exercise, so a replace-everything run deletes every part of the format
+ * that no sample reaches -- measured against a 4-sample corpus, that was 31 enum constants, 7 whole
+ * enums, 29 classes, and 128 fields. And nothing would catch it: an unused enum constant fails no
+ * test, and a dropped class falls back to verbatim and still round-trips byte-identical. So the rule
+ * is: add what is newly proven, keep everything else exactly as it stands.
+ *
+ * Run with: -Dcmo3.generate=true. Input samples come from -Dcmo3.gensample (defaults to the whole
+ * cmo3/ corpus, so the union spans every version and feature available). The byte-identity gate over
+ * that same corpus validates the output.
  */
 class ModelGenerator {
 	private val primitiveTags =
@@ -105,7 +114,8 @@ class ModelGenerator {
 				?: error("cmo3.sample required")
 		val sampleFiles = sampleSpec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		require(sampleFiles.isNotEmpty()) { "no readable sample in cmo3.gensample/cmo3.sample" }
-		val rootDir = sampleFiles.first().parentFile.parentFile
+		val rootDir = repositoryRoot()
+		println("=== generating from ${sampleFiles.size} sample(s) into $rootDir ===")
 
 		// Walk every sample into one accumulator: instances/enum-values/fields union across versions.
 		val tags = HashMap<String, TagInfo>()
@@ -218,57 +228,174 @@ class ModelGenerator {
 		return "Any?" to "null"
 	}
 
+	/**
+	 * The repository root, located by walking up for settings.gradle.kts.
+	 *
+	 * Not derived from the sample path, which is what it used to be: `sample.parentFile.parentFile`
+	 * assumed the corpus sat exactly two levels below the root, so with samples at test/corpus/cmo3/ it
+	 * resolved to test/corpus and wrote the "generated" model into the gitignored corpus, where nothing
+	 * would ever compile it.
+	 *
+	 * @return File The repository root.
+	 */
+	private fun repositoryRoot(): File {
+		var candidate: File? = File(".").absoluteFile
+		while (candidate != null) {
+			if (File(candidate, "settings.gradle.kts").isFile) {
+				return candidate
+			}
+			candidate = candidate.parentFile
+		}
+		error("no settings.gradle.kts above ${File(".").absolutePath}; cannot locate the repository root")
+	}
+
+	/**
+	 * The property lines for a newly inferred field, annotations included.
+	 *
+	 * @param String tag             The owning tag, for the @SerialName fallback.
+	 * @param String field           The on-disk `xs.n` field name.
+	 * @param TagInfo info           The inferred facts about the owning tag.
+	 * @param String propertyModifier "open " for a class that is extended, else empty.
+	 * @return List<String> The lines to emit.
+	 */
+	private fun newFieldLines(tag: String, field: String, info: TagInfo, propertyModifier: String): List<String> {
+		val lines = mutableListOf<String>()
+		val (baseType, baseDefault) = ktTypeAndDefault(info.fieldTypeTags[field] ?: emptySet())
+		// Nullable when observed as <null>, or always for String (commonly null in the data).
+		val nullable = baseType != "Any?" && (field in info.nullableFields || baseType == "String")
+		val type = if (nullable) "$baseType?" else baseType
+		val default = if (nullable) "null" else baseDefault
+		if ((info.fieldPresence[field] ?: 0) < info.instances) {
+			lines += "\t@DontSerializeIfDefault"
+		}
+		// Field names that are not legal Kotlin identifiers (e.g. "parameters.keys") get a
+		// sanitized property name + @SerialName carrying the real on-disk xs.n.
+		val legal = field.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))
+		val kotlinName = if (legal) field else field.replace(Regex("[^A-Za-z0-9_]"), "_")
+		if (!legal) {
+			lines += "\t@SerialName(\"$field\")"
+		}
+		lines += "\tpublic ${propertyModifier}var `$kotlinName`: $type = $default"
+		return lines
+	}
+
+	/**
+	 * Emits the model as the union of what was already generated and what the samples prove.
+	 *
+	 * Every existing declaration is carried through verbatim, including ones no sample exercises: the
+	 * corpus is evidence of what the format DOES contain, never of what it does not.  New tags, new
+	 * enum constants, and new fields are added; nothing is removed or rewritten.
+	 *
+	 * @param File rootDir                     The repository root.
+	 * @param Map<String, TagInfo> reflective  Inferred reflective classes.
+	 * @param Map<String, TagInfo> enums       Inferred enums.
+	 */
 	private fun writeModel(rootDir: File, reflective: Map<String, TagInfo>, enums: Map<String, TagInfo>) {
+		val outFile =
+			File(rootDir, "module/format/src/commonMain/kotlin/org/umamo/format/cmo3/model/gen/GeneratedModel.kt")
+		val existing = parseGeneratedModel(outFile)
+		val added = mutableListOf<String>()
+
 		val builder = StringBuilder()
-		builder.appendLine("// GENERATED by ModelGenerator from the sample main.xml. Do not edit by hand.")
+		builder.appendLine("// GENERATED by ModelGenerator from the corpus main.xml, merged over the previous output.")
+		builder.appendLine("// Do not edit by hand; re-run with -Dcmo3.generate=true. Generation only ever ADDS.")
 		builder.appendLine("package org.umamo.format.cmo3.model.gen")
 		builder.appendLine()
 		builder.appendLine("import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault")
 		builder.appendLine("import org.umamo.format.cmo3.serialize.annotations.SerialName")
 		builder.appendLine("import org.umamo.format.cmo3.serialize.annotations.SerialTag")
 		builder.appendLine()
-		for ((tag, info) in enums) {
+
+		for (tag in (existing.enums.keys + enums.keys).sorted()) {
+			val previous = existing.enums[tag] ?: emptySet<String>()
+			val inferred = enums[tag]?.enumValues ?: emptySet<String>()
+			(inferred - previous).forEach { added += "enum $tag.$it" }
+			if (tag !in existing.enums) {
+				added += "enum $tag (new)"
+			}
+			val values = (previous + inferred).sorted()
 			builder.appendLine("@SerialTag(\"$tag\")")
-			builder.appendLine("public enum class $tag { ${info.enumValues.joinToString(", ")} }")
+			builder.appendLine("public enum class $tag { ${values.joinToString(", ")} }")
 			builder.appendLine()
 		}
-		for ((tag, info) in reflective) {
-			val openMod = if (info.isSuperOf.isNotEmpty()) "open " else ""
+
+		for (tag in (existing.classes.keys + reflective.keys).sorted()) {
+			val previousClass = existing.classes[tag]
+			val info = reflective[tag]
+			if (previousClass != null) {
+				// Keep the declaration exactly: its `open` modifier and super clause encode decisions
+				// (including hand-written supers) that a fresh inference over a different corpus may not
+				// reproduce.
+				builder.appendLine("@SerialTag(\"$tag\")")
+				builder.appendLine(previousClass.declaration)
+				if (previousClass.isBodyless) {
+					builder.appendLine()
+					continue
+				}
+				val propertyModifier = if (previousClass.declaration.contains("open class")) "open " else ""
+				val byName = previousClass.fields.associateBy { it.serialName }
+				val inferredOrder =
+					if (info != null) {
+						LinkedHashSet(info.bestOrder).also { it += info.fieldTypeTags.keys }.toList()
+					} else {
+						emptyList()
+					}
+				for (field in mergeFieldOrder(previousClass.fields.map { it.serialName }, inferredOrder)) {
+					val known = byName[field]
+					if (known != null) {
+						known.lines.forEach { builder.appendLine(it) }
+					} else {
+						added += "$tag.$field"
+						newFieldLines(tag, field, info!!, propertyModifier).forEach { builder.appendLine(it) }
+					}
+				}
+				builder.appendLine("}")
+				builder.appendLine()
+				continue
+			}
+
+			// A tag the previous output never had.
+			added += "class $tag (new)"
+			val openMod = if (info!!.isSuperOf.isNotEmpty()) "open " else ""
 			// Only extend a superclass that is itself generated; an external/hand-written super is left
 			// off (its <super> element is preserved verbatim as an unmatched child at runtime).
-			val superClause = info.superTag?.takeIf { reflective.containsKey(it) }?.let { " : $it()" } ?: ""
+			val superClause =
+				info.superTag?.takeIf { reflective.containsKey(it) || existing.classes.containsKey(it) }?.let { " : $it()" } ?: ""
 			builder.appendLine("@SerialTag(\"$tag\")")
 			builder.appendLine("public ${openMod}class $tag$superClause {")
 			val fields = LinkedHashSet(info.bestOrder)
 			info.fieldTypeTags.keys.forEach { fields += it } // union, in case a field only appears outside the richest instance
 			// Open classes get open properties so hand-written subclasses can override (e.g. CLayer
 			// overriding the inherited _optionOfIOption); final classes keep plain properties.
-			val propertyModifier = if (openMod.isNotEmpty()) "open " else ""
 			for (field in fields) {
-				val (baseType, baseDefault) = ktTypeAndDefault(info.fieldTypeTags[field] ?: emptySet())
-				// Nullable when observed as <null>, or always for String (commonly null in the data).
-				val nullable = baseType != "Any?" && (field in info.nullableFields || baseType == "String")
-				val type = if (nullable) "$baseType?" else baseType
-				val default = if (nullable) "null" else baseDefault
-				val sometimes = (info.fieldPresence[field] ?: 0) < info.instances
-				val dsd = if (sometimes) "\t@DontSerializeIfDefault\n" else ""
-				// Field names that are not legal Kotlin identifiers (e.g. "parameters.keys") get a
-				// sanitized property name + @SerialName carrying the real on-disk xs.n.
-				val legal = field.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))
-				val kotlinName = if (legal) field else field.replace(Regex("[^A-Za-z0-9_]"), "_")
-				val nameAnno = if (legal) "" else "\t@SerialName(\"$field\")\n"
-				builder.appendLine("$dsd$nameAnno\tpublic ${propertyModifier}var `$kotlinName`: $type = $default")
+				newFieldLines(tag, field, info, if (openMod.isNotEmpty()) "open " else "").forEach { builder.appendLine(it) }
 			}
 			builder.appendLine("}")
 			builder.appendLine()
 		}
-		val outFile =
-			File(rootDir, "module/format/src/commonMain/kotlin/org/umamo/format/cmo3/model/gen/GeneratedModel.kt")
+
 		outFile.parentFile.mkdirs()
 		outFile.writeText(builder.toString())
+		println("=== ADDED ${added.size} declaration(s) ===")
+		added.sorted().forEach { println("  + $it") }
 	}
 
+	/**
+	 * Emits the registration function over the union of every generated declaration.
+	 *
+	 * Reads the model file back rather than registering only what this run inferred: the model is a
+	 * union, so registering just the inferred subset would leave every carried-over class unregistered
+	 * and silently drop it to verbatim -- the same deletion the merge exists to prevent, one file over.
+	 *
+	 * @param File rootDir                     The repository root.
+	 * @param Map<String, TagInfo> reflective  Inferred reflective classes (already merged into the model).
+	 * @param Map<String, TagInfo> enums       Inferred enums (already merged into the model).
+	 */
 	private fun writeRegistration(rootDir: File, reflective: Map<String, TagInfo>, enums: Map<String, TagInfo>) {
+		val model =
+			parseGeneratedModel(
+				File(rootDir, "module/format/src/commonMain/kotlin/org/umamo/format/cmo3/model/gen/GeneratedModel.kt"),
+			)
 		val builder = StringBuilder()
 		builder.appendLine("// GENERATED by ModelGenerator. Do not edit by hand.")
 		builder.appendLine("package org.umamo.format.cmo3.serialize.gen")
@@ -278,7 +405,7 @@ class ModelGenerator {
 		builder.appendLine()
 		builder.appendLine("/** Registers every generated reflective class + enum. */")
 		builder.appendLine("internal fun registerGeneratedSubsystem(registry: SerializerRegistry) {")
-		for (tag in (reflective.keys + enums.keys).sorted()) {
+		for (tag in (model.classes.keys + model.enums.keys + reflective.keys + enums.keys).sorted()) {
 			builder.appendLine("\tregistry.register($tag::class)")
 		}
 		builder.appendLine("}")
