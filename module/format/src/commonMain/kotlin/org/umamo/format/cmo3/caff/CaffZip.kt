@@ -82,10 +82,11 @@ internal object CaffZip {
 	 * The uncompressed size the blob's trailing data descriptor declares, else [Int.MAX_VALUE].
 	 *
 	 * This is the only output bound the format offers.  The CAFF file table's storedSize delimits the
-	 * INPUT — compressed bytes — and says nothing about how far they inflate: the corpus blob expands
-	 * 3.5x, but DEFLATE reaches ~1000:1, so a crafted entry could otherwise balloon toward gigabytes
-	 * in memory before anyone notices.  A blob ends at its data descriptor (CMO3.md §1 has the
-	 * measured layout), and that record's usize field is exactly the bound wanted.
+	 * INPUT — compressed bytes — and says nothing about how far they inflate: the corpus blobs expand
+	 * 3.5x to 6.7x, but DEFLATE reaches ~1000:1, so a crafted entry could otherwise balloon toward
+	 * gigabytes in memory before anyone notices.  A blob ends at its data descriptor (CMO3.md §1 has
+	 * the measured layout and the per-sample numbers), and that record's usize field is exactly the
+	 * bound wanted.
 	 *
 	 * Treated as a cap, never a promise: a descriptor that lies truncates only its own entry, and
 	 * anything unrecognizable falls back to unbounded rather than corrupting an otherwise valid read.
