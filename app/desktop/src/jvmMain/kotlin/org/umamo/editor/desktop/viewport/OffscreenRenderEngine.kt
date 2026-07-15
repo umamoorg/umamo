@@ -2,11 +2,13 @@ package org.umamo.editor.desktop.viewport
 
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
+import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.gl.GlPuppetRenderer
+import org.umamo.render.gl.readFramebufferPixels
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -14,6 +16,7 @@ import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
+import java.io.File
 
 /** Idle poll when nothing changed and no read-back is in flight (about 60 Hz wake to pick up new params). */
 private const val IDLE_MILLIS = 16L
@@ -425,8 +428,11 @@ internal class OffscreenRenderEngine(
 
 		if (!dumped) {
 			System.getenv("UMAMO_DUMP_PNG")?.let { dumpPath ->
-				// dumpPng does a synchronous client read-back; safe here because no PBO is bound yet.
-				renderer.dumpPng(dumpPath, width, height)
+				// A synchronous client read-back; safe here because no PBO is bound yet. Encoding and the
+				// file write live here rather than in :render - reading pixels is the renderer's business,
+				// turning them into a PNG on disk is not, and keeping the split means :render needs no
+				// image library at all.
+				File(dumpPath).writeBytes(PngCodec.write(readFramebufferPixels(width, height)))
 				dumped = true
 				UmamoLog.info("[GL] puppet dumped to $dumpPath (${width}x$height)")
 			}

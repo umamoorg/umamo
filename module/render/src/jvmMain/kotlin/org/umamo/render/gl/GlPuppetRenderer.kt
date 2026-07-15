@@ -23,10 +23,13 @@ import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.applyCpuDeform
-import org.umamo.render.eval.cellsByLinearIndex
 import org.umamo.render.eval.paintOrder
 import org.umamo.render.eval.preparePose
 import org.umamo.render.eval.renderOrder
+import org.umamo.render.puppet.buildDeltaTexels
+import org.umamo.render.puppet.contentBoundsOf
+import org.umamo.render.puppet.fallbackColorFor
+import org.umamo.render.puppet.keyformCellCount
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -38,11 +41,8 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.visibleDrawableIds
-import java.awt.image.BufferedImage
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.FloatBuffer
-import javax.imageio.ImageIO
 
 // Standard texture units, shared across all three programs so the per-mesh deform uniforms can be set the
 // same way regardless of which program is bound. atlas/mask are fragment-stage; delta/cp/position are
@@ -422,7 +422,7 @@ class GlPuppetRenderer(
 		if (!isGlue && !renderable) {
 			return null // a non-glue mesh with no triangles draws nothing and is no weld partner
 		}
-		val cellCount = maxOf(1, grid.axes.fold(1) { count, axis -> count * axis.keys.size })
+		val cellCount = keyformCellCount(grid)
 		val deltaTexture = uploadDeltaTexture(grid, mesh.positions, cellCount)
 		val meshBuffers = uploadMesh(mesh.positions, mesh.uvs, mesh.indices, glueAttr)
 		val cpTexture = if (drawable.parentDeformerId in warpDeformerIds) GL11.glGenTextures() else 0
@@ -441,7 +441,7 @@ class GlPuppetRenderer(
 			indexCount = mesh.indices.size,
 			cpTexture = cpTexture,
 			atlasTexture = atlasIndex?.let { atlasHandles[it] } ?: 0,
-			color = colorFor(drawable.id.raw),
+			color = fallbackColorFor(drawable.id.raw),
 			blendMode = drawable.blendMode,
 			maskIds = drawable.maskedBy,
 			invertMask = drawable.invertMask,
@@ -1189,28 +1189,11 @@ class GlPuppetRenderer(
 
 	/** Fills minX/minY/spanX/spanY from a CPU-evaluated pose's world positions (shown drawables only). */
 	private fun computeBbox(geometry: DeformedGeometry) {
-		var loX = Float.MAX_VALUE
-		var loY = Float.MAX_VALUE
-		var hiX = -Float.MAX_VALUE
-		var hiY = -Float.MAX_VALUE
-		for ((drawableId, world) in geometry.worldPositions) {
-			// A hidden full-canvas guide image / background must not stretch the framing it isn't drawn in.
-			if (drawableId !in shownDrawableIds) {
-				continue
-			}
-			var coordIndex = 0
-			while (coordIndex < world.size) {
-				loX = minOf(loX, world[coordIndex])
-				hiX = maxOf(hiX, world[coordIndex])
-				loY = minOf(loY, world[coordIndex + 1])
-				hiY = maxOf(hiY, world[coordIndex + 1])
-				coordIndex += 2
-			}
-		}
-		minX = loX
-		minY = loY
-		spanX = maxOf(hiX - loX, 1f)
-		spanY = maxOf(hiY - loY, 1f)
+		val bounds = contentBoundsOf(geometry, shownDrawableIds)
+		minX = bounds.minX
+		minY = bounds.minY
+		spanX = bounds.width
+		spanY = bounds.height
 	}
 
 	private fun ensureMaskTarget(viewportWidth: Int, viewportHeight: Int) {
@@ -1248,30 +1231,6 @@ class GlPuppetRenderer(
 	private fun uniform(program: Int, name: String): Int = GL20.glGetUniformLocation(program, name)
 
 	/**
-	 * Reads the framebuffer back into a PNG (headless verification; call before swapBuffers).
-	 *
-	 * @param String path           Output PNG path.
-	 * @param Int    viewportWidth  Viewport width in pixels.
-	 * @param Int    viewportHeight Viewport height in pixels.
-	 */
-	fun dumpPng(path: String, viewportWidth: Int, viewportHeight: Int) {
-		val pixels = BufferUtils.createByteBuffer(viewportWidth * viewportHeight * 4)
-		GL11.glReadPixels(0, 0, viewportWidth, viewportHeight, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels)
-		val image = BufferedImage(viewportWidth, viewportHeight, BufferedImage.TYPE_INT_ARGB)
-		for (y in 0 until viewportHeight) {
-			for (x in 0 until viewportWidth) {
-				val offset = ((viewportHeight - 1 - y) * viewportWidth + x) * 4
-				val red = pixels.get(offset).toInt() and 0xFF
-				val green = pixels.get(offset + 1).toInt() and 0xFF
-				val blue = pixels.get(offset + 2).toInt() and 0xFF
-				val alpha = pixels.get(offset + 3).toInt() and 0xFF
-				image.setRGB(x, y, (alpha shl 24) or (red shl 16) or (green shl 8) or blue)
-			}
-		}
-		ImageIO.write(image, "png", File(path))
-	}
-
-	/**
 	 * Uploads a mesh's per-keyform-cell vertex deltas as an RG32F texture: column = cell (linear grid
 	 * index), row = vertex id, RG = (Δx, Δy).
 	 *
@@ -1282,19 +1241,9 @@ class GlPuppetRenderer(
 	 */
 	private fun uploadDeltaTexture(grid: KeyformGrid<MeshForm>, positions: FloatArray, cellCount: Int): Int {
 		val vertexCount = positions.size / 2
-		val cells = cellsByLinearIndex(grid)
-		val deltaData = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)
-		for (vertexIndex in 0 until vertexCount) {
-			for (cellIndex in 0 until cellCount) {
-				val deltas = cells[cellIndex]?.form?.positionDeltas
-				if (deltas != null && vertexIndex * 2 + 1 < deltas.size) {
-					deltaData.put(deltas[vertexIndex * 2]).put(deltas[vertexIndex * 2 + 1])
-				} else {
-					deltaData.put(0f).put(0f)
-				}
-			}
-		}
-		deltaData.flip()
+		val texels = buildDeltaTexels(grid, vertexCount, cellCount)
+		val deltaData = BufferUtils.createFloatBuffer(texels.size)
+		deltaData.put(texels).flip()
 		val texture = nearestTexture()
 		GL11.glTexImage2D(
 			GL11.GL_TEXTURE_2D,
@@ -1453,14 +1402,6 @@ class GlPuppetRenderer(
 			pixelBuffer,
 		)
 		return handle
-	}
-
-	private fun colorFor(id: String): FloatArray {
-		val hash = id.hashCode()
-		val red = 0.35f + ((hash shr 16) and 0xFF) / 255f * 0.6f
-		val green = 0.35f + ((hash shr 8) and 0xFF) / 255f * 0.6f
-		val blue = 0.35f + (hash and 0xFF) / 255f * 0.6f
-		return floatArrayOf(red, green, blue, 0.85f)
 	}
 
 	private fun linkProgram(vertexSource: String, fragmentSource: String): Int {
