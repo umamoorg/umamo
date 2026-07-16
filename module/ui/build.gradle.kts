@@ -112,13 +112,14 @@ kotlin {
 // copy to drift. customDirectory REPLACES the source set's default resource directory rather than
 // adding one, so the replacement is a Sync-merged root: the checked-in composeResources plus
 // CREDITS.md under files/, readable as Res.readBytes("files/CREDITS.md").
-val syncBundledCredits by tasks.registering(Sync::class) {
-	from(layout.projectDirectory.dir("src/commonMain/composeResources"))
-	from(rootProject.file("CREDITS.md")) {
-		into("files")
+val syncBundledCredits =
+	tasks.register<Sync>("syncBundledCredits") {
+		from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+		from(rootProject.file("CREDITS.md")) {
+			into("files")
+		}
+		into(layout.buildDirectory.dir("generated/bundledCredits"))
 	}
-	into(layout.buildDirectory.dir("generated/bundledCredits"))
-}
 
 // Generated resource accessor package. Public so the desktop/Android app modules can localize their
 // own chrome (e.g. the desktop menu bar) against the same EN/JA string catalogs via stringResource —

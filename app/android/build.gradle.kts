@@ -63,10 +63,13 @@ dependencies {
 	// MainActivity needs it on its own classpath to read settings.getString / observe settings.changes.
 	implementation(project(":settings"))
 
-	// setContent { } lives in androidx.activity.compose; the compose.* accessors (from the
-	// Compose MP plugin) resolve to Jetpack Compose on this Android target.
+	// setContent { } lives in androidx.activity.compose.
 	implementation(libs.androidx.activity.compose)
-	implementation(compose.runtime)
-	implementation(compose.foundation)
-	implementation(compose.ui)
+	// Direct Compose Multiplatform coordinates via the version catalog — the old `compose.runtime`
+	// plugin aliases were deprecated in CMP 1.10/1.11. The artifacts still redirect to
+	// androidx.compose on this Android target (Gradle metadata), so resolution is unchanged; see the
+	// catalog note on the `compose-*` entries and the matching :ui commonMain block.
+	implementation(libs.compose.runtime)
+	implementation(libs.compose.foundation)
+	implementation(libs.compose.ui)
 }

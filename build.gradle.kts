@@ -76,8 +76,8 @@ val commonSources =
 		)
 	}
 
-val checkCommonSourcePurity by
-	tasks.registering {
+val checkCommonSourcePurity =
+	tasks.register("checkCommonSourcePurity") {
 		group = "verification"
 		description = "Fails if any module's commonMain/commonTest uses a JVM-only API, which would break a future Kotlin/Native target."
 		inputs.files(commonSources).withPropertyName("commonSources")
