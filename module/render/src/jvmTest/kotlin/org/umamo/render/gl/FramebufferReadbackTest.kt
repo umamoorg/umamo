@@ -7,12 +7,13 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import java.nio.ByteBuffer
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins [readFramebufferPixels]'s orientation contract, and with it the `UMAMO_DUMP_PNG` path end to end.
+ * Pins [GlRenderDevice.readPixels]'s orientation contract, and with it the `UMAMO_DUMP_PNG` path end to end.
  *
  * The read-back and the PNG dump had no coverage at all before this, while carrying the single most
  * invertible convention in the renderer: GL hands back the BOTTOM row first, and every consumer here
@@ -37,12 +38,13 @@ class FramebufferReadbackTest {
 	}
 
 	@Test
-	fun readFramebufferPixelsReturnsTopRowFirstAndSurvivesThePngRoundTrip() {
+	fun readPixelsReturnsTopRowFirstAndSurvivesThePngRoundTrip() {
 		val window = createHeadlessGl()
 		assumeGlContext("[framebuffer-readback]", window)
 		try {
-			val framebuffer = createColorFbo(size, size)
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			val device = GlRenderDevice()
+			val target = device.createRenderTarget(RenderTargetSpec(size, size, TextureFormat.Rgba8, sampled = true))
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, (target as GlRenderTarget).framebuffer)
 			GL11.glViewport(0, 0, size, size)
 
 			// Paint through the scissor box in GL's bottom-left space: y=0 is the BOTTOM half.
@@ -55,7 +57,7 @@ class FramebufferReadbackTest {
 			GL11.glClear(GL11.GL_COLOR_BUFFER_BIT)
 			GL11.glDisable(GL11.GL_SCISSOR_TEST)
 
-			val image = readFramebufferPixels(size, size)
+			val image = device.readPixels(target)
 			assertEquals(size, image.width)
 			assertEquals(size, image.height)
 			// GL's top half is red; a top-first image must therefore lead with red. Without the flip this
@@ -73,19 +75,6 @@ class FramebufferReadbackTest {
 			GLFW.glfwDestroyWindow(window)
 			GLFW.glfwTerminate()
 		}
-	}
-
-	/** Creates and binds an RGBA8 offscreen framebuffer to render into for read-back. */
-	private fun createColorFbo(width: Int, height: Int): Int {
-		val framebuffer = GL30.glGenFramebuffers()
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		val colorTexture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorTexture)
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, null as ByteBuffer?)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
-		return framebuffer
 	}
 
 	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */

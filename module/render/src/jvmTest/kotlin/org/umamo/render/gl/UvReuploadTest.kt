@@ -9,6 +9,8 @@ import org.lwjgl.system.MemoryUtil
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -113,8 +115,9 @@ class UvReuploadTest {
 			val device = GlRenderDevice()
 			val renderer = PuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
-			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			// A fixed 1:1 camera centered on the origin, so the quad never moves - only its texels do.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 

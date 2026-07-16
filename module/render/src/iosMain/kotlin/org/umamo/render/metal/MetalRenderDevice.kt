@@ -7,6 +7,7 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
@@ -90,6 +91,17 @@ class MetalRenderDevice : RenderDevice {
 
 	override fun beginFrame(): FrameEncoder =
 		TODO("Metal port: open a command buffer; passes are encoders; barrier() is a genuine no-op; endFrame commits")
+
+	override fun resolve(source: RenderTarget, destination: RenderTarget): Unit =
+		TODO("Metal port: a full-screen textured draw or MPSImageBilinearScale - NOT a blit encoder, which can neither filter nor scale")
+
+	override fun beginReadback(target: RenderTarget): ReadbackTicket =
+		TODO("Metal port: blit target into a shared-storage staging buffer, addCompletedHandler flags the ticket done")
+
+	override fun pollReadback(ticket: ReadbackTicket): RasterImage? =
+		TODO("Metal port: drain the completed flag ON THE POLL, so results arrive on the render thread whatever thread the handler ran on; top-first already, no row flip")
+
+	override fun cancelReadback(ticket: ReadbackTicket): Unit = TODO("Metal port")
 
 	override fun readPixels(target: RenderTarget): RasterImage =
 		TODO("Metal port: getBytes - already top-first, NO row flip (unlike the GL device)")

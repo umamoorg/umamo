@@ -134,7 +134,58 @@ public interface RenderDevice {
 	 */
 	fun beginFrame(): FrameEncoder
 
+	/**
+	 * Copies [source] into [destination], filtered - the supersample resolve (a box downscale when the
+	 * source is larger).
+	 *
+	 * A device primitive rather than a caller-side blit, because "blit" is the GL spelling only:
+	 * `glBlitFramebuffer` with GL_LINEAR does this in one call, but Metal's `MTLBlitCommandEncoder`
+	 * can neither filter nor scale - a Metal backend implements this as a full-screen textured draw
+	 * (or MPSImageBilinearScale).  Exposing the honest verb keeps that difference inside the device.
+	 *
+	 * @param RenderTarget source      The surface to read (any size).
+	 * @param RenderTarget destination The surface to fill, at its own size.
+	 */
+	fun resolve(source: RenderTarget, destination: RenderTarget)
+
 	// --- Read-back ---
+
+	/**
+	 * Begins an ASYNCHRONOUS read-back of [target], returning immediately.
+	 *
+	 * The synchronous [readPixels] stalls the pipeline until the GPU finishes; this schedules the copy
+	 * on the GPU timeline instead, so a per-frame caller (the viewport read-back) never blocks while a
+	 * slider is dragged.  Poll the ticket with [pollReadback] on later ticks.
+	 *
+	 * The GL device implements this as glReadPixels into a pooled pixel-buffer object gated by a fence;
+	 * a Metal backend would stash the bytes from a command-buffer completion handler and hand them over
+	 * on the poll - polling (rather than a callback) is deliberate, so results always arrive on the
+	 * render thread on every backend, whatever thread the backend completes on.
+	 *
+	 * @param RenderTarget target The target to read.
+	 * @return ReadbackTicket The claim ticket to poll.
+	 */
+	fun beginReadback(target: RenderTarget): ReadbackTicket
+
+	/**
+	 * The pixels of an in-flight read-back once ready, or null while the GPU is still copying.
+	 *
+	 * Non-blocking.  One-shot: the first non-null return spends the ticket and recycles its staging;
+	 * polling a spent ticket is a caller bug.  Same orientation contract as [readPixels]: RGBA8888,
+	 * TOP row first, whatever the backend's framebuffer origin.
+	 *
+	 * @param ReadbackTicket ticket The claim ticket from [beginReadback].
+	 * @return RasterImage? The pixels, or null while in flight.
+	 */
+	fun pollReadback(ticket: ReadbackTicket): RasterImage?
+
+	/**
+	 * Abandons an in-flight read-back, freeing its staging without waiting for the pixels.  For
+	 * teardown; a spent ticket is a no-op.
+	 *
+	 * @param ReadbackTicket ticket The claim ticket to abandon.
+	 */
+	fun cancelReadback(ticket: ReadbackTicket)
 
 	/**
 	 * Reads [target] back to the host, synchronously.
@@ -159,6 +210,14 @@ public interface RenderDevice {
 	 */
 	fun describeBackend(): String
 }
+
+/**
+ * An in-flight asynchronous read-back - an opaque claim ticket for [RenderDevice.pollReadback].
+ *
+ * One-shot: a ticket yields its pixels exactly once, after which it is spent and the backend has
+ * recycled its staging.
+ */
+public interface ReadbackTicket
 
 /**
  * One frame's recorded work.  Passes run in the order they are begun.

@@ -5,8 +5,10 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12
 import org.lwjgl.opengl.GL15
 import org.lwjgl.opengl.GL20
+import org.lwjgl.opengl.GL21
 import org.lwjgl.opengl.GL30
 import org.lwjgl.opengl.GL31
+import org.lwjgl.opengl.GL32
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.device.DeformCapturePipeline
 import org.umamo.render.device.DeformedPositionStore
@@ -15,6 +17,7 @@ import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
 import org.umamo.render.device.PipelinePurpose
+import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
@@ -204,25 +207,6 @@ class GlRenderDevice : RenderDevice {
 		return GlRenderTarget(framebuffer, colorTexture, colorRenderbuffer, spec.width, spec.height)
 	}
 
-	/**
-	 * Wraps an already-created framebuffer as a [RenderTarget], without taking ownership.
-	 *
-	 * The bridge for the host's own render surface - the offscreen service's supersampled draw framebuffer,
-	 * which it creates and manages itself.  On the CONCRETE device only, never the interface: the renderer
-	 * is handed targets and marshals through them, so it never needs this; only the host, which knows it is
-	 * on GL, does.  Metal has the same shape (a `CAMetalDrawable` from a view), so this is a real
-	 * cross-backend concept parked here until the offscreen stack moves behind the device.
-	 *
-	 * [destroyRenderTarget] must NOT be called on the result - this device did not allocate the FBO.
-	 *
-	 * @param Int fboId  The existing framebuffer name.
-	 * @param Int width  Its width in pixels.
-	 * @param Int height Its height in pixels.
-	 * @return RenderTarget A target that binds [fboId].
-	 */
-	fun wrapExistingFramebuffer(fboId: Int, width: Int, height: Int): RenderTarget =
-		GlRenderTarget(fboId, colorTexture = 0, colorRenderbuffer = 0, width = width, height = height)
-
 	override fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore {
 		val buffer = GL15.glGenBuffers()
 		GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer)
@@ -280,6 +264,121 @@ class GlRenderDevice : RenderDevice {
 	}
 
 	override fun beginFrame(): FrameEncoder = GlFrameEncoder(ensureEmptyVao())
+
+	override fun resolve(source: RenderTarget, destination: RenderTarget) {
+		val glSource = source as GlRenderTarget
+		val glDestination = destination as GlRenderTarget
+		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glSource.framebuffer)
+		GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, glDestination.framebuffer)
+		// GL_LINEAR makes the downscale a box filter - the supersample resolve. On GL this whole
+		// primitive IS a blit; on Metal it cannot be (a blit encoder neither filters nor scales), which
+		// is why the interface names the effect rather than the mechanism.
+		GL30.glBlitFramebuffer(
+			0,
+			0,
+			glSource.width,
+			glSource.height,
+			0,
+			0,
+			glDestination.width,
+			glDestination.height,
+			GL11.GL_COLOR_BUFFER_BIT,
+			GL11.GL_LINEAR,
+		)
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, glDestination.framebuffer)
+	}
+
+	/** A recyclable pixel-buffer object and its current byte capacity. */
+	private class Pbo(val id: Int, var capacity: Int)
+
+	/**
+	 * An in-flight asynchronous read-back: the staging PBO, the fence gating it, and the read's extent.
+	 * [spent] flips when the ticket is consumed or cancelled, making both one-shot and idempotent.
+	 */
+	private class GlReadbackTicket(
+		val pbo: Pbo,
+		val fence: Long,
+		val width: Int,
+		val height: Int,
+		var spent: Boolean = false,
+	) : ReadbackTicket
+
+	// Staging PBOs are recycled rather than freed: a viewport read-back runs per frame, and reallocating
+	// a multi-megabyte buffer 60x/sec is churn the pool exists to avoid.  Render-thread only.
+	private val freePbos = ArrayDeque<Pbo>()
+
+	override fun beginReadback(target: RenderTarget): ReadbackTicket {
+		val glTarget = target as GlRenderTarget
+		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glTarget.framebuffer)
+		val pbo = acquirePbo(glTarget.width * glTarget.height * 4)
+		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, pbo.id)
+		// With a PBO bound, the last argument is a BUFFER OFFSET, not a client pointer - glReadPixels
+		// returns immediately and the copy happens asynchronously on the GPU timeline.
+		GL11.glReadPixels(0, 0, glTarget.width, glTarget.height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, 0L)
+		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0)
+		val fence = GL32.glFenceSync(GL32.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
+		GL11.glFlush() // submit the commands + fence so the fence can eventually signal
+		return GlReadbackTicket(pbo, fence, glTarget.width, glTarget.height)
+	}
+
+	override fun pollReadback(ticket: ReadbackTicket): RasterImage? {
+		val glTicket = ticket as GlReadbackTicket
+		check(!glTicket.spent) { "pollReadback on a spent ticket" }
+		val status = GL32.glClientWaitSync(glTicket.fence, 0, 0L)
+		if (status != GL32.GL_ALREADY_SIGNALED && status != GL32.GL_CONDITION_SATISFIED) {
+			return null
+		}
+		glTicket.spent = true
+		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, glTicket.pbo.id)
+		// Explicitly typed: the inferred type would carry LWJGL's jspecify @Nullable, which is not
+		// on this module's classpath and fails compilation.
+		val mapped: ByteBuffer? = GL15.glMapBuffer(GL21.GL_PIXEL_PACK_BUFFER, GL15.GL_READ_ONLY)
+		val image =
+			mapped?.let { buffer ->
+				// Flip the GL bottom-up rows straight out of the mapped PBO into the API's top-first
+				// contract - one bulk get per row, the direct-buffer equivalent of System.arraycopy.
+				val rowBytes = glTicket.width * 4
+				val topDown = ByteArray(rowBytes * glTicket.height)
+				for (row in 0 until glTicket.height) {
+					buffer.position((glTicket.height - 1 - row) * rowBytes)
+					buffer.get(topDown, row * rowBytes, rowBytes)
+				}
+				RasterImage(glTicket.width, glTicket.height, topDown)
+			}
+		GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER)
+		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0)
+		GL32.glDeleteSync(glTicket.fence)
+		freePbos.addLast(glTicket.pbo)
+		return image
+	}
+
+	override fun cancelReadback(ticket: ReadbackTicket) {
+		val glTicket = ticket as GlReadbackTicket
+		if (glTicket.spent) {
+			return
+		}
+		glTicket.spent = true
+		GL32.glDeleteSync(glTicket.fence)
+		freePbos.addLast(glTicket.pbo)
+	}
+
+	/**
+	 * Acquires a PBO with at least [capacity] bytes from the free pool (allocating/growing as needed).
+	 * GL_STREAM_READ: written by GL, read once by the client.
+	 *
+	 * @param Int capacity The minimum byte capacity needed.
+	 * @return Pbo The acquired PBO.
+	 */
+	private fun acquirePbo(capacity: Int): Pbo {
+		val pbo = freePbos.removeFirstOrNull() ?: Pbo(GL15.glGenBuffers(), 0)
+		if (pbo.capacity < capacity) {
+			GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, pbo.id)
+			GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER, capacity.toLong(), GL15.GL_STREAM_READ)
+			GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0)
+			pbo.capacity = capacity
+		}
+		return pbo
+	}
 
 	override fun readPixels(target: RenderTarget): RasterImage {
 		val glTarget = target as GlRenderTarget

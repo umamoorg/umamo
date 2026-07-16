@@ -10,6 +10,8 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -121,8 +123,9 @@ class AtlasPageRenderTest {
 			val device = GlRenderDevice()
 			val renderer = PuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
-			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			// Fit the page rectangle 1:1 so the whole page fills the frame.
 			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
@@ -151,8 +154,9 @@ class AtlasPageRenderTest {
 			val device = GlRenderDevice()
 			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
-			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
 			renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
@@ -195,19 +199,6 @@ class AtlasPageRenderTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates and binds an RGBA8 offscreen framebuffer to render into for read-back. */
-	private fun createColorFbo(width: Int, height: Int): Int {
-		val framebuffer = GL30.glGenFramebuffers()
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		val colorTexture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorTexture)
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, null as ByteBuffer?)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
-		return framebuffer
 	}
 
 	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */

@@ -7,6 +7,7 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
@@ -78,6 +79,17 @@ class GlesRenderDevice : RenderDevice {
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("GLES port")
 
 	override fun beginFrame(): FrameEncoder = TODO("GLES port: transliterate GlFrameEncoder")
+
+	override fun resolve(source: RenderTarget, destination: RenderTarget): Unit =
+		TODO("GLES port: glBlitFramebuffer with GL_LINEAR - core in ES 3.0, same as desktop")
+
+	override fun beginReadback(target: RenderTarget): ReadbackTicket =
+		TODO("GLES port: PBO + fence, same as desktop - GL_PIXEL_PACK_BUFFER and fence sync are core in ES 3.0")
+
+	override fun pollReadback(ticket: ReadbackTicket): RasterImage? =
+		TODO("GLES port: clientWaitSync(0) + glMapBufferRange (ES has no glMapBuffer; use the Range form)")
+
+	override fun cancelReadback(ticket: ReadbackTicket): Unit = TODO("GLES port")
 
 	override fun readPixels(target: RenderTarget): RasterImage =
 		TODO("GLES port: glReadPixels + flipRowsVertically - GLES reads bottom-up like GL; the API contract is top-first")
