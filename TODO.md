@@ -25,6 +25,8 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Puppet Model, CMO3, MOC3
 * Handle Offscreen Toggle (Forces on grouping, enables opacity on parts.)
 * Handle opacity inheritance from parts.  Double check deformers as well.
+* MOC3
+	* CDI3 - Export mesh display names as a separate array.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
