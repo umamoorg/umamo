@@ -151,9 +151,15 @@ class PuppetRenderer(
 	// to pose-change frames.
 	private var glueBufferDirty = true
 
-	// Reused per-draw uniform scratch, refilled each draw rather than allocated. Render-thread only.
+	// Reused per-draw uniform + texture scratch, refilled each draw rather than allocated. Render-thread only.
 	private val deformScratch = DeformUniforms()
 	private val fragmentScratch = FragmentUniforms()
+	private val texturesScratch = DrawTextures()
+
+	// Which resident drawables carry triangles (id → indexCount > 0). Residency changes only at initGl and
+	// updateModel, and setPose is far hotter (every pose tick during a drag), so this is cached and rebuilt
+	// only where gpuById itself changes rather than mapped afresh every pose.
+	private var renderableById: Map<DrawableId, Boolean> = emptyMap()
 
 	/**
 	 * A drawable resident on the GPU.  Static residency (mesh, delta texture, optional warp control-point
@@ -237,6 +243,7 @@ class PuppetRenderer(
 		}
 		gpuById = uploaded.associateBy { it.id }
 		glueDeformList = uploaded.filter { it.isGlueMesh }
+		renderableById = gpuById.mapValues { (_, resident) -> resident.indexCount > 0 }
 	}
 
 	/**
@@ -319,10 +326,11 @@ class PuppetRenderer(
 		val resolved =
 			resolvePose(
 				inputs = inputs,
-				renderableById = gpuById.mapValues { (_, resident) -> resident.indexCount > 0 },
+				renderableById = renderableById,
 				shownIds = shownDrawableIds,
 				baseOrder = baseOrder,
 				renderRoot = currentRenderRoot,
+				glueIntensities = glueIntensities,
 			)
 		for (gpuDrawable in gpuById.values) {
 			gpuDrawable.visible = false
@@ -342,7 +350,7 @@ class PuppetRenderer(
 			gpuDrawable.opacity = posedDrawable.opacity
 			gpuDrawable.visible = true
 		}
-		resolved.glueIntensities.copyInto(glueIntensities)
+		// resolvePose filled glueIntensities (this renderer's own array) in place - no copy needed.
 		gpuDrawables = resolved.drawOrder.mapNotNull { gpuById[it] }
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
 	}
@@ -474,6 +482,7 @@ class PuppetRenderer(
 		}
 		gpuById = reconciled
 		glueDeformList = reconciled.values.filter { it.isGlueMesh }
+		renderableById = reconciled.mapValues { (_, resident) -> resident.indexCount > 0 }
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
 		baseOrder = newModel.drawables.map { it.id }
@@ -560,10 +569,14 @@ class PuppetRenderer(
 					continue
 				}
 				fillDeform(deformScratch, gpuDrawable)
+				texturesScratch.atlas = null
+				texturesScratch.maskCoverage = null
+				texturesScratch.deltaTexture = gpuDrawable.deltaTexture
+				texturesScratch.warpControlPoints = gpuDrawable.cpTexture
 				capture.captureDeformedPositions(
 					gpuDrawable.mesh,
 					deformScratch,
-					DrawTextures(deltaTexture = gpuDrawable.deltaTexture, warpControlPoints = gpuDrawable.cpTexture),
+					texturesScratch,
 					gpuDrawable.glueBaseOffset,
 					gpuDrawable.vertexCount,
 				)
@@ -594,7 +607,19 @@ class PuppetRenderer(
 			val masked = maskCoverage != null
 			val isActive = activeId != null && gpuDrawable.id == activeId
 			val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
-			drawDrawable(pass, gpuDrawable, affine, viewportWidth, viewportHeight, gpuDrawable.opacity, highlight, isActive, masked, maskCoverage)
+			drawDrawable(
+				pass,
+				gpuDrawable,
+				affine,
+				viewportWidth,
+				viewportHeight,
+				gpuDrawable.blendMode,
+				gpuDrawable.opacity,
+				highlight,
+				isActive,
+				masked,
+				maskCoverage,
+			)
 		}
 		pass.end()
 		frame.endFrame()
@@ -679,40 +704,61 @@ class PuppetRenderer(
 			if (!mask.visible || mask.indexCount == 0) {
 				continue
 			}
-			// Coverage is the mask's shape at full intensity, unmasked, always Normal blend.
-			drawDrawable(coverage, mask, affine, maskWidth, maskHeight, opacity = 1f, highlight = 0f, isActive = false, masked = false, maskCoverage = null)
+			// Coverage is the mask's shape at full intensity, unmasked, and ALWAYS Normal blend regardless
+			// of the mask drawable's own blend mode: an Additive or Multiply source would leave the cleared
+			// coverage target's alpha at 0, so the masked drawable would sample zero coverage and vanish.
+			drawDrawable(
+				coverage,
+				mask,
+				affine,
+				maskWidth,
+				maskHeight,
+				blendMode = BlendMode.Normal,
+				opacity = 1f,
+				highlight = 0f,
+				isActive = false,
+				masked = false,
+				maskCoverage = null,
+			)
 		}
 		coverage.end()
 	}
 
-	/** Binds a drawable's pipeline + per-pose state and issues its draw into [pass]. */
+	/**
+	 * Binds a drawable's pipeline + per-pose state and issues its draw into [pass].
+	 *
+	 * @param BlendMode blendMode The blend to draw with - the drawable's own for the main pass, forced
+	 *   [BlendMode.Normal] for a mask-coverage draw (see [renderMaskCoverage]).
+	 */
 	private fun drawDrawable(
 		pass: RenderPassEncoder,
 		gpuDrawable: GpuDrawable,
 		affine: WorldToNdc,
 		viewportWidth: Int,
 		viewportHeight: Int,
+		blendMode: BlendMode,
 		opacity: Float,
 		highlight: Float,
 		isActive: Boolean,
 		masked: Boolean,
 		maskCoverage: GpuTexture?,
 	) {
-		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, gpuDrawable.blendMode))
+		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, blendMode))
 		pass.setCamera(affine, viewportWidth, viewportHeight)
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, isActive, masked)
-		val textures =
-			DrawTextures(
-				atlas = gpuDrawable.atlasTexture,
-				maskCoverage = maskCoverage,
-				deltaTexture = gpuDrawable.deltaTexture,
-				warpControlPoints = gpuDrawable.cpTexture,
-			)
+		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
+		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
+		texturesScratch.atlas = gpuDrawable.atlasTexture
+		texturesScratch.maskCoverage = maskCoverage
 		if (gpuDrawable.isGlueMesh) {
-			pass.drawGlueMesh(gpuDrawable.mesh, store!!, gpuDrawable.glueBaseOffset, glueIntensities, fragmentScratch, textures)
+			texturesScratch.deltaTexture = null
+			texturesScratch.warpControlPoints = null
+			pass.drawGlueMesh(gpuDrawable.mesh, store!!, gpuDrawable.glueBaseOffset, glueIntensities, fragmentScratch, texturesScratch)
 		} else {
+			texturesScratch.deltaTexture = gpuDrawable.deltaTexture
+			texturesScratch.warpControlPoints = gpuDrawable.cpTexture
 			fillDeform(deformScratch, gpuDrawable)
-			pass.drawPuppetMesh(gpuDrawable.mesh, deformScratch, fragmentScratch, textures)
+			pass.drawPuppetMesh(gpuDrawable.mesh, deformScratch, fragmentScratch, texturesScratch)
 		}
 	}
 

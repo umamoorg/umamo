@@ -17,7 +17,16 @@ import org.umamo.format.raster.RasterImage
  * A device is created by the host, which owns whatever context or queue the backend needs, and is used
  * from ONE thread only - the render thread.
  *
- * GPU バックエンドの継ぎ目。GL / GLES / Metal ごとに実装する。
+ * Two kinds of work sit on this interface.  Drawing is RECORDED into a frame: [beginFrame] hands out a
+ * [FrameEncoder] whose passes must all be begun and ended within one begin/end.  The remaining
+ * operations - [resolve], [beginReadback] / [pollReadback], [readPixels], and every resource create /
+ * destroy - are SELF-CONTAINED: each is a complete unit of work on its own, called outside any frame, and
+ * a backend that records into command buffers (Metal) is free to open and commit its own buffer internally
+ * to service one.  They are not part of a FrameEncoder because they do not compose with a pass - a resolve
+ * runs between a render frame and its read-back, and a read-back is polled across many later frames.
+ *
+ * GPU バックエンドの継ぎ目。GL / GLES / Metal ごとに実装する。描画はフレームに記録し、resolve / 読み戻し /
+ * リソース操作はフレーム外の自己完結操作。
  */
 public interface RenderDevice {
 	// --- Resources. Everything the device hands out, the device frees. ---
@@ -170,12 +179,16 @@ public interface RenderDevice {
 	/**
 	 * The pixels of an in-flight read-back once ready, or null while the GPU is still copying.
 	 *
-	 * Non-blocking.  One-shot: the first non-null return spends the ticket and recycles its staging;
-	 * polling a spent ticket is a caller bug.  Same orientation contract as [readPixels]: RGBA8888,
-	 * TOP row first, whatever the backend's framebuffer origin.
+	 * Non-blocking, and null means STILL IN FLIGHT and nothing else: once the copy is done the ticket is
+	 * spent and this returns a non-null image, EVEN if the backend then hit an error retrieving the bytes
+	 * (in which case the image is a same-size zero fill - one lost frame, never a null the caller would
+	 * mistake for still-in-flight and re-poll into the spent-ticket check).  One-shot: the first non-null
+	 * return spends the ticket and recycles its staging; polling a spent ticket is a caller bug.  Same
+	 * orientation contract as [readPixels]: RGBA8888, TOP row first, whatever the backend's framebuffer
+	 * origin.
 	 *
 	 * @param ReadbackTicket ticket The claim ticket from [beginReadback].
-	 * @return RasterImage? The pixels, or null while in flight.
+	 * @return RasterImage? The pixels once ready, or null while still in flight.
 	 */
 	fun pollReadback(ticket: ReadbackTicket): RasterImage?
 
@@ -273,7 +286,7 @@ public interface FrameEncoder {
  * tile is never fetched at all.
  */
 public enum class LoadAction {
-	/** Discard and fill with the clear colour. */
+	/** Discard and fill with the clear color. */
 	Clear,
 
 	/** Preserve: the pass reads what was already there. */

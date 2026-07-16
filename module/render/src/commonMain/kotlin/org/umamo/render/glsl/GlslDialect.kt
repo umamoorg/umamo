@@ -1,7 +1,7 @@
 package org.umamo.render.glsl
 
 /**
- * A GLSL flavour one of the GL-family backends compiles.
+ * A GLSL flavor one of the GL-family backends compiles.
  *
  * The sources in this package are shared by the desktop GL 3.3 core backend and the Android GLES 3.0
  * one, which want the same bodies behind different preambles.  A Metal backend shares NOTHING here - MSL
@@ -25,7 +25,7 @@ internal enum class GlslDialect {
  * error there and a silent no-op on desktop - which is exactly the sort of divergence that made keeping
  * two hand-copied shader sets untenable.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The preamble, newline-terminated.
  */
 internal fun glslHeader(dialect: GlslDialect): String =
