@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -27,12 +28,12 @@ import kotlin.test.assertTrue
 /**
  * Proves the object-mode selection tint distinguishes the active (last-selected) drawable from a merely
  * selected one: both are pushed as selected, one is pushed as active, and the renderer must tint the
- * active one toward [GlPuppetRenderer.setActiveSelectionHighlightColor] (green here) while the other tints
- * toward [GlPuppetRenderer.setSelectionHighlightColor] (blue here).  Renders two separated flat-color
+ * active one toward [PuppetRenderer.setActiveSelectionHighlightColor] (green here) while the other tints
+ * toward [PuppetRenderer.setSelectionHighlightColor] (blue here).  Renders two separated flat-color
  * quads into an offscreen FBO and asserts the active quad reads greener and less blue than the selected
  * quad.  Because the two quads are identical apart from which one is active, any green/blue asymmetry is
  * caused solely by the active tint - so a control frame with no active drawable first asserts the two read
- * alike, isolating the effect of [GlPuppetRenderer.setActiveSelection].
+ * alike, isolating the effect of [PuppetRenderer.setActiveSelection].
  *
  * The relative comparison (active greener / less blue than selected) holds for any base drawable color:
  * the active mixes toward green and the selected toward blue at the same strength, so the active's green
@@ -88,7 +89,7 @@ class SelectionTintTest {
 		try {
 			val model = twoQuadModel()
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)

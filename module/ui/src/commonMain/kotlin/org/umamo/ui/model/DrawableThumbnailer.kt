@@ -169,7 +169,7 @@ class DrawableThumbnailer(
 	private fun buildCrop(id: DrawableId): RawCrop? {
 		// The atlas mapping is keyed by the source format's ids, so a session-created duplicate resolves
 		// its page through textureSourceId (its source, or the original for a copy of a copy) - mirroring
-		// the GPU upload's resolution in GlPuppetRenderer.
+		// the GPU upload's resolution in PuppetRenderer.
 		val drawable = drawableById[id] ?: return null
 		val atlasIndex = textures.atlasIndexByDrawableId[(drawable.textureSourceId ?: drawable.id).raw] ?: return null
 		val image = textures.atlases.getOrNull(atlasIndex) ?: return null

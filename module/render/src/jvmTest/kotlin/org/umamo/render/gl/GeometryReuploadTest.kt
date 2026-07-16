@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -33,10 +34,10 @@ import kotlin.test.assertTrue
  * Proves the GPU renderer re-uploads an edited base mesh so the textured art actually moves: an
  * Object/Edit-mode G/S/R commits new positions, and those positions must reach the VBO on the next
  * render or the art visibly lags behind the mesh. Renders a flat-color quad into an offscreen FBO, shifts
- * its base positions via [GlPuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
+ * its base positions via [PuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
  * centroid moved by the expected screen delta - once for a direct (undeformed) drawable and once for a
  * rotation-deformer-parented one, so a parented drawable's art fully tracks the edit rather than lagging
- * partway. Also asserts [GlPuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
+ * partway. Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
  * what's drawn.
  *
  * Self-skips in a display-less environment (no GL context), like [GpuDeformValidationTest].
@@ -120,7 +121,7 @@ class GeometryReuploadTest {
 		assumeGlContext("[geometry-reupload]", window)
 		try {
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
@@ -172,7 +173,7 @@ class GeometryReuploadTest {
 	}
 
 	/** The mean world-space x of the probe's current pick geometry (the CPU deform runs against currentModel). */
-	private fun pickCentroidX(renderer: GlPuppetRenderer): Float {
+	private fun pickCentroidX(renderer: PuppetRenderer): Float {
 		val positions = renderer.pickGeometry()?.worldPositions?.getValue(probeId) ?: return Float.NaN
 		var sum = 0f
 		var vertexCount = 0

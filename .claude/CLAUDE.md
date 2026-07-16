@@ -164,7 +164,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             render logic (`puppet/`: glue layout, pose resolve, model diff, delta
                             texels, bounds), the GL-family GLSL (`glsl/`, shared by GL 3.3 + GLES 3.0
                             via a `GlslDialect`), the `RenderDevice` API (`device/`: handles, specs,
-                            uniform structs, frame/pass encoders), and `GlPuppetRenderer` itself, which
+                            uniform structs, frame/pass encoders), and `PuppetRenderer` itself, which
                             makes ZERO GL calls — every GPU op goes through `RenderDevice`.  A backend
                             is one `RenderDevice` impl: `GlRenderDevice` (jvmMain, LWJGL/GL 3.3 core)
                             ships; GLES 3.0 (android) + Metal (iOS) are ports of it, stubbed.  `:render`
@@ -172,8 +172,6 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             (the old `decodePngToRgba` expect/actual is retired).  The CMO3 atlas
                             extraction sits in jvmAndroidMain (takes a `Cmo3Model`, hence the
                             jvmAndroid-only :format dep).  LWJGL is DESKTOP-ONLY.
-                            (Note: `GlPuppetRenderer` is GL-call-free and commonMain-ready but still
-                            physically in jvmMain — its move to commonMain is a pending mechanical step.)
 :ui           commonMain  — Compose Multiplatform editor UI (panels, tree, timeline, parameter
                             grid) AND the shared app shell: the viewport composables + gizmo overlay
                             (`org.umamo.ui.viewport`, over the `PuppetViewportService` seam) in

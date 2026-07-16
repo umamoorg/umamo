@@ -9,7 +9,7 @@ import org.umamo.render.puppet.flipRowsVertically
  * Reads the currently bound framebuffer back to the host as a flat image.
  *
  * A free function, not a renderer method: it touches no renderer state at all - only the bound
- * framebuffer - so hanging it off [GlPuppetRenderer] only widened that class's surface.  It moves onto
+ * framebuffer - so hanging it off `PuppetRenderer` only widened that class's surface.  It moves onto
  * the render device once that seam exists; this is its interim home.
  *
  * The returned rows run TOP first, matching [RasterImage]'s documented convention, so callers never

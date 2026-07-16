@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -26,7 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Proves [GlPuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
+ * Proves [PuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
  * Object-mode duplicate) must reach the GPU, not just have position VBOs patched on drawables it already
  * knew about, or it renders blank; likewise a remesh must re-upload the element buffer, or the
  * newly-referenced geometry never draws. Renders flat-color art into an offscreen FBO and asserts by
@@ -83,7 +84,7 @@ class StructuralReconcileTest {
 		try {
 			val original = model(listOf(drawable(sourceId, quadPositions.copyOf(), quadIndices)))
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(original, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(original, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
@@ -152,7 +153,7 @@ class StructuralReconcileTest {
 			// indices array - the covered mass roughly doubles only if the EBO was rebuilt.
 			val halfQuad = model(listOf(drawable(sourceId, quadPositions.copyOf(), intArrayOf(0, 1, 2))))
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(halfQuad, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(halfQuad, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)

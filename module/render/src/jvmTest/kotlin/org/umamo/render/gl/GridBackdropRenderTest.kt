@@ -9,6 +9,7 @@ import org.lwjgl.system.MemoryUtil
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -68,7 +69,7 @@ class GridBackdropRenderTest {
 	}
 
 	// Black background, red major lines, black minor lines; one subdivision so only the major lines show.
-	private fun highContrastGrid(renderer: GlPuppetRenderer) {
+	private fun highContrastGrid(renderer: PuppetRenderer) {
 		renderer.setGrid(GridColors(0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f), gridScale, subdivisions = 1)
 	}
 
@@ -78,7 +79,7 @@ class GridBackdropRenderTest {
 		assumeGlContext("[grid-backdrop]", window)
 		try {
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			highContrastGrid(renderer)
 			renderer.setPose(emptyMap())
@@ -122,7 +123,7 @@ class GridBackdropRenderTest {
 			// origin, so the major line lands there, NOT at world 0.
 			val halfCell = gridScale / 2f
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			highContrastGrid(renderer)
 			renderer.setPose(emptyMap())

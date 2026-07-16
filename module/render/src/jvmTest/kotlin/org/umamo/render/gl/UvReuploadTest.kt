@@ -9,6 +9,7 @@ import org.lwjgl.system.MemoryUtil
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -30,7 +31,7 @@ import kotlin.test.assertTrue
  * Proves the GPU renderer re-uploads an edited UV array in place so the textured art actually
  * resamples - the UV editor's live-preview and commit path.  Renders a quad sampling the LEFT (red)
  * half of a two-color atlas into an offscreen FBO, retargets its UVs at the RIGHT (green) half via
- * [GlPuppetRenderer.updateModel] with the positions, indices, and keyforms untouched by reference
+ * [PuppetRenderer.updateModel] with the positions, indices, and keyforms untouched by reference
  * (exactly the shape a withMeshUvs edit produces, so the uvs-only tier runs - not the structural
  * re-upload), re-renders, and asserts the drawn art flipped color without moving.
  *
@@ -110,7 +111,7 @@ class UvReuploadTest {
 		try {
 			val source = probeModel()
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)

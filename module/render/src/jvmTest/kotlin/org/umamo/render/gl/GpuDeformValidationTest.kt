@@ -34,7 +34,7 @@ import kotlin.test.assertTrue
 
 /**
  * Differential validation that the GPU deform shader matches the CPU evaluator per vertex. Runs the
- * shipped [DEFORM_GLSL] (the exact body [GlPuppetRenderer] uses) in a headless GL context with transform
+ * shipped [DEFORM_GLSL] (the exact body [PuppetRenderer] uses) in a headless GL context with transform
  * feedback capturing each vertex's world position, then diffs against [deformMeshWorldFromCorners] (the CPU
  * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
  * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
@@ -194,7 +194,7 @@ class GpuDeformValidationTest {
 	}
 
 	/** Uploads the per-keyform-cell vertex deltas as an RG32F texture (col = cell, row = vertex), matching
-	 *  [GlPuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
+	 *  [PuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
 	private fun uploadDeltaTexture(grid: KeyformGrid<MeshForm>, vertexCount: Int, cellCount: Int): Int {
 		val cells = cellsByLinearIndex(grid)
 		val data = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)

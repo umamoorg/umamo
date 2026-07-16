@@ -11,6 +11,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.eval.applyCpuDeform
 import org.umamo.render.eval.preparePose
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -37,7 +38,7 @@ import kotlin.test.assertTrue
  * [GpuDeformValidationTest]'s docblock is explicit that it excludes glue ("the GPU path skips it"), and
  * `GlueTest` / `GlueCorpusTest` only exercise the CPU [applyGluesResolved]. So until this test, nothing
  * checked the parts that are unique to the GPU path and easiest to get wrong: the per-vertex glue
- * attribute layout ([GlPuppetRenderer]'s `buildGlueAttributes` - partner GLOBAL index, glue index, weld
+ * attribute layout ([PuppetRenderer]'s `buildGlueAttributes` - partner GLOBAL index, glue index, weld
  * weight), the shared position buffer's per-mesh base offsets, the pass-1 transform-feedback deform, and
  * the pass-2 weld shader's partner lookup. A wrong base offset or a swapped partner index welds a vertex
  * toward garbage, and no existing test would have noticed.
@@ -194,7 +195,7 @@ class GpuGlueValidationTest {
 	/** Renders [source] and returns the (leftmost, rightmost) column carrying drawn art at mid height. */
 	private fun artColumnExtent(source: PuppetModel): Pair<Int, Int> {
 		val device = GlRenderDevice()
-		val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
 		renderer.setGrid(blackGrid, 100f, 10)
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))

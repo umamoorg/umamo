@@ -7,7 +7,7 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
-import org.umamo.render.gl.GlPuppetRenderer
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.gl.GlRenderDevice
 import org.umamo.render.gl.readFramebufferPixels
 import org.umamo.runtime.model.DrawableId
@@ -26,7 +26,7 @@ private const val IDLE_MILLIS = 16L
 private const val BUSY_MILLIS = 1L
 
 /**
- * The render engine: a dedicated daemon thread owns the GL context, the [GlPuppetRenderer], the supersample
+ * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
  * UI thread pushes (selection, shown set, model, grid, highlight colors), renders each registered area whose
  * pose / size / camera / backdrop changed, and publishes finished frames to the area's slot.
@@ -54,14 +54,14 @@ internal class OffscreenRenderEngine(
 
 	// GL handles + async read-back state, all owned by the render thread.
 	private val renderer =
-		GlPuppetRenderer(puppet, textures, device).apply {
+		PuppetRenderer(puppet, textures, device).apply {
 			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
 			// renderer default is off so headless render-diff tests stay line-free.
 			setWorldAxesVisible(true)
 		}
 
 	/** The shared renderer, exposed so the facade can build the CPU picker over its pickGeometry()/drawnOrder(). */
-	val puppetRenderer: GlPuppetRenderer
+	val puppetRenderer: PuppetRenderer
 		get() = renderer
 
 	private val context = createOffscreenGlContext()

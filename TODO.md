@@ -89,8 +89,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
-* The backend seam is now `RenderDevice` (`:render/commonMain/.../device/`), NOT the old `Renderer` interface (deleted). `GlPuppetRenderer` is backend-neutral (zero GL calls) and drives everything through it; `GlRenderDevice` is the desktop GL 3.3 impl. A backend is one `RenderDevice` impl.
-	* `GlPuppetRenderer` still physically lives in jvmMain but is GL-call-free — moving it to commonMain is a pending mechanical step (no logic change).
+* The backend seam is now `RenderDevice` (`:render/commonMain/.../device/`), NOT the old `Renderer` interface (deleted). `PuppetRenderer` (commonMain, zero GL calls) drives everything through it; `GlRenderDevice` is the desktop GL 3.3 impl. A backend is one `RenderDevice` impl.
 * Android GLES renderer backend = a second `RenderDevice` impl (`GlesRenderDevice`), a near-transliteration of `GlRenderDevice` (same calls, GLES binding style). The one real divergence: GLES 3.0 has no texture buffer, so the glue store (`createDeformedPositionStore`) repacks as a 2D texture (TODO Claude Note § option (b)) — hidden behind `DeformedPositionStore`, so the renderer is untouched. See Claude Notes § Android GLES renderer backend.
 * MacOS: a JVM threading/context fix (keeps the whole GL device); iPadOS: a Metal `RenderDevice` impl + MSL shaders. Split, not one line — see docs/plans/portability.md.
 	* app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/CglOffscreenGlContext.kt
@@ -166,7 +165,7 @@ Sketch:
 
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
-**What.** The GPU glue weld ([GlPuppetRenderer] two-pass; `module/render/src/jvmMain/.../gl/`) stores **one
+**What.** The GPU glue weld (`PuppetRenderer` two-pass; `module/render/src/commonMain/.../puppet/`) stores **one
 partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; built
 in `buildGlueAttributes`, consumed by `GLUE_VERTEX_SHADER`). If a single mesh vertex participates in **more
 than one** glue pair — e.g. a corner vertex shared by two seams — only the last-written pair survives, so the
@@ -189,7 +188,7 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 
 ## Android GLES renderer backend (deferred 2026-06-21)
 
-**What.** The shipped renderer `GlPuppetRenderer` is the **desktop GL 3.3 core** impl (LWJGL), in
+**What.** (2026-07-16: superseded by the RenderDevice seam — see § Render.  The renderer is now the backend-neutral `PuppetRenderer` in commonMain; only `GlRenderDevice` is desktop GL.)  Original note: The shipped renderer was the **desktop GL 3.3 core** impl (LWJGL), in
 `:render/jvmMain`. It implements the backend-agnostic `Renderer` interface (`:render/commonMain`). Android
 needs a **second `Renderer` impl** in `:render/androidMain` using **GLES 3.0** (`android.opengl.GLES30`)
 hosted in a `GLSurfaceView` (vs desktop's `AWTGLCanvas`). Everything backend-neutral — the eval,

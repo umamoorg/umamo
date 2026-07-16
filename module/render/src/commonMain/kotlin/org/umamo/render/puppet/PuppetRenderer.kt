@@ -1,4 +1,4 @@
-package org.umamo.render.gl
+package org.umamo.render.puppet
 
 import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
@@ -38,13 +38,6 @@ import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
-import org.umamo.render.puppet.buildDeltaTexels
-import org.umamo.render.puppet.contentBoundsOf
-import org.umamo.render.puppet.diffModel
-import org.umamo.render.puppet.fallbackColorFor
-import org.umamo.render.puppet.keyformCellCount
-import org.umamo.render.puppet.planGlueLayout
-import org.umamo.render.puppet.resolvePose
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -54,7 +47,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.visibleDrawableIds
-import org.umamo.render.puppet.GlueVertexAttributes as PlannedGlueAttributes
+import kotlin.concurrent.Volatile
 
 /**
  * GPU-deforming puppet renderer, over a [RenderDevice].
@@ -72,7 +65,7 @@ import org.umamo.render.puppet.GlueVertexAttributes as PlannedGlueAttributes
  *
  * GPU 変形パペットレンダラ。GL を直接触らず RenderDevice 経由。バックエンドはデバイス実装で差し替える。
  */
-class GlPuppetRenderer(
+class PuppetRenderer(
 	private val model: PuppetModel,
 	private val textures: PuppetTextures,
 	private val device: RenderDevice,
@@ -252,14 +245,14 @@ class GlPuppetRenderer(
 	 * and the structural reconcile in [updateModel]; must run with the device's context current.
 	 *
 	 * @param Drawable                drawable        The model drawable.
-	 * @param PlannedGlueAttributes?  glueAttributes  Its planned weld attributes, or null when not glued.
+	 * @param GlueVertexAttributes?  glueAttributes  Its planned weld attributes, or null when not glued.
 	 * @param Int                     glueBaseOffset  Its base index in the shared glue store (0 when not glued).
 	 * @param Set<DeformerId>         warpDeformerIds The model's warp deformers.
 	 * @return GpuDrawable? The uploaded drawable, or null when it draws nothing.
 	 */
 	private fun uploadDrawable(
 		drawable: Drawable,
-		glueAttributes: PlannedGlueAttributes?,
+		glueAttributes: GlueVertexAttributes?,
 		glueBaseOffset: Int,
 		warpDeformerIds: Set<DeformerId>,
 	): GpuDrawable? {
@@ -456,17 +449,17 @@ class GlPuppetRenderer(
 		val reconciled = LinkedHashMap<DrawableId, GpuDrawable>()
 		for (action in diff.actions) {
 			when (action) {
-				is org.umamo.render.puppet.DrawableAction.Upload ->
+				is DrawableAction.Upload ->
 					uploadDrawable(action.drawable, glueAttributes = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
 						?.let { reconciled[action.drawableId] = it }
 
-				is org.umamo.render.puppet.DrawableAction.Reupload -> {
+				is DrawableAction.Reupload -> {
 					gpuById[action.drawableId]?.let { deleteDrawable(it) }
 					uploadDrawable(action.drawable, glueAttributes = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
 						?.let { reconciled[action.drawableId] = it }
 				}
 
-				is org.umamo.render.puppet.DrawableAction.Keep -> {
+				is DrawableAction.Keep -> {
 					val existing = gpuById[action.drawableId] ?: continue
 					reconciled[action.drawableId] = existing
 					action.positions?.let { device.updateMeshPositions(existing.mesh, it) }

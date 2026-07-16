@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -26,7 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Proves the world-origin axis lines actually rasterize: with [GlPuppetRenderer.setWorldAxesVisible]
+ * Proves the world-origin axis lines actually rasterize: with [PuppetRenderer.setWorldAxesVisible]
  * on, the frame gains a horizontal red X axis row and a vertical blue Z axis column crossing at the
  * model's world origin, and with the flag off (the default, which keeps render-diff tests line-free)
  * the frame contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
@@ -71,7 +72,7 @@ class WorldAxisLinesTest {
 		assumeGlContext("[world-axis-lines]", window)
 		try {
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)

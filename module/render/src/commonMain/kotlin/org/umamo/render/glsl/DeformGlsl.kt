@@ -2,7 +2,7 @@ package org.umamo.render.glsl
 
 /**
  * The shared GLSL for Umamo's GPU deformation - the per-vertex morph + deformer cascade. Both the live
- * renderer (`GlPuppetRenderer`, which projects the result to `gl_Position`) and the GPU-vs-CPU
+ * renderer (`PuppetRenderer`, which projects the result to `gl_Position`) and the GPU-vs-CPU
  * transform-feedback test (which captures the world position) prepend their own `#version` + in/out
  * declarations and `main`, then call [deformWorld]. Sharing this snippet means the test exercises the
  * exact deform math the renderer ships, not a hand-kept copy.

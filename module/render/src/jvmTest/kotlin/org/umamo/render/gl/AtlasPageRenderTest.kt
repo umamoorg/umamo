@@ -10,6 +10,7 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -27,7 +28,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Proves [GlPuppetRenderer.renderAtlasPage] draws the atlas page UPRIGHT with the correct UV orientation
+ * Proves [PuppetRenderer.renderAtlasPage] draws the atlas page UPRIGHT with the correct UV orientation
  * (the V-flip is easy to get backwards): a page whose four quadrants are distinctly colored must land
  * atlas-top-left at the DISPLAYED top-left, atlas-top-right at the displayed top-right,
  * and atlas-bottom-left at the displayed bottom-left.  A second case proves a null page paints the grid
@@ -118,7 +119,7 @@ class AtlasPageRenderTest {
 		try {
 			val page = quadrantPage(viewportSize)
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
@@ -148,7 +149,7 @@ class AtlasPageRenderTest {
 		assumeGlContext("[atlas-page]", window)
 		try {
 			val device = GlRenderDevice()
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
 			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
