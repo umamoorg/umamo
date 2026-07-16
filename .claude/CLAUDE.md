@@ -158,16 +158,20 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             request buses), the sealed Change hierarchy, and the pure edit ops
                             (mesh topology/transforms, parameter edits, proportional editing).
                             → :runtime (api), kotlinx-coroutines (api)
-:render       expect/actual— deformation eval (CPU) + renderer + morph-blend shaders.
-                            → :runtime, :format (jvmAndroid).
-                            Backend-agnostic eval + a `Renderer` *interface* + `PuppetTextures`
-                            live in commonMain (compiler-isolated from any GPU API); PNG decode is
-                            an expect/actual (`decodePngToRgba`: ImageIO / BitmapFactory); the CMO3
-                            atlas extraction sits in jvmAndroidMain (takes a `Cmo3Model`, hence the
-                            jvmAndroid-only :format dep); the GL/GLES impl in jvmMain/androidMain.
-                            desktop=LWJGL, android=GLES (LWJGL is DESKTOP-ONLY).  Vulkan/Metal later
-                            = new `Renderer` impls, not new modules — the interface is the backend
-                            seam.
+:render       commonMain  — deformation eval (CPU) + the puppet renderer + morph-blend shaders,
+                  + GL impl   over a `RenderDevice` backend seam.  → :runtime, :format (jvmAndroid).
+                            The whole renderer is backend-neutral commonMain now: the eval, the pure
+                            render logic (`puppet/`: glue layout, pose resolve, model diff, delta
+                            texels, bounds), the GL-family GLSL (`glsl/`, shared by GL 3.3 + GLES 3.0
+                            via a `GlslDialect`), the `RenderDevice` API (`device/`: handles, specs,
+                            uniform structs, frame/pass encoders), and `PuppetRenderer` itself, which
+                            makes ZERO GL calls — every GPU op goes through `RenderDevice`.  A backend
+                            is one `RenderDevice` impl: `GlRenderDevice` (jvmMain, LWJGL/GL 3.3 core)
+                            ships; GLES 3.0 (android) + Metal (iOS) are ports of it, stubbed.  `:render`
+                            is zero `expect`/`actual`.  PNG decode goes through :format's `PngCodec`
+                            (the old `decodePngToRgba` expect/actual is retired).  The CMO3 atlas
+                            extraction sits in jvmAndroidMain (takes a `Cmo3Model`, hence the
+                            jvmAndroid-only :format dep).  LWJGL is DESKTOP-ONLY.
 :ui           commonMain  — Compose Multiplatform editor UI (panels, tree, timeline, parameter
                             grid) AND the shared app shell: the viewport composables + gizmo overlay
                             (`org.umamo.ui.viewport`, over the `PuppetViewportService` seam) in

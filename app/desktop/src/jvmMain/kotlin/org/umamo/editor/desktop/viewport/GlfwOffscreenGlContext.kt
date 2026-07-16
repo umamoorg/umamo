@@ -3,7 +3,7 @@ package org.umamo.editor.desktop.viewport
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL
 import org.lwjgl.system.MemoryUtil
-import org.umamo.render.GpuRenderer
+import org.umamo.render.gl.GlRenderDevice
 
 /**
  * The Windows / Linux offscreen GL context: a hidden GLFW window carrying a GL 3.3 core context, made
@@ -38,7 +38,7 @@ internal class GlfwOffscreenGlContext : OffscreenGlContext {
 		return true
 	}
 
-	override fun describeContext(): String = GpuRenderer().describeContext()
+	override fun describeContext(): String = GlRenderDevice().describeBackend()
 
 	/**
 	 * Releases the GLFW window and unbinds the context. Runs on the render thread, where the context is

@@ -8,6 +8,9 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -33,10 +36,10 @@ import kotlin.test.assertTrue
  * Proves the GPU renderer re-uploads an edited base mesh so the textured art actually moves: an
  * Object/Edit-mode G/S/R commits new positions, and those positions must reach the VBO on the next
  * render or the art visibly lags behind the mesh. Renders a flat-color quad into an offscreen FBO, shifts
- * its base positions via [GlPuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
+ * its base positions via [PuppetRenderer.updateModel], re-renders, and asserts the drawn art's pixel
  * centroid moved by the expected screen delta - once for a direct (undeformed) drawable and once for a
  * rotation-deformer-parented one, so a parented drawable's art fully tracks the edit rather than lagging
- * partway. Also asserts [GlPuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
+ * partway. Also asserts [PuppetRenderer.pickGeometry] follows the edit, so picking stays in sync with
  * what's drawn.
  *
  * Self-skips in a display-less environment (no GL context), like [GpuDeformValidationTest].
@@ -117,14 +120,14 @@ class GeometryReuploadTest {
 	 */
 	private fun runMotionCase(source: PuppetModel, label: String) {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[geometry-reupload] no GL context (display-less env); skip $label")
-			return
-		}
+		assumeGlContext("[geometry-reupload]", window)
 		try {
-			val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
 			// never moves - only the art does. Held across both renders.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
@@ -133,14 +136,14 @@ class GeometryReuploadTest {
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			// Frame A: the art at its original base positions.
 			renderer.setShownDrawables(setOf(probeId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameA = readPixels(viewportSize, viewportSize)
 			val (centroidAx, centroidAy, massA) = maskCentroid(frameA, background, viewportSize, viewportSize)
 			val pickAx = pickCentroidX(renderer)
@@ -149,7 +152,7 @@ class GeometryReuploadTest {
 			renderer.updateModel(shiftedModel(source))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameB = readPixels(viewportSize, viewportSize)
 			val (centroidBx, centroidBy, massB) = maskCentroid(frameB, background, viewportSize, viewportSize)
 			val pickBx = pickCentroidX(renderer)
@@ -173,7 +176,7 @@ class GeometryReuploadTest {
 	}
 
 	/** The mean world-space x of the probe's current pick geometry (the CPU deform runs against currentModel). */
-	private fun pickCentroidX(renderer: GlPuppetRenderer): Float {
+	private fun pickCentroidX(renderer: PuppetRenderer): Float {
 		val positions = renderer.pickGeometry()?.worldPositions?.getValue(probeId) ?: return Float.NaN
 		var sum = 0f
 		var vertexCount = 0

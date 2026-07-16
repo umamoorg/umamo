@@ -1,5 +1,6 @@
 package org.umamo.render.gl
 
+import org.junit.Assume
 import org.lwjgl.BufferUtils
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL
@@ -19,6 +20,9 @@ import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.cellsByLinearIndex
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
+import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.tfDeformVertexShader
+import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
@@ -30,13 +34,15 @@ import kotlin.test.assertTrue
 
 /**
  * Differential validation that the GPU deform shader matches the CPU evaluator per vertex. Runs the
- * shipped [DEFORM_GLSL] (the exact body [GlPuppetRenderer] uses) in a headless GL context with transform
+ * shipped [DEFORM_GLSL] (the exact body [PuppetRenderer] uses) in a headless GL context with transform
  * feedback capturing each vertex's world position, then diffs against [deformMeshWorldFromCorners] (the CPU
  * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
  * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
  *
- * Gated on `-Dcmo3.sample` (self-skips without it) and on a usable GL context (self-skips in a display-less
- * CI). Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
+ * Gated on `-Dcmo3.sample` and on a usable GL context, both via JUnit assumptions - so an ungated run
+ * reports SKIPPED rather than passing green having asserted nothing. That distinction matters here more
+ * than anywhere: this is the only pin on the deform math, and a Metal port will check itself against it.
+ * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
 	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
@@ -46,15 +52,9 @@ class GpuDeformValidationTest {
 	@Test
 	fun gpuDeformMatchesCpuPerVertex() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
-		if (!file.isFile) {
-			println("[gpu-tf] no cmo3.sample; skip")
-			return
-		}
+		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[gpu-tf] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[gpu-tf]", window)
 		try {
 			val root = Cmo3.read(file).root as? CModelSource ?: return
 			val model = Cmo3Import.fromModelSource(root)
@@ -194,7 +194,7 @@ class GpuDeformValidationTest {
 	}
 
 	/** Uploads the per-keyform-cell vertex deltas as an RG32F texture (col = cell, row = vertex), matching
-	 *  [GlPuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
+	 *  [PuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
 	private fun uploadDeltaTexture(grid: KeyformGrid<MeshForm>, vertexCount: Int, cellCount: Int): Int {
 		val cells = cellsByLinearIndex(grid)
 		val data = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)
@@ -250,9 +250,8 @@ class GpuDeformValidationTest {
 	/** Compiles the deform vertex shader (shared [DEFORM_GLSL]) capturing `outWorld` via transform feedback,
 	 *  plus a no-op fragment shader (the rasterizer is discarded). */
 	private fun linkTransformFeedbackProgram(): Int {
-		val fragmentSource = "#version 330 core\nvoid main() {}\n"
-		val vertexShader = compileShader(GL20.GL_VERTEX_SHADER, TF_DEFORM_VERTEX_SHADER)
-		val fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, fragmentSource)
+		val vertexShader = compileShader(GL20.GL_VERTEX_SHADER, tfDeformVertexShader(GlslDialect.Core330))
+		val fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, tfDiscardFragmentShader(GlslDialect.Core330))
 		val program = GL20.glCreateProgram()
 		GL20.glAttachShader(program, vertexShader)
 		GL20.glAttachShader(program, fragmentShader)

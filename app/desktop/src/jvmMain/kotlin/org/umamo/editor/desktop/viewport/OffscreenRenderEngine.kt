@@ -2,18 +2,29 @@ package org.umamo.editor.desktop.viewport
 
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
+import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
-import org.umamo.render.gl.GlPuppetRenderer
+import org.umamo.render.device.ReadbackTicket
+import org.umamo.render.gl.GlRenderDevice
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.graphics.RgbaAlphaType
+import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
+import java.io.File
+import java.util.ArrayDeque
+
+/** Framebuffer pixels per display pixel: the whole pipeline renders 2x and box-downscales on resolve. */
+internal const val RENDER_SUPERSAMPLE = 2
 
 /** Idle poll when nothing changed and no read-back is in flight (about 60 Hz wake to pick up new params). */
 private const val IDLE_MILLIS = 16L
@@ -22,7 +33,7 @@ private const val IDLE_MILLIS = 16L
 private const val BUSY_MILLIS = 1L
 
 /**
- * The render engine: a dedicated daemon thread owns the GL context, the [GlPuppetRenderer], the supersample
+ * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
  * UI thread pushes (selection, shown set, model, grid, highlight colors), renders each registered area whose
  * pose / size / camera / backdrop changed, and publishes finished frames to the area's slot.
@@ -45,21 +56,36 @@ internal class OffscreenRenderEngine(
 	private val liveParams: LiveParams,
 	private val registry: ViewportAreaRegistry,
 ) {
+	// The GL backend the renderer draws through; render-thread-owned, like every GL object here.
+	private val device = GlRenderDevice()
+
 	// GL handles + async read-back state, all owned by the render thread.
 	private val renderer =
-		GlPuppetRenderer(puppet, textures).apply {
+		PuppetRenderer(puppet, textures, device).apply {
 			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
 			// renderer default is off so headless render-diff tests stay line-free.
 			setWorldAxesVisible(true)
 		}
 
 	/** The shared renderer, exposed so the facade can build the CPU picker over its pickGeometry()/drawnOrder(). */
-	val puppetRenderer: GlPuppetRenderer
+	val puppetRenderer: PuppetRenderer
 		get() = renderer
 
 	private val context = createOffscreenGlContext()
-	private val framebuffer = SupersampleFramebuffer()
-	private val readback = PixelReadbackPool()
+
+	// The supersampled draw + display-size resolve target pair, device-owned and backend-neutral.
+	private val surface = SupersampledSurface(device, RENDER_SUPERSAMPLE)
+
+	/** An asynchronous read-back in flight: the device ticket plus what the pixels will mean on arrival. */
+	private class PendingFrame(
+		val ticket: ReadbackTicket,
+		val areaId: String,
+		val camera: ViewportCamera,
+		val model: PuppetModel,
+	)
+
+	// In-flight read-backs in submission order; polled front-first each loop tick. Render-thread only.
+	private val pendingFrames = ArrayDeque<PendingFrame>()
 
 	@Volatile
 	private var running = true
@@ -281,7 +307,6 @@ internal class OffscreenRenderEngine(
 		}
 		UmamoLog.info("[GL] offscreen via ${context.backendName}: ${context.describeContext()}")
 		renderer.initGl()
-		framebuffer.allocate()
 		try {
 			var lastParams: Map<ParameterId, Float>? = null
 			var lastShown: Set<DrawableId>? = null
@@ -309,7 +334,7 @@ internal class OffscreenRenderEngine(
 					lastShown = shown
 					paramsVersion++
 				}
-				var pendingWork = readback.hasPending()
+				var pendingWork = pendingFrames.isNotEmpty()
 				for ((areaId, slot) in registry.areas) {
 					val width = slot.width
 					val height = slot.height
@@ -351,7 +376,7 @@ internal class OffscreenRenderEngine(
 				}
 				if (!pendingWork) {
 					Thread.sleep(IDLE_MILLIS)
-				} else if (readback.hasPending()) {
+				} else if (pendingFrames.isNotEmpty()) {
 					Thread.sleep(BUSY_MILLIS)
 				}
 			}
@@ -361,8 +386,12 @@ internal class OffscreenRenderEngine(
 			// memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A single barrier
 			// here; the collaborators' dispose() must NOT call glFinish, and the context is destroyed last.
 			GL11.glFinish()
-			readback.dispose()
-			framebuffer.dispose()
+			// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
+			// targets go the same way. The context is destroyed last.
+			while (pendingFrames.isNotEmpty()) {
+				device.cancelReadback(pendingFrames.removeFirst().ticket)
+			}
+			surface.dispose()
 			context.destroy()
 		}
 	}
@@ -392,7 +421,7 @@ internal class OffscreenRenderEngine(
 		val renderWidth = width * RENDER_SUPERSAMPLE
 		val renderHeight = height * RENDER_SUPERSAMPLE
 
-		framebuffer.ensure(width, height)
+		val drawTarget = surface.ensure(width, height)
 
 		// Supersample: render the whole pipeline (puppet, clip masks, grid) into the RENDER_SUPERSAMPLE x draw
 		// buffer, then box-downscale to display size on resolve. The camera zoom and the grid line width scale
@@ -415,18 +444,21 @@ internal class OffscreenRenderEngine(
 		renderer.setCamera(camera.copy(zoom = camera.zoom * RENDER_SUPERSAMPLE))
 
 		when (slot.scene) {
-			RenderScene.Puppet2D -> renderer.render(renderWidth, renderHeight)
+			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
 			// A UV area draws the flat atlas page instead; the pose / selection / shown state pushed above are
 			// harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
-			RenderScene.AtlasPage -> renderer.renderAtlasPage(slot.pageIndex, renderWidth, renderHeight)
+			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
 		}
 
-		framebuffer.downscaleResolve(renderWidth, renderHeight, width, height)
+		surface.resolve()
 
 		if (!dumped) {
 			System.getenv("UMAMO_DUMP_PNG")?.let { dumpPath ->
-				// dumpPng does a synchronous client read-back; safe here because no PBO is bound yet.
-				renderer.dumpPng(dumpPath, width, height)
+				// A synchronous client read-back; safe here because no PBO is bound yet. Encoding and the
+				// file write live here rather than in :render - reading pixels is the renderer's business,
+				// turning them into a PNG on disk is not, and keeping the split means :render needs no
+				// image library at all.
+				File(dumpPath).writeBytes(PngCodec.write(device.readPixels(surface.resolveTarget)))
 				dumped = true
 				UmamoLog.info("[GL] puppet dumped to $dumpPath (${width}x$height)")
 			}
@@ -435,7 +467,7 @@ internal class OffscreenRenderEngine(
 		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera) and to
 		// orderModel, the geometry this render reflects, so the overlay projects/poses against them - keeping
 		// the mesh glued to the raster along both the navigation and edit axes.
-		readback.readInto(framebuffer.resolveFbo, areaId, width, height, camera, orderModel)
+		pendingFrames.addLast(PendingFrame(device.beginReadback(surface.resolveTarget), areaId, camera, orderModel))
 		slot.inFlight = true
 		slot.renderedWidth = width
 		slot.renderedHeight = height
@@ -451,13 +483,19 @@ internal class OffscreenRenderEngine(
 	 * in-flight flag. A read-back whose slot was unregistered while in flight is discarded (the slot is gone).
 	 */
 	private fun collectCompleted() {
-		for (done in readback.collectCompleted()) {
-			val slot = registry.areas[done.areaId] ?: continue
+		// Front-first, stopping at the first still-in-flight ticket: reads complete in submission order on
+		// the GPU timeline, so a later one cannot be done before an earlier one.
+		while (pendingFrames.isNotEmpty()) {
+			val pending = pendingFrames.first()
+			val pixels = device.pollReadback(pending.ticket) ?: break
+			pendingFrames.removeFirst()
+			val slot = registry.areas[pending.areaId] ?: continue
 			slot.inFlight = false
-			val bitmap = done.bitmap
-			if (bitmap != null) {
-				slot.imageState.value = RenderedFrame(bitmap, done.camera, done.model)
-			}
+			// The device's read-back is TOP-first RGBA already; the preview background is composited into
+			// RGB, so it is opaque - the shared seam's Opaque path ignores the alpha bytes (no per-frame
+			// alpha pass) and gives the eventual Android viewport the same conversion for free.
+			val bitmap = rgbaToImageBitmap(pixels.rgba, pixels.width, pixels.height, RgbaAlphaType.Opaque)
+			slot.imageState.value = RenderedFrame(bitmap, pending.camera, pending.model)
 		}
 	}
 

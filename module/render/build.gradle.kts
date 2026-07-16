@@ -1,8 +1,9 @@
-// :render — deformation eval (CPU) + renderer + morph-blend shaders. expect/actual: LWJGL on
-// desktop, GLES on Android. Backend-agnostic eval + Renderer interface in commonMain; GL impl in
-// jvmMain/androidMain. Depends on :runtime for the puppet model.
-// :render — 変形評価（CPU）＋レンダラ＋モーフブレンドシェーダ。expect/actual：デスクトップは LWJGL、
-// Android は GLES。バックエンド非依存の評価と Renderer は commonMain、GL 実装は各プラットフォーム。:runtime に依存。
+// :render — deformation eval (CPU) + the backend-neutral PuppetRenderer + morph-blend shaders, over a
+// RenderDevice backend seam. Everything except the device impls is commonMain (jvm/android/iosArm64);
+// GlRenderDevice (LWJGL, desktop GL 3.3) lives in jvmMain, the GLES/Metal devices are stubs in
+// androidMain/iosMain. Zero expect/actual. Depends on :runtime for the puppet model.
+// :render — 変形評価（CPU）＋バックエンド非依存の PuppetRenderer。RenderDevice が継ぎ目で、GL 実装のみ
+// jvmMain。GLES / Metal デバイスはスタブ。:runtime に依存。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -20,11 +21,9 @@ val lwjglNatives = extra["umamoLwjglNatives"] as String
 kotlin {
 	jvmToolchain(21)
 
-	// `expect`/`actual` *classes* are still flagged Beta by the compiler; this is the
-	// JetBrains-recommended opt-in to silence the warning (the feature itself is stable in use).
-	compilerOptions {
-		freeCompilerArgs.add("-Xexpect-actual-classes")
-	}
+	// (The -Xexpect-actual-classes opt-in that used to sit here left with its only user, the
+	// `expect class GpuRenderer` — this module is zero expect/actual now; the backend seam is the
+	// RenderDevice interface instead.)
 
 	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
@@ -41,6 +40,14 @@ kotlin {
 	}
 
 	jvm()
+
+	// The iPadOS ship target, mirroring :format/:runtime (see :format's docblock for the rationale).
+	// This is what the Metal engineer builds against: iosMain sees the whole backend-neutral stack —
+	// PuppetRenderer, the RenderDevice API, eval, pose/diff/glue planning — and supplies one
+	// MetalRenderDevice. It also turns commonMain purity for all of that from the root regex gate's
+	// convention into a compiler guarantee. Compiles on Linux/CI (klib only, no Xcode linker); `check`
+	// is wired to the compiles explicitly below because a device target has no runnable test task.
+	iosArm64()
 
 	android {
 		namespace = "org.umamo.render"
@@ -104,13 +111,69 @@ kotlin {
 	}
 }
 
-// Forward corpus + differential-oracle paths to the test JVM so the eval's gated tests can run:
+// Wire the iosArm64 compile into `check`, main AND test — neither arrives on its own, because a device
+// target has no runnable test task (see :format's wiring comment for the war story: main compiled green
+// while commonTest was broken, and only CI's explicit compileTestKotlinIosArm64 caught it).
+tasks.named("check") {
+	dependsOn("compileKotlinIosArm64", "compileTestKotlinIosArm64")
+}
+
+// Corpus + differential-oracle paths for the eval's gated tests:
 // `./gradlew :render:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
-// Absent properties self-skip, so CI needs no committed corpus or external oracle.
+//
+// `cmo3.sample` additionally DEFAULTS to the local golden corpus, mirroring what :format already does
+// (module/format/build.gradle.kts § corpusDefaultFor — read its comment, it explains the reasoning in
+// full).  Without that default this module's corpus gates — the GPU-vs-CPU deform oracle above all —
+// only ran when someone remembered the flag, so in practice they never ran: GpuDeformValidationTest,
+// GlueCorpusTest, and RenderOrderCorpusTest all sat skipping on a machine that had the corpus the whole
+// time.  The deform oracle is the only pin on DEFORM_GLSL's math and the thing a Metal port will check
+// itself against, so "runs only if asked" was the wrong default for it.
+//
+// Absent entirely (a fresh clone, CI) → the tests skip and the build stays green, since test/corpus is
+// gitignored on purpose (see README).  That is deliberate; CI passes no sample flags.
+//
+// `umamo.requireGl` is forwarded for the opposite reason: it turns the GL tests' missing-context skip
+// into a hard failure (see HeadlessGlGate).  CI sets it so the GL suite can never silently stop covering
+// anything; a developer machine leaves it unset and gets the skip.
+
+/** The local golden corpus root. Gitignored, so absent on CI and on a fresh clone. */
+val corpusDirectory: File = rootDir.resolve("test/corpus")
+
+/**
+ * Resolves a sample path property, preferring an explicit `-D` over the corpus default.
+ *
+ * A relative `-D` resolves against the REPO ROOT, not the test JVM's working directory (which is this
+ * module).  That distinction bites: a gated test that cannot find its sample skips rather than fails, so
+ * a path that silently resolves to nothing disables the gate without a word.  An explicit value that
+ * does not exist therefore fails the build outright instead.
+ *
+ * @param String samplePropertyName The system property name.
+ * @return String? The absolute path to hand the test JVM, or null to leave the test skipping.
+ */
+fun resolveSampleProperty(samplePropertyName: String): String? {
+	val explicit =
+		System.getProperty(samplePropertyName)
+			?: return when (samplePropertyName) {
+				// Pinned to EricaTamamo: it is the model that actually carries glue affecters, so it is
+				// what makes the glue gates meaningful rather than vacuously green.
+				"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+				else -> null
+			}
+	val resolved = rootDir.resolve(explicit.trim()).absolutePath
+	// Fail loudly rather than let the gated test skip-and-pass on a typo.
+	require(File(resolved).exists()) {
+		"-D$samplePropertyName=$explicit resolves to '$resolved', which does not exist. " +
+			"Relative values resolve against the repo root ($rootDir)."
+	}
+	return resolved
+}
+
 tasks.withType<Test>().configureEach {
 	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
-		System.getProperty(property)?.let { value ->
+		resolveSampleProperty(property)?.let { value ->
 			systemProperty(property, value)
 		}
 	}
+	// A plain flag, not a path: forwarded verbatim.
+	System.getProperty("umamo.requireGl")?.let { systemProperty("umamo.requireGl", it) }
 }

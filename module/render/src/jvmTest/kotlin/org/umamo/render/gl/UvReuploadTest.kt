@@ -9,6 +9,9 @@ import org.lwjgl.system.MemoryUtil
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -30,7 +33,7 @@ import kotlin.test.assertTrue
  * Proves the GPU renderer re-uploads an edited UV array in place so the textured art actually
  * resamples - the UV editor's live-preview and commit path.  Renders a quad sampling the LEFT (red)
  * half of a two-color atlas into an offscreen FBO, retargets its UVs at the RIGHT (green) half via
- * [GlPuppetRenderer.updateModel] with the positions, indices, and keyforms untouched by reference
+ * [PuppetRenderer.updateModel] with the positions, indices, and keyforms untouched by reference
  * (exactly the shape a withMeshUvs edit produces, so the uvs-only tier runs - not the structural
  * re-upload), re-renders, and asserts the drawn art flipped color without moving.
  *
@@ -106,15 +109,15 @@ class UvReuploadTest {
 	@Test
 	fun artResamplesAfterUvEdit() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[uv-reupload] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[uv-reupload]", window)
 		try {
 			val source = probeModel()
-			val renderer = GlPuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = PuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			// A fixed 1:1 camera centered on the origin, so the quad never moves - only its texels do.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
@@ -122,14 +125,14 @@ class UvReuploadTest {
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			// Frame A: the quad sampling the red half.
 			renderer.setShownDrawables(setOf(probeId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameA = readPixels(viewportSize, viewportSize)
 			val statsA = artColorStats(frameA, background, viewportSize, viewportSize)
 
@@ -138,7 +141,7 @@ class UvReuploadTest {
 			renderer.updateModel(uvShiftedModel(source))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameB = readPixels(viewportSize, viewportSize)
 			val statsB = artColorStats(frameB, background, viewportSize, viewportSize)
 

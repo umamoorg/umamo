@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.runtime.ingest.Cmo3Import
@@ -19,10 +20,7 @@ class GlueCorpusTest {
 	@Test
 	fun glueWeldsSeamPairsOnCorpus() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
-		if (!file.isFile) {
-			println("[glue-e2e] no cmo3.sample; skip")
-			return
-		}
+		Assume.assumeTrue("[glue-e2e] no cmo3.sample corpus model", file.isFile)
 		val root = Cmo3.read(file).root as? CModelSource ?: return
 		val puppet = Cmo3Import.fromModelSource(root)
 		assertTrue(puppet.glues.isNotEmpty(), "corpus model should carry glue affecters")

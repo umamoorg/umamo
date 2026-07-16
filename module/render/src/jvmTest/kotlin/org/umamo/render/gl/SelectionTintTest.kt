@@ -8,6 +8,9 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -27,12 +30,12 @@ import kotlin.test.assertTrue
 /**
  * Proves the object-mode selection tint distinguishes the active (last-selected) drawable from a merely
  * selected one: both are pushed as selected, one is pushed as active, and the renderer must tint the
- * active one toward [GlPuppetRenderer.setActiveSelectionHighlightColor] (green here) while the other tints
- * toward [GlPuppetRenderer.setSelectionHighlightColor] (blue here).  Renders two separated flat-color
+ * active one toward [PuppetRenderer.setActiveSelectionHighlightColor] (green here) while the other tints
+ * toward [PuppetRenderer.setSelectionHighlightColor] (blue here).  Renders two separated flat-color
  * quads into an offscreen FBO and asserts the active quad reads greener and less blue than the selected
  * quad.  Because the two quads are identical apart from which one is active, any green/blue asymmetry is
  * caused solely by the active tint - so a control frame with no active drawable first asserts the two read
- * alike, isolating the effect of [GlPuppetRenderer.setActiveSelection].
+ * alike, isolating the effect of [PuppetRenderer.setActiveSelection].
  *
  * The relative comparison (active greener / less blue than selected) holds for any base drawable color:
  * the active mixes toward green and the selected toward blue at the same strength, so the active's green
@@ -84,15 +87,15 @@ class SelectionTintTest {
 	@Test
 	fun activeDrawableTintsApartFromSelected() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[selection-tint] no GL context (display-less env); skip")
-			return
-		}
+		assumeGlContext("[selection-tint]", window)
 		try {
 			val model = twoQuadModel()
-			val renderer = GlPuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = PuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel: the left quad
 			// lands at col ~100, the right at ~300, both at row ~200.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
@@ -106,7 +109,7 @@ class SelectionTintTest {
 			renderer.setActiveSelection(null)
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val control = readPixels(viewportSize, viewportSize)
 			val controlLeft = averageColor(control, leftScreenCol, quadScreenRow)
 			val controlRight = averageColor(control, rightScreenCol, quadScreenRow)
@@ -115,7 +118,7 @@ class SelectionTintTest {
 			renderer.setActiveSelection(leftId)
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val active = readPixels(viewportSize, viewportSize)
 			val activeLeft = averageColor(active, leftScreenCol, quadScreenRow)
 			val selectedRight = averageColor(active, rightScreenCol, quadScreenRow)

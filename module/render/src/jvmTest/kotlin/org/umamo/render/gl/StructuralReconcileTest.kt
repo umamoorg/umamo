@@ -8,6 +8,9 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFormat
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -26,7 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Proves [GlPuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
+ * Proves [PuppetRenderer.updateModel]'s STRUCTURAL reconcile: a session-created drawable (e.g. an
  * Object-mode duplicate) must reach the GPU, not just have position VBOs patched on drawables it already
  * knew about, or it renders blank; likewise a remesh must re-upload the element buffer, or the
  * newly-referenced geometry never draws. Renders flat-color art into an offscreen FBO and asserts by
@@ -79,27 +82,27 @@ class StructuralReconcileTest {
 	@Test
 	fun duplicatedDrawableAppearsAndItsUndoRemovesIt() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[structural-reconcile] no GL context (display-less env); skip duplicate case")
-			return
-		}
+		assumeGlContext("[structural-reconcile]", window)
 		try {
 			val original = model(listOf(drawable(sourceId, quadPositions.copyOf(), quadIndices)))
-			val renderer = GlPuppetRenderer(original, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = PuppetRenderer(original, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			renderer.setShownDrawables(setOf(sourceId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val massBefore = coveredMass(readPixels(viewportSize, viewportSize), background)
 
 			// The duplicate: the source's mesh shifted fully clear of it, added the way DuplicateEdits does
@@ -116,7 +119,7 @@ class StructuralReconcileTest {
 			renderer.setShownDrawables(setOf(sourceId, copyId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val massWithCopy = coveredMass(readPixels(viewportSize, viewportSize), background)
 
 			// The undo: back to the original model - the copy's GPU objects are freed and it stops drawing.
@@ -124,7 +127,7 @@ class StructuralReconcileTest {
 			renderer.setShownDrawables(setOf(sourceId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val massAfterUndo = coveredMass(readPixels(viewportSize, viewportSize), background)
 
 			println("[structural-reconcile] duplicate: before=$massBefore withCopy=$massWithCopy afterUndo=$massAfterUndo")
@@ -147,35 +150,35 @@ class StructuralReconcileTest {
 	@Test
 	fun remeshedDrawableDrawsItsNewTopology() {
 		val window = createHeadlessGl()
-		if (window == 0L) {
-			println("[structural-reconcile] no GL context (display-less env); skip remesh case")
-			return
-		}
+		assumeGlContext("[structural-reconcile]", window)
 		try {
 			// Start with HALF the quad (one triangle); the remesh grows it to the full quad with a fresh
 			// indices array - the covered mass roughly doubles only if the EBO was rebuilt.
 			val halfQuad = model(listOf(drawable(sourceId, quadPositions.copyOf(), intArrayOf(0, 1, 2))))
-			val renderer = GlPuppetRenderer(halfQuad, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = PuppetRenderer(halfQuad, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
-			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+			val framebuffer = (target as GlRenderTarget).framebuffer
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			renderer.setShownDrawables(setOf(sourceId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val massHalf = coveredMass(readPixels(viewportSize, viewportSize), background)
 
 			renderer.updateModel(model(listOf(drawable(sourceId, quadPositions.copyOf(), quadIndices.copyOf()))))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val massFull = coveredMass(readPixels(viewportSize, viewportSize), background)
 
 			println("[structural-reconcile] remesh: half=$massHalf full=$massFull")

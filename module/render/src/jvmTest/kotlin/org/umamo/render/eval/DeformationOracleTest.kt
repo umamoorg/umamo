@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.runtime.ingest.Cmo3Import
@@ -32,10 +33,10 @@ class DeformationOracleTest {
 
 	@Test
 	fun defaultPoseMatchesOracle() {
-		val cmo3 = sysFile("cmo3.sample") ?: return logSkip()
-		val moc3 = sysFile("moc3.sample") ?: return logSkip()
-		val dumpModel = sysFile("relive.dumpModel") ?: return logSkip()
-		val coreLib = sysFile("relive.coreLib") ?: return logSkip()
+		val cmo3 = requireOracleInput("cmo3.sample")
+		val moc3 = requireOracleInput("moc3.sample")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 
 		val root = Cmo3.read(cmo3).root as? CModelSource ?: error("root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
@@ -79,8 +80,23 @@ class DeformationOracleTest {
 		assertTrue(posMatch >= 157, "geometry regressed: posMatch=$posMatch (<157) — investigate before relaxing")
 	}
 
-	private fun logSkip() {
-		println("oracle inputs absent (need -Dcmo3.sample -Dmoc3.sample -Drelive.dumpModel -Drelive.coreLib); skipping")
+	/**
+	 * The file [property] points at, skipping the test when it is absent.
+	 *
+	 * A JUnit assumption rather than an early return, so an un-runnable oracle reports SKIPPED instead of
+	 * passing green having compared nothing.  This one needs the official Core as an external oracle, so
+	 * unlike the corpus gates it cannot be defaulted - it stays opt-in by nature.
+	 *
+	 * @param String property The system property naming the input.
+	 * @return File The existing file.
+	 */
+	private fun requireOracleInput(property: String): File {
+		val file = sysFile(property)
+		Assume.assumeTrue(
+			"[oracle] absent -D$property (needs -Dcmo3.sample -Dmoc3.sample -Drelive.dumpModel -Drelive.coreLib)",
+			file != null,
+		)
+		return file!!
 	}
 
 	private fun sysFile(property: String): File? = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }

@@ -1,8 +1,8 @@
-package org.umamo.render.gl
+package org.umamo.render.glsl
 
 /**
  * The shared GLSL for Umamo's GPU deformation - the per-vertex morph + deformer cascade. Both the live
- * renderer ([GlPuppetRenderer], which projects the result to `gl_Position`) and the GPU-vs-CPU
+ * renderer (`PuppetRenderer`, which projects the result to `gl_Position`) and the GPU-vs-CPU
  * transform-feedback test (which captures the world position) prepend their own `#version` + in/out
  * declarations and `main`, then call [deformWorld]. Sharing this snippet means the test exercises the
  * exact deform math the renderer ships, not a hand-kept copy.
@@ -16,8 +16,8 @@ internal const val DEFORM_GLSL =
 	"""
 	uniform sampler2D deltaTex;
 	uniform int cornerCount;
-	uniform int cornerCell[16];
-	uniform float cornerWeight[16];
+	uniform int cornerCell[$MAX_CORNERS];
+	uniform float cornerWeight[$MAX_CORNERS];
 	uniform int parentType;
 	uniform float rot[6];
 	uniform sampler2D cpTex;
@@ -200,7 +200,7 @@ internal const val DEFORM_GLSL =
 	// not applied here (a cross-mesh post-pass) - matches the CPU deform before its glue weld.
 	vec2 deformWorld(vec2 base) {
 		vec2 local = base;
-		for (int corner = 0; corner < cornerCount && corner < 16; corner++) {
+		for (int corner = 0; corner < cornerCount && corner < $MAX_CORNERS; corner++) {
 			vec2 delta = texelFetch(deltaTex, ivec2(cornerCell[corner], gl_VertexID), 0).rg;
 			local += cornerWeight[corner] * delta;
 		}
@@ -220,12 +220,20 @@ internal const val DEFORM_GLSL =
 
 /**
  * The transform-feedback deform shader: runs [DEFORM_GLSL]'s `deformWorld` and captures the result as
- * `outWorld` (no projection). Used by the renderer's glue pass 1 to write every glue mesh's deformed
- * world positions into the shared position buffer, and by the GPU-vs-CPU validation test. Its varying
- * `outWorld` must be registered via `glTransformFeedbackVaryings` before linking.
+ * `outWorld` (no projection).
+ *
+ * Used by the renderer's glue pass 1 to write every glue mesh's deformed world positions into the shared
+ * position buffer, and by the GPU-vs-CPU validation test - which is the point: the test pins the exact
+ * deform body that ships, not a copy of it.  Its varying `outWorld` must be registered via
+ * `glTransformFeedbackVaryings` before linking.
+ *
+ * Transform feedback is core in GL 3.3 AND GLES 3.0, so both dialects can run this as-is.
+ *
+ * @param GlslDialect dialect The target flavor.
+ * @return String The ready-to-compile source.
  */
-internal val TF_DEFORM_VERTEX_SHADER =
-	"#version 330 core\n" +
+internal fun tfDeformVertexShader(dialect: GlslDialect): String =
+	glslHeader(dialect) +
 		"layout(location = 0) in vec2 inBase;\n" +
 		"out vec2 outWorld;\n" +
 		DEFORM_GLSL.trimIndent() + "\n" +
@@ -233,3 +241,12 @@ internal val TF_DEFORM_VERTEX_SHADER =
 		"	outWorld = deformWorld(inBase);\n" +
 		"	gl_Position = vec4(0.0, 0.0, 0.0, 1.0);\n" +
 		"}\n"
+
+/**
+ * The do-nothing fragment stage the transform-feedback program links against - it captures vertices and
+ * rasterizes nothing, but a program still needs a fragment shader to link.
+ *
+ * @param GlslDialect dialect The target flavor.
+ * @return String The ready-to-compile source.
+ */
+internal fun tfDiscardFragmentShader(dialect: GlslDialect): String = glslHeader(dialect) + "void main() {}\n"
