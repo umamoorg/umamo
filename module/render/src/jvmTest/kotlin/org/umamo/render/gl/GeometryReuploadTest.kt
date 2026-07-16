@@ -119,9 +119,11 @@ class GeometryReuploadTest {
 		val window = createHeadlessGl()
 		assumeGlContext("[geometry-reupload]", window)
 		try {
-			val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
 			// never moves - only the art does. Held across both renders.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
@@ -130,14 +132,14 @@ class GeometryReuploadTest {
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			// Frame A: the art at its original base positions.
 			renderer.setShownDrawables(setOf(probeId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameA = readPixels(viewportSize, viewportSize)
 			val (centroidAx, centroidAy, massA) = maskCentroid(frameA, background, viewportSize, viewportSize)
 			val pickAx = pickCentroidX(renderer)
@@ -146,7 +148,7 @@ class GeometryReuploadTest {
 			renderer.updateModel(shiftedModel(source))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameB = readPixels(viewportSize, viewportSize)
 			val (centroidBx, centroidBy, massB) = maskCentroid(frameB, background, viewportSize, viewportSize)
 			val pickBx = pickCentroidX(renderer)

@@ -77,11 +77,13 @@ class GridBackdropRenderTest {
 		val window = createHeadlessGl()
 		assumeGlContext("[grid-backdrop]", window)
 		try {
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			highContrastGrid(renderer)
 			renderer.setPose(emptyMap())
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 
 			// 1:1 camera centered on the world origin: world x = 0 is the center column, x = +-scale sit scale
 			// pixels either side.  Sample a row OFF the horizontal y = 0 line (else every column reads that
@@ -90,7 +92,7 @@ class GridBackdropRenderTest {
 			val row = center + gridScale.toInt() / 2 // world y = ~half a cell: no horizontal line here
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frame = readPixels(viewportSize, viewportSize)
 			assertTrue(hasRedNear(frame, center, row), "a major line at world x = 0 lands at the viewport center")
 			assertTrue(hasRedNear(frame, center - gridScale.toInt(), row), "a major line at world x = -scale")
@@ -101,7 +103,7 @@ class GridBackdropRenderTest {
 			// column one scale out (a line at 1x) becomes a mid-cell gap at 2x - the on-screen spacing doubled.
 			renderer.setCamera(ViewportCamera(0f, 0f, 2f))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val zoomed = readPixels(viewportSize, viewportSize)
 			assertTrue(hasRedNear(zoomed, center, row), "the world-0 line stays centered under zoom")
 			assertTrue(!hasRedNear(zoomed, center + gridScale.toInt(), row, radius = 3), "the 1x line position is now a gap at 2x zoom")
@@ -119,14 +121,16 @@ class GridBackdropRenderTest {
 			// Offset the world origin by half a major cell (a mid-division case): the grid must anchor on the
 			// origin, so the major line lands there, NOT at world 0.
 			val halfCell = gridScale / 2f
-			val renderer = GlPuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			highContrastGrid(renderer)
 			renderer.setPose(emptyMap())
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frame = readPixels(viewportSize, viewportSize)
 			val center = viewportSize / 2
 			val row = center + gridScale.toInt() / 4 // off the horizontal origin line

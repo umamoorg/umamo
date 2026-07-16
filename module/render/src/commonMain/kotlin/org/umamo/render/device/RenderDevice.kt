@@ -19,7 +19,7 @@ import org.umamo.format.raster.RasterImage
  *
  * GPU バックエンドの継ぎ目。GL / GLES / Metal ごとに実装する。
  */
-internal interface RenderDevice {
+public interface RenderDevice {
 	// --- Resources. Everything the device hands out, the device frees. ---
 
 	/**
@@ -165,7 +165,7 @@ internal interface RenderDevice {
  *
  * A pass that reads what an earlier pass wrote must be separated from it by [barrier].
  */
-internal interface FrameEncoder {
+public interface FrameEncoder {
 	/**
 	 * Begins a render pass.  End it before beginning another - passes do not nest.
 	 *
@@ -213,7 +213,7 @@ internal interface FrameEncoder {
  * fill that both clears and paints, so its pass is [DontCare] - and on a tile-based GPU that means the
  * tile is never fetched at all.
  */
-internal enum class LoadAction {
+public enum class LoadAction {
 	/** Discard and fill with the clear colour. */
 	Clear,
 
@@ -225,7 +225,7 @@ internal enum class LoadAction {
 }
 
 /** Whether a pass's results are kept.  [DontCare] lets a tile-based GPU skip the write-back. */
-internal enum class StoreAction {
+public enum class StoreAction {
 	/** Keep the results. */
 	Store,
 
@@ -250,7 +250,7 @@ internal enum class StoreAction {
  * @property Int          viewportWidth  The viewport width in pixels.
  * @property Int          viewportHeight The viewport height in pixels.
  */
-internal data class RenderPassSpec(
+public data class RenderPassSpec(
 	val colorTarget: RenderTarget,
 	val loadAction: LoadAction,
 	val viewportWidth: Int,
@@ -263,7 +263,7 @@ internal data class RenderPassSpec(
 )
 
 /** Records draws into one render pass. */
-internal interface RenderPassEncoder {
+public interface RenderPassEncoder {
 	/**
 	 * Binds the pipeline subsequent draws use.  Blend and shader stages are fixed by it.
 	 *
@@ -338,7 +338,7 @@ internal interface RenderPassEncoder {
 }
 
 /** Records the pass-1 deform capture. */
-internal interface DeformCapturePassEncoder {
+public interface DeformCapturePassEncoder {
 	/**
 	 * Evaluates the deform for every vertex of [mesh] and writes each result into the store at
 	 * [destinationVertexOffset] plus the vertex's own index.  Draws nothing.

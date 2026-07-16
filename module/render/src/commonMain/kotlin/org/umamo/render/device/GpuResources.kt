@@ -9,19 +9,19 @@ import org.umamo.render.puppet.GlueVertexAttributes
 // unreachable is what stops backend concepts leaking into the shared renderer.
 
 /** A texture the device owns, sampleable from a shader. */
-internal interface GpuTexture
+public interface GpuTexture
 
 /**
  * One mesh's vertex + index residency: rest positions, UVs, indices, and - for a glue mesh - the
  * per-vertex weld attributes.  Whatever the backend needs to issue one indexed draw of it.
  */
-internal interface GpuMesh
+public interface GpuMesh
 
 /** A compiled, immutable draw pipeline: shader stages, blend, and attribute layout, fixed at creation. */
-internal interface RenderPipeline
+public interface RenderPipeline
 
 /** A compiled pipeline that evaluates the deform per vertex and writes positions, drawing nothing. */
-internal interface DeformCapturePipeline
+public interface DeformCapturePipeline
 
 /**
  * A surface a pass renders into.
@@ -30,7 +30,7 @@ internal interface DeformCapturePipeline
  * target by reading the bound framebuffer out of ambient GL state, which worked only because the caller
  * happened to have bound it first - a coupling that was invisible at both ends.
  */
-internal interface RenderTarget {
+public interface RenderTarget {
 	/** This target's contents as a sampleable texture, or null when created with `sampled = false`. */
 	val sampledTexture: GpuTexture?
 }
@@ -43,10 +43,10 @@ internal interface RenderTarget {
  * 2D texture once the GLES 3.0 path lands, since texture buffers are 3.2 there.  The renderer only ever
  * says "the store", which is why that change does not reach it.
  */
-internal interface DeformedPositionStore
+public interface DeformedPositionStore
 
 /** A texture/target pixel format.  Only the two the renderer actually uses. */
-internal enum class TextureFormat {
+public enum class TextureFormat {
 	/** 8-bit RGBA: atlases, mask coverage, and any target read back to the host. */
 	Rgba8,
 
@@ -55,7 +55,7 @@ internal enum class TextureFormat {
 }
 
 /** How a texture's texels are filtered between sample points. */
-internal enum class TextureFilter {
+public enum class TextureFilter {
 	/** No interpolation.  Correct for data textures, where a blend between texels is meaningless. */
 	Nearest,
 
@@ -74,7 +74,7 @@ internal enum class TextureFilter {
  * Closed on purpose: adding a pipeline forces every backend to answer for it rather than silently
  * lacking one.
  */
-internal enum class PipelinePurpose {
+public enum class PipelinePurpose {
 	/** A non-glue art mesh: deform in the vertex stage, project, sample the atlas. */
 	PuppetDeformDraw,
 
@@ -101,7 +101,7 @@ internal enum class PipelinePurpose {
  * [Opaque] is not one of `org.umamo.runtime.model.BlendMode`'s three - it is the backdrop's
  * blending-disabled write, which is why this is its own enum rather than a reuse of that one.
  */
-internal enum class PipelineBlend {
+public enum class PipelineBlend {
 	/** Blending off: the fragment replaces the target.  The grid and axis backdrop. */
 	Opaque,
 
@@ -116,7 +116,7 @@ internal enum class PipelineBlend {
 }
 
 /** The immutable description of a draw pipeline.  Created once at init and reused every frame. */
-internal data class RenderPipelineSpec(val purpose: PipelinePurpose, val blend: PipelineBlend)
+public data class RenderPipelineSpec(val purpose: PipelinePurpose, val blend: PipelineBlend)
 
 /**
  * A render target to allocate.
@@ -128,7 +128,7 @@ internal data class RenderPipelineSpec(val purpose: PipelinePurpose, val blend: 
  *   backend pick a write-only surface - the GL device allocates a renderbuffer rather than a texture,
  *   which cannot be read back directly but is otherwise cheaper.
  */
-internal data class RenderTargetSpec(
+public data class RenderTargetSpec(
 	val width: Int,
 	val height: Int,
 	val format: TextureFormat,
@@ -144,7 +144,7 @@ internal data class RenderTargetSpec(
  *   anchor draws nothing and exists only so its deformed positions can be a weld partner.
  * @property GlueVertexAttributes? glueAttributes Per-vertex weld attributes, or null for a non-glue mesh.
  */
-internal class MeshSpec(
+public class MeshSpec(
 	val restPositions: FloatArray,
 	val uvs: FloatArray,
 	val indices: IntArray,

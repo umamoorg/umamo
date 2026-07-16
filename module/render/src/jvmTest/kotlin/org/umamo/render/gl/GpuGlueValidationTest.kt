@@ -193,14 +193,16 @@ class GpuGlueValidationTest {
 
 	/** Renders [source] and returns the (leftmost, rightmost) column carrying drawn art at mid height. */
 	private fun artColumnExtent(source: PuppetModel): Pair<Int, Int> {
-		val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+		val device = GlRenderDevice()
+		val renderer = GlPuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
 		renderer.setGrid(blackGrid, 100f, 10)
 		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 		renderer.setPose(emptyMap())
 		val framebuffer = createColorFbo(viewportSize, viewportSize)
+		val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		renderer.render(viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize)
 		val frame = readPixels(viewportSize, viewportSize)
 		// Scan the row through world y = 0, where both quads are at full height.
 		val row = viewportSize / 2

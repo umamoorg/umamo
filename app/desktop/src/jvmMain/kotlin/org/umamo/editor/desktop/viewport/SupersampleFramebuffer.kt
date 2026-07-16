@@ -45,6 +45,10 @@ internal class SupersampleFramebuffer {
 	val resolveFbo: Int
 		get() = framebuffer
 
+	/** The supersampled draw FBO the renderer draws into, wrapped as a device RenderTarget by the caller. */
+	val drawFbo: Int
+		get() = drawFramebuffer
+
 	/**
 	 * Allocates the reusable GL objects (the two framebuffers, the draw renderbuffer, and the resolve
 	 * texture) and sets the resolve texture's filtering.  Call once, on the render thread, after the context

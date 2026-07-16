@@ -87,9 +87,11 @@ class SelectionTintTest {
 		assumeGlContext("[selection-tint]", window)
 		try {
 			val model = twoQuadModel()
-			val renderer = GlPuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel: the left quad
 			// lands at col ~100, the right at ~300, both at row ~200.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
@@ -103,7 +105,7 @@ class SelectionTintTest {
 			renderer.setActiveSelection(null)
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val control = readPixels(viewportSize, viewportSize)
 			val controlLeft = averageColor(control, leftScreenCol, quadScreenRow)
 			val controlRight = averageColor(control, rightScreenCol, quadScreenRow)
@@ -112,7 +114,7 @@ class SelectionTintTest {
 			renderer.setActiveSelection(leftId)
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val active = readPixels(viewportSize, viewportSize)
 			val activeLeft = averageColor(active, leftScreenCol, quadScreenRow)
 			val selectedRight = averageColor(active, rightScreenCol, quadScreenRow)

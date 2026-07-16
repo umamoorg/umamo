@@ -89,9 +89,10 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
-* Android GLES renderer backend (second Renderer impl) — see Claude Notes § Android GLES renderer backend.
-	* Now that `OffscreenPuppetService` has been refactored into `app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/` it will be easier to migrate functionality into modules when the Android renderer is needed.
-* MacOS/iPadOS renderer backend - Core GL(LWJGL CGL)
+* The backend seam is now `RenderDevice` (`:render/commonMain/.../device/`), NOT the old `Renderer` interface (deleted). `GlPuppetRenderer` is backend-neutral (zero GL calls) and drives everything through it; `GlRenderDevice` is the desktop GL 3.3 impl. A backend is one `RenderDevice` impl.
+	* `GlPuppetRenderer` still physically lives in jvmMain but is GL-call-free — moving it to commonMain is a pending mechanical step (no logic change).
+* Android GLES renderer backend = a second `RenderDevice` impl (`GlesRenderDevice`), a near-transliteration of `GlRenderDevice` (same calls, GLES binding style). The one real divergence: GLES 3.0 has no texture buffer, so the glue store (`createDeformedPositionStore`) repacks as a 2D texture (TODO Claude Note § option (b)) — hidden behind `DeformedPositionStore`, so the renderer is untouched. See Claude Notes § Android GLES renderer backend.
+* MacOS: a JVM threading/context fix (keeps the whole GL device); iPadOS: a Metal `RenderDevice` impl + MSL shaders. Split, not one line — see docs/plans/portability.md.
 	* app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/CglOffscreenGlContext.kt
 
 ## Outliner

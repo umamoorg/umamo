@@ -8,6 +8,7 @@ import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.gl.GlPuppetRenderer
+import org.umamo.render.gl.GlRenderDevice
 import org.umamo.render.gl.readFramebufferPixels
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
@@ -48,9 +49,12 @@ internal class OffscreenRenderEngine(
 	private val liveParams: LiveParams,
 	private val registry: ViewportAreaRegistry,
 ) {
+	// The GL backend the renderer draws through; render-thread-owned, like every GL object here.
+	private val device = GlRenderDevice()
+
 	// GL handles + async read-back state, all owned by the render thread.
 	private val renderer =
-		GlPuppetRenderer(puppet, textures).apply {
+		GlPuppetRenderer(puppet, textures, device).apply {
 			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
 			// renderer default is off so headless render-diff tests stay line-free.
 			setWorldAxesVisible(true)
@@ -417,11 +421,14 @@ internal class OffscreenRenderEngine(
 		renderer.setActiveSelectionHighlightColor(activeHighlightRed, activeHighlightGreen, activeHighlightBlue)
 		renderer.setCamera(camera.copy(zoom = camera.zoom * RENDER_SUPERSAMPLE))
 
+		// Wrap the supersampled draw FBO ensure() just bound as a device render target. This device did not
+		// allocate it, so it is a wrap (not a createRenderTarget) and is never destroyed through the device.
+		val drawTarget = device.wrapExistingFramebuffer(framebuffer.drawFbo, renderWidth, renderHeight)
 		when (slot.scene) {
-			RenderScene.Puppet2D -> renderer.render(renderWidth, renderHeight)
+			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
 			// A UV area draws the flat atlas page instead; the pose / selection / shown state pushed above are
 			// harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
-			RenderScene.AtlasPage -> renderer.renderAtlasPage(slot.pageIndex, renderWidth, renderHeight)
+			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
 		}
 
 		framebuffer.downscaleResolve(renderWidth, renderHeight, width, height)

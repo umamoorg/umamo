@@ -117,13 +117,15 @@ class AtlasPageRenderTest {
 		assumeGlContext("[atlas-page]", window)
 		try {
 			val page = quadrantPage(viewportSize)
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			// Fit the page rectangle 1:1 so the whole page fills the frame.
 			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.renderAtlasPage(0, viewportSize, viewportSize)
+			renderer.renderAtlasPage(target, 0, viewportSize, viewportSize)
 			val frame = readPixels(viewportSize, viewportSize) // bottom-up rows: displayed TOP = high row index
 
 			val near = viewportSize / 8
@@ -145,12 +147,14 @@ class AtlasPageRenderTest {
 		val window = createHeadlessGl()
 		assumeGlContext("[atlas-page]", window)
 		try {
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.renderAtlasPage(null, viewportSize, viewportSize)
+			renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
 			val frame = readPixels(viewportSize, viewportSize)
 
 			// No page: the neutral grey grid (grey background + grey lines) fills the frame, so a sampled pixel

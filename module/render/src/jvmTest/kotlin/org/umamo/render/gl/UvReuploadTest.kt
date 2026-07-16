@@ -109,9 +109,11 @@ class UvReuploadTest {
 		assumeGlContext("[uv-reupload]", window)
 		try {
 			val source = probeModel()
-			val renderer = GlPuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			// A fixed 1:1 camera centered on the origin, so the quad never moves - only its texels do.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
@@ -119,14 +121,14 @@ class UvReuploadTest {
 			renderer.setShownDrawables(emptySet())
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val background = readPixels(viewportSize, viewportSize)
 
 			// Frame A: the quad sampling the red half.
 			renderer.setShownDrawables(setOf(probeId))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameA = readPixels(viewportSize, viewportSize)
 			val statsA = artColorStats(frameA, background, viewportSize, viewportSize)
 
@@ -135,7 +137,7 @@ class UvReuploadTest {
 			renderer.updateModel(uvShiftedModel(source))
 			renderer.setPose(emptyMap())
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameB = readPixels(viewportSize, viewportSize)
 			val statsB = artColorStats(frameB, background, viewportSize, viewportSize)
 

@@ -206,6 +206,8 @@ Status: [MainActivity.kt:54](../../app/android/src/main/kotlin/org/umamo/editor/
 
 CLAUDE.md's "Vulkan/Metal later = new `Renderer` impls — the interface is the backend seam" is therefore aspirational today. This matters _now_ rather than later: the second backend is exactly what reveals the true seam, so fix it as part of writing one, not after. A Metal backend written against a four-method façade that assumes GL's current-context / bound-framebuffer model would be built on sand.
 
+**UPDATE (2026-07-16): this is now built.** The seam is `RenderDevice` (`:render/commonMain/.../device/`), not the old four-method `Renderer` (deleted). It is deliberately shaped for the GL family first, with the GL-isms this section warned about handled explicitly: an explicit render *target* (no bound-framebuffer discovery), immutable blend-baked pipelines, uniform *structs* (no name lookups), a `captureDeformedPositions` primitive naming the effect not the mechanism (TF today, compute later), and a `barrier(store)` dependency (glFinish on GL, a no-op on Metal). `GlPuppetRenderer` makes zero GL calls and drives everything through it; `GlRenderDevice` is the desktop impl. Per the project decision, Metal was NOT pre-solved — the five Metal risks below are notes for the port, not blockers, and the API changes if Metal needs it. Phases D/H below are updated accordingly.
+
 Also in scope, cheaply: the grid/axis GLSL is duplicated verbatim across `GpuRenderer.jvm.kt` (`#version 330 core`) and `GpuRenderer.android.kt` (`#version 300 es`) with no shared source and nothing pinning them together — they will drift. `DeformShaderGlsl.kt` demonstrates the correct shared-snippet pattern a few files away.
 
 Depends on: nothing. Owed for Android regardless of the iPad decision.

@@ -70,16 +70,18 @@ class WorldAxisLinesTest {
 		val window = createHeadlessGl()
 		assumeGlContext("[world-axis-lines]", window)
 		try {
-			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false))
+			val device = GlRenderDevice()
+			val renderer = GlPuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 			renderer.initGl()
 			val framebuffer = createColorFbo(viewportSize, viewportSize)
+			val target = device.wrapExistingFramebuffer(framebuffer, viewportSize, viewportSize)
 			// A fixed 1:1 camera centered on the world origin: the axes must cross at the viewport center.
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 			renderer.setPose(emptyMap())
 
 			// Default: axes off - the frame must contain no axis-colored pixels (render-diff tests rely on this).
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val framePlain = readPixels(viewportSize, viewportSize)
 			assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
 			assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
@@ -87,7 +89,7 @@ class WorldAxisLinesTest {
 			// Enabled: a red row and a blue column cross at the center.
 			renderer.setWorldAxesVisible(true)
 			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(viewportSize, viewportSize)
+			renderer.render(target, viewportSize, viewportSize)
 			val frameAxes = readPixels(viewportSize, viewportSize)
 			val redRun = maxRedRunInCenterRows(frameAxes)
 			val blueRun = maxBlueRunInCenterColumns(frameAxes)

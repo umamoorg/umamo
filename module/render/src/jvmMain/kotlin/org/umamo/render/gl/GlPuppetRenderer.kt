@@ -1,21 +1,32 @@
 package org.umamo.render.gl
 
-import org.lwjgl.BufferUtils
-import org.lwjgl.opengl.GL11
-import org.lwjgl.opengl.GL12
-import org.lwjgl.opengl.GL13
-import org.lwjgl.opengl.GL14
-import org.lwjgl.opengl.GL15
-import org.lwjgl.opengl.GL20
-import org.lwjgl.opengl.GL30
-import org.lwjgl.opengl.GL31
 import org.umamo.render.ContentBounds
-import org.umamo.render.DecodedImage
-import org.umamo.render.GpuRenderer
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
-import org.umamo.render.Renderer
 import org.umamo.render.ViewportCamera
+import org.umamo.render.WorldAxisColors
+import org.umamo.render.device.AxisLineUniforms
+import org.umamo.render.device.DeformCapturePipeline
+import org.umamo.render.device.DeformUniforms
+import org.umamo.render.device.DeformedPositionStore
+import org.umamo.render.device.DrawTextures
+import org.umamo.render.device.FragmentUniforms
+import org.umamo.render.device.GpuMesh
+import org.umamo.render.device.GpuTexture
+import org.umamo.render.device.GridUniforms
+import org.umamo.render.device.LoadAction
+import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.PipelineBlend
+import org.umamo.render.device.PipelinePurpose
+import org.umamo.render.device.RenderDevice
+import org.umamo.render.device.RenderPassEncoder
+import org.umamo.render.device.RenderPipeline
+import org.umamo.render.device.RenderPipelineSpec
+import org.umamo.render.device.RenderTarget
+import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.TextureFilter
+import org.umamo.render.device.TextureFormat
+import org.umamo.render.device.WorldToNdc
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.PoseDeformInputs
@@ -24,23 +35,9 @@ import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.applyCpuDeform
 import org.umamo.render.eval.preparePose
-import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
-import org.umamo.render.glsl.UNIT_ATLAS
-import org.umamo.render.glsl.UNIT_CP
-import org.umamo.render.glsl.UNIT_DELTA
-import org.umamo.render.glsl.UNIT_MASK
-import org.umamo.render.glsl.UNIT_POSITION
-import org.umamo.render.glsl.atlasPageVertexShader
-import org.umamo.render.glsl.glueVertexShader
-import org.umamo.render.glsl.puppetFragmentShader
-import org.umamo.render.glsl.puppetVertexShader
-import org.umamo.render.glsl.tfDeformVertexShader
-import org.umamo.render.glsl.tfDiscardFragmentShader
-import org.umamo.render.puppet.DrawableAction
-import org.umamo.render.puppet.GlueVertexAttributes
 import org.umamo.render.puppet.buildDeltaTexels
 import org.umamo.render.puppet.contentBoundsOf
 import org.umamo.render.puppet.diffModel
@@ -53,40 +50,40 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.visibleDrawableIds
-import java.nio.ByteBuffer
-import java.nio.FloatBuffer
-
-// This backend is desktop OpenGL 3.3 core; the shared GLSL in org.umamo.render.glsl is emitted for it.
-private val DIALECT = GlslDialect.Core330
+import org.umamo.render.puppet.GlueVertexAttributes as PlannedGlueAttributes
 
 /**
- * GPU-deforming puppet renderer (`:render`, GL 3.3 core). The keyform morph + deformer cascade run in the
- * vertex shader ([DEFORM_GLSL]); the CPU only [preparePose]s the cheap per-pose data. Glue (seam-welding
- * vertex pairs across two meshes) is a two-pass GPU step: pass 1 transform-feedback-deforms every
- * glue-involved mesh into one shared position buffer, pass 2 renders the visible glue meshes with a
- * shader that reads own + partner positions from that buffer (a texture buffer) and welds. Non-glue meshes
- * render in a single deform pass. Draws in Cubism render order with per-drawable opacity, blend, and masks.
+ * GPU-deforming puppet renderer, over a [RenderDevice].
  *
- * GPU 変形パペットレンダラ。モーフ＋カスケードは頂点シェーダ、グルーは 2 パス（TF 変形→ウェルド）で GPU 実行。
+ * The keyform morph + deformer cascade run in the vertex shader; the CPU only prepares the cheap per-pose
+ * data.  Glue (seam-welding vertex pairs across two meshes) is a two-pass GPU step: pass 1
+ * transform-feedback-deforms every glue-involved mesh into one shared position store, pass 2 renders the
+ * visible glue meshes welding own + partner positions read from that store.  Non-glue meshes render in a
+ * single deform pass.  Draws in Cubism render order with per-drawable opacity, blend, and masks.
+ *
+ * This class holds NO GL - every GPU operation goes through [device], and every decision (glue layout,
+ * pose resolution, model diff) is a backend-neutral call into `org.umamo.render.puppet`.  A second
+ * backend is therefore a second [RenderDevice], not a second renderer.  It runs on the render thread; the
+ * host makes [device]'s context current there.
+ *
+ * GPU 変形パペットレンダラ。GL を直接触らず RenderDevice 経由。バックエンドはデバイス実装で差し替える。
  */
 class GlPuppetRenderer(
 	private val model: PuppetModel,
 	private val textures: PuppetTextures,
-) : Renderer {
-	private var programHandle = 0
-	private var glueDeformProgram = 0
-	private var glueProgram = 0
-
-	// The atlas-page underlay program (UV editor) + its empty VAO: a static full-page quad reusing the
-	// shared FRAGMENT_SHADER, drawn by [renderAtlasPage] instead of the posed puppet for a UV area.
-	private var pageProgram = 0
-	private var pageVao = 0
+	private val device: RenderDevice,
+) {
+	// Draw pipelines by blend, plus the fixed-purpose ones, all created at initGl and reused every frame.
+	private val puppetPipelines = HashMap<BlendMode, RenderPipeline>()
+	private val gluePipelines = HashMap<BlendMode, RenderPipeline>()
+	private var atlasPagePipeline: RenderPipeline? = null
+	private var gridPipeline: RenderPipeline? = null
+	private var axisPipeline: RenderPipeline? = null
+	private var capturePipeline: DeformCapturePipeline? = null
 
 	// Rest-pose content extent, computed lazily and reused for contentBounds()/the fit fallback; re-armed
 	// by updateModel/setShownDrawables so the framing follows geometry and visibility edits.
@@ -119,74 +116,66 @@ class GlPuppetRenderer(
 
 	// The active (last-selected) drawable, tinted toward activeHighlightColor instead of highlightColor so
 	// the primary target of a multi-selection reads apart from the rest. Set from the UI thread; null when
-	// nothing is active (single selection, or an in-flight preview stroke with no active yet). Always a
-	// member of selectedIds when non-null.
+	// nothing is active. Always a member of selectedIds when non-null.
 	@Volatile
 	private var activeId: DrawableId? = null
 
 	// The color the active drawable is tinted toward, fed from the editor settings alongside highlightColor.
-	// Defaults to the edit-mode active green (#7DE400) until the host pushes the configured color. RGB, each
-	// 0..1; the immutable FloatArray swap makes the volatile reference a safe publish.
+	// Defaults to the edit-mode active green (#7DE400) until the host pushes the configured color.
 	@Volatile
 	private var activeHighlightColor: FloatArray = floatArrayOf(0.49f, 0.89f, 0.0f)
 
 	// The last pose's resolved draw list (back-to-front; last = front), published for picking. This folds
-	// in the parts/group hierarchy, so it is the authoritative front/back order — unlike the raw per-drawable
-	// draw-order scalar. Render-thread-written, UI-thread-read; the immutable list swap is a safe publish.
+	// in the parts/group hierarchy, so it is the authoritative front/back order. Render-thread-written,
+	// UI-thread-read; the immutable list swap is a safe publish.
 	@Volatile
 	private var lastDrawnOrder: List<DrawableId> = emptyList()
-
-	// The canvas backdrop: the world-aligned grid drawn behind the puppet. Reuses the platform GpuRenderer
-	// seam so desktop and Android share one implementation.
-	private val background = GpuRenderer()
 
 	// Framebuffer pixels per on-screen pixel. 1 = native; the offscreen service sets >1 when it supersamples,
 	// so the grid line width scales to match and reads back at a constant on-screen size.
 	private var gridPixelScale: Float = 1f
 
-	// The grid backdrop colors, set from the editor theme via setGrid; defaults to a neutral grey grid so a
-	// caller that never themes the backdrop is unchanged.
+	// The grid backdrop colors, set from the editor theme via setGrid; defaults to a neutral grey grid.
 	private var gridColors: GridColors = GridColors.Classic
 
-	// The per-document grid geometry (major line spacing in world units, and subdivisions per major cell),
-	// set via setGrid.  Defaults keep an unconfigured caller on the built-in 100-unit / 10-subdivision grid.
+	// The per-document grid geometry (major line spacing in world units, and subdivisions per major cell).
 	private var gridScale: Float = 100f
 	private var gridSubdivisions: Int = 10
 
-	private var maskFramebuffer = 0
-	private var maskTexture = 0
+	// The viewport-sized coverage target the mask pass renders into and the masked draws sample. Recreated
+	// on a viewport resize; the same size as the main target, which is what makes the shader's screen-space
+	// mask lookup line up.
+	private var maskTarget: RenderTarget? = null
 	private var maskWidth = 0
 	private var maskHeight = 0
 
-	// Shared deformed-position buffer for glue: pass 1 writes every glue mesh's world positions here (at
-	// its [GpuDrawable.glueBaseOffset]); pass 2 reads own/partner from it via [positionTbo]. 0 if no glue.
-	private var globalPositionBuffer = 0
-	private var positionTbo = 0
+	// The shared pass-1 deformed-position store; null when the model has no glue.
+	private var store: DeformedPositionStore? = null
 	private var glueIntensities = FloatArray(MAX_GLUES) { 1f }
 
-	// Pass 1 only needs to re-deform the shared glue buffer when the pose changed; on a static pose its
-	// contents are unchanged, so pass 2 reads them directly. Set by [setPose], consumed by [render]. Gating
-	// here also confines the (necessary) glue write→read sync to pose-change frames (see [render]).
+	// Pass 1 only needs to re-deform the shared store when the pose changed; on a static pose its contents
+	// are unchanged. Set by setPose, consumed by render. Gating here also confines the write→read barrier
+	// to pose-change frames.
 	private var glueBufferDirty = true
 
+	// Reused per-draw uniform scratch, refilled each draw rather than allocated. Render-thread only.
+	private val deformScratch = DeformUniforms()
+	private val fragmentScratch = FragmentUniforms()
+
 	/**
-	 * A drawable resident on the GPU. Static: VAO (rest positions + UVs + indices, plus per-vertex glue
-	 * attributes for a glue mesh), per-mesh delta texture, optional warp control-point texture, atlas,
-	 * fallback color, blend mode, masks. [isGlueMesh] meshes are deformed in pass 1 (even index-less
-	 * anchors, whose positions are weld partners) and rendered via the glue program in pass 2.
+	 * A drawable resident on the GPU.  Static residency (mesh, delta texture, optional warp control-point
+	 * texture, atlas) plus the per-pose state setPose stamps onto it.  [isGlueMesh] meshes are deformed in
+	 * pass 1 (even index-less anchors, whose positions are weld partners) and rendered via the glue pipeline
+	 * in pass 2.
 	 */
 	private class GpuDrawable(
 		val id: DrawableId,
-		val vao: Int,
-		val positionVbo: Int,
-		val uvVbo: Int,
-		val glueVbo: Int,
-		val indexEbo: Int,
-		val deltaTexture: Int,
+		val mesh: GpuMesh,
+		val deltaTexture: GpuTexture,
 		val vertexCount: Int,
 		val indexCount: Int,
-		val cpTexture: Int,
-		val atlasTexture: Int,
+		val cpTexture: GpuTexture?,
+		val atlasTexture: GpuTexture?,
 		val color: FloatArray,
 		val blendMode: BlendMode,
 		val maskIds: List<DrawableId>,
@@ -200,96 +189,55 @@ class GlPuppetRenderer(
 		var visible: Boolean = false
 	}
 
-	/**
-	 * A mesh's uploaded GL handles: the VAO plus every buffer it references - the position VBO (attr 0,
-	 * kept so an edit can re-upload it) and the UV / glue / index buffers (kept so a structural reconcile
-	 * can free them; 0 where the mesh has none).
-	 */
-	private class MeshBuffers(
-		val vao: Int,
-		val positionVbo: Int,
-		val uvVbo: Int,
-		val glueVbo: Int,
-		val indexEbo: Int,
-	)
-
-	// The live model used for the per-pose deform eval, the render order, and the base-position re-upload
-	// diff. A var so an edit (a reorder, a deformer reparent, or a base-mesh move) can re-push it via
-	// [updateModel]; a base-mesh move additionally re-uploads that drawable's position VBO there, while a
-	// reorder / reparent leaves the GPU buffers untouched. The construction-time [model] still seeds the GPU
-	// buffers at init (glue welds, masks, UVs, indices, deltas). @Volatile because the render thread writes it
-	// (updateModel) while the UI thread reads it (pickGeometry) - a PuppetModel is immutable, so the reference
-	// swap is a safe publish, mirroring lastPoseInputs / selectedIds.
+	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
+	// an edit can re-push it via updateModel. @Volatile because the render thread writes it while the UI
+	// thread reads it (pickGeometry); a PuppetModel is immutable, so the reference swap is a safe publish.
 	@Volatile
 	private var currentModel: PuppetModel = model
 	private var baseOrder: List<DrawableId> = model.drawables.map { it.id }
 	private var currentRenderRoot: RenderGroup = model.renderRoot
 
-	// Effective Parts-panel visibility (own eyeball ∧ every ancestor part's). The eyeball is an authoring
-	// toggle, not animated, so the cascade is resolved once per change rather than per frame. Gates only
-	// the drawn list (pass 2); hidden meshes that are mask sources or glue partners still deform. A var (not
-	// val) so a visibility edit can re-push the recomputed shown set via [setShownDrawables]; the geometry
-	// buffers are unchanged by a visibility toggle, so only this filter set moves. Render-thread only.
+	// Effective Parts-panel visibility (own eyeball ∧ every ancestor part's), resolved once per change. Gates
+	// only the drawn list; hidden meshes that are mask sources or glue partners still deform. Render-thread only.
 	private var shownDrawableIds: Set<DrawableId> = model.visibleDrawableIds()
 	private var gpuDrawables: List<GpuDrawable> = emptyList()
 	private var glueDeformList: List<GpuDrawable> = emptyList()
 	private var gpuById: Map<DrawableId, GpuDrawable> = emptyMap()
 
-	// The uploaded atlas pages' GL handles, index-parallel to [PuppetTextures.atlases].  Retained past
-	// initGl so the structural reconcile in [updateModel] can bind a newly-uploaded drawable to its page.
-	private var atlasHandles: List<Int> = emptyList()
+	// The uploaded atlas pages, index-parallel to PuppetTextures.atlases. Retained so a structural reconcile
+	// in updateModel can bind a newly-uploaded drawable to its page.
+	private var atlasHandles: List<GpuTexture> = emptyList()
 
-	private val cornerCellBuffer = BufferUtils.createIntBuffer(MAX_CORNERS)
-	private val cornerWeightBuffer = BufferUtils.createFloatBuffer(MAX_CORNERS)
-
-	// Reusable scratch for re-uploading an edited mesh's positions (glBufferSubData in updateModel). Grown on
-	// demand so a live preview edit (~60/s, possibly several drawables) never allocates. Render-thread only.
-	private var positionUploadBuffer: FloatBuffer = BufferUtils.createFloatBuffer(0)
+	// Whether render() draws the world-origin axis lines. Off by default so headless render-diff tests stay
+	// line-free; the editor's viewport host opts in.
+	private var worldAxesVisible = false
 
 	/**
-	 * Compiles the three programs, uploads the atlas page(s), lays out the shared glue position buffer, and
-	 * uploads each drawable's static data (rest positions + UVs + indices + delta texture, plus glue
-	 * attributes + a control-point texture as needed). Must run with a GL context current.
+	 * Creates the pipelines, uploads the atlas page(s), lays out the shared glue store, and uploads each
+	 * drawable's static data.  Must run with the device's context current.
 	 */
 	fun initGl() {
-		programHandle = linkProgram(puppetVertexShader(DIALECT), puppetFragmentShader(DIALECT))
-		glueDeformProgram = linkTransformFeedbackProgram()
-		glueProgram = linkProgram(glueVertexShader(DIALECT), puppetFragmentShader(DIALECT))
-		pageProgram = linkProgram(atlasPageVertexShader(DIALECT), puppetFragmentShader(DIALECT))
-		pageVao = GL30.glGenVertexArrays() // core profile requires a bound VAO even for the attribute-less page quad
-		atlasHandles = textures.atlases.map { uploadAtlas(it) }
+		capturePipeline = device.createDeformCapturePipeline()
+		atlasPagePipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.AtlasPageDraw, PipelineBlend.Normal))
+		gridPipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.GridBackdrop, PipelineBlend.Opaque))
+		axisPipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.WorldAxisLine, PipelineBlend.Opaque))
+		atlasHandles =
+			textures.atlases.map { device.createTexture(it.width, it.height, TextureFormat.Rgba8, TextureFilter.Linear, it.rgba) }
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
 
-		// Glue addressing: every mesh in any glue pair (incl. zero-triangle anchors) gets a region in the
-		// shared position buffer, plus per-vertex weld attributes. What welds to what is backend-neutral
-		// and planned in commonMain; only the byte layout below is GL's business.
+		// Glue addressing is planned in commonMain; the device holds the store and the interleaved attrs.
 		val glueLayout = planGlueLayout(model)
-		val glueMeshIds = glueLayout.glueMeshIds
-		val glueBaseOffsetById = glueLayout.baseOffsetById
-		val globalVertexCount = glueLayout.globalVertexCount
-		val glueAttrById = glueLayout.attributesById.mapValues { (_, attributes) -> interleaveGlueAttributes(attributes) }
-		if (globalVertexCount > 0) {
-			globalPositionBuffer = GL15.glGenBuffers()
-			GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, globalPositionBuffer)
-			GL15.glBufferData(
-				GL31.GL_TEXTURE_BUFFER,
-				globalVertexCount.toLong() * 2 * Float.SIZE_BYTES,
-				GL15.GL_DYNAMIC_COPY,
-			)
-			positionTbo = GL11.glGenTextures()
-			GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, positionTbo)
-			GL31.glTexBuffer(GL31.GL_TEXTURE_BUFFER, GL30.GL_RG32F, globalPositionBuffer)
+		if (glueLayout.globalVertexCount > 0) {
+			store = device.createDeformedPositionStore(glueLayout.globalVertexCount)
 		}
 
 		val uploaded = ArrayList<GpuDrawable>()
 		for (drawable in model.drawables) {
-			val isGlue = drawable.id in glueMeshIds
 			val gpuDrawable =
 				uploadDrawable(
 					drawable = drawable,
-					isGlue = isGlue,
-					glueAttr = glueAttrById[drawable.id],
-					glueBaseOffset = glueBaseOffsetById[drawable.id] ?: 0,
+					glueAttributes = glueLayout.attributesById[drawable.id],
+					glueBaseOffset = glueLayout.baseOffsetById[drawable.id] ?: 0,
 					warpDeformerIds = warpDeformerIds,
 				) ?: continue
 			uploaded.add(gpuDrawable)
@@ -299,23 +247,19 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Uploads one drawable's static GPU data (mesh buffers, delta texture, optional warp control-point
-	 * texture, atlas binding) and returns its resident [GpuDrawable], or null when it has nothing to
-	 * upload (no mesh, no keyforms, empty geometry, or a triangle-less non-glue mesh).  Shared by
-	 * [initGl] and the structural reconcile in [updateModel]; must run with the GL context current.
+	 * Uploads one drawable's static GPU data and returns its resident [GpuDrawable], or null when it draws
+	 * nothing (no mesh, no keyforms, empty geometry, or a triangle-less non-glue mesh).  Shared by [initGl]
+	 * and the structural reconcile in [updateModel]; must run with the device's context current.
 	 *
-	 * @param Drawable drawable The model drawable to upload.
-	 * @param Boolean isGlue Whether it participates in a glue weld (glue attrs + the weld program path).
-	 * @param ByteBuffer? glueAttr Its per-vertex glue attributes, or null when not glued.
-	 * @param Int glueBaseOffset Its base index in the shared glue position buffer (0 when not glued).
-	 * @param Set<DeformerId> warpDeformerIds The model's warp deformers (a warp-parented drawable gets a
-	 *   control-point texture).
+	 * @param Drawable                drawable        The model drawable.
+	 * @param PlannedGlueAttributes?  glueAttributes  Its planned weld attributes, or null when not glued.
+	 * @param Int                     glueBaseOffset  Its base index in the shared glue store (0 when not glued).
+	 * @param Set<DeformerId>         warpDeformerIds The model's warp deformers.
 	 * @return GpuDrawable? The uploaded drawable, or null when it draws nothing.
 	 */
 	private fun uploadDrawable(
 		drawable: Drawable,
-		isGlue: Boolean,
-		glueAttr: ByteBuffer?,
+		glueAttributes: PlannedGlueAttributes?,
 		glueBaseOffset: Int,
 		warpDeformerIds: Set<DeformerId>,
 	): GpuDrawable? {
@@ -324,29 +268,34 @@ class GlPuppetRenderer(
 		if (mesh.positions.isEmpty()) {
 			return null
 		}
-		val renderable = mesh.indices.isNotEmpty()
-		if (!isGlue && !renderable) {
+		val isGlue = glueAttributes != null
+		if (!isGlue && mesh.indices.isEmpty()) {
 			return null // a non-glue mesh with no triangles draws nothing and is no weld partner
 		}
 		val cellCount = keyformCellCount(grid)
-		val deltaTexture = uploadDeltaTexture(grid, mesh.positions, cellCount)
-		val meshBuffers = uploadMesh(mesh.positions, mesh.uvs, mesh.indices, glueAttr)
-		val cpTexture = if (drawable.parentDeformerId in warpDeformerIds) GL11.glGenTextures() else 0
-		// The atlas mapping is keyed by the SOURCE format's drawable ids, so a session-created copy
-		// resolves its page through the drawable it was duplicated from (Drawable.textureSourceId).
+		val vertexCount = mesh.positions.size / 2
+		val deltaTexture =
+			device.createFloatTexture(cellCount, vertexCount, TextureFilter.Nearest, buildDeltaTexels(grid, vertexCount, cellCount))
+		val gpuMesh = device.createMesh(MeshSpec(mesh.positions, mesh.uvs, mesh.indices, glueAttributes))
+		// A warp-parented drawable needs a control-point texture setPose re-specifies each pose. Created as a
+		// 1x1 placeholder here so updateFloatTexture always has a handle to overwrite.
+		val cpTexture =
+			if (drawable.parentDeformerId in warpDeformerIds) {
+				device.createFloatTexture(1, 1, TextureFilter.Nearest, FloatArray(2))
+			} else {
+				null
+			}
+		// The atlas mapping is keyed by the SOURCE format's drawable ids, so a session-created copy resolves
+		// its page through the drawable it was duplicated from (Drawable.textureSourceId).
 		val atlasIndex = textures.atlasIndexByDrawableId[(drawable.textureSourceId ?: drawable.id).raw]
 		return GpuDrawable(
 			id = drawable.id,
-			vao = meshBuffers.vao,
-			positionVbo = meshBuffers.positionVbo,
-			uvVbo = meshBuffers.uvVbo,
-			glueVbo = meshBuffers.glueVbo,
-			indexEbo = meshBuffers.indexEbo,
+			mesh = gpuMesh,
 			deltaTexture = deltaTexture,
-			vertexCount = mesh.positions.size / 2,
+			vertexCount = vertexCount,
 			indexCount = mesh.indices.size,
 			cpTexture = cpTexture,
-			atlasTexture = atlasIndex?.let { atlasHandles[it] } ?: 0,
+			atlasTexture = atlasIndex?.let { atlasHandles[it] },
 			color = fallbackColorFor(drawable.id.raw),
 			blendMode = drawable.blendMode,
 			maskIds = drawable.maskedBy,
@@ -357,77 +306,22 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Frees one resident drawable's GPU objects: the VAO, its position / UV / glue / index buffers, and
-	 * the delta + control-point textures.  The atlas texture is shared across drawables and stays.  Must
-	 * run with the GL context current.
+	 * Frees one resident drawable's device objects: its mesh and delta / control-point textures.  The atlas
+	 * is shared across drawables and stays.  Must run with the device's context current.
 	 *
 	 * @param GpuDrawable gpuDrawable The resident drawable to free.
 	 */
 	private fun deleteDrawable(gpuDrawable: GpuDrawable) {
-		GL30.glDeleteVertexArrays(gpuDrawable.vao)
-		GL15.glDeleteBuffers(gpuDrawable.positionVbo)
-		GL15.glDeleteBuffers(gpuDrawable.uvVbo)
-		if (gpuDrawable.glueVbo != 0) {
-			GL15.glDeleteBuffers(gpuDrawable.glueVbo)
-		}
-		if (gpuDrawable.indexEbo != 0) {
-			GL15.glDeleteBuffers(gpuDrawable.indexEbo)
-		}
-		GL11.glDeleteTextures(gpuDrawable.deltaTexture)
-		if (gpuDrawable.cpTexture != 0) {
-			GL11.glDeleteTextures(gpuDrawable.cpTexture)
-		}
+		device.destroyMesh(gpuDrawable.mesh)
+		device.destroyTexture(gpuDrawable.deltaTexture)
+		gpuDrawable.cpTexture?.let { device.destroyTexture(it) }
 	}
 
-	/**
-	 * Re-uploads a vertex buffer's contents in place, reusing the scratch buffer.
-	 *
-	 * Serves the positions and UVs tiers of [updateModel], which both re-specify a whole GL_DYNAMIC_DRAW
-	 * VBO whose length is unchanged.  The scratch grows on demand and is then reused, so a live preview
-	 * edit (~60/s, possibly several drawables) allocates nothing.  Render-thread only.
-	 *
-	 * @param Int        vertexBuffer The VBO to overwrite.
-	 * @param FloatArray values       The new contents.
-	 */
-	private fun uploadInPlace(vertexBuffer: Int, values: FloatArray) {
-		if (positionUploadBuffer.capacity() < values.size) {
-			positionUploadBuffer = BufferUtils.createFloatBuffer(values.size)
-		}
-		positionUploadBuffer.clear()
-		positionUploadBuffer.put(values).flip()
-		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vertexBuffer)
-		GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0L, positionUploadBuffer)
-	}
-
-	/**
-	 * Packs a mesh's planned weld attributes into the interleaved vertex buffer the glue VAO expects:
-	 * 12 bytes per vertex - int partner global index, int glue index, float weld weight - in the native
-	 * byte order [BufferUtils] allocates, which is what `glVertexAttribIPointer` reads back.
-	 *
-	 * The layout is GL's, not the plan's: [planGlueLayout] decides what each vertex welds to, and this
-	 * turns that into the bytes this backend's attribute pointers describe.  Runs once per glue mesh at
-	 * [initGl], never per frame.
-	 *
-	 * @param GlueVertexAttributes attributes The mesh's planned per-vertex weld attributes.
-	 * @return ByteBuffer The interleaved buffer, flipped and ready to upload.
-	 */
-	private fun interleaveGlueAttributes(attributes: GlueVertexAttributes): ByteBuffer {
-		val vertexCount = attributes.partnerIndex.size
-		val buffer = BufferUtils.createByteBuffer(vertexCount * 3 * Int.SIZE_BYTES)
-		for (vertexIndex in 0 until vertexCount) {
-			buffer.putInt(attributes.partnerIndex[vertexIndex])
-			buffer.putInt(attributes.glueIndex[vertexIndex])
-			buffer.putFloat(attributes.weldWeight[vertexIndex])
-		}
-		buffer.flip()
-		return buffer
-	}
-
-	override fun setPose(parameters: Map<ParameterId, Float>) {
+	fun setPose(parameters: Map<ParameterId, Float>) {
 		// currentModel (not the construction-time model) so a deformer reparent / reorder re-evaluates here.
 		val inputs = preparePose(currentModel, parameters)
 		lastPoseInputs = inputs // publish for on-demand picking (CPU deform re-run at click time)
-		glueBufferDirty = true // the pose moved: pass 1 must re-deform the shared glue buffer next render
+		glueBufferDirty = true // the pose moved: pass 1 must re-deform the shared store next render
 		// Resolve first, in backend-neutral terms; then apply onto the resident drawables and upload.
 		val resolved =
 			resolvePose(
@@ -446,11 +340,11 @@ class GlPuppetRenderer(
 			val parentWorld = posedDrawable.parentWorld
 			gpuDrawable.parentWorld = parentWorld
 			// Warp control points are pose-dependent but frame-INVARIANT: upload them here, once per pose
-			// change, NOT every frame in the draw loop. Re-specifying this texture (glTexImage2D) 60×/sec
-			// churned the d3d12/Mesa driver and progressively corrupted the sampled control points (the
-			// "facial features warp/flicker over time" bug, worst on masked warp meshes that draw twice).
-			if (parentWorld is WarpWorld && gpuDrawable.cpTexture != 0) {
-				uploadControlPoints(gpuDrawable.cpTexture, parentWorld)
+			// change, NOT every frame in the draw loop. Re-specifying this texture 60×/sec churned the
+			// d3d12/Mesa driver and progressively corrupted the sampled control points (the "facial features
+			// warp/flicker over time" bug, worst on masked warp meshes that draw twice).
+			if (parentWorld is WarpWorld && gpuDrawable.cpTexture != null) {
+				device.updateFloatTexture(gpuDrawable.cpTexture, parentWorld.cols + 1, parentWorld.rows + 1, parentWorld.cp)
 			}
 			gpuDrawable.opacity = posedDrawable.opacity
 			gpuDrawable.visible = true
@@ -460,14 +354,13 @@ class GlPuppetRenderer(
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
 	}
 
-	override fun setCamera(camera: ViewportCamera) {
+	fun setCamera(camera: ViewportCamera) {
 		currentCamera = camera
 	}
 
 	/**
-	 * Sets how many framebuffer pixels map to one on-screen pixel, so the grid line width drawn into the
-	 * framebuffer stays a constant on-screen size when the offscreen service renders supersampled and
-	 * downscales the result. 1 = native, 2 = 2× supersampled.
+	 * Sets how many framebuffer pixels map to one on-screen pixel, so the grid line width stays a constant
+	 * on-screen size when the offscreen service renders supersampled and downscales.  1 = native, 2 = 2×.
 	 *
 	 * @param Float scale Framebuffer pixels per on-screen pixel.
 	 */
@@ -476,13 +369,13 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Sets the grid backdrop's colors and geometry, so the viewport can follow the editor theme (a dark
-	 * scheme gets a dark grid) and the per-document grid config.  The next [render] picks them up.
+	 * Sets the grid backdrop's colors and geometry, so the viewport can follow the editor theme and the
+	 * per-document grid config.  The next [render] picks them up.
 	 *
-	 * グリッド背景の色と間隔（主線間隔・分割数）を設定する（テーマ / ドキュメント連動）。次の render で反映。
+	 * グリッド背景の色と間隔を設定する（テーマ / ドキュメント連動）。次の render で反映。
 	 *
-	 * @param GridColors colors      The background / major / minor grid colors.
-	 * @param Float      scale       The major grid line spacing in world units.
+	 * @param GridColors colors       The background / major / minor grid colors.
+	 * @param Float      scale        The major grid line spacing in world units.
 	 * @param Int        subdivisions The minor lines per major cell.
 	 */
 	fun setGrid(colors: GridColors, scale: Float, subdivisions: Int) {
@@ -492,11 +385,9 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Sets which drawables are highlighted (object-mode selection). The next [render] tints them via the
-	 * fragment shader's highlight uniform. Kept concrete (not on [Renderer]) like [setGrid],
-	 * since selection is an editor concern the desktop host drives directly.
+	 * Sets which drawables are highlighted (object-mode selection).  The next [render] tints them.
 	 *
-	 * ハイライトするドロウアブル（選択）を設定する。次の render で反映される。
+	 * ハイライトするドロウアブル（選択）を設定する。
 	 *
 	 * @param Set<DrawableId> ids The selected drawable ids.
 	 */
@@ -505,12 +396,10 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Sets which drawable is active (the last-selected object of a multi-selection). The next [render] tints
-	 * it toward [activeHighlightColor] rather than the shared [highlightColor], so the primary target reads
-	 * apart from the rest. Null clears the distinction (every selected drawable tints plain). Kept concrete
-	 * (not on [Renderer]) like [setSelection], since selection is an editor concern the desktop host drives.
+	 * Sets which drawable is active (the last-selected object of a multi-selection), tinted toward
+	 * [activeHighlightColor] rather than [highlightColor]. Null clears the distinction.
 	 *
-	 * アクティブ（最後に選択した）ドロウアブルを設定する。次の render でアクティブ色に反映される。
+	 * アクティブ（最後に選択した）ドロウアブルを設定する。
 	 *
 	 * @param DrawableId? id The active drawable id, or null when none is active.
 	 */
@@ -519,12 +408,10 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Updates the set of drawables that are actually drawn (the resolved Parts-panel visibility cascade),
-	 * so a visibility edit takes effect on the next [render]. The geometry buffers are unchanged by a
-	 * visibility toggle, so this only swaps the pass-2 draw filter. Concrete (not on [Renderer]) like
-	 * [setSelection], pushed by the desktop host when the model's visibility changes.
+	 * Updates the set of drawables actually drawn (the resolved visibility cascade), so a visibility edit
+	 * takes effect on the next [render].
 	 *
-	 * 描画される drawable の集合（表示カスケードの解決結果）を更新する。次の render で反映される。
+	 * 描画される drawable の集合を更新する。
 	 *
 	 * @param Set ids The drawable ids to draw.
 	 */
@@ -536,17 +423,10 @@ class GlPuppetRenderer(
 		shownDrawableIds = ids
 	}
 
-	// Whether render() draws the world-origin axis lines between the grid backdrop and the drawables.
-	// Off by default so headless render-diff tests (GPU vs the CPU oracle) stay line-free; the editor's
-	// viewport host opts in.
-	private var worldAxesVisible = false
-
 	/**
-	 * Shows or hides the world-origin axis lines (the red X / blue Z cross at the model's world origin,
-	 * drawn behind the puppet). Concrete (not on [Renderer]) like [setShownDrawables] - an editor
-	 * affordance the viewport host opts into, not part of the model render itself.
+	 * Shows or hides the world-origin axis lines (the red X / blue Z cross at the model's world origin).
 	 *
-	 * ワールド原点の軸線の表示を切り替える（パペットの背面、エディタ用）。
+	 * ワールド原点の軸線の表示を切り替える（エディタ用）。
 	 *
 	 * @param Boolean visible True to draw the axes each frame.
 	 */
@@ -555,67 +435,47 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Reconciles the renderer with the current model after an edit.  Four tiers, cheapest first:
-	 * a layer reorder / reparent re-sorts the draw order and deform chain on the next [setPose] with no
-	 * buffer work; a base-mesh move re-uploads the changed drawables' position VBOs in place; a UV edit
-	 * (the UV editor's G / S / R and Mirror retarget which atlas texels the mesh samples, with the
-	 * topology unchanged) re-uploads the UV VBOs in place the same way; and a STRUCTURAL change - a
-	 * drawable added (Object-mode duplicate), removed (its undo), or remeshed (merge / rip / connect /
-	 * element duplicate change the vertex count, indices, or keyform grid) - frees the stale resident
-	 * drawable and re-uploads it whole through [uploadDrawable].
-	 * Concrete (not on [Renderer]) like [setShownDrawables], pushed by the desktop host on model change.
+	 * Reconciles the renderer with the current model after an edit, via a backend-neutral [diffModel] whose
+	 * four tiers are applied here as device calls: a reorder / reparent needs no buffer work; a base-mesh
+	 * move re-uploads positions; a UV edit re-uploads UVs; a structural change frees and re-uploads whole.
 	 *
-	 * Structural limits: a session-created drawable never joins the load-time glue layout (glues
-	 * reference source ids, so a fresh id welds nothing - correct for duplicates), and a REMESHED glue
-	 * mesh degrades to an unwelded draw: the shared-buffer regions and per-vertex weld attrs index the
-	 * old vertex order and cannot be remapped here (merge-across-glue is not yet supported; its partner
-	 * keeps welding toward the region's last-deformed positions).
+	 * Structural limits: a session-created drawable never joins the load-time glue layout (glues reference
+	 * source ids, so a fresh id welds nothing), and a REMESHED glue mesh degrades to an unwelded draw (its
+	 * store region and weld attrs index the old vertex order and are not remapped here).
 	 *
-	 * Runs on the render thread with the GL context current (the render loop is the only caller), so the
-	 * uploads are direct GL calls. The diff is keyed by drawable id (robust to a simultaneous reorder)
-	 * and by array reference (copy-on-write leaves an unedited drawable's arrays untouched, so it is
-	 * skipped cheaply); it compares against [currentModel] and therefore must run BEFORE the
-	 * reassignment, keeping the invariant "GPU buffer contents === currentModel's arrays".
+	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
+	 * invariant "GPU buffer contents === currentModel's arrays".
 	 *
-	 * 編集後にレンダラを現在のモデルへ整合させる。位置のみの編集は VBO を差し替え、トポロジ変更や
-	 * 複製・削除はドロウアブル単位で GPU 資源を再アップロードする。
+	 * 編集後にレンダラを現在のモデルへ整合させる。差分は commonMain、適用のみデバイス呼び出し。
 	 *
 	 * @param PuppetModel newModel The current model.
 	 */
 	fun updateModel(newModel: PuppetModel) {
 		val warpDeformerIds = newModel.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
-		// Decide first, in backend-neutral terms, then apply. The diff reads currentModel as the state the
-		// GPU buffers still match, so it MUST run before the reassignment below.
 		val diff = diffModel(currentModel, newModel, gpuById.mapValues { (_, resident) -> resident.vertexCount })
 		val reconciled = LinkedHashMap<DrawableId, GpuDrawable>()
 		for (action in diff.actions) {
 			when (action) {
-				is DrawableAction.Upload ->
-					uploadDrawable(action.drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
+				is org.umamo.render.puppet.DrawableAction.Upload ->
+					uploadDrawable(action.drawable, glueAttributes = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
 						?.let { reconciled[action.drawableId] = it }
 
-				is DrawableAction.Reupload -> {
-					// A topology edit: the VAO / EBO / UV buffer / delta texture are all stale, so free the
-					// resident and re-upload against the new mesh + re-strided keyform grid.  A remeshed glue
-					// mesh comes back unwelded (see the docblock's structural limits).
+				is org.umamo.render.puppet.DrawableAction.Reupload -> {
 					gpuById[action.drawableId]?.let { deleteDrawable(it) }
-					uploadDrawable(action.drawable, isGlue = false, glueAttr = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
+					uploadDrawable(action.drawable, glueAttributes = null, glueBaseOffset = 0, warpDeformerIds = warpDeformerIds)
 						?.let { reconciled[action.drawableId] = it }
 				}
 
-				is DrawableAction.Keep -> {
+				is org.umamo.render.puppet.DrawableAction.Keep -> {
 					val existing = gpuById[action.drawableId] ?: continue
 					reconciled[action.drawableId] = existing
-					// The two in-place tiers. The scratch buffer is shared between them; uploads are
-					// sequential on this thread, so one buffer serves both.
-					action.positions?.let { uploadInPlace(existing.positionVbo, it) }
-					action.uvs?.let { uploadInPlace(existing.uvVbo, it) }
+					action.positions?.let { device.updateMeshPositions(existing.mesh, it) }
+					action.uvs?.let { device.updateMeshUvs(existing.mesh, it) }
 				}
 			}
 		}
-		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0)
-		// Free residents the edit dropped (the undo of a duplicate). A Reupload already freed its own and is
-		// never listed here, so nothing is freed twice.
+		// Free residents the edit dropped. A Reupload already freed its own and is never in `removed`, so
+		// nothing is freed twice.
 		for (drawableId in diff.removed) {
 			gpuById[drawableId]?.let { deleteDrawable(it) }
 		}
@@ -624,17 +484,13 @@ class GlPuppetRenderer(
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
 		baseOrder = newModel.drawables.map { it.id }
-		// A base-mesh edit can grow or shrink the content extent; recompute the framing on next query so
-		// view.fit follows the geometry instead of the bounds frozen at open.
 		bboxReady = false
 	}
 
 	/**
-	 * Sets the color selected drawables are tinted toward (the selection highlight). The next [render]
-	 * applies it through the fragment shader's highlightColor uniform. Concrete (not on [Renderer]) like
-	 * [setSelection], since the highlight color is an editor setting the desktop host drives directly.
+	 * Sets the color selected drawables are tinted toward (the selection highlight).
 	 *
-	 * 選択ハイライトの色を設定する。次の render で反映される。
+	 * 選択ハイライトの色を設定する。
 	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
@@ -645,11 +501,9 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Sets the color the active drawable is tinted toward (the active-selection highlight). The next [render]
-	 * applies it through the fragment shader's highlightColor uniform for the active drawable only. Concrete
-	 * (not on [Renderer]) like [setSelectionHighlightColor], since it is an editor setting the host drives.
+	 * Sets the color the active drawable is tinted toward (the active-selection highlight).
 	 *
-	 * アクティブ選択ハイライトの色を設定する。次の render でアクティブなドロウアブルに反映される。
+	 * アクティブ選択ハイライトの色を設定する。
 	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
@@ -660,624 +514,353 @@ class GlPuppetRenderer(
 	}
 
 	/**
-	 * Evaluates the current pose's deformed world geometry on the CPU for hit-testing (picking), or null
-	 * before the first pose. Pure CPU with no GL calls, so it is safe to call from the UI thread; it reuses
-	 * the immutable per-pose inputs cached by the last [setPose] rather than re-deforming every frame.
+	 * Evaluates the current pose's deformed world geometry on the CPU for hit-testing, or null before the
+	 * first pose.  Pure CPU with no device calls, so it is safe from the UI thread; it reuses the immutable
+	 * per-pose inputs cached by the last [setPose].
 	 *
-	 * ピッキング用に現在ポーズの変形ジオメトリを CPU 評価する（GL 不使用、UI スレッドから安全に呼べる）。
+	 * ピッキング用に現在ポーズの変形ジオメトリを CPU 評価する（UI スレッドから安全）。
 	 *
 	 * @return DeformedGeometry The current deformed geometry, or null before the first pose.
 	 */
 	fun pickGeometry(): DeformedGeometry? {
 		val inputs = lastPoseInputs ?: return null
-		// currentModel (a @Volatile safe publish), not the construction-time model, so picking / centroids
-		// follow a base-mesh edit; inputs were prepared from currentModel by the last setPose, so the base
-		// positions applyCpuDeform reads here are consistent with them.
 		return applyCpuDeform(currentModel, inputs)
 	}
 
 	/**
-	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose.
-	 * This is the hierarchy-correct front/back ranking picking uses to choose among overlapping meshes —
-	 * the raw per-drawable draw-order scalar ignores the parts/group hierarchy and is wrong for it.
+	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose -
+	 * the hierarchy-correct front/back ranking picking uses to choose among overlapping meshes.
 	 *
-	 * 最後のフレームの解決済み描画順（背面→前面）。ピッキングの前面判定に使う。
+	 * 最後のフレームの解決済み描画順（背面→前面）。
 	 *
 	 * @return List<DrawableId> The drawn drawables, back-to-front.
 	 */
 	fun drawnOrder(): List<DrawableId> = lastDrawnOrder
 
-	override fun contentBounds(): ContentBounds {
+	fun contentBounds(): ContentBounds {
 		ensureContentBounds()
 		return ContentBounds(minX, minY, spanX, spanY)
 	}
 
-	override fun render(viewportWidth: Int, viewportHeight: Int) {
-		val targetFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING)
+	/**
+	 * Draws the current pose into [target].
+	 *
+	 * The target is explicit rather than the bound framebuffer: a pass that discovered its own target could
+	 * not exist on a backend with no bound-framebuffer concept, and even on GL, discovering it hid a real
+	 * coupling with whoever bound it first.
+	 *
+	 * @param RenderTarget target         The surface to draw into.
+	 * @param Int          viewportWidth  The target width in pixels.
+	 * @param Int          viewportHeight The target height in pixels.
+	 */
+	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int) {
 		ensureMaskTarget(viewportWidth, viewportHeight)
+		val frame = device.beginFrame()
 
-		// Pass 1: transform-feedback-deform every visible glue mesh into the shared position buffer. Only when
-		// the pose changed - a static pose leaves the buffer (and pass 2's reads of it) unchanged.
-		if (globalPositionBuffer != 0 && glueBufferDirty) {
-			GL20.glUseProgram(glueDeformProgram)
-			GL20.glUniform1i(GL20.glGetUniformLocation(glueDeformProgram, "deltaTex"), UNIT_DELTA)
-			GL20.glUniform1i(GL20.glGetUniformLocation(glueDeformProgram, "cpTex"), UNIT_CP)
-			GL11.glEnable(GL30.GL_RASTERIZER_DISCARD)
+		// Pass 1: capture every glue mesh's deformed positions into the shared store. Only when the pose
+		// changed - a static pose leaves the store (and pass 2's reads of it) unchanged.
+		val activeStore = store
+		if (activeStore != null && glueBufferDirty) {
+			val capture = frame.beginDeformCapturePass(capturePipeline!!, activeStore)
 			for (gpuDrawable in glueDeformList) {
 				if (gpuDrawable.corners == null) {
 					continue
 				}
-				setDeformUniforms(glueDeformProgram, gpuDrawable)
-				GL30.glBindVertexArray(gpuDrawable.vao)
-				GL30.glBindBufferRange(
-					GL30.GL_TRANSFORM_FEEDBACK_BUFFER,
-					0,
-					globalPositionBuffer,
-					gpuDrawable.glueBaseOffset.toLong() * 2 * Float.SIZE_BYTES,
-					gpuDrawable.vertexCount.toLong() * 2 * Float.SIZE_BYTES,
+				fillDeform(deformScratch, gpuDrawable)
+				capture.captureDeformedPositions(
+					gpuDrawable.mesh,
+					deformScratch,
+					DrawTextures(deltaTexture = gpuDrawable.deltaTexture, warpControlPoints = gpuDrawable.cpTexture),
+					gpuDrawable.glueBaseOffset,
+					gpuDrawable.vertexCount,
 				)
-				GL30.glBeginTransformFeedback(GL11.GL_POINTS)
-				GL11.glDrawArrays(GL11.GL_POINTS, 0, gpuDrawable.vertexCount)
-				GL30.glEndTransformFeedback()
 			}
-			GL11.glDisable(GL30.GL_RASTERIZER_DISCARD)
-			// Pass 2 reads this buffer back through the position TBO. The WSL d3d12/Mesa stack does not reliably
-			// order the transform-feedback writes before that texture-buffer read, so pass 2 can sample a
-			// half-written buffer → garbage vertex welds while a parameter moves. Force the
-			// writes to complete first. glFinish (full sync) is the reliable fix: transform-feedback writes are
-			// coherent-pipeline writes, outside the scope of glMemoryBarrier's incoherent-store barriers, so
-			// a memory barrier would not order them. Gated on [glueBufferDirty], this runs only on pose-change
-			// frames, so a static/idle pose pays nothing.
-			GL11.glFinish()
+			capture.end()
+			frame.barrier(activeStore)
 			glueBufferDirty = false
 		}
 
-		// Pass 2: render. Non-glue meshes deform in-shader; glue meshes read pass-1 positions + weld.
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, targetFramebuffer)
-		GL11.glViewport(0, 0, viewportWidth, viewportHeight)
-		// The grid is an opaque full-screen fill, so it both clears and paints the backdrop - no flat clear.
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
-		drawGrid(transform, currentModel.worldOriginX, currentModel.worldOriginY, gridScale, gridScale, viewportWidth, viewportHeight)
-		if (worldAxesVisible) {
-			// The world-origin axes sit between the backdrop and the drawables, so they read as part of the
-			// canvas (behind the puppet) rather than an overlay.
-			background.axisLines(
-				originNdcX = transform[0] * currentModel.worldOriginX + transform[2],
-				originNdcY = transform[1] * currentModel.worldOriginY + transform[3],
-			)
-		}
-		GL11.glEnable(GL11.GL_BLEND)
-		var boundProgram = 0
+		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
+
+		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
+		var pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
+		drawBackdrop(pass, affine, viewportWidth, viewportHeight)
+
 		for (gpuDrawable in gpuDrawables) {
-			boundProgram = useProgramFor(gpuDrawable.isGlueMesh, boundProgram, transform, viewportWidth, viewportHeight)
-			val masked = gpuDrawable.maskIds.isNotEmpty()
-			if (masked) {
-				renderMaskCoverage(gpuDrawable.maskIds)
-				boundProgram = useProgramFor(gpuDrawable.isGlueMesh, 0, transform, viewportWidth, viewportHeight)
-				GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, targetFramebuffer)
-				GL11.glViewport(0, 0, viewportWidth, viewportHeight)
-				GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_MASK)
-				GL11.glBindTexture(GL11.GL_TEXTURE_2D, maskTexture)
+			var maskCoverage: GpuTexture? = null
+			if (gpuDrawable.maskIds.isNotEmpty()) {
+				// Mask by pass fragmentation: end the main pass, render coverage into the mask target, resume
+				// the main pass preserving what is drawn so far. Correct on every backend and non-nesting.
+				pass.end()
+				renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
+				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+				maskCoverage = maskTarget?.sampledTexture
 			}
-			GL20.glUniform1i(uniform(boundProgram, "useMask"), if (masked) 1 else 0)
-			GL20.glUniform1i(uniform(boundProgram, "invertMask"), if (masked && gpuDrawable.invertMask) 1 else 0)
-			applyBlendMode(gpuDrawable.blendMode)
+			val masked = maskCoverage != null
 			val isActive = activeId != null && gpuDrawable.id == activeId
 			val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
-			drawDrawable(boundProgram, gpuDrawable, gpuDrawable.opacity, highlight, isActive)
+			drawDrawable(pass, gpuDrawable, affine, viewportWidth, viewportHeight, gpuDrawable.opacity, highlight, isActive, masked, maskCoverage)
 		}
-		GL30.glBindVertexArray(0)
-		GL20.glUseProgram(0)
+		pass.end()
+		frame.endFrame()
 	}
 
 	/**
 	 * Renders one atlas page as a flat, upright underlay for a UV-editor area (instead of the posed
-	 * puppet): the themed grid backdrop, then the whole page as a single textured quad projected
-	 * through the area camera.  Concrete (not on [Renderer]) like the other editor affordances, since it
-	 * reuses this renderer's private atlas textures, grid pass, and blend.  Draws into the currently
-	 * bound framebuffer, so the offscreen service's supersample/resolve/read-back tail is reused verbatim.
+	 * puppet): the themed grid backdrop, then the whole page as a single textured quad.  A null or
+	 * out-of-range [pageIndex] paints the grid only.
 	 *
-	 * The page samples the SAME [atlasHandles] texture the puppet does, through the same premultiplied
-	 * FRAGMENT_SHADER, so the underlay matches the puppet's texel rendering exactly (no CPU un-premultiply).
-	 * A null or out-of-range [pageIndex] (an untextured active drawable) paints the grid only.
+	 * The page samples the SAME atlas texture the puppet does, through the same premultiplied fragment
+	 * shader, so the underlay matches the puppet's texel rendering exactly.
 	 *
-	 * @param Int pageIndex The atlas page to draw (index into [PuppetTextures.atlases]), or null for none.
-	 * @param Int viewportWidth  The target framebuffer width in pixels.
-	 * @param Int viewportHeight The target framebuffer height in pixels.
+	 * @param RenderTarget target         The surface to draw into.
+	 * @param Int          pageIndex      The atlas page to draw, or null for none.
+	 * @param Int          viewportWidth  The target width in pixels.
+	 * @param Int          viewportHeight The target height in pixels.
 	 */
-	fun renderAtlasPage(pageIndex: Int?, viewportWidth: Int, viewportHeight: Int) {
-		val targetFramebuffer = GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING)
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, targetFramebuffer)
-		GL11.glViewport(0, 0, viewportWidth, viewportHeight)
-		// The grid is an opaque full-screen fill, so it both clears and paints the backdrop - no flat clear.
+	fun renderAtlasPage(target: RenderTarget, pageIndex: Int?, viewportWidth: Int, viewportHeight: Int) {
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
+		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
 		val page = pageIndex?.let { textures.atlases.getOrNull(it) }
 		// The UV grid's major lines fall on the unit atlas tile (UV integers), so the major spacing is the
-		// page's pixel extent (UV 0..1 maps to 0..pageSize in this page-pixel world space); minor lines
-		// subdivide the tile.  With no page, fall back to the square world grid so the backdrop still reads.
+		// page's pixel extent; minor lines subdivide the tile. With no page, fall back to the square grid.
 		val majorSpacingX = page?.width?.toFloat() ?: gridScale
 		val majorSpacingY = page?.height?.toFloat() ?: gridScale
+
+		val frame = device.beginFrame()
+		val pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
+		pass.setPipeline(gridPipeline!!)
 		// The UV grid's unit tile starts at the page origin (UV 0,0 = page-pixel 0,0), so anchor at (0, 0).
-		drawGrid(transform, 0f, 0f, majorSpacingX, majorSpacingY, viewportWidth, viewportHeight)
-		if (pageIndex == null || page == null) {
-			return
+		pass.drawGrid(
+			GridUniforms(affine, viewportWidth, viewportHeight, 0f, 0f, majorSpacingX, majorSpacingY, gridSubdivisions, gridPixelScale, gridColors),
+		)
+		val handle = pageIndex?.let { atlasHandles.getOrNull(it) }
+		if (page != null && handle != null) {
+			pass.setPipeline(atlasPagePipeline!!)
+			pass.setCamera(affine, viewportWidth, viewportHeight)
+			fragmentScratch.reset()
+			fragmentScratch.useTexture = true
+			pass.drawAtlasPage(handle, page.width.toFloat(), page.height.toFloat(), fragmentScratch)
 		}
-		val handle = atlasHandles.getOrNull(pageIndex) ?: return
-		GL11.glEnable(GL11.GL_BLEND)
-		applyBlendMode(BlendMode.Normal)
-		GL20.glUseProgram(pageProgram)
-		GL20.glUniform4f(uniform(pageProgram, "worldToNdc"), transform[0], transform[1], transform[2], transform[3])
-		GL20.glUniform2f(uniform(pageProgram, "pageSize"), page.width.toFloat(), page.height.toFloat())
-		GL20.glUniform1i(uniform(pageProgram, "atlas"), UNIT_ATLAS)
-		GL20.glUniform1i(uniform(pageProgram, "useTexture"), 1)
-		GL20.glUniform1i(uniform(pageProgram, "useMask"), 0)
-		GL20.glUniform1f(uniform(pageProgram, "opacity"), 1f)
-		GL20.glUniform1f(uniform(pageProgram, "highlight"), 0f)
-		GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_ATLAS)
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle)
-		GL30.glBindVertexArray(pageVao)
-		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
-		GL30.glBindVertexArray(0)
-		GL20.glUseProgram(0)
+		pass.end()
+		frame.endFrame()
 	}
 
-	/**
-	 * Binds the program for a glue vs non-glue mesh (if not already bound) and sets its per-frame uniforms
-	 * (projection, viewport, sampler units, and the glue intensities). Returns the now-bound program.
-	 */
-	private fun useProgramFor(
-		isGlueMesh: Boolean,
-		currentProgram: Int,
-		transform: FloatArray,
-		viewportWidth: Int,
-		viewportHeight: Int,
-	): Int {
-		val program = if (isGlueMesh) glueProgram else programHandle
-		if (program == currentProgram) {
-			return program
+	/** Draws the grid backdrop and, when enabled, the world-origin axis lines behind the puppet. */
+	private fun drawBackdrop(pass: RenderPassEncoder, affine: WorldToNdc, viewportWidth: Int, viewportHeight: Int) {
+		pass.setPipeline(gridPipeline!!)
+		pass.drawGrid(
+			GridUniforms(
+				affine,
+				viewportWidth,
+				viewportHeight,
+				currentModel.worldOriginX,
+				currentModel.worldOriginY,
+				gridScale,
+				gridScale,
+				gridSubdivisions,
+				gridPixelScale,
+				gridColors,
+			),
+		)
+		if (worldAxesVisible) {
+			// The axes sit between the backdrop and the drawables, reading as part of the canvas.
+			val originNdcX = affine.scaleX * currentModel.worldOriginX + affine.offsetX
+			val originNdcY = affine.scaleY * currentModel.worldOriginY + affine.offsetY
+			val axisColors = WorldAxisColors.Classic
+			pass.setPipeline(axisPipeline!!)
+			pass.drawAxisLine(AxisLineUniforms(originNdcY, vertical = false, axisColors.xRed, axisColors.xGreen, axisColors.xBlue))
+			pass.drawAxisLine(AxisLineUniforms(originNdcX, vertical = true, axisColors.zRed, axisColors.zGreen, axisColors.zBlue))
 		}
-		GL20.glUseProgram(program)
-		GL20.glUniform4f(uniform(program, "worldToNdc"), transform[0], transform[1], transform[2], transform[3])
-		GL20.glUniform2f(uniform(program, "viewportSize"), viewportWidth.toFloat(), viewportHeight.toFloat())
-		GL20.glUniform1i(uniform(program, "atlas"), UNIT_ATLAS)
-		GL20.glUniform1i(uniform(program, "maskTexture"), UNIT_MASK)
-		if (isGlueMesh) {
-			GL20.glUniform1i(uniform(program, "positionBuffer"), UNIT_POSITION)
-			GL20.glUniform1fv(uniform(program, "glueIntensity"), glueIntensities)
-			GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_POSITION)
-			GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, positionTbo)
-		} else {
-			GL20.glUniform1i(uniform(program, "deltaTex"), UNIT_DELTA)
-			GL20.glUniform1i(uniform(program, "cpTex"), UNIT_CP)
-		}
-		return program
 	}
 
-	private fun renderMaskCoverage(maskIds: List<DrawableId>) {
-		val transform = worldToNdc(maskWidth, maskHeight)
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, maskFramebuffer)
-		GL11.glViewport(0, 0, maskWidth, maskHeight)
-		GL11.glClearColor(0f, 0f, 0f, 0f)
-		GL11.glClear(GL11.GL_COLOR_BUFFER_BIT)
-		applyBlendMode(BlendMode.Normal)
-		var boundProgram = 0
+	/** Renders the mask sources' coverage into the shared mask target, as its own cleared pass. */
+	private fun renderMaskCoverage(frame: org.umamo.render.device.FrameEncoder, maskIds: List<DrawableId>, affine: WorldToNdc) {
+		val target = maskTarget ?: return
+		val coverage = frame.beginRenderPass(passSpec(target, LoadAction.Clear, maskWidth, maskHeight, clearAlpha = 0f))
 		for (maskId in maskIds) {
 			val mask = gpuById[maskId] ?: continue
 			if (!mask.visible || mask.indexCount == 0) {
 				continue
 			}
-			boundProgram = useProgramFor(mask.isGlueMesh, boundProgram, transform, maskWidth, maskHeight)
-			GL20.glUniform1i(uniform(boundProgram, "useMask"), 0)
-			drawDrawable(boundProgram, mask, 1f) // coverage of the mask's shape, ignoring its own opacity
+			// Coverage is the mask's shape at full intensity, unmasked, always Normal blend.
+			drawDrawable(coverage, mask, affine, maskWidth, maskHeight, opacity = 1f, highlight = 0f, isActive = false, masked = false, maskCoverage = null)
+		}
+		coverage.end()
+	}
+
+	/** Binds a drawable's pipeline + per-pose state and issues its draw into [pass]. */
+	private fun drawDrawable(
+		pass: RenderPassEncoder,
+		gpuDrawable: GpuDrawable,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+		opacity: Float,
+		highlight: Float,
+		isActive: Boolean,
+		masked: Boolean,
+		maskCoverage: GpuTexture?,
+	) {
+		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, gpuDrawable.blendMode))
+		pass.setCamera(affine, viewportWidth, viewportHeight)
+		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, isActive, masked)
+		val textures =
+			DrawTextures(
+				atlas = gpuDrawable.atlasTexture,
+				maskCoverage = maskCoverage,
+				deltaTexture = gpuDrawable.deltaTexture,
+				warpControlPoints = gpuDrawable.cpTexture,
+			)
+		if (gpuDrawable.isGlueMesh) {
+			pass.drawGlueMesh(gpuDrawable.mesh, store!!, gpuDrawable.glueBaseOffset, glueIntensities, fragmentScratch, textures)
+		} else {
+			fillDeform(deformScratch, gpuDrawable)
+			pass.drawPuppetMesh(gpuDrawable.mesh, deformScratch, fragmentScratch, textures)
 		}
 	}
 
-	/**
-	 * Sets a drawable's per-pose deform uniforms (active corners + baked parent transform) and binds its
-	 * delta/warp textures, for [program] (the live deform program or the glue pass-1 TF program).
-	 */
-	private fun setDeformUniforms(program: Int, gpuDrawable: GpuDrawable) {
+	/** The cached draw pipeline for a glue vs non-glue mesh at a blend mode. */
+	private fun pipelineFor(isGlueMesh: Boolean, blendMode: BlendMode): RenderPipeline {
+		val cache = if (isGlueMesh) gluePipelines else puppetPipelines
+		return cache.getOrPut(blendMode) {
+			val purpose = if (isGlueMesh) PipelinePurpose.PuppetGlueDraw else PipelinePurpose.PuppetDeformDraw
+			device.createRenderPipeline(RenderPipelineSpec(purpose, blendOf(blendMode)))
+		}
+	}
+
+	/** Fills a drawable's per-pose deform uniforms (active corners + baked parent transform). */
+	private fun fillDeform(deform: DeformUniforms, gpuDrawable: GpuDrawable) {
 		val corners = gpuDrawable.corners ?: return
 		val cornerCount = minOf(MAX_CORNERS, corners.size)
-		cornerCellBuffer.clear()
-		cornerWeightBuffer.clear()
+		deform.cornerCount = cornerCount
 		for (cornerIndex in 0 until cornerCount) {
-			cornerCellBuffer.put(corners[cornerIndex].linearIndex)
-			cornerWeightBuffer.put(corners[cornerIndex].weight)
+			deform.cornerCell[cornerIndex] = corners[cornerIndex].linearIndex
+			deform.cornerWeight[cornerIndex] = corners[cornerIndex].weight
 		}
-		cornerCellBuffer.flip()
-		cornerWeightBuffer.flip()
-		GL20.glUniform1i(uniform(program, "cornerCount"), cornerCount)
-		GL20.glUniform1iv(uniform(program, "cornerCell"), cornerCellBuffer)
-		GL20.glUniform1fv(uniform(program, "cornerWeight"), cornerWeightBuffer)
 		when (val parentWorld = gpuDrawable.parentWorld) {
 			is RotationWorld -> {
+				deform.parentType = 1
 				val xform = parentWorld.xform
-				GL20.glUniform1fv(
-					uniform(program, "rot"),
-					floatArrayOf(xform.c12, xform.c13, xform.c14, xform.c15, xform.ox, xform.oy),
-				)
-				GL20.glUniform1i(uniform(program, "parentType"), 1)
+				deform.rotation[0] = xform.c12
+				deform.rotation[1] = xform.c13
+				deform.rotation[2] = xform.c14
+				deform.rotation[3] = xform.c15
+				deform.rotation[4] = xform.ox
+				deform.rotation[5] = xform.oy
 			}
 
 			is WarpWorld -> {
-				// Bind only - the control-point data was uploaded in setPose (see the note there). Binding
-				// per draw is required because every warp mesh shares texture unit UNIT_CP.
-				GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_CP)
-				GL11.glBindTexture(GL11.GL_TEXTURE_2D, gpuDrawable.cpTexture)
-				GL20.glUniform1i(uniform(program, "warpCols"), parentWorld.cols)
-				GL20.glUniform1i(uniform(program, "warpRows"), parentWorld.rows)
-				GL20.glUniform1i(uniform(program, "warpBilinear"), if (parentWorld.bilinear) 1 else 0)
-				GL20.glUniform1i(uniform(program, "parentType"), 2)
+				deform.parentType = 2
+				deform.warpColumns = parentWorld.cols
+				deform.warpRows = parentWorld.rows
+				deform.warpBilinear = parentWorld.bilinear
 			}
 
-			else -> GL20.glUniform1i(uniform(program, "parentType"), 0)
+			else -> deform.parentType = 0
 		}
-		GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_DELTA)
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, gpuDrawable.deltaTexture)
 	}
 
-	/**
-	 * Binds a drawable's texture/color + opacity and issues its triangle draw, under [program]. A glue
-	 * mesh ([GpuDrawable.isGlueMesh]) needs only its base offset (positions come from the shared buffer); a
-	 * non-glue mesh needs its deform uniforms set first.
-	 */
-	private fun drawDrawable(program: Int, gpuDrawable: GpuDrawable, opacity: Float, highlight: Float = 0f, isActive: Boolean = false) {
-		if (gpuDrawable.isGlueMesh) {
-			GL20.glUniform1i(uniform(program, "baseOffset"), gpuDrawable.glueBaseOffset)
+	/** Fills a drawable's fragment uniforms (texture-or-color, opacity, mask flags, highlight). */
+	private fun fillFragment(
+		fragment: FragmentUniforms,
+		gpuDrawable: GpuDrawable,
+		opacity: Float,
+		highlight: Float,
+		isActive: Boolean,
+		masked: Boolean,
+	) {
+		fragment.reset()
+		if (gpuDrawable.atlasTexture != null) {
+			fragment.useTexture = true
 		} else {
-			setDeformUniforms(program, gpuDrawable)
+			fragment.colorRed = gpuDrawable.color[0]
+			fragment.colorGreen = gpuDrawable.color[1]
+			fragment.colorBlue = gpuDrawable.color[2]
+			fragment.colorAlpha = gpuDrawable.color[3]
 		}
-		if (gpuDrawable.atlasTexture > 0) {
-			GL20.glUniform1i(uniform(program, "useTexture"), 1)
-			GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_ATLAS)
-			GL11.glBindTexture(GL11.GL_TEXTURE_2D, gpuDrawable.atlasTexture)
-		} else {
-			GL20.glUniform1i(uniform(program, "useTexture"), 0)
-			GL20.glUniform4f(
-				uniform(program, "drawColor"),
-				gpuDrawable.color[0],
-				gpuDrawable.color[1],
-				gpuDrawable.color[2],
-				gpuDrawable.color[3],
-			)
-		}
-		GL20.glUniform1f(uniform(program, "opacity"), opacity)
-		GL20.glUniform1f(uniform(program, "highlight"), highlight)
+		fragment.opacity = opacity
+		fragment.useMask = masked
+		fragment.invertMask = masked && gpuDrawable.invertMask
+		fragment.highlight = highlight
 		val tint = if (isActive) activeHighlightColor else highlightColor
-		GL20.glUniform3f(uniform(program, "highlightColor"), tint[0], tint[1], tint[2])
-		GL30.glBindVertexArray(gpuDrawable.vao)
-		GL11.glDrawElements(GL11.GL_TRIANGLES, gpuDrawable.indexCount, GL11.GL_UNSIGNED_INT, 0L)
+		fragment.highlightRed = tint[0]
+		fragment.highlightGreen = tint[1]
+		fragment.highlightBlue = tint[2]
 	}
 
 	/**
-	 * The camera to project through this frame: the one set by [setCamera], or - before any is set - a
-	 * fit of the rest-pose content into the viewport (the default view).
-	 *
-	 * @param Int viewportWidth  Target width in pixels.
-	 * @param Int viewportHeight Target height in pixels.
-	 * @return ViewportCamera The effective camera.
+	 * The camera to project through this frame: the one set by [setCamera], or a fit of the rest-pose
+	 * content into the viewport before any is set.
 	 */
 	private fun effectiveCamera(viewportWidth: Int, viewportHeight: Int): ViewportCamera =
 		currentCamera ?: ViewportCamera.fit(contentBounds(), viewportWidth, viewportHeight)
 
 	/**
-	 * The shader's world-to-NDC parameters for this frame, via the [effectiveCamera].
-	 *
-	 * @param Int viewportWidth  Target width in pixels.
-	 * @param Int viewportHeight Target height in pixels.
-	 * @return FloatArray The (scaleX, scaleY, offsetX, offsetY) affine.
-	 */
-	private fun worldToNdc(viewportWidth: Int, viewportHeight: Int): FloatArray =
-		effectiveCamera(viewportWidth, viewportHeight).worldToNdc(viewportWidth, viewportHeight)
-
-	/**
-	 * Paints the world-aligned grid backdrop.  The grid lines land at world coordinates that are multiples
-	 * of the spacing offset from ([originX], [originY]) - the world origin the axes cross and the grid snap
-	 * rounds to - so a major line always passes through the axes and the lines mark the snap targets.  The
-	 * line width scales with the supersample factor so it resolves to a constant on-screen width after the
-	 * downscale.
-	 *
-	 * @param FloatArray worldToNdc     The (scaleX, scaleY, offsetX, offsetY) world-to-NDC affine.
-	 * @param Float      originX        World x the lattice is anchored on.
-	 * @param Float      originY        World y the lattice is anchored on.
-	 * @param Float      majorSpacingX  Major grid line spacing along X, in world units.
-	 * @param Float      majorSpacingY  Major grid line spacing along Y, in world units.
-	 * @param Int        viewportWidth  Target width in pixels.
-	 * @param Int        viewportHeight Target height in pixels.
-	 */
-	private fun drawGrid(
-		worldToNdc: FloatArray,
-		originX: Float,
-		originY: Float,
-		majorSpacingX: Float,
-		majorSpacingY: Float,
-		viewportWidth: Int,
-		viewportHeight: Int,
-	) {
-		background.grid(
-			viewportWidth,
-			viewportHeight,
-			worldToNdc,
-			originX,
-			originY,
-			majorSpacingX,
-			majorSpacingY,
-			gridSubdivisions,
-			gridPixelScale,
-			gridColors,
-		)
-	}
-
-	/**
 	 * Computes the rest-pose content bounds lazily, from a CPU eval at default parameters (shown drawables
-	 * only).  Evaluates the live [currentModel] (not the construction-time model) and is re-armed by
-	 * [updateModel] / [setShownDrawables], so a base-mesh edit that grows the content re-frames view.fit
-	 * instead of leaving the camera clamped to stale bounds.
+	 * only).  Re-armed by [updateModel] / [setShownDrawables] so a base-mesh edit re-frames view.fit.
 	 */
 	private fun ensureContentBounds() {
 		if (bboxReady) {
 			return
 		}
-		computeBbox(applyCpuDeform(currentModel, preparePose(currentModel, emptyMap())))
-		bboxReady = true
-	}
-
-	/** Fills minX/minY/spanX/spanY from a CPU-evaluated pose's world positions (shown drawables only). */
-	private fun computeBbox(geometry: DeformedGeometry) {
-		val bounds = contentBoundsOf(geometry, shownDrawableIds)
+		val bounds = contentBoundsOf(applyCpuDeform(currentModel, preparePose(currentModel, emptyMap())), shownDrawableIds)
 		minX = bounds.minX
 		minY = bounds.minY
 		spanX = bounds.width
 		spanY = bounds.height
+		bboxReady = true
 	}
 
+	/** (Re)allocates the viewport-sized coverage target the mask pass renders into. */
 	private fun ensureMaskTarget(viewportWidth: Int, viewportHeight: Int) {
-		if (maskFramebuffer != 0 && maskWidth == viewportWidth && maskHeight == viewportHeight) {
+		if (maskTarget != null && maskWidth == viewportWidth && maskHeight == viewportHeight) {
 			return
 		}
-		if (maskFramebuffer != 0) {
-			GL30.glDeleteFramebuffers(maskFramebuffer)
-			GL11.glDeleteTextures(maskTexture)
-		}
-		maskTexture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, maskTexture)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexImage2D(
-			GL11.GL_TEXTURE_2D,
-			0,
-			GL11.GL_RGBA8,
-			viewportWidth,
-			viewportHeight,
-			0,
-			GL11.GL_RGBA,
-			GL11.GL_UNSIGNED_BYTE,
-			null as ByteBuffer?,
-		)
-		maskFramebuffer = GL30.glGenFramebuffers()
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, maskFramebuffer)
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, maskTexture, 0)
+		maskTarget?.let { device.destroyRenderTarget(it) }
+		maskTarget = device.createRenderTarget(RenderTargetSpec(viewportWidth, viewportHeight, TextureFormat.Rgba8, sampled = true))
 		maskWidth = viewportWidth
 		maskHeight = viewportHeight
 	}
 
-	private fun uniform(program: Int, name: String): Int = GL20.glGetUniformLocation(program, name)
+	/** A render-pass spec for [target] at [load], with an optional clear. */
+	private fun passSpec(
+		target: RenderTarget,
+		load: LoadAction,
+		viewportWidth: Int,
+		viewportHeight: Int,
+		clearAlpha: Float = 0f,
+	) = org.umamo.render.device.RenderPassSpec(
+		colorTarget = target,
+		loadAction = load,
+		viewportWidth = viewportWidth,
+		viewportHeight = viewportHeight,
+		clearAlpha = clearAlpha,
+	)
 
-	/**
-	 * Uploads a mesh's per-keyform-cell vertex deltas as an RG32F texture: column = cell (linear grid
-	 * index), row = vertex id, RG = (Δx, Δy).
-	 *
-	 * @param KeyformGrid grid      The mesh's keyform grid.
-	 * @param FloatArray  positions The rest positions (for the vertex count).
-	 * @param Int         cellCount The grid's linear cell extent (texture width).
-	 * @return Int The delta texture handle.
-	 */
-	private fun uploadDeltaTexture(grid: KeyformGrid<MeshForm>, positions: FloatArray, cellCount: Int): Int {
-		val vertexCount = positions.size / 2
-		val texels = buildDeltaTexels(grid, vertexCount, cellCount)
-		val deltaData = BufferUtils.createFloatBuffer(texels.size)
-		deltaData.put(texels).flip()
-		val texture = nearestTexture()
-		GL11.glTexImage2D(
-			GL11.GL_TEXTURE_2D,
-			0,
-			GL30.GL_RG32F,
-			cellCount,
-			vertexCount,
-			0,
-			GL30.GL_RG,
-			GL11.GL_FLOAT,
-			deltaData,
-		)
-		return texture
-	}
-
-	/**
-	 * (Re)specifies a warp's control-point texture from its baked world control points (RG32F, one texel per
-	 * point). Called from [setPose] - once per pose change, never from the per-frame draw loop: the
-	 * control points are frame-invariant, and re-specifying this texture every frame churned the d3d12/Mesa
-	 * driver into progressively corrupting it. The draw loop only binds this texture (see [setDeformUniforms]).
-	 */
-	private fun uploadControlPoints(cpTexture: Int, warp: WarpWorld) {
-		val controlPointBuffer = BufferUtils.createFloatBuffer(warp.cp.size)
-		controlPointBuffer.put(warp.cp).flip()
-		GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_CP)
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, cpTexture)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexImage2D(
-			GL11.GL_TEXTURE_2D,
-			0,
-			GL30.GL_RG32F,
-			warp.cols + 1,
-			warp.rows + 1,
-			0,
-			GL30.GL_RG,
-			GL11.GL_FLOAT,
-			controlPointBuffer,
-		)
-	}
-
-	/**
-	 * Uploads a mesh's rest geometry into a VAO: rest positions (attr 0), UVs (attr 1), indices, and
-	 * - for a glue mesh - per-vertex glue attributes (attrs 2,3,4: partner index, glue index, weld weight).
-	 * The position and UV VBOs are GL_DYNAMIC_DRAW (a base-mesh edit re-uploads positions in place via
-	 * [updateModel], and a UV edit re-uploads UVs the same way); the indices and glue attributes never
-	 * change under either, so they stay GL_STATIC_DRAW.
-	 *
-	 * @param FloatArray  positions Rest positions (interleaved x,y).
-	 * @param FloatArray  uvs       Atlas UVs.
-	 * @param IntArray    indices   Triangle indices (may be empty for a glue anchor).
-	 * @param ByteBuffer? glueAttr  Per-vertex glue attributes, or null for a non-glue mesh.
-	 * @return MeshBuffers The VAO handle and the position VBO handle (kept for later re-upload).
-	 */
-	private fun uploadMesh(positions: FloatArray, uvs: FloatArray, indices: IntArray, glueAttr: ByteBuffer?): MeshBuffers {
-		var glueVbo = 0
-		var indexEbo = 0
-		val vao = GL30.glGenVertexArrays()
-		GL30.glBindVertexArray(vao)
-
-		val positionBuffer = BufferUtils.createFloatBuffer(positions.size)
-		positionBuffer.put(positions).flip()
-		val positionVbo = GL15.glGenBuffers()
-		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, positionVbo)
-		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, positionBuffer, GL15.GL_DYNAMIC_DRAW)
-		GL20.glEnableVertexAttribArray(0)
-		GL20.glVertexAttribPointer(0, 2, GL11.GL_FLOAT, false, 2 * Float.SIZE_BYTES, 0L)
-
-		val vertexCount = positions.size / 2
-		val safeUvs = if (uvs.size >= vertexCount * 2) uvs else FloatArray(vertexCount * 2)
-		val uvBuffer = BufferUtils.createFloatBuffer(safeUvs.size)
-		uvBuffer.put(safeUvs).flip()
-		val uvVbo = GL15.glGenBuffers()
-		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, uvVbo)
-		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, uvBuffer, GL15.GL_DYNAMIC_DRAW)
-		GL20.glEnableVertexAttribArray(1)
-		GL20.glVertexAttribPointer(1, 2, GL11.GL_FLOAT, false, 2 * Float.SIZE_BYTES, 0L)
-
-		if (glueAttr != null) {
-			glueVbo = GL15.glGenBuffers()
-			GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, glueVbo)
-			GL15.glBufferData(GL15.GL_ARRAY_BUFFER, glueAttr, GL15.GL_STATIC_DRAW)
-			val stride = 3 * Int.SIZE_BYTES
-			GL20.glEnableVertexAttribArray(2)
-			GL30.glVertexAttribIPointer(2, 1, GL11.GL_INT, stride, 0L)
-			GL20.glEnableVertexAttribArray(3)
-			GL30.glVertexAttribIPointer(3, 1, GL11.GL_INT, stride, Int.SIZE_BYTES.toLong())
-			GL20.glEnableVertexAttribArray(4)
-			GL20.glVertexAttribPointer(4, 1, GL11.GL_FLOAT, false, stride, (2 * Int.SIZE_BYTES).toLong())
-		}
-
-		if (indices.isNotEmpty()) {
-			val indexBuffer = BufferUtils.createIntBuffer(indices.size)
-			indexBuffer.put(indices).flip()
-			indexEbo = GL15.glGenBuffers()
-			GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, indexEbo)
-			GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, indexBuffer, GL15.GL_STATIC_DRAW)
-		}
-
-		GL30.glBindVertexArray(0)
-		return MeshBuffers(vao, positionVbo, uvVbo, glueVbo, indexEbo)
-	}
-
-	private fun nearestTexture(): Int {
-		val texture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
-		return texture
-	}
-
-	private fun applyBlendMode(mode: BlendMode) {
+	private fun blendOf(mode: BlendMode): PipelineBlend =
 		when (mode) {
-			BlendMode.Normal ->
-				GL14.glBlendFuncSeparate(
-					GL11.GL_ONE,
-					GL11.GL_ONE_MINUS_SRC_ALPHA,
-					GL11.GL_ONE,
-					GL11.GL_ONE_MINUS_SRC_ALPHA,
-				)
-
-			BlendMode.Additive ->
-				GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE)
-
-			BlendMode.Multiply ->
-				GL14.glBlendFuncSeparate(GL11.GL_DST_COLOR, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)
+			BlendMode.Normal -> PipelineBlend.Normal
+			BlendMode.Additive -> PipelineBlend.Additive
+			BlendMode.Multiply -> PipelineBlend.Multiply
 		}
-	}
+}
 
-	private fun uploadAtlas(atlas: DecodedImage): Int {
-		val pixelBuffer = BufferUtils.createByteBuffer(atlas.rgba.size)
-		pixelBuffer.put(atlas.rgba).flip()
-		val handle = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle)
-		// Plain bilinear, no mip chain: mipmapping a texture ATLAS bleeds neighbouring packed regions into
-		// each other at coarse levels (visible as color/coverage halos at clip-mask edges). Minification
-		// aliasing is handled instead by supersampling the whole offscreen render (see OffscreenPuppetService),
-		// which has no such cross-region bleed. アトラスのミップマップは領域間の滲みを生むので使わない。
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexImage2D(
-			GL11.GL_TEXTURE_2D,
-			0,
-			GL11.GL_RGBA8,
-			atlas.width,
-			atlas.height,
-			0,
-			GL11.GL_RGBA,
-			GL11.GL_UNSIGNED_BYTE,
-			pixelBuffer,
-		)
-		return handle
-	}
-
-	private fun linkProgram(vertexSource: String, fragmentSource: String): Int {
-		val program = attachShaders(vertexSource, fragmentSource)
-		GL20.glLinkProgram(program)
-		check(GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) != GL11.GL_FALSE) {
-			"GL program link failed: ${GL20.glGetProgramInfoLog(program)}"
-		}
-		return program
-	}
-
-	/** Links the glue pass-1 program: the shared TF deform shader capturing `outWorld` via feedback. */
-	private fun linkTransformFeedbackProgram(): Int {
-		val program = attachShaders(tfDeformVertexShader(DIALECT), tfDiscardFragmentShader(DIALECT))
-		GL30.glTransformFeedbackVaryings(program, arrayOf("outWorld"), GL30.GL_INTERLEAVED_ATTRIBS)
-		GL20.glLinkProgram(program)
-		check(GL20.glGetProgrami(program, GL20.GL_LINK_STATUS) != GL11.GL_FALSE) {
-			"TF program link failed: ${GL20.glGetProgramInfoLog(program)}"
-		}
-		return program
-	}
-
-	private fun attachShaders(vertexSource: String, fragmentSource: String): Int {
-		val vertexShader = compileShader(GL20.GL_VERTEX_SHADER, vertexSource)
-		val fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, fragmentSource)
-		val program = GL20.glCreateProgram()
-		GL20.glAttachShader(program, vertexShader)
-		GL20.glAttachShader(program, fragmentShader)
-		return program
-	}
-
-	private fun compileShader(stage: Int, source: String): Int {
-		val shader = GL20.glCreateShader(stage)
-		GL20.glShaderSource(shader, source)
-		GL20.glCompileShader(shader)
-		check(GL20.glGetShaderi(shader, GL20.GL_COMPILE_STATUS) != GL11.GL_FALSE) {
-			"GL shader compile failed: ${GL20.glGetShaderInfoLog(shader)}"
-		}
-		return shader
-	}
+/** Resets every field to its "nothing set" default, for reuse across draws. */
+private fun FragmentUniforms.reset() {
+	useTexture = false
+	colorRed = 0f
+	colorGreen = 0f
+	colorBlue = 0f
+	colorAlpha = 0f
+	opacity = 1f
+	useMask = false
+	invertMask = false
+	highlight = 0f
+	highlightRed = 0f
+	highlightGreen = 0f
+	highlightBlue = 0f
 }

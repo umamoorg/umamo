@@ -21,7 +21,7 @@ import org.umamo.runtime.model.PuppetModel
  *   not glued.
  * @property FloatArray weldWeight   Per vertex: how far to move toward the partner (0 when not glued).
  */
-internal class GlueVertexAttributes(
+public class GlueVertexAttributes(
 	val partnerIndex: IntArray,
 	val glueIndex: IntArray,
 	val weldWeight: FloatArray,

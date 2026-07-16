@@ -13,7 +13,7 @@ import org.umamo.render.glsl.MAX_CORNERS
 // backend's. That split is the cleanest line in the design.
 
 /** The camera's world→NDC affine: `ndc = world * (scaleX, scaleY) + (offsetX, offsetY)`. */
-internal data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX: Float, val offsetY: Float)
+public data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX: Float, val offsetY: Float)
 
 /**
  * One drawable's per-pose deform inputs: the active morph corners and the baked parent transform.
@@ -35,7 +35,7 @@ internal data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX
  * @property Int        warpRows     Warp lattice rows;     read when parentType==2.
  * @property Boolean    warpBilinear Bilinear vs triangle blend; read when parentType==2.
  */
-internal class DeformUniforms {
+public class DeformUniforms {
 	var cornerCount: Int = 0
 	val cornerCell: IntArray = IntArray(MAX_CORNERS)
 	val cornerWeight: FloatArray = FloatArray(MAX_CORNERS)
@@ -64,7 +64,7 @@ internal class DeformUniforms {
  * @property Float   highlightGreen Highlight tint green.
  * @property Float   highlightBlue  Highlight tint blue.
  */
-internal class FragmentUniforms {
+public class FragmentUniforms {
 	var useTexture: Boolean = false
 	var colorRed: Float = 0f
 	var colorGreen: Float = 0f
@@ -88,7 +88,7 @@ internal class FragmentUniforms {
  * @property GpuTexture? warpControlPoints The parent warp's baked control points, or null when the parent
  *   is not a warp.
  */
-internal class DrawTextures(
+public class DrawTextures(
 	val atlas: GpuTexture? = null,
 	val maskCoverage: GpuTexture? = null,
 	val deltaTexture: GpuTexture? = null,
@@ -98,17 +98,21 @@ internal class DrawTextures(
 /**
  * The grid backdrop's inputs for one pass.
  *
- * @property WorldToNdc worldToNdc    The affine the fragment inverts to recover its world position.
- * @property Float      originX       World x the lattice is anchored on (a major line crosses it).
- * @property Float      originY       World y the lattice is anchored on.
- * @property Float      majorSpacingX Major line spacing along X, in world units.
- * @property Float      majorSpacingY Major line spacing along Y, in world units.
- * @property Int        subdivisions  Minor lines per major cell.
- * @property Float      lineWidthPx   Line half-width in framebuffer pixels (accounts for supersampling).
- * @property GridColors colors        The background / major / minor colours.
+ * @property WorldToNdc worldToNdc     The affine the fragment inverts to recover its world position.
+ * @property Int        viewportWidth  The framebuffer width, for the fragment's screen-to-world math.
+ * @property Int        viewportHeight The framebuffer height.
+ * @property Float      originX        World x the lattice is anchored on (a major line crosses it).
+ * @property Float      originY        World y the lattice is anchored on.
+ * @property Float      majorSpacingX  Major line spacing along X, in world units.
+ * @property Float      majorSpacingY  Major line spacing along Y, in world units.
+ * @property Int        subdivisions   Minor lines per major cell.
+ * @property Float      lineWidthPx    Line half-width in framebuffer pixels (accounts for supersampling).
+ * @property GridColors colors         The background / major / minor colours.
  */
-internal data class GridUniforms(
+public data class GridUniforms(
 	val worldToNdc: WorldToNdc,
+	val viewportWidth: Int,
+	val viewportHeight: Int,
 	val originX: Float,
 	val originY: Float,
 	val majorSpacingX: Float,
@@ -127,7 +131,7 @@ internal data class GridUniforms(
  * @property Float   green           Line green.
  * @property Float   blue            Line blue.
  */
-internal data class AxisLineUniforms(
+public data class AxisLineUniforms(
 	val linePositionNdc: Float,
 	val vertical: Boolean,
 	val red: Float,
