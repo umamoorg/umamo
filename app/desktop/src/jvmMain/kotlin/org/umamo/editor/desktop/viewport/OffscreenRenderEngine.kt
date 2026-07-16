@@ -7,9 +7,9 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
-import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.gl.GlRenderDevice
 import org.umamo.render.gl.readFramebufferPixels
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel

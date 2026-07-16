@@ -3,13 +3,13 @@ package org.umamo.editor.desktop.viewport
 import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
-import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.pick.drawableCentroids
 import org.umamo.render.pick.pickAllDrawables
 import org.umamo.render.pick.pickDrawable
 import org.umamo.render.pick.screenToWorldX
 import org.umamo.render.pick.screenToWorldY
+import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
