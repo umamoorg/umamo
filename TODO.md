@@ -14,6 +14,11 @@
 * Final pass on theme colors.
 	* This includes MeshEditColors.kt.(One full pass has already been done.)
 
+## User Stories
+* From CrystalorImLisa on Reddit: The ability to mirror deformers and drawables along with their key frames.
+	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
+	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
+
 ## Read/Write Filing Handling
 app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/EditorApp.kt
 The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
@@ -42,10 +47,15 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 	* Grid - Ability to change scale and divisions.
 	* 3D Cursor
 
+## Object and Mesh Editing
+* Improvements
+	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
+
 ## UV Editor
 * Bugs/Improvements
 	* Rip and Vertex Slide are activating the 2D viewport mesh rip/slide.  Needs to be implemented for UV and then properly gated.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
+	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
