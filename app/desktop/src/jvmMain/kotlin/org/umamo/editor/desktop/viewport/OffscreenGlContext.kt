@@ -1,5 +1,7 @@
 package org.umamo.editor.desktop.viewport
 
+import org.lwjgl.system.Configuration
+
 /**
  * An off-screen GL 3.3+ core context owned by a single render thread. The offscreen viewport renderer
  * ([OffscreenRenderEngine]) renders only to framebuffer objects, so a context needs no visible window and no
@@ -40,15 +42,15 @@ internal interface OffscreenGlContext {
 }
 
 /**
- * Selects the offscreen GL context implementation for the running OS: CGL on macOS, GLFW everywhere else.
+ * Selects the offscreen GL context implementation for the running OS. GLFW is used on all platforms.
  *
  * @return OffscreenGlContext The context backend for this OS.
  */
 internal fun createOffscreenGlContext(): OffscreenGlContext {
 	val osName = System.getProperty("os.name").orEmpty().lowercase()
-	return if (osName.contains("mac") || osName.contains("darwin")) {
-		CglOffscreenGlContext()
-	} else {
-		GlfwOffscreenGlContext()
+	if (osName.contains("mac") || osName.contains("darwin")) {
+		// https://javadoc.lwjgl.org/org/lwjgl/glfw/package-summary.html#using-glfw-on-macos-heading
+		Configuration.GLFW_LIBRARY_NAME.set("glfw_async")
 	}
+	return GlfwOffscreenGlContext()
 }
