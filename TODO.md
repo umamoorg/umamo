@@ -19,6 +19,15 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
+## Logging Panel/Space
+* A panel to see the UmamoLog output for users that won't see it in a Terminal.
+	* Copy to Clipboard
+	* Export to File
+
+## Portability
+* Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?
+	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
+
 ## Read/Write Filing Handling
 app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/EditorApp.kt
 The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
