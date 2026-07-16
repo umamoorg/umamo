@@ -1,5 +1,6 @@
 package org.umamo.render.puppet
 
+import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -156,5 +157,23 @@ class GlueLayoutTest {
 		assertEquals(null, layout.baseOffsetById[DrawableId("ghost")])
 		assertEquals(2, layout.globalVertexCount, "only the real mesh occupies the store")
 		assertEquals(-1, layout.attributesById.getValue(DrawableId("a")).glueIndex[0], "the half-resolved pair is not applied")
+	}
+
+	@Test
+	fun planGlueLayoutLeavesGlueBeyondTheShaderArrayUnwelded() {
+		// The shader's glueIntensity[] uniform has exactly MAX_GLUES slots; a vertex tagged with glue index
+		// >= MAX_GLUES would read it out of bounds. Those pairs must stay -1 (unwelded), which is what makes
+		// resolvePose's "renders unwelded" promise true rather than an out-of-bounds read.
+		val a = drawable("a", 1)
+		val b = drawable("b", 1)
+		// MAX_GLUES + 1 glues, all on the same pair. The first MAX_GLUES tag vertex 0; the last must not.
+		val glues = List(MAX_GLUES + 1) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null) }
+		val layout = planGlueLayout(model(listOf(a, b), glues))
+		// Each pair overwrites vertex 0's tag, so after the loop it holds the LAST in-bounds glue index.
+		assertEquals(MAX_GLUES - 1, layout.attributesById.getValue(DrawableId("a")).glueIndex[0], "the last addressable glue tags the vertex")
+		assertTrue(
+			layout.attributesById.getValue(DrawableId("a")).glueIndex.all { it < MAX_GLUES },
+			"no vertex is ever tagged with a glue index the shader array cannot hold",
+		)
 	}
 }

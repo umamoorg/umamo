@@ -56,6 +56,8 @@ internal class ResolvedPose(
  * @param Set              shownIds       The resolved Parts-panel visibility cascade.
  * @param List             baseOrder      The model's flat drawable order, for a group-less model.
  * @param RenderGroup      renderRoot     The draw-order group tree.
+ * @param FloatArray       glueIntensities A caller-owned array of length [MAX_GLUES] this fills in place
+ *   (and returns in [ResolvedPose.glueIntensities]), so a per-pose render allocates no intensity buffer.
  * @return ResolvedPose The pose, resolved.
  */
 internal fun resolvePose(
@@ -64,6 +66,7 @@ internal fun resolvePose(
 	shownIds: Set<DrawableId>,
 	baseOrder: List<DrawableId>,
 	renderRoot: RenderGroup,
+	glueIntensities: FloatArray,
 ): ResolvedPose {
 	// LinkedHashMap: iteration follows inputs.drawables order, which the backend's per-pose uploads walk.
 	val posed = LinkedHashMap<DrawableId, PosedDrawable>(inputs.drawables.size)
@@ -87,7 +90,7 @@ internal fun resolvePose(
 	// skip the partner read entirely - matching the CPU applyGluesResolved, which skips a glue whose
 	// partner produced no geometry. Note this asks whether the partner POSED, not whether it draws: an
 	// index-less anchor is a legitimate partner.
-	val glueIntensities = FloatArray(MAX_GLUES) { 1f }
+	glueIntensities.fill(1f) // slots beyond glues.size stay 1f and are never read by the shader
 	for ((glueIndex, glue) in inputs.glues.withIndex()) {
 		if (glueIndex >= MAX_GLUES) {
 			continue // beyond the shader's glueIntensity[] array: this glue renders unwelded

@@ -28,6 +28,8 @@ import org.umamo.render.glsl.UNIT_CP
 import org.umamo.render.glsl.UNIT_DELTA
 import org.umamo.render.glsl.UNIT_MASK
 import org.umamo.render.glsl.UNIT_POSITION
+import java.nio.FloatBuffer
+import java.nio.IntBuffer
 
 /**
  * The GL implementation of one frame's recorded work.
@@ -82,13 +84,25 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	private var pipeline: GlRenderPipeline? = null
 	private val current: GlRenderPipeline get() = pipeline ?: error("setPipeline before drawing")
 
+	// Per-program state is re-established only when the program actually switches. A uniform keeps its value
+	// on the program object across binds, and the renderer passes the same camera / glue state for a whole
+	// pass, so re-sending them per draw (as the pre-device renderer's useProgramFor did NOT) is wasted work:
+	// a run of same-blend drawables would otherwise churn glUseProgram + blend + samplers + camera every draw.
+	private var cameraApplied = false
+	private var glueStateApplied = false
+
 	// Scratch for the corner uniform arrays, reused across draws so the per-draw marshalling never allocates.
 	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
 	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
 
 	override fun setPipeline(pipeline: RenderPipeline) {
 		val glPipeline = pipeline as GlRenderPipeline
+		if (glPipeline === this.pipeline) {
+			return // already bound: program, blend, and samplers are all still in effect
+		}
 		this.pipeline = glPipeline
+		cameraApplied = false
+		glueStateApplied = false
 		GL20.glUseProgram(glPipeline.program)
 		applyBlend(glPipeline.blend)
 		// Sampler → texture unit is constant per program; -1 for a sampler the program lacks is a no-op.
@@ -101,13 +115,17 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	}
 
 	override fun setCamera(worldToNdc: WorldToNdc, viewportWidth: Int, viewportHeight: Int) {
+		if (cameraApplied) {
+			return // the current program already holds this pass's camera (constant across the pass)
+		}
+		cameraApplied = true
 		val locations = current.locations
 		GL20.glUniform4f(locations.worldToNdc, worldToNdc.scaleX, worldToNdc.scaleY, worldToNdc.offsetX, worldToNdc.offsetY)
 		GL20.glUniform2f(locations.viewportSize, viewportWidth.toFloat(), viewportHeight.toFloat())
 	}
 
 	override fun drawPuppetMesh(mesh: GpuMesh, deform: DeformUniforms, fragment: FragmentUniforms, textures: DrawTextures) {
-		setDeformUniforms(current, deform, textures)
+		marshalDeformUniforms(current.locations, deform, textures, cornerCellScratch, cornerWeightScratch)
 		setFragmentUniforms(current, fragment, textures)
 		val glMesh = mesh as GlMesh
 		GL30.glBindVertexArray(glMesh.vao)
@@ -123,10 +141,15 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		textures: DrawTextures,
 	) {
 		val locations = current.locations
+		// The weld intensities and the position texture buffer are constant across the pass, so bind them
+		// once per glue-program bind (matching the old useProgramFor), not per glue draw.
+		if (!glueStateApplied) {
+			glueStateApplied = true
+			GL20.glUniform1fv(locations.glueIntensity, glueIntensities)
+			GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_POSITION)
+			GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, (store as GlDeformedPositionStore).textureBuffer)
+		}
 		GL20.glUniform1i(locations.baseOffset, baseVertexOffset)
-		GL20.glUniform1fv(locations.glueIntensity, glueIntensities)
-		GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_POSITION)
-		GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, (store as GlDeformedPositionStore).textureBuffer)
 		setFragmentUniforms(current, fragment, textures)
 		val glMesh = mesh as GlMesh
 		GL30.glBindVertexArray(glMesh.vao)
@@ -136,7 +159,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	override fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms) {
 		val locations = current.locations
 		GL20.glUniform2f(locations.pageSize, pageWidth, pageHeight)
-		setFragmentUniforms(current, fragment, DrawTextures(atlas = atlas))
+		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = atlas })
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
 	}
@@ -170,33 +193,6 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	override fun end() {
 		GL30.glBindVertexArray(0)
 		GL20.glUseProgram(0)
-	}
-
-	/** Sets a mesh's per-pose deform uniforms and binds its delta (and, for a warp parent, control-point) texture. */
-	private fun setDeformUniforms(pipeline: GlRenderPipeline, deform: DeformUniforms, textures: DrawTextures) {
-		val locations = pipeline.locations
-		val cornerCount = minOf(org.umamo.render.glsl.MAX_CORNERS, deform.cornerCount)
-		cornerCellScratch.clear()
-		cornerWeightScratch.clear()
-		for (cornerIndex in 0 until cornerCount) {
-			cornerCellScratch.put(deform.cornerCell[cornerIndex])
-			cornerWeightScratch.put(deform.cornerWeight[cornerIndex])
-		}
-		cornerCellScratch.flip()
-		cornerWeightScratch.flip()
-		GL20.glUniform1i(locations.cornerCount, cornerCount)
-		GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
-		GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
-		GL20.glUniform1i(locations.parentType, deform.parentType)
-		if (deform.parentType == 1) {
-			GL20.glUniform1fv(locations.rot, deform.rotation)
-		} else if (deform.parentType == 2) {
-			GL20.glUniform1i(locations.warpCols, deform.warpColumns)
-			GL20.glUniform1i(locations.warpRows, deform.warpRows)
-			GL20.glUniform1i(locations.warpBilinear, if (deform.warpBilinear) 1 else 0)
-			textures.warpControlPoints?.let { bindTexture2D(UNIT_CP, it) }
-		}
-		textures.deltaTexture?.let { bindTexture2D(UNIT_DELTA, it) }
 	}
 
 	/** Sets a draw's fragment uniforms and binds its atlas / mask textures when present. */
@@ -235,30 +231,7 @@ internal class GlDeformCapturePassEncoder(
 		destinationVertexOffset: Int,
 		vertexCount: Int,
 	) {
-		val locations = pipeline.locations
-		val cornerCount = minOf(org.umamo.render.glsl.MAX_CORNERS, deform.cornerCount)
-		cornerCellScratch.clear()
-		cornerWeightScratch.clear()
-		for (cornerIndex in 0 until cornerCount) {
-			cornerCellScratch.put(deform.cornerCell[cornerIndex])
-			cornerWeightScratch.put(deform.cornerWeight[cornerIndex])
-		}
-		cornerCellScratch.flip()
-		cornerWeightScratch.flip()
-		GL20.glUniform1i(locations.cornerCount, cornerCount)
-		GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
-		GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
-		GL20.glUniform1i(locations.parentType, deform.parentType)
-		if (deform.parentType == 1) {
-			GL20.glUniform1fv(locations.rot, deform.rotation)
-		} else if (deform.parentType == 2) {
-			GL20.glUniform1i(locations.warpCols, deform.warpColumns)
-			GL20.glUniform1i(locations.warpRows, deform.warpRows)
-			GL20.glUniform1i(locations.warpBilinear, if (deform.warpBilinear) 1 else 0)
-			textures.warpControlPoints?.let { bindTexture2D(UNIT_CP, it) }
-		}
-		textures.deltaTexture?.let { bindTexture2D(UNIT_DELTA, it) }
-
+		marshalDeformUniforms(pipeline.locations, deform, textures, cornerCellScratch, cornerWeightScratch)
 		GL30.glBindVertexArray((mesh as GlMesh).vao)
 		GL30.glBindBufferRange(
 			GL30.GL_TRANSFORM_FEEDBACK_BUFFER,
@@ -275,6 +248,51 @@ internal class GlDeformCapturePassEncoder(
 	override fun end() {
 		GL11.glDisable(GL30.GL_RASTERIZER_DISCARD)
 	}
+}
+
+/**
+ * Marshals a mesh's per-pose deform uniforms and binds its delta (and, for a warp parent, control-point)
+ * texture.
+ *
+ * Shared by the pass-2 draw and the pass-1 capture so the two paths cannot diverge: they feed the exact
+ * same deform inputs to the exact same DEFORM_GLSL, which is what lets GpuDeformValidationTest's pin on the
+ * draw path also stand for the capture path.  Both pass their own reused scratch buffers.
+ *
+ * @param GlUniformLocations locations         The bound program's uniform locations.
+ * @param DeformUniforms     deform            The per-pose deform inputs.
+ * @param DrawTextures       textures          The delta and (warp) control-point textures to bind.
+ * @param IntBuffer          cornerCellScratch Reused scratch for the corner-cell uniform array.
+ * @param FloatBuffer        cornerWeightScratch Reused scratch for the corner-weight uniform array.
+ */
+private fun marshalDeformUniforms(
+	locations: GlUniformLocations,
+	deform: DeformUniforms,
+	textures: DrawTextures,
+	cornerCellScratch: IntBuffer,
+	cornerWeightScratch: FloatBuffer,
+) {
+	val cornerCount = minOf(org.umamo.render.glsl.MAX_CORNERS, deform.cornerCount)
+	cornerCellScratch.clear()
+	cornerWeightScratch.clear()
+	for (cornerIndex in 0 until cornerCount) {
+		cornerCellScratch.put(deform.cornerCell[cornerIndex])
+		cornerWeightScratch.put(deform.cornerWeight[cornerIndex])
+	}
+	cornerCellScratch.flip()
+	cornerWeightScratch.flip()
+	GL20.glUniform1i(locations.cornerCount, cornerCount)
+	GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
+	GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
+	GL20.glUniform1i(locations.parentType, deform.parentType)
+	if (deform.parentType == 1) {
+		GL20.glUniform1fv(locations.rot, deform.rotation)
+	} else if (deform.parentType == 2) {
+		GL20.glUniform1i(locations.warpCols, deform.warpColumns)
+		GL20.glUniform1i(locations.warpRows, deform.warpRows)
+		GL20.glUniform1i(locations.warpBilinear, if (deform.warpBilinear) 1 else 0)
+		textures.warpControlPoints?.let { bindTexture2D(UNIT_CP, it) }
+	}
+	textures.deltaTexture?.let { bindTexture2D(UNIT_DELTA, it) }
 }
 
 /** Binds [texture] to the given texture unit as a 2D texture. */

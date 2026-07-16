@@ -15,7 +15,7 @@ package org.umamo.render.glsl
  * The deform body is shared with the glue pass-1 capture shader and the GPU-vs-CPU validation test, so
  * all three exercise identical math rather than three hand-kept copies.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun puppetVertexShader(dialect: GlslDialect): String =
@@ -39,7 +39,7 @@ internal fun puppetVertexShader(dialect: GlslDialect): String =
  * its partner's, and applies `own + (partner − own)·w·intensity` on the GPU, matching the CPU
  * `applyGluesResolved`.  Non-glued vertices pass through unchanged.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  * @warning The [GlslDialect.Es300] output is NOT compilable as-is: `samplerBuffer` is GLES 3.2, and the
  *   Android baseline is 3.0.  Making it portable means repacking the shared position buffer as a regular
@@ -80,7 +80,7 @@ internal fun glueVertexShader(dialect: GlslDialect): String =
  * bottom-left, Metal's top-left) and so needs no per-dialect flip; it only holds while the mask pass and
  * this pass share a convention, which a port must keep true.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun puppetFragmentShader(dialect: GlslDialect): String =
@@ -123,7 +123,7 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
  * That V-flip is a CONTENT convention (Y-up display vs top-first atlas rows), not a backend one, so it is
  * identical in MSL - a Metal port must keep it, not "correct" it for Metal's top-left texture origin.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun atlasPageVertexShader(dialect: GlslDialect): String =

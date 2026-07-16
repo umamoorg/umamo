@@ -1,6 +1,7 @@
 package org.umamo.render.puppet
 
 import org.umamo.render.eval.preparePose
+import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
 import org.umamo.runtime.model.Drawable
@@ -73,6 +74,7 @@ class PoseResolveTest {
 		shownIds = shown,
 		baseOrder = source.drawables.map { it.id },
 		renderRoot = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, emptyList()),
+		glueIntensities = FloatArray(MAX_GLUES) { 1f },
 	)
 
 	@Test
