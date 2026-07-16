@@ -3,11 +3,11 @@
 # Why: Gradle's typed `libs.*` accessors beat scattered string versions in each
 # build script — one place to bump, compile-checked references.
 [versions]
-kotlin = "2.4.0"
-agp = "9.2.1"
+kotlin = "2.4.10"
+agp = "9.3.0"
 composeMultiplatform = "1.11.1"
 ktlint = "14.2.0"
-lwjgl = "3.4.1"
+lwjgl = "3.4.2"
 androidxActivity = "1.13.0"
 # JDOM 1.x (package org.jdom) — the exact XML library the Cubism editor uses. Pinned to 1.1.x
 # so XMLOutputter + Format.getPrettyFormat() reproduce main.xml byte-for-byte; JDOM2 (org.jdom2)
@@ -16,9 +16,9 @@ jdom = "1.1.3"
 kotlinxSerialization = "1.11.0"
 # okio — the de-facto multiplatform filesystem (Kotlin stdlib has no common File). Backs :storage's
 # file IO on desktop + Android with one API, and FakeFileSystem makes :settings testable with no disk.
-okio = "3.16.2"
+okio = "3.17.0"
 # kotlinx-coroutines — for :settings' change-event SharedFlow (the reactive spine the UI/History want).
-kotlinxCoroutines = "1.10.2"
+kotlinxCoroutines = "1.11.0"
 # kotlinx-datetime — the local wall clock the CAFF zip timestamp needs. The Kotlin stdlib has a common
 # Clock but no time ZONE, and a DOS timestamp is local time, so this is the smallest thing that closes
 # the gap without reintroducing an expect/actual. See docs/formats/CMO3.md §1.
@@ -34,9 +34,9 @@ jna = "5.19.1"
 sqldelight = "2.3.2"
 
 # Android SDK levels (referenced from each android target).
-android-compileSdk = "36"
+android-compileSdk = "37"
 android-minSdk = "26"
-android-targetSdk = "36"
+android-targetSdk = "37"
 
 [libraries]
 # --- LWJGL (desktop GPU): managed via the BOM so module versions stay aligned. ---

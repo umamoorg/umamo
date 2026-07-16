@@ -13,7 +13,7 @@ package org.umamo.render.glsl
  *
  * A hard ceiling, not a guess: it sizes the `cornerCell` / `cornerWeight` uniform arrays, so a mesh with
  * more active corners has the surplus dropped rather than blended.  16 corners is a 4-dimensional
- * keyform grid (2^4), which is past anything Cubism authors in practice.
+ * keyform grid (2^4).
  */
 internal const val MAX_CORNERS = 16
 
