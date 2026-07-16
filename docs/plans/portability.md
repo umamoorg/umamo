@@ -36,6 +36,8 @@ Verified against the tree on 2026-07-15.
 
 All eight library modules declare exactly `jvm()` + `android {}`. There is no `iosArm64`, no `iosSimulatorArm64`, no `macosArm64`, no `linuxX64`, no `native()` anywhere in the build, and no `iosMain` / `appleMain` / `nativeMain` directory on disk. **No Kotlin/Native target has ever been configured.**
 
+**UPDATE (2026-07-16): `:format`, `:runtime`, and `:render` now declare `iosArm64()`**, each wired into `check` for main AND test compiles (compile-only on Linux/CI — klibs need no Xcode). For those three, commonMain purity is a compiler guarantee. `:render/iosMain` carries the `MetalRenderDevice` stub — the iPadOS port's entry point — and `:render/androidMain` the `GlesRenderDevice` stub. Phase A's remaining candidates are `:settings`, `:edit`, `:reimport`, and `:ui`/`:storage` (the latter two need actuals — Phase F).
+
 ### Portable today, zero work
 
 | Module      | Source set | Files | Note                                                                                                                                                                                                                                                                                                |

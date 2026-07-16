@@ -1,8 +1,9 @@
-// :render — deformation eval (CPU) + renderer + morph-blend shaders. expect/actual: LWJGL on
-// desktop, GLES on Android. Backend-agnostic eval + Renderer interface in commonMain; GL impl in
-// jvmMain/androidMain. Depends on :runtime for the puppet model.
-// :render — 変形評価（CPU）＋レンダラ＋モーフブレンドシェーダ。expect/actual：デスクトップは LWJGL、
-// Android は GLES。バックエンド非依存の評価と Renderer は commonMain、GL 実装は各プラットフォーム。:runtime に依存。
+// :render — deformation eval (CPU) + the backend-neutral PuppetRenderer + morph-blend shaders, over a
+// RenderDevice backend seam. Everything except the device impls is commonMain (jvm/android/iosArm64);
+// GlRenderDevice (LWJGL, desktop GL 3.3) lives in jvmMain, the GLES/Metal devices are stubs in
+// androidMain/iosMain. Zero expect/actual. Depends on :runtime for the puppet model.
+// :render — 変形評価（CPU）＋バックエンド非依存の PuppetRenderer。RenderDevice が継ぎ目で、GL 実装のみ
+// jvmMain。GLES / Metal デバイスはスタブ。:runtime に依存。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -20,11 +21,9 @@ val lwjglNatives = extra["umamoLwjglNatives"] as String
 kotlin {
 	jvmToolchain(21)
 
-	// `expect`/`actual` *classes* are still flagged Beta by the compiler; this is the
-	// JetBrains-recommended opt-in to silence the warning (the feature itself is stable in use).
-	compilerOptions {
-		freeCompilerArgs.add("-Xexpect-actual-classes")
-	}
+	// (The -Xexpect-actual-classes opt-in that used to sit here left with its only user, the
+	// `expect class GpuRenderer` — this module is zero expect/actual now; the backend seam is the
+	// RenderDevice interface instead.)
 
 	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
@@ -41,6 +40,14 @@ kotlin {
 	}
 
 	jvm()
+
+	// The iPadOS ship target, mirroring :format/:runtime (see :format's docblock for the rationale).
+	// This is what the Metal engineer builds against: iosMain sees the whole backend-neutral stack —
+	// PuppetRenderer, the RenderDevice API, eval, pose/diff/glue planning — and supplies one
+	// MetalRenderDevice. It also turns commonMain purity for all of that from the root regex gate's
+	// convention into a compiler guarantee. Compiles on Linux/CI (klib only, no Xcode linker); `check`
+	// is wired to the compiles explicitly below because a device target has no runnable test task.
+	iosArm64()
 
 	android {
 		namespace = "org.umamo.render"
@@ -102,6 +109,13 @@ kotlin {
 			}
 		}
 	}
+}
+
+// Wire the iosArm64 compile into `check`, main AND test — neither arrives on its own, because a device
+// target has no runnable test task (see :format's wiring comment for the war story: main compiled green
+// while commonTest was broken, and only CI's explicit compileTestKotlinIosArm64 caught it).
+tasks.named("check") {
+	dependsOn("compileKotlinIosArm64", "compileTestKotlinIosArm64")
 }
 
 // Corpus + differential-oracle paths for the eval's gated tests:
