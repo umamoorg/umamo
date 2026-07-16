@@ -18,7 +18,7 @@ package org.umamo.render.glsl
  *
  * 頂点バッファ無しの全画面パス。三角形の頂点は gl_VertexID から生成する。
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun gridVertexShader(dialect: GlslDialect): String =
@@ -40,7 +40,7 @@ internal fun gridVertexShader(dialect: GlslDialect): String =
  *
  * ワールド整列グリッド。worldToNdc を逆変換して各フラグメントのワールド座標を求め、主線・副線を描く。
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun gridFragmentShader(dialect: GlslDialect): String =
@@ -99,7 +99,7 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
  *
  * 軸線 1 本を描くパス。端点は gl_VertexID から生成し、固定座標と向きは uniform で受け取る。
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun axisVertexShader(dialect: GlslDialect): String =
@@ -117,7 +117,7 @@ internal fun axisVertexShader(dialect: GlslDialect): String =
 /**
  * The axis line's fragment shader: a flat, opaque line color.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun axisFragmentShader(dialect: GlslDialect): String =

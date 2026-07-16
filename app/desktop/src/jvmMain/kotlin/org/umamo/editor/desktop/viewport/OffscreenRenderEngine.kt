@@ -1,14 +1,8 @@
 package org.umamo.editor.desktop.viewport
 
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toComposeImageBitmap
-import org.jetbrains.skia.ColorAlphaType
-import org.jetbrains.skia.ColorType
-import org.jetbrains.skia.ImageInfo
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
-import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
@@ -22,11 +16,12 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.graphics.RgbaAlphaType
+import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
 import java.io.File
 import java.util.ArrayDeque
-import org.jetbrains.skia.Image as SkiaImage
 
 /** Framebuffer pixels per display pixel: the whole pipeline renders 2x and box-downscales on resolve. */
 internal const val RENDER_SUPERSAMPLE = 2
@@ -496,30 +491,12 @@ internal class OffscreenRenderEngine(
 			pendingFrames.removeFirst()
 			val slot = registry.areas[pending.areaId] ?: continue
 			slot.inFlight = false
-			slot.imageState.value = RenderedFrame(pixelsToImageBitmap(pixels), pending.camera, pending.model)
+			// The device's read-back is TOP-first RGBA already; the preview background is composited into
+			// RGB, so it is opaque - the shared seam's Opaque path ignores the alpha bytes (no per-frame
+			// alpha pass) and gives the eventual Android viewport the same conversion for free.
+			val bitmap = rgbaToImageBitmap(pixels.rgba, pixels.width, pixels.height, RgbaAlphaType.Opaque)
+			slot.imageState.value = RenderedFrame(bitmap, pending.camera, pending.model)
 		}
-	}
-
-	/**
-	 * Wraps a read-back's pixels as an opaque Compose [ImageBitmap].
-	 *
-	 * The rows arrive TOP-first already - the device's read-back contract - so no flip happens here.
-	 * Alpha is forced opaque in place: the preview background is composited into RGB, so a constant
-	 * alpha keeps the image opaque without depending on the framebuffer's alpha channel.  Mutating
-	 * [RasterImage.rgba] is fine - the device hands over a fresh buffer with each read-back.
-	 *
-	 * @param RasterImage pixels The read-back.
-	 * @return ImageBitmap The display bitmap.
-	 */
-	private fun pixelsToImageBitmap(pixels: RasterImage): ImageBitmap {
-		val bytes = pixels.rgba
-		var alphaIndex = 3
-		while (alphaIndex < bytes.size) {
-			bytes[alphaIndex] = 255.toByte()
-			alphaIndex += 4
-		}
-		val info = ImageInfo(pixels.width, pixels.height, ColorType.RGBA_8888, ColorAlphaType.OPAQUE)
-		return SkiaImage.makeRaster(info, bytes, pixels.width * 4).toComposeImageBitmap()
 	}
 
 	/**

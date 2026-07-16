@@ -20,7 +20,7 @@ public data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX: 
  *
  * MUTABLE AND REUSED. The renderer refills one instance per draw rather than allocating ~60 of these a
  * frame. A device implementation MUST therefore marshal every field before returning and MUST NOT retain
- * the instance. Both `glUniform*` and Metal's `setVertexBytes` copy, so both can honour that; a backend
+ * the instance. Both `glUniform*` and Metal's `setVertexBytes` copy, so both can honor that; a backend
  * that wanted to record and replay a command buffer could not, and would need its own copy.
  *
  * Getting this wrong renders garbage that looks exactly like a driver bug, which is why it is stated here
@@ -51,15 +51,15 @@ public class DeformUniforms {
  *
  * Mutable and reused on the same contract as [DeformUniforms].
  *
- * @property Boolean useTexture   Sample [DrawTextures.atlas] rather than the flat colour below.
- * @property Float   colorRed     Flat colour red,   used when [useTexture] is false.
- * @property Float   colorGreen   Flat colour green, used when [useTexture] is false.
- * @property Float   colorBlue    Flat colour blue,  used when [useTexture] is false.
- * @property Float   colorAlpha   Flat colour alpha, used when [useTexture] is false.
+ * @property Boolean useTexture   Sample [DrawTextures.atlas] rather than the flat color below.
+ * @property Float   colorRed     Flat color red,   used when [useTexture] is false.
+ * @property Float   colorGreen   Flat color green, used when [useTexture] is false.
+ * @property Float   colorBlue    Flat color blue,  used when [useTexture] is false.
+ * @property Float   colorAlpha   Flat color alpha, used when [useTexture] is false.
  * @property Float   opacity      The pose-blended opacity, multiplied into alpha.
  * @property Boolean useMask      Multiply alpha by the mask coverage.
  * @property Boolean invertMask   Use 1 - coverage instead.
- * @property Float   highlight    How far to tint toward the highlight colour (0 = untinted).
+ * @property Float   highlight    How far to tint toward the highlight color (0 = untinted).
  * @property Float   highlightRed   Highlight tint red.
  * @property Float   highlightGreen Highlight tint green.
  * @property Float   highlightBlue  Highlight tint blue.
@@ -82,18 +82,22 @@ public class FragmentUniforms {
 /**
  * The textures one draw samples.  Null means the draw does not use that slot.
  *
- * @property GpuTexture? atlas             The art atlas page, or null to draw the flat colour.
+ * Mutable and reused per draw on the same contract as [DeformUniforms] - the renderer refills one instance
+ * rather than allocating a bundle per drawable per frame; the device must read the fields before returning
+ * and must not retain the instance (binding a texture reads its handle synchronously, so both backends can).
+ *
+ * @property GpuTexture? atlas             The art atlas page, or null to draw the flat color.
  * @property GpuTexture? maskCoverage      The clip mask's coverage, or null when unmasked.
  * @property GpuTexture? deltaTexture      The mesh's morph delta table (deform draws only).
  * @property GpuTexture? warpControlPoints The parent warp's baked control points, or null when the parent
  *   is not a warp.
  */
-public class DrawTextures(
-	val atlas: GpuTexture? = null,
-	val maskCoverage: GpuTexture? = null,
-	val deltaTexture: GpuTexture? = null,
-	val warpControlPoints: GpuTexture? = null,
-)
+public class DrawTextures {
+	public var atlas: GpuTexture? = null
+	public var maskCoverage: GpuTexture? = null
+	public var deltaTexture: GpuTexture? = null
+	public var warpControlPoints: GpuTexture? = null
+}
 
 /**
  * The grid backdrop's inputs for one pass.
@@ -107,7 +111,7 @@ public class DrawTextures(
  * @property Float      majorSpacingY  Major line spacing along Y, in world units.
  * @property Int        subdivisions   Minor lines per major cell.
  * @property Float      lineWidthPx    Line half-width in framebuffer pixels (accounts for supersampling).
- * @property GridColors colors         The background / major / minor colours.
+ * @property GridColors colors         The background / major / minor colors.
  */
 public data class GridUniforms(
 	val worldToNdc: WorldToNdc,

@@ -326,30 +326,33 @@ class GlRenderDevice : RenderDevice {
 		check(!glTicket.spent) { "pollReadback on a spent ticket" }
 		val status = GL32.glClientWaitSync(glTicket.fence, 0, 0L)
 		if (status != GL32.GL_ALREADY_SIGNALED && status != GL32.GL_CONDITION_SATISFIED) {
-			return null
+			return null // still in flight; the ticket stays live to poll again
 		}
+		// The fence signaled, so the read is done and the ticket is consumed HERE - exactly once, whether or
+		// not the map below succeeds. Returning null past this point would make the caller treat a consumed
+		// ticket as still-in-flight and re-poll it, tripping the spent check and killing the render thread.
 		glTicket.spent = true
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, glTicket.pbo.id)
 		// Explicitly typed: the inferred type would carry LWJGL's jspecify @Nullable, which is not
 		// on this module's classpath and fails compilation.
 		val mapped: ByteBuffer? = GL15.glMapBuffer(GL21.GL_PIXEL_PACK_BUFFER, GL15.GL_READ_ONLY)
-		val image =
-			mapped?.let { buffer ->
-				// Flip the GL bottom-up rows straight out of the mapped PBO into the API's top-first
-				// contract - one bulk get per row, the direct-buffer equivalent of System.arraycopy.
-				val rowBytes = glTicket.width * 4
-				val topDown = ByteArray(rowBytes * glTicket.height)
-				for (row in 0 until glTicket.height) {
-					buffer.position((glTicket.height - 1 - row) * rowBytes)
-					buffer.get(topDown, row * rowBytes, rowBytes)
-				}
-				RasterImage(glTicket.width, glTicket.height, topDown)
+		val rowBytes = glTicket.width * 4
+		val topDown = ByteArray(rowBytes * glTicket.height)
+		if (mapped != null) {
+			// Flip the GL bottom-up rows straight out of the mapped PBO into the API's top-first contract -
+			// one bulk get per row, the direct-buffer equivalent of System.arraycopy.
+			for (row in 0 until glTicket.height) {
+				mapped.position((glTicket.height - 1 - row) * rowBytes)
+				mapped.get(topDown, row * rowBytes, rowBytes)
 			}
-		GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER)
+			GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER) // only when the map actually succeeded
+		}
+		// A map failure (a driver error that should never happen) leaves topDown zero-filled: one black
+		// frame rather than a permanently frozen viewport, and null keeps meaning "still in flight".
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0)
 		GL32.glDeleteSync(glTicket.fence)
 		freePbos.addLast(glTicket.pbo)
-		return image
+		return RasterImage(glTicket.width, glTicket.height, topDown)
 	}
 
 	override fun cancelReadback(ticket: ReadbackTicket) {

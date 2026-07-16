@@ -1,5 +1,6 @@
 package org.umamo.render.puppet
 
+import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
@@ -13,7 +14,7 @@ import org.umamo.runtime.model.PuppetModel
  * Three arrays rather than one packed byte blob deliberately. The packed form is a GL vertex-attribute
  * layout (12 bytes/vertex, native byte order), and encoding it here would put a backend's memory layout
  * into shared code AND force this module to invent an endianness convention that the GL side would then
- * have to honour silently. What each vertex welds to is shared; how the bytes sit is the backend's.
+ * have to honor silently. What each vertex welds to is shared; how the bytes sit is the backend's.
  *
  * @property IntArray   partnerIndex Per vertex: the partner's GLOBAL index in the shared position store,
  *   or the vertex's own global index when it is not glued.
@@ -98,6 +99,13 @@ internal fun planGlueLayout(model: PuppetModel): GlueLayout {
 
 	// Then each pair points both members at each other, by global index.
 	for ((glueIndex, glue) in model.glues.withIndex()) {
+		// glue #65+ has no slot in the shader's fixed glueIntensity[MAX_GLUES] uniform array, and a
+		// vertex tagged with it would index that array out of bounds. Leave those vertices at their -1
+		// (unwelded) default rather than tag them - this is what makes resolvePose's "renders unwelded"
+		// promise actually true.
+		if (glueIndex >= MAX_GLUES) {
+			continue
+		}
 		val baseA = baseOffsetById[glue.meshA] ?: continue
 		val baseB = baseOffsetById[glue.meshB] ?: continue
 		val attributesA = attributesById[glue.meshA] ?: continue

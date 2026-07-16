@@ -1,6 +1,8 @@
 package org.umamo.render.puppet
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -187,4 +189,31 @@ class ModelDiffTest {
 		assertTrue(diff.actions.all { it is DrawableAction.Keep }, "a reorder needs no buffer work")
 		assertTrue(diff.removed.isEmpty())
 	}
+
+	@Test
+	fun diffModelReuploadsWhenWarpParentingFlips() {
+		// A drawable owns a control-point texture iff its parent is a warp, and that is fixed at upload. A
+		// reparent that flips it (deleting a rotation deformer between a drawable and a warp, so the drawable
+		// now parents the warp directly) must Reupload, or the resident keeps a stale / absent cp texture and
+		// the shader samples whatever texture unit 3 last held. Keying purely on the two models' warp sets.
+		val positions = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f)
+		val warp = Deformer.Warp(DeformerId("warp"), "warp", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)
+		val rotation = Deformer.Rotation(DeformerId("rot"), "rot", parent = null, partId = null, baseAngle = 0f, keyforms = null)
+
+		val rotationParented = drawable("a", positions).copy(parentDeformerId = DeformerId("rot"))
+		val warpParented = rotationParented.copy(parentDeformerId = DeformerId("warp"))
+		// Non-warp parent → warp parent: gains a cp texture, so Reupload.
+		val gained = diffModel(modelOf(listOf(rotation, warp), rotationParented), modelOf(listOf(rotation, warp), warpParented), resident("a" to 3))
+		assertIs<DrawableAction.Reupload>(gained.actions.single(), "warp parenting gained")
+		// Warp parent → non-warp parent: loses the cp texture, so Reupload.
+		val lost = diffModel(modelOf(listOf(rotation, warp), warpParented), modelOf(listOf(rotation, warp), rotationParented), resident("a" to 3))
+		assertIs<DrawableAction.Reupload>(lost.actions.single(), "warp parenting lost")
+		// Warp parent → SAME warp parent (a mere reorder around it): control-point ownership unchanged, so Keep.
+		val unchanged = diffModel(modelOf(listOf(rotation, warp), warpParented), modelOf(listOf(rotation, warp), warpParented), resident("a" to 3))
+		assertIs<DrawableAction.Keep>(unchanged.actions.single(), "unchanged warp parent needs no re-upload")
+	}
+
+	/** A model with explicit deformers - the plain [model] helper carries none, which the warp cases need. */
+	private fun modelOf(deformers: List<Deformer>, vararg drawables: Drawable): PuppetModel =
+		model(*drawables).copy(deformers = deformers)
 }

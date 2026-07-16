@@ -1,5 +1,6 @@
 package org.umamo.render.puppet
 
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -57,9 +58,10 @@ internal class ModelDiff(
  * Decides how to reconcile a backend's resident drawables with an edited model - four tiers, cheapest
  * first.
  *
- * A layer reorder or deformer reparent needs no buffer work at all (every drawable is a no-op [Keep]);
- * a base-mesh move re-uploads positions; a UV edit re-uploads UVs; and a structural change - a drawable
- * added, removed, or remeshed - frees and re-uploads whole.
+ * A layer reorder or a reparent that does not change control-point ownership needs no buffer work at all
+ * (every drawable is a no-op [Keep]); a base-mesh move re-uploads positions; a UV edit re-uploads UVs; and
+ * a structural change - a drawable added, removed, remeshed, or reparented across the warp boundary (which
+ * gains or loses its control-point texture) - frees and re-uploads whole.
  *
  * The diff is keyed by drawable id (so it is robust to a simultaneous reorder) and by ARRAY REFERENCE
  * identity: the edit path is copy-on-write, so an untouched drawable keeps its exact array instances and
@@ -82,6 +84,12 @@ internal fun diffModel(
 	residentVertexCountById: Map<DrawableId, Int>,
 ): ModelDiff {
 	val oldDrawableById = model.drawables.associateBy { it.id }
+	// Warp parenting decides whether a drawable owns a control-point texture, and that is fixed at upload:
+	// a reparent that flips it (deleting a rotation deformer between a drawable and a warp, say) leaves a
+	// resident whose cp texture is stale or absent, so it must re-upload, not Keep. Derived purely from the
+	// two models - residency === `model`, so the old warp set matches what the backend actually uploaded.
+	val oldWarpIds = model.deformers.filterIsInstance<Deformer.Warp>().mapTo(HashSet()) { it.id }
+	val newWarpIds = newModel.deformers.filterIsInstance<Deformer.Warp>().mapTo(HashSet()) { it.id }
 	val actions = ArrayList<DrawableAction>(newModel.drawables.size)
 	for (drawable in newModel.drawables) {
 		val residentVertexCount = residentVertexCountById[drawable.id]
@@ -92,12 +100,17 @@ internal fun diffModel(
 		val newMesh = drawable.mesh
 		val oldDrawable = oldDrawableById[drawable.id]
 		val oldMesh = oldDrawable?.mesh
+		val warpParentingFlipped =
+			(oldDrawable != null && oldDrawable.parentDeformerId in oldWarpIds) != (drawable.parentDeformerId in newWarpIds)
 		val remeshed =
-			newMesh != null &&
+			warpParentingFlipped ||
 				(
-					newMesh.positions.size != residentVertexCount * 2 ||
-						(oldMesh != null && newMesh.indices !== oldMesh.indices) ||
-						drawable.keyforms !== oldDrawable?.keyforms
+					newMesh != null &&
+						(
+							newMesh.positions.size != residentVertexCount * 2 ||
+								(oldMesh != null && newMesh.indices !== oldMesh.indices) ||
+								drawable.keyforms !== oldDrawable?.keyforms
+						)
 				)
 		if (remeshed) {
 			actions.add(DrawableAction.Reupload(drawable))

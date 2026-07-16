@@ -229,7 +229,7 @@ internal const val DEFORM_GLSL =
  *
  * Transform feedback is core in GL 3.3 AND GLES 3.0, so both dialects can run this as-is.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun tfDeformVertexShader(dialect: GlslDialect): String =
@@ -246,7 +246,7 @@ internal fun tfDeformVertexShader(dialect: GlslDialect): String =
  * The do-nothing fragment stage the transform-feedback program links against - it captures vertices and
  * rasterizes nothing, but a program still needs a fragment shader to link.
  *
- * @param GlslDialect dialect The target flavour.
+ * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
 internal fun tfDiscardFragmentShader(dialect: GlslDialect): String = glslHeader(dialect) + "void main() {}\n"
