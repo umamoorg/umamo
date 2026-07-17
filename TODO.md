@@ -14,6 +14,15 @@
 * Final pass on theme colors.
 	* This includes MeshEditColors.kt.(One full pass has already been done.)
 
+## Logging Panel/Space
+* A panel to see the UmamoLog output for users that won't see it in a Terminal.
+	* Copy to Clipboard
+	* Export to File
+
+## Portability
+* Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?
+	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
+
 ## Read/Write Filing Handling
 app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/EditorApp.kt
 The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
@@ -81,7 +90,7 @@ See the roadmap: docs/plans/art-sourcing-pipeline.md § Phase G — the source-a
 
 ## Import
 Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
-MOC3 with sidecar processing - Both are already processed, but not properly combined into a model.
+MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 command): Moc3Import joins the decoded moc with model3.json (required, plus every listed texture) and cdi3.json (optional, degrades to raw ids); missing sidecars fail with dedicated alerts (MissingManifest/MissingTexture).  Moc3Cmo3ParityTest pins the coordinate conversion against the CMO3 corpus twin.  Remaining: Android sibling discovery (SAF has no directory access - desktop-first for now), blend shapes import as no-op sliders until blend-shape eval exists.
 
 ## Reimport
 * Detection of edited source art files when application reacquires focus.
@@ -112,7 +121,7 @@ MOC3 with sidecar processing - Both are already processed, but not properly comb
 
 * Menu - New Items
 	* File
-		* Import/Export (MOC3, image)
+		* Import/Export - "Import MOC3…" exists as a flat row; fold into an Import submenu when image import lands, and add Export.
 	* Edit
 		* Cut/Copy/Paste
 

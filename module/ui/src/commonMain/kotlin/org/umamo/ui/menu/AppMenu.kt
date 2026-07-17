@@ -16,6 +16,7 @@ import org.umamo.ui.resources.menu_edit
 import org.umamo.ui.resources.menu_exit
 import org.umamo.ui.resources.menu_file
 import org.umamo.ui.resources.menu_help
+import org.umamo.ui.resources.menu_import_moc3
 import org.umamo.ui.resources.menu_open
 import org.umamo.ui.resources.menu_open_recent
 import org.umamo.ui.resources.menu_preferences
@@ -46,6 +47,7 @@ import org.umamo.ui.resources.workspace_new
  * @param Boolean canSaveAs Whether a saveable document is open (gates the Save As row).
  * @param Function onOpen Opens the file picker.
  * @param Function onOpenRecent Opens a recent file by its stored path.
+ * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
  * @param Function onSaveAs Saves the open document via a picker.
  * @param Function onExit Closes the application.
  * @return TopLevelMenu The File menu.
@@ -57,6 +59,7 @@ fun fileMenu(
 	canSaveAs: Boolean,
 	onOpen: () -> Unit,
 	onOpenRecent: (String) -> Unit,
+	onImportMoc3: () -> Unit,
 	onSaveAs: () -> Unit,
 	onExit: () -> Unit,
 ): TopLevelMenu =
@@ -73,6 +76,13 @@ fun fileMenu(
 					label = stringResource(Res.string.menu_open_recent),
 					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { onOpenRecent(recent) }) },
 					enabled = recentFiles.isNotEmpty(),
+				),
+				// A flat row rather than an Import submenu while MOC3 is the only import; fold into a
+				// submenu when image import lands (TODO.md's File > Import/Export grouping).
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_import_moc3),
+					onSelect = onImportMoc3,
+					shortcut = keymap.chordFor("file.importMoc3")?.let { chord -> formatAccelerator(chord) },
 				),
 				MenuItem.Action(
 					label = stringResource(Res.string.menu_save_as),

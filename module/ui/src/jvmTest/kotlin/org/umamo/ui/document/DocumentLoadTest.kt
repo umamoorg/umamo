@@ -20,7 +20,9 @@ class DocumentLoadTest {
 
 	@Test
 	fun recognizedNonEditorFormatFailsAsNotOpenable() {
-		// MOC3 header: magic "MOC3" @ +0x00 - a recognized runtime format the editor shell cannot open.
+		// MOC3 header: magic "MOC3" @ +0x00.  The BYTE-level loader keeps reporting MOC3 NotOpenable by
+		// design: sidecar discovery needs a directory, so only the file-level loadDocument(PlatformFile)
+		// routes a .moc3 to the sidecar loader (see Moc3DocumentLoadTest for that path).
 		val bytes = ByteArray(64)
 		"MOC3".encodeToByteArray().copyInto(bytes)
 		val load = loadDocument(bytes, "puppet.moc3", "puppet.moc3")

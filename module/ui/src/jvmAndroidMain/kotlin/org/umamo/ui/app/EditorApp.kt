@@ -29,6 +29,7 @@ import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
+import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.recentFiles
@@ -50,6 +51,7 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.menu_import_moc3
 import org.umamo.ui.resources.menu_open
 import org.umamo.ui.resources.menu_save_as
 import org.umamo.ui.viewport.LiveParamsAdapter
@@ -64,16 +66,16 @@ import org.umamo.ui.workspace.exportLayoutText
 import org.umamo.ui.workspace.exportWorkspaceText
 
 /**
- * The one editing session per open CMO3 document (the undo history + dirty state live here), recreated
- * when the document swaps; null for no document. Owned at the host level so both the host's own chrome
- * (e.g. the desktop title's unsaved marker) and [EditorApp] share the one session.
+ * The one editing session per open puppet document (the undo history + dirty state live here),
+ * recreated when the document swaps; null for no document. Owned at the host level so both the host's
+ * own chrome (e.g. the desktop title's unsaved marker) and [EditorApp] share the one session.
  *
  * @param Document? document The open document, or null.
- * @return EditorSession? The document's session, or null with no CMO3 open.
+ * @return EditorSession? The document's session, or null with no puppet document open.
  */
 @Composable
 fun rememberEditorSessionFor(document: Document?): EditorSession? =
-	remember(document) { (document as? Cmo3Document)?.let { EditorSession(it.puppet, it.liveParams.values) } }
+	remember(document) { (document as? PuppetDocument)?.let { EditorSession(it.puppet, it.liveParams.values) } }
 
 /**
  * The shared editor shell: a custom in-window menu bar (File / Edit / Workspace / Help, drawn with the
@@ -91,7 +93,7 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * タブ行に同居して縦幅を節約）。デスクトップは GL ファクトリを渡し、Android は GLES 実装が載るまで null。
  *
  * @param Document? document The open document, or null.
- * @param EditorSession? session The open document's editing session (non-null for a CMO3 document); drives
+ * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
  *   undo/redo, the Edit-menu enabled state, and the saved marker.
  * @param Function onOpen Called with a newly-opened document.
  * @param Function onExit Closes the application.
@@ -173,9 +175,21 @@ fun EditorApp(
 	fun openViaPicker() {
 		// FileKit's native dialog supplies its own (OS-localized) title, so none is passed here.
 		// The filter is CMO3-only: layered-art formats have no document-open path since :reimport is
-		// what would bind them into a session, and that binding doesn't exist yet.
+		// what would bind them into a session, and that binding doesn't exist yet.  MOC3 is deliberately
+		// not offered here either - Open means the source project format; a baked runtime model comes in
+		// through Import (importMoc3ViaPicker), keeping the open/import distinction visible in the UI.
 		scope.launch {
 			filePicker.openFile(listOf(FileKind.Cmo3.extension))?.let { picked ->
+				applyDocumentLoad(loadDocument(picked))
+			}
+		}
+	}
+
+	fun importMoc3ViaPicker() {
+		// The picked .moc3 routes through loadDocument's file-level MOC3 branch, which discovers the
+		// model3.json manifest, cdi3 display info, and atlas pages next to the file.
+		scope.launch {
+			filePicker.openFile(listOf(FileKind.Moc3.extension))?.let { picked ->
 				applyDocumentLoad(loadDocument(picked))
 			}
 		}
@@ -246,7 +260,11 @@ fun EditorApp(
 	// over the current document; it is a no-op unless a CMO3 is open.
 	DisposableEffect(commandRegistry) {
 		commandRegistry.register(Command("file.open", title = Res.string.menu_open) { openViaPicker() })
-		onDispose { commandRegistry.unregister("file.open") }
+		commandRegistry.register(Command("file.importMoc3", title = Res.string.menu_import_moc3) { importMoc3ViaPicker() })
+		onDispose {
+			commandRegistry.unregister("file.open")
+			commandRegistry.unregister("file.importMoc3")
+		}
 	}
 	DisposableEffect(commandRegistry, document) {
 		val cmo3Document = document as? Cmo3Document
@@ -269,6 +287,7 @@ fun EditorApp(
 				canRedo,
 				::openStoredPath,
 				::openViaPicker,
+				::importMoc3ViaPicker,
 				::saveAs,
 				onExit,
 				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
@@ -316,6 +335,7 @@ fun EditorApp(
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
  * @param Function openPicker Opens the file picker.
+ * @param Function importMoc3 Opens the MOC3 import picker.
  * @param Function saveAs Saves the given CMO3 document via a picker.
  * @param Function onExit Closes the application.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
@@ -340,6 +360,7 @@ private fun buildAppMenu(
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
 	openPicker: () -> Unit,
+	importMoc3: () -> Unit,
 	saveAs: (Cmo3Document) -> Unit,
 	onExit: () -> Unit,
 	onUndo: () -> Unit,
@@ -361,6 +382,7 @@ private fun buildAppMenu(
 			canSaveAs = document is Cmo3Document,
 			onOpen = openPicker,
 			onOpenRecent = openRecent,
+			onImportMoc3 = importMoc3,
 			onSaveAs = { (document as? Cmo3Document)?.let { saveAs(it) } },
 			onExit = onExit,
 		),
@@ -370,15 +392,15 @@ private fun buildAppMenu(
 	)
 
 /**
- * Renders the open document inside the editor shell. For a CMO3 puppet, a per-area viewport host is
- * injected (when the platform supplies a render-service factory) and the runtime model + live params
- * are provided to the panels; with no document, the shell shows placeholders. With a null factory the
- * model locals still mount - the outliner, parameters, and thumbnails all work - only the viewport
- * areas render placeholders. The shell's workspace layout + locale are persisted via settings
- * regardless of the open document.
+ * Renders the open document inside the editor shell. For a puppet document (CMO3 or MOC3), a per-area
+ * viewport host is injected (when the platform supplies a render-service factory) and the runtime
+ * model + live params are provided to the panels; with no document, the shell shows placeholders.
+ * With a null factory the model locals still mount - the outliner, parameters, and thumbnails all
+ * work - only the viewport areas render placeholders. The shell's workspace layout + locale are
+ * persisted via settings regardless of the open document.
  *
  * @param Document? document The open document, or null.
- * @param EditorSession? session The open document's editing session (non-null for a CMO3 document).
+ * @param EditorSession? session The open document's editing session (non-null for a puppet document).
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
@@ -392,9 +414,9 @@ private fun DocumentViewport(
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 ) {
 	when (document) {
-		is Cmo3Document ->
+		is PuppetDocument ->
 			key(document) {
-				// The session is created per-document by the host and is non-null for a CMO3 document;
+				// The session is created per-document by the host and is non-null for a puppet document;
 				// the fallback only guards a desync. Panels read LocalPuppet (a live projection of the session
 				// model) and drive edits through LocalEditorSession / the session-backed selection handle.
 				val activeSession = session ?: remember(document) { EditorSession(document.puppet, document.liveParams.values) }

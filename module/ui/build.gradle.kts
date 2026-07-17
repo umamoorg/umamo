@@ -134,3 +134,35 @@ compose.resources {
 		directoryProvider = layout.dir(syncBundledCredits.map { syncTask -> syncTask.destinationDir }),
 	)
 }
+
+// Forward the MOC3 corpus sample to the test JVM so the sidecar-loader tests can exercise the
+// moc-dependent paths (a decodable .moc3 is needed before texture resolution runs).  Explicit -D
+// wins; otherwise the local (gitignored) corpus is the default, mirroring :runtime and :render.
+// Absent entirely (CI, a fresh clone) → those tests self-skip and the build stays green.
+tasks.withType<Test>().configureEach {
+	// The corpus loader test decodes the 8192² atlas (256MB of RGBA) more than once; the JVM default
+	// heap cannot hold that. Same figure :format's tests use.
+	maxHeapSize = "4g"
+	val explicitSample = System.getProperty("moc3.sample")
+	val resolvedSample =
+		if (explicitSample != null) {
+			// An explicit -D resolves against the repo root and must exist: a gated test that cannot
+			// find its sample skips rather than fails, so a typo would silently disable the gate while
+			// reporting PASSED (mirrors :render's resolveSampleProperty).
+			val explicitFile = rootDir.resolve(explicitSample.trim())
+			require(explicitFile.exists()) {
+				"-Dmoc3.sample=$explicitSample resolves to '${explicitFile.absolutePath}', which does not exist. " +
+					"Relative values resolve against the repo root ($rootDir)."
+			}
+			explicitFile.absolutePath
+		} else {
+			rootProject.layout.projectDirectory
+				.file("test/corpus/moc3/EricaTamamo/EricaTamamo.moc3")
+				.asFile
+				.takeIf { it.isFile }
+				?.absolutePath
+		}
+	resolvedSample?.let { value ->
+		systemProperty("moc3.sample", value)
+	}
+}

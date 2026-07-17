@@ -50,12 +50,37 @@ tasks.named("check") {
 }
 
 // Forward corpus + differential-oracle paths to the test JVM so the gated tests can run:
-// `./gradlew :runtime:jvmTest -Dcmo3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
+// `./gradlew :runtime:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Drelive.dumpModel=… -Drelive.coreLib=…`.
 // Absent properties are skipped, so CI (which sets none) self-skips the gated tests — no committed
-// corpus or external oracle needed. (cmo3.sample mirrors the same forwarding in :format)
+// corpus or external oracle needed. The two ingest sample properties fall back to the local
+// (gitignored) corpus when it is checked out, mirroring :format's corpusDefaultFor, so a plain
+// `./gradlew :runtime:jvmTest` exercises the CMO3/MOC3 ingest + parity tests locally.
 tasks.withType<Test>().configureEach {
-	for (property in listOf("cmo3.sample", "relive.dumpModel", "relive.coreLib")) {
-		System.getProperty(property)?.let { value ->
+	val corpusDefaults =
+		mapOf(
+			"cmo3.sample" to "test/corpus/cmo3/EricaTamamo.cmo3",
+			"moc3.sample" to "test/corpus/moc3/EricaTamamo/EricaTamamo.moc3",
+		)
+	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
+		val explicit = System.getProperty(property)
+		val resolved =
+			if (explicit != null) {
+				// An explicit -D resolves against the repo root and must exist: a gated test that cannot
+				// find its sample skips rather than fails, so a typo would silently disable the gate while
+				// reporting PASSED (mirrors :render's resolveSampleProperty).
+				val explicitFile = rootDir.resolve(explicit.trim())
+				require(explicitFile.exists()) {
+					"-D$property=$explicit resolves to '${explicitFile.absolutePath}', which does not exist. " +
+						"Relative values resolve against the repo root ($rootDir)."
+				}
+				explicitFile.absolutePath
+			} else {
+				corpusDefaults[property]
+					?.let { relativePath -> rootProject.layout.projectDirectory.file(relativePath).asFile }
+					?.takeIf { it.isFile }
+					?.absolutePath
+			}
+		resolved?.let { value ->
 			systemProperty(property, value)
 		}
 	}

@@ -114,6 +114,13 @@ class MocDecodeTest {
 						"${file.name}: glue pair in range",
 					)
 				}
+				// Every glue's binding resolves through the shared cache - the decoder registers glue
+				// bindings like every other object kind, so a glue-exclusive binding keeps its
+				// parameter-driven intensity downstream and its table rows in a re-bake.
+				assertTrue(
+					doc.keyformBinding(glue.keyformBindingIndex) != null,
+					"${file.name}: glue binding ${glue.keyformBindingIndex} registered",
+				)
 			}
 
 			val totalChildren = doc.renderOrderGroups.sumOf { it.children.size }

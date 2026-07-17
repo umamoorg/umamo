@@ -16,6 +16,12 @@ enum class DocumentOpenError {
 
 	/** A recognized format whose contents failed to parse or import. */
 	ParseFailed,
+
+	/** A `.moc3` whose required model3.json manifest was not found next to it (or failed to parse). */
+	MissingManifest,
+
+	/** A `.moc3` whose model3.json references a texture that is missing or unreadable. */
+	MissingTexture,
 }
 
 /**
