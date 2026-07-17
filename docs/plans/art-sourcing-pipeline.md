@@ -1,6 +1,6 @@
 # Art Sourcing Pipeline — Design Roadmap
 
-Status: roadmap (2026-07-12; Phase A shipped and back-annotated 2026-07-15). This is a multi-session design backbone, not a single implementation plan. Each numbered phase below is sized to become its own planning session. Phase A is now a record of what was built rather than a proposal — where the implementation diverged from the plan, the divergence and its reason are kept, because several of those reasons constrain the phases still ahead. It supersedes and expands the "Art-first pipeline" Claude Note in [TODO.md](../../TODO.md) (the 9-step list at `## Art-first pipeline`), which stays as the terse status tracker; this document is the reasoning and the decision record behind it.
+Status: roadmap (2026-07-12; Phase A shipped and back-annotated 2026-07-15, Phase B shipped and back-annotated 2026-07-17). This is a multi-session design backbone, not a single implementation plan. Each numbered phase below is sized to become its own planning session. Phases A and B are now records of what was built rather than proposals — where the implementation diverged from the plan, the divergence and its reason are kept, because several of those reasons constrain the phases still ahead. It supersedes and expands the "Art-first pipeline" Claude Note in [TODO.md](../../TODO.md) (the 9-step list at `## Art-first pipeline`), which stays as the terse status tracker; this document is the reasoning and the decision record behind it.
 
 ## Purpose
 
@@ -30,7 +30,7 @@ These are locked in [CLAUDE.md](../../.claude/CLAUDE.md) and the TODO Art-first 
 
 ## Where we are today (the starting line)
 
-Verified against the tree on 2026-07-12; the raster-codec entries re-verified 2026-07-15 after Phase A landed.
+Verified against the tree on 2026-07-12; the raster-codec entries re-verified 2026-07-15 after Phase A landed, and the alpha-shape-analysis entry added 2026-07-17 after Phase B.
 
 Exists and works:
 
@@ -56,6 +56,10 @@ Exists and works:
   helpers on `Moc3`.
 - The UV editor (2026-07): edits existing UVs over an existing atlas page in texel space (v-axis
   flipped, since stored v=0 is the top atlas row).
+- Alpha-shape analysis (Phase B, 2026-07-17): `analyzeAlpha` in `:format` commonMain (`org.umamo.format.art`)
+  gives per-layer alpha-trimmed bounds, an opaque-pixel count/coverage, and a marching-squares alpha contour
+  with Douglas-Peucker simplification, over any `LayerRaster` / `RasterImage`. The `(c)` node of the pipeline
+  graph. Caller-less until Phases C/D consume it (packer rects, mesh silhouette). See Phase B below.
 
 Absent — this is the work the roadmap is about:
 
@@ -181,15 +185,47 @@ Small, and none of it blocks Phase B–E:
 
 ---
 
-## Phase B — Alpha-shape analysis
+## Phase B — Alpha-shape analysis — SHIPPED (2026-07-17)
 
-Goal: per source layer, compute the opaque-region description that both the auto-mesh and the packer consume — tight (alpha-trimmed) bounds, a coverage/occupancy summary, and (stretch) a simplified alpha contour polygon. This is a small shared foundation extracted so Phases C and D do not each re-derive it.
+Goal: per source layer, compute the opaque-region description that both the auto-mesh and the packer consume — tight (alpha-trimmed) bounds, a coverage/occupancy summary, and a simplified alpha contour polygon. A small shared foundation extracted so Phases C and D do not each re-derive it.
 
-Depends on: the source readers (exist). Feeds: Phase C (pack rects), Phase D (mesh silhouette).
+Delivered as three pure-Kotlin commonMain files in `org.umamo.format.art`, beside the neutral model they read: `AlphaAnalysis.kt` (public API + the single-pass scan), `AlphaContourTrace.kt` (the boundary tracer), and `ContourSimplify.kt` (the simplifier). No `java.*`; passes the iosArm64 purity gate. It unblocks Phase C (trimmed pack rects) and Phase D (mesh silhouette); nothing consumes it yet — the entry points are caller-less until those phases, exactly as `rasterToSourceArt` was after Phase A. The phase landed at its full stretch scope: the contour is a real marching-squares boundary trace with Douglas-Peucker simplification, not the trimmed-rect fallback the plan was willing to ship for v1.
 
-Decisions: alpha threshold for "opaque"; whether the contour is a real boundary trace (marching-squares style) or just the trimmed rect for v1; how to treat fully-transparent and 1-pixel-sliver layers (exclude, matching the empty-UV mesh exclusion already in the UV editor).
+### The API
 
-Session scope: small; could be folded into the front of Phase C or D rather than run alone.
+One entry point, pure over `(width, height, rgba)` so both `LayerRaster` and the flat `RasterImage` feed it, plus thin extensions:
+
+```kotlin
+public fun analyzeAlpha(
+	width: Int, height: Int, rgba: ByteArray,
+	alphaThreshold: Int = DEFAULT_ALPHA_THRESHOLD,      // 1 — any nonzero alpha
+	contourEpsilon: Float = DEFAULT_CONTOUR_EPSILON,    // 1.0 px
+): AlphaAnalysis?                                       // null iff nothing is opaque
+
+public fun LayerRaster.analyzeAlpha(...): AlphaAnalysis?
+public fun SourceLayer.analyzeAlpha(...): AlphaAnalysis?   // stored pixels only — ignores opacity/visible/blend
+public fun RasterImage.analyzeAlpha(...): AlphaAnalysis?   // in the raster package, to keep the raster → art dep one-way
+public fun AlphaAnalysis.opaqueBoundsOnCanvas(layerBounds: LayerBounds): LayerBounds
+```
+
+`AlphaAnalysis(opaqueBounds, opaquePixelCount, contours)` carries a `boundsCoverage` accessor; `AlphaContour(points: IntArray, isHole: Boolean)`. Both are plain classes (identity equality), like `LayerRaster`/`RasterImage`, because they hold arrays.
+
+### Decisions the plan left open, as resolved
+
+- Opaque threshold is a parameter defaulting to `>= 1` (any nonzero alpha). Lossless for the packer — no antialiased edge pixel is trimmed; Phase D passes a higher threshold for a tighter silhouette.
+- Null if nothing meets the threshold (covers the 0×0 raster and the CLIP/KRA 1×1 transparent placeholders). Sliver exclusion was pushed OUT of the analysis onto the consumers — a 1-px hairline layer with real pixels gets its true bounds, so C/D decide whether to drop it. This deliberately diverges from the plan's "(exclude)" parenthetical: dropping a real art layer at the analysis layer would be silent data loss.
+- Contour is a marching-squares trace on the pixel-corner lattice (a point is a corner BETWEEN pixels, so polygons are watertight and pixel-exact) plus iterative closed-ring Douglas-Peucker. Winding keeps opaque pixels on the right (y-down) → outer rings positive shoelace, holes negative; `isHole` is derived from the exact ring and is authoritative (the winding redundancy holds only for `contourEpsilon = 0f`). Saddles (diagonal-only contact) take the tight right turn (4-connected foreground), so a checkerboard separates into unit squares. Holes are traced and flagged, not discarded.
+- Output is deterministic (row-major north-edge discovery), which Phase C repack stability relies on.
+
+### Notes for the phases that consume it
+
+- `opaqueBounds` is RASTER-LOCAL and reuses `LayerBounds` (no new rect type); `opaqueBoundsOnCanvas(layer.bounds)` lifts it to canvas space. `LayerBounds` is now used in two frames and the compiler cannot catch a canvas/raster-local mixup — a distinct raster-local rect type is worth reconsidering when Phase C introduces the atlas-page placement rect.
+- The mask is a bit-packed `LongArray` (an 8192² layer is 67M pixels — 8.4 MB packed vs 67 MB boolean, with a second same-geometry visited bitset alive during tracing).
+- Known simplifier limitation, accepted for v1: on adversarial shapes Douglas-Peucker can self-intersect the simplified ring; pass `contourEpsilon = 0f` for the exact ring. Phase C reads only the rect, so it is unaffected.
+
+### Tested
+
+commonTest unit suites (synthetic pixels, so they also compile and run for iosArm64): `AlphaAnalysisTest` (bounds / count / threshold / validation), `AlphaContourTest` (geometry, saddles, holes), `ContourSimplifyTest` (Douglas-Peucker). Corpus-gated `AlphaAnalysisCorpusTest` (jvmTest) runs every raster layer of every PSD/CLIP/KRA sample — 438 layers across 13 samples on the local corpus — checking the analysis against independent rescans; the load-bearing invariant is that the signed contour areas sum to exactly the opaque pixel count.
 
 ---
 
@@ -329,6 +365,8 @@ The reader `LayerId(String)` vs reimport typed `LayerKey` split must collapse to
 
 Phase A was the first session and is done (2026-07-14) — it shipped its planned scope (the `RasterCodec` seam, PNG and BMP read/write, the flat-raster→`SourceArt` adapter, retiring `decodePngToRgba`) plus the JPEG, WebP, and TIFF decoders that were meant to be follow-ups.
 
-Next: Phase B (alpha-shape analysis) or Phase C (atlas packer) with B folded into its front, since B is small and C is the first phase that needs it. Phase D can run in parallel. Phase E is the gate — it depends on C and D and is where a non-CMO3 file first becomes an editable rig, so nothing downstream of it (F, G) starts earlier.
+Phase B was the second session and is done (2026-07-17) — `analyzeAlpha` (trimmed bounds + occupancy + marching-squares contour with Douglas-Peucker) in `:format` commonMain, at full stretch scope. It was run as its own small session rather than folded into Phase C's front.
 
-Carry into Phase C from A: pages encode via `PngCodec.write` (8-bit RGBA, filter 0 — fine for an atlas), page bytes are whole-`ByteArray` not streamed, and packer code lives in commonMain under the iosArm64 purity gate.
+Next: Phase C (atlas packer), the first phase that consumes Phase B. Phase D (auto-mesh) can run in parallel — it also consumes Phase B. Phase E is the gate — it depends on C and D and is where a non-CMO3 file first becomes an editable rig, so nothing downstream of it (F, G) starts earlier.
+
+Carry into Phase C from A: pages encode via `PngCodec.write` (8-bit RGBA, filter 0 — fine for an atlas), page bytes are whole-`ByteArray` not streamed, and packer code lives in commonMain under the iosArm64 purity gate. Carry into C and D from B: `analyzeAlpha` is caller-less and awaiting them; its `opaqueBounds` is raster-local (`opaqueBoundsOnCanvas` lifts to canvas space), sliver exclusion is the consumer's call, and the reused `LayerBounds` now spans two coordinate frames — reconsider a distinct raster-local rect type when C introduces the atlas-page placement rect.

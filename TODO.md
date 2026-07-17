@@ -254,10 +254,12 @@ is still ahead.
 	place each drawable; layer pixels become the texture. See § Import.
 2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
-	edited.
+	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
+	contour) comes from `analyzeAlpha` in `:format` — Phase B, shared with step 3.
 3. Atlas generation / packing. Pending: no packer exists yet (today the atlas is inherited from the imported
 	CMO3 — `extractPuppetTextures`). Pack layer tiles into page(s), emit UVs pointing at the tiles; hold the
-	vertex→art-pixel binding invariant across every repack.
+	vertex→art-pixel binding invariant across every repack. Foundation built: the trimmed pack rects come from
+	`analyzeAlpha` (Phase B).
 4. UV editor. Pending — see § UV Editor / § UV Editing. This is the missing half of decoupling: geometry is
 	editable today, UVs are read-only/inherited. Needed to author the mapping, including duplicated/flipped
 	regions (eyes, etc.).
