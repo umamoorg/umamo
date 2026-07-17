@@ -231,8 +231,8 @@ class Moc3Cmo3ParityTest {
 					cmo3Parent != null && moc3Parent != null,
 					"deformer chain of ${drawableId.raw} diverges: cmo3=${cmo3Parent?.raw} moc3=${moc3Parent?.raw}",
 				)
-				val cmo3Deformer = cmo3Deformers.getValue(cmo3Parent!!)
-				val moc3Deformer = moc3Deformers.getValue(moc3Parent!!)
+				val cmo3Deformer = cmo3Deformers.getValue(cmo3Parent)
+				val moc3Deformer = moc3Deformers.getValue(moc3Parent)
 				if (!comparedPairs.add(cmo3Deformer.id to moc3Deformer.id)) {
 					break
 				}
