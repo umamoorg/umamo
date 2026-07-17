@@ -244,6 +244,27 @@ object Moc3Import {
 			return converted
 		}
 
+		// Whether a rotation deformer sits anywhere on each deformer's ancestor chain.  This locates
+		// the px->model unit seam: along every root path, the FIRST rotation is where the accumulated
+		// scale chain converts pixel-scale local space into model units, so only that rotation's
+		// stored scale carries the 1/ppu factor.  Every rotation below it (whatever its direct parent's
+		// kind) inherits the factor through the accumulator and stores its scale verbatim.
+		val hasRotationAncestor =
+			BooleanArray(mocDocument.deformers.size) { deformerIndex ->
+				var currentIndex = mocDocument.deformers[deformerIndex].parentDeformerIndex
+				var found = false
+				var chainSteps = 0
+				while (currentIndex >= 0 && currentIndex < mocDocument.deformers.size && chainSteps <= mocDocument.deformers.size) {
+					if (mocDocument.deformers[currentIndex] is RotationDeformer) {
+						found = true
+						break
+					}
+					currentIndex = mocDocument.deformers[currentIndex].parentDeformerIndex
+					chainSteps++
+				}
+				found
+			}
+
 		var warpOrdinal = 0
 		var rotationOrdinal = 0
 		val deformers =
@@ -276,15 +297,7 @@ object Moc3Import {
 					}
 					is RotationDeformer -> {
 						rotationOrdinal++
-						// A rotation's children live in a pixel-scale local frame in both conventions, but the
-						// moc's world is model units where the runtime's is canvas pixels, so the px→world
-						// factor stored in the scale differs by ppu exactly where the chain leaves rotation
-						// space: a root- or warp-parented rotation carries scale·(1/ppu) in the moc (the
-						// official runtime's accY accumulator propagates it downward), while a
-						// rotation-parented rotation inherits the factor and stores its scale verbatim.
-						// Angles/origins/reflections are stored in the runtime's convention already.
-						// Corpus-verified; pinned by Moc3Cmo3ParityTest.
-						val scaleFactor = if (keyformSpace == PointSpace.RotationLocal) 1f else pixelsPerUnit
+						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
 						Deformer.Rotation(
 							id = id,
 							name = "Rotation Deformer $rotationOrdinal",
