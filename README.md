@@ -4,6 +4,8 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 > **Status:** early development, not yet public.  APIs, formats, and scope are in flux.
 
+![Screenshot showing the main Umamo window with 2D puppet posed and smiling in a centered viewport.  The left side shows an adjustable parameter panel while the right shows an object outliner, information, and history panel.](docs/screenshots/readme20260717.png)
+
 ## Quick Notes
 
 **Q:** Can I support the Umamo project financially?
