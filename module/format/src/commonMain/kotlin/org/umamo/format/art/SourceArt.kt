@@ -26,8 +26,8 @@ value class LayerId(val raw: String)
 /**
  * Position and size of a layer on the source canvas, in pixels, with a top-left origin (the
  * image/PSD convention). The renderer flips Y when mapping to GL's bottom-left origin.
- *
- * レイヤーのキャンバス上の位置とサイズ（左上原点・ピクセル）。GL へは Y を反転する。
+ * [AlphaAnalysis.opaqueBounds] reuses this shape raster-locally, with left/top relative to the
+ * raster's own origin instead of the canvas.
  */
 data class LayerBounds(
 	val left: Int,
@@ -39,13 +39,12 @@ data class LayerBounds(
 /**
  * How a layer composites onto what's beneath it - the full PSD/Clip Studio/Krita blend-mode set.
  *
- * EN: Source art (PSD, CLIP, KRA) shares essentially the same blend-mode vocabulary, so the neutral
- *     model carries it verbatim rather than collapsing it.  A renderer that only supports a subset
- *     (Cubism drawables are Normal/Add/Multiply) maps the rest down at draw time - that is a render
- *     concern, not a reason to discard the source's intent here.  Defaults to [Normal] (source-over).
- *     CSP-specific names noted: [GlowDodge] and [AddGlow] are CSP's clamped Color-Dodge/Add variants;
- *     [Luminosity] is CSP's "Brightness".
- * JA: PSD/CLIP/Krita 共通のブレンドモード一式。描画側が未対応のものは描画時に縮退させる。
+ * Source art (PSD, CLIP, KRA) shares essentially the same blend-mode vocabulary, so the neutral
+ * model carries it verbatim rather than collapsing it.  A renderer that only supports a subset
+ * (Cubism drawables are Normal/Add/Multiply) maps the rest down at draw time - that is a render
+ * concern, not a reason to discard the source's intent here.  Defaults to [Normal] (source-over).
+ * CSP-specific names noted: [GlowDodge] and [AddGlow] are CSP's clamped Color-Dodge/Add variants;
+ * [Luminosity] is CSP's "Brightness".
  */
 enum class LayerBlend {
 	Normal,

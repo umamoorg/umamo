@@ -1,5 +1,10 @@
 package org.umamo.format.raster
 
+import org.umamo.format.art.AlphaAnalysis
+import org.umamo.format.art.DEFAULT_ALPHA_THRESHOLD
+import org.umamo.format.art.DEFAULT_CONTOUR_EPSILON
+import org.umamo.format.art.analyzeAlpha
+
 /**
  * A whole decoded flat image: RGBA8888, straight (non-premultiplied) alpha, row-major from the top.
  *
@@ -17,3 +22,17 @@ public class RasterImage(
 	public val height: Int,
 	public val rgba: ByteArray,
 )
+
+/**
+ * Analyzes this flat image's opaque region.  See [org.umamo.format.art.analyzeAlpha] for the
+ * full contract; this extension lives here rather than in the art package to preserve the
+ * one-way raster -> art dependency direction.
+ *
+ * @param Int alphaThreshold Minimum alpha byte value (1..255) for a pixel to count as opaque.
+ * @param Float contourEpsilon Douglas-Peucker tolerance in pixels; 0 keeps the exact lattice rings.
+ * @return AlphaAnalysis The opaque-region description, or null when nothing meets the threshold.
+ */
+public fun RasterImage.analyzeAlpha(
+	alphaThreshold: Int = DEFAULT_ALPHA_THRESHOLD,
+	contourEpsilon: Float = DEFAULT_CONTOUR_EPSILON,
+): AlphaAnalysis? = analyzeAlpha(width, height, rgba, alphaThreshold, contourEpsilon)
