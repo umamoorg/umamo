@@ -50,13 +50,13 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    SPACE, and every parent space but the root matches the runtime's convention VERBATIM (verified
  *    value-for-value against the CMO3 corpus twin): normalized lattice (u, v) under a warp parent and
  *    the pixel-scale local frame under a rotation parent, angles in degrees with the same sign.  Only
- *    the root space differs - the moc stores model units around CanvasInfo's origin, same Y-down
+ *    the root space differs - the MOC stores model units around CanvasInfo's origin, same Y-down
  *    orientation - so root-space values map through the affine canvas = origin + ppu·model (see
  *    [pointSpaceOf]).  The one unit seam: a rotation parented to the root or a warp carries the
  *    px→model factor in its keyform scale (the official runtime's accY accumulator propagates it), so
  *    those scales multiply by ppu to land in the runtime's pixel world; rotation-parented rotations
  *    keep their scale verbatim.  One caveat: the runtime's rest mesh (Drawable.mesh.positions) is
- *    canvas-space EDITING geometry in the CMO3 convention, which a moc does not store - this import
+ *    canvas-space EDITING geometry in the CMO3 convention, which a MOC does not store - this import
  *    leaves the rest mesh in parent space (exact for evaluation, since the base cancels out of the
  *    keyform blend), and `:render`'s restMeshesToCanvasSpace finishes the job by evaluating the
  *    default pose (the document loader applies it).
@@ -66,8 +66,6 @@ import org.umamo.format.moc3.model.Part as MocPart
  *  - Blend shapes.  Records are not evaluated anywhere in :runtime/:render yet, so they are ignored
  *    here; BLEND_SHAPE-typed parameters import as ordinary (no-op) sliders.  Callers can inspect
  *    [MocDocument.blendShapes] to warn.  Offscreens are equally unhandled (parity with the CMO3 path).
- *
- * MOC3: インデックス参照の焼き込み済みモデルを PuppetModel へ変換する。名前は cdi3、座標系は CanvasInfo で解決。
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>
  */

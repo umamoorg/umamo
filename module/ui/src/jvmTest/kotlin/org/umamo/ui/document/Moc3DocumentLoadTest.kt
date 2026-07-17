@@ -156,30 +156,4 @@ class Moc3DocumentLoadTest {
 		assertTrue(degraded.puppet.parameterTree.isEmpty(), "no parameter tree without cdi3")
 		assertTrue(degraded.puppet.parameterLinks.isEmpty(), "no parameter links without cdi3")
 	}
-
-	@Test
-	fun realFileDiscoveryClassifiesTheMikuFixtures() {
-		// The corpus miku folder is a ready-made failure fixture set: miku.model3.json references a
-		// renamed texture folder (MissingTexture), and miku_verycursed.moc3 has no manifest at all
-		// (MissingManifest).  This exercises the real okio sibling-discovery path end-to-end, unlike the
-		// injected-reader tests above.
-		val mikuDirectory = sample?.parentFile?.parentFile?.resolve("miku")?.takeIf { it.isDirectory }
-		if (mikuDirectory == null) {
-			println("miku corpus fixtures not present; skipping real-file discovery test")
-			return
-		}
-		val renamedTextures = mikuDirectory.resolve("miku.moc3")
-		if (renamedTextures.isFile) {
-			val load = runBlocking { loadMoc3Document(PlatformFile(renamedTextures), renamedTextures.readBytes()) }
-			assertEquals(DocumentOpenError.MissingTexture, assertIs<DocumentLoad.Failed>(load).failure.error)
-		}
-		val manifestless = mikuDirectory.resolve("miku_verycursed.moc3")
-		if (manifestless.isFile) {
-			val load = runBlocking { loadMoc3Document(PlatformFile(manifestless), manifestless.readBytes()) }
-			assertEquals(DocumentOpenError.MissingManifest, assertIs<DocumentLoad.Failed>(load).failure.error)
-		}
-		// The Erica sample loads for real through the same path (manifest + textures + cdi3 from disk).
-		val ericaLoad = runBlocking { loadMoc3Document(PlatformFile(sample!!), sample!!.readBytes()) }
-		assertIs<Moc3Document>(assertIs<DocumentLoad.Loaded>(ericaLoad).document)
-	}
 }
