@@ -127,45 +127,4 @@ class AlphaAnalysisCorpusTest {
 				"$emptyLayerCount empty, $elapsedMillis ms",
 		)
 	}
-
-	/**
-	 * Counts the pixels meeting the threshold by direct scan, independent of the analysis.
-	 *
-	 * @param LayerRaster raster The pixels to scan.
-	 * @param Int alphaThreshold Minimum alpha byte value for a pixel to count.
-	 * @return Int The opaque pixel count.
-	 */
-	private fun countOpaquePixels(raster: LayerRaster, alphaThreshold: Int): Int {
-		var count = 0
-		for (pixelIndex in 0 until raster.width * raster.height) {
-			if ((raster.rgba[pixelIndex * 4 + 3].toInt() and 0xFF) >= alphaThreshold) {
-				count++
-			}
-		}
-		return count
-	}
-
-	/**
-	 * Asserts every simplified vertex exists in the exact ring — simplification only drops.
-	 *
-	 * @param IntArray exactPoints The exact ring's flat points.
-	 * @param IntArray simplifiedPoints The simplified ring's flat points.
-	 * @param String label Assertion context.
-	 */
-	private fun assertSimplifiedIsVertexSubset(exactPoints: IntArray, simplifiedPoints: IntArray, label: String) {
-		val exactPointSet = mutableSetOf<Long>()
-		for (pointIndex in 0 until exactPoints.size / 2) {
-			val x = exactPoints[pointIndex * 2].toLong()
-			val y = exactPoints[pointIndex * 2 + 1].toLong()
-			exactPointSet.add((x shl 32) or (y and 0xFFFFFFFFL))
-		}
-		for (pointIndex in 0 until simplifiedPoints.size / 2) {
-			val x = simplifiedPoints[pointIndex * 2].toLong()
-			val y = simplifiedPoints[pointIndex * 2 + 1].toLong()
-			assertTrue(
-				((x shl 32) or (y and 0xFFFFFFFFL)) in exactPointSet,
-				"$label: simplified vertex ($x, $y) is an exact-ring vertex",
-			)
-		}
-	}
 }

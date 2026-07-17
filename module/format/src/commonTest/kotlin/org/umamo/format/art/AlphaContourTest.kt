@@ -118,27 +118,11 @@ class AlphaContourTest {
 		assertAnalysisInvariants(simplified, exactRings = false)
 		assertEquals(exact.contours.size, simplified.contours.size)
 		for (contourIndex in exact.contours.indices) {
-			val exactPoints = exact.contours[contourIndex].points
-			val exactPointSet = mutableSetOf<Long>()
-			for (pointIndex in 0 until exactPoints.size / 2) {
-				exactPointSet.add(pointKey(exactPoints[pointIndex * 2], exactPoints[pointIndex * 2 + 1]))
-			}
-			val simplifiedPoints = simplified.contours[contourIndex].points
-			for (pointIndex in 0 until simplifiedPoints.size / 2) {
-				assertTrue(
-					pointKey(simplifiedPoints[pointIndex * 2], simplifiedPoints[pointIndex * 2 + 1]) in exactPointSet,
-					"simplified vertices are a subset of the exact ring",
-				)
-			}
+			assertSimplifiedIsVertexSubset(
+				exact.contours[contourIndex].points,
+				simplified.contours[contourIndex].points,
+				"complex scene contour $contourIndex",
+			)
 		}
 	}
-
-	/**
-	 * Packs a lattice corner into one Long for set membership checks.
-	 *
-	 * @param Int x Lattice corner x.
-	 * @param Int y Lattice corner y.
-	 * @return Long The packed key.
-	 */
-	private fun pointKey(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
 }

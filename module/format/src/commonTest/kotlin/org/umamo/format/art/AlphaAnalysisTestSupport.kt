@@ -141,3 +141,78 @@ internal fun assertAnalysisInvariants(analysis: AlphaAnalysis, exactRings: Boole
 		)
 	}
 }
+
+/**
+ * Packs a lattice corner into one Long for set membership checks.
+ *
+ * @param Int x Lattice corner x.
+ * @param Int y Lattice corner y.
+ * @return Long The packed key.
+ */
+internal fun pointKey(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
+
+/**
+ * Counts the pixels meeting the threshold by direct scan, independent of the analysis.
+ *
+ * @param LayerRaster raster The pixels to scan.
+ * @param Int alphaThreshold Minimum alpha byte value for a pixel to count.
+ * @return Int The opaque pixel count.
+ */
+internal fun countOpaquePixels(raster: LayerRaster, alphaThreshold: Int): Int {
+	var count = 0
+	for (pixelIndex in 0 until raster.width * raster.height) {
+		if ((raster.rgba[pixelIndex * 4 + 3].toInt() and 0xFF) >= alphaThreshold) {
+			count++
+		}
+	}
+	return count
+}
+
+/**
+ * Asserts every simplified vertex exists in the exact ring — simplification only ever drops
+ * vertices, never synthesizes coordinates.
+ *
+ * @param IntArray exactPoints The exact ring's flat points.
+ * @param IntArray simplifiedPoints The simplified ring's flat points.
+ * @param String label Assertion context.
+ */
+internal fun assertSimplifiedIsVertexSubset(exactPoints: IntArray, simplifiedPoints: IntArray, label: String) {
+	val exactPointSet = mutableSetOf<Long>()
+	for (pointIndex in 0 until exactPoints.size / 2) {
+		exactPointSet.add(pointKey(exactPoints[pointIndex * 2], exactPoints[pointIndex * 2 + 1]))
+	}
+	for (pointIndex in 0 until simplifiedPoints.size / 2) {
+		val x = simplifiedPoints[pointIndex * 2]
+		val y = simplifiedPoints[pointIndex * 2 + 1]
+		assertTrue(
+			pointKey(x, y) in exactPointSet,
+			"$label: simplified vertex ($x, $y) is an exact-ring vertex",
+		)
+	}
+}
+
+/**
+ * A minimal SourceLayer fake shared by the art-package suites, every member defaulted so each
+ * test injects only what it exercises (visibility cascade: name/visible/groupPath; alpha
+ * analysis: raster/opacity/visible).
+ *
+ * @param String name Layer name, also used as the stable id.
+ * @param Boolean visible The eye toggle.
+ * @param String groupPath Slash-joined enclosing-folder path.
+ * @param Float opacity Layer opacity, 0.0..1.0.
+ * @param LayerRaster raster Decoded pixels.
+ * @param LayerBounds bounds Position on the source canvas.
+ */
+internal class FakeSourceLayer(
+	override val name: String = "fake-layer",
+	override val visible: Boolean = true,
+	override val groupPath: String = "",
+	override val opacity: Float = 1f,
+	override val raster: LayerRaster = LayerRaster(1, 1, ByteArray(4)),
+	override val bounds: LayerBounds = LayerBounds(0, 0, 1, 1),
+) : SourceLayer {
+	override val id: LayerId = LayerId(name)
+	override val order: Int = 0
+	override val clipped: Boolean = false
+	override val blend: LayerBlend = LayerBlend.Normal
+}

@@ -60,7 +60,10 @@ public class AlphaAnalysis(
  * watertight and pixel-exact.  Closure is implicit: the last point connects back to the first
  * (they are never equal).  Winding encodes the region side: walking the ring keeps opaque
  * pixels on the right (y-down), so outer contours have positive shoelace area and holes have
- * negative — [isHole] stores that sign redundantly for convenience.
+ * negative.  [isHole] is derived from the exact ring and is the authoritative flag: the
+ * winding redundancy is guaranteed only for exact rings (contourEpsilon 0), because an
+ * adversarially self-intersecting simplified ring's shoelace sign may disagree (the known
+ * simplifier limitation) — do not re-derive hole-ness from a simplified ring's winding.
  *
  * A contour may touch itself at a saddle corner (a repeated non-consecutive vertex, "weakly
  * simple"); it never crosses itself.
@@ -95,7 +98,9 @@ public class AlphaContour(
  * @param ByteArray rgba RGBA8888 pixels, straight alpha, row-major from the top row; exactly width * height * 4 bytes.
  * @param Int alphaThreshold Minimum alpha byte value (1..255) for a pixel to count as opaque.
  * @param Float contourEpsilon Douglas-Peucker tolerance in pixels; 0 keeps the exact lattice rings.
- * @return AlphaAnalysis The opaque-region description, or null when nothing meets the threshold.
+ * @return AlphaAnalysis The RASTER-LOCAL opaque-region description (bounds and contours are
+ *         relative to the raster's own origin, not the source canvas), or null when nothing
+ *         meets the threshold.
  */
 public fun analyzeAlpha(
 	width: Int,
@@ -165,7 +170,14 @@ public fun analyzeAlpha(
 	val contours =
 		if (contourEpsilon > 0f) {
 			exactContours.map { contour ->
-				AlphaContour(simplifyClosedRing(contour.points, contourEpsilon), contour.isHole)
+				// simplifyClosedRing returns the input array itself when nothing can drop;
+				// reuse the contour object then instead of re-wrapping the same ring.
+				val simplifiedPoints = simplifyClosedRing(contour.points, contourEpsilon)
+				if (simplifiedPoints === contour.points) {
+					contour
+				} else {
+					AlphaContour(simplifiedPoints, contour.isHole)
+				}
 			}
 		} else {
 			exactContours

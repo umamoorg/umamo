@@ -1,5 +1,7 @@
 package org.umamo.format.art
 
+import org.umamo.format.raster.RasterImage
+import org.umamo.format.raster.analyzeAlpha
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -133,10 +135,27 @@ class AlphaAnalysisTest {
 	}
 
 	@Test
+	fun rasterImageExtensionAgreesWithThePositionalCore() {
+		val layerRaster = rasterOfRows("#.", ".#")
+		val image = RasterImage(layerRaster.width, layerRaster.height, layerRaster.rgba)
+		val fromImage = assertNotNull(image.analyzeAlpha())
+		val fromPositional = assertNotNull(analyzeAlpha(layerRaster.width, layerRaster.height, layerRaster.rgba))
+		assertEquals(fromPositional.opaqueBounds, fromImage.opaqueBounds)
+		assertEquals(fromPositional.opaquePixelCount, fromImage.opaquePixelCount)
+		assertEquals(fromPositional.contours.size, fromImage.contours.size)
+		for (contourIndex in fromPositional.contours.indices) {
+			assertContentEquals(
+				fromPositional.contours[contourIndex].points,
+				fromImage.contours[contourIndex].points,
+			)
+		}
+	}
+
+	@Test
 	fun sourceLayerAnalysisIgnoresCompositingProperties() {
 		val raster = rasterOfRows(".#.", "###")
-		val opaqueVisible = TestSourceLayer(raster, opacity = 1f, visible = true)
-		val faintHidden = TestSourceLayer(raster, opacity = 0.1f, visible = false)
+		val opaqueVisible = FakeSourceLayer(raster = raster, opacity = 1f, visible = true)
+		val faintHidden = FakeSourceLayer(raster = raster, opacity = 0.1f, visible = false)
 		val first = assertNotNull(opaqueVisible.analyzeAlpha())
 		val second = assertNotNull(faintHidden.analyzeAlpha())
 		assertEquals(first.opaqueBounds, second.opaqueBounds)
@@ -159,27 +178,5 @@ class AlphaAnalysisTest {
 			LayerBounds(left = 102, top = 51, width = 3, height = 3),
 			analysis.opaqueBoundsOnCanvas(LayerBounds(left = 100, top = 50, width = 6, height = 5)),
 		)
-	}
-
-	/**
-	 * Minimal SourceLayer over a synthetic raster, with the compositing properties the
-	 * analysis must ignore as the only variables.
-	 *
-	 * @param LayerRaster raster The pixels under analysis.
-	 * @param Float opacity Layer opacity, ignored by the analysis.
-	 * @param Boolean visible Layer visibility, ignored by the analysis.
-	 */
-	private class TestSourceLayer(
-		override val raster: LayerRaster,
-		override val opacity: Float,
-		override val visible: Boolean,
-	) : SourceLayer {
-		override val id = LayerId("test-layer")
-		override val name = "test-layer"
-		override val groupPath = ""
-		override val order = 0
-		override val bounds = LayerBounds(left = 7, top = 9, width = raster.width, height = raster.height)
-		override val clipped = false
-		override val blend = LayerBlend.Normal
 	}
 }
