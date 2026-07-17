@@ -8,6 +8,8 @@ import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.moc3.MocDocument
+import org.umamo.format.moc3.moc.MocModel
 import org.umamo.render.PuppetTextures
 import org.umamo.render.extractPuppetTextures
 import org.umamo.runtime.ingest.Cmo3Import
@@ -29,14 +31,46 @@ sealed interface Document {
 	val displayName: String get() = fileDisplayName(path)
 }
 
+/**
+ * A document the editor shell runs a full puppet session over - the shared face of every format that
+ * imports to a [PuppetModel].  The session, viewport, and panels consume only this surface, so a new
+ * puppet-producing format plugs in by adding a subtype; format-specific state (the CMO3 model kept for
+ * Save, the MOC3 container kept for a future re-bake) stays on the concrete type.
+ */
+sealed interface PuppetDocument : Document {
+	/** The imported runtime puppet the session edits and the viewport renders. */
+	val puppet: PuppetModel
+
+	/** The decoded atlas pages + per-drawable page index backing the puppet's preview. */
+	val textures: PuppetTextures
+
+	/** The live parameter values driving the preview pose. */
+	val liveParams: LiveParams
+}
+
 /** A loaded `.cmo3`: the format model (for Save), the runtime puppet + textures (for render), live params. */
 class Cmo3Document(
 	override val path: String,
 	val cmo3: Cmo3Model,
-	val puppet: PuppetModel,
-	val textures: PuppetTextures,
-	val liveParams: LiveParams,
-) : Document
+	override val puppet: PuppetModel,
+	override val textures: PuppetTextures,
+	override val liveParams: LiveParams,
+) : PuppetDocument
+
+/**
+ * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
+ * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
+ * reference container); there is no MOC3 save today, so an imported model is read-only at the file
+ * level - Save As stays gated to [Cmo3Document].
+ */
+class Moc3Document(
+	override val path: String,
+	val moc: MocModel,
+	val mocDocument: MocDocument,
+	override val puppet: PuppetModel,
+	override val textures: PuppetTextures,
+	override val liveParams: LiveParams,
+) : PuppetDocument
 
 /**
  * The outcome of loading a file into a [Document]: the document, or the reason there is none.
@@ -53,7 +87,10 @@ sealed interface DocumentLoad {
 
 /**
  * Loads a picked/stored file into a [Document] via [loadDocument]'s byte core, reading through
- * FileKit's common API so desktop paths and Android SAF URIs take the same route.
+ * FileKit's common API so desktop paths and Android SAF URIs take the same route.  A `.moc3` is the
+ * one format routed to the sidecar-discovering loader instead: its manifest, display info, and atlas
+ * pages live in sibling files, so it can only open from a file with a resolvable directory - which is
+ * also why the byte-level overload keeps reporting it NotOpenable.
  *
  * @param PlatformFile file The picked or reconstructed file handle.
  * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognised, or failed to parse).
@@ -64,6 +101,9 @@ suspend fun loadDocument(file: PlatformFile): DocumentLoad {
 			UmamoLog.error("failed to read ${file.name}", it)
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ReadFailed, file.name))
 		}
+	if (FormatRegistry.detect(bytes, file.name)?.kind == FileKind.Moc3) {
+		return loadMoc3Document(file, bytes)
+	}
 	return loadDocument(bytes, file.name, file.absolutePath())
 }
 

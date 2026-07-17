@@ -37,6 +37,7 @@
 	<string name="menu_file">ファイル</string>
 	<string name="menu_open">開く…</string>
 	<string name="menu_open_recent">最近使ったファイル</string>
+	<string name="menu_import_moc3">MOC3 をインポート…</string>
 	<string name="menu_save_as">名前を付けて保存…</string>
 	<string name="menu_exit">終了</string>
 
@@ -61,6 +62,8 @@
 	<string name="open_failed_unrecognized">%1$s は Umamo が認識できるファイル形式ではありません。</string>
 	<string name="open_failed_not_openable">%1$s はまだエディタで開けないファイル形式です。</string>
 	<string name="open_failed_parse">%1$s を開けませんでした。ファイルが破損している可能性があります。</string>
+	<string name="open_failed_missing_manifest">%1$s をインポートできませんでした。model3.json マニフェストが同じフォルダに見つかりません。</string>
+	<string name="open_failed_missing_texture">%1$s をインポートできませんでした。model3.json が参照するテクスチャが見つからないか読み込めません。</string>
 
 	<string name="menu_help">ヘルプ</string>
 	<string name="menu_source_code">ソースコード…</string>

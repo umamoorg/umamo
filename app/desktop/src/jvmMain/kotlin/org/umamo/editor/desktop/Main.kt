@@ -23,8 +23,8 @@ import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.defaultSettingsJson
-import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.DocumentLoad
+import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.l10n.applyAppLocale
@@ -57,24 +57,25 @@ private fun applyDumpParamOverrides(liveParams: LiveParams) {
 /**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
  * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
- * native `:storage` dialogs. An initial document may come from a `.cmo3` argument or `-Dumamo.testCmo3`;
- * otherwise the window opens to an "Open a file" prompt.
+ * native `:storage` dialogs. An initial document may come from a `.cmo3`/`.moc3` argument or
+ * `-Dumamo.testCmo3`; otherwise the window opens to an "Open a file" prompt.
  * `UMAMO_DUMP_PNG` still dumps the first frame headlessly (the WSL verification path).
  *
  * Settings load synchronously here (the bundled default is a Compose resource, read via `runBlocking`)
  * so the window state is ready before the window opens and the window is unconditional - `application {}`
  * exits if it ever has zero windows, which an async settings gate would briefly cause.
  *
- * @param Array<String> args Optional: a `.cmo3` path.
+ * @param Array<String> args Optional: a `.cmo3` or `.moc3` path.
  */
 fun main(args: Array<String>) {
 	// FileKit's native dialogs need a one-time init; `appId` names the per-OS data/cache dirs it uses.
 	FileKit.init(appId = "umamo")
 	val initialPath =
 		args.firstOrNull { arg ->
-			// Pick the first .cmo3 argument; loadDocument then does the real magic-byte detection
-			// once the file is actually read.
-			arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true)
+			// Pick the first .cmo3 or .moc3 argument; loadDocument then does the real magic-byte
+			// detection once the file is actually read (a .moc3 routes to the sidecar-discovering loader).
+			arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true) ||
+				arg.endsWith(".${FileKind.Moc3.extension}", ignoreCase = true)
 		}
 			?: System.getProperty("umamo.testCmo3")
 	// Synchronous load, like the settings below: the window opens with the document already in hand.
@@ -85,8 +86,9 @@ fun main(args: Array<String>) {
 			(runBlocking { loadDocument(platformFileFromSavedPath(path)) } as? DocumentLoad.Loaded)?.document
 		}
 	// The dump-params override applies only to the initially-opened document - it exists for the
-	// headless first-frame dump, which always opens via argv / -Dumamo.testCmo3.
-	(initialDocument as? Cmo3Document)?.let { applyDumpParamOverrides(it.liveParams) }
+	// headless first-frame dump, which always opens via argv / -Dumamo.testCmo3.  PuppetDocument
+	// covers both CMO3 and MOC3 documents, so a .moc3 argv dump poses correctly too.
+	(initialDocument as? PuppetDocument)?.let { applyDumpParamOverrides(it.liveParams) }
 	val storage = desktopAppStorage("umamo")
 	val settings = runBlocking { Settings.load(storage, defaultSettingsJson()) }
 	// Apply the UI language before the window opens so the menu bar (which lives outside the shell's

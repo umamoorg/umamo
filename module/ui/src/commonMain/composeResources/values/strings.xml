@@ -46,6 +46,7 @@
 	<string name="menu_file">File</string>
 	<string name="menu_open">Open…</string>
 	<string name="menu_open_recent">Open Recent</string>
+	<string name="menu_import_moc3">Import MOC3…</string>
 	<string name="menu_save_as">Save As…</string>
 	<string name="menu_exit">Exit</string>
 
@@ -72,7 +73,9 @@
 	<string name="open_failed_read">Could not read %1$s.</string>
 	<string name="open_failed_unrecognized">%1$s is not a file format Umamo recognizes.</string>
 	<string name="open_failed_not_openable">%1$s cannot be opened in the editor yet.</string>
-	<string name="open_failed_parse">Could not open %1$s. The file may be damaged.</string>
+	<string name="open_failed_parse">Could not open %1$s.  The file may be damaged.</string>
+	<string name="open_failed_missing_manifest">Could not import %1$s.  Its model3.json manifest was not found next to the file.</string>
+	<string name="open_failed_missing_texture">Could not import %1$s.  A texture referenced by its model3.json is missing or unreadable.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>

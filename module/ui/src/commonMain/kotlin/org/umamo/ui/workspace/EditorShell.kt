@@ -390,4 +390,6 @@ private fun openFailureMessage(error: DocumentOpenError): StringResource =
 		DocumentOpenError.Unrecognized -> Res.string.open_failed_unrecognized
 		DocumentOpenError.NotOpenable -> Res.string.open_failed_not_openable
 		DocumentOpenError.ParseFailed -> Res.string.open_failed_parse
+		DocumentOpenError.MissingManifest -> Res.string.open_failed_missing_manifest
+		DocumentOpenError.MissingTexture -> Res.string.open_failed_missing_texture
 	}

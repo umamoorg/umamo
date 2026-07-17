@@ -157,6 +157,8 @@ fun resolveSampleProperty(samplePropertyName: String): String? {
 				// Pinned to EricaTamamo: it is the model that actually carries glue affecters, so it is
 				// what makes the glue gates meaningful rather than vacuously green.
 				"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+				// The baked twin of the cmo3 default, so the MOC3-vs-CMO3 import parity gate runs locally.
+				"moc3.sample" -> corpusDirectory.resolve("moc3/EricaTamamo/EricaTamamo.moc3").takeIf { it.isFile }?.absolutePath
 				else -> null
 			}
 	val resolved = rootDir.resolve(explicit.trim()).absolutePath

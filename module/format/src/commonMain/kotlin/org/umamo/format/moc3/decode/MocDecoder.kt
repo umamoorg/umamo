@@ -296,6 +296,13 @@ public object MocDecoder {
 
 		// ---- glue ----
 		val glueList = decodeGlues(sections)
+		// Register glue bindings in the cache like every other object kind: a glue names a binding
+		// from the same shared table (MOC3.md §5.6), and without this a glue-exclusive binding would
+		// be missing from MocDocument.keyformBinding (dropping the glue's parameter-driven intensity
+		// downstream) AND from MocDocument.bindings (dropping its table rows from a re-bake).
+		for (glue in glueList) {
+			binding(glue.keyformBindingIndex)
+		}
 
 		// ---- render-order groups ----
 		val groupList =
