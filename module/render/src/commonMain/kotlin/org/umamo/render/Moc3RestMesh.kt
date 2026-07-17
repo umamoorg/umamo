@@ -33,9 +33,6 @@ import kotlin.math.min
  * meshes still land in canvas space.  It lives in `:render` (not `:runtime`) because it is the
  * evaluator that turns parent-space keyforms into canvas geometry.
  *
- * MOC3: 親空間キーフォームしか持たない moc の基準メッシュを、デフォルトポーズのキャンバス座標へ書き直す。
- * デフォルト値がキー範囲外のオブジェクトは、範囲内へクランプしたポーズで再評価する。
- *
  * @param PuppetModel model An imported model whose rest meshes may be parent-local (a MOC3 import).
  * @return PuppetModel The model with canvas-space rest meshes (a drawable that stays hidden even at
  *                     the clamped pose keeps its parent-local base, which still evaluates correctly).

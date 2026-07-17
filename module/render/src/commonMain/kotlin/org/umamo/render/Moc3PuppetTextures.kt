@@ -12,8 +12,6 @@ import org.umamo.format.png.PngCodec
  * whole build: a MOC3 import with a missing atlas page is a broken puppet, and the loader surfaces it
  * as an import error rather than silently rendering fallback colors.
  *
- * MOC3: アトラスは model3.json の Textures が指す外部 PNG。1 ページでも壊れていれば null（インポート失敗）。
- *
  * @param List<ByteArray>  pageBytes              The PNG bytes per manifest texture, in Textures order.
  * @param Map<String, Int> atlasIndexByDrawableId Drawable id (`ArtMesh…`) → page index (the moc's
  *                                                per-mesh textureIndex).
