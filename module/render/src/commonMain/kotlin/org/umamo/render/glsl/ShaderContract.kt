@@ -18,6 +18,17 @@ package org.umamo.render.glsl
 internal const val MAX_CORNERS = 16
 
 /**
+ * The most blend-shape delta columns a single mesh can have active at once.
+ *
+ * Sizes the `blendCell` / `blendWeight` uniform arrays - the additive blend-shape pass's analogue
+ * of [MAX_CORNERS], kept SEPARATE so zero-blend models keep exactly the pre-blend uniform traffic.
+ * Corpus maximum is 18 active forms (Model C: 9 bindings x 2 bracketing keys); 32 gives headroom at a
+ * worst-case cost of 64 uniform components against GL 3.3 / GLES 3.0's guaranteed 1024. Surplus
+ * contributions are dropped deterministically, with the same cap applied CPU-side.
+ */
+internal const val MAX_BLEND_CORNERS = 32
+
+/**
  * The most glue affecters one model can weld on the GPU.
  *
  * Sizes the `glueIntensity` uniform array.  A model's glue #65 and beyond render UNWELDED rather than

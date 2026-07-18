@@ -25,14 +25,22 @@ import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
+import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
+import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyOnParameter
 import org.umamo.format.cmo3.model.gen.KeyformBindingSource
 import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.cmo3.model.gen.KeyformOnGrid
+import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraint
+import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
+import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
+import org.umamo.runtime.model.BlendWeightLimit
+import org.umamo.runtime.model.BlendWeightLimitPoint
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -49,6 +57,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
@@ -137,7 +146,6 @@ object Cmo3Import {
 					put(uuid, ParameterId(id))
 				}
 			}
-
 		// Pass 2 - build runtime entities, resolving references through the indices above.
 		val parameters =
 			parameterSources.map { source ->
@@ -148,6 +156,8 @@ object Cmo3Import {
 					min = source.minValue,
 					max = source.maxValue,
 					default = source.defaultValue,
+					// CMO3: CParameterSource field paramType - MORPH_TARGET marks a blend-shape axis.
+					kind = if ((source.paramType as? Type) == Type.MORPH_TARGET) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
 				)
 			}
 
@@ -257,6 +267,8 @@ object Cmo3Import {
 							keyforms = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::warpForm),
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
+							blendShapes =
+								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::warpForm),
 						)
 					is CRotationDeformerSource ->
 						Deformer.Rotation(
@@ -268,6 +280,8 @@ object Cmo3Import {
 							keyforms = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::rotationForm),
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
+							blendShapes =
+								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::rotationForm),
 						)
 					else -> null
 				}
@@ -300,6 +314,10 @@ object Cmo3Import {
 					mesh = mesh,
 					keyforms =
 						buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid) { form ->
+							meshForm(form, mesh?.positions)
+						},
+					blendShapes =
+						blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid) { form ->
 							meshForm(form, mesh?.positions)
 						},
 				)
@@ -616,7 +634,7 @@ object Cmo3Import {
 			}
 		// accessKey entries point at a binding object (resolved by identity), giving each cell's coord.
 		val axisOfBinding = bindings.withIndex().associate { (index, binding) -> binding to index }
-		val formByUuid = elementsOf(forms).associateBy { uuidOf(formGuid(it)) }
+		val formByUuid = formPool(forms)
 		val cells =
 			elementsOf(grid.keyformsOnGrid).filterIsInstance<KeyformOnGrid>().mapNotNull { cell ->
 				val form = formByUuid[uuidOf(cell.keyformGuid)] ?: return@mapNotNull null
@@ -650,6 +668,103 @@ object Cmo3Import {
 	 * @return Any? The form's `guid` (a `Guid`), or null.
 	 */
 	private fun formGuid(form: Any?): Any? = (form as? ACForm)?.guid
+
+	/**
+	 * Indexes a source's `keyforms` pool by each form's own guid uuid. Grid cells and morph
+	 * targets both resolve their form references through this pool.
+	 *
+	 * @param Any? forms The source's `keyforms` collection (the form objects).
+	 * @return Map The uuid → form object index.
+	 */
+	private fun formPool(forms: Any?): Map<String?, Any?> = elementsOf(forms).associateBy { uuidOf(formGuid(it)) }
+
+	/**
+	 * Builds a source's blend-shape bindings from its morph-target set: one binding per driving
+	 * parameter, keys sorted with the neutral key inserted at value 0.
+	 *
+	 * CMO3: ACParameterControllableSource field keyformMorphTargetSet - a KeyFormMorphTargetSet
+	 * whose _morphTargets each bind one form (keyformGuid, from the source's shared keyforms pool)
+	 * at one keyValue on one driving parameter (parameterGuid).  CMO3 stores no morph target at
+	 * value 0 in the usual case; the baked MOC3 records carry sorted(keys + 0) with the neutral at
+	 * value 0, so ingest inserts it here with a null form (corpus-verified rule - see
+	 * MorphTargetJoinProbeTest).  The editBaseParameterMap field is ignored: it is null in every
+	 * corpus instance, its semantics unresolved.
+	 *
+	 * @param Any?     morphTargetSet    The source's `keyformMorphTargetSet`.
+	 * @param Any?     forms             The source's `keyforms` collection (the form objects).
+	 * @param Map      paramIdByUuid     uuid → ParameterId, from pass 1.
+	 * @param Function formPayload       Builds the typed form payload from a raw form object.
+	 * @return List The bindings (empty when the source carries no morph targets).
+	 */
+	private fun <TForm : Any> blendShapeBindingsOf(
+		morphTargetSet: Any?,
+		forms: Any?,
+		paramIdByUuid: Map<String, ParameterId>,
+		formPayload: (Any) -> TForm?,
+	): List<BlendShapeBinding<TForm>> {
+		val set = morphTargetSet as? KeyFormMorphTargetSet ?: return emptyList()
+		val targets = elementsOf(set._morphTargets).filterIsInstance<KeyFormMorphTarget>()
+		if (targets.isEmpty()) {
+			return emptyList()
+		}
+		val formByUuid = formPool(forms)
+		val constraints =
+			elementsOf((set.blendWeightConstraintSet as? MorphTargetBlendWeightConstraintSet)?._constraints)
+				.filterIsInstance<MorphTargetBlendWeightConstraint>()
+		return targets.groupBy { uuidOf(it.parameterGuid) }.mapNotNull { (parameterUuid, group) ->
+			val parameterId = parameterUuid?.let(paramIdByUuid::get) ?: return@mapNotNull null
+			val neutralValue = 0f
+			val payloadByKey =
+				group.mapNotNull { target ->
+					val form = formByUuid[uuidOf(target.keyformGuid)] ?: return@mapNotNull null
+					val payload = formPayload(form) ?: return@mapNotNull null
+					target.keyValue to payload
+				}.toMap()
+			if (payloadByKey.isEmpty()) {
+				return@mapNotNull null
+			}
+			val keys = (payloadByKey.keys + neutralValue).sorted()
+			BlendShapeBinding(
+				parameterId = parameterId,
+				keys = keys.toFloatArray(),
+				neutralIndex = keys.indexOf(neutralValue),
+				forms = keys.map { key -> payloadByKey[key] },
+				limits = blendWeightLimitsOf(constraints, parameterUuid, paramIdByUuid),
+			)
+		}
+	}
+
+	/**
+	 * Groups a morph-target set's flat constraint records into per-parameter limit curves for one
+	 * driving parameter.
+	 *
+	 * CMO3: MorphTargetBlendWeightConstraint - (morphTargetParameterGuid, constraintParameterGuid,
+	 * constraintParameterValue, blendWeight); one curve point per record, grouped by the
+	 * constraint parameter, sorted by its value.
+	 *
+	 * @param List collection    The set's constraint records.
+	 * @param String morphTargetParameterUuid The driving parameter whose limits are wanted.
+	 * @param Map  paramIdByUuid uuid → ParameterId, from pass 1.
+	 * @return List The limit curves (empty when the set has none for this parameter).
+	 */
+	private fun blendWeightLimitsOf(
+		collection: List<MorphTargetBlendWeightConstraint>,
+		morphTargetParameterUuid: String,
+		paramIdByUuid: Map<String, ParameterId>,
+	): List<BlendWeightLimit> =
+		collection
+			.filter { uuidOf(it.morphTargetParameterGuid) == morphTargetParameterUuid }
+			.groupBy { uuidOf(it.constraintParameterGuid) }
+			.mapNotNull { (constraintUuid, records) ->
+				val parameterId = constraintUuid?.let(paramIdByUuid::get) ?: return@mapNotNull null
+				BlendWeightLimit(
+					parameterId = parameterId,
+					points =
+						records
+							.sortedBy { it.constraintParameterValue }
+							.map { BlendWeightLimitPoint(it.constraintParameterValue, it.blendWeight) },
+				)
+			}
 
 	/**
 	 * Mesh cell payload: the form's absolute positions converted to deltas vs the mesh [base].

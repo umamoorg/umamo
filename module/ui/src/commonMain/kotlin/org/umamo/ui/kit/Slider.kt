@@ -11,12 +11,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 
 /** The thumb dot's radius; the thumb travels inset by this from each end so it never spills past the control. */
 private val SLIDER_THUMB_RADIUS = 5.dp
+
+/** A per-key marker's half-extent; kept under the thumb radius so the current-value thumb stays dominant. */
+private val SLIDER_KEY_MARK_RADIUS = 3.5.dp
+
+/**
+ * The shape a slider draws for its thumb and for a per-key marker. A circle marks a key-form (grid) point;
+ * a square marks a blend-shape point - the parameter-cockpit distinction between the two control-point
+ * kinds (see ParameterKind: circle points drive keyform interpolation, square points drive additive
+ * blend-shape deltas).
+ */
+enum class SliderKeyShape {
+	Circle,
+	Square,
+}
+
+/**
+ * A parameter key to mark on the slider track: its value and the shape that encodes its kind.
+ *
+ * @param Float value The parameter value the key sits at.
+ * @param SliderKeyShape shape The marker shape (Circle = grid key, Square = blend-shape key).
+ */
+data class SliderKeyMark(
+	val value: Float,
+	val shape: SliderKeyShape,
+)
 
 /**
  * A flat, draggable slider: a thin track + fill + small thumb on a [Canvas], set by tap or drag anywhere on
@@ -32,8 +59,10 @@ private val SLIDER_THUMB_RADIUS = 5.dp
  * @param Modifier modifier              Layout modifier (supply the width).
  * @param Function onValueChangeFinished Called once when the gesture ends (tap, drag release, or cancel).
  * @param ClosedFloatingPointRange valueRange The min..max range.
- * @param List keyTicks Parameter values to mark on the track (the drawable's keyform keys in Edit mode),
- *   so the user can scrub onto a key. Empty by default.
+ * @param List keyMarks Parameter keys to mark on the track, each with its shape (circle grid key / square
+ *   blend-shape key), so the user can see and scrub onto a key. Empty by default.
+ * @param SliderKeyShape thumbShape The thumb's shape (Circle for a key-form parameter, Square for a
+ *   blend-shape parameter); defaults to Circle.
  */
 @Composable
 fun Slider(
@@ -42,7 +71,8 @@ fun Slider(
 	modifier: Modifier = Modifier,
 	onValueChangeFinished: () -> Unit = {},
 	valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-	keyTicks: List<Float> = emptyList(),
+	keyMarks: List<SliderKeyMark> = emptyList(),
+	thumbShape: SliderKeyShape = SliderKeyShape.Circle,
 ) {
 	val colors = LocalUmamoColors.current
 	val span = (valueRange.endInclusive - valueRange.start).takeIf { it != 0f } ?: 1f
@@ -96,24 +126,42 @@ fun Slider(
 			size = Size(thumbCenterX, trackHeight),
 			cornerRadius = corner,
 		)
-		// Keyform key markers: a thin vertical tick at each key value, so the user can scrub onto one.
-		val tickHalfHeight = 5.dp.toPx()
-		val tickWidth = 1.5.dp.toPx()
-		for (key in keyTicks) {
-			val keyFraction = ((key - valueRange.start) / span).coerceIn(0f, 1f)
-			val tickX = (thumbRadius + keyFraction * usableWidth).coerceIn(0f, size.width)
-			drawLine(
-				color = tickColor,
-				start = Offset(tickX, centerY - tickHalfHeight),
-				end = Offset(tickX, centerY + tickHalfHeight),
-				strokeWidth = tickWidth,
+		// Key markers: a small dot at each key value so the user can see and scrub onto a key. Shape
+		// encodes the key's kind - a circle for a key-form (grid) key, a square for a blend-shape key.
+		val markRadius = SLIDER_KEY_MARK_RADIUS.toPx()
+		for (mark in keyMarks) {
+			val keyFraction = ((mark.value - valueRange.start) / span).coerceIn(0f, 1f)
+			val markX = (thumbRadius + keyFraction * usableWidth).coerceIn(0f, size.width)
+			drawSliderShape(mark.shape, tickColor, markX, centerY, markRadius)
+		}
+		drawSliderShape(thumbShape, thumbColor, thumbCenterX, centerY, thumbRadius)
+	}
+}
+
+/**
+ * Draws one slider marker (thumb or key mark) centered at ([centerX], [centerY]): a filled circle of
+ * [radius], or a square of the same half-extent with slightly rounded corners to match the flat look.
+ *
+ * @param SliderKeyShape shape   The marker shape.
+ * @param Color          color   The fill color.
+ * @param Float          centerX The marker center x.
+ * @param Float          centerY The marker center y.
+ * @param Float          radius  The circle radius, or the square's half-side.
+ */
+private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, centerX: Float, centerY: Float, radius: Float) {
+	when (shape) {
+		SliderKeyShape.Circle -> {
+			drawCircle(color = color, radius = radius, center = Offset(centerX, centerY))
+		}
+
+		SliderKeyShape.Square -> {
+			drawRoundRect(
+				color = color,
+				topLeft = Offset(centerX - radius, centerY - radius),
+				size = Size(radius * 2f, radius * 2f),
+				cornerRadius = CornerRadius(radius * 0.35f),
 			)
 		}
-		drawCircle(
-			color = thumbColor,
-			radius = thumbRadius,
-			center = Offset(thumbCenterX, centerY),
-		)
 	}
 }
 

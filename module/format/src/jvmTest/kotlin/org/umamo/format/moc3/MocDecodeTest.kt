@@ -3,6 +3,7 @@ package org.umamo.format.moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import java.io.File
@@ -21,6 +22,35 @@ class MocDecodeTest {
 	private fun samples(): List<File> =
 		samplesDir?.walkTopDown()?.filter { it.isFile && it.extension == "moc3" }?.sortedBy { it.name }?.toList()
 			?: emptyList()
+
+	/**
+	 * Pins which blend-free v1/v3 samples carry the optional KEY_POSITIONS per-parameter union region
+	 * (MOC3 §5.6 - an editor-version artifact the decoder records as `keyPositionsHasParameterUnion`).
+	 * Catches a detector regression independently of MocLoweringTest's byte-exact reproduction.  A
+	 * blend model always carries the region unconditionally, so the flag is left false there (gated).
+	 */
+	@Test
+	fun keyPositionsUnionRegionFlagPinned() {
+		val files = samples()
+		if (files.isEmpty()) {
+			println("moc3.samples not present; skipping union-region flag test")
+			return
+		}
+		// The only corpus samples that append the union region; every other file (including all blend
+		// models) omits it.  Probed across the corpus - byte-identical section tables split both ways.
+		val carriesUnion = setOf("modelD.moc3")
+		for (file in files) {
+			val doc = Moc3.decode(MocCodec.read(file.readBytes()))
+			assertEquals(
+				file.name in carriesUnion,
+				doc.keyPositionsHasParameterUnion,
+				"${file.name}: keyPositionsHasParameterUnion",
+			)
+			if (doc.blendShapes.isNotEmpty()) {
+				assertTrue(!doc.keyPositionsHasParameterUnion, "${file.name}: flag stays false on a blend model")
+			}
+		}
+	}
 
 	@Test
 	fun decodesSamplesConsistently() {
@@ -157,12 +187,120 @@ class MocDecodeTest {
 				val targetOk =
 					when (bs.target) {
 						org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH -> bs.targetIndex in doc.artMeshes.indices
+						org.umamo.format.moc3.model.BlendShapeTarget.PART -> bs.targetIndex in doc.parts.indices
 						else -> bs.targetIndex in doc.deformers.indices
 					}
 				assertTrue(targetOk, "${file.name}: blendshape target ${bs.target} ${bs.targetIndex}")
+				for (limit in bs.limits) {
+					assertTrue(limit.parameterIndex in doc.parameters.indices, "${file.name}: limit parameter")
+					assertTrue(
+						limit.keyPositions.toList() == limit.keyPositions.toList().sorted(),
+						"${file.name}: limit keys ascending",
+					)
+					assertEquals(limit.keyPositions.size, limit.weights.size, "${file.name}: limit weights parallel")
+				}
+
+				// Typed delta payloads: one keyform per key, kind matching the target, and the
+				// neutral key's row all-zero (MOC3 §5.6: deltas are relative to the neutral).
+				assertEquals(bs.keyPositions.size, bs.keyforms.size, "${file.name}: blendshape keyforms parallel keys")
+				val kindMatches =
+					bs.keyforms.all { keyform ->
+						when (bs.target) {
+							org.umamo.format.moc3.model.BlendShapeTarget.WARP -> keyform is BlendShapeKeyform.Warp
+							org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH -> keyform is BlendShapeKeyform.Mesh
+							org.umamo.format.moc3.model.BlendShapeTarget.ROTATION -> keyform is BlendShapeKeyform.Rotation
+							org.umamo.format.moc3.model.BlendShapeTarget.PART -> keyform is BlendShapeKeyform.Part
+						}
+					}
+				assertTrue(kindMatches, "${file.name}: blendshape keyform kinds match ${bs.target}")
+				when (val neutralKeyform = bs.keyforms[bs.neutralKeyIndex]) {
+					is BlendShapeKeyform.Mesh -> {
+						assertTrue(
+							neutralKeyform.form.vertexPositions.all { it == 0f },
+							"${file.name}: neutral mesh delta zero",
+						)
+						assertEquals(0f, neutralKeyform.form.opacity, "${file.name}: neutral mesh opacity delta")
+						assertEquals(0f, neutralKeyform.form.drawOrder, "${file.name}: neutral mesh draw-order delta")
+						// Color delta rows follow the same neutral-zero rule; this also pins the
+						// delta-region anchoring in the shared color tables (MOC3 §5.6).
+						neutralKeyform.form.multiplyColor?.let { neutralMultiply ->
+							assertTrue(
+								neutralMultiply.r == 0f && neutralMultiply.g == 0f && neutralMultiply.b == 0f,
+								"${file.name}: neutral mesh multiply-color delta zero (got $neutralMultiply)",
+							)
+						}
+						neutralKeyform.form.screenColor?.let { neutralScreen ->
+							assertTrue(
+								neutralScreen.r == 0f && neutralScreen.g == 0f && neutralScreen.b == 0f,
+								"${file.name}: neutral mesh screen-color delta zero (got $neutralScreen)",
+							)
+						}
+					}
+					is BlendShapeKeyform.Warp -> {
+						assertTrue(
+							neutralKeyform.form.controlPoints.all { it == 0f },
+							"${file.name}: neutral warp delta zero",
+						)
+						assertEquals(0f, neutralKeyform.form.opacity, "${file.name}: neutral warp opacity delta")
+					}
+					is BlendShapeKeyform.Rotation -> {
+						assertEquals(0f, neutralKeyform.form.originX, "${file.name}: neutral rotation origin-x delta")
+						assertEquals(0f, neutralKeyform.form.originY, "${file.name}: neutral rotation origin-y delta")
+						assertEquals(0f, neutralKeyform.form.angle, "${file.name}: neutral rotation angle delta")
+						assertEquals(0f, neutralKeyform.form.scale, "${file.name}: neutral rotation scale delta")
+						assertEquals(0f, neutralKeyform.form.opacity, "${file.name}: neutral rotation opacity delta")
+					}
+					is BlendShapeKeyform.Part -> {
+						assertEquals(0f, neutralKeyform.drawOrderDelta, "${file.name}: neutral part draw-order delta")
+					}
+				}
 			}
 
-			println("${file.name}: v${model.versionByte} params=${doc.parameters.size} parts=${doc.parts.size} deformers=${doc.deformers.size} meshes=${doc.artMeshes.size} glues=${doc.glues.size} groups=${doc.renderOrderGroups.size} bindings=${doc.bindings.size} blendShapes=${doc.blendShapes.size} offscreens=${doc.offscreens.size}")
+			val limitAttachments = doc.blendShapes.sumOf { it.limits.size }
+			val distinctLimits = doc.blendShapes.flatMap { it.limits }.distinct().size
+			println(
+				"${file.name}: v${model.versionByte} params=${doc.parameters.size} parts=${doc.parts.size} deformers=${doc.deformers.size} meshes=${doc.artMeshes.size} glues=${doc.glues.size} groups=${doc.renderOrderGroups.size} bindings=${doc.bindings.size} blendShapes=${doc.blendShapes.size} limits=$limitAttachments/$distinctLimits offscreens=${doc.offscreens.size}",
+			)
+
+			// Golden anchors for the blend-shape corpus models.
+			val deltaKeyformTotal = doc.blendShapes.sumOf { it.keyforms.size }
+
+			/**
+			 * Sums the delta keyforms of the records targeting [target].
+			 *
+			 * @param org.umamo.format.moc3.model.BlendShapeTarget target The record kind to total.
+			 * @return Int The delta-keyform count over that kind's records.
+			 */
+			fun deltaKeyformsOf(target: org.umamo.format.moc3.model.BlendShapeTarget): Int =
+				doc.blendShapes.filter { it.target == target }.sumOf { it.keyforms.size }
+			if (file.name.startsWith("modelA")) {
+				assertEquals(60, doc.blendShapes.size, "Model A: blend-shape records")
+				assertEquals(0, limitAttachments, "Model A: no blend-weight limits")
+				assertEquals(178, deltaKeyformTotal, "Model A: delta keyforms")
+				assertEquals(142, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.WARP), "Model A: warp delta keyforms")
+				assertEquals(24, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH), "Model A: mesh delta keyforms")
+				assertEquals(12, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.ROTATION), "Model A: rotation delta keyforms")
+			}
+			if (file.name.startsWith("modelB")) {
+				assertEquals(45, doc.blendShapes.size, "Model B: blend-shape records")
+				assertEquals(44, limitAttachments, "Model B: limit attachments")
+				assertEquals(1, distinctLimits, "Model B: one deduplicated limit curve")
+				assertEquals(90, deltaKeyformTotal, "Model B: delta keyforms")
+			}
+			if (file.name.startsWith("modelC")) {
+				assertEquals(124, doc.blendShapes.size, "Model C: blend-shape records (incl. 1 part-owned)")
+				assertEquals(1, doc.blendShapes.count { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }, "Model C: part records")
+				assertEquals(234, limitAttachments, "Model C: limit attachments")
+				assertEquals(7, distinctLimits, "Model C: deduplicated limit curves")
+				assertEquals(270, deltaKeyformTotal, "Model C: delta keyforms")
+				// The single part-owned record's typed payload (MOC3 §5.6 section 58 delta rows).
+				val partRecord = doc.blendShapes.first { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }
+				assertEquals(
+					listOf(BlendShapeKeyform.Part(-900f), BlendShapeKeyform.Part(0f)),
+					partRecord.keyforms,
+					"Model C: part record delta payload",
+				)
+			}
 		}
 	}
 }

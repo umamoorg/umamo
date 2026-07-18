@@ -3,10 +3,21 @@ package org.umamo.runtime.ingest
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.moc.ConstantFlag
+import org.umamo.format.moc3.moc.ParameterType
+import org.umamo.format.moc3.model.BlendShapeKeyform
+import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.runtime.eval.blendScalarsFromCorners
+import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.eval.meshGridDefaultDeltas
+import org.umamo.runtime.eval.rotationFormAt
+import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
+import org.umamo.runtime.model.BlendWeightLimit
+import org.umamo.runtime.model.BlendWeightLimitPoint
 import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -24,6 +35,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
@@ -37,6 +49,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
 import kotlin.math.abs
+import org.umamo.format.moc3.model.BlendShape as MocBlendShape
 import org.umamo.format.moc3.model.Part as MocPart
 
 /**
@@ -53,7 +66,7 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    the root space differs - the MOC stores model units around CanvasInfo's origin, same Y-down
  *    orientation - so root-space values map through the affine canvas = origin + ppu·model (see
  *    [pointSpaceOf]).  The one unit seam: a rotation parented to the root or a warp carries the
- *    px→model factor in its keyform scale (the official runtime's accY accumulator propagates it), so
+ *    px→model factor in its keyform scale, so
  *    those scales multiply by ppu to land in the runtime's pixel world; rotation-parented rotations
  *    keep their scale verbatim.  One caveat: the runtime's rest mesh (Drawable.mesh.positions) is
  *    canvas-space EDITING geometry in the CMO3 convention, which a MOC does not store - this import
@@ -63,9 +76,17 @@ import org.umamo.format.moc3.model.Part as MocPart
  *  - Names.  The binary stores no display names (and no deformer ids at all); parameter/part names
  *    come from cdi3.json when present, everything else falls back to the format id, and deformer
  *    ids/names are synthesized deterministically from the deformer index.
- *  - Blend shapes.  Records are not evaluated anywhere in :runtime/:render yet, so they are ignored
- *    here; BLEND_SHAPE-typed parameters import as ordinary (no-op) sliders.  Callers can inspect
- *    [MocDocument.blendShapes] to warn.  Offscreens are equally unhandled (parity with the CMO3 path).
+ *  - Blend shapes.  MOC3 records store per-key DELTAS relative to the object's grid form at the
+ *    DEFAULT pose (MOC3.md §5.6), while the runtime [BlendShapeBinding] keeps grid-convention
+ *    forms (MeshForm rest-relative; Warp/RotationForm absolute) and the evaluator re-subtracts
+ *    that same grid-at-default reference.  The mapping therefore ADDS the reference back when
+ *    synthesizing each form - computed with the shared org.umamo.runtime.eval sampling helpers,
+ *    the exact functions the evaluator later calls, so the round trip cancels to ULP.  Delta
+ *    geometry converts like the grid keyforms minus the origin term (a delta in root space scales
+ *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
+ *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
+ *    PART-owned records (Model C carries one) are skipped, matching the CMO3 path's CPartSource
+ *    exclusion.  Offscreens remain unhandled (parity with the CMO3 path).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>
  */
@@ -81,7 +102,7 @@ object Moc3Import {
 	fun fromMocDocument(mocDocument: MocDocument, displayInfo: Cdi3Json?): PuppetModel {
 		// MOC3 §5.3 CanvasInfo: pixelsPerUnit + origin place stored model space onto the canvas as a plain
 		// affine, same Y-down orientation: canvasX = originX + ppu·modelX, canvasY = originY + ppu·modelY
-		// (corpus-verified against the CMO3 twin; the official core's Y-up presentation happens at eval
+		// (corpus-verified against the CMO3 twin; the Umamo C++ runtime's Y-up presentation happens at eval
 		// time, not in the stored tables).  A canvas-less model keeps the identity mapping so import still
 		// succeeds (degenerate, like CMO3's 0×0 default).
 		val canvas = mocDocument.canvas
@@ -110,6 +131,8 @@ object Moc3Import {
 					min = source.minimumValue,
 					max = source.maximumValue,
 					default = source.defaultValue,
+					// MOC3 v4+ section 114 Parameter types (null on moc < 4 = all normal).
+					kind = if (source.type == ParameterType.BLEND_SHAPE) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
 				)
 			}
 		val knownParameterIds = parameterIds.toSet()
@@ -263,6 +286,178 @@ object Moc3Import {
 				found
 			}
 
+		// ---- blend shapes (MOC3 v4+ §5.6) ----
+		// Records pre-indexed per target object; targetIndex is a deformer index for WARP/ROTATION
+		// (already remapped by the decoder) and a drawable file index for ART_MESH. PART records are
+		// left unclaimed here on purpose - see the class docblock.
+		val blendRecordsByTarget = mocDocument.blendShapes.groupBy { record -> record.target to record.targetIndex }
+		val defaultByParameterId = parameters.associate { parameter -> parameter.id to parameter.default }
+		val defaultValue: (ParameterId) -> Float = { parameterId -> defaultByParameterId[parameterId] ?: 0f }
+
+		/**
+		 * Converts interleaved delta components from the moc's stored [space] to the runtime's
+		 * convention.  Unlike [convertPoints] the canvas ORIGIN does not apply - it cancels out of a
+		 * difference - so a root-space delta scales by ppu only; the other spaces pass through.
+		 *
+		 * @param PointSpace space  The stored space (from [pointSpaceOf]).
+		 * @param FloatArray deltas Interleaved x,y deltas as stored in the moc.
+		 * @return FloatArray The converted deltas (always a fresh array).
+		 */
+		fun convertDeltas(space: PointSpace, deltas: FloatArray): FloatArray =
+			when (space) {
+				PointSpace.ModelRoot -> FloatArray(deltas.size) { componentIndex -> pixelsPerUnit * deltas[componentIndex] }
+				PointSpace.WarpLattice, PointSpace.RotationLocal -> deltas.copyOf()
+			}
+
+		/**
+		 * Elementwise sum of [reference] and [deltas] (sized like [deltas]; a size-mismatched
+		 * reference contributes only its overlapping prefix, mirroring the evaluator's guards).
+		 *
+		 * @param FloatArray reference The grid-at-default reference components.
+		 * @param FloatArray deltas    The converted delta components.
+		 * @return FloatArray The synthesized absolute/rest-relative components.
+		 */
+		fun addReference(reference: FloatArray, deltas: FloatArray): FloatArray =
+			FloatArray(deltas.size) { componentIndex ->
+				deltas[componentIndex] + (reference.getOrNull(componentIndex) ?: 0f)
+			}
+
+		/**
+		 * Maps a record's limit curves to the runtime's min-combined [BlendWeightLimit] list.
+		 *
+		 * @param MocBlendShape record The record whose limits to map.
+		 * @return List<BlendWeightLimit> The runtime limit curves.
+		 */
+		fun blendLimitsOf(record: MocBlendShape): List<BlendWeightLimit> =
+			record.limits.map { limit ->
+				BlendWeightLimit(
+					parameterId = parameterIds.getOrElse(limit.parameterIndex) { ParameterId("") },
+					points =
+						limit.keyPositions.indices.map { pointIndex ->
+							BlendWeightLimitPoint(limit.keyPositions[pointIndex], limit.weights[pointIndex])
+						},
+				)
+			}
+
+		/**
+		 * Assembles one runtime binding from a record: the moc keys already include the inserted
+		 * neutral, whose form slot imports as null (the stored neutral delta row is all-zero).
+		 *
+		 * @param MocBlendShape record The record to map.
+		 * @param Function      formAt Builds the synthesized runtime form for a non-neutral key.
+		 * @return BlendShapeBinding<TForm> The runtime binding.
+		 */
+		fun <TForm : Any> bindingOfRecord(record: MocBlendShape, formAt: (keyIndex: Int) -> TForm?): BlendShapeBinding<TForm> =
+			BlendShapeBinding(
+				parameterId = parameterIds.getOrElse(record.parameterIndex) { ParameterId("") },
+				keys = record.keyPositions.copyOf(),
+				neutralIndex = record.neutralKeyIndex,
+				forms =
+					record.keyPositions.indices.map { keyIndex ->
+						if (keyIndex == record.neutralKeyIndex) null else formAt(keyIndex)
+					},
+				limits = blendLimitsOf(record),
+			)
+
+		/**
+		 * Maps [records] onto [drawable] as mesh blend bindings: each stored delta row plus the
+		 * grid-at-default reference (positions, draw order, opacity), converted to runtime space.
+		 *
+		 * @param Drawable            drawable The constructed runtime drawable (its grid is the reference source).
+		 * @param PointSpace          space    The drawable's stored point space.
+		 * @param List<MocBlendShape> records  The drawable's records.
+		 * @return List<BlendShapeBinding<MeshForm>> The runtime bindings.
+		 */
+		fun meshBlendShapesOf(drawable: Drawable, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<MeshForm>> {
+			val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
+			val referenceScalars =
+				drawable.keyforms?.let { grid ->
+					gridCorners(grid, defaultValue)?.let { corners -> blendScalarsFromCorners(grid, corners) }
+				}
+			// Fallbacks mirror meshBlendState's (CUBISM_DEFAULT_DRAW_ORDER / full opacity) so the
+			// evaluator's subtraction cancels exactly even for an ungridded drawable.
+			val referenceDrawOrder = referenceScalars?.drawOrder ?: 500f
+			val referenceOpacity = referenceScalars?.opacity ?: 1f
+			return records.mapNotNull { record ->
+				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null }
+				if (payloads.size != record.keyPositions.size) {
+					return@mapNotNull null
+				}
+				bindingOfRecord(record) { keyIndex ->
+					MeshForm(
+						positionDeltas = addReference(referenceDeltas, convertDeltas(space, payloads[keyIndex].vertexPositions)),
+						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
+						opacity = referenceOpacity + payloads[keyIndex].opacity,
+					)
+				}
+			}
+		}
+
+		/**
+		 * Maps [records] onto [warp] as lattice blend bindings: each stored control-point delta row
+		 * plus the lattice's grid-at-default reference.  The warp opacity delta rows have no runtime
+		 * channel and are dropped at ingest (typed at the format layer).
+		 *
+		 * @param Deformer.Warp       warp    The constructed runtime warp (its grid is the reference source).
+		 * @param PointSpace          space   The warp's stored point space.
+		 * @param List<MocBlendShape> records The warp's records.
+		 * @return List<BlendShapeBinding<WarpForm>> The runtime bindings.
+		 */
+		fun warpBlendShapesOf(warp: Deformer.Warp, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<WarpForm>> {
+			val reference = warpControlPointsAt(warp.keyforms, defaultValue) ?: FloatArray(0)
+			return records.mapNotNull { record ->
+				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null }
+				if (payloads.size != record.keyPositions.size) {
+					return@mapNotNull null
+				}
+				bindingOfRecord(record) { keyIndex ->
+					WarpForm(addReference(reference, convertDeltas(space, payloads[keyIndex].controlPoints)))
+				}
+			}
+		}
+
+		/**
+		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
+		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
+		 * the grid keyforms; flips are not blendable, so the reference's flags fill the form.  The
+		 * rotation opacity delta rows have no runtime channel and are dropped at ingest.
+		 *
+		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
+		 * @param PointSpace          space       The rotation's stored point space.
+		 * @param Float               scaleFactor The px→model seam factor (1 under a rotation ancestor, else ppu).
+		 * @param List<MocBlendShape> records     The rotation's records.
+		 * @return List<BlendShapeBinding<RotationForm>> The runtime bindings.
+		 */
+		fun rotationBlendShapesOf(
+			rotation: Deformer.Rotation,
+			space: PointSpace,
+			scaleFactor: Float,
+			records: List<MocBlendShape>,
+		): List<BlendShapeBinding<RotationForm>> {
+			// The fallback mirrors rotationBlendDeltas' (identity transform, scale 1) so the
+			// evaluator's subtraction cancels exactly even for an unkeyed rotation.
+			val reference =
+				rotationFormAt(rotation.keyforms, defaultValue)
+					?: RotationForm(0f, 0f, 0f, 1f, flipX = false, flipY = false)
+			return records.mapNotNull { record ->
+				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null }
+				if (payloads.size != record.keyPositions.size) {
+					return@mapNotNull null
+				}
+				bindingOfRecord(record) { keyIndex ->
+					val originDelta = convertDeltas(space, floatArrayOf(payloads[keyIndex].originX, payloads[keyIndex].originY))
+					RotationForm(
+						originX = reference.originX + originDelta[0],
+						originY = reference.originY + originDelta[1],
+						angle = reference.angle + payloads[keyIndex].angle,
+						scale = reference.scale + payloads[keyIndex].scale * scaleFactor,
+						flipX = reference.flipX,
+						flipY = reference.flipY,
+					)
+				}
+			}
+		}
+
 		var warpOrdinal = 0
 		var rotationOrdinal = 0
 		val deformers =
@@ -274,55 +469,69 @@ object Moc3Import {
 				when (source) {
 					is WarpDeformer -> {
 						warpOrdinal++
-						Deformer.Warp(
-							id = id,
-							// No name survives the bake; a deterministic synthesized label keeps the outliner readable.
-							name = "Warp Deformer $warpOrdinal",
-							parent = parent,
-							// MOC3 stores no deformer → part binding (the org tree only places parts and drawables).
-							partId = null,
-							rows = source.rows,
-							columns = source.columns,
-							// MOC3 §5.6 warp mode: 0 = triangle split, non-zero = bilinear (quad).
-							isQuadTransform = source.mode != 0,
-							keyforms =
-								gridOf(binding) { gridIndex ->
-									source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-										WarpForm(convertPoints(keyformSpace, keyform.controlPoints))
-									}
-								},
-						)
+						val warp =
+							Deformer.Warp(
+								id = id,
+								// No name survives the bake; a deterministic synthesized label keeps the outliner readable.
+								name = "Warp Deformer $warpOrdinal",
+								parent = parent,
+								// MOC3 stores no deformer → part binding (the org tree only places parts and drawables).
+								partId = null,
+								rows = source.rows,
+								columns = source.columns,
+								// MOC3 §5.6 warp mode: 0 = triangle split, non-zero = bilinear (quad).
+								isQuadTransform = source.mode != 0,
+								keyforms =
+									gridOf(binding) { gridIndex ->
+										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+											WarpForm(convertPoints(keyformSpace, keyform.controlPoints))
+										}
+									},
+							)
+						val warpRecords = blendRecordsByTarget[BlendShapeTarget.WARP to deformerIndex].orEmpty()
+						if (warpRecords.isEmpty()) {
+							warp
+						} else {
+							warp.copy(blendShapes = warpBlendShapesOf(warp, keyformSpace, warpRecords))
+						}
 					}
 					is RotationDeformer -> {
 						rotationOrdinal++
 						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
-						Deformer.Rotation(
-							id = id,
-							name = "Rotation Deformer $rotationOrdinal",
-							parent = parent,
-							partId = null,
-							baseAngle = source.baseAngle,
-							keyforms =
-								gridOf(binding) { gridIndex ->
-									source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-										val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
-										RotationForm(
-											originX = origin[0],
-											originY = origin[1],
-											angle = keyform.angle,
-											scale = keyform.scale * scaleFactor,
-											flipX = keyform.reflectX,
-											flipY = keyform.reflectY,
-										)
-									}
-								},
-						)
+						val rotation =
+							Deformer.Rotation(
+								id = id,
+								name = "Rotation Deformer $rotationOrdinal",
+								parent = parent,
+								partId = null,
+								baseAngle = source.baseAngle,
+								keyforms =
+									gridOf(binding) { gridIndex ->
+										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+											val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
+											RotationForm(
+												originX = origin[0],
+												originY = origin[1],
+												angle = keyform.angle,
+												scale = keyform.scale * scaleFactor,
+												flipX = keyform.reflectX,
+												flipY = keyform.reflectY,
+											)
+										}
+									},
+							)
+						val rotationRecords = blendRecordsByTarget[BlendShapeTarget.ROTATION to deformerIndex].orEmpty()
+						if (rotationRecords.isEmpty()) {
+							rotation
+						} else {
+							rotation.copy(blendShapes = rotationBlendShapesOf(rotation, keyformSpace, scaleFactor, rotationRecords))
+						}
 					}
 				}
 			}
 
 		val drawables =
-			mocDocument.artMeshes.map { source ->
+			mocDocument.artMeshes.mapIndexed { drawableIndex, source ->
 				val space = pointSpaceOf(source.parentDeformerIndex)
 				val binding = bindingOf(source.keyformBindingIndex)
 				// MOC3 keyforms are absolute; the default-pose cell serves as the rest mesh and every cell
@@ -341,30 +550,37 @@ object Moc3Import {
 							indices = IntArray(source.triangleIndices.size) { indexIndex -> source.triangleIndices[indexIndex].toInt() and 0xFFFF },
 						)
 					}
-				Drawable(
-					id = DrawableId(source.id),
-					// cdi3 carries no drawable names; the format id is all a baked model has.
-					name = source.id,
-					parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
-					blendMode = blendModeOf(source.constantFlags),
-					// MOC3 §5.6 MASK_INDEX_DATA: mask sources are drawable file indices.
-					maskedBy = source.maskDrawableIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
-					invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
-					// Visibility/lock are editor-only authoring state; a baked model shows everything.
-					isVisible = true,
-					isSelectable = true,
-					mesh = mesh,
-					keyforms =
-						gridOf(binding) { gridIndex ->
-							source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-								MeshForm(
-									positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
-									drawOrder = keyform.drawOrder,
-									opacity = keyform.opacity,
-								)
-							}
-						},
-				)
+				val drawable =
+					Drawable(
+						id = DrawableId(source.id),
+						// cdi3 carries no drawable names; the format id is all a baked model has.
+						name = source.id,
+						parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
+						blendMode = blendModeOf(source.constantFlags),
+						// MOC3 §5.6 MASK_INDEX_DATA: mask sources are drawable file indices.
+						maskedBy = source.maskDrawableIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
+						// Visibility/lock are editor-only authoring state; a baked model shows everything.
+						isVisible = true,
+						isSelectable = true,
+						mesh = mesh,
+						keyforms =
+							gridOf(binding) { gridIndex ->
+								source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+									MeshForm(
+										positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
+										drawOrder = keyform.drawOrder,
+										opacity = keyform.opacity,
+									)
+								}
+							},
+					)
+				val meshRecords = blendRecordsByTarget[BlendShapeTarget.ART_MESH to drawableIndex].orEmpty()
+				if (meshRecords.isEmpty()) {
+					drawable
+				} else {
+					drawable.copy(blendShapes = meshBlendShapesOf(drawable, space, meshRecords))
+				}
 			}
 
 		val glues =

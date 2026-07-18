@@ -362,6 +362,8 @@
 	<string name="parameter_menu_rename">Rename</string>
 	<string name="parameter_menu_delete_group">Delete Group</string>
 	<string name="parameter_menu_add">Add Parameter</string>
+	<string name="parameter_menu_add_keyform">Add Key Form Parameter</string>
+	<string name="parameter_menu_add_blendshape">Add Blend Shape Parameter</string>
 	<string name="parameter_menu_delete">Delete Parameter</string>
 	<string name="parameter_default_name">New Parameter</string>
 	<string name="parameter_filter_selected">Only the selected object's parameters</string>

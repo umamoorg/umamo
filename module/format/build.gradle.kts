@@ -201,6 +201,11 @@ fun corpusDefaultFor(samplePropertyName: String): String? {
 				?.joinToString(",") { it.absolutePath }
 				?.takeIf { it.isNotEmpty() }
 
+		// The MOC3 decode/lowering/bake/probe gates walk the whole moc3 corpus, mirroring what
+		// :runtime and :render already default - without this they silently self-skipped on a
+		// plain `:format:jvmTest`.
+		"moc3.samples" -> corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
+
 		else -> null
 	}
 }

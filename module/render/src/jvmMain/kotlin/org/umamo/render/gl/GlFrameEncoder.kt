@@ -283,6 +283,13 @@ private fun marshalDeformUniforms(
 	GL20.glUniform1i(locations.cornerCount, cornerCount)
 	GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
 	GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
+	// Blend-shape columns: skip the array uploads entirely for the zero-blend common case.
+	val blendCount = minOf(org.umamo.render.glsl.MAX_BLEND_CORNERS, deform.blendCount)
+	GL20.glUniform1i(locations.blendCount, blendCount)
+	if (blendCount > 0) {
+		GL20.glUniform1iv(locations.blendCell, deform.blendCell)
+		GL20.glUniform1fv(locations.blendWeight, deform.blendWeight)
+	}
 	GL20.glUniform1i(locations.parentType, deform.parentType)
 	if (deform.parentType == 1) {
 		GL20.glUniform1fv(locations.rot, deform.rotation)

@@ -1,5 +1,8 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.eval.WeightedCell
+import org.umamo.runtime.eval.blendScalarsFromCorners
+import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.ParameterId
@@ -22,6 +25,8 @@ internal class DrawableDeformInputs(
 	val isParented: Boolean,
 	val drawOrder: Float,
 	val opacity: Float,
+	/** The drawable's resolved blend-shape state at this pose; null when it has no bindings. */
+	val blend: MeshBlendState? = null,
 )
 
 /** A glue affecter with its pose-blended weld [intensity] already resolved, so the apply pass is param-free. */
@@ -57,7 +62,8 @@ internal class PoseDeformInputs(
 internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>): PoseDeformInputs {
 	val defaults = model.parameters.associate { it.id to it.default }
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue)
+	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
+	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
 		val grid = drawable.keyforms ?: continue
@@ -68,14 +74,28 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 		val parentDeformerId = drawable.parentDeformerId
 		val parentWorld = parentDeformerId?.let { deformerWorlds[it] }
 		val scalars = corners?.let { blendScalarsFromCorners(grid, it) }
+		val blend = meshBlendState(drawable, paramValue, defaultValue)
+		var drawOrder = scalars?.drawOrder ?: CUBISM_DEFAULT_DRAW_ORDER
+		var opacity = scalars?.opacity ?: 1f
+		// Blend shapes: additive scalar deltas (opacity clamps to [0,1] AFTER summing; the Umamo C++
+		// Runtime rounds draw order (int)(0.001+v) at sort time - Umamo sorts floats, recorded in
+		// MOC3.md §5.6).
+		if (blend != null) {
+			for (contribution in blend.contributions) {
+				drawOrder += contribution.weight * (contribution.form.drawOrder - blend.referenceDrawOrder)
+				opacity += contribution.weight * (contribution.form.opacity - blend.referenceOpacity)
+			}
+			opacity = opacity.coerceIn(0f, 1f)
+		}
 		drawables.add(
 			DrawableDeformInputs(
 				drawableId = drawable.id,
 				corners = corners,
 				parentWorld = parentWorld,
 				isParented = parentDeformerId != null,
-				drawOrder = scalars?.drawOrder ?: CUBISM_DEFAULT_DRAW_ORDER,
-				opacity = scalars?.opacity ?: 1f,
+				drawOrder = drawOrder,
+				opacity = opacity,
+				blend = blend,
 			),
 		)
 	}
@@ -131,7 +151,8 @@ internal fun applyCpuDeform(model: PuppetModel, inputs: PoseDeformInputs): Defor
 		val drawable = drawableById[drawableInputs.drawableId] ?: continue
 		val grid = drawable.keyforms ?: continue
 		val base = drawable.mesh?.positions ?: continue
-		worldPositions[drawableInputs.drawableId] = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld)
+		worldPositions[drawableInputs.drawableId] =
+			deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, drawableInputs.blend)
 		drawOrders[drawableInputs.drawableId] = drawableInputs.drawOrder
 		opacities[drawableInputs.drawableId] = drawableInputs.opacity
 	}
@@ -141,7 +162,7 @@ internal fun applyCpuDeform(model: PuppetModel, inputs: PoseDeformInputs): Defor
 
 /**
  * Seam-welds each glue's vertex pairs in place from pre-resolved intensities: `A' = A + (B−A)·wA·i`,
- * `B' = B + (A−B)·wB·i` (the relive C's `applyGlue`, on the Y-flipped world buffers).
+ * `B' = B + (A−B)·wB·i` (the Umamo C++ Runtime's `applyGlue`, on the Y-flipped world buffers).
  *
  * @param List<GlueInputs>            glues          The resolved glue affecters.
  * @param Map<DrawableId,FloatArray> worldPositions Per-drawable deformed positions (mutated).

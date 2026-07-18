@@ -43,6 +43,7 @@ public enum class Sizing {
 	PER_BLENDSHAPE_WARP,
 	PER_BLENDSHAPE_MESH,
 	PER_BLENDSHAPE_ROTATION,
+	PER_BLENDSHAPE_PART,
 
 	/** Read across the whole section slice (a table indexed elsewhere). */
 	TABLE,
@@ -172,7 +173,7 @@ public enum class Section(
 	BLENDSHAPE_MESH_RECORD_START(ElementType.I32, Sizing.PER_BLENDSHAPE_MESH, -1, -1, -1, 129, 129, 129),
 	BLENDSHAPE_MESH_RECORD_COUNT(ElementType.I32, Sizing.PER_BLENDSHAPE_MESH, -1, -1, -1, 130, 130, 130),
 
-	// v6 index is 146 (same as v5); relive's kSrcLayout maps it to the degenerate/empty slot 143.
+	// v6 index is 146 (same as v5); the Umamo C++ Runtime's kSrcLayout maps it to the degenerate/empty slot 143.
 	BLENDSHAPE_ROTATION_OBJECT(ElementType.I32, Sizing.PER_BLENDSHAPE_ROTATION, -1, -1, -1, -1, 146, 146),
 	BLENDSHAPE_ROTATION_RECORD_START(ElementType.I32, Sizing.PER_BLENDSHAPE_ROTATION, -1, -1, -1, -1, 147, 147),
 	BLENDSHAPE_ROTATION_RECORD_COUNT(ElementType.I32, Sizing.PER_BLENDSHAPE_ROTATION, -1, -1, -1, -1, 148, 148),
@@ -180,6 +181,29 @@ public enum class Section(
 	BLENDSHAPE_RECORD_BASE(ElementType.I32, Sizing.TABLE, -1, -1, -1, 121, 121, 121),
 	BLENDSHAPE_RECORD_SUBSTART(ElementType.I32, Sizing.TABLE, -1, -1, -1, 123, 123, 123),
 	BLENDSHAPE_RECORD_CORNER_COUNT(ElementType.I32, Sizing.TABLE, -1, -1, -1, 124, 124, 124),
+
+	// MOC3 v4+ §5.6: redundant per-record copy of the record's binding key count (corpus-confirmed
+	// against Model A/Model B/Model C including v6 - see MorphTargetJoinProbeTest).
+	BLENDSHAPE_RECORD_KEY_COUNT(ElementType.I32, Sizing.TABLE, -1, -1, -1, 122, 122, 122),
+
+	// MOC3 v4+ §5.6: blend-weight limit ("blend shape limit") sub-binding tables. A record's
+	// SUBSTART/CORNER_COUNT range into SUB_INDEX yields refs into a DEDUPLICATED sub-binding pool;
+	// each pool entry maps another parameter (SUB_PARAMETER) through an end-clamped piecewise-linear
+	// (SUB_KEYS, SUB_WEIGHT_VALUES) curve addressed by SUB_KEY_OFFSET/COUNT. The record's weight
+	// multiplier is the MINIMUM over its refs. v4/v5 indices confirmed against Model B/Model C (v5) and
+	// the C-runtime layout; the v6 column is assumed = v5 pending a v6 constraint bake (every confirmed
+	// blend section is index-identical v5 -> v6, incl. section 122 above).
+	BLENDSHAPE_SUB_INDEX(ElementType.I32, Sizing.TABLE, -1, -1, -1, 131, 131, 131),
+	BLENDSHAPE_SUB_PARAMETER(ElementType.I32, Sizing.TABLE, -1, -1, -1, 132, 132, 132),
+	BLENDSHAPE_SUB_KEY_OFFSET(ElementType.I32, Sizing.TABLE, -1, -1, -1, 133, 133, 133),
+	BLENDSHAPE_SUB_KEY_COUNT(ElementType.I32, Sizing.TABLE, -1, -1, -1, 134, 134, 134),
+	BLENDSHAPE_SUB_KEYS(ElementType.F32, Sizing.TABLE, -1, -1, -1, 135, 135, 135),
+	BLENDSHAPE_SUB_WEIGHT_VALUES(ElementType.F32, Sizing.TABLE, -1, -1, -1, 136, 136, 136),
+
+	// MOC3 v5+ §5.6: part blend shapes (Model C carries one). v6 column assumed = v5 (same caveat).
+	BLENDSHAPE_PART_OBJECT(ElementType.I32, Sizing.PER_BLENDSHAPE_PART, -1, -1, -1, -1, 143, 143),
+	BLENDSHAPE_PART_RECORD_START(ElementType.I32, Sizing.PER_BLENDSHAPE_PART, -1, -1, -1, -1, 144, 144),
+	BLENDSHAPE_PART_RECORD_COUNT(ElementType.I32, Sizing.PER_BLENDSHAPE_PART, -1, -1, -1, -1, 145, 145),
 	BLENDSHAPE_BINDING_KEY_OFFSET(ElementType.I32, Sizing.TABLE, -1, -1, -1, 117, 117, 117),
 	BLENDSHAPE_BINDING_KEY_COUNT(ElementType.I32, Sizing.TABLE, -1, -1, -1, 118, 118, 118),
 	BLENDSHAPE_BINDING_NEUTRAL(ElementType.I32, Sizing.TABLE, -1, -1, -1, 119, 119, 119),
@@ -192,6 +216,25 @@ public enum class Section(
 	OFFSCREEN_BLEND_MODE(ElementType.I32, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 157),
 	OFFSCREEN_MASK_COUNT(ElementType.I32, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 159),
 	OFFSCREEN_OPACITY(ElementType.F32, Sizing.TABLE, -1, -1, -1, -1, -1, 161),
+
+	/** Per-part index of the offscreen it owns, -1 when none (the inverse of [OFFSCREEN_OWNER_PART]). */
+	OFFSCREEN_BY_PART(ElementType.I32, Sizing.PER_PART, -1, -1, -1, -1, -1, 152),
+
+	/**
+	 * Per-offscreen cumulative base into the offscreen mask suffix of MASK_INDEX_DATA (successive
+	 * diffs equal [OFFSCREEN_MASK_COUNT]; Model A probe, OffscreenKeyformProbeTest).
+	 */
+	OFFSCREEN_MASK_BASE(ElementType.I32, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 158),
+
+	/**
+	 * Offscreen keyform → color-table row maps (multiply / screen). Observed identity on the corpus
+	 * (the offscreen keyforms ARE the color tables' prefix rows, in offscreen order); the multiply
+	 * vs screen split is assumed from the per-object color-base precedent, pending a discriminating
+	 * sample. An offscreen's keyforms ride its owner part's keyform grid (Σ owner grid == CountInfo
+	 * 36) - there is no offscreen keyform-binding section.
+	 */
+	OFFSCREEN_KEYFORM_MULTIPLY_ROW(ElementType.I32, Sizing.TABLE, -1, -1, -1, -1, -1, 162),
+	OFFSCREEN_KEYFORM_SCREEN_ROW(ElementType.I32, Sizing.TABLE, -1, -1, -1, -1, -1, 163),
 	;
 
 	/**

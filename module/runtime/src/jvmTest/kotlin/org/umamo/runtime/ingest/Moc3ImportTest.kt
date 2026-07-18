@@ -63,6 +63,15 @@ class Moc3ImportTest {
 				"origin=(${puppet.worldOriginX}, ${puppet.worldOriginY})",
 		)
 
+		// Model A: BLEND_SHAPE-typed parameters carry their kind through the import (MOC3 section 114).
+		if (file.name.startsWith("modelA")) {
+			assertEquals(
+				12,
+				puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE },
+				"modelA: blend-shape parameter kinds mapped",
+			)
+		}
+
 		// Golden gate: for the EricaTamamo corpus, pin the imported structure. Drawable-derived counts
 		// intentionally differ from the CMO3 sample's (177 drawables / 31470 vertices / 337 art
 		// interpolations): the bake drops the three sketch ("Guide Image") drawables.
@@ -171,6 +180,98 @@ class Moc3ImportTest {
 				parameterTreeLeaves.toSet(),
 				"every panel leaf is a real parameter",
 			)
+		}
+	}
+
+	/**
+	 * Corpus gate for the blend mapping: every blend-shape corpus moc3 imports its records into
+	 * per-object BlendShapeBindings whose shape matches the CMO3 twin's ingest (the same
+	 * goldens as Cmo3ImportTest.blendShapeBindingsAcrossCorpus, with Model C's single PART-owned
+	 * record excluded on both sides).  Driven by -Dmoc3.samples (defaulted by the build).
+	 */
+	@Test
+	fun blendShapeBindingsAcrossCorpus() {
+		val samplesDir = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
+		val samples =
+			samplesDir?.walkTopDown()
+				?.filter { it.isFile && it.extension == "moc3" }
+				?.sortedBy { it.name }
+				?.toList()
+				.orEmpty()
+				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
+		if (samples.isEmpty()) {
+			println("moc3.samples not present; skipping blend-binding corpus gate")
+			return
+		}
+		for (file in samples) {
+			val puppet = Moc3Import.fromMocDocument(Moc3.decode(file.readBytes()), siblingDisplayInfo(file))
+			val drawableBindings = puppet.drawables.flatMap { it.blendShapes }
+			val warpBindings = puppet.deformers.filterIsInstance<Deformer.Warp>().flatMap { it.blendShapes }
+			val rotationBindings = puppet.deformers.filterIsInstance<Deformer.Rotation>().flatMap { it.blendShapes }
+			val allBindings = drawableBindings + warpBindings + rotationBindings
+			val defaultByParameter = puppet.parameters.associate { it.id to it.default }
+			val kindByParameter = puppet.parameters.associate { it.id to it.kind }
+			for (binding in allBindings) {
+				val keys = binding.keys.toList()
+				assertEquals(keys, keys.sorted(), "${file.name}: binding keys ascending")
+				assertEquals(keys.size, keys.distinct().size, "${file.name}: binding keys distinct")
+				assertEquals(
+					0f,
+					binding.keys[binding.neutralIndex],
+					"${file.name}: neutral key at parameter value 0 (param=${binding.parameterId.raw})",
+				)
+				assertEquals(keys.size, binding.forms.size, "${file.name}: forms parallel keys")
+				assertEquals(null, binding.forms[binding.neutralIndex], "${file.name}: neutral form slot null")
+				binding.forms.forEachIndexed { formIndex, form ->
+					if (formIndex != binding.neutralIndex) {
+						assertTrue(form != null, "${file.name}: non-neutral form non-null")
+					}
+				}
+				assertEquals(
+					org.umamo.runtime.model.ParameterKind.BLEND_SHAPE,
+					kindByParameter[binding.parameterId],
+					"${file.name}: driving parameter is BLEND_SHAPE-typed",
+				)
+			}
+			val blendParameterCount = puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE }
+			val nonNeutralForms = allBindings.sumOf { binding -> binding.forms.count { it != null } }
+			val limitCurves = allBindings.sumOf { it.limits.size }
+			val limitPoints = allBindings.sumOf { binding -> binding.limits.sumOf { it.points.size } }
+			println(
+				"[moc3import] ${file.name}: blendParams=$blendParameterCount bindings=${allBindings.size} " +
+					"(drawable=${drawableBindings.size} warp=${warpBindings.size} rotation=${rotationBindings.size}) " +
+					"forms=$nonNeutralForms limits=$limitCurves points=$limitPoints",
+			)
+			// Goldens mirror Cmo3ImportTest.blendShapeBindingsAcrossCorpus (Model C's PART record
+			// excluded on both sides; MOC3 limit refs expand the dedup pool per record, one curve
+			// per ref, two points per corpus curve).
+			if (file.name.startsWith("modelA")) {
+				assertEquals(12, blendParameterCount, "Model A: blend parameters")
+				assertEquals(60, allBindings.size, "Model A: bindings")
+				assertEquals(48, warpBindings.size, "Model A: warp bindings")
+				assertEquals(8, drawableBindings.size, "Model A: mesh bindings")
+				assertEquals(4, rotationBindings.size, "Model A: rotation bindings")
+				assertEquals(118, nonNeutralForms, "Model A: non-neutral forms")
+				assertEquals(0, limitCurves, "Model A: no limits")
+			}
+			if (file.name.startsWith("modelB")) {
+				assertEquals(5, blendParameterCount, "Model B: blend parameters")
+				assertEquals(45, allBindings.size, "Model B: bindings")
+				assertEquals(5, warpBindings.size, "Model B: warp bindings")
+				assertEquals(40, drawableBindings.size, "Model B: mesh bindings")
+				assertEquals(45, nonNeutralForms, "Model B: non-neutral forms")
+				assertEquals(44, limitCurves, "Model B: limit curves")
+				assertEquals(88, limitPoints, "Model B: limit points")
+			}
+			if (file.name.startsWith("modelC")) {
+				assertEquals(33, blendParameterCount, "Model C: blend parameters")
+				assertEquals(123, allBindings.size, "Model C: bindings (PART record excluded)")
+				assertEquals(11, warpBindings.size, "Model C: warp bindings")
+				assertEquals(105, drawableBindings.size, "Model C: mesh bindings")
+				assertEquals(7, rotationBindings.size, "Model C: rotation bindings")
+				assertEquals(145, nonNeutralForms, "Model C: non-neutral forms")
+				assertEquals(468, limitPoints, "Model C: limit points")
+			}
 		}
 	}
 

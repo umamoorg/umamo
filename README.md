@@ -52,10 +52,11 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 ### Common commands
 
 ```bash
-./gradlew :desktop:run             # launch the desktop editor
-./gradlew :android:installDebug    # deploy to a connected Android tablet
-./gradlew build                    # everything
-./gradlew test                     # unit tests
+./gradlew :desktop:run             #Launch the desktop editor
+./gradlew :android:installDebug    #Deploy to a connected Android tablet
+./gradlew build                    #Everything
+./gradlew test                     #Unit tests
+./gradlew ktlintFormat             #Format all files according to .editorconfig
 # Cross-target the desktop build (default: host). -Pumamo.target swaps the bundled Skiko + LWJGL
 # natives: linux-x64 | linux-arm64 | windows-x64 | macos-x64 | macos-arm64.
 ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
@@ -147,6 +148,7 @@ test/corpus/clip/    test/corpus/psd/  test/corpus/krita/   test/corpus/tiff/  t
 ```bash
 ./gradlew :format:jvmTest                                   #Corpus automatic discovery.
 ./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3 #Point at one explicitly.
+./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.ModelGenerator" -Dcmo3.generate=true -Dcmo3.gensample=/path/to/Model.cmo3 --rerun #Generate new CMO3 model and registration.  Make sure to run ktlintFormat afterwards to clean up.
 ```
 
 ## Legal & Trademark Notice

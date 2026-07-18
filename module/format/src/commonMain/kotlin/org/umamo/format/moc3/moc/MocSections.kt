@@ -39,6 +39,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 			Sizing.PER_BLENDSHAPE_WARP -> ci(Sections.CI_BLENDSHAPE_WARPS)
 			Sizing.PER_BLENDSHAPE_MESH -> ci(Sections.CI_BLENDSHAPE_MESHES)
 			Sizing.PER_BLENDSHAPE_ROTATION -> ci(Sections.CI_BLENDSHAPE_ROTATIONS)
+			Sizing.PER_BLENDSHAPE_PART -> ci(Sections.CI_BLENDSHAPE_PARTS)
 			Sizing.TABLE -> -1
 		}
 

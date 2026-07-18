@@ -1,11 +1,12 @@
 package org.umamo.render.puppet
 
 import org.umamo.render.eval.DeformerWorld
+import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.PoseDeformInputs
-import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.paintOrder
 import org.umamo.render.eval.renderOrder
 import org.umamo.render.glsl.MAX_GLUES
+import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.RenderGroup
 
@@ -22,6 +23,8 @@ internal class PosedDrawable(
 	val corners: List<WeightedCell>,
 	val parentWorld: DeformerWorld?,
 	val opacity: Float,
+	/** The drawable's resolved blend-shape state at this pose; null when it has no bindings. */
+	val blend: MeshBlendState? = null,
 )
 
 /**
@@ -80,7 +83,7 @@ internal fun resolvePose(
 			continue // a hidden ancestor deformer produced no transform, so the mesh has no geometry
 		}
 		posed[drawableInputs.drawableId] =
-			PosedDrawable(drawableInputs.drawableId, corners, drawableInputs.parentWorld, drawableInputs.opacity)
+			PosedDrawable(drawableInputs.drawableId, corners, drawableInputs.parentWorld, drawableInputs.opacity, drawableInputs.blend)
 		drawOrderById[drawableInputs.drawableId] = drawableInputs.drawOrder
 	}
 

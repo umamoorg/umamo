@@ -18,6 +18,9 @@ internal const val DEFORM_GLSL =
 	uniform int cornerCount;
 	uniform int cornerCell[$MAX_CORNERS];
 	uniform float cornerWeight[$MAX_CORNERS];
+	uniform int blendCount;
+	uniform int blendCell[$MAX_BLEND_CORNERS];
+	uniform float blendWeight[$MAX_BLEND_CORNERS];
 	uniform int parentType;
 	uniform float rot[6];
 	uniform sampler2D cpTex;
@@ -203,6 +206,12 @@ internal const val DEFORM_GLSL =
 		for (int corner = 0; corner < cornerCount && corner < $MAX_CORNERS; corner++) {
 			vec2 delta = texelFetch(deltaTex, ivec2(cornerCell[corner], gl_VertexID), 0).rg;
 			local += cornerWeight[corner] * delta;
+		}
+		// Blend shapes: additive delta columns appended after the grid cells in deltaTex, weighted
+		// per pose (zero-blend models keep blendCount == 0 and skip the loop entirely).
+		for (int blendCorner = 0; blendCorner < blendCount && blendCorner < $MAX_BLEND_CORNERS; blendCorner++) {
+			vec2 blendDelta = texelFetch(deltaTex, ivec2(blendCell[blendCorner], gl_VertexID), 0).rg;
+			local += blendWeight[blendCorner] * blendDelta;
 		}
 		vec2 world;
 		if (parentType == 1) {

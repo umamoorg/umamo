@@ -109,7 +109,10 @@ internal fun diffModel(
 						(
 							newMesh.positions.size != residentVertexCount * 2 ||
 								(oldMesh != null && newMesh.indices !== oldMesh.indices) ||
-								drawable.keyforms !== oldDrawable?.keyforms
+								drawable.keyforms !== oldDrawable?.keyforms ||
+								// Blend-shape deltas are baked into the delta texture's appended
+								// columns, so a binding change invalidates the texture layout.
+								drawable.blendShapes !== oldDrawable?.blendShapes
 						)
 				)
 		if (remeshed) {

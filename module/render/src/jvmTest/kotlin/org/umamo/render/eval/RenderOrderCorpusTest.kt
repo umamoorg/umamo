@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 /**
- * Corpus E2E for draw order. The official editor's EULA blocks re-saving an edited model, so instead
+ * Corpus E2E for draw order. The official editor's license blocks re-saving an edited model, so instead
  * this bumps a real drawable's keyform draw order in flight and asserts the whole chain (CMO3
  * import → deformation eval → [paintOrder]) lifts it to the front - the real-model counterpart of the
  * synthetic `RenderOrderTest`. Gated on `-Dcmo3.sample`; self-skips without it.

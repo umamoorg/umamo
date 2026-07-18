@@ -14,16 +14,20 @@ import org.lwjgl.system.MemoryUtil
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.render.eval.DeformerWorld
+import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.WarpWorld
-import org.umamo.render.eval.WeightedCell
-import org.umamo.render.eval.cellsByLinearIndex
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
+import org.umamo.render.puppet.blendColumnLayout
+import org.umamo.render.puppet.buildDeltaTexelsWithBlend
+import org.umamo.runtime.eval.WeightedCell
+import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.ingest.Cmo3Import
+import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
@@ -122,6 +126,74 @@ class GpuDeformValidationTest {
 	}
 
 	/**
+	 * The blend-shape leg of the same lockstep pin: on the Model A blend-shape corpus model, drawables
+	 * with active blend contributions must deform identically on CPU (deformMeshWorldFromCorners
+	 * with MeshBlendState) and GPU (appended delta columns + blendCell/blendWeight uniforms).
+	 * Gated on Model A in `-Dcmo3.probe` and on a usable GL context.
+	 */
+	@Test
+	fun gpuBlendDeformMatchesCpuOnModelA() {
+		val modelAFile =
+			System.getProperty("cmo3.probe")?.split(',')?.map(::File)
+				?.firstOrNull { it.isFile && it.name.startsWith("modelA") }
+		Assume.assumeTrue("[gpu-tf] no Model A blend-shape model in -Dcmo3.probe", modelAFile != null)
+		val window = createHeadlessGl()
+		assumeGlContext("[gpu-tf]", window)
+		try {
+			val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
+			val model = Cmo3Import.fromModelSource(root)
+			val defaults = model.parameters.associate { it.id to it.default }
+			val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
+			val program = linkTransformFeedbackProgram()
+			GL20.glUseProgram(program)
+			GL20.glUniform1i(GL20.glGetUniformLocation(program, "deltaTex"), 0)
+			GL20.glUniform1i(GL20.glGetUniformLocation(program, "cpTex"), 1)
+
+			val drawableById = model.drawables.associateBy { it.id }
+			val poses =
+				listOf(
+					"eyeSize" to mapOf(ParameterId("ParamEyeSize") to -1f),
+					"eyeHalf" to mapOf(ParameterId("ParamEyeSize") to -0.5f),
+					"bodyX2" to mapOf(ParameterId("ParamBodyAngleX2") to 10f),
+				)
+			var maxError = 0.0
+			var blendMeshesChecked = 0
+			for ((poseName, parameters) in poses) {
+				val inputs = preparePose(model, parameters)
+				for (drawableInputs in inputs.drawables) {
+					val blend = drawableInputs.blend ?: continue
+					if (blend.contributions.isEmpty()) {
+						continue
+					}
+					val corners = drawableInputs.corners ?: continue
+					if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
+						continue
+					}
+					val drawable = drawableById[drawableInputs.drawableId] ?: continue
+					val grid = drawable.keyforms ?: continue
+					val base = drawable.mesh?.positions ?: continue
+					if (drawable.mesh?.indices?.isEmpty() != false) {
+						continue
+					}
+					val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, blend)
+					val gpuWorld =
+						gpuDeform(program, base, grid, corners, drawableInputs.parentWorld, drawable, blend, defaultValue)
+					for (coordIndex in cpuWorld.indices) {
+						maxError = maxOf(maxError, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
+					}
+					blendMeshesChecked++
+				}
+			}
+			println("[gpu-tf] blend: checked $blendMeshesChecked blend mesh-poses; max error = ${"%.5f".format(maxError)} units")
+			assertTrue(blendMeshesChecked > 0, "no blend-shaped meshes were validated")
+			assertTrue(maxError < toleranceUnits, "GPU blend deform diverges from CPU by $maxError units")
+		} finally {
+			GLFW.glfwDestroyWindow(window)
+			GLFW.glfwTerminate()
+		}
+	}
+
+	/**
 	 * Deforms one mesh on the GPU and reads back its world positions via transform feedback: builds the
 	 * delta texture (+ warp control-point texture), sets the per-pose corner/transform uniforms, draws the
 	 * vertices as points with the rasterizer discarded, and returns the captured interleaved x,y.
@@ -132,6 +204,9 @@ class GpuDeformValidationTest {
 		grid: KeyformGrid<MeshForm>,
 		corners: List<WeightedCell>,
 		parent: DeformerWorld?,
+		blendDrawable: Drawable? = null,
+		blend: MeshBlendState? = null,
+		defaultValue: ((ParameterId) -> Float)? = null,
 	): FloatArray {
 		val vertexCount = base.size / 2
 		val cellCount = maxOf(1, grid.axes.fold(1) { count, axis -> count * axis.keys.size })
@@ -147,9 +222,55 @@ class GpuDeformValidationTest {
 		GL20.glVertexAttribPointer(0, 2, GL11.GL_FLOAT, false, 2 * Float.SIZE_BYTES, 0L)
 
 		GL13.glActiveTexture(GL13.GL_TEXTURE0)
-		val deltaTexture = uploadDeltaTexture(grid, vertexCount, cellCount)
+		// With blend bindings, the texture carries the appended blend columns (the shipped path).
+		val blendLayout =
+			if (blendDrawable != null && blendDrawable.blendShapes.isNotEmpty() && defaultValue != null) {
+				blendColumnLayout(blendDrawable, cellCount)
+			} else {
+				null
+			}
+		val deltaTexture =
+			if (blendLayout != null && defaultValue != null && blendDrawable != null) {
+				val texels = buildDeltaTexelsWithBlend(grid, blendDrawable, defaultValue, vertexCount, blendLayout)
+				val data = BufferUtils.createFloatBuffer(texels.size)
+				data.put(texels).flip()
+				val texture = nearestTexture()
+				GL11.glTexImage2D(
+					GL11.GL_TEXTURE_2D,
+					0,
+					GL30.GL_RG32F,
+					cellCount + blendLayout.blendColumnCount,
+					vertexCount,
+					0,
+					GL30.GL_RG,
+					GL11.GL_FLOAT,
+					data,
+				)
+				texture
+			} else {
+				uploadDeltaTexture(grid, vertexCount, cellCount)
+			}
 
 		setCornerUniforms(program, corners)
+		// Blend uniforms are set EVERY call (the program persists across meshes; a stale nonzero
+		// blendCount from a previous mesh would corrupt a binding-free one).
+		var blendCount = 0
+		if (blend != null && blendLayout != null) {
+			val blendCells = IntArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
+			val blendWeights = FloatArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
+			for (contribution in blend.contributions) {
+				if (blendCount >= org.umamo.render.glsl.MAX_BLEND_CORNERS) {
+					break
+				}
+				val column = blendLayout.columnOf(contribution.bindingIndex, contribution.keyIndex) ?: continue
+				blendCells[blendCount] = column
+				blendWeights[blendCount] = contribution.weight
+				blendCount++
+			}
+			GL20.glUniform1iv(GL20.glGetUniformLocation(program, "blendCell"), blendCells)
+			GL20.glUniform1fv(GL20.glGetUniformLocation(program, "blendWeight"), blendWeights)
+		}
+		GL20.glUniform1i(GL20.glGetUniformLocation(program, "blendCount"), blendCount)
 		when (val parentWorld = parent) {
 			is RotationWorld -> {
 				val xform = parentWorld.xform

@@ -40,6 +40,17 @@ public class MocDocument(
 	public val blendShapes: List<BlendShape> = emptyList(),
 	/** Offscreen render targets (moc 6); empty on older versions. */
 	public val offscreens: List<Offscreen> = emptyList(),
+	/**
+	 * Whether a blend-free file's KEY_POSITIONS (section 77) carries the trailing per-parameter
+	 * sorted-union key region.  This is an editor-version artifact: some Cubism editor builds append
+	 * the union of each parameter's main-grid axis keys after the parameter-binding dedup region,
+	 * others omit it, and no other section or header field distinguishes the two (probed across the
+	 * v1/v3 corpus - the section tables and headers are byte-identical).  Carried so the lowering can
+	 * reproduce section 77 byte-exact; the runtime recomputes the same unions when the region is
+	 * absent (a model with multi-keyset parameters loads correctly either way).  A blend model always
+	 * carries the region unconditionally, so this flag only disambiguates the blend-free path.
+	 */
+	public val keyPositionsHasParameterUnion: Boolean = false,
 ) {
 	/** All resolved keyform bindings referenced by objects, ascending by index. */
 	public val bindings: List<KeyformBinding> get() = keyformBindings.values.sortedBy { it.index }
