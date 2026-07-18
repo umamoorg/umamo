@@ -7,10 +7,13 @@ import org.umamo.format.cmo3.serialize.annotations.SerialName
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 @SerialTag("AlphaComposition")
-public enum class AlphaComposition { ATOP, DISJOINT, OUT, OVER }
+public enum class AlphaComposition { ATOP, CONJOINT, DISJOINT, OUT, OVER }
 
 @SerialTag("Anisotropy")
 public enum class Anisotropy { ON, }
+
+@SerialTag("AutoLayoutLock")
+public enum class AutoLayoutLock { NONE, }
 
 @SerialTag("BindMethod")
 public enum class BindMethod { LINE_AND_DIRECTION, }
@@ -31,7 +34,7 @@ public enum class CPhysicsSourceType { SRC_TO_G_ANGLE, SRC_TO_X }
 public enum class CachedImageType { SCALE_1, SCALE_2 }
 
 @SerialTag("ColorComposition")
-public enum class ColorComposition { ADD, ADD_R2, HARDLIGHT, HSL_COLOR, MULTIPLY, MULTIPLY_R2, NORMAL }
+public enum class ColorComposition { ADD, ADD_R2, ADD_R2_TSL, COLORBURN_TSL, COLORDODGE_TSL, DARKEN, HARDLIGHT, HSL_COLOR, HSL_HUE, LIGHTEN, LINEARBURN_TSL, LINEARLIGHT_TSL, MULTIPLY, MULTIPLY_R2, NORMAL, OVERLAY, SCREEN, SOFTLIGHT }
 
 @SerialTag("CreationMethod")
 public enum class CreationMethod { AFTER_KEY_ADDED, }
@@ -558,6 +561,9 @@ public class CModelExportSettingDialogData {
 
 	@DontSerializeIfDefault
 	public var `exportMotionSyncJson`: Boolean = false
+
+	@DontSerializeIfDefault
+	public var `exportParamCtrlJson`: Boolean = false
 }
 
 @SerialTag("CModelImageGroup")
@@ -573,6 +579,11 @@ public class CModelInfo {
 	public var `pixelsPerUnit`: Float = 0f
 	public var `originInPixels`: Any? = null
 	public var `_effectParameterGroups`: Any? = null
+}
+
+@SerialTag("CModelStateSetSet")
+public class CModelStateSetSet {
+	public var `_modelStateSets`: Any? = null
 }
 
 @SerialTag("CMotionSyncSettingSource")
@@ -1109,6 +1120,9 @@ public class MeshPointRefEx
 public class ModelImageEntry {
 	public var `atlas`: Any? = null
 	public var `modelImageGuid`: Any? = null
+
+	@DontSerializeIfDefault
+	public var `autoLayoutLock`: Any? = null
 	public var `atlasLocalToCanvasTransform`: Any? = null
 	public var `materialLocalToAtlasTransform`: Any? = null
 }

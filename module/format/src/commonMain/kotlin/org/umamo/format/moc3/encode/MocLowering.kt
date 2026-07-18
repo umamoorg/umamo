@@ -512,8 +512,10 @@ public object MocLowering {
 			for (groupIndex in groups.indices) {
 				renderCounts.add(renderCount(groupIndex))
 				val childOrders = groups[groupIndex].children.map(::childDrawOrder)
-				maxDraw.add(childOrders.maxOrNull() ?: 500)
-				minDraw.add(childOrders.minOrNull() ?: 500)
+				// MOC3 §5.6: an EMPTY group stores the max/min fold identities (-INT_MAX / INT_MAX),
+				// not a 500 default - probed on the ModelWithOffscreen family's childless groups.
+				maxDraw.add(childOrders.maxOrNull() ?: -Int.MAX_VALUE)
+				minDraw.add(childOrders.minOrNull() ?: Int.MAX_VALUE)
 			}
 			put(Section.RENDER_ORDER_GROUP_RENDER_COUNT, intList(renderCounts))
 			put(Section.RENDER_ORDER_GROUP_MAX_DRAW_ORDER, intList(maxDraw))

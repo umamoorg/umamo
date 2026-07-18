@@ -92,6 +92,15 @@ public object MocDecoder {
 				KeyformBinding(keyformBinding, axes)
 			}
 
+		// Materialize every stored binding record up front, not only those objects reference: the file
+		// allocates CountInfo[12] records, and a mesh-less model carries a single EMPTY binding
+		// (0 axes) that only static parts point at - lazy by-reference registration would drop it and
+		// shrink the re-synthesized binding sections + CountInfo (probed on the ModelWithOffscreen
+		// family).  MOC3 §5.1 CountInfo field 12.
+		repeat(model.countInfo.getOrElse(Sections.CI_KEYFORM_BINDINGS) { 0 }) { bindingIndex ->
+			binding(bindingIndex)
+		}
+
 		// ---- value tables ----
 		val positionIndex =
 			sections.intArray(Section.KEYFORM_POSITION_INDEX) // art-mesh keyform -> packed-position offset

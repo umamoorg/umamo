@@ -102,12 +102,14 @@ class MocSectionsTest {
 				"${file.name}: keyform base monotonic",
 			)
 
-			// Version gating: color-base sections are v4+ only.
+			// Version gating: color-base sections are v4+ only.  Per-mesh, so a mesh-less model
+			// (the offscreen extraction family) has an empty region even on v6 - the invariant is
+			// v4+ AND at least one drawable.
 			val v4plus = model.versionByte >= MocVersion.V42.byteValue
 			assertEquals(
-				v4plus,
+				v4plus && model.drawableCount > 0,
 				sections.isPresent(Section.ARTMESH_COLOR_BASE),
-				"${file.name}: color base present iff v4+",
+				"${file.name}: color base present iff v4+ with drawables",
 			)
 		}
 	}
