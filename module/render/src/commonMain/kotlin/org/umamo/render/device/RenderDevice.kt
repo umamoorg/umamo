@@ -158,8 +158,12 @@ public interface RenderDevice {
 	 *
 	 * @param RenderTarget source      The surface to read (any size).
 	 * @param RenderTarget destination The surface to fill, at its own size.
+	 * @param ScissorRect? region      The sub-rectangle to copy (same coordinates in both surfaces),
+	 *   or null for the whole surface.  Only valid when [source] and [destination] are the same size -
+	 *   the scaled supersample resolve always passes null.  The composite path passes its layer bounds
+	 *   here so the destination snapshot copies only the pixels the scissored composite will sample.
 	 */
-	fun resolve(source: RenderTarget, destination: RenderTarget)
+	fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect? = null)
 
 	// --- Read-back ---
 
@@ -310,6 +314,25 @@ public enum class StoreAction {
 }
 
 /**
+ * An axis-aligned pixel rectangle restricting where a pass (or a region resolve) writes.
+ *
+ * Coordinates follow the read-back convention: (0, 0) is the TOP-LEFT pixel, whatever the backend's
+ * framebuffer origin (the GL device converts to its bottom-left origin internally).  Fixing the
+ * convention here is what stops every caller having to ask which way up a backend is.
+ *
+ * @property Int x      Left edge in pixels.
+ * @property Int y      Top edge in pixels.
+ * @property Int width  Width in pixels (> 0).
+ * @property Int height Height in pixels (> 0).
+ */
+public data class ScissorRect(
+	val x: Int,
+	val y: Int,
+	val width: Int,
+	val height: Int,
+)
+
+/**
  * One render pass.
  *
  * Every field is explicit because a pass that discovered its own target could not exist on a backend with
@@ -325,6 +348,9 @@ public enum class StoreAction {
  * @property Float        clearAlpha     Clear alpha; read only when [loadAction] is [LoadAction.Clear].
  * @property Int          viewportWidth  The viewport width in pixels.
  * @property Int          viewportHeight The viewport height in pixels.
+ * @property ScissorRect? scissor        Restricts every write of the pass - the clear included - to the
+ *   rectangle, for the whole pass (per-pass fixed state, like the target).  Null writes everywhere.
+ *   The composite path uses this to confine a layer's clear + composite to the subtree's bounds.
  */
 public data class RenderPassSpec(
 	val colorTarget: RenderTarget,
@@ -336,6 +362,7 @@ public data class RenderPassSpec(
 	val clearGreen: Float = 0f,
 	val clearBlue: Float = 0f,
 	val clearAlpha: Float = 0f,
+	val scissor: ScissorRect? = null,
 )
 
 /** Records draws into one render pass. */

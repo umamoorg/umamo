@@ -13,6 +13,7 @@ import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
 import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 
@@ -80,8 +81,12 @@ class GlesRenderDevice : RenderDevice {
 
 	override fun beginFrame(): FrameEncoder = TODO("GLES port: transliterate GlFrameEncoder")
 
-	override fun resolve(source: RenderTarget, destination: RenderTarget): Unit =
-		TODO("GLES port: glBlitFramebuffer with GL_LINEAR - core in ES 3.0, same as desktop")
+	override fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect?): Unit =
+		TODO(
+			"GLES port: two branches like desktop GlRenderDevice - region == null is the full-surface " +
+				"GL_LINEAR downscale blit (the supersample resolve); region != null is a same-size, top-left-" +
+				"origin sub-rect GL_NEAREST copy (the composite snapshot).  glBlitFramebuffer is core in ES 3.0.",
+		)
 
 	override fun beginReadback(target: RenderTarget): ReadbackTicket =
 		TODO("GLES port: PBO + fence, same as desktop - GL_PIXEL_PACK_BUFFER and fence sync are core in ES 3.0")

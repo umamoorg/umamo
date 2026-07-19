@@ -26,6 +26,7 @@ import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
 import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
@@ -46,18 +47,24 @@ import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
 import org.umamo.runtime.eval.WeightedCell
+import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.visibleDrawableIds
 import kotlin.concurrent.Volatile
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * GPU-deforming puppet renderer, over a [RenderDevice].
@@ -209,6 +216,15 @@ class PuppetRenderer(
 		val glueBaseOffset: Int,
 		/** The static blend-shape column assignment in [deltaTexture] (empty when binding-free). */
 		val blendLayout: BlendColumnLayout,
+		/**
+		 * Rest positions for the exact composite-scissor bounds (see PosedAabb).  A var because an
+		 * in-place base-mesh move (updateModel's Keep-with-positions tier) re-uploads new positions to
+		 * the GPU mesh and must re-point this at them, or the bounds walk would size the scissor to the
+		 * pre-edit geometry and clip the moved vertices.
+		 */
+		var boundsBase: FloatArray,
+		/** Grid cells by linear index for the bounds walk; a keyform edit re-uploads whole (Reupload). */
+		val boundsCells: Map<Int, KeyformCell<MeshForm>>,
 	) {
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
@@ -217,6 +233,13 @@ class PuppetRenderer(
 
 		/** The pose's resolved blend-shape state; null for binding-free drawables. */
 		var blend: MeshBlendState? = null
+
+		/**
+		 * Whether this drawable's blend is a 5.3 extended blend (not fixed-function-expressible), so it
+		 * routes through the destination-sampling composite path rather than a plain draw.
+		 */
+		val isExtendedBlend: Boolean
+			get() = !blendMode.isLegacy || alphaBlendMode != AlphaBlendMode.Over
 	}
 
 	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
@@ -237,6 +260,30 @@ class PuppetRenderer(
 	// pose-blended composite channels, both set by setPose and walked by render. Render-thread only.
 	private var currentPlan: List<RenderPlanNode> = emptyList()
 	private var currentCompositeStates: Map<PartId, PartRenderState> = emptyMap()
+
+	// Per-pose composite acceleration state, derived from the plan by setPose (render-thread only):
+	// isolated parts whose composite is a pose-identity Normal/Over over an all-Normal/Over subtree
+	// (render() draws those inline - no layer, no snapshot, no composite draw; premultiplied Over is
+	// associative, so the pixels are identical up to one less 8-bit quantization), and the
+	// conservative world bounds of each isolated subtree / extended-blend drawable (render() scissors
+	// the layer clear, snapshot copy, and composite draw to them - except Out-alpha composites, whose
+	// blend erases the destination wherever the layer is EMPTY, so they keep the full-viewport path).
+	private var flattenableComposites: Set<PartId> = emptySet()
+	private var compositeWorldBounds: Map<PartId, PosedAabb> = emptyMap()
+	private var extendedDrawableWorldBounds: Map<DrawableId, PosedAabb> = emptyMap()
+
+	// The two composite accelerations, each independently switchable so a correctness test can render
+	// the same pose with either or both disabled and assert every combination is pixel-preserving on
+	// real corpus models.  [compositeFlattenEnabled] draws identity Normal/Over groups inline;
+	// [compositeBoundsScissorEnabled] confines a composite's layer work (and the empty-layer skip) to
+	// the subtree's bounds.  Both on by default.
+	internal var compositeFlattenEnabled = true
+	internal var compositeBoundsScissorEnabled = true
+
+	// Glue weld partners by drawable (both directions), rebuilt with residency: a glue mesh's welded
+	// vertices stay inside the hull of its own and its partners' unwelded bounds, so the bounds walk
+	// unions the partner extents in.
+	private var gluePartnersById: Map<DrawableId, List<DrawableId>> = emptyMap()
 
 	// The uploaded atlas pages, index-parallel to PuppetTextures.atlases. Retained so a structural reconcile
 	// in updateModel can bind a newly-uploaded drawable to its page.
@@ -281,6 +328,7 @@ class PuppetRenderer(
 		gpuById = uploaded.associateBy { it.id }
 		glueDeformList = uploaded.filter { it.isGlueMesh }
 		renderableById = gpuById.mapValues { (_, resident) -> resident.indexCount > 0 }
+		rebuildGluePartners(model)
 	}
 
 	/**
@@ -311,15 +359,17 @@ class PuppetRenderer(
 		}
 		val cellCount = keyformCellCount(grid)
 		val vertexCount = mesh.positions.size / 2
+		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it.
+		val cells = cellsByLinearIndex(grid)
 		// Blend-shape delta columns append after the grid cells; the zero-blend layout is empty and
 		// the texture build reduces to the plain grid texels.
 		val blendLayout = blendColumnLayout(drawable, cellCount)
 		val defaults = currentModel.parameters.associate { it.id to it.default }
 		val texels =
 			if (blendLayout.blendColumnCount > 0) {
-				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout)
+				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout, cells)
 			} else {
-				buildDeltaTexels(grid, vertexCount, cellCount)
+				buildDeltaTexels(grid, vertexCount, cellCount, cells)
 			}
 		val deltaTexture =
 			device.createFloatTexture(cellCount + blendLayout.blendColumnCount, vertexCount, TextureFilter.Nearest, texels)
@@ -352,6 +402,8 @@ class PuppetRenderer(
 			isGlueMesh = isGlue,
 			glueBaseOffset = glueBaseOffset,
 			blendLayout = blendLayout,
+			boundsBase = mesh.positions,
+			boundsCells = cells,
 		)
 	}
 
@@ -404,7 +456,146 @@ class PuppetRenderer(
 		// resolvePose filled glueIntensities (this renderer's own array) in place - no copy needed.
 		currentPlan = resolved.renderPlan
 		currentCompositeStates = inputs.partCompositeStates
+		prepareCompositeAuxState()
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
+	}
+
+	/**
+	 * Derives the per-pose composite acceleration state from the freshly resolved plan: which
+	 * isolated parts flatten into their parent pass this pose (identity Normal/Over composite over
+	 * an all-Normal/Over subtree - premultiplied Over is associative, so inlining is pixel-exact),
+	 * and the conservative world bounds of each isolated subtree and extended-blend drawable, which
+	 * render() turns into layer scissors.  A subtree containing a drawable whose bounds cannot be
+	 * computed publishes NO bounds, so render() falls back to the full-viewport path - conservatism
+	 * is the contract, an undersized bound would clip pixels.
+	 */
+	private fun prepareCompositeAuxState() {
+		if (!compositeFlattenEnabled && !compositeBoundsScissorEnabled) {
+			flattenableComposites = emptySet()
+			compositeWorldBounds = emptyMap()
+			extendedDrawableWorldBounds = emptyMap()
+			return
+		}
+		val flattenable = HashSet<PartId>()
+		val compositeBounds = HashMap<PartId, PosedAabb>()
+		val extendedBounds = HashMap<DrawableId, PosedAabb>()
+		// Memoized per-drawable UNWELDED world bounds; a glue mesh's welded bounds union its posed
+		// partners' in (welds move each side within the hull of both unwelded shapes).
+		val ownBoundsById = HashMap<DrawableId, PosedAabb?>()
+
+		fun ownWorldBounds(id: DrawableId): PosedAabb? {
+			if (id in ownBoundsById) {
+				return ownBoundsById[id]
+			}
+			val gpuDrawable = gpuById[id]
+			val corners = gpuDrawable?.corners
+			// visible == posed this frame, so corners are fresh (they stay stale-but-non-null on a
+			// drawable that dropped out of the pose); an unposed one has nothing to bound.
+			val bounds =
+				if (gpuDrawable == null || corners == null || !gpuDrawable.visible) {
+					null
+				} else {
+					deformedWorldBounds(gpuDrawable.boundsBase, gpuDrawable.boundsCells, corners, gpuDrawable.parentWorld, gpuDrawable.blend)
+				}
+			ownBoundsById[id] = bounds
+			return bounds
+		}
+
+		fun weldedWorldBounds(id: DrawableId): PosedAabb? {
+			var bounds = ownWorldBounds(id) ?: return null
+			for (partnerId in gluePartnersById[id].orEmpty()) {
+				if (gpuById[partnerId]?.visible != true) {
+					continue // an unposed partner welds at zero intensity and moves nothing
+				}
+				val partnerBounds = ownWorldBounds(partnerId) ?: return null
+				bounds = unionBounds(bounds, partnerBounds)
+			}
+			return bounds
+		}
+
+		// Walks one composite subtree, returning its bounds (null = at least one drawn child had no
+		// computable bounds) and whether its CONTENT is flatten-transparent: every drawn drawable
+		// plain Normal/Over, and every nested composite itself blending Normal/Over (its internals
+		// only shape its own layer; Over's associativity makes its placement dest-agnostic).
+		fun walkComposite(node: RenderPlanComposite): Pair<PosedAabb?, Boolean> {
+			var bounds: PosedAabb? = null
+			var boundsComplete = true
+			var contentFlattenable = true
+			for (child in node.children) {
+				when (child) {
+					is RenderPlanDrawable -> {
+						val gpuDrawable = gpuById[child.id] ?: continue
+						val extended = gpuDrawable.isExtendedBlend
+						if (gpuDrawable.blendMode != BlendMode.Normal || gpuDrawable.alphaBlendMode != AlphaBlendMode.Over) {
+							contentFlattenable = false
+						}
+						val childBounds = weldedWorldBounds(child.id)
+						if (childBounds == null) {
+							boundsComplete = false
+						} else {
+							if (extended) {
+								extendedBounds[child.id] = childBounds
+							}
+							bounds = bounds?.let { unionBounds(it, childBounds) } ?: childBounds
+						}
+					}
+
+					is RenderPlanComposite -> {
+						val (childBounds, childContent) = walkComposite(child)
+						if (child.composite.blendMode != BlendMode.Normal || child.composite.alphaBlendMode != AlphaBlendMode.Over) {
+							contentFlattenable = false
+						}
+						if (childBounds == null) {
+							boundsComplete = false
+						} else {
+							bounds = bounds?.let { unionBounds(it, childBounds) } ?: childBounds
+						}
+					}
+				}
+			}
+			val subtreeBounds = if (boundsComplete) bounds else null
+			subtreeBounds?.let { compositeBounds[node.partId] = it }
+			if (compositeFlattenEnabled && contentFlattenable && compositeStateIsIdentity(node)) {
+				flattenable.add(node.partId)
+			}
+			return subtreeBounds to contentFlattenable
+		}
+
+		for (node in currentPlan) {
+			when (node) {
+				is RenderPlanDrawable -> {
+					val gpuDrawable = gpuById[node.id] ?: continue
+					if (gpuDrawable.isExtendedBlend) {
+						weldedWorldBounds(node.id)?.let { extendedBounds[node.id] = it }
+					}
+				}
+
+				is RenderPlanComposite -> walkComposite(node)
+			}
+		}
+		flattenableComposites = flattenable
+		compositeWorldBounds = if (compositeBoundsScissorEnabled) compositeBounds else emptyMap()
+		extendedDrawableWorldBounds = if (compositeBoundsScissorEnabled) extendedBounds else emptyMap()
+	}
+
+	/**
+	 * Whether an isolated part's composite is a pose-identity source-over: Normal/Over, unmasked,
+	 * and its pose-blended channels exactly at identity.  Exact equality on purpose - a channel a
+	 * hair off identity takes the real composite path rather than a visibly-approximate flatten.
+	 */
+	private fun compositeStateIsIdentity(node: RenderPlanComposite): Boolean {
+		val composite = node.composite
+		if (composite.blendMode != BlendMode.Normal || composite.alphaBlendMode != AlphaBlendMode.Over) {
+			return false
+		}
+		if (composite.maskedBy.isNotEmpty()) {
+			return false
+		}
+		val state = currentCompositeStates[node.partId]
+		val opacity = state?.opacity ?: composite.opacity
+		val multiply = state?.multiplyColor ?: composite.multiplyColor
+		val screen = state?.screenColor ?: composite.screenColor
+		return opacity == 1f && multiply == ColorRgb.MultiplyIdentity && screen == ColorRgb.ScreenIdentity
 	}
 
 	fun setCamera(camera: ViewportCamera) {
@@ -522,7 +713,12 @@ class PuppetRenderer(
 				is DrawableAction.Keep -> {
 					val existing = gpuById[action.drawableId] ?: continue
 					reconciled[action.drawableId] = existing
-					action.positions?.let { device.updateMeshPositions(existing.mesh, it) }
+					action.positions?.let {
+						device.updateMeshPositions(existing.mesh, it)
+						// Re-point the bounds walk at the new rest positions too, or the composite scissor
+						// would keep sizing to the pre-edit geometry and clip the moved vertices.
+						existing.boundsBase = it
+					}
 					action.uvs?.let { device.updateMeshUvs(existing.mesh, it) }
 				}
 			}
@@ -538,7 +734,27 @@ class PuppetRenderer(
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
 		baseOrder = newModel.drawables.map { it.id }
+		rebuildGluePartners(newModel)
 		bboxReady = false
+	}
+
+	/** Rebuilds the two-way glue partner map the composite bounds walk unions across. */
+	private fun rebuildGluePartners(fromModel: PuppetModel) {
+		if (fromModel.glues.isEmpty()) {
+			gluePartnersById = emptyMap()
+			return
+		}
+		val partners = HashMap<DrawableId, MutableList<DrawableId>>()
+		for ((glueIndex, glue) in fromModel.glues.withIndex()) {
+			// Glues past MAX_GLUES render unwelded (resolvePose / planGlueLayout skip them by the same
+			// index), so their partners move nothing - don't union those extents into the bounds.
+			if (glueIndex >= MAX_GLUES) {
+				break
+			}
+			partners.getOrPut(glue.meshA) { ArrayList() }.add(glue.meshB)
+			partners.getOrPut(glue.meshB) { ArrayList() }.add(glue.meshA)
+		}
+		gluePartnersById = partners
 	}
 
 	/**
@@ -646,7 +862,7 @@ class PuppetRenderer(
 		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
 		var pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
 		drawBackdrop(pass, affine, viewportWidth, viewportHeight)
-		pass = renderPlanNodes(frame, currentPlan, target, 0, affine, viewportWidth, viewportHeight, pass)
+		pass = renderPlanNodes(frame, currentPlan, target, 0, affine, viewportWidth, viewportHeight, pass, scissor = null)
 		pass.end()
 		frame.endFrame()
 	}
@@ -657,6 +873,12 @@ class PuppetRenderer(
 	 * implicit singleton composite, and a [RenderPlanComposite] node renders its subtree into a
 	 * pooled layer target and composites it back as one layer.  Passes never nest - the frame stays
 	 * a flat pass sequence, and the CURRENT pass travels through as the return value.
+	 *
+	 * Two per-pose accelerations short-circuit the composite machinery (both pixel-preserving; see
+	 * [prepareCompositeAuxState]): a pose-identity Normal/Over composite over an all-Normal/Over
+	 * subtree draws inline into the current pass, and a non-Out composite whose layer would land
+	 * empty on screen (bounds off-viewport, or pose-blended opacity 0) is skipped outright.  The
+	 * remaining composites confine their layer work to the subtree's bounds via [scissor] rects.
 	 *
 	 * A plan with no composite nodes and no extended-blend drawables takes exactly the old flat
 	 * path: zero extra passes, zero resolves - the regression guard.
@@ -669,6 +891,9 @@ class PuppetRenderer(
 	 * @param Int                  viewportWidth  The viewport width in pixels.
 	 * @param Int                  viewportHeight The viewport height in pixels.
 	 * @param RenderPassEncoder    startPass      The open pass on [target].
+	 * @param ScissorRect?         scissor [target]'s own pass scissor (a composite layer's
+	 *   bounds rect when this span IS an isolated subtree), re-applied whenever the span resumes a
+	 *   pass on [target]; null at the top level.
 	 * @return RenderPassEncoder The open pass on [target] after the span (may differ from [startPass]).
 	 */
 	private fun renderPlanNodes(
@@ -680,17 +905,31 @@ class PuppetRenderer(
 		viewportWidth: Int,
 		viewportHeight: Int,
 		startPass: RenderPassEncoder,
+		scissor: ScissorRect?,
 	): RenderPassEncoder {
 		var pass = startPass
 		for (node in nodes) {
 			when (node) {
 				is RenderPlanDrawable -> {
 					val gpuDrawable = gpuById[node.id] ?: continue
-					if (!gpuDrawable.blendMode.isLegacy || gpuDrawable.alphaBlendMode != AlphaBlendMode.Over) {
+					if (gpuDrawable.isExtendedBlend) {
 						// A 5.3 extended blend: not fixed-function-expressible, so draw the drawable
 						// alone into a layer target and composite it in-shader.
+						// An empty (fully faded) non-Out layer composites to the unchanged destination, so
+						// skip it outright - independent of the bounds-scissor toggle (Out erases the
+						// destination where the layer is empty, so it must keep the real composite path).
+						if (gpuDrawable.alphaBlendMode != AlphaBlendMode.Out && gpuDrawable.opacity == 0f) {
+							continue
+						}
+						var layerRect: ScissorRect? = null
+						if (compositeBoundsScissorEnabled && gpuDrawable.alphaBlendMode != AlphaBlendMode.Out) {
+							val bounds = extendedDrawableWorldBounds[gpuDrawable.id]
+							if (bounds != null) {
+								layerRect = scissorRectOf(bounds, affine, viewportWidth, viewportHeight) ?: continue
+							}
+						}
 						pass.end()
-						pass = compositeDrawable(frame, gpuDrawable, target, depth, affine, viewportWidth, viewportHeight)
+						pass = compositeDrawable(frame, gpuDrawable, target, depth, affine, viewportWidth, viewportHeight, layerRect, scissor)
 						continue
 					}
 					var maskCoverage: GpuTexture? = null
@@ -699,7 +938,7 @@ class PuppetRenderer(
 						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
 						pass.end()
 						renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
-						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight, scissor = scissor))
 						maskCoverage = maskTarget?.sampledTexture
 					}
 					val isActive = activeId != null && gpuDrawable.id == activeId
@@ -720,8 +959,27 @@ class PuppetRenderer(
 				}
 
 				is RenderPlanComposite -> {
+					if (node.partId in flattenableComposites) {
+						// Identity source-over of an all-Normal/Over subtree: Over is associative,
+						// so the subtree draws inline - no layer, no snapshot, no composite draw.
+						pass = renderPlanNodes(frame, node.children, target, depth, affine, viewportWidth, viewportHeight, pass, scissor)
+						continue
+					}
+					// A fully faded non-Out layer composites to the unchanged destination, so skip it
+					// outright - independent of the bounds-scissor toggle (see the extended-blend branch).
+					val poseOpacity = currentCompositeStates[node.partId]?.opacity ?: node.composite.opacity
+					if (node.composite.alphaBlendMode != AlphaBlendMode.Out && poseOpacity == 0f) {
+						continue
+					}
+					var layerRect: ScissorRect? = null
+					if (compositeBoundsScissorEnabled && node.composite.alphaBlendMode != AlphaBlendMode.Out) {
+						val bounds = compositeWorldBounds[node.partId]
+						if (bounds != null) {
+							layerRect = scissorRectOf(bounds, affine, viewportWidth, viewportHeight) ?: continue
+						}
+					}
 					pass.end()
-					pass = compositeGroup(frame, node, target, depth, affine, viewportWidth, viewportHeight)
+					pass = compositeGroup(frame, node, target, depth, affine, viewportWidth, viewportHeight, layerRect, scissor)
 				}
 			}
 		}
@@ -729,9 +987,64 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * Maps world bounds to a padded, viewport-clamped scissor rectangle (top-left-origin pixels),
+	 * or null when the bounds land entirely off the viewport.
+	 *
+	 * @param PosedAabb  bounds         The world-space bounds.
+	 * @param WorldToNdc affine         The camera affine.
+	 * @param Int        viewportWidth  The viewport width in pixels.
+	 * @param Int        viewportHeight The viewport height in pixels.
+	 * @return ScissorRect? The scissor rect, or null when empty.
+	 */
+	private fun scissorRectOf(bounds: PosedAabb, affine: WorldToNdc, viewportWidth: Int, viewportHeight: Int): ScissorRect? {
+		val ndcXa = affine.scaleX * bounds.minX + affine.offsetX
+		val ndcXb = affine.scaleX * bounds.maxX + affine.offsetX
+		val ndcYa = affine.scaleY * bounds.minY + affine.offsetY
+		val ndcYb = affine.scaleY * bounds.maxY + affine.offsetY
+		val pixelLeft = (minOf(ndcXa, ndcXb) * 0.5f + 0.5f) * viewportWidth
+		val pixelRight = (maxOf(ndcXa, ndcXb) * 0.5f + 0.5f) * viewportWidth
+		// NDC +Y is up; top-left-origin rows count down from the top.
+		val pixelTop = (0.5f - maxOf(ndcYa, ndcYb) * 0.5f) * viewportHeight
+		val pixelBottom = (0.5f - minOf(ndcYa, ndcYb) * 0.5f) * viewportHeight
+		// The fringe guard is a constant ON-SCREEN size, so it scales with the supersample factor
+		// (gridPixelScale = framebuffer pixels per on-screen pixel), or a 1x-sufficient pad under-covers
+		// the fringe at 2x+ and clips an edge texel.
+		val pad = SCISSOR_PAD_PX * gridPixelScale
+		val viewportWidthF = viewportWidth.toFloat()
+		val viewportHeightF = viewportHeight.toFloat()
+		// Pad and clamp in FLOAT space before the Int conversion.  A warp-extrapolated vertex can push a
+		// pixel edge far past Int range; Float.toInt() would then saturate and the -/+ pad would wrap via
+		// unchecked Int overflow to the WRONG end of the clamp, vanishing the layer instead of covering
+		// the viewport.  Float coerceIn clamps ±Infinity correctly; a NaN edge never reaches here
+		// (deformedWorldBounds publishes no bound for a non-finite vertex, so render() keeps the full
+		// viewport path).
+		val left = (floor(pixelLeft) - pad).coerceIn(0f, viewportWidthF).toInt()
+		val right = (ceil(pixelRight) + pad).coerceIn(0f, viewportWidthF).toInt()
+		val top = (floor(pixelTop) - pad).coerceIn(0f, viewportHeightF).toInt()
+		val bottom = (ceil(pixelBottom) + pad).coerceIn(0f, viewportHeightF).toInt()
+		if (right <= left || bottom <= top) {
+			return null
+		}
+		return ScissorRect(left, top, right - left, bottom - top)
+	}
+
+	/**
 	 * Renders an isolated part's subtree into the depth's pooled layer target, then composites it
 	 * back into [target] as one layer with the part's blend modes, pose-blended channels, and
 	 * optional clip mask.  Returns the fresh open pass on [target].
+	 *
+	 * @param FrameEncoder         frame          The frame being recorded.
+	 * @param RenderPlanComposite  node           The isolated part's plan node (subtree + composite settings).
+	 * @param RenderTarget         target         The surface the layer composites back into.
+	 * @param Int                  depth          The composite nesting depth (its layer target's pool slot).
+	 * @param WorldToNdc           affine         The camera affine.
+	 * @param Int                  viewportWidth  The viewport width in pixels.
+	 * @param Int                  viewportHeight The viewport height in pixels.
+	 * @param ScissorRect? layerRect      The subtree's bounds - confines the layer clear + subtree
+	 *   draw, null for a full-viewport layer (Out alpha or uncomputable bounds).
+	 * @param ScissorRect? parentScissor  [target]'s own scissor (the enclosing layer's rect), null at
+	 *   the top level; the composite-back is confined to it intersected with [layerRect].
+	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
 	 */
 	private fun compositeGroup(
 		frame: FrameEncoder,
@@ -741,10 +1054,13 @@ class PuppetRenderer(
 		affine: WorldToNdc,
 		viewportWidth: Int,
 		viewportHeight: Int,
+		layerRect: ScissorRect?,
+		parentScissor: ScissorRect?,
 	): RenderPassEncoder {
 		val layerTarget = acquireCompositeTarget(depth)
-		var subtreePass = frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f))
-		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, affine, viewportWidth, viewportHeight, subtreePass)
+		var subtreePass =
+			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f, scissor = layerRect))
+		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, affine, viewportWidth, viewportHeight, subtreePass, layerRect)
 		subtreePass.end()
 		val masked = node.composite.maskedBy.isNotEmpty()
 		if (masked) {
@@ -766,13 +1082,25 @@ class PuppetRenderer(
 		compositeScratch.screenBlue = screen.blue
 		compositeScratch.useMask = masked
 		compositeScratch.invertMask = masked && node.composite.invertMask
-		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight)
+		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight, intersectScissor(layerRect, parentScissor), parentScissor)
 	}
 
 	/**
 	 * Draws one extended-blend drawable as an implicit singleton composite: the drawable alone (with
 	 * its own opacity and clip mask) into the depth's layer target, composited back with its color
 	 * and alpha modes at identity channels.  Returns the fresh open pass on [target].
+	 *
+	 * @param FrameEncoder      frame          The frame being recorded.
+	 * @param GpuDrawable       gpuDrawable    The extended-blend drawable to composite.
+	 * @param RenderTarget      target         The surface the layer composites back into.
+	 * @param Int               depth          The composite nesting depth (its layer target's pool slot).
+	 * @param WorldToNdc        affine         The camera affine.
+	 * @param Int               viewportWidth  The viewport width in pixels.
+	 * @param Int               viewportHeight The viewport height in pixels.
+	 * @param ScissorRect? layerRect     The drawable's bounds - confines the layer clear + draw, null
+	 *   for a full-viewport layer (Out alpha or uncomputable bounds).
+	 * @param ScissorRect? parentScissor [target]'s own scissor, null at the top level.
+	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
 	 */
 	private fun compositeDrawable(
 		frame: FrameEncoder,
@@ -782,6 +1110,8 @@ class PuppetRenderer(
 		affine: WorldToNdc,
 		viewportWidth: Int,
 		viewportHeight: Int,
+		layerRect: ScissorRect?,
+		parentScissor: ScissorRect?,
 	): RenderPassEncoder {
 		var maskCoverage: GpuTexture? = null
 		if (gpuDrawable.maskIds.isNotEmpty()) {
@@ -789,7 +1119,8 @@ class PuppetRenderer(
 			maskCoverage = maskTarget?.sampledTexture
 		}
 		val layerTarget = acquireCompositeTarget(depth)
-		val layerPass = frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f))
+		val layerPass =
+			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f, scissor = layerRect))
 		val isActive = activeId != null && gpuDrawable.id == activeId
 		val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
 		// Normal blend onto the cleared transparent layer just writes the premultiplied pixels; the
@@ -819,14 +1150,31 @@ class PuppetRenderer(
 		compositeScratch.screenBlue = 0f
 		compositeScratch.useMask = false
 		compositeScratch.invertMask = false
-		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight)
+		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight, intersectScissor(layerRect, parentScissor), parentScissor)
 	}
 
 	/**
 	 * Snapshots [target], begins a fresh Load pass on it, and issues the composite draw from
 	 * [layerTarget] against the snapshot using the already-filled [compositeScratch].
 	 *
-	 * @return RenderPassEncoder The open pass on [target] with the composite drawn.
+	 * The composite reads and writes the same fragments, so [compositeScissor] bounds BOTH the
+	 * destination snapshot copy and the composite draw - the whole target when null.
+	 *
+	 * The composite draw runs in its OWN pass under [compositeScissor], which is then ended; the
+	 * returned continuation pass is scissored to [continuationScissor] (the enclosing span's own
+	 * scissor, null at the top level) so the drawables the caller draws AFTER this composite are NOT
+	 * clipped to the composite's bounds - the bug that made a scissored composite shrink everything
+	 * drawn behind it in the same span.
+	 *
+	 * @param FrameEncoder      frame          The frame being recorded.
+	 * @param RenderTarget      layerTarget    The pooled layer holding the subtree/drawable to composite.
+	 * @param RenderTarget      target         The surface the layer composites back into.
+	 * @param WorldToNdc        affine         The camera affine.
+	 * @param Int               viewportWidth  The viewport width in pixels.
+	 * @param Int               viewportHeight The viewport height in pixels.
+	 * @param ScissorRect? compositeScissor   The rect the snapshot + composite are confined to, or null.
+	 * @param ScissorRect? continuationScissor The scissor the returned pass carries, or null.
+	 * @return RenderPassEncoder A fresh open pass on [target] under [continuationScissor].
 	 */
 	private fun encodeComposite(
 		frame: FrameEncoder,
@@ -835,24 +1183,30 @@ class PuppetRenderer(
 		affine: WorldToNdc,
 		viewportWidth: Int,
 		viewportHeight: Int,
+		compositeScissor: ScissorRect?,
+		continuationScissor: ScissorRect?,
 	): RenderPassEncoder {
 		// Snapshot the destination so the composite shader can sample it (a pass cannot sample its
-		// own target); the copy is ordered between the passes around it.
+		// own target); the copy is ordered between the passes around it, and confined to the same
+		// rect the composite draw reads and writes.
 		val snapshot = snapshotTarget ?: error("composite targets not allocated")
-		device.resolve(target, snapshot)
-		val pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
-		pass.setPipeline(compositePipeline!!)
-		pass.setCamera(affine, viewportWidth, viewportHeight)
+		device.resolve(target, snapshot, compositeScissor)
+		val compositePass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight, scissor = compositeScissor))
+		compositePass.setPipeline(compositePipeline!!)
+		compositePass.setCamera(affine, viewportWidth, viewportHeight)
 		texturesScratch.atlas = null
 		texturesScratch.deltaTexture = null
 		texturesScratch.warpControlPoints = null
 		texturesScratch.maskCoverage = if (compositeScratch.useMask) maskTarget?.sampledTexture else null
 		texturesScratch.compositeLayer = layerTarget.sampledTexture
 		texturesScratch.destinationSnapshot = snapshot.sampledTexture
-		pass.drawComposite(compositeScratch, texturesScratch)
+		compositePass.drawComposite(compositeScratch, texturesScratch)
 		texturesScratch.compositeLayer = null
 		texturesScratch.destinationSnapshot = null
-		return pass
+		compositePass.end()
+		// A fresh pass under the ENCLOSING span's scissor - the composite's own scissor must not leak
+		// onto whatever the caller draws next into this target.
+		return frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight, scissor = continuationScissor))
 	}
 
 	/**
@@ -1143,20 +1497,50 @@ class PuppetRenderer(
 		return compositeTargets[depth]
 	}
 
-	/** A render-pass spec for [target] at [load], with an optional clear. */
+	/** A render-pass spec for [target] at [load], with an optional clear and pass scissor. */
 	private fun passSpec(
 		target: RenderTarget,
 		load: LoadAction,
 		viewportWidth: Int,
 		viewportHeight: Int,
 		clearAlpha: Float = 0f,
+		scissor: ScissorRect? = null,
 	) = org.umamo.render.device.RenderPassSpec(
 		colorTarget = target,
 		loadAction = load,
 		viewportWidth = viewportWidth,
 		viewportHeight = viewportHeight,
 		clearAlpha = clearAlpha,
+		scissor = scissor,
 	)
+
+	/**
+	 * Intersects two scissor rects, treating null as "the whole viewport".  A composite layer's own
+	 * bounds ([first]) are always contained in its parent layer's ([second]) by construction, so a
+	 * non-empty intersection is expected; an empty intersection (only reachable if that containment ever
+	 * failed) falls back to [first], the layer's own rect, rather than null - so it can never silently
+	 * widen to the whole viewport.
+	 *
+	 * @param ScissorRect? first  The inner rect (the composite layer's own bounds), or null.
+	 * @param ScissorRect? second The outer rect (the enclosing span's scissor), or null.
+	 * @return ScissorRect? The intersection, or [first] on an empty intersection, or null when both are null.
+	 */
+	private fun intersectScissor(first: ScissorRect?, second: ScissorRect?): ScissorRect? {
+		if (first == null) {
+			return second
+		}
+		if (second == null) {
+			return first
+		}
+		val left = maxOf(first.x, second.x)
+		val top = maxOf(first.y, second.y)
+		val right = minOf(first.x + first.width, second.x + second.width)
+		val bottom = minOf(first.y + first.height, second.y + second.height)
+		if (right <= left || bottom <= top) {
+			return first
+		}
+		return ScissorRect(left, top, right - left, bottom - top)
+	}
 
 	private fun blendOf(mode: BlendMode): PipelineBlend =
 		when (mode) {
@@ -1184,6 +1568,12 @@ class PuppetRenderer(
 			-> PipelineBlend.Normal
 		}
 }
+
+// Padding (in ON-SCREEN pixels, scaled to framebuffer pixels by gridPixelScale in scissorRectOf) added
+// around a composite layer's conservative bounds before it becomes a scissor rect - a small guard so
+// bilinear atlas sampling at the mesh edge and float rounding in the world->pixel map can never clip a
+// fringe pixel the un-scissored path would keep.
+private const val SCISSOR_PAD_PX = 2
 
 /** Resets every field to its "nothing set" default, for reuse across draws. */
 private fun FragmentUniforms.reset() {

@@ -3,6 +3,7 @@ package org.umamo.render.puppet
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
@@ -35,10 +36,17 @@ internal fun keyformCellCount(grid: KeyformGrid<MeshForm>): Int = maxOf(1, grid.
  * @param KeyformGrid grid        The mesh's keyform grid.
  * @param Int         vertexCount The mesh's vertex count (the texture height).
  * @param Int         cellCount   The grid's linear cell extent from [keyformCellCount] (the width).
+ * @param Map         cells       The grid's cells by linear index; defaults to [cellsByLinearIndex] of
+ *   [grid], but a caller that already built the map (the drawable upload also needs it for the composite
+ *   bounds walk) can pass it in to avoid rebuilding it.
  * @return FloatArray The texels, row-major, length `vertexCount * cellCount * 2`.
  */
-internal fun buildDeltaTexels(grid: KeyformGrid<MeshForm>, vertexCount: Int, cellCount: Int): FloatArray {
-	val cells = cellsByLinearIndex(grid)
+internal fun buildDeltaTexels(
+	grid: KeyformGrid<MeshForm>,
+	vertexCount: Int,
+	cellCount: Int,
+	cells: Map<Int, KeyformCell<MeshForm>> = cellsByLinearIndex(grid),
+): FloatArray {
 	val texels = FloatArray(vertexCount * cellCount * 2)
 	var writeIndex = 0
 	for (vertexIndex in 0 until vertexCount) {
@@ -116,6 +124,8 @@ internal fun blendColumnLayout(drawable: Drawable, cellCount: Int): BlendColumnL
  * @param Function          defaultValue Default value per parameter id (the reference pose).
  * @param Int               vertexCount  The mesh's vertex count (the texture height).
  * @param BlendColumnLayout layout       The column assignment from [blendColumnLayout].
+ * @param Map               cells        The grid's cells by linear index; defaults to [cellsByLinearIndex]
+ *   of [grid], but a caller that already built the map can pass it in to avoid rebuilding it.
  * @return FloatArray The texels, row-major, length `vertexCount * (cellCount + blendColumnCount) * 2`.
  */
 internal fun buildDeltaTexelsWithBlend(
@@ -124,8 +134,8 @@ internal fun buildDeltaTexelsWithBlend(
 	defaultValue: (ParameterId) -> Float,
 	vertexCount: Int,
 	layout: BlendColumnLayout,
+	cells: Map<Int, KeyformCell<MeshForm>> = cellsByLinearIndex(grid),
 ): FloatArray {
-	val cells = cellsByLinearIndex(grid)
 	val width = layout.cellCount + layout.blendColumnCount
 	val texels = FloatArray(vertexCount * width * 2)
 	val reference = meshGridDefaultDeltas(drawable, defaultValue)
