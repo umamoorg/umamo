@@ -61,7 +61,6 @@ fun AreaHeader(area: LeafArea, scope: AreaScope, onCommand: (AreaCommand) -> Uni
 				Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
 					headerContent(scope)
 				}
-				Spacer(modifier = Modifier.width(8.dp))
 			} else {
 				Spacer(modifier = Modifier.weight(1f))
 			}

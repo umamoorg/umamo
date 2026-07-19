@@ -51,6 +51,7 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.logs_export
 import org.umamo.ui.resources.menu_import_moc3
 import org.umamo.ui.resources.menu_open
 import org.umamo.ui.resources.menu_save_as
@@ -234,6 +235,18 @@ fun EditorApp(
 		}
 	}
 
+	fun exportLog() {
+		// The retained UmamoLog buffer as plain text, one line per entry - the same lines the terminal
+		// printed, for a user who launched without one.  Read at write time so the file captures the log
+		// as of when the save is confirmed, not when the button was pressed.
+		scope.launch {
+			filePicker.saveFile("umamo-log", "txt")?.let { destination ->
+				destination.writeString(UmamoLog.entries.value.joinToString("\n") { entry -> entry.message })
+				UmamoLog.info("exported log to ${destination.absolutePath()}")
+			}
+		}
+	}
+
 	fun importWorkspace() {
 		scope.launch {
 			filePicker.openFile(listOf("json"))?.let { picked ->
@@ -261,9 +274,13 @@ fun EditorApp(
 	DisposableEffect(commandRegistry) {
 		commandRegistry.register(Command("file.open", title = Res.string.menu_open) { openViaPicker() })
 		commandRegistry.register(Command("file.importMoc3", title = Res.string.menu_import_moc3) { importMoc3ViaPicker() })
+		// logs.export writes the retained UmamoLog buffer to a file; the Logs panel's Export button and the
+		// command palette both dispatch it (the FilePicker it needs lives here, not in the commonMain panel).
+		commandRegistry.register(Command("logs.export", title = Res.string.logs_export) { exportLog() })
 		onDispose {
 			commandRegistry.unregister("file.open")
 			commandRegistry.unregister("file.importMoc3")
+			commandRegistry.unregister("logs.export")
 		}
 	}
 	DisposableEffect(commandRegistry, document) {

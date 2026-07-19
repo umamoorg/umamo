@@ -17,6 +17,8 @@ import org.umamo.ui.viewport.ViewportSpaceCamera
 import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
 import org.umamo.ui.workspace.spaces.InspectorSpace
+import org.umamo.ui.workspace.spaces.LogsHeaderControls
+import org.umamo.ui.workspace.spaces.LogsSpace
 import org.umamo.ui.workspace.spaces.OutlinerHeaderControls
 import org.umamo.ui.workspace.spaces.OutlinerSpace
 import org.umamo.ui.workspace.spaces.ParametersHeaderControls
@@ -77,6 +79,13 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 				SpaceDescriptor(SpaceKind.ToolDetails, Res.string.space_tooldetails, LocalUmamoIcons.spaceTool) { PlaceholderSpace(stringResource(Res.string.space_tooldetails)) },
 			SpaceKind.History to
 				SpaceDescriptor(SpaceKind.History, Res.string.space_history, LocalUmamoIcons.spaceHistory) { HistorySpace() },
+			SpaceKind.Logs to
+				SpaceDescriptor(
+					SpaceKind.Logs,
+					Res.string.space_logs,
+					LocalUmamoIcons.logsTerminal,
+					headerContent = { LogsHeaderControls() },
+				) { LogsSpace() },
 		)
 	return SpaceRegistry(descriptors)
 }

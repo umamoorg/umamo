@@ -27,6 +27,9 @@ kotlin {
 				// `api` again: FileKit's `PlatformFile` is the FilePicker contract's return type, and the
 				// apps call `FileKit.init`, so both must reach consumers transitively. Pulls filekit-core.
 				api(libs.filekitDialogs)
+				// `api` because UmamoLog's retained-log buffer exposes a StateFlow in its public surface, so
+				// consumers (the UI's Logs panel) see kotlinx-coroutines transitively - same rule as okio/FileKit.
+				api(libs.kotlinxCoroutinesCore)
 			}
 		}
 		commonTest {
