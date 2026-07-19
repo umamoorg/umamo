@@ -8,7 +8,6 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.ingest.Cmo3Import
-import org.umamo.runtime.model.MeshForm
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -88,7 +87,7 @@ class BlendDeltaFrameProbeTest {
 				if (keyIndex == binding.neutralIndex) {
 					continue
 				}
-				val authoredDeltas = (binding.forms[keyIndex] as? MeshForm)?.positionDeltas ?: continue
+				val authoredDeltas = (binding.forms[keyIndex])?.positionDeltas ?: continue
 				val stored = meshPositionIndex[record.recordBase + keyIndex]
 
 				var setupError = 0f
