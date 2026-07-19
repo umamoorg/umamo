@@ -24,6 +24,9 @@
 	* Copy to Clipboard
 	* Export to File
 
+## Artwork Import
+* We need to properly handle different blending mode imports from artwork.
+
 ## Part Group Mode (compositing)
 * Editor UI for the group mode(an inspector three-way selector) is still future work, scoped with the rest of the part inspector.
 
