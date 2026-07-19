@@ -641,11 +641,11 @@ public object MocLowering {
 			val allKeyPositions = ArrayList(keyPositions)
 			if (doc.keyPositionsHasParameterUnion) {
 				for (parameterIndex in 0 until parameterCount) {
-					val unionKeys = sortedSetOf<Float>()
+					val unionKeys = mutableSetOf<Float>()
 					for (keys in keySetsByParameter[parameterIndex]) {
 						unionKeys.addAll(keys)
 					}
-					unionKeys.forEach { allKeyPositions.add(it) }
+					allKeyPositions.addAll(unionKeys.sorted())
 				}
 			}
 			put(Section.KEY_POSITIONS, floatList(allKeyPositions))
@@ -661,7 +661,7 @@ public object MocLowering {
 			}
 			val parameterKeyCounts = ArrayList<Int>()
 			for (parameterIndex in 0 until parameterCount) {
-				val unionKeys = sortedSetOf<Float>()
+				val unionKeys = mutableSetOf<Float>()
 				for (keys in keySetsByParameter[parameterIndex]) {
 					unionKeys.addAll(keys)
 				}
@@ -671,7 +671,7 @@ public object MocLowering {
 					}
 				}
 				parameterKeyCounts.add(unionKeys.size)
-				unionKeys.forEach { allKeyPositions.add(it) }
+				allKeyPositions.addAll(unionKeys.sorted())
 			}
 			put(Section.KEY_POSITIONS, floatList(allKeyPositions))
 			out[Sections.PARAM_KEY_COUNT] = intList(parameterKeyCounts)
@@ -1073,7 +1073,7 @@ public object MocLowering {
 			val distinctLimits = LinkedHashMap<List<Any>, BlendShapeLimit>()
 			for (record in recordsInFileOrder) {
 				for (limit in record.limits) {
-					distinctLimits.putIfAbsent(identityOf(limit), limit)
+					distinctLimits.getOrPut(identityOf(limit)) { limit }
 				}
 			}
 
