@@ -154,24 +154,37 @@ fun resolveSampleProperty(samplePropertyName: String): String? {
 	val explicit =
 		System.getProperty(samplePropertyName)
 			?: return when (samplePropertyName) {
-				// Pinned to EricaTamamo: it is the model that actually carries glue affecters, so it is
-				// what makes the glue gates meaningful rather than vacuously green.
+				// Pinned to a fixed corpus model: it is the model that actually carries glue affecters,
+				// so it is what makes the glue gates meaningful rather than vacuously green.
 				"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
-				// The baked twin of the cmo3 default, so the MOC3-vs-CMO3 import parity gate runs locally.
-				"moc3.sample" -> corpusDirectory.resolve("moc3/EricaTamamo/EricaTamamo.moc3").takeIf { it.isFile }?.absolutePath
+				// The blend-shape probes and posed-oracle gates resolve cmo3/moc3 PAIRS by name.
+				"cmo3.probe" ->
+					corpusDirectory
+						.resolve("cmo3")
+						.listFiles { candidate -> candidate.isFile && candidate.extension == "cmo3" }
+						?.sortedBy { it.name }
+						?.joinToString(",") { it.absolutePath }
+						?.takeIf { it.isNotEmpty() }
+				"moc3.samples" -> corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
 				else -> null
 			}
-	val resolved = rootDir.resolve(explicit.trim()).absolutePath
+	// Some properties (cmo3.probe) carry a comma-separated list; resolve each element.
+	val resolved =
+		explicit.split(',').filter { it.isNotBlank() }.joinToString(",") { path ->
+			rootDir.resolve(path.trim()).absolutePath
+		}
 	// Fail loudly rather than let the gated test skip-and-pass on a typo.
-	require(File(resolved).exists()) {
-		"-D$samplePropertyName=$explicit resolves to '$resolved', which does not exist. " +
-			"Relative values resolve against the repo root ($rootDir)."
+	for (path in resolved.split(',')) {
+		require(File(path).exists()) {
+			"-D$samplePropertyName=$explicit resolves to '$path', which does not exist. " +
+				"Relative values resolve against the repo root ($rootDir)."
+		}
 	}
 	return resolved
 }
 
 tasks.withType<Test>().configureEach {
-	for (property in listOf("cmo3.sample", "moc3.sample", "relive.dumpModel", "relive.coreLib")) {
+	for (property in listOf("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples", "relive.dumpModel", "relive.coreLib")) {
 		resolveSampleProperty(property)?.let { value ->
 			systemProperty(property, value)
 		}

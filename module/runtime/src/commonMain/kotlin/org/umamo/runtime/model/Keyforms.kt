@@ -1,6 +1,21 @@
 package org.umamo.runtime.model
 
 /**
+ * The two parameter kinds Cubism distinguishes: a NORMAL parameter drives keyform-grid
+ * interpolation (circle points on the slider); a BLEND_SHAPE parameter drives additive
+ * [BlendShapeBinding] deltas (square points).
+ *
+ * CMO3: CParameterSource field paramType (NORMAL | MORPH_TARGET).  MOC3 v4+: Parameter types,
+ * section index 114 (0 normal, 1 blend-shape).
+ *
+ * パラメータ種別。NORMAL はキーフォーム格子、BLEND_SHAPE は加算ブレンドシェイプを駆動する。
+ */
+enum class ParameterKind {
+	NORMAL,
+	BLEND_SHAPE,
+}
+
+/**
  * An animation axis, e.g. `ParamAngleX`. Drives keyform blending at runtime.
  *
  * [id] is the format-level identifier (`ParamAngleX`, …) - kept verbatim for interop, never
@@ -15,6 +30,7 @@ data class Parameter(
 	val min: Float,
 	val max: Float,
 	val default: Float,
+	val kind: ParameterKind = ParameterKind.NORMAL,
 )
 
 /**

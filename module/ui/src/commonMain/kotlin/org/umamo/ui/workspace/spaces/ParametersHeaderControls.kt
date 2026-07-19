@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +16,11 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.createParameter
 import org.umamo.edit.createParameterGroup
+import org.umamo.runtime.model.ParameterKind
+import org.umamo.ui.kit.BelowAnchorPositionProvider
+import org.umamo.ui.kit.DropdownChip
+import org.umamo.ui.kit.Menu
+import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalEditorSession
@@ -55,12 +62,45 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 	// this header's Reset All must replicate that lock or a locked panel becomes writable from up here.
 	// Group create / delete / rename are document edits, not pose writes, so they are NOT gated.
 	val editorMode by remember(session) { session?.mode ?: MutableStateFlow(EditorMode.Object) }.collectAsState()
-	IconButton(
-		icon = LocalUmamoIcons.parameterAdd,
-		onClick = { session?.let { viewState.renamingParameterId = it.createParameter(defaultParameterName) } },
+	// Add Parameter is a dropdown so the rigger picks the kind up front: a key-form (circle) or a
+	// blend-shape (square) parameter.  Both create a document edit and open the row for inline rename,
+	// exactly as the single button did.  The full add-ticks / keyform-capture workflow is not built yet.
+	var addMenuExpanded by remember { mutableStateOf(false) }
+	val addKeyFormLabel = stringResource(Res.string.parameter_menu_add_keyform)
+	val addBlendShapeLabel = stringResource(Res.string.parameter_menu_add_blendshape)
+	DropdownChip(
+		expanded = addMenuExpanded,
+		onExpandRequest = { addMenuExpanded = true },
 		contentDescription = stringResource(Res.string.parameter_menu_add),
-		appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-	)
+		icon = LocalUmamoIcons.parameterAdd,
+		enabled = session != null,
+	) {
+		Menu(
+			items =
+				listOf(
+					MenuItem.Action(
+						label = addKeyFormLabel,
+						onSelect = {
+							session?.let {
+								viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.NORMAL)
+							}
+						},
+						enabled = session != null,
+					),
+					MenuItem.Action(
+						label = addBlendShapeLabel,
+						onSelect = {
+							session?.let {
+								viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
+							}
+						},
+						enabled = session != null,
+					),
+				),
+			onDismissRequest = { addMenuExpanded = false },
+			positionProvider = BelowAnchorPositionProvider,
+		)
+	}
 	Spacer(modifier = Modifier.width(4.dp))
 	IconButton(
 		icon = LocalUmamoIcons.groupAdd,

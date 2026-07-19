@@ -163,6 +163,11 @@ data class Drawable(
 	 * format persists it.
 	 */
 	val textureSourceId: DrawableId? = null,
+	/**
+	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [keyforms] grid
+	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)
+	 */
+	val blendShapes: List<BlendShapeBinding<MeshForm>> = emptyList(),
 )
 
 /**

@@ -23,8 +23,7 @@ public const val DEFAULT_CONTOUR_EPSILON: Float = 1.0f
 /**
  * The opaque-region description of one raster: pixel-tight trimmed bounds, an occupancy
  * summary, and the boundary contour(s) of the thresholded alpha mask.  This is the shared
- * foundation the atlas packer (trimmed rects) and the auto-mesh (silhouette) both consume
- * (art-sourcing roadmap Phase B).
+ * foundation the atlas packer (trimmed rects) and the auto-mesh (silhouette) both consume.
  *
  * A plain class, not a data class: it holds contour point arrays (via [contours]) for which
  * generated structural equality would deep-compare arrays.  Identity equality is the right
@@ -86,7 +85,7 @@ public class AlphaContour(
  * Delaunay parameter); it is a threshold mask description: a scan for bounds and count, a
  * marching-squares style boundary trace on the pixel-corner lattice, and Douglas-Peucker
  * simplification.  Output is fully deterministic for a given input, which downstream repacking
- * relies on (roadmap Phase C).
+ * relies on.
  *
  * Returns null if and only if no pixel meets [alphaThreshold] — including the 0x0 raster and
  * the 1x1 transparent placeholders the CLIP/KRA readers emit for empty layers.  Slivers with

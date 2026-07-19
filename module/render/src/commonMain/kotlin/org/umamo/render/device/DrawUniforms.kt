@@ -1,6 +1,7 @@
 package org.umamo.render.device
 
 import org.umamo.render.GridColors
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.MAX_CORNERS
 
 // The per-draw and per-pass shader inputs, as structs rather than named scalars.
@@ -39,6 +40,12 @@ public class DeformUniforms {
 	var cornerCount: Int = 0
 	val cornerCell: IntArray = IntArray(MAX_CORNERS)
 	val cornerWeight: FloatArray = FloatArray(MAX_CORNERS)
+
+	// Blend-shape delta columns (appended after the grid cells in the delta texture); zero-blend
+	// drawables keep blendCount == 0 so the shader loop never runs.
+	var blendCount: Int = 0
+	val blendCell: IntArray = IntArray(MAX_BLEND_CORNERS)
+	val blendWeight: FloatArray = FloatArray(MAX_BLEND_CORNERS)
 	var parentType: Int = 0
 	val rotation: FloatArray = FloatArray(6)
 	var warpColumns: Int = 0

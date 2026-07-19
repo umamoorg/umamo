@@ -70,8 +70,14 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 			// fallback convention, so rebasing any prefix of it would double-count the base and mix two
 			// spaces in one array.  A drawable carrying such a cell keeps its whole grid AND base
 			// untouched - partially rewriting either would corrupt what malformed data still encodes.
+			// Blend-shape forms are rest-relative like the grid cells, so they gate (and rebase) the
+			// same way - leaving them on the old base while the grid moves would shift every blend
+			// contribution by exactly (new base - old base).
 			val anyCellMismatches =
-				drawable.keyforms?.cells?.any { cell -> cell.form.positionDeltas.size != mesh.positions.size } ?: false
+				(drawable.keyforms?.cells?.any { cell -> cell.form.positionDeltas.size != mesh.positions.size } ?: false) ||
+					drawable.blendShapes.any { binding ->
+						binding.forms.any { form -> form != null && form.positionDeltas.size != mesh.positions.size }
+					}
 			if (anyCellMismatches) {
 				return@map drawable
 			}
@@ -94,9 +100,27 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 						},
 					)
 				}
+			val rebasedBlendShapes =
+				drawable.blendShapes.map { binding ->
+					binding.copy(
+						forms =
+							binding.forms.map { form ->
+								form?.let { meshForm ->
+									MeshForm(
+										FloatArray(meshForm.positionDeltas.size) { coordIndex ->
+											(mesh.positions[coordIndex] + meshForm.positionDeltas[coordIndex]) - canvasBase[coordIndex]
+										},
+										meshForm.drawOrder,
+										meshForm.opacity,
+									)
+								}
+							},
+					)
+				}
 			drawable.copy(
 				mesh = DrawableMesh(canvasBase, mesh.uvs, mesh.indices),
 				keyforms = rebasedKeyforms,
+				blendShapes = rebasedBlendShapes,
 			)
 		}
 	return model.copy(drawables = drawables)

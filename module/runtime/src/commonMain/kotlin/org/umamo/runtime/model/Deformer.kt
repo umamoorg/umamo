@@ -48,6 +48,11 @@ sealed interface Deformer {
 		/** Per-parameter lattice control-point forms, or null if unkeyed. */
 		val keyforms: KeyformGrid<WarpForm>?,
 		override val isSelectable: Boolean = true,
+		/**
+		 * Additive blend-shape bindings on the lattice control points, applied on top of the
+		 * [keyforms] grid result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 */
+		val blendShapes: List<BlendShapeBinding<WarpForm>> = emptyList(),
 	) : Deformer
 
 	/**
@@ -63,5 +68,10 @@ sealed interface Deformer {
 		/** Per-parameter pivot-transform forms, or null if unkeyed. */
 		val keyforms: KeyformGrid<RotationForm>?,
 		override val isSelectable: Boolean = true,
+		/**
+		 * Additive blend-shape bindings on the pivot transform, applied on top of the [keyforms]
+		 * grid result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 */
+		val blendShapes: List<BlendShapeBinding<RotationForm>> = emptyList(),
 	) : Deformer
 }

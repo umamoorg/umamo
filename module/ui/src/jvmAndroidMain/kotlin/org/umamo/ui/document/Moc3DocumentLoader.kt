@@ -143,11 +143,8 @@ internal fun buildMoc3Document(
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
 	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
 
-	if (mocDocument.blendShapes.isNotEmpty()) {
-		// Blend shapes are decoded but not evaluated anywhere yet; the base rig previews correctly and
-		// the blend-shape parameters import as no-op sliders.
-		UmamoLog.warn("$name carries ${mocDocument.blendShapes.size} blend-shape records; blend shapes are not evaluated yet")
-	}
+	// Blend-shape records import into live BlendShapeBindings (Moc3Import maps them), so no
+	// warning is needed - only offscreens stay unhandled.
 	if (mocDocument.offscreens.isNotEmpty()) {
 		UmamoLog.warn("$name carries ${mocDocument.offscreens.size} offscreens; offscreen compositing is not handled yet")
 	}

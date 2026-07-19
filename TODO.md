@@ -78,10 +78,28 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Improvements
 	* The filter menu could have just been a copy past from the outliner, but instead it is a button.
 * New Features
-	* Blend Shapes (Keyforms) - When blend shapes exist:
+	* Blend Shapes and Keyforms - When blend shapes exist:
 		* Modifier key + click to add or remove ticks from track
 * UI Improvements (For me to test and visually check.)
 	* Drop zone indicator needs a slight adjustment to not be hidden by the elevation.
+
+I'm considering an Umamo design decision that would operate a bit differently than how Cubism does for displaying and editing parameters.  Right now Cubism has a parameter slider and any item can be keyed on to it, but all items have to share the same key positions.  In Umamo, I would prefer to be able to have one parameter, key any item on to with arbritrary key positions bounded by the minimum and maximum.  I would like your feedback, if you would do this, and any notes for improvements.
+* Parameters area (Scrubbing, basic editing, which exists right now.)
+* Parameter Action Editor/Dope Sheet/Whatever area it will be called.
+	* When selecting a parameter, this area would populate tracks of each item keyed on to it.
+		* Blender style to insert a new key frame: I to insert from selection.
+* When exporting from the internal format to CMO3 and MOC3, it would decompose the tracks into a compatible format.  If all the items share the same key positions then they all get controlled by the same parameter.  If only a few do, then only those few share the same parameter while the rest get assigned to new parameters with numerically appended names.
+```
+**Decoupled per-item keyforms on a shared parameter**
+
+- One parameter, each item keyed at its own arbitrary positions within [min, max] — drop Cubism's shared-key constraint. Falls out of the blend-shape model (parameter = blend axis; each item blends its own keyforms independently).
+- UI: keep the Parameters area (scrub/edit). Add a per-parameter dope sheet — select a param → tracks for each keyed item; Blender-style `I` to insert key from selection.
+- Data model: store per-item, per-axis key positions → per-item N-D keyform grid. A dope-sheet track is a 1D projection of that grid; editing a key has grid implications for multi-bound items.
+- Export (CMO3/MOC3) default = **union-resample**: union the key positions across items, give every item a keyform at each union position (fill gaps with its own interpolated value). Exports as ONE parameter, lossless — linear blend means an inserted key lands on the existing segment. Preserves one-control semantics.
+- Splitting divergent items onto new appended-name params (`Body_Y_2`…) = **opt-in fallback only** (keyform-count optimization, or a genuinely independent control). Not the default: splitting silently turns one control into several that a host must co-drive.
+- Verify against a real file: keyform-axis interpolation is *linear*, not smoothed (bezier/smoothing should live on the deferred animation timeline, not the modeling blend). Resample losslessness depends on this.
+- Bonus affordance: dope sheet flags the default-value column / items missing a neutral key → makes "reset to 0 doesn't return to rest" visible.
+```
 
 # Button UI
 * Needs a click action, either a background color change or movement.

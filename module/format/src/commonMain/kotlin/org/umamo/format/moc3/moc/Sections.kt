@@ -54,6 +54,19 @@ public object Sections {
 	public const val CI_GLUES: Int = 20
 	public const val CI_BLENDSHAPE_WARPS: Int = 27
 	public const val CI_BLENDSHAPE_MESHES: Int = 28
+
+	// MOC3 v4+ §5.6: total blend-shape sub-binding corner refs (Σ section 124) and the
+	// deduplicated sub-binding pool size (section 132's real element count).
+	public const val CI_BLENDSHAPE_SUB_CORNERS: Int = 29
+	public const val CI_BLENDSHAPE_SUB_BINDINGS: Int = 30
+
+	// MOC3 v5+ §5.6: blend-shape part objects. Note CountInfo is NOT hard-capped at 32 words on
+	// v5 - Model C (v5) carries CI 32/33; the reader is slice-length-driven, so these decode fine.
+	public const val CI_BLENDSHAPE_PARTS: Int = 32
 	public const val CI_BLENDSHAPE_ROTATIONS: Int = 33
 	public const val CI_OFFSCREENS: Int = 35
+
+	// MOC3 v6 §5.6: total offscreen keyforms (Σ owner-part grid sizes; sizes section 161 and the
+	// color tables' offscreen prefix).
+	public const val CI_OFFSCREEN_KEYFORMS: Int = 36
 }

@@ -3,6 +3,9 @@ package org.umamo.ui.workspace.spaces
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
+import org.umamo.runtime.model.BlendWeightLimit
+import org.umamo.runtime.model.BlendWeightLimitPoint
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -96,5 +99,45 @@ class ParameterObjectBindingTest {
 	fun emptySelectionIsEmpty() {
 		val puppet = model(listOf(drawable("d", parentDeformerId = null, ownParamId = angleX)), emptyList())
 		assertTrue(effectiveParameterIds(puppet, Selection()).isEmpty())
+	}
+
+	/**
+	 * A blend-shape binding is an object -> parameter edge like a keyform axis: an object whose ONLY
+	 * link to a parameter is a blend shape still lists it. Limit-curve constraint parameters are NOT
+	 * edges - a limit gates the binding's weight, it does not key the object.
+	 */
+	@Test
+	fun blendShapeBindingsAreEdgesButLimitConstraintsAreNot() {
+		val shrink = ParameterId("ParamShrink")
+		val binding =
+			BlendShapeBinding(
+				parameterId = shrink,
+				keys = floatArrayOf(-1f, 0f),
+				neutralIndex = 1,
+				forms = listOf(WarpForm(floatArrayOf(0f, 0f)), null),
+				limits = listOf(BlendWeightLimit(angleX, listOf(BlendWeightLimitPoint(0f, 1f)))),
+			)
+		val warpWithBlendShape =
+			warp("w1", parent = null, paramId = angleY).copy(blendShapes = listOf(binding))
+		val meshBinding =
+			BlendShapeBinding(
+				parameterId = shrink,
+				keys = floatArrayOf(-1f, 0f),
+				neutralIndex = 1,
+				forms = listOf(MeshForm(floatArrayOf(0f, 0f)), null),
+			)
+		val art =
+			drawable("d", parentDeformerId = warpWithBlendShape.id, ownParamId = null)
+				.copy(blendShapes = listOf(meshBinding))
+		val puppet = model(listOf(art), listOf(warpWithBlendShape))
+
+		val drawableResult = effectiveParameterIds(puppet, Selection(setOf(SelectionTarget.Drawable(art.id))))
+		assertEquals(
+			setOf(shrink, angleY),
+			drawableResult,
+			"drawable: own blend driver + chain's grid axis + chain's blend driver; limit param angleX excluded",
+		)
+		val deformerResult = effectiveParameterIds(puppet, Selection(setOf(SelectionTarget.Deformer(warpWithBlendShape.id))))
+		assertEquals(setOf(shrink, angleY), deformerResult, "deformer: own axis + own blend driver; limit param excluded")
 	}
 }

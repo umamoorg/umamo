@@ -29,15 +29,17 @@ import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DeformerWorld
+import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.PoseDeformInputs
 import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.WarpWorld
-import org.umamo.render.eval.WeightedCell
 import org.umamo.render.eval.applyCpuDeform
 import org.umamo.render.eval.preparePose
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
+import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -181,11 +183,16 @@ class PuppetRenderer(
 		val invertMask: Boolean,
 		val isGlueMesh: Boolean,
 		val glueBaseOffset: Int,
+		/** The static blend-shape column assignment in [deltaTexture] (empty when binding-free). */
+		val blendLayout: BlendColumnLayout,
 	) {
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
 		var opacity: Float = 1f
 		var visible: Boolean = false
+
+		/** The pose's resolved blend-shape state; null for binding-free drawables. */
+		var blend: MeshBlendState? = null
 	}
 
 	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
@@ -274,8 +281,18 @@ class PuppetRenderer(
 		}
 		val cellCount = keyformCellCount(grid)
 		val vertexCount = mesh.positions.size / 2
+		// Blend-shape delta columns append after the grid cells; the zero-blend layout is empty and
+		// the texture build reduces to the plain grid texels.
+		val blendLayout = blendColumnLayout(drawable, cellCount)
+		val defaults = currentModel.parameters.associate { it.id to it.default }
+		val texels =
+			if (blendLayout.blendColumnCount > 0) {
+				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout)
+			} else {
+				buildDeltaTexels(grid, vertexCount, cellCount)
+			}
 		val deltaTexture =
-			device.createFloatTexture(cellCount, vertexCount, TextureFilter.Nearest, buildDeltaTexels(grid, vertexCount, cellCount))
+			device.createFloatTexture(cellCount + blendLayout.blendColumnCount, vertexCount, TextureFilter.Nearest, texels)
 		val gpuMesh = device.createMesh(MeshSpec(mesh.positions, mesh.uvs, mesh.indices, glueAttributes))
 		// A warp-parented drawable needs a control-point texture setPose re-specifies each pose. Created as a
 		// 1x1 placeholder here so updateFloatTexture always has a handle to overwrite.
@@ -302,6 +319,7 @@ class PuppetRenderer(
 			invertMask = drawable.invertMask,
 			isGlueMesh = isGlue,
 			glueBaseOffset = glueBaseOffset,
+			blendLayout = blendLayout,
 		)
 	}
 
@@ -348,6 +366,7 @@ class PuppetRenderer(
 				device.updateFloatTexture(gpuDrawable.cpTexture, parentWorld.cols + 1, parentWorld.rows + 1, parentWorld.cp)
 			}
 			gpuDrawable.opacity = posedDrawable.opacity
+			gpuDrawable.blend = posedDrawable.blend
 			gpuDrawable.visible = true
 		}
 		// resolvePose filled glueIntensities (this renderer's own array) in place - no copy needed.
@@ -780,6 +799,22 @@ class PuppetRenderer(
 			deform.cornerCell[cornerIndex] = corners[cornerIndex].linearIndex
 			deform.cornerWeight[cornerIndex] = corners[cornerIndex].weight
 		}
+		// Blend-shape columns: map the pose's active contributions through the static layout.
+		// Surplus beyond MAX_BLEND_CORNERS is dropped deterministically (corpus max is 18).
+		var blendCount = 0
+		val blend = gpuDrawable.blend
+		if (blend != null) {
+			for (contribution in blend.contributions) {
+				if (blendCount >= MAX_BLEND_CORNERS) {
+					break
+				}
+				val column = gpuDrawable.blendLayout.columnOf(contribution.bindingIndex, contribution.keyIndex) ?: continue
+				deform.blendCell[blendCount] = column
+				deform.blendWeight[blendCount] = contribution.weight
+				blendCount++
+			}
+		}
+		deform.blendCount = blendCount
 		when (val parentWorld = gpuDrawable.parentWorld) {
 			is RotationWorld -> {
 				deform.parentType = 1

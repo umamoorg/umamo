@@ -47,7 +47,11 @@ captures/
 *.iws
 .vscode/
 
+/docs/formats
+/docs/plans
+
 #Don't commit my personal models.
 /test/corpus
+/test/relive
 /test/tools
 /test/work

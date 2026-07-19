@@ -326,6 +326,8 @@
 	<string name="parameter_menu_rename">名前を変更</string>
 	<string name="parameter_menu_delete_group">グループを削除</string>
 	<string name="parameter_menu_add">パラメータを追加</string>
+	<string name="parameter_menu_add_keyform">キーフォームパラメータを追加</string>
+	<string name="parameter_menu_add_blendshape">ブレンドシェイプパラメータを追加</string>
 	<string name="parameter_menu_delete">パラメータを削除</string>
 	<string name="parameter_default_name">新規パラメータ</string>
 	<string name="parameter_filter_selected">選択オブジェクトのパラメータのみ</string>

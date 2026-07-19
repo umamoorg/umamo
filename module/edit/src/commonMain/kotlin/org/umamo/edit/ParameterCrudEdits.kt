@@ -5,6 +5,7 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.abs
@@ -44,22 +45,28 @@ fun PuppetModel.freshParameterId(): ParameterId {
 }
 
 /**
- * A copy of this model with a new animatable parameter [newId] named [name] appended to the axis list and
- * its leaf prepended at the root top of the panel tree (so it lands on-screen for the immediate inline
- * rename, like a new group). The default -1..1 / 0 range makes it animatable (min < max) so it renders as
- * a slider; it is a neutral starting point the user retargets in the range editor. Materializes a flat
- * tree first for a group-less model, so the existing rows keep their order beneath the new parameter.
- * Refuses (returns this same instance) a colliding id.
+ * A copy of this model with a new animatable parameter [newId] named [name] of [kind] appended to the axis
+ * list and its leaf prepended at the root top of the panel tree (so it lands on-screen for the immediate
+ * inline rename, like a new group). The default -1..1 / 0 range makes it animatable (min < max) so it
+ * renders as a slider; it is a neutral starting point the user retargets in the range editor. A
+ * BLEND_SHAPE kind renders with square knob / key marks (it carries no keys until authoring captures
+ * them). Materializes a flat tree first for a group-less model, so the existing rows keep their order
+ * beneath the new parameter. Refuses (returns this same instance) a colliding id.
  *
  * @param ParameterId newId The minted id of the new parameter.
  * @param String name The initial display name.
+ * @param ParameterKind kind The parameter kind (NORMAL key-form or BLEND_SHAPE); defaults to NORMAL.
  * @return PuppetModel The model with the parameter added, or this if the id already exists.
  */
-fun PuppetModel.withParameterCreated(newId: ParameterId, name: String): PuppetModel {
+fun PuppetModel.withParameterCreated(
+	newId: ParameterId,
+	name: String,
+	kind: ParameterKind = ParameterKind.NORMAL,
+): PuppetModel {
 	if (parameters.any { parameter -> parameter.id == newId }) {
 		return this
 	}
-	val newParameter = Parameter(newId, name, min = -1f, max = 1f, default = 0f)
+	val newParameter = Parameter(newId, name, min = -1f, max = 1f, default = 0f, kind = kind)
 	val newLeaf = ParameterNode.Param(newId)
 	return copy(
 		parameters = parameters + newParameter,
@@ -233,15 +240,16 @@ private fun IntArray.withElementRemoved(removeIndex: Int): IntArray {
 }
 
 /**
- * Creates a new animatable parameter (a freshly minted id, default -1..1 range) named [name] and returns
- * its id, so the caller can immediately open inline rename on it. One undo step.
+ * Creates a new animatable parameter (a freshly minted id, default -1..1 range) named [name] of [kind]
+ * and returns its id, so the caller can immediately open inline rename on it. One undo step.
  *
  * @param String name The initial display name.
+ * @param ParameterKind kind The parameter kind (NORMAL key-form or BLEND_SHAPE); defaults to NORMAL.
  * @return ParameterId The id of the created parameter.
  */
-fun EditorSession.createParameter(name: String): ParameterId {
+fun EditorSession.createParameter(name: String, kind: ParameterKind = ParameterKind.NORMAL): ParameterId {
 	val id = model.value.freshParameterId()
-	mutate(ParameterChange.Create(id)) { model -> model.withParameterCreated(id, name) }
+	mutate(ParameterChange.Create(id)) { model -> model.withParameterCreated(id, name, kind) }
 	return id
 }
 

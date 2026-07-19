@@ -156,8 +156,11 @@ tasks.withType<Test>().configureEach {
 			}
 			explicitFile.absolutePath
 		} else {
+			// Model A: the corpus family that is COMPLETE on disk (manifest + textures + cdi3 +
+			// physics all resolve). The EricaTamamo corpus copy carries no texture folder, so the
+			// family loader test would fail on it rather than exercise the load path.
 			rootProject.layout.projectDirectory
-				.file("test/corpus/moc3/EricaTamamo/EricaTamamo.moc3")
+				.file("test/corpus/moc3/modelA/modelA.moc3")
 				.asFile
 				.takeIf { it.isFile }
 				?.absolutePath

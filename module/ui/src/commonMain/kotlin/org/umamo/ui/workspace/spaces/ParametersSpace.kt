@@ -63,6 +63,7 @@ import org.umamo.edit.renameParameterGroup
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.InlineRenameField
@@ -70,6 +71,8 @@ import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.Pad2D
 import org.umamo.ui.kit.Slider
+import org.umamo.ui.kit.SliderKeyMark
+import org.umamo.ui.kit.SliderKeyShape
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
@@ -169,6 +172,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Puppet-derived facts reused every rebuild: which parameters are animatable, and the link pairing.
 	val linkInfo = remember(puppet) { buildLinkInfo(puppet) }
 	val parameterById = remember(puppet) { puppet.parameters.associateBy { it.id } }
+	// Per-parameter key marks (circle grid keys / square blend keys) for the sliders; one graph pass,
+	// recomputed only when the model changes.
+	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
 
 	// Parameters are LOCKED while in Edit mode: Edit mode edits the neutral state of the base mesh and is
 	// pinned to the neutral pose (the viewport shows rest via a display-only override), so no scrub may
@@ -223,7 +229,8 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	val newGroupLabel = stringResource(Res.string.parameter_new_group)
 	val renameLabel = stringResource(Res.string.parameter_menu_rename)
 	val deleteGroupLabel = stringResource(Res.string.parameter_menu_delete_group)
-	val addParamLabel = stringResource(Res.string.parameter_menu_add)
+	val addKeyFormParamLabel = stringResource(Res.string.parameter_menu_add_keyform)
+	val addBlendShapeParamLabel = stringResource(Res.string.parameter_menu_add_blendshape)
 	val deleteParamLabel = stringResource(Res.string.parameter_menu_delete)
 	val defaultGroupName = stringResource(Res.string.parameter_group_default_name)
 	val defaultParameterName = stringResource(Res.string.parameter_default_name)
@@ -270,16 +277,26 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		onDispose { dragCancelSeam.cancel = null }
 	}
 
-	// The "add" items every parameter menu ends with: Add Parameter and New Group. Both create a document
-	// edit and open the created item for inline rename. Shared by the panel-background menu (so the first
-	// parameter / group can be made with no row to right-click) and each row's context menu.
+	// The "add" items every parameter menu ends with: Add Key Form / Add Blend Shape parameter, and New
+	// Group. Each creates a document edit and opens the created item for inline rename. Shared by the
+	// panel-background menu (so the first parameter / group can be made with no row to right-click) and
+	// each row's context menu. The two parameter kinds mirror the header's Add Parameter dropdown.
 	val createMenuItems =
 		listOf(
 			MenuItem.Action(
-				label = addParamLabel,
+				label = addKeyFormParamLabel,
 				onSelect = {
 					session?.let {
-						viewState.renamingParameterId = it.createParameter(defaultParameterName)
+						viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.NORMAL)
+					}
+				},
+				enabled = session != null,
+			),
+			MenuItem.Action(
+				label = addBlendShapeParamLabel,
+				onSelect = {
+					session?.let {
+						viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
 					}
 				},
 				enabled = session != null,
@@ -449,6 +466,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										ParameterIsland(modifier = Modifier.fillMaxWidth()) {
 											ParameterSlider(
 												parameter = parameter,
+												keyMarks = keyMarksByParameter[parameter.id],
 												value = values[parameter.id] ?: parameter.default,
 												resetLabel = resetLabel,
 												rangeToggleLabel = rangeToggleLabel,
@@ -681,6 +699,7 @@ private fun ParameterIsland(modifier: Modifier = Modifier, content: @Composable 
 @Composable
 private fun ParameterSlider(
 	parameter: Parameter,
+	keyMarks: ParameterKeyMarks?,
 	value: Float,
 	resetLabel: String,
 	rangeToggleLabel: String,
@@ -717,11 +736,22 @@ private fun ParameterSlider(
 		linkContentDescription = linkContentDescription,
 		onLinkClick = onLinkClick,
 	)
+	// Circle marks for grid keys, square marks for blend-shape keys; the thumb takes the parameter's own
+	// kind (a blend-shape parameter reads as a square knob even before it has any keys).
+	val sliderKeyMarks =
+		remember(keyMarks) {
+			buildList {
+				keyMarks?.gridKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Circle)) }
+				keyMarks?.blendKeys?.forEach { keyValue -> add(SliderKeyMark(keyValue, SliderKeyShape.Square)) }
+			}
+		}
 	Slider(
 		value = value,
 		onValueChange = onPreview,
 		onValueChangeFinished = onCommitGesture,
 		valueRange = parameter.min..parameter.max,
+		keyMarks = sliderKeyMarks,
+		thumbShape = if (parameter.kind == ParameterKind.BLEND_SHAPE) SliderKeyShape.Square else SliderKeyShape.Circle,
 		modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
 	)
 }

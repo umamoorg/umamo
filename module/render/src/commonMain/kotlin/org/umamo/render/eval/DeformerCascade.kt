@@ -1,5 +1,8 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.eval.WeightedCell
+import org.umamo.runtime.eval.cellsByLinearIndex
+import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
@@ -81,7 +84,11 @@ internal class RotationWorld(
  * @param Function paramValue Current value for a given parameter id.
  * @return Map<DeformerId, DeformerWorld> The built world transforms, keyed by deformer id.
  */
-internal fun buildDeformerWorlds(deformers: List<Deformer>, paramValue: (ParameterId) -> Float): Map<DeformerId, DeformerWorld> {
+internal fun buildDeformerWorlds(
+	deformers: List<Deformer>,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float = paramValue,
+): Map<DeformerId, DeformerWorld> {
 	val worlds = HashMap<DeformerId, DeformerWorld>(deformers.size)
 	val ids = deformers.mapTo(HashSet()) { it.id }
 	var pending = deformers
@@ -98,7 +105,7 @@ internal fun buildDeformerWorlds(deformers: List<Deformer>, paramValue: (Paramet
 				continue
 			}
 			val parentWorld = parentId?.let { worlds[it] }
-			val world = buildDeformerWorld(deformer, paramValue, parentWorld)
+			val world = buildDeformerWorld(deformer, paramValue, defaultValue, parentWorld)
 			if (world != null) {
 				worlds[deformer.id] = world
 				built = true
@@ -115,15 +122,21 @@ internal fun buildDeformerWorlds(deformers: List<Deformer>, paramValue: (Paramet
 /**
  * Builds one deformer's world transform given its parent's (or null at the root).
  *
- * @param Deformer       deformer    The deformer.
- * @param Function       paramValue  Current value for a given parameter id.
- * @param DeformerWorld? parentWorld The parent's world transform, or null.
+ * @param Deformer       deformer     The deformer.
+ * @param Function       paramValue   Current value for a given parameter id.
+ * @param Function       defaultValue Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param DeformerWorld? parentWorld  The parent's world transform, or null.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
-private fun buildDeformerWorld(deformer: Deformer, paramValue: (ParameterId) -> Float, parentWorld: DeformerWorld?): DeformerWorld? =
+private fun buildDeformerWorld(
+	deformer: Deformer,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+	parentWorld: DeformerWorld?,
+): DeformerWorld? =
 	when (deformer) {
-		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, parentWorld)
-		is Deformer.Rotation -> buildRotationWorld(deformer, paramValue, parentWorld)
+		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, defaultValue, parentWorld)
+		is Deformer.Rotation -> buildRotationWorld(deformer, paramValue, defaultValue, parentWorld)
 	}
 
 /**
@@ -135,7 +148,12 @@ private fun buildDeformerWorld(deformer: Deformer, paramValue: (ParameterId) -> 
  * @param DeformerWorld? parentWorld The parent's world transform, or null.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
-private fun buildWarpWorld(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, parentWorld: DeformerWorld?): DeformerWorld? {
+private fun buildWarpWorld(
+	warp: Deformer.Warp,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+	parentWorld: DeformerWorld?,
+): DeformerWorld? {
 	val grid = warp.keyforms ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
@@ -146,6 +164,13 @@ private fun buildWarpWorld(warp: Deformer.Warp, paramValue: (ParameterId) -> Flo
 		val count = minOf(cp.size, controlPoints.size)
 		for (coordIndex in 0 until count) {
 			cp[coordIndex] += corner.weight * controlPoints[coordIndex]
+		}
+	}
+	// Blend shapes: additive control-point deltas on top of the grid blend, before parent transforms.
+	warpBlendDeltas(warp, paramValue, defaultValue)?.let { deltas ->
+		val count = minOf(cp.size, deltas.size)
+		for (coordIndex in 0 until count) {
+			cp[coordIndex] += deltas[coordIndex]
 		}
 	}
 	val parentAccY = parentWorld?.accY ?: 1f
@@ -167,7 +192,12 @@ private fun buildWarpWorld(warp: Deformer.Warp, paramValue: (ParameterId) -> Flo
  * @param DeformerWorld?    parentWorld The parent's world transform, or null.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
-private fun buildRotationWorld(rotation: Deformer.Rotation, paramValue: (ParameterId) -> Float, parentWorld: DeformerWorld?): DeformerWorld? {
+private fun buildRotationWorld(
+	rotation: Deformer.Rotation,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+	parentWorld: DeformerWorld?,
+): DeformerWorld? {
 	val grid = rotation.keyforms ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
@@ -181,6 +211,13 @@ private fun buildRotationWorld(rotation: Deformer.Rotation, paramValue: (Paramet
 		originY += corner.weight * form.originY
 		scaleAccum += corner.weight * form.scale
 		angleAccum += corner.weight * form.angle
+	}
+	// Blend shapes: additive origin/scale/angle deltas on top of the grid blend (flip stays grid-only).
+	rotationBlendDeltas(rotation, paramValue, defaultValue)?.let { deltas ->
+		originX += deltas.originX
+		originY += deltas.originY
+		scaleAccum += deltas.scale
+		angleAccum += deltas.angle
 	}
 	val snapForm = cells[corners[0].linearIndex]?.form
 	val flipX = snapForm?.flipX ?: false
@@ -268,6 +305,7 @@ internal fun deformMeshThroughParent(grid: KeyformGrid<MeshForm>, base: FloatArr
  * @param FloatArray         base    The mesh's rest-pose positions (interleaved x,y).
  * @param List<WeightedCell> corners The active keyform corners + weights.
  * @param DeformerWorld?     parent  The mesh's parent deformer world transform, or null when direct.
+ * @param MeshBlendState?    blend   The drawable's resolved blend-shape state, or null when binding-free.
  * @return FloatArray World positions (interleaved x,y).
  */
 internal fun deformMeshWorldFromCorners(
@@ -275,8 +313,21 @@ internal fun deformMeshWorldFromCorners(
 	base: FloatArray,
 	corners: List<WeightedCell>,
 	parent: DeformerWorld?,
+	blend: MeshBlendState? = null,
 ): FloatArray {
 	val local = blendLocalFromCorners(grid, base, corners)
+	// Blend shapes: additive per-vertex deltas (form minus the grid-at-default reference) on top of
+	// the grid blend, before the parent transform. Binding-free drawables never reach this loop.
+	if (blend != null) {
+		for (contribution in blend.contributions) {
+			val deltas = contribution.form.positionDeltas
+			val count = minOf(local.size, deltas.size)
+			for (componentIndex in 0 until count) {
+				val reference = blend.referenceDeltas?.get(componentIndex) ?: 0f
+				local[componentIndex] += contribution.weight * (deltas[componentIndex] - reference)
+			}
+		}
+	}
 	val world = FloatArray(local.size)
 	val vertexCount = local.size / 2
 	for (vertexIndex in 0 until vertexCount) {

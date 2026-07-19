@@ -9,6 +9,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
@@ -87,9 +88,28 @@ class ParameterCrudEditsTest {
 		assertEquals("New Parameter", created.name)
 		assertTrue(created.min < created.max, "the new parameter is animatable")
 		assertEquals(ParameterNode.Param(id), session.model.value.parameterTree.first(), "the leaf is at the top")
+		assertEquals(ParameterKind.NORMAL, created.kind, "the default kind is a key-form parameter")
 
 		session.undo()
 		assertTrue(session.model.value.parameters.none { it.id == id }, "undo removes the new parameter")
+	}
+
+	/** Create carries the requested kind (a blend-shape parameter authored with no keys yet). */
+	@Test
+	fun createUsesRequestedKind() {
+		val session = EditorSession(model(listOf(parameter(angleX))))
+
+		val normalId = session.createParameter("A", ParameterKind.NORMAL)
+		val blendId = session.createParameter("B", ParameterKind.BLEND_SHAPE)
+
+		assertEquals(
+			ParameterKind.NORMAL,
+			session.model.value.parameters.first { it.id == normalId }.kind,
+			"explicit NORMAL stays a key-form parameter",
+		)
+		val blend = session.model.value.parameters.first { it.id == blendId }
+		assertEquals(ParameterKind.BLEND_SHAPE, blend.kind, "BLEND_SHAPE is carried through to the model")
+		assertTrue(session.model.value.drawables.all { it.blendShapes.isEmpty() }, "a fresh blend parameter keys nothing yet")
 	}
 
 	/** The minted parameter id skips ids already present. */

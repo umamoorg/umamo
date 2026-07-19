@@ -98,7 +98,8 @@ public object MocEncoder {
 	public fun bake(reference: MocModel, doc: MocDocument): ByteArray {
 		val synthesized =
 			MocLowering.structuralSections(doc) + MocLowering.valueTableSections(doc) +
-				MocLowering.auxiliarySections(doc) + MocLowering.keyformGridSections(doc)
+				MocLowering.auxiliarySections(doc) + MocLowering.keyformGridSections(doc) +
+				MocLowering.blendShapeSections(doc)
 		val sections =
 			List(reference.sectionCount) { index ->
 				synthesized[index] ?: (reference.section(index) ?: ByteArray(0))

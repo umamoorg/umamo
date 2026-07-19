@@ -94,7 +94,7 @@ class AlphaAnalysisTest {
 	@Test
 	fun sliversKeepTheirTrueBounds() {
 		// A 1 px wide layer with real opaque pixels is reported, never excluded here —
-		// exclusion is consumer policy (roadmap Phase B decision).
+		// exclusion is consumer policy.
 		val column = assertNotNull(rasterOfRows("#", "#", "#", "#", "#").analyzeAlpha())
 		assertEquals(LayerBounds(left = 0, top = 0, width = 1, height = 5), column.opaqueBounds)
 		assertEquals(1, column.contours.size)

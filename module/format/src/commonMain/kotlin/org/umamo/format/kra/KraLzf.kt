@@ -10,8 +10,7 @@ package org.umamo.format.kra
  * mirror: LZF-decompress, then de-interleave back to packed pixels.
  *
  * Pure Kotlin with no platform APIs, so it lives below the ZIP/XML orchestration and is unit
- * testable on its own. Ported verbatim from Krita's GPL source (open-source spec, not a Live2D
- * binary - the clean-room editor-format lane stays intact).
+ * testable on its own. Ported verbatim from Krita's GPL source.
  *
  * Krita タイルの復号プリミティブ。LZF 伸長と平面→インターリーブ変換。プラットフォーム非依存。
  */
