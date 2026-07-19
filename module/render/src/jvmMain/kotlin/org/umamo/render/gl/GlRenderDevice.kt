@@ -29,6 +29,8 @@ import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.atlasPageVertexShader
 import org.umamo.render.glsl.axisFragmentShader
 import org.umamo.render.glsl.axisVertexShader
+import org.umamo.render.glsl.compositeFragmentShader
+import org.umamo.render.glsl.compositeVertexShader
 import org.umamo.render.glsl.glueVertexShader
 import org.umamo.render.glsl.gridFragmentShader
 import org.umamo.render.glsl.gridVertexShader
@@ -221,7 +223,7 @@ class GlRenderDevice : RenderDevice {
 		renderPipelines.getOrPut(spec) {
 			val (vertexSource, fragmentSource) = sourcesFor(spec.purpose)
 			val program = linkGlProgram(vertexSource, fragmentSource, spec.purpose.name)
-			GlRenderPipeline(program, spec.blend, GlUniformLocations(program))
+			GlRenderPipeline(program, spec.blend, spec.cullBackFaces, GlUniformLocations(program))
 		}
 
 	override fun createDeformCapturePipeline(): DeformCapturePipeline =
@@ -410,6 +412,7 @@ class GlRenderDevice : RenderDevice {
 			PipelinePurpose.AtlasPageDraw -> atlasPageVertexShader(DIALECT) to puppetFragmentShader(DIALECT)
 			PipelinePurpose.GridBackdrop -> gridVertexShader(DIALECT) to gridFragmentShader(DIALECT)
 			PipelinePurpose.WorldAxisLine -> axisVertexShader(DIALECT) to axisFragmentShader(DIALECT)
+			PipelinePurpose.Composite -> compositeVertexShader(DIALECT) to compositeFragmentShader(DIALECT)
 		}
 
 	/** Sets nearest/linear filtering and clamp-to-edge wrapping on the currently-bound 2D texture. */

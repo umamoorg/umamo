@@ -1,0 +1,60 @@
+package org.umamo.runtime.model
+
+/**
+ * How a part groups its subtree for rendering.  Three levels of one grouping mode - Cubism models
+ * these as two entangled checkboxes ("Group by Draw Order" and "offscreen drawing", the latter
+ * forcing the former on); Umamo folds them into a single sealed type so the illegal combination is
+ * unrepresentable and the Cubism naming stops at the CMO3/MOC3 import boundary.
+ *
+ * パートのグループ描画モード。PassThrough / Grouped / Isolated の三段階。
+ */
+sealed interface PartGroupMode {
+	/**
+	 * Transparent to draw order - the subtree's drawables stack individually with the enclosing
+	 * group's.  (Cubism: both checkboxes off.)
+	 */
+	data object PassThrough : PartGroupMode
+
+	/**
+	 * The whole subtree takes one slot in the parent's stacking and orders internally among
+	 * itself.  (Cubism "Group by Draw Order"; CMO3 CPartSource.enableDrawOrderGroup.)
+	 */
+	data object Grouped : PartGroupMode
+
+	/**
+	 * Grouped, and additionally rendered to its own layer and composited back into the scene as
+	 * one unit per [composite].  (Cubism 5.3 "offscreen drawing"; CMO3 CPartSource.useOffscreen;
+	 * MOC3 §5.6 sections 152-163.)
+	 */
+	data class Isolated(val composite: PartComposite) : PartGroupMode
+}
+
+/**
+ * An isolated part's compositing settings: how the subtree's rendered layer blends back into the
+ * scene.  The keyformed composite channels (opacity, multiply/screen colors) ride the part's
+ * [Part.formGrid]; the static fallbacks here apply when that grid is absent, mirroring the
+ * [Part.drawOrder] + grid pattern.  (Cubism 5.3 "offscreen drawing" - CMO3
+ * `CPartSource.useOffscreen` and friends; MOC3 §5.6 sections 152-163.)
+ *
+ * 分離パートの合成設定。サブツリーを一枚のレイヤーとして合成する。
+ */
+data class PartComposite(
+	/** The composite's color blend mode. (CMO3 colorComposition; MOC3 s157 colorMode.) */
+	val blendMode: BlendMode = BlendMode.Normal,
+	/** The composite's alpha blend mode. (CMO3 alphaComposition; MOC3 s157 alphaMode.) */
+	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	/**
+	 * Drawables whose alpha clips the whole composite (Cubism clipping masks at the part level).
+	 * Always drawables - a part chosen as Clipping ID in the editor is expanded to its constituent
+	 * drawables at authoring time. (CMO3 clipGuidList; MOC3 offscreen mask prefix.)
+	 */
+	val maskedBy: List<DrawableId> = emptyList(),
+	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
+	val invertMask: Boolean = false,
+	/** Static composite opacity (0..1) when the part has no keyform grid. (CMO3 CPartForm.opacity; MOC3 s161.) */
+	val opacity: Float = 1f,
+	/** Static multiply color when the part has no keyform grid. (CMO3 CPartForm.multiplyColor.) */
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	/** Static screen color when the part has no keyform grid. (CMO3 CPartForm.screenColor.) */
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+)

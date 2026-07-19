@@ -152,6 +152,10 @@ public interface RenderDevice {
 	 * can neither filter nor scale - a Metal backend implements this as a full-screen textured draw
 	 * (or MPSImageBilinearScale).  Exposing the honest verb keeps that difference inside the device.
 	 *
+	 * The layer-composite path also calls this BETWEEN two passes of one frame (snapshotting the
+	 * destination before a composite draw samples it).  On GL that is naturally ordered; a
+	 * command-buffer backend must order the copy against the passes recorded before and after it.
+	 *
 	 * @param RenderTarget source      The surface to read (any size).
 	 * @param RenderTarget destination The surface to fill, at its own size.
 	 */
@@ -397,6 +401,17 @@ public interface RenderPassEncoder {
 	 * @param GridUniforms uniforms The grid's inputs.
 	 */
 	fun drawGrid(uniforms: GridUniforms)
+
+	/**
+	 * Composites a rendered layer over the destination, blending in-shader (full-screen triangle;
+	 * the pipeline must be [PipelinePurpose.Composite], whose blending is disabled - the shader
+	 * computes the whole blend from the layer and the destination snapshot).
+	 *
+	 * @param CompositeUniforms composite The blend modes, channels, and mask flags (marshal, do not retain).
+	 * @param DrawTextures      textures  [DrawTextures.compositeLayer] + [DrawTextures.destinationSnapshot],
+	 *   plus [DrawTextures.maskCoverage] when the composite is clipped.
+	 */
+	fun drawComposite(composite: CompositeUniforms, textures: DrawTextures)
 
 	/**
 	 * Draws one world-origin axis line.

@@ -1,8 +1,8 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import kotlin.test.Test
@@ -112,8 +112,8 @@ class RenderOrderTest {
 	}
 
 	@Test
-	fun offscreenGroupBecomesAPlanBoundaryAndPlainGroupsFlatten() {
-		// The fx part is offscreen → it must survive as a RenderPlanOffscreen node (the renderer needs
+	fun isolatedGroupBecomesAPlanBoundaryAndPlainGroupsFlatten() {
+		// The fx part is isolated → it must survive as a RenderPlanComposite node (the renderer needs
 		// the subtree span to composite it as one layer); the plain 700-group stays transparent in the
 		// plan exactly as it always was in the flat order.
 		val root =
@@ -128,7 +128,7 @@ class RenderOrderTest {
 							600,
 							listOf(RenderDrawable(id("fxHigh")), RenderDrawable(id("fxLow"))),
 							null,
-							PartOffscreen(),
+							PartComposite(),
 						),
 						RenderGroup(null, 700, listOf(RenderDrawable(id("plain")))),
 						RenderDrawable(id("front")),
@@ -143,13 +143,13 @@ class RenderOrderTest {
 				id("front") to 900f,
 			)
 		val plan = renderPlan(root, drawOrders)
-		assertEquals(4, plan.size, "back, the offscreen node, plain (flattened), front")
+		assertEquals(4, plan.size, "back, the composite node, plain (flattened), front")
 		assertEquals(id("back"), assertIs<RenderPlanDrawable>(plan[0]).id)
-		val offscreenNode = assertIs<RenderPlanOffscreen>(plan[1])
-		assertEquals(PartId("fx"), offscreenNode.partId)
+		val compositeNode = assertIs<RenderPlanComposite>(plan[1])
+		assertEquals(PartId("fx"), compositeNode.partId)
 		assertEquals(
 			listOf(id("fxLow"), id("fxHigh")),
-			offscreenNode.children.map { assertIs<RenderPlanDrawable>(it).id },
+			compositeNode.children.map { assertIs<RenderPlanDrawable>(it).id },
 			"the subtree still sorts internally by drawable order",
 		)
 		assertEquals(id("plain"), assertIs<RenderPlanDrawable>(plan[2]).id)
@@ -159,21 +159,21 @@ class RenderOrderTest {
 	}
 
 	@Test
-	fun nestedOffscreenGroupsNestInThePlan() {
-		val inner = RenderGroup(PartId("inner"), 500, listOf(RenderDrawable(id("leaf"))), null, PartOffscreen())
-		val outer = RenderGroup(PartId("outer"), 600, listOf(RenderDrawable(id("sibling")), inner), null, PartOffscreen())
+	fun nestedIsolatedGroupsNestInThePlan() {
+		val inner = RenderGroup(PartId("inner"), 500, listOf(RenderDrawable(id("leaf"))), null, PartComposite())
+		val outer = RenderGroup(PartId("outer"), 600, listOf(RenderDrawable(id("sibling")), inner), null, PartComposite())
 		val root = RenderGroup(null, 500, listOf(RenderDrawable(id("back")), outer))
 		val plan = renderPlan(root, mapOf(id("back") to 100f, id("sibling") to 400f, id("leaf") to 500f))
-		val outerNode = assertIs<RenderPlanOffscreen>(plan[1])
+		val outerNode = assertIs<RenderPlanComposite>(plan[1])
 		assertEquals(PartId("outer"), outerNode.partId)
-		val innerNode = assertIs<RenderPlanOffscreen>(outerNode.children[1])
+		val innerNode = assertIs<RenderPlanComposite>(outerNode.children[1])
 		assertEquals(PartId("inner"), innerNode.partId)
 		assertEquals(id("leaf"), assertIs<RenderPlanDrawable>(innerNode.children.single()).id)
 	}
 
 	@Test
-	fun animatedPartDrawOrderMovesAnOffscreenBoundary() {
-		// An offscreen group is still a draw-order group: its parameter-driven part order moves the
+	fun animatedPartDrawOrderMovesAnIsolatedBoundary() {
+		// An isolated group is still a draw-order group: its parameter-driven part order moves the
 		// whole boundary node through the sibling order.
 		val root =
 			RenderGroup(
@@ -182,15 +182,15 @@ class RenderOrderTest {
 				children =
 					listOf(
 						RenderDrawable(id("back")),
-						RenderGroup(PartId("fx"), 500, listOf(RenderDrawable(id("fxA"))), null, PartOffscreen()),
+						RenderGroup(PartId("fx"), 500, listOf(RenderDrawable(id("fxA"))), null, PartComposite()),
 						RenderDrawable(id("front")),
 					),
 			)
 		val drawOrders = mapOf(id("back") to 100f, id("fxA") to 500f, id("front") to 900f)
 		val behind = renderPlan(root, drawOrders, mapOf(PartId("fx") to 300f))
-		assertIs<RenderPlanOffscreen>(behind[1], "part order 300 keeps the composite behind front")
+		assertIs<RenderPlanComposite>(behind[1], "part order 300 keeps the composite behind front")
 		val front = renderPlan(root, drawOrders, mapOf(PartId("fx") to 950f))
-		assertIs<RenderPlanOffscreen>(front[2], "part order 950 lifts the whole composite frontmost")
+		assertIs<RenderPlanComposite>(front[2], "part order 950 lifts the whole composite frontmost")
 	}
 
 	@Test

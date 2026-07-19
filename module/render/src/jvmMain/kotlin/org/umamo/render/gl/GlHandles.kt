@@ -113,6 +113,14 @@ internal class GlUniformLocations(program: Int) {
 	// Atlas page
 	val pageSize = GL20.glGetUniformLocation(program, "pageSize")
 
+	// Layer composite
+	val layerTexture = GL20.glGetUniformLocation(program, "layerTexture")
+	val destTexture = GL20.glGetUniformLocation(program, "destTexture")
+	val colorMode = GL20.glGetUniformLocation(program, "colorMode")
+	val alphaMode = GL20.glGetUniformLocation(program, "alphaMode")
+	val multiplyColor = GL20.glGetUniformLocation(program, "multiplyColor")
+	val screenColor = GL20.glGetUniformLocation(program, "screenColor")
+
 	// Grid backdrop
 	val majorSpacing = GL20.glGetUniformLocation(program, "majorSpacing")
 	val subdivisions = GL20.glGetUniformLocation(program, "subdivisions")
@@ -128,10 +136,11 @@ internal class GlUniformLocations(program: Int) {
 	val lineColor = GL20.glGetUniformLocation(program, "lineColor")
 }
 
-/** A linked draw program with its blend and its resolved uniform locations. */
+/** A linked draw program with its blend, cull state, and resolved uniform locations. */
 internal class GlRenderPipeline(
 	val program: Int,
 	val blend: PipelineBlend,
+	val cullBackFaces: Boolean,
 	val locations: GlUniformLocations,
 ) : RenderPipeline
 

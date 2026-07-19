@@ -8,6 +8,7 @@ import org.lwjgl.opengl.GL20
 import org.lwjgl.opengl.GL30
 import org.lwjgl.opengl.GL31
 import org.umamo.render.device.AxisLineUniforms
+import org.umamo.render.device.CompositeUniforms
 import org.umamo.render.device.DeformCapturePassEncoder
 import org.umamo.render.device.DeformCapturePipeline
 import org.umamo.render.device.DeformUniforms
@@ -26,6 +27,8 @@ import org.umamo.render.device.WorldToNdc
 import org.umamo.render.glsl.UNIT_ATLAS
 import org.umamo.render.glsl.UNIT_CP
 import org.umamo.render.glsl.UNIT_DELTA
+import org.umamo.render.glsl.UNIT_DEST
+import org.umamo.render.glsl.UNIT_LAYER
 import org.umamo.render.glsl.UNIT_MASK
 import org.umamo.render.glsl.UNIT_POSITION
 import java.nio.FloatBuffer
@@ -105,6 +108,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		glueStateApplied = false
 		GL20.glUseProgram(glPipeline.program)
 		applyBlend(glPipeline.blend)
+		applyCull(glPipeline.cullBackFaces)
 		// Sampler → texture unit is constant per program; -1 for a sampler the program lacks is a no-op.
 		val locations = glPipeline.locations
 		GL20.glUniform1i(locations.atlas, UNIT_ATLAS)
@@ -112,6 +116,8 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform1i(locations.deltaTex, UNIT_DELTA)
 		GL20.glUniform1i(locations.cpTex, UNIT_CP)
 		GL20.glUniform1i(locations.positionBuffer, UNIT_POSITION)
+		GL20.glUniform1i(locations.layerTexture, UNIT_LAYER)
+		GL20.glUniform1i(locations.destTexture, UNIT_DEST)
 	}
 
 	override fun setCamera(worldToNdc: WorldToNdc, viewportWidth: Int, viewportHeight: Int) {
@@ -162,6 +168,24 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = atlas })
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
+	}
+
+	override fun drawComposite(composite: CompositeUniforms, textures: DrawTextures) {
+		val locations = current.locations
+		GL20.glUniform1i(locations.colorMode, composite.colorMode)
+		GL20.glUniform1i(locations.alphaMode, composite.alphaMode)
+		GL20.glUniform1f(locations.opacity, composite.opacity)
+		GL20.glUniform3f(locations.multiplyColor, composite.multiplyRed, composite.multiplyGreen, composite.multiplyBlue)
+		GL20.glUniform3f(locations.screenColor, composite.screenRed, composite.screenGreen, composite.screenBlue)
+		GL20.glUniform1i(locations.useMask, if (composite.useMask) 1 else 0)
+		GL20.glUniform1i(locations.invertMask, if (composite.invertMask) 1 else 0)
+		textures.compositeLayer?.let { bindTexture2D(UNIT_LAYER, it) }
+		textures.destinationSnapshot?.let { bindTexture2D(UNIT_DEST, it) }
+		if (composite.useMask) {
+			textures.maskCoverage?.let { bindTexture2D(UNIT_MASK, it) }
+		}
+		GL30.glBindVertexArray(emptyVao)
+		GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3)
 	}
 
 	override fun drawGrid(uniforms: GridUniforms) {
@@ -306,6 +330,26 @@ private fun marshalDeformUniforms(
 private fun bindTexture2D(unit: Int, texture: GpuTexture) {
 	GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit)
 	GL11.glBindTexture(GL11.GL_TEXTURE_2D, (texture as GlTexture).handle)
+}
+
+/**
+ * Sets the face-culling state for a pipeline.  Applied on every pipeline bind (like blend) because
+ * GL cull state is global - a culled drawable's pipeline must not leak culling into the next draw.
+ * The front face is CW: corpus rest meshes bake CLOCKWISE in the renderer's Y-negated world space
+ * (probed 50933:0 on EricaTamamo), so a culled drawable stays visible at rest and disappears only
+ * when a deformation flips it inside-out.  This winding convention is inferred from corpus mesh
+ * data, not yet cross-checked against the official editor's own culling render.
+ *
+ * @param Boolean cullBackFaces True to cull back faces; false leaves the mesh double-sided.
+ */
+private fun applyCull(cullBackFaces: Boolean) {
+	if (cullBackFaces) {
+		GL11.glEnable(GL11.GL_CULL_FACE)
+		GL11.glFrontFace(GL11.GL_CW)
+		GL11.glCullFace(GL11.GL_BACK)
+	} else {
+		GL11.glDisable(GL11.GL_CULL_FACE)
+	}
 }
 
 /** Sets the fixed-function blend state for a pipeline's blend mode. */

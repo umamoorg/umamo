@@ -2,7 +2,7 @@ package org.umamo.runtime.model
 
 /**
  * A straight-alpha-free RGB color channel triple, 0..1 per channel - the multiply/screen color
- * payload of an offscreen composite. Channels are the editor hex value / 255 as float32 (CMO3
+ * payload of a layer composite. Channels are the editor hex value / 255 as float32 (CMO3
  * `CFloatColor` red/green/blue; MOC3 color-table rows 108-113 carry the identical floats). The
  * source formats' alpha attribute is always 1.0 in every observed sample, so it is not modeled.
  *

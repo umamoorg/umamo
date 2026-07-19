@@ -118,8 +118,8 @@ internal fun samplePartDrawOrder(grid: KeyformGrid<PartForm>, paramValue: (Param
 }
 
 /**
- * An offscreen part's pose-blended composite channels - what the renderer applies when it
- * composites the part's subtree buffer back into the scene.
+ * An isolated part's pose-blended composite channels - what the renderer applies when it
+ * composites the part's subtree layer back into the scene.
  *
  * @property Float    opacity       The composite opacity (0..1).
  * @property ColorRgb multiplyColor The composite multiply color.
@@ -132,10 +132,10 @@ internal class PartRenderState(
 )
 
 /**
- * Blends an offscreen part's composite channels (opacity, multiply/screen colors) over its keyform
+ * Blends an isolated part's composite channels (opacity, multiply/screen colors) over its keyform
  * grid at the current parameters - the same multilinear weights as [samplePartDrawOrder], applied
  * per channel.  Returns null when the controlling axis is out of range, so the caller falls back
- * to the static channels on the part's PartOffscreen.
+ * to the static channels on the part's PartComposite.
  *
  * @param KeyformGrid grid       The part's keyform grid.
  * @param Function    paramValue Current value for a given parameter id.

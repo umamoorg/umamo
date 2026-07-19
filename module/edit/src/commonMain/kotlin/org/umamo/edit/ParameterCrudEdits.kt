@@ -154,12 +154,12 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 		}
 	val newParts =
 		parts.map { part ->
-			val grid = part.drawOrderGrid ?: return@map part
+			val grid = part.formGrid ?: return@map part
 			val collapsed = grid.withAxisCollapsed(id, keepValue)
 			if (collapsed === grid) {
 				part
 			} else {
-				part.copy(drawOrderGrid = collapsed)
+				part.copy(formGrid = collapsed)
 			}
 		}
 	return copy(

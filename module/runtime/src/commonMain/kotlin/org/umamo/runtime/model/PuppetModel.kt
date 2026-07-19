@@ -87,37 +87,6 @@ sealed interface OrgChild {
 	data class Drawable(val id: DrawableId) : OrgChild
 }
 
-/**
- * A part's offscreen-drawing state (Cubism 5.3): the part's whole subtree renders into an offscreen
- * buffer and composites back into the scene as one layer. Null on [Part.offscreen] encodes the
- * checkbox off. The keyformed composite channels (opacity, multiply/screen colors) ride the part's
- * [Part.drawOrderGrid]; the static fallbacks here apply when that grid is absent, mirroring the
- * [Part.drawOrder] + grid pattern. (CMO3 `CPartSource.useOffscreen` and friends; MOC3 §5.6
- * sections 152-163.)
- *
- * パートのオフスクリーン描画状態（Cubism 5.3）。サブツリーを一枚のレイヤーとして合成する。
- */
-data class PartOffscreen(
-	/** The composite's color blend mode. (CMO3 colorComposition; MOC3 s157 colorMode.) */
-	val blendMode: BlendMode = BlendMode.Normal,
-	/** The composite's alpha blend mode. (CMO3 alphaComposition; MOC3 s157 alphaMode.) */
-	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
-	/**
-	 * Drawables whose alpha clips the whole composite (Cubism clipping masks at the part level).
-	 * Always drawables - a part chosen as Clipping ID in the editor is expanded to its constituent
-	 * drawables at authoring time. (CMO3 clipGuidList; MOC3 offscreen mask suffix.)
-	 */
-	val maskedBy: List<DrawableId> = emptyList(),
-	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
-	val invertMask: Boolean = false,
-	/** Static composite opacity (0..1) when the part has no keyform grid. (CMO3 CPartForm.opacity; MOC3 s161.) */
-	val opacity: Float = 1f,
-	/** Static multiply color when the part has no keyform grid. (CMO3 CPartForm.multiplyColor.) */
-	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
-	/** Static screen color when the part has no keyform grid. (CMO3 CPartForm.screenColor.) */
-	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
-)
-
 /** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
 data class Part(
 	val id: PartId,
@@ -139,29 +108,27 @@ data class Part(
 	 */
 	val isSelectable: Boolean = true,
 	/**
-	 * Whether this is a Cubism "Group by Draw Order" part: a draw-order boundary whose whole subtree
-	 * takes one slot in the global stacking and orders internally among itself. A non-group part is
-	 * transparent to draw order - its drawables stack with the enclosing group's. (CMO3 enableDrawOrderGroup.)
+	 * How this part groups its subtree for rendering: transparent to draw order (PassThrough),
+	 * one slot in the parent's stacking (Grouped), or composited as one layer (Isolated).
+	 * See [PartGroupMode].
 	 */
-	val isDrawOrderGroup: Boolean = false,
+	val groupMode: PartGroupMode = PartGroupMode.PassThrough,
 	/**
-	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is a draw-order
-	 * group. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
+	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is
+	 * grouped or isolated. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
 	 */
 	val drawOrder: Int = CUBISM_DEFAULT_PART_DRAW_ORDER,
 	/**
-	 * The parameter-driven keyform grid for a draw-order group part, or null for a static
-	 * [drawOrder]. Lets a group's stacking slot animate per pose, like a drawable's own draw order;
-	 * for an offscreen part the same grid also keys the composite's opacity/color channels.
+	 * The parameter-driven keyform grid for a grouped part, or null for a static [drawOrder].
+	 * Lets a group's stacking slot animate per pose, like a drawable's own draw order; for an
+	 * isolated part the same grid also keys the composite's opacity/color channels.
 	 */
-	val drawOrderGrid: KeyformGrid<PartForm>? = null,
-	/**
-	 * The part's offscreen-drawing state, or null when the part is not offscreen. An offscreen part
-	 * is always a draw-order group (the editor forces Grouped on - the subtree must occupy one slot
-	 * in the global stacking to composite as a single layer).
-	 */
-	val offscreen: PartOffscreen? = null,
-)
+	val formGrid: KeyformGrid<PartForm>? = null,
+) {
+	/** The composite settings when [groupMode] is [PartGroupMode.Isolated], else null. */
+	val composite: PartComposite?
+		get() = (groupMode as? PartGroupMode.Isolated)?.composite
+}
 
 /**
  * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organisational

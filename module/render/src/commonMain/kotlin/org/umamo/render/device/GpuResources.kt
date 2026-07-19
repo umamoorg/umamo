@@ -89,6 +89,13 @@ public enum class PipelinePurpose {
 
 	/** One world-origin axis line (attribute-less; two endpoints from the vertex index). */
 	WorldAxisLine,
+
+	/**
+	 * The layer composite: an attribute-less full-screen triangle whose fragment blends a
+	 * rendered layer against a destination snapshot in-shader (the 18 color x 5 alpha modes are not
+	 * fixed-function-expressible), writing with blending DISABLED.  Pair with [PipelineBlend.Opaque].
+	 */
+	Composite,
 }
 
 /**
@@ -115,8 +122,20 @@ public enum class PipelineBlend {
 	Multiply,
 }
 
-/** The immutable description of a draw pipeline.  Created once at init and reused every frame. */
-public data class RenderPipelineSpec(val purpose: PipelinePurpose, val blend: PipelineBlend)
+/**
+ * The immutable description of a draw pipeline.  Created once at init and reused every frame.
+ *
+ * @property PipelinePurpose purpose       Which draw this pipeline performs.
+ * @property PipelineBlend   blend         How its fragments combine with the target.
+ * @property Boolean         cullBackFaces Whether back faces are culled (the Cubism drawable
+ *   Culling toggle); false = double-sided, the default.  Part of the spec (not a draw parameter)
+ *   so the state is bound with the pipeline, like blend.
+ */
+public data class RenderPipelineSpec(
+	val purpose: PipelinePurpose,
+	val blend: PipelineBlend,
+	val cullBackFaces: Boolean = false,
+)
 
 /**
  * A render target to allocate.

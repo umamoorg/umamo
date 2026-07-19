@@ -50,11 +50,11 @@ class MeshForm(
 
 /**
  * A part keyform: the animatable per-cell channels of a part, riding the part's own keyform grid.
- * [drawOrder] positions a draw-order group's slot (Cubism `CPartForm.drawOrder`); the remaining
- * channels are the offscreen composite's keyformed state ([opacity], [multiplyColor],
+ * [drawOrder] positions a grouped part's stacking slot (Cubism `CPartForm.drawOrder`); the
+ * remaining channels are the layer composite's keyformed state ([opacity], [multiplyColor],
  * [screenColor] - CMO3 `CPartForm.opacity`/`multiplyColor`/`screenColor`, MOC3 §5.6 section 161 +
- * the color-table offscreen prefix rows), meaningful only when the owning part is offscreen and
- * left at their identities otherwise.
+ * the color-table offscreen prefix rows), meaningful only when the part's group mode is Isolated
+ * and left at their identities otherwise.
  */
 class PartForm(
 	val drawOrder: Float,

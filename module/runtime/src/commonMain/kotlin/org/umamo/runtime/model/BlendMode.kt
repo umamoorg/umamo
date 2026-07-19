@@ -1,7 +1,7 @@
 package org.umamo.runtime.model
 
 /**
- * How a drawable or an offscreen composite blends its color against what's already drawn. Mirrors
+ * How a drawable or a layer composite blends its color against what's already drawn. Mirrors
  * Cubism's color blend modes: the three legacy pre-5.3 modes (bare CMO3 tokens, fixed-function
  * blending) plus the fifteen 5.3 modes (shader compositing). An `enum` (not sealed) because the set
  * is fixed and each case is a plain value with no extra data.
@@ -77,7 +77,7 @@ enum class BlendMode {
 }
 
 /**
- * How a drawable or an offscreen composite combines its ALPHA with the destination - Cubism 5.3's
+ * How a drawable or a layer composite combines its ALPHA with the destination - Cubism 5.3's
  * Porter-Duff-style alpha blend list, orthogonal to [BlendMode]. Pre-5.3 sources have no alpha
  * mode; they behave as [Over].
  *

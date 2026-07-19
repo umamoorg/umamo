@@ -1,7 +1,7 @@
 package org.umamo.render.puppet
 
+import org.umamo.render.eval.RenderPlanComposite
 import org.umamo.render.eval.RenderPlanDrawable
-import org.umamo.render.eval.RenderPlanOffscreen
 import org.umamo.render.eval.flattenRenderPlan
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
@@ -19,8 +19,8 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -154,45 +154,45 @@ class PoseResolveTest {
 	}
 
 	@Test
-	fun resolvePoseKeepsOffscreenBoundariesInThePlanAndFlattensToDrawOrder() {
+	fun resolvePoseKeepsIsolatedBoundariesInThePlanAndFlattensToDrawOrder() {
 		val source = model(listOf(drawable("a"), drawable("b")))
-		val offscreenRoot =
+		val isolatedRoot =
 			RenderGroup(
 				partId = null,
 				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartOffscreen()),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
 					),
 			)
 		val resolved =
 			resolve(
 				source,
 				renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true),
-				renderRoot = offscreenRoot,
+				renderRoot = isolatedRoot,
 			)
 		assertEquals(2, resolved.renderPlan.size)
 		assertEquals(DrawableId("b"), assertIs<RenderPlanDrawable>(resolved.renderPlan[0]).id)
-		val offscreenNode = assertIs<RenderPlanOffscreen>(resolved.renderPlan[1])
-		assertEquals(PartId("fx"), offscreenNode.partId)
+		val compositeNode = assertIs<RenderPlanComposite>(resolved.renderPlan[1])
+		assertEquals(PartId("fx"), compositeNode.partId)
 		assertEquals(flattenRenderPlan(resolved.renderPlan), resolved.drawOrder, "the flat order IS the plan flattened")
 		assertEquals(listOf(DrawableId("b"), DrawableId("a")), resolved.drawOrder)
 	}
 
 	@Test
-	fun resolvePoseDropsAnOffscreenNodeWhoseSubtreeFilteredAway() {
-		// The offscreen part's only drawable is hidden → its whole composite disappears (an empty
+	fun resolvePoseDropsACompositeNodeWhoseSubtreeFilteredAway() {
+		// The isolated part's only drawable is hidden → its whole composite disappears (an empty
 		// buffer composite would be a wasted pass); the flat order agrees.
 		val source = model(listOf(drawable("a"), drawable("b")))
-		val offscreenRoot =
+		val isolatedRoot =
 			RenderGroup(
 				partId = null,
 				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartOffscreen()),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
 					),
 			)
 		val resolved =
@@ -200,9 +200,9 @@ class PoseResolveTest {
 				source,
 				renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true),
 				shown = setOf(DrawableId("b")),
-				renderRoot = offscreenRoot,
+				renderRoot = isolatedRoot,
 			)
-		assertEquals(1, resolved.renderPlan.size, "the empty offscreen node is dropped")
+		assertEquals(1, resolved.renderPlan.size, "the empty composite node is dropped")
 		assertEquals(DrawableId("b"), assertIs<RenderPlanDrawable>(resolved.renderPlan.single()).id)
 		assertEquals(listOf(DrawableId("b")), resolved.drawOrder)
 	}

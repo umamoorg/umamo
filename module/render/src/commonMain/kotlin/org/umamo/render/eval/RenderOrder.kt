@@ -1,8 +1,8 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
@@ -11,11 +11,11 @@ import org.umamo.runtime.model.RenderNode
 const val CUBISM_DEFAULT_DRAW_ORDER = 500f
 
 /**
- * A node of the resolved per-pose render plan: the back-to-front order WITH the offscreen group
- * boundaries preserved.  A plain draw-order group needs no boundary (its children flatten into the
- * surrounding order, exactly one slot's worth) - only an OFFSCREEN group becomes a node, because
- * the renderer must know which span of drawables renders into a buffer and composites back as one
- * layer.  Nesting is direct: an offscreen node's children may contain further offscreen nodes.
+ * A node of the resolved per-pose render plan: the back-to-front order WITH the isolated group
+ * boundaries preserved.  A plain Grouped part needs no boundary (its children flatten into the
+ * surrounding order, exactly one slot's worth) - only an ISOLATED group becomes a node, because
+ * the renderer must know which span of drawables renders into a layer and composites back as one
+ * unit.  Nesting is direct: a composite node's children may contain further composite nodes.
  */
 sealed interface RenderPlanNode
 
@@ -23,19 +23,19 @@ sealed interface RenderPlanNode
 class RenderPlanDrawable(val id: DrawableId) : RenderPlanNode
 
 /**
- * An offscreen part's subtree: render [children] (back-to-front) into an offscreen buffer, then
- * composite that buffer back as one layer using [offscreen]'s blend modes/masks and the pose's
- * blended channels (PoseDeformInputs.partOffscreenStates keyed by [partId]).
+ * An isolated part's subtree: render [children] (back-to-front) into a layer, then composite that
+ * layer back as one unit using [composite]'s blend modes/masks and the pose's blended channels
+ * (PoseDeformInputs.partCompositeStates keyed by [partId]).
  */
-class RenderPlanOffscreen(
+class RenderPlanComposite(
 	val partId: PartId,
-	val offscreen: PartOffscreen,
+	val composite: PartComposite,
 	val children: List<RenderPlanNode>,
 ) : RenderPlanNode
 
 /**
  * The per-pose render plan over the draw-order group tree: [renderOrder]'s hierarchical sort with
- * offscreen group boundaries kept as [RenderPlanOffscreen] nodes.  Plain groups flatten away
+ * isolated group boundaries kept as [RenderPlanComposite] nodes.  Plain groups flatten away
  * exactly as before - `renderOrder` IS this plan flattened, so the two can never disagree.
  *
  * @param RenderGroup           root           The draw-order group tree root (`PuppetModel.renderRoot`).
@@ -59,12 +59,12 @@ fun renderPlan(
 			when (child) {
 				is RenderDrawable -> into.add(RenderPlanDrawable(child.id))
 				is RenderGroup -> {
-					val offscreen = child.offscreen
+					val composite = child.composite
 					val partId = child.partId
-					if (offscreen != null && partId != null) {
+					if (composite != null && partId != null) {
 						val subtree = ArrayList<RenderPlanNode>()
 						emit(child, subtree)
-						into.add(RenderPlanOffscreen(partId, offscreen, subtree))
+						into.add(RenderPlanComposite(partId, composite, subtree))
 					} else {
 						emit(child, into)
 					}
@@ -79,7 +79,7 @@ fun renderPlan(
 }
 
 /**
- * Flattens a render plan to its drawables in back-to-front order (offscreen boundaries dropped).
+ * Flattens a render plan to its drawables in back-to-front order (composite boundaries dropped).
  *
  * @param List<RenderPlanNode> nodes The plan nodes.
  * @return List<DrawableId> The drawables, back-to-front.
@@ -90,7 +90,7 @@ fun flattenRenderPlan(nodes: List<RenderPlanNode>): List<DrawableId> {
 	fun walk(node: RenderPlanNode) {
 		when (node) {
 			is RenderPlanDrawable -> result.add(node.id)
-			is RenderPlanOffscreen -> node.children.forEach(::walk)
+			is RenderPlanComposite -> node.children.forEach(::walk)
 		}
 	}
 	nodes.forEach(::walk)

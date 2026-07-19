@@ -22,13 +22,13 @@ private const val SCALAR_TOLERANCE = 0.001f
 
 /**
  * Imports the offscreen corpus pairs from their `.cmo3` source and baked `.moc3` and asserts the
- * offscreen surface agrees across the two paths: part offscreen state (composition enums, clip
+ * composite surface agrees across the two paths: part composite state (composition enums, clip
  * lists, invert, static channels), the keyformed opacity/color cells, and the drawable-level
  * extended blend + culling. The offscreen counterpart of [Moc3Cmo3ParityTest]. Skips gracefully
  * without the corpus.
  */
-class OffscreenImportParityTest {
-	private val pairNames = listOf("ModelWithOffscreenPartClipping", "MultiplyScreenColors")
+class CompositeImportParityTest {
+	private val pairNames = listOf("ModelWithOffscreenPartClipping", "MultiplyScreenColors", "modelA")
 
 	private fun cmo3ByBasename(): Map<String, File> =
 		System.getProperty("cmo3.probe")
@@ -72,39 +72,39 @@ class OffscreenImportParityTest {
 		}
 	}
 
-	private fun assertOffscreenParity(cmo3Puppet: PuppetModel, moc3Puppet: PuppetModel, pairName: String) {
+	private fun assertCompositeParity(cmo3Puppet: PuppetModel, moc3Puppet: PuppetModel, pairName: String) {
 		val cmo3Parts = cmo3Puppet.parts.associateBy { it.id }
-		var comparedOffscreens = 0
+		var comparedComposites = 0
 		for (moc3Part in moc3Puppet.parts) {
 			// The bake drops sketch parts; iterate the moc side, which must be a subset.
 			val cmo3Part = assertNotNull(cmo3Parts[moc3Part.id], "$pairName: moc part ${moc3Part.id.raw} in cmo3")
-			val moc3Offscreen = moc3Part.offscreen
-			val cmo3Offscreen = cmo3Part.offscreen
-			assertEquals(cmo3Offscreen != null, moc3Offscreen != null, "$pairName: offscreen presence of ${moc3Part.id.raw}")
-			if (cmo3Offscreen == null || moc3Offscreen == null) {
+			val moc3Composite = moc3Part.composite
+			val cmo3Composite = cmo3Part.composite
+			assertEquals(cmo3Composite != null, moc3Composite != null, "$pairName: composite presence of ${moc3Part.id.raw}")
+			if (cmo3Composite == null || moc3Composite == null) {
 				continue
 			}
-			comparedOffscreens++
+			comparedComposites++
 			val partLabel = "$pairName: ${moc3Part.id.raw}"
-			assertEquals(cmo3Offscreen.blendMode, moc3Offscreen.blendMode, "$partLabel color blend")
-			assertEquals(cmo3Offscreen.alphaBlendMode, moc3Offscreen.alphaBlendMode, "$partLabel alpha blend")
-			assertEquals(cmo3Offscreen.invertMask, moc3Offscreen.invertMask, "$partLabel invert mask")
-			assertEquals(cmo3Offscreen.maskedBy.toSet(), moc3Offscreen.maskedBy.toSet(), "$partLabel clip list")
+			assertEquals(cmo3Composite.blendMode, moc3Composite.blendMode, "$partLabel color blend")
+			assertEquals(cmo3Composite.alphaBlendMode, moc3Composite.alphaBlendMode, "$partLabel alpha blend")
+			assertEquals(cmo3Composite.invertMask, moc3Composite.invertMask, "$partLabel invert mask")
+			assertEquals(cmo3Composite.maskedBy.toSet(), moc3Composite.maskedBy.toSet(), "$partLabel clip list")
 			assertTrue(
-				abs(cmo3Offscreen.opacity - moc3Offscreen.opacity) < SCALAR_TOLERANCE,
-				"$partLabel static opacity (${cmo3Offscreen.opacity} vs ${moc3Offscreen.opacity})",
+				abs(cmo3Composite.opacity - moc3Composite.opacity) < SCALAR_TOLERANCE,
+				"$partLabel static opacity (${cmo3Composite.opacity} vs ${moc3Composite.opacity})",
 			)
-			assertColorClose(cmo3Offscreen.multiplyColor, moc3Offscreen.multiplyColor, "$partLabel static multiply")
-			assertColorClose(cmo3Offscreen.screenColor, moc3Offscreen.screenColor, "$partLabel static screen")
+			assertColorClose(cmo3Composite.multiplyColor, moc3Composite.multiplyColor, "$partLabel static multiply")
+			assertColorClose(cmo3Composite.screenColor, moc3Composite.screenColor, "$partLabel static screen")
 			// Keyformed channels: comparable only when both sides carry a parameter-driven grid (a
 			// static moc part stores no grid, while the cmo3 may keep a degenerate zero-axis one).
-			val cmo3Grid = cmo3Part.drawOrderGrid
-			val moc3Grid = moc3Part.drawOrderGrid
+			val cmo3Grid = cmo3Part.formGrid
+			val moc3Grid = moc3Part.formGrid
 			if (cmo3Grid != null && moc3Grid != null && cmo3Grid.axes.isNotEmpty()) {
 				assertGridChannelsMatch(cmo3Grid, moc3Grid, partLabel)
 			}
 		}
-		assertTrue(comparedOffscreens > 0, "$pairName: compared at least one offscreen part")
+		assertTrue(comparedComposites > 0, "$pairName: compared at least one isolated part")
 
 		val cmo3Drawables = cmo3Puppet.drawables.associateBy { it.id }
 		for (moc3Drawable in moc3Puppet.drawables) {
@@ -117,7 +117,7 @@ class OffscreenImportParityTest {
 	}
 
 	@Test
-	fun offscreenSurfaceAgreesAcrossImports() {
+	fun compositeSurfaceAgreesAcrossImports() {
 		val cmo3Files = cmo3ByBasename()
 		val moc3Files = moc3ByBasename()
 		var comparedPairs = 0
@@ -131,12 +131,12 @@ class OffscreenImportParityTest {
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$pairName: root is not a CModelSource")
 			val cmo3Puppet = Cmo3Import.fromModelSource(cmo3Root)
 			val moc3Puppet = Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null)
-			assertOffscreenParity(cmo3Puppet, moc3Puppet, pairName)
+			assertCompositeParity(cmo3Puppet, moc3Puppet, pairName)
 			comparedPairs++
-			println("[Umamo][offscreen-parity] $pairName: parts=${moc3Puppet.parts.size} drawables=${moc3Puppet.drawables.size} OK")
+			println("[Umamo][composite-parity] $pairName: parts=${moc3Puppet.parts.size} drawables=${moc3Puppet.drawables.size} OK")
 		}
 		if (comparedPairs == 0) {
-			println("no offscreen cmo3/moc3 pairs present; skipping")
+			println("no composite cmo3/moc3 pairs present; skipping")
 		}
 	}
 }

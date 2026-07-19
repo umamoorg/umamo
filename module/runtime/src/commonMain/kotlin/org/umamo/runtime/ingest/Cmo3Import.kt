@@ -63,9 +63,10 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartForm
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
@@ -227,7 +228,7 @@ object Cmo3Import {
 		fun partFormGridOf(part: CPartSource): KeyformGrid<PartForm>? =
 			buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
 				// CMO3: CPartForm carries the part's keyformed channels - drawOrder always, and (5.3)
-				// opacity/multiplyColor/screenColor for the offscreen composite.
+				// opacity/multiplyColor/screenColor for the layer composite.
 				(form as? CPartForm)?.let {
 					PartForm(
 						drawOrder = it.drawOrder.toFloat(),
@@ -240,13 +241,10 @@ object Cmo3Import {
 
 		// CMO3: CPartSource.useOffscreen gates the whole block; the composition/clip fields are latent
 		// on non-offscreen 5.3 parts (they survive unchecking) and pre-5.3 CPartForms carry no
-		// opacity/color elements at all, so channels are only consumed when the checkbox is on.
-		fun partOffscreenOf(source: CPartSource): PartOffscreen? {
-			if (!source.useOffscreen) {
-				return null
-			}
+		// opacity/color elements at all, so this is only called when the checkbox is on.
+		fun partCompositeOf(source: CPartSource): PartComposite {
 			val firstForm = elementsOf(source.keyforms).filterIsInstance<CPartForm>().firstOrNull()
-			return PartOffscreen(
+			return PartComposite(
 				blendMode = colorBlendOfToken((source.colorComposition as? ColorComposition)?.name),
 				alphaBlendMode = alphaBlendOfToken((source.alphaComposition as? AlphaComposition)?.name),
 				// CMO3: CPartSource.clipGuidList - always drawable GUIDs (a part picked as Clipping ID is
@@ -273,11 +271,16 @@ object Cmo3Import {
 					isSketch = source.isSketch,
 					// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 					isSelectable = !source.isLocked,
-					// CMO3: CPartSource.enableDrawOrderGroup = "Group by Draw Order"; CPartForm.drawOrder = its slot.
-					isDrawOrderGroup = source.enableDrawOrderGroup,
+					// CMO3: CPartSource.useOffscreen = "offscreen drawing" (forces grouping on);
+					// enableDrawOrderGroup = "Group by Draw Order"; CPartForm.drawOrder = the slot.
+					groupMode =
+						when {
+							source.useOffscreen -> PartGroupMode.Isolated(partCompositeOf(source))
+							source.enableDrawOrderGroup -> PartGroupMode.Grouped
+							else -> PartGroupMode.PassThrough
+						},
 					drawOrder = partStaticDrawOrder(source),
-					drawOrderGrid = partFormGridOf(source),
-					offscreen = partOffscreenOf(source),
+					formGrid = partFormGridOf(source),
 				)
 			}
 

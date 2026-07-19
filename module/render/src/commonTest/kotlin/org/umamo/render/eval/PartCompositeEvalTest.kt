@@ -8,9 +8,10 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartForm
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
@@ -20,11 +21,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the offscreen part channel eval on synthetic grids: [samplePartRenderState]'s multilinear
+ * Pins the isolated part channel eval on synthetic grids: [samplePartRenderState]'s multilinear
  * blend per channel, the out-of-range null, and [preparePose]'s aggregation into
- * [PoseDeformInputs.partOffscreenStates] with the static-fallback rule.
+ * [PoseDeformInputs.partCompositeStates] with the static-fallback rule.
  */
-class PartOffscreenEvalTest {
+class PartCompositeEvalTest {
 	private val paramA = ParameterId("A")
 
 	private fun values(vararg pairs: Pair<ParameterId, Float>): (ParameterId) -> Float {
@@ -62,20 +63,21 @@ class PartOffscreenEvalTest {
 		assertNull(samplePartRenderState(channelGrid(), values(paramA to -1f)))
 	}
 
-	private fun modelWithOffscreenPart(drawOrderGrid: KeyformGrid<PartForm>?): PuppetModel {
+	private fun modelWithIsolatedPart(formGrid: KeyformGrid<PartForm>?): PuppetModel {
 		val part =
 			Part(
 				id = PartId("fx"),
 				name = "fx",
 				children = emptyList(),
-				isDrawOrderGroup = true,
-				drawOrderGrid = drawOrderGrid,
-				offscreen =
-					PartOffscreen(
-						opacity = 0.3f,
-						multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
-						screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
+				groupMode =
+					PartGroupMode.Isolated(
+						PartComposite(
+							opacity = 0.3f,
+							multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
+							screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
+						),
 					),
+				formGrid = formGrid,
 			)
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
@@ -92,18 +94,18 @@ class PartOffscreenEvalTest {
 	}
 
 	@Test
-	fun preparePoseBlendsAGriddedOffscreenPart() {
-		val inputs = preparePose(modelWithOffscreenPart(channelGrid()), mapOf(paramA to 0.5f))
-		val state = assertNotNull(inputs.partOffscreenStates[PartId("fx")], "offscreen part carries a state")
+	fun preparePoseBlendsAGriddedIsolatedPart() {
+		val inputs = preparePose(modelWithIsolatedPart(channelGrid()), mapOf(paramA to 0.5f))
+		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")], "isolated part carries a state")
 		assertEquals(0.75f, state.opacity)
 		assertEquals(ColorRgb(0.5f, 0.75f, 1f), state.multiplyColor)
 	}
 
 	@Test
 	fun preparePoseFallsBackToStaticChannelsWithoutAGrid() {
-		val inputs = preparePose(modelWithOffscreenPart(drawOrderGrid = null), emptyMap())
-		val state = assertNotNull(inputs.partOffscreenStates[PartId("fx")])
-		assertEquals(0.3f, state.opacity, "PartOffscreen static opacity")
+		val inputs = preparePose(modelWithIsolatedPart(formGrid = null), emptyMap())
+		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")])
+		assertEquals(0.3f, state.opacity, "PartComposite static opacity")
 		assertEquals(ColorRgb(0.1f, 0.2f, 0.3f), state.multiplyColor)
 		assertEquals(ColorRgb(0.4f, 0.5f, 0.6f), state.screenColor)
 	}
@@ -112,17 +114,17 @@ class PartOffscreenEvalTest {
 	fun preparePoseFallsBackToStaticChannelsOutOfRange() {
 		// The controlling axis sits below the grid's key range → the grid sample hides, and the
 		// composite falls back to the static channels (mirroring the part draw-order fallback).
-		val inputs = preparePose(modelWithOffscreenPart(channelGrid()), mapOf(paramA to -1f))
-		val state = assertNotNull(inputs.partOffscreenStates[PartId("fx")])
+		val inputs = preparePose(modelWithIsolatedPart(channelGrid()), mapOf(paramA to -1f))
+		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")])
 		assertEquals(0.3f, state.opacity)
 	}
 
 	@Test
-	fun preparePoseLeavesNonOffscreenPartsOutOfTheMap() {
+	fun preparePoseLeavesNonIsolatedPartsOutOfTheMap() {
 		val plain =
-			modelWithOffscreenPart(null)
-				.let { source -> source.copy(parts = source.parts.map { it.copy(offscreen = null) }) }
+			modelWithIsolatedPart(null)
+				.let { source -> source.copy(parts = source.parts.map { it.copy(groupMode = PartGroupMode.Grouped) }) }
 				.withDerivedRenderRoot()
-		assertTrue(preparePose(plain, emptyMap()).partOffscreenStates.isEmpty())
+		assertTrue(preparePose(plain, emptyMap()).partCompositeStates.isEmpty())
 	}
 }

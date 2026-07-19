@@ -12,15 +12,15 @@ fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveR
 /**
  * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organisational tree. The org tree
  * ([PuppetModel.rootChildren] / [Part.children]) is the single source of truth for hierarchy + panel
- * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.isDrawOrderGroup] /
- * [Part.drawOrder] / [Part.drawOrderGrid], and each drawable's keyformed draw order). This walks the org
+ * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.groupMode] /
+ * [Part.drawOrder] / [Part.formGrid], and each drawable's keyformed draw order). This walks the org
  * tree to materialise the structure the renderer consumes, so any org-tree edit yields correct draw order
  * by recomputing it - there is no parallel render structure to drift out of sync.
  *
  * Mirrors Cubism: panel order is top = front, so the render tree (back-to-front) walks each child list
- * reversed; a "Group by Draw Order" part becomes a [RenderGroup] boundary (carrying its part draw order
- * and grid), a non-group part is transparent (its children hoist into the enclosing group). A safety net
- * appends any drawable the org walk missed, so the render never silently drops a mesh.
+ * reversed; a grouped or isolated part becomes a [RenderGroup] boundary (carrying its part draw order
+ * and grid), a pass-through part is transparent (its children hoist into the enclosing group). A safety
+ * net appends any drawable the org walk missed, so the render never silently drops a mesh.
  *
  * 組織ツリーから描画順グループツリー（renderRoot）を導出する純粋関数。組織ツリーが唯一の真実で、描画順はその関数。
  *
@@ -41,14 +41,12 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 
 				is OrgChild.Part -> {
 					val part = partById[child.id] ?: continue
-					// An offscreen part is group-forcing even if isDrawOrderGroup were unset (the editor
-					// greys the checkbox on): the subtree must occupy one slot to composite as one layer.
-					if (part.isDrawOrderGroup || part.offscreen != null) {
+					if (part.groupMode is PartGroupMode.PassThrough) {
+						collect(part.children, into) // transparent: hoist its children up
+					} else {
 						val groupChildren = ArrayList<RenderNode>()
 						collect(part.children, groupChildren)
-						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.drawOrderGrid, part.offscreen))
-					} else {
-						collect(part.children, into) // transparent: hoist its children up
+						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.formGrid, part.composite))
 					}
 				}
 			}
