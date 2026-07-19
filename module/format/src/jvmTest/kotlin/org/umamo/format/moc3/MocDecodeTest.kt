@@ -287,6 +287,32 @@ class MocDecodeTest {
 				assertEquals(1, distinctLimits, "Model B: one deduplicated limit curve")
 				assertEquals(90, deltaKeyformTotal, "Model B: delta keyforms")
 			}
+			if (file.name.startsWith("Azxiana")) {
+				// A 4.2-era bake: blend shapes present, but the color tables carry NO blend delta
+				// region (its CountInfo 23/24 count base rows only), so every record keyform must
+				// decode null colors rather than read past the tables' end.
+				assertEquals(20, doc.blendShapes.size, "Azxiana: blend-shape records")
+				val hasDeltaColor =
+					doc.blendShapes.any { blend ->
+						blend.keyforms.any { keyform ->
+							when (keyform) {
+								is BlendShapeKeyform.Warp -> keyform.form.multiplyColor != null
+								is BlendShapeKeyform.Mesh -> keyform.form.multiplyColor != null
+								is BlendShapeKeyform.Rotation -> keyform.form.multiplyColor != null
+								is BlendShapeKeyform.Part -> false
+							}
+						}
+					}
+				assertEquals(false, hasDeltaColor, "Azxiana: V42 bake carries no color delta region")
+			}
+			if (file.name.startsWith("modelA")) {
+				// The delta region IS present on the 5.x bakes: keyform colors decode non-null
+				// (zeros where unauthored), the counterpart of the Azxiana absence anchor.
+				val meshKeyform =
+					doc.blendShapes.first { it.target == org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH }
+						.keyforms.filterIsInstance<BlendShapeKeyform.Mesh>().first()
+				assertEquals(true, meshKeyform.form.multiplyColor != null, "Model A: color delta region present")
+			}
 			if (file.name.startsWith("modelC")) {
 				assertEquals(124, doc.blendShapes.size, "Model C: blend-shape records (incl. 1 part-owned)")
 				assertEquals(1, doc.blendShapes.count { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }, "Model C: part records")

@@ -119,7 +119,7 @@ I'm considering an Umamo design decision that would operate a bit differently th
 ## Format
 
 ### UMA (Native File Format)
-See the roadmap: docs/plans/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
+See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 
 ## Import
 Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
@@ -133,7 +133,7 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 * The backend seam is now `RenderDevice` (`:render/commonMain/.../device/`), NOT the old `Renderer` interface (deleted). `PuppetRenderer` (commonMain, zero GL calls) drives everything through it; `GlRenderDevice` is the desktop GL 3.3 impl. A backend is one `RenderDevice` impl.
 * Android GLES renderer backend = a second `RenderDevice` impl (`GlesRenderDevice`), a near-transliteration of `GlRenderDevice` (same calls, GLES binding style). The one real divergence: GLES 3.0 has no texture buffer, so the glue store (`createDeformedPositionStore`) repacks as a 2D texture (TODO Claude Note § option (b)) — hidden behind `DeformedPositionStore`, so the renderer is untouched. See Claude Notes § Android GLES renderer backend.
-* MacOS: a JVM threading/context fix (keeps the whole GL device); iPadOS: a Metal `RenderDevice` impl + MSL shaders. Split, not one line — see docs/plans/portability.md.
+* MacOS: a JVM threading/context fix (keeps the whole GL device); iPadOS: a Metal `RenderDevice` impl + MSL shaders. Split, not one line — see docs/plan/portability.md.
 	* app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/CglOffscreenGlContext.kt
 
 ## Outliner
@@ -257,7 +257,7 @@ also simplify the desktop path.
 analogue.
 
 ## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
-Full design roadmap: docs/plans/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.
+Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.
 
 **Governing design decision.** Art-mesh geometry and texture UVs are independent concepts (Blender-style),
 unlike Cubism which welds them at the default/neutral form. The mesh is the art's renderer — moving it moves

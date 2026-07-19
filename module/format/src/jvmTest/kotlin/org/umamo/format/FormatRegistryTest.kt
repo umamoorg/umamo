@@ -41,7 +41,7 @@ class FormatRegistryTest {
 	 * `application/x-kra` in maindoc.xml's `<IMAGE mime>` — and they are not interchangeable (they
 	 * diverge at `kr|a` vs `kr|ita`, so neither contains the other).  This fixture previously used the
 	 * wrong one, which made the test pass against a header no Krita ever writes while
-	 * [org.umamo.format.kra.KraReader] rejected every real file; see docs/formats/KRA.md §1.
+	 * [org.umamo.format.kra.KraReader] rejected every real file; see docs/format/KRA.md §1.
 	 */
 	private fun kraHeaderBytes(): ByteArray =
 		byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(26) + "mimetype".encodeToByteArray() +

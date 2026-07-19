@@ -23,7 +23,7 @@ kotlin {
 	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by
 	// the two JVM-based targets (desktop JVM + Android/ART). CMO3 read/write is a JDOM +
-	// Kotlin-reflection XML serializer (NOT Java object serialization — see docs/formats/CMO3.md)
+	// Kotlin-reflection XML serializer (NOT Java object serialization — see docs/format/CMO3.md)
 	// and those are JVM-only APIs — so that code lives in src/jvmAndroidMain and is shared verbatim
 	// by both, honouring CLAUDE.md's intent.
 	// NOTE: commonMain purity is a COMPILER GUARANTEE in this module, not a convention — the iosArm64

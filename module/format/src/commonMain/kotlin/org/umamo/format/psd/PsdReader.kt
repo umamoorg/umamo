@@ -100,7 +100,7 @@ object PsdReader : ArtReader {
 				else -> {
 					layersTopToBottom +=
 						PsdSourceLayer(
-							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order. See docs/formats/PSD.md.
+							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order. See docs/format/PSD.md.
 							id = record.layerId?.let { layerId -> LayerId("lyid:$layerId") } ?: LayerId("${record.name}#$recordIndex"),
 							name = record.name,
 							visible = record.visible,

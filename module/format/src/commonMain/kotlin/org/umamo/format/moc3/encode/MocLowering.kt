@@ -296,6 +296,28 @@ public object MocLowering {
 	}
 
 	/**
+	 * Whether [doc] carries the color tables' blend delta region.  The region is a later format
+	 * addition, absent on 4.2-era bakes whose tables end at the base rows (corpus: Azxiana.moc3,
+	 * V42); the decoder marks absence by null colors on every non-part record keyform, and the
+	 * region is all-or-nothing per file (a present region decodes zeros as non-null Rgb), so any
+	 * non-null delta color means the source carried it.
+	 *
+	 * @param MocDocument doc The semantic model.
+	 * @return Boolean True when the doc's blend keyforms carry color delta rows.
+	 */
+	private fun hasColorDeltaRows(doc: MocDocument): Boolean =
+		doc.blendShapes.any { blend ->
+			blend.keyforms.any { keyform ->
+				when (keyform) {
+					is BlendShapeKeyform.Warp -> keyform.form.multiplyColor != null
+					is BlendShapeKeyform.Mesh -> keyform.form.multiplyColor != null
+					is BlendShapeKeyform.Rotation -> keyform.form.multiplyColor != null
+					is BlendShapeKeyform.Part -> false
+				}
+			}
+		}
+
+	/**
 	 * Synthesizes the color-table, glue, render-order, and offscreen sections from [doc] (those with
 	 * a deterministic packing), keyed by section index. color keyforms are packed in deformer order
 	 * (warps/rotations interleaved), then art meshes; v4+ only.
@@ -391,7 +413,9 @@ public object MocLowering {
 				meshColorBase.add(multiplyRed.size)
 				mesh.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
 			}
-			if (doc.blendShapes.isNotEmpty()) {
+			// A 4.2-era bake carries no delta region (see hasColorDeltaRows) - mirror its absence so
+			// the re-synthesized tables end at the base rows and stay byte-exact both ways.
+			if (doc.blendShapes.isNotEmpty() && hasColorDeltaRows(doc)) {
 				val blendLayout = BlendShapeLayout(doc)
 				for (record in blendLayout.recordsInFileOrder) {
 					if (record.target == BlendShapeTarget.PART) {
@@ -789,9 +813,17 @@ public object MocLowering {
 			}
 		}
 		val offscreenKeyformTotal = doc.offscreens.sumOf { it.keyforms.size }
-		// 23/24: total color-table rows = the delta-inclusive per-kind keyform totals plus the
-		// moc-6 offscreen keyform prefix (MOC3 §5.6).
-		val colorRowTotal = countInfo[7] + countInfo[8] + countInfo[9] + offscreenKeyformTotal
+		// 23/24: the color tables' actual row count - the moc-6 offscreen keyform prefix, the base
+		// keyform rows, and the blend delta rows only when the bake carries the delta region.  A
+		// 4.2-era bake counts base + prefix here even though fields 7-9 still include the delta
+		// rows for the geometry/opacity tables (corpus: Azxiana.moc3, ci23 13957 vs ci7+8+9 13997).
+		val colorRowTotal =
+			if (blendLayout != null && !hasColorDeltaRows(doc)) {
+				warps.sumOf { it.keyforms.size } + rotations.sumOf { it.keyforms.size } +
+					doc.artMeshes.sumOf { it.keyforms.size } + offscreenKeyformTotal
+			} else {
+				countInfo[7] + countInfo[8] + countInfo[9] + offscreenKeyformTotal
+			}
 		if (blendLayout != null || doc.offscreens.isNotEmpty()) {
 			putField(23, colorRowTotal)
 			putField(24, colorRowTotal)

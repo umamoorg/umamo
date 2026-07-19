@@ -26,7 +26,7 @@ import kotlin.test.Test
  * Print-only probe for the CMO3 offscreen-drawing representation (Cubism 5.3 part feature): which
  * parts carry useOffscreen, their color/alpha composition enums, clipping lists, and keyformed
  * opacity/color payloads (CPartForm), plus the raw main.xml spellings.  Feeds the offscreen support
- * scratchpad (docs/plans/offscreen-support.md); pins nothing.  Skips gracefully without samples.
+ * scratchpad (docs/plan/offscreen-support.md); pins nothing.  Skips gracefully without samples.
  */
 class OffscreenProbeTest {
 	private fun samples(): List<File> =

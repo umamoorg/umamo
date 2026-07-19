@@ -5,7 +5,7 @@ import org.umamo.runtime.model.BlendMode
 
 /*
  * The blend-mode bijections shared by both importers, per the extraction tables in
- * docs/plans/offscreen-support.md: CMO3 serializes enum tokens (ColorComposition /
+ * docs/plan/offscreen-support.md: CMO3 serializes enum tokens (ColorComposition /
  * AlphaComposition), MOC3 packs ints (sections 153/157, colorMode or (alphaMode shl 8)).
  * The bare legacy tokens (NORMAL/ADD/MULTIPLY) are the pre-5.3 modes in every era; each
  * 5.3 mode has its own token and int.

@@ -538,8 +538,61 @@ public object MocDecoder {
 				}
 			}
 		}
+		// Only records referenced by a warp/mesh/rotation object group have their color rows read
+		// (and stored): the record tables carry a few TRAILING records referenced by no group on
+		// every blend corpus model, and the stored region ends at the referenced records' rows
+		// (modelA: table 1808 = read extent 1806 + 2 rows padding; modelC: 2208 = 2198 + 10).
+		val colorReadRecord = BooleanArray(recordCount)
+
+		/**
+		 * Marks the records one object group's ranges reference, so the delta-region presence check
+		 * below can measure the read extent over exactly the rows that will be dereferenced.
+		 *
+		 * @param Section objectSection The group's per-object index section.
+		 * @param Section startSection  The group's per-object record-start section.
+		 * @param Section countSection  The group's per-object record-count section.
+		 */
+		fun markColorReadRecords(objectSection: Section, startSection: Section, countSection: Section) {
+			if (!sections.isPresent(objectSection)) {
+				return
+			}
+			val recordStarts = sections.intArray(startSection)
+			val recordCounts = sections.intArray(countSection)
+			for (groupIndex in recordStarts.indices) {
+				for (recordIndex in recordStarts[groupIndex] until recordStarts[groupIndex] + recordCounts[groupIndex]) {
+					if (recordIndex in 0 until recordCount) {
+						colorReadRecord[recordIndex] = true
+					}
+				}
+			}
+		}
+		markColorReadRecords(Section.BLENDSHAPE_WARP_OBJECT, Section.BLENDSHAPE_WARP_RECORD_START, Section.BLENDSHAPE_WARP_RECORD_COUNT)
+		markColorReadRecords(Section.BLENDSHAPE_MESH_OBJECT, Section.BLENDSHAPE_MESH_RECORD_START, Section.BLENDSHAPE_MESH_RECORD_COUNT)
+		markColorReadRecords(
+			Section.BLENDSHAPE_ROTATION_OBJECT,
+			Section.BLENDSHAPE_ROTATION_RECORD_START,
+			Section.BLENDSHAPE_ROTATION_RECORD_COUNT,
+		)
+
+		// The delta region is a later format addition: a 4.2-era bake with blend shapes carries the
+		// base rows only (corpus: Azxiana.moc3, V42 - CountInfo 23/24 there count base + prefix rows
+		// while fields 7-9 still include the deltas).  Detect presence by whether the tables cover
+		// the referenced records' read extent, and decode absent deltas as null colors, like any
+		// absent section.
+		var requiredRowEnd = deltaTables.colorDeltaRowStart
+		var rowProbeCursor = deltaTables.colorDeltaRowStart
+		for (recordIndex in 0 until recordCount) {
+			if (!partOwnedRecord[recordIndex]) {
+				val rowEnd = rowProbeCursor + bindingKeyCount[recordBinding[recordIndex]]
+				if (colorReadRecord[recordIndex] && rowEnd > requiredRowEnd) {
+					requiredRowEnd = rowEnd
+				}
+				rowProbeCursor = rowEnd
+			}
+		}
+		val colorDeltasPresent = deltaTables.colorPresent && requiredRowEnd <= deltaTables.multiplyR.size
 		val recordColorRow = IntArray(recordCount) { -1 }
-		if (deltaTables.colorPresent) {
+		if (colorDeltasPresent) {
 			var colorRowCursor = deltaTables.colorDeltaRowStart
 			for (recordIndex in 0 until recordCount) {
 				if (!partOwnedRecord[recordIndex]) {

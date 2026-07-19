@@ -15,7 +15,7 @@ import kotlin.math.roundToInt
  *     CSFCHUNK container down to the embedded SQLite database (CHNKSQLi) for the Canvas + Layer tables,
  *     and decodes the tiled raster from the CHNKExta chunks: ids, names, group hierarchy, order,
  *     opacity, blend, bounds, kind, visibility, RGBA/greyscale/monochrome pixels, masks (baked into
- *     alpha), and clipping.  See docs/formats/CLIP.md.
+ *     alpha), and clipping.  See docs/format/CLIP.md.
  * JA: CLIP 読み込み。安定レイヤー ID が再取り込みの信頼性を生む。ラスタ（RGBA/グレースケール/モノクロ）も復号する。
  *
  * Cross-platform (JVM + Android): the only platform-specific step - opening a SQLite driver over the

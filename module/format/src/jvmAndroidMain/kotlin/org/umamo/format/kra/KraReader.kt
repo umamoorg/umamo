@@ -119,7 +119,7 @@ private fun isKra(bytes: ByteArray): Boolean {
 	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content (KoQuaZipStore.cpp:165
 	// writes it first/uncompressed).  A .kra carries TWO similar-looking Krita mime strings and they
 	// are not interchangeable: the mimetype entry holds "application/x-krita", while "application/x-kra"
-	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/formats/KRA.md §1).  Matching the
+	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/format/KRA.md §1).  Matching the
 	// latter here finds nothing — it is not even a prefix of the former, the two diverge at "kr|a" vs
 	// "kr|ita" — so scan for the real entry content.  Both are accepted anyway: neither string can
 	// occur this early in a non-Krita ZIP, so allowing both only buys tolerance of writer variation.

@@ -12,7 +12,7 @@ import kotlin.test.Test
  * scalar sections (152-163) with the CMO3-authored enum sweep to derive the blend-mode int
  * mapping, and dumps the sections the lowering currently misses on these mesh-less models
  * (83-85 render-order aggregates, CountInfo, color-table presence).  Feeds
- * docs/plans/offscreen-support.md; pins nothing.
+ * docs/plan/offscreen-support.md; pins nothing.
  */
 class OffscreenSweepProbeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }

@@ -47,8 +47,11 @@ captures/
 *.iws
 .vscode/
 
+#Get fucked, Git.
 /docs/formats
 /docs/plans
+/docs/format
+/docs/plan
 
 #Don't commit my personal models.
 /test/corpus

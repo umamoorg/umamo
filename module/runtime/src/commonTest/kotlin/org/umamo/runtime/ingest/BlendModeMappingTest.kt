@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the blend-mode bijections against the extraction tables in docs/plans/offscreen-support.md:
+ * Pins the blend-mode bijections against the extraction tables in docs/plan/offscreen-support.md:
  * every CMO3 token and every MOC3 packed int maps to its distinct runtime mode, the two encodings
  * agree pairwise, and unknown values fall back to Normal/Over.
  */

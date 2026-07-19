@@ -22,7 +22,7 @@ import kotlin.test.Test
  * Print-only compositing perf probe on Model A (24 isolated parts = up to ~24 snapshot +
  * composite pairs per frame): frame times with the composites live vs the same model with every
  * isolated group demoted to Grouped, at a supersampled-ish viewport.  Pins nothing - see
- * docs/plans/offscreen-support.md for the recorded baseline and optimization levers.  Skips
+ * docs/plan/offscreen-support.md for the recorded baseline and optimization levers.  Skips
  * without a GL context or the corpus.
  */
 class CompositePerfProbeTest {

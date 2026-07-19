@@ -193,7 +193,7 @@ object Cmo3Import {
 		// CModelSource.rootParameterGroup is the hidden top group; its _childGuids interleaves parameter and
 		// subgroup GUIDs in panel order, and each subgroup nests the same way - mirroring the parts tree's
 		// _childGuids walk.  Each CParameterSource also carries a redundant parentGroupGuid, but the
-		// rootParameterGroup walk is the authoritative panel order.  See docs/formats/CMO3.md §3.
+		// rootParameterGroup walk is the authoritative panel order.  See docs/format/CMO3.md §3.
 		val parameterGroupByUuid =
 			buildMap {
 				val groups = (modelSource.parameterGroupSet as? CParameterGroupSet)?._groups

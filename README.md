@@ -114,7 +114,7 @@ Shared logic lives in `commonMain`; platform code in `jvmMain`/`androidMain` via
 
 ### File formats
 
-Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black box observation.  KRA is ported directly from Krita's own open-source GPLv3 code which is license-compatible with Umamo.  All are written up under [`docs/formats/`](docs/formats).
+Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black box observation.  KRA is ported directly from Krita's own open-source GPLv3 code which is license-compatible with Umamo.  All are written up under [`docs/format/`](docs/format).
 
 #### File Format Support Progress
 
@@ -129,7 +129,7 @@ Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black
 
 #### Format Documents
 
-Reverse engineered file formats have documentation in the [docs/formats/](docs/formats/) folder.
+Reverse engineered file formats have documentation in the [docs/format/](docs/format/) folder.
 
 #### Corpus Testing
 
