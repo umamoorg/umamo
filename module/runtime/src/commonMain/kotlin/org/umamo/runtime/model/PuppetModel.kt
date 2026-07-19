@@ -87,6 +87,37 @@ sealed interface OrgChild {
 	data class Drawable(val id: DrawableId) : OrgChild
 }
 
+/**
+ * A part's offscreen-drawing state (Cubism 5.3): the part's whole subtree renders into an offscreen
+ * buffer and composites back into the scene as one layer. Null on [Part.offscreen] encodes the
+ * checkbox off. The keyformed composite channels (opacity, multiply/screen colors) ride the part's
+ * [Part.drawOrderGrid]; the static fallbacks here apply when that grid is absent, mirroring the
+ * [Part.drawOrder] + grid pattern. (CMO3 `CPartSource.useOffscreen` and friends; MOC3 §5.6
+ * sections 152-163.)
+ *
+ * パートのオフスクリーン描画状態（Cubism 5.3）。サブツリーを一枚のレイヤーとして合成する。
+ */
+data class PartOffscreen(
+	/** The composite's color blend mode. (CMO3 colorComposition; MOC3 s157 colorMode.) */
+	val blendMode: BlendMode = BlendMode.Normal,
+	/** The composite's alpha blend mode. (CMO3 alphaComposition; MOC3 s157 alphaMode.) */
+	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	/**
+	 * Drawables whose alpha clips the whole composite (Cubism clipping masks at the part level).
+	 * Always drawables - a part chosen as Clipping ID in the editor is expanded to its constituent
+	 * drawables at authoring time. (CMO3 clipGuidList; MOC3 offscreen mask suffix.)
+	 */
+	val maskedBy: List<DrawableId> = emptyList(),
+	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
+	val invertMask: Boolean = false,
+	/** Static composite opacity (0..1) when the part has no keyform grid. (CMO3 CPartForm.opacity; MOC3 s161.) */
+	val opacity: Float = 1f,
+	/** Static multiply color when the part has no keyform grid. (CMO3 CPartForm.multiplyColor.) */
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	/** Static screen color when the part has no keyform grid. (CMO3 CPartForm.screenColor.) */
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+)
+
 /** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
 data class Part(
 	val id: PartId,
@@ -119,10 +150,17 @@ data class Part(
 	 */
 	val drawOrder: Int = CUBISM_DEFAULT_PART_DRAW_ORDER,
 	/**
-	 * The parameter-driven draw-order keyform grid for a draw-order group part, or null for a static
-	 * [drawOrder]. Lets a group's stacking slot animate per pose, like a drawable's own draw order.
+	 * The parameter-driven keyform grid for a draw-order group part, or null for a static
+	 * [drawOrder]. Lets a group's stacking slot animate per pose, like a drawable's own draw order;
+	 * for an offscreen part the same grid also keys the composite's opacity/color channels.
 	 */
-	val drawOrderGrid: KeyformGrid<PartDrawOrderForm>? = null,
+	val drawOrderGrid: KeyformGrid<PartForm>? = null,
+	/**
+	 * The part's offscreen-drawing state, or null when the part is not offscreen. An offscreen part
+	 * is always a draw-order group (the editor forces Grouped on - the subtree must occupy one slot
+	 * in the global stacking to composite as a single layer).
+	 */
+	val offscreen: PartOffscreen? = null,
 )
 
 /**
@@ -147,6 +185,17 @@ data class Drawable(
 	val keyforms: KeyformGrid<MeshForm>?,
 	/** When true, the clip is inverted - this drawable shows outside the [maskedBy] coverage. */
 	val invertMask: Boolean = false,
+	/**
+	 * How the drawable's alpha combines with the destination (Cubism 5.3); pre-5.3 sources have no
+	 * alpha mode and stay [AlphaBlendMode.Over]. (CMO3 alphaComposition; MOC3 s153 alphaMode.)
+	 */
+	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	/**
+	 * When true, back faces are culled - a mesh flipped inside-out by deformation disappears
+	 * instead of showing mirrored. Default false = double-sided, Cubism's default. (CMO3 culling;
+	 * MOC3 = the INVERSE of drawable constant-flags bit 2, IS_DOUBLE_SIDED.)
+	 */
+	val culling: Boolean = false,
 	/** The drawable's own Parts-panel eyeball; the effective shown-state also folds in ancestor parts. */
 	val isVisible: Boolean = true,
 	/**

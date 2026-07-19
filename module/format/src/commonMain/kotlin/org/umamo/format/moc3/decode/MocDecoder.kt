@@ -33,8 +33,8 @@ import org.umamo.format.moc3.model.WarpKeyform
  * object's per-keyform values (vertex positions, opacity, draw-order, color, deformer transforms).
  *
  * EN: Reads the typed Layer-1 sections and follows the base/index tables - it does not evaluate the
- *     model (no interpolation/cascade). Blend shapes (moc 5+) / offscreens (moc 6) are left to raw
- *     section access.
+ *     model (no interpolation/cascade). Blend shapes (moc 4+) and offscreens (moc 6) are assembled
+ *     too; only the residual unknown sections (154, 160) are left to raw access.
  * JA: Layer-1 を意味モデルへ組み立てる（評価は行わない）。
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
@@ -261,6 +261,9 @@ public object MocDecoder {
 		val artMeshParentDeformer = sections.intArray(Section.ARTMESH_PARENT_DEFORMER)
 		val artMeshColorBase =
 			if (sections.isPresent(Section.ARTMESH_COLOR_BASE)) sections.intArray(Section.ARTMESH_COLOR_BASE) else null
+		// MOC3 v6 §5.6 s153: per-drawable packed extended blend (0 = legacy constant-flags blend).
+		val artMeshExtendedBlend =
+			if (sections.isPresent(Section.ARTMESH_EXTENDED_BLEND)) sections.intArray(Section.ARTMESH_EXTENDED_BLEND) else null
 		val artMeshOpacity = sections.floatArray(Section.ARTMESH_OPACITY)
 		val artMeshDrawOrder = sections.floatArray(Section.ARTMESH_DRAW_ORDER)
 		val uvData = floatsOf(model, Sections.UV_DATA)
@@ -296,6 +299,7 @@ public object MocDecoder {
 					drawable.id,
 					drawable.textureIndex,
 					drawable.constantFlags,
+					artMeshExtendedBlend?.get(drawableIndex) ?: 0,
 					drawable.parentPartIndex,
 					artMeshParentDeformer[drawableIndex],
 					uvs,

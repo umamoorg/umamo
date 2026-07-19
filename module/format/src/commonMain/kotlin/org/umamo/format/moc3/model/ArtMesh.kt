@@ -42,6 +42,11 @@ public data class ArtMesh(
 	val textureIndex: Int,
 	/** [org.umamo.format.moc3.moc.ConstantFlag] bitmask. */
 	val constantFlags: Int,
+	/**
+	 * Packed 5.3 extended blend, colorMode or (alphaMode shl 8); 0 = legacy (the constant-flags
+	 * 2-bit blend field applies instead).  MOC3 v6 §5.6 s153.
+	 */
+	val extendedBlend: Int = 0,
 	val parentPartIndex: Int,
 	val parentDeformerIndex: Int,
 	val vertexUvs: FloatArray,

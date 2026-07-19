@@ -7,6 +7,7 @@ import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.KeyformBinding
+import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.runtime.eval.blendScalarsFromCorners
@@ -19,6 +20,7 @@ import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
 import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -39,8 +41,9 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.PartDrawOrderForm
+import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PartOffscreen
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -86,7 +89,9 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
  *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
  *    PART-owned records (Model C carries one) are skipped, matching the CMO3 path's CPartSource
- *    exclusion.  Offscreens remain unhandled (parity with the CMO3 path).
+ *    exclusion.  Offscreens ingest into [org.umamo.runtime.model.PartOffscreen] per owner part
+ *    (packed blend int, flags, mask indices), with the keyformed opacity/color channels merged
+ *    into the part's [PartForm] grid (they ride the same cells, MOC3 §5.6).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>
  */
@@ -556,10 +561,20 @@ object Moc3Import {
 						// cdi3 carries no drawable names; the format id is all a baked model has.
 						name = source.id,
 						parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
-						blendMode = blendModeOf(source.constantFlags),
+						// MOC3 v6 §5.6 s153: a nonzero packed extended blend overrides the legacy 2-bit
+						// constant-flags field (which then only carries the old-runtime approximation).
+						blendMode =
+							if (source.extendedBlend != 0) {
+								colorBlendOfPacked(source.extendedBlend)
+							} else {
+								blendModeOf(source.constantFlags)
+							},
+						alphaBlendMode = alphaBlendOfPacked(source.extendedBlend),
 						// MOC3 §5.6 MASK_INDEX_DATA: mask sources are drawable file indices.
 						maskedBy = source.maskDrawableIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
 						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
+						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
+						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
 						// Visibility/lock are editor-only authoring state; a baked model shows everything.
 						isVisible = true,
 						isSelectable = true,
@@ -638,18 +653,60 @@ object Moc3Import {
 			return (drawOrder + 0.001f).toInt()
 		}
 
+		// MOC3 v6 §5.6 s155: each offscreen names its owner part; index the offscreens by the owner's
+		// id so the part builders below can look their own up (part ids are unique in the moc).
+		val offscreenByPartId =
+			mocDocument.offscreens
+				.filter { offscreen -> offscreen.ownerPartIndex in mocDocument.parts.indices }
+				.associateBy { offscreen -> mocDocument.parts[offscreen.ownerPartIndex].id }
+
 		/**
-		 * The parameter-driven draw-order grid of a moc part, or null when the part is static.
+		 * The offscreen compositing state of a moc part, or null when the part owns no offscreen.
 		 *
 		 * @param MocPart source The moc part.
-		 * @return KeyformGrid<PartDrawOrderForm>? The grid, or null.
+		 * @return PartOffscreen? The runtime offscreen state, or null.
 		 */
-		fun partDrawOrderGridOf(source: MocPart): KeyformGrid<PartDrawOrderForm>? {
+		fun partOffscreenOf(source: MocPart): PartOffscreen? {
+			val offscreen = offscreenByPartId[source.id] ?: return null
+			// The first keyform doubles as the static fallback (a static part stores exactly one row).
+			val staticKeyform = offscreen.keyforms.firstOrNull()
+			return PartOffscreen(
+				// MOC3 v6 §5.6 s157: packed colorMode | (alphaMode shl 8).
+				blendMode = colorBlendOfPacked(offscreen.blendMode),
+				alphaBlendMode = alphaBlendOfPacked(offscreen.blendMode),
+				// MOC3 §5.6: offscreen mask sources are drawable file indices (the MASK_INDEX_DATA suffix).
+				maskedBy = offscreen.maskIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+				// MOC3 v6 §5.6 s156 bit 3: invert clipping mask (same bit position as the drawable flag).
+				invertMask = offscreen.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
+				opacity = staticKeyform?.opacity ?: 1f,
+				multiplyColor = colorRgbOf(staticKeyform?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+				screenColor = colorRgbOf(staticKeyform?.screenColor) ?: ColorRgb.ScreenIdentity,
+			)
+		}
+
+		/**
+		 * The parameter-driven keyform grid of a moc part, or null when the part is static.  Carries
+		 * the draw order always; for an offscreen owner the offscreen's keyformed opacity/color
+		 * channels merge in, riding the same grid cells (MOC3 §5.6: Σ owner grid == CountInfo 36).
+		 *
+		 * @param MocPart source The moc part.
+		 * @return KeyformGrid<PartForm>? The grid, or null.
+		 */
+		fun partFormGridOf(source: MocPart): KeyformGrid<PartForm>? {
 			if (source.keyformBindingIndex <= 0) {
 				return null
 			}
+			val offscreenKeyforms = offscreenByPartId[source.id]?.keyforms
 			return gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
-				source.drawOrderKeyforms.getOrNull(gridIndex)?.let { drawOrder -> PartDrawOrderForm(drawOrder) }
+				source.drawOrderKeyforms.getOrNull(gridIndex)?.let { drawOrder ->
+					val offscreenKeyform = offscreenKeyforms?.getOrNull(gridIndex)
+					PartForm(
+						drawOrder = drawOrder,
+						opacity = offscreenKeyform?.opacity ?: 1f,
+						multiplyColor = colorRgbOf(offscreenKeyform?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+						screenColor = colorRgbOf(offscreenKeyform?.screenColor) ?: ColorRgb.ScreenIdentity,
+					)
+				}
 			}
 		}
 
@@ -659,7 +716,8 @@ object Moc3Import {
 				drawableIdsByFileIndex,
 				partIds,
 				::partStaticDrawOrder,
-				::partDrawOrderGridOf,
+				::partFormGridOf,
+				::partOffscreenOf,
 			)
 
 		// Panel order (top = front) is not stored in moc3; reconstruct it from the render tree - render
@@ -687,7 +745,8 @@ object Moc3Import {
 				panelIndexByDrawable,
 				drawOrderGroupPartIndices,
 				::partStaticDrawOrder,
-				::partDrawOrderGridOf,
+				::partFormGridOf,
+				::partOffscreenOf,
 			)
 
 		// The flat drawables list is kept back-to-front (the storage/base order, mirroring Cmo3Import's
@@ -744,7 +803,8 @@ object Moc3Import {
 	 * @param List        drawableIdsByFileIndex Drawable file index → runtime id.
 	 * @param List        partIds                Part file index → runtime id.
 	 * @param Function    partStaticDrawOrder    Static draw order of a moc part.
-	 * @param Function    partDrawOrderGridOf    Draw-order grid of a moc part (null when static).
+	 * @param Function    partFormGridOf         Keyform grid of a moc part (null when static).
+	 * @param Function    partOffscreenOf        Offscreen state of a moc part (null when not offscreen).
 	 * @return RenderGroup? The render root, or null when the moc has no render-order groups.
 	 */
 	private fun buildRenderRoot(
@@ -752,7 +812,8 @@ object Moc3Import {
 		drawableIdsByFileIndex: List<DrawableId>,
 		partIds: List<PartId>,
 		partStaticDrawOrder: (MocPart) -> Int,
-		partDrawOrderGridOf: (MocPart) -> KeyformGrid<PartDrawOrderForm>?,
+		partFormGridOf: (MocPart) -> KeyformGrid<PartForm>?,
+		partOffscreenOf: (MocPart) -> PartOffscreen?,
 	): RenderGroup? {
 		if (mocDocument.renderOrderGroups.isEmpty()) {
 			return null
@@ -776,7 +837,8 @@ object Moc3Import {
 							partId = partId,
 							drawOrder = partStaticDrawOrder(part),
 							children = childrenOf(child.groupIndex),
-							drawOrderGrid = partDrawOrderGridOf(part),
+							drawOrderGrid = partFormGridOf(part),
+							offscreen = partOffscreenOf(part),
 						)
 					}
 					else -> null
@@ -829,7 +891,8 @@ object Moc3Import {
 	 * @param Map         panelIndexByDrawable      Reconstructed panel index per drawable.
 	 * @param Set         drawOrderGroupPartIndices Part file indices referenced as render-order groups.
 	 * @param Function    partStaticDrawOrder       Static draw order of a moc part.
-	 * @param Function    partDrawOrderGridOf       Draw-order grid of a moc part (null when static).
+	 * @param Function    partFormGridOf            Keyform grid of a moc part (null when static).
+	 * @param Function    partOffscreenOf           Offscreen state of a moc part (null when not offscreen).
 	 * @return Pair<List<Part>, List<OrgChild>> The runtime parts (file order) and the root children.
 	 */
 	private fun buildOrgTree(
@@ -840,7 +903,8 @@ object Moc3Import {
 		panelIndexByDrawable: Map<DrawableId, Int>,
 		drawOrderGroupPartIndices: Set<Int>,
 		partStaticDrawOrder: (MocPart) -> Int,
-		partDrawOrderGridOf: (MocPart) -> KeyformGrid<PartDrawOrderForm>?,
+		partFormGridOf: (MocPart) -> KeyformGrid<PartForm>?,
+		partOffscreenOf: (MocPart) -> PartOffscreen?,
 	): Pair<List<Part>, List<OrgChild>> {
 		val partCount = mocDocument.parts.size
 		// Normalize part parents in two steps: an out-of-range index goes to the root, and any part
@@ -938,7 +1002,8 @@ object Moc3Import {
 					isSelectable = true,
 					isDrawOrderGroup = partIndex in drawOrderGroupPartIndices,
 					drawOrder = partStaticDrawOrder(source),
-					drawOrderGrid = partDrawOrderGridOf(source),
+					drawOrderGrid = partFormGridOf(source),
+					offscreen = partOffscreenOf(source),
 				)
 			}
 		return parts to childrenOf(-1)
@@ -1021,6 +1086,14 @@ object Moc3Import {
 			constantFlags and ConstantFlag.BLEND_MULTIPLICATIVE != 0 -> BlendMode.Multiply
 			else -> BlendMode.Normal
 		}
+
+	/**
+	 * Converts a decoded moc3 [Rgb] to the runtime [ColorRgb].
+	 *
+	 * @param Rgb? color The decoded color row (MOC3 color tables 108-113), or null when absent.
+	 * @return ColorRgb? The runtime color, or null.
+	 */
+	private fun colorRgbOf(color: Rgb?): ColorRgb? = color?.let { ColorRgb(it.r, it.g, it.b) }
 
 	/**
 	 * Per-vertex deltas of [positions] vs [base] (`positions − base`), or a copy of positions when

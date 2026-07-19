@@ -41,10 +41,12 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 
 				is OrgChild.Part -> {
 					val part = partById[child.id] ?: continue
-					if (part.isDrawOrderGroup) {
+					// An offscreen part is group-forcing even if isDrawOrderGroup were unset (the editor
+					// greys the checkbox on): the subtree must occupy one slot to composite as one layer.
+					if (part.isDrawOrderGroup || part.offscreen != null) {
 						val groupChildren = ArrayList<RenderNode>()
 						collect(part.children, groupChildren)
-						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.drawOrderGrid))
+						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.drawOrderGrid, part.offscreen))
 					} else {
 						collect(part.children, into) // transparent: hoist its children up
 					}

@@ -49,6 +49,21 @@ class MeshForm(
 )
 
 /**
+ * A part keyform: the animatable per-cell channels of a part, riding the part's own keyform grid.
+ * [drawOrder] positions a draw-order group's slot (Cubism `CPartForm.drawOrder`); the remaining
+ * channels are the offscreen composite's keyformed state ([opacity], [multiplyColor],
+ * [screenColor] - CMO3 `CPartForm.opacity`/`multiplyColor`/`screenColor`, MOC3 §5.6 section 161 +
+ * the color-table offscreen prefix rows), meaningful only when the owning part is offscreen and
+ * left at their identities otherwise.
+ */
+class PartForm(
+	val drawOrder: Float,
+	val opacity: Float = 1f,
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+)
+
+/**
  * A warp-deformer keyform: the absolute FFD control-point positions (interleaved x,y). Warp
  * sources carry no separate rest lattice, so the forms are kept absolute; the evaluator interpolates
  * them directly.

@@ -9,7 +9,7 @@ import org.umamo.runtime.model.GlueForm
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.PartDrawOrderForm
+import org.umamo.runtime.model.PartForm
 
 /*
  * Grid sampling over the runtime's shared multilinear corner selection. The corner selection,
@@ -102,11 +102,11 @@ internal fun sampleGlueIntensity(grid: KeyformGrid<GlueForm>, paramValue: (Param
  * animated part draw order for a parameter-driven group part. Returns null when the
  * controlling axis is out of range, so the caller falls back to the part's static draw order.
  *
- * @param KeyformGrid grid       The group part's draw-order keyform grid.
+ * @param KeyformGrid grid       The group part's keyform grid.
  * @param Function    paramValue Current value for a given parameter id.
  * @return Float? The blended part draw order, or null when out of range.
  */
-internal fun samplePartDrawOrder(grid: KeyformGrid<PartDrawOrderForm>, paramValue: (ParameterId) -> Float): Float? {
+internal fun samplePartDrawOrder(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): Float? {
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
 	var drawOrder = 0f

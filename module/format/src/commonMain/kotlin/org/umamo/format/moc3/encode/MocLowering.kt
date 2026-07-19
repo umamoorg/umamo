@@ -75,6 +75,8 @@ public object MocLowering {
 		put(Sections.DRAW_ID, idRecords(doc.artMeshes.map { it.id }))
 		put(Sections.DRAW_TEXTURE, intList(doc.artMeshes.map { it.textureIndex }))
 		put(Sections.DRAW_CONSTANT_FLAG, ByteArray(doc.artMeshes.size) { doc.artMeshes[it].constantFlags.toByte() })
+		// MOC3 v6 §5.6 s153: per-drawable packed extended blend (v6-only; put drops it below v6).
+		put(Section.ARTMESH_EXTENDED_BLEND, intList(doc.artMeshes.map { it.extendedBlend }))
 		put(Sections.DRAW_VERTEX_COUNT, intList(doc.artMeshes.map { it.vertexCount }))
 		put(Sections.DRAW_INDEX_COUNT, intList(doc.artMeshes.map { it.triangleIndices.size }))
 		put(Sections.DRAW_MASK_COUNT, intList(doc.artMeshes.map { it.maskDrawableIndices.size }))

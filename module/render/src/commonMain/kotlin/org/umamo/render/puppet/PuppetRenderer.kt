@@ -920,6 +920,24 @@ class PuppetRenderer(
 			BlendMode.Normal -> PipelineBlend.Normal
 			BlendMode.Additive -> PipelineBlend.Additive
 			BlendMode.Multiply -> PipelineBlend.Multiply
+			// The fifteen 5.3 modes need the destination-sampling composite pass (offscreen Phase C).
+			// Until it lands, approximate with the legacy fixed-function analog where one exists -
+			// the same approximation the MOC3 constant-flags 2-bit field encodes for old runtimes.
+			BlendMode.AdditiveModern, BlendMode.AdditiveGlow -> PipelineBlend.Additive
+			BlendMode.MultiplyModern -> PipelineBlend.Multiply
+			BlendMode.Darken,
+			BlendMode.ColorBurn,
+			BlendMode.LinearBurn,
+			BlendMode.Lighten,
+			BlendMode.Screen,
+			BlendMode.ColorDodge,
+			BlendMode.Overlay,
+			BlendMode.SoftLight,
+			BlendMode.HardLight,
+			BlendMode.LinearLight,
+			BlendMode.Hue,
+			BlendMode.Color,
+			-> PipelineBlend.Normal
 		}
 }
 
