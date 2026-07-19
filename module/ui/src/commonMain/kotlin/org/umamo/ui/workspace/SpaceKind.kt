@@ -41,8 +41,11 @@ enum class SpaceKind(val key: String) {
 	/** Settings for the active tool. */
 	ToolDetails("tooldetails"),
 
-	/** The undo-history stack: every step, the live one highlighted, click to jump (Blender's Undo History). */
+	/** The undo-history stack: every step, the live one highlighted, click to jump. */
 	History("history"),
+
+	/** The diagnostic log console. */
+	Logs("logs"),
 	;
 
 	companion object {

@@ -19,11 +19,6 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
-## Logging Panel/Space
-* A panel to see the UmamoLog output for users that won't see it in a Terminal.
-	* Copy to Clipboard
-	* Export to File
-
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork.
 

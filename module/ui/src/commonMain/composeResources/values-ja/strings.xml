@@ -28,6 +28,11 @@
 	<string name="space_inspector">インスペクター</string>
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
+	<string name="space_logs">ログ</string>
+
+	<string name="logs_copy">クリップボードにコピー</string>
+	<string name="logs_export">ファイルに書き出し…</string>
+	<string name="logs_empty">ログ出力はまだありません</string>
 
 	<string name="area_split_left_right">左右に分割</string>
 	<string name="area_split_top_bottom">上下に分割</string>

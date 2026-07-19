@@ -35,6 +35,12 @@
 	<string name="space_inspector">Inspector</string>
 	<string name="space_tooldetails">Tool Settings</string>
 	<string name="space_history">History</string>
+	<string name="space_logs">Logs</string>
+
+	<!-- Logs panel: the diagnostic console showing UmamoLog output, with its header actions. -->
+	<string name="logs_copy">Copy to Clipboard</string>
+	<string name="logs_export">Export to File…</string>
+	<string name="logs_empty">No log output yet</string>
 
 	<!-- Area header actions. Labelled by the visual result, not Blender's split nomenclature. -->
 	<string name="area_split_left_right">Split Left/Right</string>
