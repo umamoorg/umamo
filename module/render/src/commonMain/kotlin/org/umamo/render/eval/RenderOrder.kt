@@ -1,6 +1,7 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -8,6 +9,93 @@ import org.umamo.runtime.model.RenderNode
 
 /** Cubism's neutral drawable draw order; raising a drawable's value moves it toward the front. */
 const val CUBISM_DEFAULT_DRAW_ORDER = 500f
+
+/**
+ * A node of the resolved per-pose render plan: the back-to-front order WITH the isolated group
+ * boundaries preserved.  A plain Grouped part needs no boundary (its children flatten into the
+ * surrounding order, exactly one slot's worth) - only an ISOLATED group becomes a node, because
+ * the renderer must know which span of drawables renders into a layer and composites back as one
+ * unit.  Nesting is direct: a composite node's children may contain further composite nodes.
+ */
+sealed interface RenderPlanNode
+
+/** A drawable drawn directly into the current render target. */
+class RenderPlanDrawable(val id: DrawableId) : RenderPlanNode
+
+/**
+ * An isolated part's subtree: render [children] (back-to-front) into a layer, then composite that
+ * layer back as one unit using [composite]'s blend modes/masks and the pose's blended channels
+ * (PoseDeformInputs.partCompositeStates keyed by [partId]).
+ */
+class RenderPlanComposite(
+	val partId: PartId,
+	val composite: PartComposite,
+	val children: List<RenderPlanNode>,
+) : RenderPlanNode
+
+/**
+ * The per-pose render plan over the draw-order group tree: [renderOrder]'s hierarchical sort with
+ * isolated group boundaries kept as [RenderPlanComposite] nodes.  Plain groups flatten away
+ * exactly as before - `renderOrder` IS this plan flattened, so the two can never disagree.
+ *
+ * @param RenderGroup           root           The draw-order group tree root (`PuppetModel.renderRoot`).
+ * @param Map<DrawableId,Float> drawOrder      Blended draw order per drawable (missing → the Cubism default).
+ * @param Map<PartId,Float>     partDrawOrders Blended per-group part draw order (missing → the static value).
+ * @return List<RenderPlanNode> The plan nodes, back-to-front.
+ */
+fun renderPlan(
+	root: RenderGroup,
+	drawOrder: Map<DrawableId, Float>,
+	partDrawOrders: Map<PartId, Float> = emptyMap(),
+): List<RenderPlanNode> {
+	fun sortKey(node: RenderNode): Int =
+		when (node) {
+			is RenderDrawable -> ((drawOrder[node.id] ?: CUBISM_DEFAULT_DRAW_ORDER) + 0.001f).toInt()
+			is RenderGroup -> node.partId?.let { partDrawOrders[it] }?.let { (it + 0.001f).toInt() } ?: node.drawOrder
+		}
+
+	fun emit(group: RenderGroup, into: ArrayList<RenderPlanNode>) {
+		for (child in group.children.sortedBy(::sortKey)) {
+			when (child) {
+				is RenderDrawable -> into.add(RenderPlanDrawable(child.id))
+				is RenderGroup -> {
+					val composite = child.composite
+					val partId = child.partId
+					if (composite != null && partId != null) {
+						val subtree = ArrayList<RenderPlanNode>()
+						emit(child, subtree)
+						into.add(RenderPlanComposite(partId, composite, subtree))
+					} else {
+						emit(child, into)
+					}
+				}
+			}
+		}
+	}
+
+	val nodes = ArrayList<RenderPlanNode>()
+	emit(root, nodes)
+	return nodes
+}
+
+/**
+ * Flattens a render plan to its drawables in back-to-front order (composite boundaries dropped).
+ *
+ * @param List<RenderPlanNode> nodes The plan nodes.
+ * @return List<DrawableId> The drawables, back-to-front.
+ */
+fun flattenRenderPlan(nodes: List<RenderPlanNode>): List<DrawableId> {
+	val result = ArrayList<DrawableId>()
+
+	fun walk(node: RenderPlanNode) {
+		when (node) {
+			is RenderPlanDrawable -> result.add(node.id)
+			is RenderPlanComposite -> node.children.forEach(::walk)
+		}
+	}
+	nodes.forEach(::walk)
+	return result
+}
 
 /**
  * The back-to-front paint order for one pose, computed hierarchically over the draw-order group tree.
@@ -33,26 +121,7 @@ fun renderOrder(
 	root: RenderGroup,
 	drawOrder: Map<DrawableId, Float>,
 	partDrawOrders: Map<PartId, Float> = emptyMap(),
-): List<DrawableId> {
-	val result = ArrayList<DrawableId>()
-
-	fun sortKey(node: RenderNode): Int =
-		when (node) {
-			is RenderDrawable -> ((drawOrder[node.id] ?: CUBISM_DEFAULT_DRAW_ORDER) + 0.001f).toInt()
-			is RenderGroup -> node.partId?.let { partDrawOrders[it] }?.let { (it + 0.001f).toInt() } ?: node.drawOrder
-		}
-
-	fun emit(group: RenderGroup) {
-		for (child in group.children.sortedBy(::sortKey)) {
-			when (child) {
-				is RenderDrawable -> result.add(child.id)
-				is RenderGroup -> emit(child)
-			}
-		}
-	}
-	emit(root)
-	return result
-}
+): List<DrawableId> = flattenRenderPlan(renderPlan(root, drawOrder, partDrawOrders))
 
 /**
  * The back-to-front paint order for one pose. [baseOrder] is the model's parts-tree (panel) drawable

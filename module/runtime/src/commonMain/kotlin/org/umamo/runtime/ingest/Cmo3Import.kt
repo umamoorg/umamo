@@ -1,10 +1,12 @@
 package org.umamo.runtime.ingest
 
+import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
 import org.umamo.format.cmo3.model.custom.GEditableMesh2
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACForm
+import org.umamo.format.cmo3.model.gen.AlphaComposition
 import org.umamo.format.cmo3.model.gen.CAffecterSourceSet
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
@@ -37,10 +39,10 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -61,7 +63,9 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
-import org.umamo.runtime.model.PartDrawOrderForm
+import org.umamo.runtime.model.PartComposite
+import org.umamo.runtime.model.PartForm
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
@@ -221,10 +225,38 @@ object Cmo3Import {
 		fun partStaticDrawOrder(part: CPartSource): Int =
 			elementsOf(part.keyforms).filterIsInstance<CPartForm>().firstOrNull()?.drawOrder ?: part.defaultOrder_forEditor
 
-		fun partDrawOrderGridOf(part: CPartSource): KeyformGrid<PartDrawOrderForm>? =
+		fun partFormGridOf(part: CPartSource): KeyformGrid<PartForm>? =
 			buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
-				(form as? CPartForm)?.let { PartDrawOrderForm(it.drawOrder.toFloat()) }
+				// CMO3: CPartForm carries the part's keyformed channels - drawOrder always, and (5.3)
+				// opacity/multiplyColor/screenColor for the layer composite.
+				(form as? CPartForm)?.let {
+					PartForm(
+						drawOrder = it.drawOrder.toFloat(),
+						opacity = it.opacity,
+						multiplyColor = colorRgbOf(it.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+						screenColor = colorRgbOf(it.screenColor) ?: ColorRgb.ScreenIdentity,
+					)
+				}
 			}
+
+		// CMO3: CPartSource.useOffscreen gates the whole block; the composition/clip fields are latent
+		// on non-offscreen 5.3 parts (they survive unchecking) and pre-5.3 CPartForms carry no
+		// opacity/color elements at all, so this is only called when the checkbox is on.
+		fun partCompositeOf(source: CPartSource): PartComposite {
+			val firstForm = elementsOf(source.keyforms).filterIsInstance<CPartForm>().firstOrNull()
+			return PartComposite(
+				blendMode = colorBlendOfToken((source.colorComposition as? ColorComposition)?.name),
+				alphaBlendMode = alphaBlendOfToken((source.alphaComposition as? AlphaComposition)?.name),
+				// CMO3: CPartSource.clipGuidList - always drawable GUIDs (a part picked as Clipping ID is
+				// expanded to its drawables at authoring time).
+				maskedBy = resolveGuids(source.clipGuidList, drawableIdByUuid),
+				// CMO3: CPartSource.invertClippingMask - show outside the mask instead of inside.
+				invertMask = source.invertClippingMask,
+				opacity = firstForm?.opacity ?: 1f,
+				multiplyColor = colorRgbOf(firstForm?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+				screenColor = colorRgbOf(firstForm?.screenColor) ?: ColorRgb.ScreenIdentity,
+			)
+		}
 
 		val parts =
 			userPartSources.map { source ->
@@ -239,10 +271,16 @@ object Cmo3Import {
 					isSketch = source.isSketch,
 					// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 					isSelectable = !source.isLocked,
-					// CMO3: CPartSource.enableDrawOrderGroup = "Group by Draw Order"; CPartForm.drawOrder = its slot.
-					isDrawOrderGroup = source.enableDrawOrderGroup,
+					// CMO3: CPartSource.useOffscreen = "offscreen drawing" (forces grouping on);
+					// enableDrawOrderGroup = "Group by Draw Order"; CPartForm.drawOrder = the slot.
+					groupMode =
+						when {
+							source.useOffscreen -> PartGroupMode.Isolated(partCompositeOf(source))
+							source.enableDrawOrderGroup -> PartGroupMode.Grouped
+							else -> PartGroupMode.PassThrough
+						},
 					drawOrder = partStaticDrawOrder(source),
-					drawOrderGrid = partDrawOrderGridOf(source),
+					formGrid = partFormGridOf(source),
 				)
 			}
 
@@ -303,10 +341,15 @@ object Cmo3Import {
 					// CMO3: ACParameterControllableSource.localName is the user-facing drawable name; fall back to the id.
 					name = source.localName ?: idStrOf(source.id).orEmpty(),
 					parentDeformerId = deformerIdByUuid[uuidOf(source.targetDeformerGuid)],
-					blendMode = blendModeOf(source.colorComposition),
+					// CMO3: colorComposition/alphaComposition - the full 5.3 blend surface (bare legacy
+					// tokens on pre-5.3 meshes; every mode token maps, see BlendModeMapping).
+					blendMode = colorBlendOfToken((source.colorComposition as? ColorComposition)?.name),
+					alphaBlendMode = alphaBlendOfToken((source.alphaComposition as? AlphaComposition)?.name),
 					maskedBy = resolveGuids(source.clipGuidList, drawableIdByUuid),
 					// CMO3: ACDrawableSource.invertClippingMask - show outside the mask instead of inside.
 					invertMask = source.invertClippingMask,
+					// CMO3: CArtMeshSource.culling - back-face culling (default false = double-sided).
+					culling = source.culling,
 					// CMO3: ACParameterControllableSource.isVisible - the drawable's own eyeball (ANDed with parents).
 					isVisible = source.isVisible,
 					// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
@@ -579,18 +622,15 @@ object Cmo3Import {
 	private fun idStrOf(value: Any?): String? = (value as? Id)?.idstr?.takeIf { it.isNotEmpty() }
 
 	/**
-	 * Maps a CMO3 `ColorComposition` enum to the runtime [BlendMode].
+	 * Converts a CMO3 `CFloatColor` field to the runtime [ColorRgb].
 	 *
-	 * @param Any? colorComposition A field expected to hold a `ColorComposition`.
-	 * @return BlendMode The runtime blend mode (defaults to Normal).
+	 * @param Any? value A field expected to hold a `CFloatColor` (channels = editor hex / 255).
+	 * @return ColorRgb? The color, or null when absent (pre-5.3 forms carry no color elements).
 	 */
-	private fun blendModeOf(colorComposition: Any?): BlendMode =
-		// CMO3: ColorComposition constants are observed-only in the generated enum, so match by name.
-		when ((colorComposition as? ColorComposition)?.name) {
-			"MULTIPLY" -> BlendMode.Multiply
-			"ADD", "ADDITIVE" -> BlendMode.Additive
-			else -> BlendMode.Normal
-		}
+	private fun colorRgbOf(value: Any?): ColorRgb? =
+		// CMO3: CFloatColor red/green/blue attributes; the alpha attribute is 1.0 in every observed
+		// sample and is not modeled.
+		(value as? CFloatColor)?.let { ColorRgb(it.red, it.green, it.blue) }
 
 	/**
 	 * Reads an art mesh's rest-pose geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`

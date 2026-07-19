@@ -6,11 +6,13 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.WorldAxisColors
 import org.umamo.render.device.AxisLineUniforms
+import org.umamo.render.device.CompositeUniforms
 import org.umamo.render.device.DeformCapturePipeline
 import org.umamo.render.device.DeformUniforms
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.DrawTextures
 import org.umamo.render.device.FragmentUniforms
+import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.GridUniforms
@@ -30,7 +32,11 @@ import org.umamo.render.device.WorldToNdc
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
+import org.umamo.render.eval.PartRenderState
 import org.umamo.render.eval.PoseDeformInputs
+import org.umamo.render.eval.RenderPlanComposite
+import org.umamo.render.eval.RenderPlanDrawable
+import org.umamo.render.eval.RenderPlanNode
 import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.applyCpuDeform
@@ -40,12 +46,14 @@ import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.glsl.SELECTION_TINT_STRENGTH
 import org.umamo.runtime.eval.WeightedCell
+import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.visibleDrawableIds
@@ -72,12 +80,14 @@ class PuppetRenderer(
 	private val textures: PuppetTextures,
 	private val device: RenderDevice,
 ) {
-	// Draw pipelines by blend, plus the fixed-purpose ones, all created at initGl and reused every frame.
-	private val puppetPipelines = HashMap<BlendMode, RenderPipeline>()
-	private val gluePipelines = HashMap<BlendMode, RenderPipeline>()
+	// Draw pipelines by blend x cull, plus the fixed-purpose ones, created lazily and reused every frame.
+	// Cull is index [0]=double-sided / [1]=back-face-culled so the per-draw lookup allocates no key.
+	private val puppetPipelines = Array(2) { HashMap<BlendMode, RenderPipeline>() }
+	private val gluePipelines = Array(2) { HashMap<BlendMode, RenderPipeline>() }
 	private var atlasPagePipeline: RenderPipeline? = null
 	private var gridPipeline: RenderPipeline? = null
 	private var axisPipeline: RenderPipeline? = null
+	private var compositePipeline: RenderPipeline? = null
 	private var capturePipeline: DeformCapturePipeline? = null
 
 	// Rest-pose content extent, computed lazily and reused for contentBounds()/the fit fallback; re-armed
@@ -144,6 +154,15 @@ class PuppetRenderer(
 	private var maskWidth = 0
 	private var maskHeight = 0
 
+	// The layer-composite targets: one layer target per nesting depth (grown lazily to the deepest
+	// isolated group actually rendered) plus one shared destination-snapshot target - composites are
+	// strictly sequential, so a single snapshot suffices. All viewport-sized like the mask target, so the
+	// composite shader's screen-space lookups line up across every level; recreated together on a resize.
+	private val compositeTargets = ArrayList<RenderTarget>()
+	private var snapshotTarget: RenderTarget? = null
+	private var compositeWidth = 0
+	private var compositeHeight = 0
+
 	// The shared pass-1 deformed-position store; null when the model has no glue.
 	private var store: DeformedPositionStore? = null
 	private var glueIntensities = FloatArray(MAX_GLUES) { 1f }
@@ -157,6 +176,7 @@ class PuppetRenderer(
 	private val deformScratch = DeformUniforms()
 	private val fragmentScratch = FragmentUniforms()
 	private val texturesScratch = DrawTextures()
+	private val compositeScratch = CompositeUniforms()
 
 	// Which resident drawables carry triangles (id → indexCount > 0). Residency changes only at initGl and
 	// updateModel, and setPose is far hotter (every pose tick during a drag), so this is cached and rebuilt
@@ -179,6 +199,10 @@ class PuppetRenderer(
 		val atlasTexture: GpuTexture?,
 		val color: FloatArray,
 		val blendMode: BlendMode,
+		/** The drawable's 5.3 alpha blend; non-Over routes the draw through the composite path. */
+		val alphaBlendMode: AlphaBlendMode,
+		/** The Cubism Culling toggle: true culls back faces, false (default) is double-sided. */
+		val culling: Boolean,
 		val maskIds: List<DrawableId>,
 		val invertMask: Boolean,
 		val isGlueMesh: Boolean,
@@ -206,9 +230,13 @@ class PuppetRenderer(
 	// Effective Parts-panel visibility (own eyeball ∧ every ancestor part's), resolved once per change. Gates
 	// only the drawn list; hidden meshes that are mask sources or glue partners still deform. Render-thread only.
 	private var shownDrawableIds: Set<DrawableId> = model.visibleDrawableIds()
-	private var gpuDrawables: List<GpuDrawable> = emptyList()
 	private var glueDeformList: List<GpuDrawable> = emptyList()
 	private var gpuById: Map<DrawableId, GpuDrawable> = emptyMap()
+
+	// The pose's resolved render plan (back-to-front with composite boundaries) and the per-isolated-part
+	// pose-blended composite channels, both set by setPose and walked by render. Render-thread only.
+	private var currentPlan: List<RenderPlanNode> = emptyList()
+	private var currentCompositeStates: Map<PartId, PartRenderState> = emptyMap()
 
 	// The uploaded atlas pages, index-parallel to PuppetTextures.atlases. Retained so a structural reconcile
 	// in updateModel can bind a newly-uploaded drawable to its page.
@@ -227,6 +255,8 @@ class PuppetRenderer(
 		atlasPagePipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.AtlasPageDraw, PipelineBlend.Normal))
 		gridPipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.GridBackdrop, PipelineBlend.Opaque))
 		axisPipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.WorldAxisLine, PipelineBlend.Opaque))
+		// Blending disabled: the composite shader computes the whole blend from layer + snapshot.
+		compositePipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.Composite, PipelineBlend.Opaque))
 		atlasHandles =
 			textures.atlases.map { device.createTexture(it.width, it.height, TextureFormat.Rgba8, TextureFilter.Linear, it.rgba) }
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
@@ -315,6 +345,8 @@ class PuppetRenderer(
 			atlasTexture = atlasIndex?.let { atlasHandles[it] },
 			color = fallbackColorFor(drawable.id.raw),
 			blendMode = drawable.blendMode,
+			alphaBlendMode = drawable.alphaBlendMode,
+			culling = drawable.culling,
 			maskIds = drawable.maskedBy,
 			invertMask = drawable.invertMask,
 			isGlueMesh = isGlue,
@@ -370,7 +402,8 @@ class PuppetRenderer(
 			gpuDrawable.visible = true
 		}
 		// resolvePose filled glueIntensities (this renderer's own array) in place - no copy needed.
-		gpuDrawables = resolved.drawOrder.mapNotNull { gpuById[it] }
+		currentPlan = resolved.renderPlan
+		currentCompositeStates = inputs.partCompositeStates
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
 	}
 
@@ -576,6 +609,7 @@ class PuppetRenderer(
 	 */
 	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int) {
 		ensureMaskTarget(viewportWidth, viewportHeight)
+		ensureCompositeTargets(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
 
 		// Pass 1: capture every glue mesh's deformed positions into the shared store. Only when the pose
@@ -612,36 +646,213 @@ class PuppetRenderer(
 		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
 		var pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
 		drawBackdrop(pass, affine, viewportWidth, viewportHeight)
-
-		for (gpuDrawable in gpuDrawables) {
-			var maskCoverage: GpuTexture? = null
-			if (gpuDrawable.maskIds.isNotEmpty()) {
-				// Mask by pass fragmentation: end the main pass, render coverage into the mask target, resume
-				// the main pass preserving what is drawn so far. Correct on every backend and non-nesting.
-				pass.end()
-				renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
-				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
-				maskCoverage = maskTarget?.sampledTexture
-			}
-			val masked = maskCoverage != null
-			val isActive = activeId != null && gpuDrawable.id == activeId
-			val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
-			drawDrawable(
-				pass,
-				gpuDrawable,
-				affine,
-				viewportWidth,
-				viewportHeight,
-				gpuDrawable.blendMode,
-				gpuDrawable.opacity,
-				highlight,
-				isActive,
-				masked,
-				maskCoverage,
-			)
-		}
+		pass = renderPlanNodes(frame, currentPlan, target, 0, affine, viewportWidth, viewportHeight, pass)
 		pass.end()
 		frame.endFrame()
+	}
+
+	/**
+	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
+	 * pass fragmentation), a drawable whose blend is not fixed-function-expressible composites as an
+	 * implicit singleton composite, and a [RenderPlanComposite] node renders its subtree into a
+	 * pooled layer target and composites it back as one layer.  Passes never nest - the frame stays
+	 * a flat pass sequence, and the CURRENT pass travels through as the return value.
+	 *
+	 * A plan with no composite nodes and no extended-blend drawables takes exactly the old flat
+	 * path: zero extra passes, zero resolves - the regression guard.
+	 *
+	 * @param FrameEncoder         frame          The frame being recorded.
+	 * @param List<RenderPlanNode> nodes          The span to draw, back-to-front.
+	 * @param RenderTarget         target         The surface this span draws into.
+	 * @param Int                  depth          The composite nesting depth (0 = the real target).
+	 * @param WorldToNdc           affine         The camera affine.
+	 * @param Int                  viewportWidth  The viewport width in pixels.
+	 * @param Int                  viewportHeight The viewport height in pixels.
+	 * @param RenderPassEncoder    startPass      The open pass on [target].
+	 * @return RenderPassEncoder The open pass on [target] after the span (may differ from [startPass]).
+	 */
+	private fun renderPlanNodes(
+		frame: FrameEncoder,
+		nodes: List<RenderPlanNode>,
+		target: RenderTarget,
+		depth: Int,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+		startPass: RenderPassEncoder,
+	): RenderPassEncoder {
+		var pass = startPass
+		for (node in nodes) {
+			when (node) {
+				is RenderPlanDrawable -> {
+					val gpuDrawable = gpuById[node.id] ?: continue
+					if (!gpuDrawable.blendMode.isLegacy || gpuDrawable.alphaBlendMode != AlphaBlendMode.Over) {
+						// A 5.3 extended blend: not fixed-function-expressible, so draw the drawable
+						// alone into a layer target and composite it in-shader.
+						pass.end()
+						pass = compositeDrawable(frame, gpuDrawable, target, depth, affine, viewportWidth, viewportHeight)
+						continue
+					}
+					var maskCoverage: GpuTexture? = null
+					if (gpuDrawable.maskIds.isNotEmpty()) {
+						// Mask by pass fragmentation: end the pass, render coverage into the mask target,
+						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
+						pass.end()
+						renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
+						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+						maskCoverage = maskTarget?.sampledTexture
+					}
+					val isActive = activeId != null && gpuDrawable.id == activeId
+					val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
+					drawDrawable(
+						pass,
+						gpuDrawable,
+						affine,
+						viewportWidth,
+						viewportHeight,
+						gpuDrawable.blendMode,
+						gpuDrawable.opacity,
+						highlight,
+						isActive,
+						maskCoverage != null,
+						maskCoverage,
+					)
+				}
+
+				is RenderPlanComposite -> {
+					pass.end()
+					pass = compositeGroup(frame, node, target, depth, affine, viewportWidth, viewportHeight)
+				}
+			}
+		}
+		return pass
+	}
+
+	/**
+	 * Renders an isolated part's subtree into the depth's pooled layer target, then composites it
+	 * back into [target] as one layer with the part's blend modes, pose-blended channels, and
+	 * optional clip mask.  Returns the fresh open pass on [target].
+	 */
+	private fun compositeGroup(
+		frame: FrameEncoder,
+		node: RenderPlanComposite,
+		target: RenderTarget,
+		depth: Int,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+	): RenderPassEncoder {
+		val layerTarget = acquireCompositeTarget(depth)
+		var subtreePass = frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f))
+		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, affine, viewportWidth, viewportHeight, subtreePass)
+		subtreePass.end()
+		val masked = node.composite.maskedBy.isNotEmpty()
+		if (masked) {
+			renderMaskCoverage(frame, node.composite.maskedBy, affine)
+		}
+		// The pose-blended channels; a part missing from the map (never the case for an isolated
+		// group, but harmless) falls back to its static channels.
+		val state = currentCompositeStates[node.partId]
+		compositeScratch.colorMode = packedColorModeOf(node.composite.blendMode)
+		compositeScratch.alphaMode = packedAlphaModeOf(node.composite.alphaBlendMode)
+		compositeScratch.opacity = state?.opacity ?: node.composite.opacity
+		val multiply = state?.multiplyColor ?: node.composite.multiplyColor
+		val screen = state?.screenColor ?: node.composite.screenColor
+		compositeScratch.multiplyRed = multiply.red
+		compositeScratch.multiplyGreen = multiply.green
+		compositeScratch.multiplyBlue = multiply.blue
+		compositeScratch.screenRed = screen.red
+		compositeScratch.screenGreen = screen.green
+		compositeScratch.screenBlue = screen.blue
+		compositeScratch.useMask = masked
+		compositeScratch.invertMask = masked && node.composite.invertMask
+		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight)
+	}
+
+	/**
+	 * Draws one extended-blend drawable as an implicit singleton composite: the drawable alone (with
+	 * its own opacity and clip mask) into the depth's layer target, composited back with its color
+	 * and alpha modes at identity channels.  Returns the fresh open pass on [target].
+	 */
+	private fun compositeDrawable(
+		frame: FrameEncoder,
+		gpuDrawable: GpuDrawable,
+		target: RenderTarget,
+		depth: Int,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+	): RenderPassEncoder {
+		var maskCoverage: GpuTexture? = null
+		if (gpuDrawable.maskIds.isNotEmpty()) {
+			renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
+			maskCoverage = maskTarget?.sampledTexture
+		}
+		val layerTarget = acquireCompositeTarget(depth)
+		val layerPass = frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f))
+		val isActive = activeId != null && gpuDrawable.id == activeId
+		val highlight = if (isActive || gpuDrawable.id in selectedIds) SELECTION_TINT_STRENGTH else 0f
+		// Normal blend onto the cleared transparent layer just writes the premultiplied pixels; the
+		// drawable's real blend happens in the composite below.
+		drawDrawable(
+			layerPass,
+			gpuDrawable,
+			affine,
+			viewportWidth,
+			viewportHeight,
+			BlendMode.Normal,
+			gpuDrawable.opacity,
+			highlight,
+			isActive,
+			maskCoverage != null,
+			maskCoverage,
+		)
+		layerPass.end()
+		compositeScratch.colorMode = packedColorModeOf(gpuDrawable.blendMode)
+		compositeScratch.alphaMode = packedAlphaModeOf(gpuDrawable.alphaBlendMode)
+		compositeScratch.opacity = 1f
+		compositeScratch.multiplyRed = 1f
+		compositeScratch.multiplyGreen = 1f
+		compositeScratch.multiplyBlue = 1f
+		compositeScratch.screenRed = 0f
+		compositeScratch.screenGreen = 0f
+		compositeScratch.screenBlue = 0f
+		compositeScratch.useMask = false
+		compositeScratch.invertMask = false
+		return encodeComposite(frame, layerTarget, target, affine, viewportWidth, viewportHeight)
+	}
+
+	/**
+	 * Snapshots [target], begins a fresh Load pass on it, and issues the composite draw from
+	 * [layerTarget] against the snapshot using the already-filled [compositeScratch].
+	 *
+	 * @return RenderPassEncoder The open pass on [target] with the composite drawn.
+	 */
+	private fun encodeComposite(
+		frame: FrameEncoder,
+		layerTarget: RenderTarget,
+		target: RenderTarget,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+	): RenderPassEncoder {
+		// Snapshot the destination so the composite shader can sample it (a pass cannot sample its
+		// own target); the copy is ordered between the passes around it.
+		val snapshot = snapshotTarget ?: error("composite targets not allocated")
+		device.resolve(target, snapshot)
+		val pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+		pass.setPipeline(compositePipeline!!)
+		pass.setCamera(affine, viewportWidth, viewportHeight)
+		texturesScratch.atlas = null
+		texturesScratch.deltaTexture = null
+		texturesScratch.warpControlPoints = null
+		texturesScratch.maskCoverage = if (compositeScratch.useMask) maskTarget?.sampledTexture else null
+		texturesScratch.compositeLayer = layerTarget.sampledTexture
+		texturesScratch.destinationSnapshot = snapshot.sampledTexture
+		pass.drawComposite(compositeScratch, texturesScratch)
+		texturesScratch.compositeLayer = null
+		texturesScratch.destinationSnapshot = null
+		return pass
 	}
 
 	/**
@@ -762,7 +973,7 @@ class PuppetRenderer(
 		masked: Boolean,
 		maskCoverage: GpuTexture?,
 	) {
-		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, blendMode))
+		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, blendMode, gpuDrawable.culling))
 		pass.setCamera(affine, viewportWidth, viewportHeight)
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, isActive, masked)
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
@@ -781,12 +992,12 @@ class PuppetRenderer(
 		}
 	}
 
-	/** The cached draw pipeline for a glue vs non-glue mesh at a blend mode. */
-	private fun pipelineFor(isGlueMesh: Boolean, blendMode: BlendMode): RenderPipeline {
-		val cache = if (isGlueMesh) gluePipelines else puppetPipelines
+	/** The cached draw pipeline for a glue vs non-glue mesh at a blend mode and cull state. */
+	private fun pipelineFor(isGlueMesh: Boolean, blendMode: BlendMode, cullBackFaces: Boolean): RenderPipeline {
+		val cache = (if (isGlueMesh) gluePipelines else puppetPipelines)[if (cullBackFaces) 1 else 0]
 		return cache.getOrPut(blendMode) {
 			val purpose = if (isGlueMesh) PipelinePurpose.PuppetGlueDraw else PipelinePurpose.PuppetDeformDraw
-			device.createRenderPipeline(RenderPipelineSpec(purpose, blendOf(blendMode)))
+			device.createRenderPipeline(RenderPipelineSpec(purpose, blendOf(blendMode), cullBackFaces))
 		}
 	}
 
@@ -900,6 +1111,38 @@ class PuppetRenderer(
 		maskHeight = viewportHeight
 	}
 
+	/**
+	 * Frees the composite layer pool + snapshot on a viewport resize (they reallocate lazily at the
+	 * new size) and allocates the shared snapshot target on first use.
+	 */
+	private fun ensureCompositeTargets(viewportWidth: Int, viewportHeight: Int) {
+		if (compositeWidth != viewportWidth || compositeHeight != viewportHeight) {
+			compositeTargets.forEach { device.destroyRenderTarget(it) }
+			compositeTargets.clear()
+			snapshotTarget?.let { device.destroyRenderTarget(it) }
+			snapshotTarget = null
+			compositeWidth = viewportWidth
+			compositeHeight = viewportHeight
+		}
+		if (snapshotTarget == null) {
+			snapshotTarget = device.createRenderTarget(RenderTargetSpec(viewportWidth, viewportHeight, TextureFormat.Rgba8, sampled = true))
+		}
+	}
+
+	/**
+	 * The pooled layer target for one composite nesting depth, allocated on first use.  Slots below
+	 * [depth] are ancestors mid-composite; the slot itself is always free when asked for, because
+	 * composites at one level are strictly sequential.
+	 */
+	private fun acquireCompositeTarget(depth: Int): RenderTarget {
+		while (compositeTargets.size <= depth) {
+			compositeTargets.add(
+				device.createRenderTarget(RenderTargetSpec(compositeWidth, compositeHeight, TextureFormat.Rgba8, sampled = true)),
+			)
+		}
+		return compositeTargets[depth]
+	}
+
 	/** A render-pass spec for [target] at [load], with an optional clear. */
 	private fun passSpec(
 		target: RenderTarget,
@@ -920,6 +1163,25 @@ class PuppetRenderer(
 			BlendMode.Normal -> PipelineBlend.Normal
 			BlendMode.Additive -> PipelineBlend.Additive
 			BlendMode.Multiply -> PipelineBlend.Multiply
+			// Scene draws never reach here with a 5.3 mode (renderPlanNodes routes extended blends
+			// through the destination-sampling composite pass); these branches are a safe fallback
+			// approximating with the legacy fixed-function analog where one exists - the same
+			// approximation the MOC3 constant-flags 2-bit field encodes for old runtimes.
+			BlendMode.AdditiveModern, BlendMode.AdditiveGlow -> PipelineBlend.Additive
+			BlendMode.MultiplyModern -> PipelineBlend.Multiply
+			BlendMode.Darken,
+			BlendMode.ColorBurn,
+			BlendMode.LinearBurn,
+			BlendMode.Lighten,
+			BlendMode.Screen,
+			BlendMode.ColorDodge,
+			BlendMode.Overlay,
+			BlendMode.SoftLight,
+			BlendMode.HardLight,
+			BlendMode.LinearLight,
+			BlendMode.Hue,
+			BlendMode.Color,
+			-> PipelineBlend.Normal
 		}
 }
 

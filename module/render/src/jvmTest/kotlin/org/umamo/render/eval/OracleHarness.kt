@@ -13,12 +13,27 @@ import kotlin.math.abs
 /** One dumped drawable: its vertex count and the oracle's position/uv rolling hashes. */
 internal data class OracleEntry(val vtx: Int, val vposH: Double, val vuvH: Double)
 
+/**
+ * One dumped offscreen (an `O` line): the static moc fields plus the post-update interpolated
+ * channels (opacity, multiply/screen RGBA - the oracle's evalOffscreens output).
+ */
+internal data class OracleOffscreen(
+	val ownerPartIndex: Int,
+	val blendMode: Int,
+	val constantFlags: Int,
+	val maskIndices: List<Int>,
+	val opacity: Float,
+	val multiplyRgba: List<Float>,
+	val screenRgba: List<Float>,
+)
+
 /** A parsed dump: the model-space canvas header plus the per-drawable entries by id. */
 internal data class OracleDump(
 	val pixelsPerUnit: Float,
 	val originX: Float,
 	val originY: Float,
 	val entries: Map<String, OracleEntry>,
+	val offscreens: List<OracleOffscreen> = emptyList(),
 )
 
 /**
@@ -52,8 +67,27 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val vtxRegex = Regex("""vtx=(\d+)""")
 	val vposRegex = Regex("""vpos_h=(\S+)""")
 	val vuvRegex = Regex("""vuv_h=(\S+)""")
+	// O <i> owner=<d> blend=<d> cflag=0x<hex> masks=<n>:<i0>,<i1>,… op=<g> mul=<r>,<g>,<b>,<a> scr=<r>,<g>,<b>,<a>
+	val offscreenRegex =
+		Regex("""O \d+ owner=(-?\d+) blend=(-?\d+) cflag=0x([0-9a-fA-F]+) masks=\d+:(\S*) op=(\S+) mul=(\S+) scr=(\S+)""")
 	val entries = HashMap<String, OracleEntry>()
+	val offscreens = ArrayList<OracleOffscreen>()
 	for (line in output.lineSequence()) {
+		if (line.startsWith("O ")) {
+			val match = offscreenRegex.find(line) ?: continue
+			offscreens.add(
+				OracleOffscreen(
+					ownerPartIndex = match.groupValues[1].toInt(),
+					blendMode = match.groupValues[2].toInt(),
+					constantFlags = match.groupValues[3].toInt(16),
+					maskIndices = match.groupValues[4].split(',').mapNotNull { it.toIntOrNull() },
+					opacity = match.groupValues[5].toFloat(),
+					multiplyRgba = match.groupValues[6].split(',').map { it.toFloat() },
+					screenRgba = match.groupValues[7].split(',').map { it.toFloat() },
+				),
+			)
+			continue
+		}
 		if (!line.startsWith("D ")) {
 			continue
 		}
@@ -68,6 +102,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		originX = canvas.groupValues[3].toFloat(),
 		originY = canvas.groupValues[4].toFloat(),
 		entries = entries,
+		offscreens = offscreens,
 	)
 }
 

@@ -24,6 +24,9 @@
 	* Copy to Clipboard
 	* Export to File
 
+## Part Group Mode (compositing)
+* Editor UI for the group mode(an inspector three-way selector) is still future work, scoped with the rest of the part inspector.
+
 ## Portability
 * Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?
 	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
@@ -37,8 +40,7 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 * Drag and drop file opening.
 
 ## Puppet Model, CMO3, MOC3
-* Handle Offscreen Toggle (Forces on grouping, enables opacity on parts.)
-* Handle opacity inheritance from parts.  Double check deformers as well.
+* Handle opacity inheritance from parts.  Double check deformers as well.  (The Model A "Effects" layer bug: runtime Part has no opacity field yet, so a part-level opacity cascade is not applied.)
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
 
@@ -198,6 +200,9 @@ Sketch:
 
 ## Command Palette
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
+
+## Pose Palette/Library
+* Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.
 
 # Claude Notes
 

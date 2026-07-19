@@ -104,6 +104,46 @@ public class DrawTextures {
 	public var maskCoverage: GpuTexture? = null
 	public var deltaTexture: GpuTexture? = null
 	public var warpControlPoints: GpuTexture? = null
+
+	/** The rendered layer a [composite draw][CompositeUniforms] blends in. */
+	public var compositeLayer: GpuTexture? = null
+
+	/** The destination snapshot the composite blends against (a copy of the target so far). */
+	public var destinationSnapshot: GpuTexture? = null
+}
+
+/**
+ * One composite draw's inputs: which color/alpha blend to compute in-shader, the composite's
+ * pose-blended channels, and its optional clip-mask sampling.
+ *
+ * Mutable and reused on the same contract as [DeformUniforms].  The mode ints are the MOC3 packed
+ * encodings' halves (colorMode 0-17, alphaMode 0-4 - see BlendModeMapping); the composite shader
+ * switches on them, and the pure reference `compositeReference` documents the exact math.
+ *
+ * @property Int     colorMode     The color blend mode int (0-17).
+ * @property Int     alphaMode     The alpha blend mode int (0-4).
+ * @property Float   opacity       The composite opacity (0..1), applied to the layer before blending.
+ * @property Float   multiplyRed   Multiply color red (identity 1).
+ * @property Float   multiplyGreen Multiply color green (identity 1).
+ * @property Float   multiplyBlue  Multiply color blue (identity 1).
+ * @property Float   screenRed     Screen color red (identity 0).
+ * @property Float   screenGreen   Screen color green (identity 0).
+ * @property Float   screenBlue    Screen color blue (identity 0).
+ * @property Boolean useMask       Multiply the layer's alpha by the mask coverage.
+ * @property Boolean invertMask    Use 1 - coverage instead.
+ */
+public class CompositeUniforms {
+	public var colorMode: Int = 0
+	public var alphaMode: Int = 0
+	public var opacity: Float = 1f
+	public var multiplyRed: Float = 1f
+	public var multiplyGreen: Float = 1f
+	public var multiplyBlue: Float = 1f
+	public var screenRed: Float = 0f
+	public var screenGreen: Float = 0f
+	public var screenBlue: Float = 0f
+	public var useMask: Boolean = false
+	public var invertMask: Boolean = false
 }
 
 /**

@@ -108,22 +108,27 @@ data class Part(
 	 */
 	val isSelectable: Boolean = true,
 	/**
-	 * Whether this is a Cubism "Group by Draw Order" part: a draw-order boundary whose whole subtree
-	 * takes one slot in the global stacking and orders internally among itself. A non-group part is
-	 * transparent to draw order - its drawables stack with the enclosing group's. (CMO3 enableDrawOrderGroup.)
+	 * How this part groups its subtree for rendering: transparent to draw order (PassThrough),
+	 * one slot in the parent's stacking (Grouped), or composited as one layer (Isolated).
+	 * See [PartGroupMode].
 	 */
-	val isDrawOrderGroup: Boolean = false,
+	val groupMode: PartGroupMode = PartGroupMode.PassThrough,
 	/**
-	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is a draw-order
-	 * group. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
+	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is
+	 * grouped or isolated. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
 	 */
 	val drawOrder: Int = CUBISM_DEFAULT_PART_DRAW_ORDER,
 	/**
-	 * The parameter-driven draw-order keyform grid for a draw-order group part, or null for a static
-	 * [drawOrder]. Lets a group's stacking slot animate per pose, like a drawable's own draw order.
+	 * The parameter-driven keyform grid for a grouped part, or null for a static [drawOrder].
+	 * Lets a group's stacking slot animate per pose, like a drawable's own draw order; for an
+	 * isolated part the same grid also keys the composite's opacity/color channels.
 	 */
-	val drawOrderGrid: KeyformGrid<PartDrawOrderForm>? = null,
-)
+	val formGrid: KeyformGrid<PartForm>? = null,
+) {
+	/** The composite settings when [groupMode] is [PartGroupMode.Isolated], else null. */
+	val composite: PartComposite?
+		get() = (groupMode as? PartGroupMode.Isolated)?.composite
+}
 
 /**
  * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organisational
@@ -147,6 +152,17 @@ data class Drawable(
 	val keyforms: KeyformGrid<MeshForm>?,
 	/** When true, the clip is inverted - this drawable shows outside the [maskedBy] coverage. */
 	val invertMask: Boolean = false,
+	/**
+	 * How the drawable's alpha combines with the destination (Cubism 5.3); pre-5.3 sources have no
+	 * alpha mode and stay [AlphaBlendMode.Over]. (CMO3 alphaComposition; MOC3 s153 alphaMode.)
+	 */
+	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	/**
+	 * When true, back faces are culled - a mesh flipped inside-out by deformation disappears
+	 * instead of showing mirrored. Default false = double-sided, Cubism's default. (CMO3 culling;
+	 * MOC3 = the INVERSE of drawable constant-flags bit 2, IS_DOUBLE_SIDED.)
+	 */
+	val culling: Boolean = false,
 	/** The drawable's own Parts-panel eyeball; the effective shown-state also folds in ancestor parts. */
 	val isVisible: Boolean = true,
 	/**

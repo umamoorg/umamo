@@ -49,6 +49,11 @@ public object Sections {
 	public const val CI_ROTATIONS: Int = 3
 	public const val CI_DRAWABLES: Int = 4
 	public const val CI_PARAMETERS: Int = 5
+
+	// MOC3 §5.1 CountInfo field 12: the stored keyform-binding record count.  Authoritative over
+	// object references - a mesh-less model carries one EMPTY binding (0 axes) that only static
+	// parts point at (probed on the ModelWithOffscreen family).
+	public const val CI_KEYFORM_BINDINGS: Int = 12
 	public const val CI_RENDER_ORDER_GROUPS: Int = 18
 	public const val CI_RENDER_ORDER_CHILDREN: Int = 19
 	public const val CI_GLUES: Int = 20

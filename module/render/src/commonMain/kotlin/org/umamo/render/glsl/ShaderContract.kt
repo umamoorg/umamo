@@ -51,3 +51,8 @@ internal const val UNIT_MASK = 1
 internal const val UNIT_DELTA = 2
 internal const val UNIT_CP = 3
 internal const val UNIT_POSITION = 4
+
+// The composite pass's two extra fragment samplers: the rendered layer (the isolated subtree's
+// buffer) and the destination snapshot it blends against.
+internal const val UNIT_LAYER = 5
+internal const val UNIT_DEST = 6

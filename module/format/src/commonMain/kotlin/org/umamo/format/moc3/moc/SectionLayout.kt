@@ -112,6 +112,14 @@ public enum class Section(
 	ARTMESH_OPACITY(ElementType.F32, Sizing.TABLE, 68, 68, 68, 68, 68, 68),
 	ARTMESH_DRAW_ORDER(ElementType.F32, Sizing.TABLE, 69, 69, 69, 69, 69, 69),
 
+	/**
+	 * Per-drawable packed extended blend, colorMode | (alphaMode shl 8) - the 5.3 blend surface
+	 * (color 0-17, alpha 0-4, same encoding as [OFFSCREEN_BLEND_MODE]).  0 = legacy blend, which
+	 * stays in the constant-flags 2-bit field.  MOC3 v6 §5.6 s153; pinned by the PartClipping bake
+	 * (authored Screen/Out drawable stored 522 = 10 or (2 shl 8)).
+	 */
+	ARTMESH_EXTENDED_BLEND(ElementType.I32, Sizing.PER_DRAWABLE, -1, -1, -1, -1, -1, 153),
+
 	// --- shared keyform value tables ---
 	KEYFORM_POSITION_INDEX(ElementType.I32, Sizing.TABLE, 70, 70, 70, 70, 70, 70),
 	KEYFORM_POSITION_VALUES(ElementType.F32, Sizing.TABLE, 71, 71, 71, 71, 71, 71),

@@ -143,12 +143,6 @@ internal fun buildMoc3Document(
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
 	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
 
-	// Blend-shape records import into live BlendShapeBindings (Moc3Import maps them), so no
-	// warning is needed - only offscreens stay unhandled.
-	if (mocDocument.offscreens.isNotEmpty()) {
-		UmamoLog.warn("$name carries ${mocDocument.offscreens.size} offscreens; offscreen compositing is not handled yet")
-	}
-
 	// The import leaves warp/rotation-parented rest meshes in parent-deformer space (all a moc stores);
 	// the post-pass evaluates the default pose to rewrite them into the editor's canvas-space convention.
 	// Guarded like the byte-level CMO3 loader's whole body: a malformed-but-decodable moc that throws

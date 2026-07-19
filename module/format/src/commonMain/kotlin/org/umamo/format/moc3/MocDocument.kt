@@ -20,8 +20,8 @@ import org.umamo.format.moc3.model.RenderOrderGroup
  *     deformable object names a [keyformBindingIndex]; look the binding up with [keyformBinding] to
  *     learn the controlling parameters and key positions for its keyforms. The per-frame
  *     interpolation/deformation math is intentionally not modelled - this is the stored data.
- *     Blend shapes (moc 5+) and offscreens (moc 6) are not yet assembled into objects; read their
- *     raw sections via [org.umamo.format.moc3.moc.MocModel.sections] when present.
+ *     Blend shapes (moc 4+) and offscreens (moc 6) are assembled into [blendShapes]/[offscreens];
+ *     only the residual unknown sections (154, 160) stay raw-only.
  * JA: 復元用のセマンティックモデル。
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>

@@ -46,8 +46,14 @@ internal class GlueInputs(
 internal class PoseDeformInputs(
 	val drawables: List<DrawableDeformInputs>,
 	val glues: List<GlueInputs>,
-	/** Pose-blended draw order per draw-order-group part (animated part order); missing → the static value. */
+	/** Pose-blended draw order per grouped part (animated part order); missing → the static value. */
 	val partDrawOrders: Map<PartId, Float> = emptyMap(),
+	/**
+	 * Pose-blended composite channels per ISOLATED part (opacity, multiply/screen colors), present
+	 * for every isolated group - a static or out-of-range part carries its PartComposite fallbacks,
+	 * so the composite pass never has to re-derive them.
+	 */
+	val partCompositeStates: Map<PartId, PartRenderState> = emptyMap(),
 )
 
 /**
@@ -108,24 +114,34 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				intensity = glue.intensity?.let { sampleGlueIntensity(it, paramValue) } ?: 1f,
 			)
 		}
-	// Blend each draw-order group's (animated) part draw order, so the renderer can position whole groups
-	// per pose - part groups with parameter-driven draw order swap front/back as their parameter moves.
+	// Blend each group's (animated) part draw order, so the renderer can position whole groups per
+	// pose - part groups with parameter-driven draw order swap front/back as their parameter moves.
+	// The same walk blends each ISOLATED group's composite channels (opacity, multiply/screen
+	// colors), falling back to the PartComposite statics when the part has no grid or the axis is
+	// out of range.
 	val partDrawOrders = HashMap<PartId, Float>()
+	val partCompositeStates = HashMap<PartId, PartRenderState>()
 
-	fun blendGroupOrders(group: RenderGroup) {
+	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
-		val grid = group.drawOrderGrid
+		val grid = group.formGrid
 		if (partId != null && grid != null) {
 			samplePartDrawOrder(grid, paramValue)?.let { partDrawOrders[partId] = it }
 		}
+		val composite = group.composite
+		if (partId != null && composite != null) {
+			partCompositeStates[partId] =
+				grid?.let { samplePartRenderState(it, paramValue) }
+					?: PartRenderState(composite.opacity, composite.multiplyColor, composite.screenColor)
+		}
 		for (child in group.children) {
 			if (child is RenderGroup) {
-				blendGroupOrders(child)
+				blendGroupStates(child)
 			}
 		}
 	}
-	blendGroupOrders(model.renderRoot)
-	return PoseDeformInputs(drawables, glues, partDrawOrders)
+	blendGroupStates(model.renderRoot)
+	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
 }
 
 /**

@@ -17,12 +17,15 @@ import kotlin.test.assertTrue
  *  - Section 161 (OFFSCREEN_OPACITY) holds one row per offscreen keyform, offscreen order.
  *  - The shared color tables (108-113) are PREFIXED by those same keyform rows; sections 162/163
  *    map keyform → color row and read as identity.
- *  - Section 158 (OFFSCREEN_MASK_BASE) is the cumulative scan of 159 (OFFSCREEN_MASK_COUNT); the
- *    offscreen mask indices are the suffix of MASK_INDEX_DATA (80) after the drawables' masks.
+ *  - Section 158 (OFFSCREEN_MASK_BASE) is the cumulative scan of 159 (OFFSCREEN_MASK_COUNT),
+ *    offset from the START of MASK_INDEX_DATA (80): the offscreen mask indices are the block's
+ *    PREFIX and the drawables' masks follow.  (Originally misread as a suffix after the drawables'
+ *    masks - refuted against the CMO3 clip lists and the runtime's s158 addressing: Model A's
+ *    pupil offscreens clip the Whites masks, which live at block offsets 0-3.)
  *  - Section 152 (OFFSCREEN_BY_PART) is the inverse of 155 (OFFSCREEN_OWNER_PART).
  *
  * Refuted along the way: 158 is NOT a shared-binding index (Σ gridSize over its values far
- * exceeds CountInfo 36). Sections 153/154/160 remain unmodeled (mostly-zero on the corpus).
+ * exceeds CountInfo 36). Sections 154/160 remain unmodeled (mostly-zero on the corpus).
  */
 class OffscreenKeyformProbeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
@@ -80,7 +83,8 @@ class OffscreenKeyformProbeTest {
 			)
 		}
 
-		// Section 158 is the cumulative scan of 159, and the mask suffix accounting closes.
+		// Section 158 is the cumulative scan of 159, offset from the block start (the offscreen
+		// masks are the PREFIX of MASK_INDEX_DATA; the drawables' masks follow).
 		val maskBase = sections.intArray(Section.OFFSCREEN_MASK_BASE)
 		val maskCounts = sections.intArray(Section.OFFSCREEN_MASK_COUNT)
 		var runningMaskBase = 0
@@ -95,18 +99,24 @@ class OffscreenKeyformProbeTest {
 		// The raw element region is 64-byte padded, so compare the meaningful rows and require
 		// anything beyond them to be zero padding.
 		assertTrue(
-			maskTable.size >= drawableMaskTotal + runningMaskBase,
-			"MASK_INDEX_DATA holds drawable masks + offscreen suffix",
+			maskTable.size >= runningMaskBase + drawableMaskTotal,
+			"MASK_INDEX_DATA holds the offscreen prefix + drawable masks",
 		)
 		val typedMaskIndices = document.offscreens.flatMap { it.maskIndices.toList() }
 		assertEquals(
-			maskTable.toList().subList(drawableMaskTotal, drawableMaskTotal + runningMaskBase),
+			maskTable.toList().subList(0, runningMaskBase),
 			typedMaskIndices,
-			"typed offscreen mask indices equal the section 80 suffix",
+			"typed offscreen mask indices equal the section 80 prefix",
+		)
+		val typedDrawableMasks = document.artMeshes.flatMap { it.maskDrawableIndices.toList() }
+		assertEquals(
+			maskTable.toList().subList(runningMaskBase, runningMaskBase + drawableMaskTotal),
+			typedDrawableMasks,
+			"typed drawable mask indices follow the offscreen prefix",
 		)
 		assertTrue(
-			(drawableMaskTotal + runningMaskBase until maskTable.size).all { maskTable[it] == 0 },
-			"nothing but zero padding follows the offscreen mask suffix",
+			(runningMaskBase + drawableMaskTotal until maskTable.size).all { maskTable[it] == 0 },
+			"nothing but zero padding follows the drawable masks",
 		)
 
 		// Section 152 is the inverse of 155.

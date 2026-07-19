@@ -38,7 +38,7 @@ class MocDecodeTest {
 		}
 		// The only corpus samples that append the union region; every other file (including all blend
 		// models) omits it.  Probed across the corpus - byte-identical section tables split both ways.
-		val carriesUnion = setOf("modelD.moc3")
+		val carriesUnion = setOf("modelD.moc3", "miku_verycursed.moc3")
 		for (file in files) {
 			val doc = Moc3.decode(MocCodec.read(file.readBytes()))
 			assertEquals(

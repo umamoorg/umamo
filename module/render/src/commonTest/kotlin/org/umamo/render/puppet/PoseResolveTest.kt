@@ -1,5 +1,8 @@
 package org.umamo.render.puppet
 
+import org.umamo.render.eval.RenderPlanComposite
+import org.umamo.render.eval.RenderPlanDrawable
+import org.umamo.render.eval.flattenRenderPlan
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
@@ -16,10 +19,14 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartComposite
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -68,12 +75,13 @@ class PoseResolveTest {
 		source: PuppetModel,
 		renderable: Map<DrawableId, Boolean>,
 		shown: Set<DrawableId> = source.drawables.map { it.id }.toSet(),
+		renderRoot: RenderGroup = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, emptyList()),
 	) = resolvePose(
 		inputs = preparePose(source, emptyMap()),
 		renderableById = renderable,
 		shownIds = shown,
 		baseOrder = source.drawables.map { it.id },
-		renderRoot = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, emptyList()),
+		renderRoot = renderRoot,
 		glueIntensities = FloatArray(MAX_GLUES) { 1f },
 	)
 
@@ -143,6 +151,60 @@ class PoseResolveTest {
 			)
 		val resolved = resolve(source, renderable = mapOf(DrawableId("anchor") to false, DrawableId("b") to true))
 		assertEquals(1f, resolved.glueIntensities[0], "a non-drawing anchor still counts as posed")
+	}
+
+	@Test
+	fun resolvePoseKeepsIsolatedBoundariesInThePlanAndFlattensToDrawOrder() {
+		val source = model(listOf(drawable("a"), drawable("b")))
+		val isolatedRoot =
+			RenderGroup(
+				partId = null,
+				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
+				children =
+					listOf(
+						RenderDrawable(DrawableId("b")),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
+					),
+			)
+		val resolved =
+			resolve(
+				source,
+				renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true),
+				renderRoot = isolatedRoot,
+			)
+		assertEquals(2, resolved.renderPlan.size)
+		assertEquals(DrawableId("b"), assertIs<RenderPlanDrawable>(resolved.renderPlan[0]).id)
+		val compositeNode = assertIs<RenderPlanComposite>(resolved.renderPlan[1])
+		assertEquals(PartId("fx"), compositeNode.partId)
+		assertEquals(flattenRenderPlan(resolved.renderPlan), resolved.drawOrder, "the flat order IS the plan flattened")
+		assertEquals(listOf(DrawableId("b"), DrawableId("a")), resolved.drawOrder)
+	}
+
+	@Test
+	fun resolvePoseDropsACompositeNodeWhoseSubtreeFilteredAway() {
+		// The isolated part's only drawable is hidden → its whole composite disappears (an empty
+		// buffer composite would be a wasted pass); the flat order agrees.
+		val source = model(listOf(drawable("a"), drawable("b")))
+		val isolatedRoot =
+			RenderGroup(
+				partId = null,
+				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
+				children =
+					listOf(
+						RenderDrawable(DrawableId("b")),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
+					),
+			)
+		val resolved =
+			resolve(
+				source,
+				renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true),
+				shown = setOf(DrawableId("b")),
+				renderRoot = isolatedRoot,
+			)
+		assertEquals(1, resolved.renderPlan.size, "the empty composite node is dropped")
+		assertEquals(DrawableId("b"), assertIs<RenderPlanDrawable>(resolved.renderPlan.single()).id)
+		assertEquals(listOf(DrawableId("b")), resolved.drawOrder)
 	}
 
 	@Test

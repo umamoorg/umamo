@@ -70,7 +70,7 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 			is SelectionTarget.Deformer -> addDeformerChainAxes(target.id)
 			is SelectionTarget.Part ->
 				partById[target.id]?.let { part ->
-					part.drawOrderGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
+					part.formGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
 					collectPartDrawables(part, partById).forEach { drawableId ->
 						drawableById[drawableId]?.let { drawable -> addDrawableEffective(drawable) }
 					}
@@ -125,7 +125,7 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 		deformer.blendShapeBindingKeys().forEach { (parameterId, keys) -> addBlendKeys(parameterId, keys) }
 	}
 	for (part in parts) {
-		part.drawOrderGrid?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+		part.formGrid?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
 	}
 
 	val keyedParameters = gridKeysByParameter.keys + blendKeysByParameter.keys
