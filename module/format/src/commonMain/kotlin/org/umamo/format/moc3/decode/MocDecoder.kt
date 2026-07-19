@@ -269,9 +269,18 @@ public object MocDecoder {
 		val uvData = floatsOf(model, Sections.UV_DATA)
 		val indexData = shortsOf(model, Sections.INDEX_DATA)
 		val maskData = intsOf(model, Sections.MASK_INDEX_DATA)
+		// MOC3 v6 §5.6 section 80: the OFFSCREEN mask entries are the block's PREFIX and the
+		// drawables' masks follow (pinned on Model A against the CMO3 ground truth + the runtime's
+		// s158 addressing, which offsets from the block start).  Pre-v6 there is no prefix.
+		val offscreenMaskTotal =
+			if (sections.isPresent(Section.OFFSCREEN_MASK_COUNT)) {
+				sections.intArray(Section.OFFSCREEN_MASK_COUNT).sum()
+			} else {
+				0
+			}
 		var vertexBase = 0
 		var indexBase = 0
-		var maskBase = 0
+		var maskBase = offscreenMaskTotal
 		val artMeshList =
 			drawables.mapIndexed { drawableIndex, drawable ->
 				val vertexCount = drawable.vertexCount
@@ -368,8 +377,8 @@ public object MocDecoder {
 			)
 		val blendShapeList =
 			decodeBlendShapes(sections, model.parameterCount, keyPositions, warpToDeformer, rotationToDeformer, blendDeltaTables)
-		// After the art-mesh loop the mask cursor equals the drawables' mask total - the offscreen
-		// mask indices are the suffix of MASK_INDEX_DATA that follows it (MOC3 §5.6 section 80).
+		// The offscreen mask entries are the PREFIX of MASK_INDEX_DATA, addressed per offscreen by
+		// s158 (the cumulative scan of s159, offset from the block start - MOC3 §5.6 section 80).
 		val offscreenList =
 			decodeOffscreens(
 				sections,
@@ -383,7 +392,6 @@ public object MocDecoder {
 				screenG,
 				screenB,
 				maskData,
-				maskBase,
 			)
 
 		// KEY_POSITIONS (77) optionally trails the parameter-binding dedup region with a per-parameter
@@ -802,7 +810,6 @@ public object MocDecoder {
 	 * @param FloatArray  screenG           Shared screen-color green rows (112).
 	 * @param FloatArray  screenB           Shared screen-color blue rows (113).
 	 * @param IntArray    maskData          The full MASK_INDEX_DATA table (§5.6 section 80).
-	 * @param Int         drawableMaskTotal The drawables' mask total (start of the offscreen suffix).
 	 * @return List<Offscreen> The decoded offscreens (empty when absent).
 	 */
 	private fun decodeOffscreens(
@@ -817,7 +824,6 @@ public object MocDecoder {
 		screenG: FloatArray,
 		screenB: FloatArray,
 		maskData: IntArray,
-		drawableMaskTotal: Int,
 	): List<Offscreen> {
 		if (count == 0 || !sections.isPresent(Section.OFFSCREEN_OWNER_PART)) {
 			return emptyList()
@@ -826,9 +832,9 @@ public object MocDecoder {
 		val flags = sections.byteArray(Section.OFFSCREEN_CONSTANT_FLAGS)
 		val blendModes = sections.intArray(Section.OFFSCREEN_BLEND_MODE) // one packed value per offscreen
 		val maskCounts = sections.intArray(Section.OFFSCREEN_MASK_COUNT)
+		val maskBases = sections.intArray(Section.OFFSCREEN_MASK_BASE)
 		val opacity = sections.floatArray(Section.OFFSCREEN_OPACITY)
 		var keyformRowCursor = 0
-		var maskCursor = drawableMaskTotal
 		return (0 until count).map { offscreenIndex ->
 			val keyformCount = parts[owner[offscreenIndex]].drawOrderKeyforms.size
 			val keyforms =
@@ -841,8 +847,10 @@ public object MocDecoder {
 					)
 				}
 			keyformRowCursor += keyformCount
-			val maskIndices = maskData.copyOfRange(maskCursor, maskCursor + maskCounts[offscreenIndex])
-			maskCursor += maskCounts[offscreenIndex]
+			// MOC3 v6 §5.6 s158: the offscreen's masks sit at the s158 offset from the BLOCK START -
+			// the offscreen entries are the block's prefix, before the drawables' masks (pinned on
+			// Model A: pupil offscreens clip the Whites masks, matching the CMO3 clipGuidList).
+			val maskIndices = maskData.copyOfRange(maskBases[offscreenIndex], maskBases[offscreenIndex] + maskCounts[offscreenIndex])
 			Offscreen(
 				owner[offscreenIndex],
 				flags[offscreenIndex].toInt() and 0xFF,

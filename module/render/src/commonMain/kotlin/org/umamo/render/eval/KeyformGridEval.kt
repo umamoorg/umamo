@@ -5,6 +5,7 @@ import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.blendScalarsFromCorners
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.GlueForm
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshForm
@@ -114,6 +115,57 @@ internal fun samplePartDrawOrder(grid: KeyformGrid<PartForm>, paramValue: (Param
 		drawOrder += corner.weight * (cells[corner.linearIndex]?.form?.drawOrder ?: 0f)
 	}
 	return drawOrder
+}
+
+/**
+ * An offscreen part's pose-blended composite channels - what the renderer applies when it
+ * composites the part's subtree buffer back into the scene.
+ *
+ * @property Float    opacity       The composite opacity (0..1).
+ * @property ColorRgb multiplyColor The composite multiply color.
+ * @property ColorRgb screenColor   The composite screen color.
+ */
+internal class PartRenderState(
+	val opacity: Float,
+	val multiplyColor: ColorRgb,
+	val screenColor: ColorRgb,
+)
+
+/**
+ * Blends an offscreen part's composite channels (opacity, multiply/screen colors) over its keyform
+ * grid at the current parameters - the same multilinear weights as [samplePartDrawOrder], applied
+ * per channel.  Returns null when the controlling axis is out of range, so the caller falls back
+ * to the static channels on the part's PartOffscreen.
+ *
+ * @param KeyformGrid grid       The part's keyform grid.
+ * @param Function    paramValue Current value for a given parameter id.
+ * @return PartRenderState? The blended channels, or null when out of range.
+ */
+internal fun samplePartRenderState(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): PartRenderState? {
+	val corners = gridCorners(grid, paramValue) ?: return null
+	val cells = cellsByLinearIndex(grid)
+	var opacity = 0f
+	var multiplyRed = 0f
+	var multiplyGreen = 0f
+	var multiplyBlue = 0f
+	var screenRed = 0f
+	var screenGreen = 0f
+	var screenBlue = 0f
+	for (corner in corners) {
+		val form = cells[corner.linearIndex]?.form ?: continue
+		opacity += corner.weight * form.opacity
+		multiplyRed += corner.weight * form.multiplyColor.red
+		multiplyGreen += corner.weight * form.multiplyColor.green
+		multiplyBlue += corner.weight * form.multiplyColor.blue
+		screenRed += corner.weight * form.screenColor.red
+		screenGreen += corner.weight * form.screenColor.green
+		screenBlue += corner.weight * form.screenColor.blue
+	}
+	return PartRenderState(
+		opacity = opacity,
+		multiplyColor = ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
+		screenColor = ColorRgb(screenRed, screenGreen, screenBlue),
+	)
 }
 
 /**

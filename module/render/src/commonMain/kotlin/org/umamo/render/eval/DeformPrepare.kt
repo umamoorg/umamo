@@ -48,6 +48,12 @@ internal class PoseDeformInputs(
 	val glues: List<GlueInputs>,
 	/** Pose-blended draw order per draw-order-group part (animated part order); missing → the static value. */
 	val partDrawOrders: Map<PartId, Float> = emptyMap(),
+	/**
+	 * Pose-blended composite channels per OFFSCREEN part (opacity, multiply/screen colors), present
+	 * for every offscreen group - a static or out-of-range part carries its PartOffscreen fallbacks,
+	 * so the composite pass never has to re-derive them.
+	 */
+	val partOffscreenStates: Map<PartId, PartRenderState> = emptyMap(),
 )
 
 /**
@@ -110,13 +116,22 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 		}
 	// Blend each draw-order group's (animated) part draw order, so the renderer can position whole groups
 	// per pose - part groups with parameter-driven draw order swap front/back as their parameter moves.
+	// The same walk blends each OFFSCREEN group's composite channels (opacity, multiply/screen colors),
+	// falling back to the PartOffscreen statics when the part has no grid or the axis is out of range.
 	val partDrawOrders = HashMap<PartId, Float>()
+	val partOffscreenStates = HashMap<PartId, PartRenderState>()
 
 	fun blendGroupOrders(group: RenderGroup) {
 		val partId = group.partId
 		val grid = group.drawOrderGrid
 		if (partId != null && grid != null) {
 			samplePartDrawOrder(grid, paramValue)?.let { partDrawOrders[partId] = it }
+		}
+		val offscreen = group.offscreen
+		if (partId != null && offscreen != null) {
+			partOffscreenStates[partId] =
+				grid?.let { samplePartRenderState(it, paramValue) }
+					?: PartRenderState(offscreen.opacity, offscreen.multiplyColor, offscreen.screenColor)
 		}
 		for (child in group.children) {
 			if (child is RenderGroup) {
@@ -125,7 +140,7 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 		}
 	}
 	blendGroupOrders(model.renderRoot)
-	return PoseDeformInputs(drawables, glues, partDrawOrders)
+	return PoseDeformInputs(drawables, glues, partDrawOrders, partOffscreenStates)
 }
 
 /**

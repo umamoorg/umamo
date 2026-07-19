@@ -89,17 +89,18 @@ public object MocLowering {
 		)
 		put(Sections.UV_DATA, floatConcat(doc.artMeshes) { it.vertexUvs })
 		put(Sections.INDEX_DATA, u16Concat(doc.artMeshes) { it.triangleIndices })
-		// The mask-index block holds the drawables' mask lists, then (moc 6) the offscreens' mask
-		// lists as a suffix (MOC3 §5.6 section 80).  The suffix synthesizes from the typed
+		// The mask-index block holds (moc 6) the offscreens' mask lists as a PREFIX, then the
+		// drawables' mask lists (MOC3 §5.6 section 80; s158 offsets from the block start - pinned on
+		// Model A against the CMO3 clip lists).  The prefix synthesizes from the typed
 		// Offscreen.maskIndices; a doc predating the typed extraction (index count != maskCount)
 		// carries the section instead.
 		if (doc.offscreens.all { it.maskIndices.size == it.maskCount }) {
 			val maskIndexValues = ArrayList<Int>()
-			for (mesh in doc.artMeshes) {
-				mesh.maskDrawableIndices.forEach { maskIndexValues.add(it) }
-			}
 			for (offscreen in doc.offscreens) {
 				offscreen.maskIndices.forEach { maskIndexValues.add(it) }
+			}
+			for (mesh in doc.artMeshes) {
+				mesh.maskDrawableIndices.forEach { maskIndexValues.add(it) }
 			}
 			put(Sections.MASK_INDEX_DATA, intList(maskIndexValues))
 		}
@@ -768,7 +769,7 @@ public object MocLowering {
 		}
 		countInfo[15] = 2 * doc.artMeshes.sumOf { it.vertexCount }
 		countInfo[16] = doc.artMeshes.sumOf { it.triangleIndices.size }
-		// 17 sizes MASK_INDEX_DATA, which on moc 6 includes the offscreens' mask suffix (§5.6).
+		// 17 sizes MASK_INDEX_DATA, which on moc 6 includes the offscreens' mask prefix (§5.6).
 		countInfo[17] = doc.artMeshes.sumOf { it.maskDrawableIndices.size } + doc.offscreens.sumOf { it.maskCount }
 		countInfo[18] = doc.renderOrderGroups.size
 		countInfo[19] = doc.renderOrderGroups.sumOf { it.children.size }

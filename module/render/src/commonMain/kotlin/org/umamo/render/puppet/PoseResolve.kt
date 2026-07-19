@@ -3,8 +3,12 @@ package org.umamo.render.puppet
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.PoseDeformInputs
+import org.umamo.render.eval.RenderPlanDrawable
+import org.umamo.render.eval.RenderPlanNode
+import org.umamo.render.eval.RenderPlanOffscreen
+import org.umamo.render.eval.flattenRenderPlan
 import org.umamo.render.eval.paintOrder
-import org.umamo.render.eval.renderOrder
+import org.umamo.render.eval.renderPlan
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.model.DrawableId
@@ -33,12 +37,16 @@ internal class PosedDrawable(
  * @property Map        posed           Every drawable that produced geometry this pose, in
  *   [PoseDeformInputs.drawables] order.  This is a SUPERSET of what is drawn: it includes index-less glue
  *   anchors and hidden mask sources, both of which must still deform.
+ * @property List       renderPlan      The drawn drawables in resolved back-to-front order WITH the
+ *   offscreen group boundaries preserved ([RenderPlanOffscreen] nodes) - what a compositing renderer
+ *   walks.  Filtered like [drawOrder]; an offscreen node whose subtree filtered to empty is dropped.
  * @property List       drawOrder       The drawn drawables, back-to-front (last = front): posed AND
- *   renderable AND shown, in resolved render order.
+ *   renderable AND shown, in resolved render order.  Always equals the flattened [renderPlan].
  * @property FloatArray glueIntensities Per-glue weld intensity by glue index, length [MAX_GLUES].
  */
 internal class ResolvedPose(
 	val posed: Map<DrawableId, PosedDrawable>,
+	val renderPlan: List<RenderPlanNode>,
 	val drawOrder: List<DrawableId>,
 	val glueIntensities: FloatArray,
 )
@@ -102,14 +110,40 @@ internal fun resolvePose(
 		glueIntensities[glueIndex] = if (bothPosed) glue.intensity else 0f
 	}
 
-	// Hierarchical render order over the draw-order group tree (with per-pose animated part order); the
-	// flat base order when the model carries no groups.
-	val ordered =
+	// Hierarchical render plan over the draw-order group tree (with per-pose animated part order); the
+	// flat base order when the model carries no groups.  The drawn-filter applies to the PLAN (an
+	// offscreen subtree that filters to empty disappears with its composite), and the flat draw order
+	// is its flattening - the two views can never disagree.
+	val plan =
 		if (renderRoot.children.isEmpty()) {
-			paintOrder(baseOrder, drawOrderById)
+			paintOrder(baseOrder, drawOrderById).map(::RenderPlanDrawable)
 		} else {
-			renderOrder(renderRoot, drawOrderById, inputs.partDrawOrders)
+			renderPlan(renderRoot, drawOrderById, inputs.partDrawOrders)
 		}
-	val drawOrder = ordered.filter { it in posed && renderableById[it] == true && it in shownIds }
-	return ResolvedPose(posed, drawOrder, glueIntensities)
+	val drawnPlan = filterPlan(plan) { it in posed && renderableById[it] == true && it in shownIds }
+	return ResolvedPose(posed, drawnPlan, flattenRenderPlan(drawnPlan), glueIntensities)
 }
+
+/**
+ * Filters a render plan's drawable leaves by [isDrawn], dropping an offscreen node whose whole
+ * subtree filtered away (compositing an empty buffer would be a wasted pass, and the visibility
+ * cascade lands here - a hidden part's drawables all fail the shown filter).
+ *
+ * @param List<RenderPlanNode> nodes   The plan nodes.
+ * @param Function             isDrawn Whether a drawable is actually drawn this pose.
+ * @return List<RenderPlanNode> The filtered plan.
+ */
+private fun filterPlan(nodes: List<RenderPlanNode>, isDrawn: (DrawableId) -> Boolean): List<RenderPlanNode> =
+	nodes.mapNotNull { node ->
+		when (node) {
+			is RenderPlanDrawable -> node.takeIf { isDrawn(it.id) }
+			is RenderPlanOffscreen -> {
+				val children = filterPlan(node.children, isDrawn)
+				if (children.isEmpty()) {
+					null
+				} else {
+					RenderPlanOffscreen(node.partId, node.offscreen, children)
+				}
+			}
+		}
+	}
