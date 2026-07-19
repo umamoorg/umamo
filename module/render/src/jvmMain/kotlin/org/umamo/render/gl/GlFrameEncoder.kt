@@ -50,7 +50,17 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 		val target = spec.colorTarget as GlRenderTarget
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, target.framebuffer)
 		GL11.glViewport(0, 0, spec.viewportWidth, spec.viewportHeight)
+		val scissor = spec.scissor
+		if (scissor != null) {
+			// The spec's rect is top-left-origin (the read-back convention); GL scissors bottom-up.
+			GL11.glEnable(GL11.GL_SCISSOR_TEST)
+			GL11.glScissor(scissor.x, spec.viewportHeight - scissor.y - scissor.height, scissor.width, scissor.height)
+		} else {
+			GL11.glDisable(GL11.GL_SCISSOR_TEST)
+		}
 		if (spec.loadAction == LoadAction.Clear) {
+			// With a scissor set, the clear is confined to the rect too - that is the point: a
+			// bounds-scissored composite layer never pays a full-viewport clear.
 			GL11.glClearColor(spec.clearRed, spec.clearGreen, spec.clearBlue, spec.clearAlpha)
 			GL11.glClear(GL11.GL_COLOR_BUFFER_BIT)
 		}
@@ -217,6 +227,9 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	override fun end() {
 		GL30.glBindVertexArray(0)
 		GL20.glUseProgram(0)
+		// Scissor is per-pass state established in beginRenderPass; dropping it here keeps the
+		// between-pass operations (resolve blits, read-backs) unclipped whatever pass ran last.
+		GL11.glDisable(GL11.GL_SCISSOR_TEST)
 	}
 
 	/** Sets a draw's fragment uniforms and binds its atlas / mask textures when present. */

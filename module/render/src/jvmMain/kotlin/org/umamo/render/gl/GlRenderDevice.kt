@@ -23,6 +23,7 @@ import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
 import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.glsl.GlslDialect
@@ -267,7 +268,7 @@ class GlRenderDevice : RenderDevice {
 
 	override fun beginFrame(): FrameEncoder = GlFrameEncoder(ensureEmptyVao())
 
-	override fun resolve(source: RenderTarget, destination: RenderTarget) {
+	override fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect?) {
 		val glSource = source as GlRenderTarget
 		val glDestination = destination as GlRenderTarget
 		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glSource.framebuffer)
@@ -275,18 +276,36 @@ class GlRenderDevice : RenderDevice {
 		// GL_LINEAR makes the downscale a box filter - the supersample resolve. On GL this whole
 		// primitive IS a blit; on Metal it cannot be (a blit encoder neither filters nor scales), which
 		// is why the interface names the effect rather than the mechanism.
-		GL30.glBlitFramebuffer(
-			0,
-			0,
-			glSource.width,
-			glSource.height,
-			0,
-			0,
-			glDestination.width,
-			glDestination.height,
-			GL11.GL_COLOR_BUFFER_BIT,
-			GL11.GL_LINEAR,
-		)
+		if (region == null) {
+			GL30.glBlitFramebuffer(
+				0,
+				0,
+				glSource.width,
+				glSource.height,
+				0,
+				0,
+				glDestination.width,
+				glDestination.height,
+				GL11.GL_COLOR_BUFFER_BIT,
+				GL11.GL_LINEAR,
+			)
+		} else {
+			// A same-size sub-rectangle copy (the composite path's snapshot). The rect is
+			// top-left-origin per the ScissorRect contract; GL blits bottom-up.
+			val bottomUpY = glSource.height - region.y - region.height
+			GL30.glBlitFramebuffer(
+				region.x,
+				bottomUpY,
+				region.x + region.width,
+				bottomUpY + region.height,
+				region.x,
+				bottomUpY,
+				region.x + region.width,
+				bottomUpY + region.height,
+				GL11.GL_COLOR_BUFFER_BIT,
+				GL11.GL_NEAREST,
+			)
+		}
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, glDestination.framebuffer)
 	}
 

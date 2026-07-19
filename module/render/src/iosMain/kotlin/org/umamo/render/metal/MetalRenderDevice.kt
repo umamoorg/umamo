@@ -13,6 +13,7 @@ import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderPipelineSpec
 import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.RenderTargetSpec
+import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 
@@ -92,8 +93,12 @@ class MetalRenderDevice : RenderDevice {
 	override fun beginFrame(): FrameEncoder =
 		TODO("Metal port: open a command buffer; passes are encoders; barrier() is a genuine no-op; endFrame commits")
 
-	override fun resolve(source: RenderTarget, destination: RenderTarget): Unit =
-		TODO("Metal port: a full-screen textured draw or MPSImageBilinearScale - NOT a blit encoder, which can neither filter nor scale")
+	override fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect?): Unit =
+		TODO(
+			"Metal port: region == null is the scaled full-surface downscale (a full-screen textured draw or " +
+				"MPSImageBilinearScale - NOT a blit encoder, which can neither filter nor scale); region != null is a " +
+				"same-size sub-rect copy (the composite snapshot), for which a plain MTLBlitCommandEncoder copy is exact.",
+		)
 
 	override fun beginReadback(target: RenderTarget): ReadbackTicket =
 		TODO("Metal port: blit target into a shared-storage staging buffer, addCompletedHandler flags the ticket done")
