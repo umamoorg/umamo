@@ -90,7 +90,7 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 				LocalUmamoIcons.chevronRight
 			}
 		Canvas(modifier = Modifier.size(10.dp)) {
-			drawIcon(chevron, colors.textMuted)
+			drawIcon(chevron, colors.text)
 		}
 		Spacer(modifier = Modifier.width(5.dp))
 		Text(text = label, style = LocalUmamoTypography.current.labelMedium)

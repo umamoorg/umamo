@@ -830,7 +830,7 @@ private fun ParameterPad2D(
 			contentAlignment = Alignment.Center,
 		) {
 			Canvas(modifier = Modifier.size(12.dp).semantics { contentDescription = rangeToggleLabel }) {
-				drawIcon(chevron, colors.textMuted)
+				drawIcon(chevron, colors.text)
 			}
 		}
 		// The two axis rows butt into one stacked field group (First / Last, hairline seam between) so a linked
@@ -979,7 +979,7 @@ private fun ParameterValueRow(
 					Canvas(
 						modifier = Modifier.size(12.dp).semantics { contentDescription = rangeToggleLabel },
 					) {
-						drawIcon(chevron, colors.textMuted)
+						drawIcon(chevron, colors.text)
 					}
 				} else {
 					Spacer(modifier = Modifier.width(12.dp))
@@ -1320,7 +1320,7 @@ private fun ParameterGroupHeaderBody(
 				LocalUmamoIcons.chevronRight
 			}
 		Canvas(modifier = Modifier.size(10.dp)) {
-			drawIcon(chevron, colors.textMuted)
+			drawIcon(chevron, colors.text)
 		}
 		Spacer(modifier = Modifier.width(5.dp))
 		Text(text = name, style = LocalUmamoTypography.current.labelMedium)
