@@ -15,8 +15,6 @@ import org.umamo.ui.theme.UmamoIcon
  * composition locals ([org.umamo.ui.model.LocalPuppet] / [org.umamo.ui.model.LocalSelection]) so sections
  * stay declarative - they render a function of this context rather than collecting their own flows.
  *
- * プロパティタブとセクションが読み取る不変スナップショット。合成ローカルから毎回再構築する。
- *
  * @property PuppetModel puppet The open document's model (never null - the space guards on it first).
  * @property Selection selection The current object-mode selection.
  * @property SelectionTarget? activeTarget The single active item that drives the per-item tabs, or null
@@ -64,8 +62,6 @@ fun PropertyContext.activePart(): Part? {
 /**
  * The stable identity of a property tab.  Fixed slots for the first cut; the registry keying off this
  * (rather than a hardcoded switch) is what lets the set grow without touching the render loop.
- *
- * プロパティタブの安定した識別子。当面は固定枠だが、レジストリで切り替えるため拡張可能。
  */
 enum class PropertyTabId {
 	/** Document-wide properties (canvas, runtime compatibility) - always shown. */
@@ -84,8 +80,6 @@ enum class PropertyTabId {
  * [PropertyContext].  A section's [id] keys both its expanded/collapsed state and its search haystack, so
  * it must be stable and unique across the whole catalog.
  *
- * タブ内の折りたたみ可能なセクション。タイトル・検索用ラベル・内容を持つ。
- *
  * @property String id The stable, catalog-unique section key.
  * @property StringResource title The localized section heading.
  * @property List searchTerms The localized row labels this section exposes to the header search.
@@ -102,8 +96,6 @@ class PropertySection(
  * One tab in the left icon strip.  [isVisible] gates whether it appears for the current context (Document
  * is always visible; the per-item tabs require an active target), while [icon] and [sections] are
  * functions of the context so the Data tab can adapt its glyph and rows to the selected item's type.
- *
- * 左アイコンストリップの1タブ。表示可否・アイコン・セクションはコンテキストの関数。
  *
  * @property PropertyTabId id The tab's stable identity.
  * @property StringResource title The localized tab label (tooltip / accessibility name).
