@@ -93,6 +93,7 @@ data class UmamoIcons(
 	val spaceHistory: UmamoIcon,
 	val spaceParameters: UmamoIcon,
 	val spaceInspector: UmamoIcon,
+	val spaceProperties: UmamoIcon,
 	val spaceTool: UmamoIcon,
 	val spaceAnimation: UmamoIcon,
 	val chevronUp: UmamoIcon,
@@ -231,6 +232,8 @@ val LocalUmamoIcons =
 		spaceParameters = simpleIcon("M12 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 6l8 0 M16 6l4 0 M6 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 12l2 0 M10 12l10 0 M15 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 18l11 0 M19 18l1 0"),
 		// Tabler "zoom-scan" (viewBox 0 0 24 24, stroked).
 		spaceInspector = simpleIcon("M8 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0 M16 16l-2.5 -2.5 M3 7v-2a2 2 0 0 1 2 -2h2 M3 17v2a2 2 0 0 0 2 2h2 M17 3h2a2 2 0 0 1 2 2v2 M17 21h2a2 2 0 0 0 2 -2v-2"),
+		// Tabler "list-details" (viewBox 0 0 24 24, stroked).
+		spaceProperties = simpleIcon("M13 5h8 M13 9h5 M13 15h8 M13 19h5 M3 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4 M3 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"),
 		// Tabler "tools" (viewBox 0 0 24 24, stroked).
 		spaceTool = simpleIcon("M3 21h4l13 -13a1.5 1.5 0 0 0 -4 -4l-13 13v4 M14.5 5.5l4 4 M12 8l-5 -5l-4 4l5 5 M7 8l-1.5 1.5 M16 12l5 5l-4 4l-5 -5 M16 17l-1.5 1.5"),
 		// Tabler "movie" (viewBox 0 0 24 24, stroked).

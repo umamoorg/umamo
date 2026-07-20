@@ -38,6 +38,12 @@ enum class SpaceKind(val key: String) {
 	/** Properties of the selected drawable / deformer / part. */
 	Inspector("inspector"),
 
+	/**
+	 * The Blender-style Properties editor: a tabbed mega-panel (Document / Object / Data) of the
+	 * document and the selected item, superseding [Inspector] as it reaches parity.
+	 */
+	Properties("properties"),
+
 	/** Settings for the active tool. */
 	ToolDetails("tooldetails"),
 

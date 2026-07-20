@@ -19,6 +19,17 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
+## Properties Panel
+A mega area panel of sorts with left side icon tab strip and each tab having collapsible sections.  This panel will have a lot of data and controls so it is important to make sure we get the data design right ahead of time.
+* Searchable - A search box in the AreaHeader that can visually filter properties and automatically switch tabs.
+* Standard Tabs: (Always shown)
+	* Document
+		* Sections: Canvas, Runtime
+* Per Item Tabs:
+	* Object (Object Properties)
+		* Sections: Transform, Relations
+	* Data
+
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork.
 

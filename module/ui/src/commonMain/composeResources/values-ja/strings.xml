@@ -26,6 +26,7 @@
 	<string name="space_outliner">アウトライナー</string>
 	<string name="space_parameters">パラメータ</string>
 	<string name="space_inspector">インスペクター</string>
+	<string name="space_properties">プロパティ</string>
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
 	<string name="space_logs">ログ</string>
@@ -319,6 +320,33 @@
 	<string name="inspector_no">いいえ</string>
 	<string name="inspector_multi_selected">%1$d 個選択</string>
 	<string name="inspector_multi_breakdown">パーツ: %1$d   描画: %2$d   デフォーマ: %3$d</string>
+
+	<!-- プロパティパネル（Blender 風のタブ式プロパティエディタ）。機械翻訳の下訳、翻訳者による確認待ち。 -->
+	<string name="properties_no_matches">一致するプロパティがありません</string>
+	<string name="properties_tab_document">ドキュメント</string>
+	<string name="properties_tab_object">オブジェクト</string>
+	<string name="properties_tab_data">データ</string>
+	<string name="properties_section_canvas">キャンバス</string>
+	<string name="properties_section_runtime">ランタイム</string>
+	<string name="properties_section_transform">トランスフォーム</string>
+	<string name="properties_section_relations">リレーション</string>
+	<string name="properties_section_mesh">メッシュ</string>
+	<string name="properties_section_texture">テクスチャ</string>
+	<string name="properties_section_blend">合成</string>
+	<string name="properties_section_deformer">デフォーマ</string>
+	<string name="properties_section_part">パーツ</string>
+	<string name="properties_canvas_size">サイズ: %1$s × %2$s</string>
+	<string name="properties_canvas_origin">原点: %1$s, %2$s</string>
+	<string name="properties_canvas_none">キャンバスなし</string>
+	<string name="properties_runtime_placeholder">ランタイム互換オプションがここに表示されます。</string>
+	<string name="properties_transform_position">位置: %1$s, %2$s</string>
+	<string name="properties_transform_size">サイズ: %1$s × %2$s</string>
+	<string name="properties_transform_none">—</string>
+	<string name="properties_texture_source">テクスチャソース: %1$s</string>
+	<string name="properties_texture_own">独自のアトラス割り当て</string>
+	<string name="properties_blend_alpha">アルファ: %1$s</string>
+	<string name="properties_blend_culling">裏面をカリング: %1$s</string>
+	<string name="properties_part_draw_order">描画順: %1$d</string>
 
 	<string name="parameter_reset">既定値にリセット</string>
 	<string name="parameter_reset_all">すべて既定値に</string>
