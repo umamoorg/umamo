@@ -22,9 +22,6 @@ import org.umamo.ui.theme.UmamoIcon
  * never opens narrower than the field - a value picked near the field's trailing edge stays under the
  * pointer instead of requiring an awkward reach.  The menu owns its outside-click / Escape dismissal.
  *
- * 単一選択のフォーム用ドロップダウン。現在値を DropdownChip（フィールド様式）に表示し、真下に選択肢メニューを開く。
- * メニュー幅はチップ幅以上に保つ。ヘッダのチップと同じ DropdownChip を共有する。
- *
  * @param T          selected The currently selected option.
  * @param List       options  The options to choose from, in display order.
  * @param Function   label    Resolves an option to its display string (localized chrome or verbatim data).

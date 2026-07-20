@@ -346,8 +346,6 @@
 	<string name="properties_section_blend">合成</string>
 	<string name="properties_section_deformer">デフォーマ</string>
 	<string name="properties_section_part">パーツ</string>
-	<string name="properties_canvas_size">サイズ: %1$s × %2$s</string>
-	<string name="properties_canvas_origin">原点: %1$s, %2$s</string>
 	<string name="properties_canvas_none">キャンバスなし</string>
 	<string name="properties_runtime_placeholder">ランタイム互換オプションがここに表示されます。</string>
 	<string name="properties_transform_position">位置: %1$s, %2$s</string>
@@ -355,9 +353,6 @@
 	<string name="properties_transform_none">—</string>
 	<string name="properties_texture_source">テクスチャソース: %1$s</string>
 	<string name="properties_texture_own">独自のアトラス割り当て</string>
-	<string name="properties_blend_alpha">アルファ: %1$s</string>
-	<string name="properties_blend_culling">裏面をカリング: %1$s</string>
-	<string name="properties_part_draw_order">描画順: %1$d</string>
 
 	<!-- 編集可能なプロパティパネルのコントロール（ラベル・単位・列挙のドロップダウン名）。機械翻訳の下書き。 -->
 	<string name="properties_field_canvas_width">幅</string>

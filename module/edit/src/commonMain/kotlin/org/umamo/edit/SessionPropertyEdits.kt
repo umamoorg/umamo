@@ -15,8 +15,6 @@ import org.umamo.runtime.model.PartId
  * field commit calls exactly one of these.  Continuous numeric scrubbing previews in the widget and
  * commits one of these on release, so there is no per-frame mutation and no history-side coalescing (the
  * same single-commit-per-gesture granularity the parameter scrub documents in ParameterChange.SetValue).
- *
- * プロパティパネルの編集操作。各フィールド変更を1段の取り消し単位として適用する。
  */
 
 /**

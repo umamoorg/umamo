@@ -80,8 +80,6 @@ fun DropdownChip(
 	// A disabled chip shows no hover feedback (the border and fill stay at rest).
 	val hovered = hoveredLive && enabled
 	val isField = style == DropdownChipStyle.Field
-	// A Field sits on the control fill and shows its state through the border only; a Header fills with the
-	// accent when open.  Content color follows: on-accent while a Header is open, plain text for a Field.
 	val borderColor =
 		when {
 			expanded -> colors.accent

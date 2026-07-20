@@ -66,11 +66,15 @@ fun PartGroupMode.kind(): PartGroupModeKind =
 	}
 
 /**
- * Builds a full [PartGroupMode] from a chosen [kind], preserving [existing]'s Isolated composite when the
- * new kind is Isolated (so switching away and back does not lose the composite), else a default composite.
+ * Builds a full [PartGroupMode] from a chosen [kind].  When the new kind is Isolated it reuses [existing]'s
+ * composite only if [existing] is itself Isolated; switching to Isolated from PassThrough / Grouped yields a
+ * default composite, because the model stores the composite solely inside [PartGroupMode.Isolated] - once a
+ * part leaves Isolated its composite is not retained anywhere, so a mode round-trip currently resets it.
+ * Document-persistent (latent) composite that survives leaving and re-entering Isolated is a model + format
+ * change planned alongside the UMA native format (see TODO.md); it is deliberately not done here.
  *
  * @param PartGroupModeKind kind The chosen kind.
- * @param PartGroupMode existing The current mode (its composite is reused when re-selecting Isolated).
+ * @param PartGroupMode existing The current mode (its composite is reused only when [existing] is Isolated).
  * @return PartGroupMode The reconstructed mode.
  */
 fun partGroupModeOf(kind: PartGroupModeKind, existing: PartGroupMode): PartGroupMode =

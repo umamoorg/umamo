@@ -23,8 +23,6 @@ val FIELD_STACK_SEAM = 1.dp
  * get an end wrong.  Each row is a composable taking the position it should pass to its field's
  * stackPosition (so the row's own label / control layout stays the caller's concern).
  *
- * 縦に連結したフィールド群を 1 つのグループとして配置する。各行に StackPosition を渡し、両端だけ角丸にする。
- *
  * @param List rows The stacked rows in top-to-bottom order; each is given its position in the run.
  * @param Modifier modifier The layout modifier for the enclosing column.
  */

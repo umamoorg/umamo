@@ -385,8 +385,6 @@
 	<string name="properties_section_blend">Blend</string>
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_part">Part</string>
-	<string name="properties_canvas_size">Size: %1$s × %2$s</string>
-	<string name="properties_canvas_origin">Origin: %1$s, %2$s</string>
 	<string name="properties_canvas_none">No canvas</string>
 	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
 	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
@@ -395,9 +393,6 @@
 	<string name="properties_transform_none">—</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
-	<string name="properties_blend_alpha">Alpha: %1$s</string>
-	<string name="properties_blend_culling">Cull Back Faces: %1$s</string>
-	<string name="properties_part_draw_order">Draw Order: %1$d</string>
 
 	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum option
 	  names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->

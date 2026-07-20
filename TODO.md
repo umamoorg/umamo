@@ -48,6 +48,7 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 
 ## Part Group Mode (compositing)
 * Editor UI for the group mode(an inspector three-way selector) is still future work, scoped with the rest of the part inspector.
+* Persist an isolated part's composite settings (opacity, blend, alpha, mask) as document/model state that survives leaving and re-entering Isolated — needed so the UMA native format can track them. Today the composite lives only inside `PartGroupMode.Isolated`, so switching a part to Pass-Through/Grouped and back resets it. This is a model + format change (Part carries a latent composite independent of mode; `Cmo3Import.partCompositeOf` already notes the CMO3 fields are latent and "survive unchecking"; the exporter and `RenderGroup`/`RenderRootDerive` follow) with CMO3 round-trip implications — plan it as its own session.
 
 ## Portability
 * Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?

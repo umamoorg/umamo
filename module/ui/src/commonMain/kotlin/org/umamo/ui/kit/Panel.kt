@@ -73,7 +73,6 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
-	val chevronColor = colors.textMuted
 	Row(
 		modifier =
 			modifier

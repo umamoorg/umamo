@@ -426,6 +426,7 @@ internal val DeformerSection =
 						NumberField(
 							value = deformer.baseAngle,
 							onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,
 							decimals = 1,
 							unitSuffix = stringResource(Res.string.unit_degrees),
