@@ -26,6 +26,7 @@
 	<string name="space_outliner">アウトライナー</string>
 	<string name="space_parameters">パラメータ</string>
 	<string name="space_inspector">インスペクター</string>
+	<string name="space_properties">プロパティ</string>
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
 	<string name="space_logs">ログ</string>
@@ -160,6 +161,17 @@
 	<string name="history_part_delete">パーツを削除</string>
 	<string name="history_drawable_delete">メッシュを削除</string>
 	<string name="history_deformer_delete">デフォーマを削除</string>
+	<string name="history_part_sketch">ガイド画像を切り替え</string>
+	<string name="history_part_draw_order">パーツの描画順を設定</string>
+	<string name="history_part_group_mode">グループモードを設定</string>
+	<string name="history_drawable_blend_mode">ブレンドモードを設定</string>
+	<string name="history_drawable_alpha_blend_mode">アルファモードを設定</string>
+	<string name="history_drawable_culling">裏面カリングを切り替え</string>
+	<string name="history_drawable_invert_mask">マスク反転を切り替え</string>
+	<string name="history_deformer_base_angle">基準角度を設定</string>
+	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>
+	<string name="history_document_canvas_size">キャンバスサイズを設定</string>
+	<string name="history_document_world_origin">ワールド原点を設定</string>
 
 	<string name="outliner_root">人形</string>
 	<string name="outliner_armature">アーマチュア</string>
@@ -319,6 +331,75 @@
 	<string name="inspector_no">いいえ</string>
 	<string name="inspector_multi_selected">%1$d 個選択</string>
 	<string name="inspector_multi_breakdown">パーツ: %1$d   描画: %2$d   デフォーマ: %3$d</string>
+
+	<!-- プロパティパネル（Blender 風のタブ式プロパティエディタ）。機械翻訳の下訳、翻訳者による確認待ち。 -->
+	<string name="properties_no_matches">一致するプロパティがありません</string>
+	<string name="properties_tab_document">ドキュメント</string>
+	<string name="properties_tab_object">オブジェクト</string>
+	<string name="properties_tab_data">データ</string>
+	<string name="properties_section_canvas">キャンバス</string>
+	<string name="properties_section_runtime">ランタイム</string>
+	<string name="properties_section_transform">トランスフォーム</string>
+	<string name="properties_section_relations">リレーション</string>
+	<string name="properties_section_mesh">メッシュ</string>
+	<string name="properties_section_texture">テクスチャ</string>
+	<string name="properties_section_blend">合成</string>
+	<string name="properties_section_deformer">デフォーマ</string>
+	<string name="properties_section_part">パーツ</string>
+	<string name="properties_canvas_none">キャンバスなし</string>
+	<string name="properties_runtime_placeholder">ランタイム互換オプションがここに表示されます。</string>
+	<string name="properties_transform_position">位置: %1$s, %2$s</string>
+	<string name="properties_transform_size">サイズ: %1$s × %2$s</string>
+	<string name="properties_transform_none">—</string>
+	<string name="properties_texture_source">テクスチャソース: %1$s</string>
+	<string name="properties_texture_own">独自のアトラス割り当て</string>
+
+	<!-- 編集可能なプロパティパネルのコントロール（ラベル・単位・列挙のドロップダウン名）。機械翻訳の下書き。 -->
+	<string name="properties_field_canvas_width">幅</string>
+	<string name="properties_field_canvas_height">高さ</string>
+	<string name="properties_field_origin_x">原点 X</string>
+	<string name="properties_field_origin_y">原点 Y</string>
+	<string name="properties_field_blend_mode">ブレンド</string>
+	<string name="properties_field_alpha_mode">アルファ</string>
+	<string name="properties_field_culling">裏面をカリング</string>
+	<string name="properties_field_invert_mask">マスクを反転</string>
+	<string name="properties_field_base_angle">基準角度</string>
+	<string name="properties_field_quad_transform">バイリニア（クアッド）</string>
+	<string name="properties_field_sketch">ガイド画像</string>
+	<string name="properties_field_draw_order">描画順</string>
+	<string name="properties_field_group_mode">グループモード</string>
+	<string name="properties_field_opacity">不透明度</string>
+	<string name="unit_pixels">px</string>
+	<string name="unit_degrees">°</string>
+	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
+	<string name="blend_mode_normal">通常</string>
+	<string name="blend_mode_additive">加算</string>
+	<string name="blend_mode_multiply">乗算</string>
+	<string name="blend_mode_additive_modern">加算（モダン）</string>
+	<string name="blend_mode_additive_glow">加算（グロー）</string>
+	<string name="blend_mode_darken">比較（暗）</string>
+	<string name="blend_mode_multiply_modern">乗算（モダン）</string>
+	<string name="blend_mode_color_burn">焼き込みカラー</string>
+	<string name="blend_mode_linear_burn">焼き込みリニア</string>
+	<string name="blend_mode_lighten">比較（明）</string>
+	<string name="blend_mode_screen">スクリーン</string>
+	<string name="blend_mode_color_dodge">覆い焼きカラー</string>
+	<string name="blend_mode_overlay">オーバーレイ</string>
+	<string name="blend_mode_soft_light">ソフトライト</string>
+	<string name="blend_mode_hard_light">ハードライト</string>
+	<string name="blend_mode_linear_light">リニアライト</string>
+	<string name="blend_mode_hue">色相</string>
+	<string name="blend_mode_color">カラー</string>
+	<!-- アルファブレンドモード（Cubism 5.3 の Porter-Duff 一覧）。 -->
+	<string name="alpha_blend_over">オーバー</string>
+	<string name="alpha_blend_atop">アトップ</string>
+	<string name="alpha_blend_out">アウト</string>
+	<string name="alpha_blend_conjoint">コンジョイント</string>
+	<string name="alpha_blend_disjoint">ディスジョイント</string>
+	<!-- パートグループモード（PassThrough / Grouped / Isolated）。 -->
+	<string name="part_group_pass_through">パススルー</string>
+	<string name="part_group_grouped">グループ化</string>
+	<string name="part_group_isolated">分離</string>
 
 	<string name="parameter_reset">既定値にリセット</string>
 	<string name="parameter_reset_all">すべて既定値に</string>

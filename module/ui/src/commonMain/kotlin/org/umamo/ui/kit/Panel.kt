@@ -21,10 +21,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.drawIcon
 
 /**
  * A thin-bordered panel with a header bar (title on the left, an optional [headerAction] on the right) over a
@@ -72,7 +73,6 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
-	val chevronColor = colors.textMuted
 	Row(
 		modifier =
 			modifier
@@ -83,19 +83,14 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		Canvas(modifier = Modifier.size(10.dp)) {
-			val chevron = Path()
+		val chevron =
 			if (expanded) {
-				chevron.moveTo(size.width * 0.18f, size.height * 0.35f)
-				chevron.lineTo(size.width * 0.82f, size.height * 0.35f)
-				chevron.lineTo(size.width * 0.50f, size.height * 0.70f)
+				LocalUmamoIcons.chevronDown
 			} else {
-				chevron.moveTo(size.width * 0.35f, size.height * 0.18f)
-				chevron.lineTo(size.width * 0.70f, size.height * 0.50f)
-				chevron.lineTo(size.width * 0.35f, size.height * 0.82f)
+				LocalUmamoIcons.chevronRight
 			}
-			chevron.close()
-			drawPath(chevron, color = chevronColor)
+		Canvas(modifier = Modifier.size(10.dp)) {
+			drawIcon(chevron, colors.text)
 		}
 		Spacer(modifier = Modifier.width(5.dp))
 		Text(text = label, style = LocalUmamoTypography.current.labelMedium)

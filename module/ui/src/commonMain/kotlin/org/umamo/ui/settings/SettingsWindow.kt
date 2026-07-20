@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +27,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.kit.FIELD_ROW_LABEL_WIDTH
+import org.umamo.ui.kit.FIELD_ROW_SPACING
+import org.umamo.ui.kit.FieldRow
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.CloseButton
@@ -182,27 +184,23 @@ private fun CategoryRail(selected: SettingsCategory, onSelect: (SettingsCategory
 	}
 }
 
-/** Spacer between stacked setting rows within a section. */
-internal val SETTING_ROW_SPACING = 14.dp
+/** Spacer between stacked setting rows within a section (the shared kit spacing). */
+internal val SETTING_ROW_SPACING = FIELD_ROW_SPACING
 
 /** Fixed width of a setting row's left label column, so the controls in a section align. */
-internal val SETTING_LABEL_WIDTH = 120.dp
+internal val SETTING_LABEL_WIDTH = FIELD_ROW_LABEL_WIDTH
 
 /**
- * One labelled settings row: a fixed-width label on the left and its [control] on the right, so the
- * controls down a section align.  The shared row layout the section composables build on.
+ * One labelled settings row: a thin settings-side wrapper over the shared kit [FieldRow], pinning the
+ * settings label-column width so every section aligns.  Kept as its own name so the many settings call
+ * sites stay a one-liner.
  *
- * 設定 1 行。左に固定幅ラベル、右にコントロール。セクション内で縦に揃う。
+ * 設定 1 行。共有の kit FieldRow を設定用のラベル幅で包む薄いラッパー。
  *
  * @param String   label   The already-localized row label.
  * @param Function control The control composable (a SelectField, etc.).
  */
 @Composable
 internal fun SettingRow(label: String, control: @Composable () -> Unit) {
-	val colors = LocalUmamoColors.current
-	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-		Text(text = label, style = LocalUmamoTypography.current.bodyMedium, color = colors.textMuted, modifier = Modifier.width(SETTING_LABEL_WIDTH))
-		Spacer(modifier = Modifier.width(12.dp))
-		control()
-	}
+	FieldRow(label = label, labelWidth = SETTING_LABEL_WIDTH, control = control)
 }

@@ -33,6 +33,7 @@
 	<string name="space_outliner">Outliner</string>
 	<string name="space_parameters">Parameters</string>
 	<string name="space_inspector">Inspector</string>
+	<string name="space_properties">Properties</string>
 	<string name="space_tooldetails">Tool Settings</string>
 	<string name="space_history">History</string>
 	<string name="space_logs">Logs</string>
@@ -183,6 +184,17 @@
 	<string name="history_part_delete">Delete Part</string>
 	<string name="history_drawable_delete">Delete Mesh</string>
 	<string name="history_deformer_delete">Delete Deformer</string>
+	<string name="history_part_sketch">Toggle Guide Image</string>
+	<string name="history_part_draw_order">Set Part Draw Order</string>
+	<string name="history_part_group_mode">Set Group Mode</string>
+	<string name="history_drawable_blend_mode">Set Blend Mode</string>
+	<string name="history_drawable_alpha_blend_mode">Set Alpha Mode</string>
+	<string name="history_drawable_culling">Toggle Back-Face Culling</string>
+	<string name="history_drawable_invert_mask">Toggle Invert Mask</string>
+	<string name="history_deformer_base_angle">Set Base Angle</string>
+	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>
+	<string name="history_document_canvas_size">Set Canvas Size</string>
+	<string name="history_document_world_origin">Set World Origin</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature data naming. -->
 	<string name="outliner_root">Puppet</string>
@@ -355,6 +367,80 @@
 	<string name="inspector_no">No</string>
 	<string name="inspector_multi_selected">%1$d selected</string>
 	<string name="inspector_multi_breakdown">Parts: %1$d   Drawables: %2$d   Deformers: %3$d</string>
+
+	<!--
+	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
+	  icon strip), the section headings, and the read-only sample fields not already covered by inspector_*.
+	-->
+	<string name="properties_no_matches">No matching properties</string>
+	<string name="properties_tab_document">Document</string>
+	<string name="properties_tab_object">Object</string>
+	<string name="properties_tab_data">Data</string>
+	<string name="properties_section_canvas">Canvas</string>
+	<string name="properties_section_runtime">Runtime</string>
+	<string name="properties_section_transform">Transform</string>
+	<string name="properties_section_relations">Relations</string>
+	<string name="properties_section_mesh">Mesh</string>
+	<string name="properties_section_texture">Texture</string>
+	<string name="properties_section_blend">Blend</string>
+	<string name="properties_section_deformer">Deformer</string>
+	<string name="properties_section_part">Part</string>
+	<string name="properties_canvas_none">No canvas</string>
+	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
+	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
+	<string name="properties_transform_position">Position: %1$s, %2$s</string>
+	<string name="properties_transform_size">Size: %1$s × %2$s</string>
+	<string name="properties_transform_none">—</string>
+	<string name="properties_texture_source">Texture Source: %1$s</string>
+	<string name="properties_texture_own">Own Atlas Binding</string>
+
+	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum option
+	  names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
+	<string name="properties_field_canvas_width">Width</string>
+	<string name="properties_field_canvas_height">Height</string>
+	<string name="properties_field_origin_x">Origin X</string>
+	<string name="properties_field_origin_y">Origin Y</string>
+	<string name="properties_field_blend_mode">Blend</string>
+	<string name="properties_field_alpha_mode">Alpha</string>
+	<string name="properties_field_culling">Cull Back Faces</string>
+	<string name="properties_field_invert_mask">Invert Mask</string>
+	<string name="properties_field_base_angle">Base Angle</string>
+	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
+	<string name="properties_field_sketch">Guide Image</string>
+	<string name="properties_field_draw_order">Draw Order</string>
+	<string name="properties_field_group_mode">Group Mode</string>
+	<string name="properties_field_opacity">Opacity</string>
+	<string name="unit_pixels">px</string>
+	<string name="unit_degrees">°</string>
+	<!-- Blend modes (Cubism color blend list). -->
+	<string name="blend_mode_normal">Normal</string>
+	<string name="blend_mode_additive">Additive</string>
+	<string name="blend_mode_multiply">Multiply</string>
+	<string name="blend_mode_additive_modern">Additive (Modern)</string>
+	<string name="blend_mode_additive_glow">Additive (Glow)</string>
+	<string name="blend_mode_darken">Darken</string>
+	<string name="blend_mode_multiply_modern">Multiply (Modern)</string>
+	<string name="blend_mode_color_burn">Color Burn</string>
+	<string name="blend_mode_linear_burn">Linear Burn</string>
+	<string name="blend_mode_lighten">Lighten</string>
+	<string name="blend_mode_screen">Screen</string>
+	<string name="blend_mode_color_dodge">Color Dodge</string>
+	<string name="blend_mode_overlay">Overlay</string>
+	<string name="blend_mode_soft_light">Soft Light</string>
+	<string name="blend_mode_hard_light">Hard Light</string>
+	<string name="blend_mode_linear_light">Linear Light</string>
+	<string name="blend_mode_hue">Hue</string>
+	<string name="blend_mode_color">Color</string>
+	<!-- Alpha blend modes (Cubism 5.3 Porter-Duff alpha list). -->
+	<string name="alpha_blend_over">Over</string>
+	<string name="alpha_blend_atop">Atop</string>
+	<string name="alpha_blend_out">Out</string>
+	<string name="alpha_blend_conjoint">Conjoint</string>
+	<string name="alpha_blend_disjoint">Disjoint</string>
+	<!-- Part group modes (Umamo's PassThrough / Grouped / Isolated). -->
+	<string name="part_group_pass_through">Pass Through</string>
+	<string name="part_group_grouped">Grouped</string>
+	<string name="part_group_isolated">Isolated</string>
 
 	<!-- Parameters panel actions (reset a parameter / the whole rig to its default pose). -->
 	<string name="parameter_reset">Reset to default</string>

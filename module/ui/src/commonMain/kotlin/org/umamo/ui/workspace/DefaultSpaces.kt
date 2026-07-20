@@ -24,6 +24,8 @@ import org.umamo.ui.workspace.spaces.OutlinerSpace
 import org.umamo.ui.workspace.spaces.ParametersHeaderControls
 import org.umamo.ui.workspace.spaces.ParametersSpace
 import org.umamo.ui.workspace.spaces.PlaceholderSpace
+import org.umamo.ui.workspace.spaces.PropertiesHeaderControls
+import org.umamo.ui.workspace.spaces.PropertiesSpace
 import org.umamo.ui.workspace.spaces.UvEditorHeaderControls
 import org.umamo.ui.workspace.spaces.UvEditorSpace
 import org.umamo.ui.workspace.spaces.Viewport2DHeaderControls
@@ -75,6 +77,13 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 				) { scope -> ParametersSpace(scope) },
 			SpaceKind.Inspector to
 				SpaceDescriptor(SpaceKind.Inspector, Res.string.space_inspector, LocalUmamoIcons.spaceInspector) { InspectorSpace() },
+			SpaceKind.Properties to
+				SpaceDescriptor(
+					SpaceKind.Properties,
+					Res.string.space_properties,
+					LocalUmamoIcons.spaceProperties,
+					headerContent = { scope -> PropertiesHeaderControls(scope) },
+				) { scope -> PropertiesSpace(scope) },
 			SpaceKind.ToolDetails to
 				SpaceDescriptor(SpaceKind.ToolDetails, Res.string.space_tooldetails, LocalUmamoIcons.spaceTool) { PlaceholderSpace(stringResource(Res.string.space_tooldetails)) },
 			SpaceKind.History to

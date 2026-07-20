@@ -193,6 +193,17 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.part.delete" -> stringResource(Res.string.history_part_delete)
 		"change.drawable.delete" -> stringResource(Res.string.history_drawable_delete)
 		"change.deformer.delete" -> stringResource(Res.string.history_deformer_delete)
+		"change.part.sketch" -> stringResource(Res.string.history_part_sketch)
+		"change.part.drawOrder" -> stringResource(Res.string.history_part_draw_order)
+		"change.part.groupMode" -> stringResource(Res.string.history_part_group_mode)
+		"change.drawable.blendMode" -> stringResource(Res.string.history_drawable_blend_mode)
+		"change.drawable.alphaBlendMode" -> stringResource(Res.string.history_drawable_alpha_blend_mode)
+		"change.drawable.culling" -> stringResource(Res.string.history_drawable_culling)
+		"change.drawable.invertMask" -> stringResource(Res.string.history_drawable_invert_mask)
+		"change.deformer.baseAngle" -> stringResource(Res.string.history_deformer_base_angle)
+		"change.deformer.quadTransform" -> stringResource(Res.string.history_deformer_quad_transform)
+		"change.document.canvasSize" -> stringResource(Res.string.history_document_canvas_size)
+		"change.document.worldOrigin" -> stringResource(Res.string.history_document_world_origin)
 		else -> stringResource(Res.string.history_unknown)
 	}
 

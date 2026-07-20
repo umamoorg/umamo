@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
@@ -29,6 +30,17 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
 
 /**
+ * The two roles a [DropdownChip] plays: a [Header] chrome chip (content-width, tab-fill, an accent open
+ * state, a right/down disclosure chevron) or a form [Field] (fills its column over the control fill, a
+ * down/up chevron pushed to the trailing edge) that sits beside the other form controls.  A sanctioned
+ * variation of the one chip rather than a fork, so both roles share the anatomy.
+ */
+enum class DropdownChipStyle {
+	Header,
+	Field,
+}
+
+/**
  * The header dropdown chip, Blender-style: an optional 16.dp leading glyph, an optional labelMedium
  * text, and a 12.dp chevron that points right while the dropdown is closed and down while it is open.
  * Flat like the rest of the kit - the default indication is suppressed and the chip paints its own
@@ -38,9 +50,6 @@ import org.umamo.ui.theme.drawIcon
  * paddings, chevron) stays un-forkable across every header chip, which is the drift this component
  * exists to prevent.  The dropdown stays a slot because consumers differ (a kit Menu that dismisses
  * per click vs a stay-open Popup).
- *
- * ヘッダ用ドロップダウンチップ（Blender 式）。任意のアイコンとラベル、開閉で向きが変わるシェブロンを
- * 持つ。枠と塗りは開・ホバー・通常の三状態。ドロップダウン本体はスロットとして受け取る。
  *
  * @param Boolean   expanded           Whether the chip's dropdown is open (drives the accent state).
  * @param Function  onExpandRequest    Invoked on click to open the dropdown.
@@ -61,6 +70,7 @@ fun DropdownChip(
 	icon: UmamoIcon? = null,
 	label: String? = null,
 	enabled: Boolean = true,
+	style: DropdownChipStyle = DropdownChipStyle.Header,
 	dropdown: @Composable () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -69,6 +79,25 @@ fun DropdownChip(
 	val hoveredLive by interaction.collectIsHoveredAsState()
 	// A disabled chip shows no hover feedback (the border and fill stay at rest).
 	val hovered = hoveredLive && enabled
+	val isField = style == DropdownChipStyle.Field
+	val borderColor =
+		when {
+			expanded -> colors.accent
+			hovered -> colors.panelBorderHover
+			else -> colors.panelBorder
+		}
+	val backgroundColor =
+		when {
+			expanded -> colors.accent
+			hovered -> colors.panelBackground
+			else -> colors.tabBackground
+		}
+	val chipContentColor =
+		when {
+			!enabled -> colors.textDisabled
+			expanded -> colors.accentText
+			else -> colors.text
+		}
 	// The popup is a child of this Box rather than of the padded chip Row: the position provider is
 	// handed the anchor's bounds, and the Row's inner box excludes its own padding and background, which
 	// would shift the menu off the chip's painted corner (same pattern as MenuBarLabel).
@@ -76,60 +105,47 @@ fun DropdownChip(
 		// The tooltip wraps the chip face only; the popup is a sibling below, so it is never wrapped and
 		// its anchor bounds (the box) stay the chip's bounds.
 		Tooltip(text = contentDescription) {
+			// A Field is pinned to the shared control height (so it lines up with a NumberField) and takes no
+			// vertical padding - the fixed height plus center alignment place the content; a Header stays
+			// content-sized and keeps its symmetric padding.
 			Row(
 				modifier =
-					Modifier
-						.wrapContentSize()
+					(if (isField) Modifier.fillMaxWidth() else Modifier.wrapContentSize())
 						.clip(shapes.small)
 						.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
-						.border(
-							width = 1.dp,
-							color =
-								when {
-									expanded -> colors.accent
-									hovered -> colors.panelBorderHover
-									else -> colors.panelBorder
-								},
-							shape = shapes.small,
-						)
-						.background(
-							when {
-								expanded -> colors.accent
-								hovered -> colors.panelBackground
-								else -> colors.tabBackground
-							},
-							shape = shapes.small,
-						)
+						.border(width = 1.dp, color = borderColor, shape = shapes.small)
+						.background(backgroundColor, shape = shapes.small)
 						.padding(4.dp)
 						.semantics { this.contentDescription = contentDescription },
 				verticalAlignment = Alignment.CenterVertically,
 			) {
-				val chipContentColor =
-					when {
-						!enabled -> colors.textDisabled
-						expanded -> colors.accentText
-						else -> colors.controlGlyph
-					}
 				if (icon != null) {
 					Canvas(modifier = Modifier.size(16.dp)) {
 						drawIcon(icon, chipContentColor)
 					}
 				}
 				if (label != null) {
+					// A Field weights its label so it fills the chip (ellipsizing when long) and pushes the
+					// chevron to the trailing edge; a Header keeps the label content-width.
+					val labelModifier =
+						if (isField) {
+							Modifier.weight(1f).padding(horizontal = 4.dp)
+						} else {
+							Modifier.padding(horizontal = 4.dp)
+						}
 					Text(
 						text = label,
 						style = LocalUmamoTypography.current.labelMedium,
 						color = chipContentColor,
 						maxLines = 1,
 						overflow = TextOverflow.Ellipsis,
-						modifier = Modifier.padding(horizontal = 4.dp),
+						modifier = labelModifier,
 					)
 				}
 				val chevron =
-					if (expanded) {
-						LocalUmamoIcons.chevronDown
-					} else {
-						LocalUmamoIcons.chevronRight
+					when {
+						expanded -> LocalUmamoIcons.chevronDown
+						else -> LocalUmamoIcons.chevronRight
 					}
 				Canvas(modifier = Modifier.size(12.dp)) {
 					drawIcon(chevron, chipContentColor)
