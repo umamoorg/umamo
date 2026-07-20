@@ -66,6 +66,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.kit.ContextMenuArea
+import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.InlineRenameField
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.NumberField
@@ -73,6 +74,7 @@ import org.umamo.ui.kit.Pad2D
 import org.umamo.ui.kit.Slider
 import org.umamo.ui.kit.SliderKeyMark
 import org.umamo.ui.kit.SliderKeyShape
+import org.umamo.ui.kit.StackPosition
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
@@ -831,48 +833,60 @@ private fun ParameterPad2D(
 				drawIcon(chevron, colors.textMuted)
 			}
 		}
-		Column(modifier = Modifier.weight(1f)) {
-			ParameterValueRow(
-				name = horizontal.name,
-				value = xValue,
-				default = horizontal.default,
-				range = horizontal.min..horizontal.max,
-				resetLabel = resetLabel,
-				rangeToggleLabel = rangeToggleLabel,
-				showRangeToggle = false,
-				showLeadingSlot = false,
-				rangeOpen = rangeOpen,
-				onToggleRange = onToggleRange,
-				renaming = renamingParameterId == horizontal.id,
-				onStartRename = { onStartRename(horizontal.id) },
-				onCommitRename = { newName -> onCommitRename(horizontal.id, newName) },
-				onCancelRename = onCancelRename,
-				onCommitValue = { newX -> onCommitValue(horizontal.id, newX) },
-				linkIcon = linkIcon,
-				linkContentDescription = linkContentDescription,
-				onLinkClick = onLinkClick,
-			)
-			ParameterValueRow(
-				name = vertical.name,
-				value = yValue,
-				default = vertical.default,
-				range = vertical.min..vertical.max,
-				resetLabel = resetLabel,
-				rangeToggleLabel = rangeToggleLabel,
-				showRangeToggle = false,
-				showLeadingSlot = false,
-				rangeOpen = rangeOpen,
-				onToggleRange = onToggleRange,
-				renaming = renamingParameterId == vertical.id,
-				onStartRename = { onStartRename(vertical.id) },
-				onCommitRename = { newName -> onCommitRename(vertical.id, newName) },
-				onCancelRename = onCancelRename,
-				onCommitValue = { newY -> onCommitValue(vertical.id, newY) },
-				linkIcon = null,
-				linkContentDescription = null,
-				onLinkClick = null,
-			)
-		}
+		// The two axis rows butt into one stacked field group (First / Last, hairline seam between) so a linked
+		// pair reads as a single joined control, matching the Canvas dimension stack.
+		FieldStack(
+			modifier = Modifier.weight(1f),
+			rows =
+				listOf(
+					{ position ->
+						ParameterValueRow(
+							name = horizontal.name,
+							value = xValue,
+							default = horizontal.default,
+							range = horizontal.min..horizontal.max,
+							resetLabel = resetLabel,
+							rangeToggleLabel = rangeToggleLabel,
+							showRangeToggle = false,
+							showLeadingSlot = false,
+							rangeOpen = rangeOpen,
+							onToggleRange = onToggleRange,
+							renaming = renamingParameterId == horizontal.id,
+							onStartRename = { onStartRename(horizontal.id) },
+							onCommitRename = { newName -> onCommitRename(horizontal.id, newName) },
+							onCancelRename = onCancelRename,
+							onCommitValue = { newX -> onCommitValue(horizontal.id, newX) },
+							linkIcon = linkIcon,
+							linkContentDescription = linkContentDescription,
+							onLinkClick = onLinkClick,
+							stackPosition = position,
+						)
+					},
+					{ position ->
+						ParameterValueRow(
+							name = vertical.name,
+							value = yValue,
+							default = vertical.default,
+							range = vertical.min..vertical.max,
+							resetLabel = resetLabel,
+							rangeToggleLabel = rangeToggleLabel,
+							showRangeToggle = false,
+							showLeadingSlot = false,
+							rangeOpen = rangeOpen,
+							onToggleRange = onToggleRange,
+							renaming = renamingParameterId == vertical.id,
+							onStartRename = { onStartRename(vertical.id) },
+							onCommitRename = { newName -> onCommitRename(vertical.id, newName) },
+							onCancelRename = onCancelRename,
+							onCommitValue = { newY -> onCommitValue(vertical.id, newY) },
+							linkIcon = null,
+							linkContentDescription = null,
+							onLinkClick = null,
+							stackPosition = position,
+						)
+					},
+				),
+		)
 	}
 	Pad2D(
 		xValue = xValue,
@@ -915,6 +929,9 @@ private fun ParameterPad2D(
  * @param UmamoIcon linkIcon        The trailing link / unlink glyph, or null for an empty slot.
  * @param String   linkContentDescription The localized accessible label for the link glyph.
  * @param Function onLinkClick      Called when the link glyph is clicked, or null when hidden.
+ * @param StackPosition stackPosition This field's position in a vertical stack: a linked pair's two axis
+ *                                  rows butt into one stacked group (First / Last), while a standalone
+ *                                  slider row stays Single (a self-contained, fully-rounded field).
  */
 @Composable
 private fun ParameterValueRow(
@@ -936,6 +953,7 @@ private fun ParameterValueRow(
 	linkIcon: UmamoIcon?,
 	linkContentDescription: String?,
 	onLinkClick: (() -> Unit)?,
+	stackPosition: StackPosition = StackPosition.Single,
 ) {
 	val colors = LocalUmamoColors.current
 	Row(
@@ -995,7 +1013,13 @@ private fun ParameterValueRow(
 			)
 			Spacer(modifier = Modifier.width(4.dp))
 		}
-		NumberField(value = value, onValueChange = onCommitValue, range = range, modifier = Modifier.width(64.dp))
+		NumberField(
+			value = value,
+			onValueChange = onCommitValue,
+			range = range,
+			modifier = Modifier.width(64.dp),
+			stackPosition = stackPosition,
+		)
 		// A fixed-width trailing slot whether or not this row offers a link edit, so the number
 		// fields stay column-aligned across all rows.
 		Spacer(modifier = Modifier.width(4.dp))
@@ -1097,6 +1121,8 @@ private fun RangeField(
 			onValueChange = onCommit,
 			range = RANGE_FIELD_LIMIT,
 			modifier = Modifier.fillMaxWidth(),
+			// The limit is a wide sanity clamp, not a display range, so the magnitude fill would be meaningless.
+			showFill = false,
 		)
 	}
 }

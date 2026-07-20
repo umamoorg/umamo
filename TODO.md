@@ -21,14 +21,27 @@
 
 ## Properties Panel
 A mega area panel of sorts with left side icon tab strip and each tab having collapsible sections.  This panel will have a lot of data and controls so it is important to make sure we get the data design right ahead of time.
-* Searchable - A search box in the AreaHeader that can visually filter properties and automatically switch tabs.
-* Standard Tabs: (Always shown)
-	* Document
-		* Sections: Canvas, Runtime
-* Per Item Tabs:
-	* Object (Object Properties)
-		* Sections: Transform, Relations
-	* Data
+* Numeric Input Field
+	* Type limit to integer or float with number of decimal places.
+	* Turns into input box when clicking on it.
+	* Input has to be validated and rounded per type.  Integer, always round.  Float, visually rounded to the specified number decimal places, but data is only rounded to a reasonable maximum of decimal places, probably eight places.
+	* Left/Right decrease/increase chevron buttons appearing when hovering.
+	* Drag left/right with pointer to decrease/increase.
+	* Minimum/Maximum - Fields with a minimum and maximum set show filled left to right.
+	* Like ButtonGroup.kt, when multiple numeric input fields are stacked on top of each other then show with a small divider and rounded corners only at the top and bottom inputs.
+* Dropdown Field (Blend mode, part group mode, etc.)
+	* We can reuse the DropdownChip.  If we need styling differences we can override/subclass it.
+* Checkbox (Checkbox in Inputs.kt) - Back face culling, etc.
+
+- The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled
+  export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it
+  drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass
+  (depends on cataloguing each target runtime's capabilities).
+- Editable controls / write-back, drag-to-scrub number field, `SettingRow` promotion to `kit`.
+- Removing the Inspector space and swapping it out of the default workspace layout.
+- Moving the AreaHeader's selected-item readout into this panel (TODO.md § Overlays Toggle).
+- `LocalPropertyTabRegistry` composition-local + vendor `withOverrides` wiring (type seam exists; provider deferred).
+- Per-row (vs per-section) search granularity.
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork.

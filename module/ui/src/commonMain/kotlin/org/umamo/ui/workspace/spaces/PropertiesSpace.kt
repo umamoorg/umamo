@@ -29,6 +29,7 @@ import org.umamo.edit.Selection
 import org.umamo.ui.kit.SectionHeader
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
+import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.properties.PROPERTIES_VIEW_STATE_KEY
@@ -74,7 +75,7 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		} else {
 			null
 		}
-	val context = PropertyContext(puppet, selection, activeTarget)
+	val context = PropertyContext(puppet, selection, activeTarget, LocalEditorSession.current)
 	val viewState = scope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }
 	val registry = remember { defaultPropertyTabRegistry() }
 	val colors = LocalUmamoColors.current
@@ -165,6 +166,9 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										modifier =
 											Modifier.fillMaxWidth()
 												.padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
+										// Breathing room between separate rows so filled controls do not touch; a
+										// FieldStack's own 1.dp seam is internal, so stacked groups stay tight.
+										verticalArrangement = Arrangement.spacedBy(4.dp),
 									) {
 										section.content(context)
 									}

@@ -34,12 +34,12 @@ class PropertyTabRegistryTest {
 	 * @param SelectionTarget target The lone active target.
 	 * @return PropertyContext The context with that target active.
 	 */
-	private fun contextFor(target: SelectionTarget): PropertyContext = PropertyContext(emptyPuppet(), Selection(setOf(target), target), target)
+	private fun contextFor(target: SelectionTarget): PropertyContext = PropertyContext(emptyPuppet(), Selection(setOf(target), target), target, session = null)
 
 	/** With nothing selected, only the always-on Document tab is visible. */
 	@Test
 	fun documentTabIsTheOnlyTabWithNoSelection() {
-		val visible = defaultPropertyTabRegistry().visibleTabs(PropertyContext(emptyPuppet(), Selection(), null)).map { tab -> tab.id }
+		val visible = defaultPropertyTabRegistry().visibleTabs(PropertyContext(emptyPuppet(), Selection(), null, session = null)).map { tab -> tab.id }
 		assertEquals(listOf(PropertyTabId.Document), visible)
 	}
 

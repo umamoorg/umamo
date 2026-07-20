@@ -2,6 +2,7 @@ package org.umamo.ui.properties
 
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.Deformer
@@ -19,11 +20,15 @@ import org.umamo.ui.theme.UmamoIcon
  * @property Selection selection The current object-mode selection.
  * @property SelectionTarget? activeTarget The single active item that drives the per-item tabs, or null
  *   when nothing is selected or several items are (per-item tabs need one focused item).
+ * @property EditorSession? session The editing session an editable control writes through, or null when
+ *   no document is open (the controls then render disabled / inert).  Rebuilt from the composition local
+ *   each recomposition alongside the read-only fields.
  */
 class PropertyContext(
 	val puppet: PuppetModel,
 	val selection: Selection,
 	val activeTarget: SelectionTarget?,
+	val session: EditorSession?,
 )
 
 /**

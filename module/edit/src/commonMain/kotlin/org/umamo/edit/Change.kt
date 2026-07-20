@@ -1,9 +1,12 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 
 /**
@@ -106,6 +109,42 @@ sealed interface PartChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.part.delete"
 	}
+
+	/**
+	 * Toggles a part's guide-image (sketch) flag - an editor-only reference overlay, excluded from
+	 * runtime (MOC3) export.
+	 *
+	 * @property PartId id The part whose sketch flag changed.
+	 * @property Boolean sketch The new sketch state.
+	 */
+	data class SetSketch(val id: PartId, val sketch: Boolean) : PartChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.part.sketch"
+	}
+
+	/**
+	 * Sets a part's own draw order (the sort key for its slot when it is grouped or isolated).
+	 *
+	 * @property PartId id The part whose draw order changed.
+	 * @property Int order The new draw order.
+	 */
+	data class SetDrawOrder(val id: PartId, val order: Int) : PartChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.part.drawOrder"
+	}
+
+	/**
+	 * Sets a part's rendering group mode (PassThrough / Grouped / Isolated), carrying the whole mode
+	 * value - an Isolated switch brings its full composite, so one change covers a mode swap and any
+	 * composite sub-field edit alike.
+	 *
+	 * @property PartId id The part whose group mode changed.
+	 * @property PartGroupMode mode The new group mode.
+	 */
+	data class SetGroupMode(val id: PartId, val mode: PartGroupMode) : PartChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.part.groupMode"
+	}
 }
 
 /** Changes to a drawable (an art mesh). */
@@ -176,6 +215,51 @@ sealed interface DrawableChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.drawable.delete"
 	}
+
+	/**
+	 * Sets a drawable's color blend mode.
+	 *
+	 * @property DrawableId id The drawable whose blend mode changed.
+	 * @property BlendMode mode The new blend mode.
+	 */
+	data class SetBlendMode(val id: DrawableId, val mode: BlendMode) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.blendMode"
+	}
+
+	/**
+	 * Sets a drawable's alpha blend mode (Cubism 5.3's Porter-Duff-style alpha compositing).
+	 *
+	 * @property DrawableId id The drawable whose alpha blend mode changed.
+	 * @property AlphaBlendMode mode The new alpha blend mode.
+	 */
+	data class SetAlphaBlendMode(val id: DrawableId, val mode: AlphaBlendMode) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.alphaBlendMode"
+	}
+
+	/**
+	 * Toggles a drawable's back-face culling (false = double-sided, Cubism's default).
+	 *
+	 * @property DrawableId id The drawable whose culling changed.
+	 * @property Boolean culling The new culling state.
+	 */
+	data class SetCulling(val id: DrawableId, val culling: Boolean) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.culling"
+	}
+
+	/**
+	 * Toggles whether a drawable's clipping mask is inverted (the drawable shows outside the mask
+	 * coverage instead of inside).
+	 *
+	 * @property DrawableId id The drawable whose mask inversion changed.
+	 * @property Boolean invert The new inverted state.
+	 */
+	data class SetInvertMask(val id: DrawableId, val invert: Boolean) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.invertMask"
+	}
 }
 
 /** Changes to a deformer (warp or rotation). */
@@ -222,6 +306,30 @@ sealed interface DeformerChange : Change {
 	data class Delete(val id: DeformerId) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.deformer.delete"
+	}
+
+	/**
+	 * Sets a rotation deformer's static editor reference angle. A no-op on a warp deformer (it has no
+	 * base angle), so the transform short-circuits.
+	 *
+	 * @property DeformerId id The rotation deformer whose base angle changed.
+	 * @property Float angle The new base angle in degrees.
+	 */
+	data class SetBaseAngle(val id: DeformerId, val angle: Float) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.baseAngle"
+	}
+
+	/**
+	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split).
+	 * A no-op on a rotation deformer (it has no lattice), so the transform short-circuits.
+	 *
+	 * @property DeformerId id The warp deformer whose interpolation mode changed.
+	 * @property Boolean quad The new quad-transform state.
+	 */
+	data class SetQuadTransform(val id: DeformerId, val quad: Boolean) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.quadTransform"
 	}
 }
 
@@ -346,6 +454,32 @@ sealed interface ParameterChange : Change {
 	data class Delete(val id: ParameterId) : ParameterChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.parameter.delete"
+	}
+}
+
+/** Changes to document-wide properties that live on the model root rather than on any one entity. */
+sealed interface DocumentChange : Change {
+	/**
+	 * Sets the document canvas size in world units. Document content, so it marks the document dirty.
+	 *
+	 * @property Float width The new canvas width.
+	 * @property Float height The new canvas height.
+	 */
+	data class SetCanvasSize(val width: Float, val height: Float) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.canvasSize"
+	}
+
+	/**
+	 * Sets the world origin (where the viewport axis lines cross, in world space). Document content, so
+	 * it marks the document dirty.
+	 *
+	 * @property Float x The new world-origin x.
+	 * @property Float y The new world-origin y.
+	 */
+	data class SetWorldOrigin(val x: Float, val y: Float) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.worldOrigin"
 	}
 }
 

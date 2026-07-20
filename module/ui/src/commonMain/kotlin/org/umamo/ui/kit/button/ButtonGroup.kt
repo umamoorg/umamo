@@ -11,19 +11,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CornerBasedShape
-import androidx.compose.foundation.shape.ZeroCornerSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.Tooltip
+import org.umamo.ui.kit.stackPositionOf
+import org.umamo.ui.kit.stackedShape
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.UmamoIcon
@@ -87,25 +88,17 @@ fun ButtonGroup(items: List<ButtonGroupItem>, modifier: Modifier = Modifier) {
 }
 
 /**
- * Shapes one segment by its position in the group: outer corners take the group's rounding, corners
- * shared with a neighbour are square.  RoundedCornerShape's start/end corners already mirror under RTL,
- * so the first segment stays the visual leading end either way.
+ * Shapes one segment by its position in the (horizontal) group, delegating to the shared [stackedShape]
+ * helper that the vertical numeric-field stack also uses: outer corners take the group's rounding,
+ * corners shared with a neighbour are squared.
  *
  * @param CornerBasedShape groupShape The rounding applied to the group's outer corners.
  * @param Int segmentIndex This segment's position.
  * @param Int segmentCount The number of segments in the group.
  * @return Shape The segment's corner shape.
  */
-private fun segmentShape(groupShape: CornerBasedShape, segmentIndex: Int, segmentCount: Int): Shape {
-	val isFirst = segmentIndex == 0
-	val isLast = segmentIndex == segmentCount - 1
-	return when {
-		isFirst && isLast -> groupShape
-		isFirst -> groupShape.copy(topEnd = ZeroCornerSize, bottomEnd = ZeroCornerSize)
-		isLast -> groupShape.copy(topStart = ZeroCornerSize, bottomStart = ZeroCornerSize)
-		else -> RectangleShape
-	}
-}
+private fun segmentShape(groupShape: CornerBasedShape, segmentIndex: Int, segmentCount: Int): Shape =
+	stackedShape(groupShape, stackPositionOf(segmentIndex, segmentCount), StackAxis.Horizontal)
 
 /**
  * One rendered segment: a full-bleed fill (accent while selected, neutral control fill otherwise, both

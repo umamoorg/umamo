@@ -108,6 +108,7 @@ data class UmamoColors(
 	val selection: Color,
 	val selectionText: Color,
 	val controlBackground: Color,
+	val controlBackgroundHover: Color,
 	val controlGlyph: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
@@ -187,6 +188,7 @@ val umamoDarkColors =
 		selection = brandPurple,
 		selectionText = Color(0xFFFFFFFF),
 		controlBackground = Color(0xFF545454),
+		controlBackgroundHover = Color(0xFF696969), // This is primarily for the NumberField entry.
 		controlGlyph = Color(0xFFFFFFFF),
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
@@ -242,6 +244,7 @@ val umamoLightColors =
 		selection = Color(0xFFDCC3EA),
 		selectionText = Color(0xFF3B2144),
 		controlBackground = Color(0xFFDFDFDF),
+		controlBackgroundHover = Color(0xFF696969), // This is primarily for the NumberField entry.
 		controlGlyph = Color(0xFF2E2E2E),
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),

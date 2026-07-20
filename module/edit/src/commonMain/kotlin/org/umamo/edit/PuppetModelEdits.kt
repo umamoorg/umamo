@@ -1,9 +1,12 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
@@ -227,4 +230,207 @@ fun PuppetModel.withMeshUvs(id: DrawableId, newUvs: FloatArray): PuppetModel {
 	val updated = drawables.toMutableList()
 	updated[index] = updated[index].copy(mesh = DrawableMesh(mesh.positions, newUvs, mesh.indices))
 	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s color blend mode set to [mode], sharing every other
+ * entity. A no-op id (no such drawable, or the mode already matches) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param BlendMode mode The new blend mode.
+ * @return PuppetModel The model with that drawable's blend mode updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableBlendMode(id: DrawableId, mode: BlendMode): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].blendMode == mode) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(blendMode = mode)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s alpha blend mode set to [mode], sharing every other
+ * entity. A no-op id (no such drawable, or the mode already matches) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param AlphaBlendMode mode The new alpha blend mode.
+ * @return PuppetModel The model with that drawable's alpha blend mode updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableAlphaBlendMode(id: DrawableId, mode: AlphaBlendMode): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].alphaBlendMode == mode) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(alphaBlendMode = mode)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s back-face culling set to [culling], sharing every
+ * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Boolean culling The new culling state.
+ * @return PuppetModel The model with that drawable's culling updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].culling == culling) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(culling = culling)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s mask-inversion flag set to [invert], sharing every
+ * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Boolean invert The new inverted-mask state.
+ * @return PuppetModel The model with that drawable's mask inversion updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].invertMask == invert) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(invertMask = invert)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the rotation deformer [id]'s base angle set to [angle], sharing every
+ * other entity. A no-op (no such deformer, a warp deformer - which has no base angle - or the angle
+ * already matches) returns the same instance.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Float angle The new base angle in degrees.
+ * @return PuppetModel The model with that deformer's base angle updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerBaseAngle(id: DeformerId, angle: Float): PuppetModel {
+	val index = deformers.indexOfFirst { deformer -> deformer.id == id }
+	if (index < 0) {
+		return this
+	}
+	val deformer = deformers[index]
+	if (deformer !is Deformer.Rotation || deformer.baseAngle == angle) {
+		return this
+	}
+	val updated = deformers.toMutableList()
+	updated[index] = deformer.copy(baseAngle = angle)
+	return copy(deformers = updated)
+}
+
+/**
+ * Returns a copy of [this] with the warp deformer [id]'s FFD interpolation mode set to [quad], sharing
+ * every other entity. A no-op (no such deformer, a rotation deformer - which has no lattice - or the
+ * flag already matches) returns the same instance.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Boolean quad The new quad-transform state.
+ * @return PuppetModel The model with that deformer's interpolation mode updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerQuadTransform(id: DeformerId, quad: Boolean): PuppetModel {
+	val index = deformers.indexOfFirst { deformer -> deformer.id == id }
+	if (index < 0) {
+		return this
+	}
+	val deformer = deformers[index]
+	if (deformer !is Deformer.Warp || deformer.isQuadTransform == quad) {
+		return this
+	}
+	val updated = deformers.toMutableList()
+	updated[index] = deformer.copy(isQuadTransform = quad)
+	return copy(deformers = updated)
+}
+
+/**
+ * Returns a copy of [this] with the part [id]'s guide-image (sketch) flag set to [sketch], sharing every
+ * other entity. A no-op id (no such part, or the flag already matches) returns the same instance.
+ *
+ * @param PartId id The part to retarget.
+ * @param Boolean sketch The new sketch state.
+ * @return PuppetModel The model with that part's sketch flag updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withPartSketch(id: PartId, sketch: Boolean): PuppetModel {
+	val index = parts.indexOfFirst { part -> part.id == id }
+	if (index < 0 || parts[index].isSketch == sketch) {
+		return this
+	}
+	val updated = parts.toMutableList()
+	updated[index] = updated[index].copy(isSketch = sketch)
+	return copy(parts = updated)
+}
+
+/**
+ * Returns a copy of [this] with the part [id]'s own draw order set to [order], sharing every other
+ * entity. A no-op id (no such part, or the value already matches) returns the same instance.
+ *
+ * @param PartId id The part to retarget.
+ * @param Int order The new draw order.
+ * @return PuppetModel The model with that part's draw order updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withPartDrawOrder(id: PartId, order: Int): PuppetModel {
+	val index = parts.indexOfFirst { part -> part.id == id }
+	if (index < 0 || parts[index].drawOrder == order) {
+		return this
+	}
+	val updated = parts.toMutableList()
+	updated[index] = updated[index].copy(drawOrder = order)
+	return copy(parts = updated)
+}
+
+/**
+ * Returns a copy of [this] with the part [id]'s rendering group mode set to [mode], sharing every other
+ * entity. Carries the whole mode value, so an Isolated switch and any composite sub-field edit go
+ * through here alike. A no-op id (no such part, or the mode already matches) returns the same instance.
+ *
+ * @param PartId id The part to retarget.
+ * @param PartGroupMode mode The new group mode.
+ * @return PuppetModel The model with that part's group mode updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withPartGroupMode(id: PartId, mode: PartGroupMode): PuppetModel {
+	val index = parts.indexOfFirst { part -> part.id == id }
+	if (index < 0 || parts[index].groupMode == mode) {
+		return this
+	}
+	val updated = parts.toMutableList()
+	updated[index] = updated[index].copy(groupMode = mode)
+	return copy(parts = updated)
+}
+
+/**
+ * Returns a copy of [this] with the document canvas size set to [width] x [height] in world units,
+ * sharing the rest of the model. A no-op (both dimensions already match) returns the same instance.
+ *
+ * @param Float width The new canvas width.
+ * @param Float height The new canvas height.
+ * @return PuppetModel The model with the canvas resized, or [this] if nothing changed.
+ */
+fun PuppetModel.withCanvasSize(width: Float, height: Float): PuppetModel {
+	if (canvasWidth == width && canvasHeight == height) {
+		return this
+	}
+	return copy(canvasWidth = width, canvasHeight = height)
+}
+
+/**
+ * Returns a copy of [this] with the world origin set to ([x], [y]) in world space, sharing the rest of
+ * the model. A no-op (both coordinates already match) returns the same instance.
+ *
+ * @param Float x The new world-origin x.
+ * @param Float y The new world-origin y.
+ * @return PuppetModel The model with the world origin moved, or [this] if nothing changed.
+ */
+fun PuppetModel.withWorldOrigin(x: Float, y: Float): PuppetModel {
+	if (worldOriginX == x && worldOriginY == y) {
+		return this
+	}
+	return copy(worldOriginX = x, worldOriginY = y)
 }

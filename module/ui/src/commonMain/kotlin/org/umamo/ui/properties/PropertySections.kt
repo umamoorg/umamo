@@ -1,15 +1,41 @@
 package org.umamo.ui.properties
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.setCanvasSize
+import org.umamo.edit.setDeformerBaseAngle
+import org.umamo.edit.setDeformerQuadTransform
+import org.umamo.edit.setDrawableAlphaBlendMode
+import org.umamo.edit.setDrawableBlendMode
+import org.umamo.edit.setDrawableCulling
+import org.umamo.edit.setDrawableInvertMask
+import org.umamo.edit.setPartDrawOrder
+import org.umamo.edit.setPartGroupMode
+import org.umamo.edit.setPartSketch
+import org.umamo.edit.setWorldOrigin
+import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.ui.kit.Checkbox
+import org.umamo.ui.kit.FieldStack
+import org.umamo.ui.kit.NumberField
+import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
@@ -93,20 +119,130 @@ private fun computeMeshBounds(positions: FloatArray): MeshBounds {
 	return MeshBounds((minX + maxX) / 2f, (minY + maxY) / 2f, maxX - minX, maxY - minY)
 }
 
+/** An unbounded float range: a numeric field that clamps nothing and draws no magnitude fill. */
+private val UNBOUNDED_RANGE = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY
+
+/** A half-open float range (min set, no max): clamps below and draws no fill (needs both bounds). */
+private val POSITIVE_RANGE = 1f..Float.POSITIVE_INFINITY
+
+/**
+ * A labelled Properties field row, Blender-style: the right-aligned label takes the left half and the
+ * control fills the right half, so a column of rows aligns and every field spans a consistent width.  The
+ * control should [Modifier.fillMaxWidth] so it fills its half.
+ *
+ * @param String label The localized field label.
+ * @param Function control The editable control (a fillMaxWidth NumberField, SelectField, etc.).
+ */
+@Composable
+private fun PropertyFieldRow(label: String, control: @Composable () -> Unit) {
+	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+		Text(
+			text = label,
+			style = LocalUmamoTypography.current.bodySmall,
+			color = LocalUmamoColors.current.text,
+			textAlign = TextAlign.End,
+			modifier = Modifier.weight(1f).padding(end = 8.dp),
+		)
+		Box(modifier = Modifier.weight(1f)) {
+			control()
+		}
+	}
+}
+
+/**
+ * A Properties checkbox row: the checkbox (box plus its own label) sits in the right half like every other
+ * field, with the left label column left empty - matching Blender, where a lone toggle occupies the field
+ * column.  A group of related toggles can carry a left-column heading later.
+ *
+ * @param Boolean checked The current state.
+ * @param Function onCheckedChange The toggle callback.
+ * @param String label The checkbox's own label (drawn to the right of the box).
+ */
+@Composable
+private fun PropertyCheckboxRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
+	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+		Spacer(modifier = Modifier.weight(1f))
+		Box(modifier = Modifier.weight(1f)) {
+			Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label)
+		}
+	}
+}
+
 /** Document > Canvas: the document canvas size and world origin. */
 internal val CanvasSection =
 	PropertySection(
 		id = "document.canvas",
 		title = Res.string.properties_section_canvas,
-		searchTerms = listOf(Res.string.properties_canvas_size, Res.string.properties_canvas_origin),
+		searchTerms =
+			listOf(
+				Res.string.properties_field_canvas_width,
+				Res.string.properties_field_canvas_height,
+				Res.string.properties_field_origin_x,
+				Res.string.properties_field_origin_y,
+			),
 		content = { context ->
 			val puppet = context.puppet
-			if (puppet.canvasWidth > 0f || puppet.canvasHeight > 0f) {
-				PropertyLine(stringResource(Res.string.properties_canvas_size, formatDimension(puppet.canvasWidth), formatDimension(puppet.canvasHeight)))
-				PropertyLine(stringResource(Res.string.properties_canvas_origin, formatDimension(puppet.worldOriginX), formatDimension(puppet.worldOriginY)))
-			} else {
-				PropertyLine(stringResource(Res.string.properties_canvas_none))
-			}
+			val session = context.session
+			val pixels = stringResource(Res.string.unit_pixels)
+			// Width + height joined into one stacked group; the origin x / y into a second below it.
+			FieldStack(
+				listOf(
+					{ position ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_canvas_width)) {
+							NumberField(
+								value = puppet.canvasWidth,
+								onValueChange = { newWidth -> session?.setCanvasSize(newWidth, puppet.canvasHeight) },
+								modifier = Modifier.fillMaxWidth(),
+								range = POSITIVE_RANGE,
+								decimals = 0,
+								unitSuffix = pixels,
+								stackPosition = position,
+							)
+						}
+					},
+					{ position ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_canvas_height)) {
+							NumberField(
+								value = puppet.canvasHeight,
+								onValueChange = { newHeight -> session?.setCanvasSize(puppet.canvasWidth, newHeight) },
+								modifier = Modifier.fillMaxWidth(),
+								range = POSITIVE_RANGE,
+								decimals = 0,
+								unitSuffix = pixels,
+								stackPosition = position,
+							)
+						}
+					},
+				),
+			)
+			FieldStack(
+				listOf(
+					{ position ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_origin_x)) {
+							NumberField(
+								value = puppet.worldOriginX,
+								onValueChange = { newX -> session?.setWorldOrigin(newX, puppet.worldOriginY) },
+								modifier = Modifier.fillMaxWidth(),
+								range = UNBOUNDED_RANGE,
+								decimals = 1,
+								stackPosition = position,
+							)
+						}
+					},
+					{ position ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_origin_y)) {
+							NumberField(
+								value = puppet.worldOriginY,
+								onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
+								modifier = Modifier.fillMaxWidth(),
+								range = UNBOUNDED_RANGE,
+								decimals = 1,
+								stackPosition = position,
+							)
+						}
+					},
+				),
+			)
 		},
 	)
 
@@ -134,13 +270,24 @@ internal val TransformSection =
 		content = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
+			val session = context.session
 			val mesh = drawable?.mesh
 			if (drawable != null && mesh != null && mesh.vertexCount > 0) {
+				// A drawable has no scalar transform - its placement is its rest geometry - so bounds stay read-only.
 				val bounds = computeMeshBounds(mesh.positions)
 				PropertyLine(stringResource(Res.string.properties_transform_position, formatDimension(bounds.centerX), formatDimension(bounds.centerY)))
 				PropertyLine(stringResource(Res.string.properties_transform_size, formatDimension(bounds.width), formatDimension(bounds.height)))
 			} else if (deformer is Deformer.Rotation) {
-				PropertyLine(stringResource(Res.string.inspector_base_angle, deformer.baseAngle.toString()))
+				PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+					NumberField(
+						value = deformer.baseAngle,
+						onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+						modifier = Modifier.fillMaxWidth(),
+						range = UNBOUNDED_RANGE,
+						decimals = 1,
+						unitSuffix = stringResource(Res.string.unit_degrees),
+					)
+				}
 			} else {
 				PropertyLine(stringResource(Res.string.properties_transform_none))
 			}
@@ -210,13 +357,47 @@ internal val BlendSection =
 	PropertySection(
 		id = "data.blend",
 		title = Res.string.properties_section_blend,
-		searchTerms = listOf(Res.string.inspector_blend_mode, Res.string.properties_blend_alpha, Res.string.properties_blend_culling),
+		searchTerms =
+			listOf(
+				Res.string.properties_field_blend_mode,
+				Res.string.properties_field_alpha_mode,
+				Res.string.properties_field_culling,
+				Res.string.properties_field_invert_mask,
+			),
 		content = { context ->
 			val drawable = context.activeDrawable()
 			if (drawable != null) {
-				PropertyLine(stringResource(Res.string.inspector_blend_mode, drawable.blendMode.name))
-				PropertyLine(stringResource(Res.string.properties_blend_alpha, drawable.alphaBlendMode.name))
-				PropertyLine(stringResource(Res.string.properties_blend_culling, yesNo(drawable.culling)))
+				val session = context.session
+				val blendLabels = blendModeLabels()
+				val alphaLabels = alphaBlendModeLabels()
+				PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+					SelectField(
+						selected = drawable.blendMode,
+						modifier = Modifier.fillMaxWidth(),
+						options = BlendMode.entries,
+						label = { mode -> blendLabels[mode] ?: mode.name },
+						onSelect = { mode -> session?.setDrawableBlendMode(drawable.id, mode) },
+					)
+				}
+				PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+					SelectField(
+						selected = drawable.alphaBlendMode,
+						modifier = Modifier.fillMaxWidth(),
+						options = AlphaBlendMode.entries,
+						label = { mode -> alphaLabels[mode] ?: mode.name },
+						onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
+					)
+				}
+				PropertyCheckboxRow(
+					checked = drawable.culling,
+					onCheckedChange = { culling -> session?.setDrawableCulling(drawable.id, culling) },
+					label = stringResource(Res.string.properties_field_culling),
+				)
+				PropertyCheckboxRow(
+					checked = drawable.invertMask,
+					onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
+					label = stringResource(Res.string.properties_field_invert_mask),
+				)
 			}
 		},
 	)
@@ -226,16 +407,30 @@ internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
 		title = Res.string.properties_section_deformer,
-		searchTerms = listOf(Res.string.inspector_warp_grid, Res.string.inspector_base_angle),
+		searchTerms = listOf(Res.string.inspector_warp_grid, Res.string.properties_field_quad_transform, Res.string.properties_field_base_angle),
 		content = { context ->
+			val session = context.session
 			when (val deformer = context.activeDeformer()) {
 				is Deformer.Warp -> {
+					// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
 					PropertyLine(stringResource(Res.string.inspector_warp_grid, deformer.rows, deformer.columns))
-					PropertyLine(stringResource(Res.string.inspector_quad_transform, yesNo(deformer.isQuadTransform)))
+					PropertyCheckboxRow(
+						checked = deformer.isQuadTransform,
+						onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+						label = stringResource(Res.string.properties_field_quad_transform),
+					)
 				}
 
 				is Deformer.Rotation -> {
-					PropertyLine(stringResource(Res.string.inspector_base_angle, deformer.baseAngle.toString()))
+					PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+						NumberField(
+							value = deformer.baseAngle,
+							onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+							range = UNBOUNDED_RANGE,
+							decimals = 1,
+							unitSuffix = stringResource(Res.string.unit_degrees),
+						)
+					}
 				}
 
 				null -> {
@@ -249,13 +444,83 @@ internal val PartSection =
 	PropertySection(
 		id = "data.part",
 		title = Res.string.properties_section_part,
-		searchTerms = listOf(Res.string.inspector_child_count, Res.string.properties_part_draw_order, Res.string.inspector_sketch),
+		searchTerms =
+			listOf(
+				Res.string.inspector_child_count,
+				Res.string.properties_field_draw_order,
+				Res.string.properties_field_sketch,
+				Res.string.properties_field_group_mode,
+				Res.string.properties_field_opacity,
+			),
 		content = { context ->
 			val part = context.activePart()
 			if (part != null) {
+				val session = context.session
+				val groupLabels = partGroupModeLabels()
 				PropertyLine(stringResource(Res.string.inspector_child_count, part.children.size))
-				PropertyLine(stringResource(Res.string.properties_part_draw_order, part.drawOrder))
-				PropertyLine(stringResource(Res.string.inspector_sketch, yesNo(part.isSketch)))
+				PropertyCheckboxRow(
+					checked = part.isSketch,
+					onCheckedChange = { sketch -> session?.setPartSketch(part.id, sketch) },
+					label = stringResource(Res.string.properties_field_sketch),
+				)
+				PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
+					NumberField(
+						value = part.drawOrder,
+						onValueChange = { order -> session?.setPartDrawOrder(part.id, order) },
+						range = 0..1000,
+						modifier = Modifier.fillMaxWidth(),
+					)
+				}
+				PropertyFieldRow(stringResource(Res.string.properties_field_group_mode)) {
+					SelectField(
+						selected = part.groupMode.kind(),
+						modifier = Modifier.fillMaxWidth(),
+						options = PartGroupModeKind.entries,
+						label = { kind -> groupLabels[kind] ?: kind.name },
+						onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind, part.groupMode)) },
+					)
+				}
+				// An isolated part composites its subtree as one layer; expose the composite's scalar channels
+				// (colors need a color-picker field, deferred).  Rebuilding the whole Isolated mode on each edit
+				// keeps one Change / session method covering the mode swap and every sub-field alike.
+				val composite = (part.groupMode as? PartGroupMode.Isolated)?.composite
+				if (composite != null) {
+					val blendLabels = blendModeLabels()
+					val alphaLabels = alphaBlendModeLabels()
+					PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
+						NumberField(
+							value = composite.opacity,
+							onValueChange = { opacity -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(opacity = opacity))) },
+							modifier = Modifier.fillMaxWidth(),
+							range = 0f..1f,
+							decimals = 2,
+							step = 0.05f,
+						)
+					}
+					PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+						SelectField(
+							selected = composite.blendMode,
+							modifier = Modifier.fillMaxWidth(),
+							options = BlendMode.entries,
+							label = { mode -> blendLabels[mode] ?: mode.name },
+							onSelect = { mode -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(blendMode = mode))) },
+						)
+					}
+					PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+						SelectField(
+							selected = composite.alphaBlendMode,
+							modifier = Modifier.fillMaxWidth(),
+							options = AlphaBlendMode.entries,
+							label = { mode -> alphaLabels[mode] ?: mode.name },
+							onSelect = { mode -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(alphaBlendMode = mode))) },
+						)
+					}
+					PropertyCheckboxRow(
+						checked = composite.invertMask,
+						onCheckedChange = { invert -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(invertMask = invert))) },
+						label = stringResource(Res.string.properties_field_invert_mask),
+					)
+				}
 			}
 		},
 	)
