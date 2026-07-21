@@ -4,8 +4,6 @@ package org.umamo.runtime.model
  * The whole rig as a concrete, in-memory puppet: what `:runtime` evaluates and the editor renders.
  * `:format` maps a parsed `.cmo3` (and later `.moc3`) into this; the deformation core depends only on
  * this model, never on the format's serialization quirks (that mapping lives in `runtime.ingest`).
- *
- * リグ全体の具象モデル。:runtime が評価し、:format がこれへ変換する。
  */
 data class PuppetModel(
 	val parameters: List<Parameter>,
@@ -68,8 +66,6 @@ const val CUBISM_DEFAULT_PART_DRAW_ORDER = 500
  * sub-parts and drawables in one interleaved sibling order per level (a loose mesh can sit between two
  * folders), and that order is also the draw-order tiebreak. This sealed type is how [Part.children] and
  * [PuppetModel.rootChildren] express that single order, instead of splitting parts and drawables apart.
- *
- * 組織ツリーの順序付き子要素：サブパートか描画オブジェクト。パーツとメッシュは1つの並びに交互に並ぶ。
  */
 sealed interface OrgChild {
 	/**
@@ -124,18 +120,30 @@ data class Part(
 	 * isolated part the same grid also keys the composite's opacity/color channels.
 	 */
 	val formGrid: KeyformGrid<PartForm>? = null,
+	/**
+	 * The part's compositing settings, stored latently regardless of [groupMode] so they survive the
+	 * part leaving and re-entering [PartGroupMode.Isolated] (and so the UMA format can track them).  Only
+	 * applied while the part is Isolated - see [activeComposite], the accessor the render pipeline reads.
+	 */
+	val composite: PartComposite = PartComposite(),
 ) {
-	/** The composite settings when [groupMode] is [PartGroupMode.Isolated], else null. */
-	val composite: PartComposite?
-		get() = (groupMode as? PartGroupMode.Isolated)?.composite
+	/** True when this part composites its subtree as one layer. */
+	val isIsolated: Boolean
+		get() = groupMode is PartGroupMode.Isolated
+
+	/**
+	 * The composite to apply when rendering: [composite] while the part is [PartGroupMode.Isolated], else
+	 * null.  The single "is this part compositing" signal the render tree keys off (its null-ness decides
+	 * the offscreen-layer boundary), so the latent [composite] of a non-isolated part is never applied.
+	 */
+	val activeComposite: PartComposite?
+		get() = composite.takeIf { isIsolated }
 }
 
 /**
  * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organisational
  * tree) and [parentDeformerId] (the deformer chain that deforms it) - these are independent
  * hierarchies in Cubism.
- *
- * 描画される三角形メッシュ。所属パート(組織)と親デフォーマ(変形)は別系統。
  */
 data class Drawable(
 	val id: DrawableId,
@@ -194,8 +202,6 @@ data class Drawable(
  * parameter-animated), so callers compute it once. It gates only what is drawn: a hidden drawable that is
  * still a mask source or a glue partner must keep being deformed, so apply those gates elsewhere.
  *
- * Parts パネルの表示トグルを親へ遡って合成し、実際に描画される drawable を返す（フォルダを隠すと中身も隠れる）。
- *
  * @return Set<DrawableId> The ids of the drawables to draw.
  */
 fun PuppetModel.visibleDrawableIds(): Set<DrawableId> {
@@ -229,8 +235,6 @@ fun PuppetModel.visibleDrawableIds(): Set<DrawableId> {
  * [Part.children]), or null for a root-level drawable. Since membership lives only in the tree, this is how
  * the few sites that need "which part owns this mesh" (the Inspector) read it - computed once per model.
  *
- * 各描画オブジェクトの所属パートを組織ツリーから導出する（ルート直下は null）。所属はツリーのみが保持する。
- *
  * @return Map<DrawableId, PartId?> Drawable id to its owning part id, or null at the root.
  */
 fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
@@ -258,8 +262,6 @@ fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
  * as [visibleDrawableIds], short-circuiting at the first match.  Only when the org tree carries no drawable
  * at all (a degenerate model with an empty [rootChildren]) does it fall back to a flat scan of [drawables];
  * a populated tree that yields no shown, meshed drawable returns null (nothing editable to seed onto).
- *
- * Parts パネル順（上＝前）で最初に編集可能な（メッシュを持ち表示中の）描画オブジェクト。編集モードの初期選択に使う。
  *
  * @return DrawableId? The topmost editable drawable, or null when the model has none.
  */

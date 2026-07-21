@@ -80,14 +80,14 @@ class CompositeOracleTest {
 				}
 				val dump = runOracleDump(dumpModel, coreLib, mocFile, pose)
 				assertEquals(
-					puppet.parts.count { it.composite != null },
+					puppet.parts.count { it.activeComposite != null },
 					dump.offscreens.size,
 					"${compositeCase.fileName}: offscreen count",
 				)
 				val inputs = preparePose(puppet, pose.entries.associate { ParameterId(it.key) to it.value })
 				for (oracleOffscreen in dump.offscreens) {
 					val part = puppet.parts[oracleOffscreen.ownerPartIndex]
-					val composite = assertNotNull(part.composite, "${compositeCase.fileName}: ${part.id.raw} owns an offscreen")
+					val composite = assertNotNull(part.activeComposite, "${compositeCase.fileName}: ${part.id.raw} owns an offscreen")
 					val state =
 						assertNotNull(
 							inputs.partCompositeStates[part.id],

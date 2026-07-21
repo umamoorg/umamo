@@ -127,7 +127,8 @@ class CompositeRendererTest {
 			id = PartId(partId),
 			name = partId,
 			children = children,
-			groupMode = PartGroupMode.Isolated(composite),
+			groupMode = PartGroupMode.Isolated,
+			composite = composite,
 		)
 
 	private fun assertPixelClose(expected: IntArray, actual: IntArray, label: String) {
@@ -287,7 +288,8 @@ class CompositeRendererTest {
 					id = PartId("outer"),
 					name = "outer",
 					children = listOf(OrgChild.Part(PartId("inner"))),
-					groupMode = PartGroupMode.Isolated(PartComposite(opacity = 0.5f)),
+					groupMode = PartGroupMode.Isolated,
+					composite = PartComposite(opacity = 0.5f),
 				)
 			val nested =
 				model(

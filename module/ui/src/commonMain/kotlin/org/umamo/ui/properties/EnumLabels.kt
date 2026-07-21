@@ -5,7 +5,6 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
-import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alpha_blend_atop
@@ -66,22 +65,18 @@ fun PartGroupMode.kind(): PartGroupModeKind =
 	}
 
 /**
- * Builds a full [PartGroupMode] from a chosen [kind].  When the new kind is Isolated it reuses [existing]'s
- * composite only if [existing] is itself Isolated; switching to Isolated from PassThrough / Grouped yields a
- * default composite, because the model stores the composite solely inside [PartGroupMode.Isolated] - once a
- * part leaves Isolated its composite is not retained anywhere, so a mode round-trip currently resets it.
- * Document-persistent (latent) composite that survives leaving and re-entering Isolated is a model + format
- * change planned alongside the UMA native format (see TODO.md); it is deliberately not done here.
+ * Builds a [PartGroupMode] from a chosen [kind].  The modes are payload-free now that a part's composite
+ * lives latently on the part itself (independent of the mode), so this is a plain projection - switching a
+ * part's mode never touches its composite settings.
  *
  * @param PartGroupModeKind kind The chosen kind.
- * @param PartGroupMode existing The current mode (its composite is reused only when [existing] is Isolated).
- * @return PartGroupMode The reconstructed mode.
+ * @return PartGroupMode The mode for that kind.
  */
-fun partGroupModeOf(kind: PartGroupModeKind, existing: PartGroupMode): PartGroupMode =
+fun partGroupModeOf(kind: PartGroupModeKind): PartGroupMode =
 	when (kind) {
 		PartGroupModeKind.PassThrough -> PartGroupMode.PassThrough
 		PartGroupModeKind.Grouped -> PartGroupMode.Grouped
-		PartGroupModeKind.Isolated -> PartGroupMode.Isolated((existing as? PartGroupMode.Isolated)?.composite ?: PartComposite())
+		PartGroupModeKind.Isolated -> PartGroupMode.Isolated
 	}
 
 /**

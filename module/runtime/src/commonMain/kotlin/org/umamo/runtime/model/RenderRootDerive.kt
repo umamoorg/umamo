@@ -46,7 +46,7 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 					} else {
 						val groupChildren = ArrayList<RenderNode>()
 						collect(part.children, groupChildren)
-						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.formGrid, part.composite))
+						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.formGrid, part.activeComposite))
 					}
 				}
 			}

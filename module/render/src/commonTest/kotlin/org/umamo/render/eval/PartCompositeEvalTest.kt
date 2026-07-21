@@ -69,13 +69,12 @@ class PartCompositeEvalTest {
 				id = PartId("fx"),
 				name = "fx",
 				children = emptyList(),
-				groupMode =
-					PartGroupMode.Isolated(
-						PartComposite(
-							opacity = 0.3f,
-							multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
-							screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
-						),
+				groupMode = PartGroupMode.Isolated,
+				composite =
+					PartComposite(
+						opacity = 0.3f,
+						multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
+						screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
 					),
 				formGrid = formGrid,
 			)

@@ -994,7 +994,9 @@ object Moc3Import {
 
 		val parts =
 			mocDocument.parts.mapIndexed { partIndex, source ->
-				val composite = partCompositeOf(source)
+				// MOC3 (runtime format) only records composite data for offscreen parts, so this is null for
+				// the rest; the composite is stored latently and applied only while the part is Isolated.
+				val offscreenComposite = partCompositeOf(source)
 				Part(
 					id = partIds[partIndex],
 					// cdi3: DisplayPart.name is the display label; fall back to the id.
@@ -1008,12 +1010,13 @@ object Moc3Import {
 					// always grouped; the bake records both).
 					groupMode =
 						when {
-							composite != null -> PartGroupMode.Isolated(composite)
+							offscreenComposite != null -> PartGroupMode.Isolated
 							partIndex in drawOrderGroupPartIndices -> PartGroupMode.Grouped
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
 					formGrid = partFormGridOf(source),
+					composite = offscreenComposite ?: PartComposite(),
 				)
 			}
 		return parts to childrenOf(-1)

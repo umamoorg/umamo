@@ -164,6 +164,7 @@
 	<string name="history_part_sketch">ガイド画像を切り替え</string>
 	<string name="history_part_draw_order">パーツの描画順を設定</string>
 	<string name="history_part_group_mode">グループモードを設定</string>
+	<string name="history_part_composite">合成設定を設定</string>
 	<string name="history_drawable_blend_mode">ブレンドモードを設定</string>
 	<string name="history_drawable_alpha_blend_mode">アルファモードを設定</string>
 	<string name="history_drawable_culling">裏面カリングを切り替え</string>

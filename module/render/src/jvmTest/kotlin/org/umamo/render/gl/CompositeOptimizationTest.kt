@@ -95,7 +95,8 @@ class CompositeOptimizationTest {
 			id = PartId(partId),
 			name = partId,
 			children = listOf(OrgChild.Drawable(DrawableId(childId))),
-			groupMode = PartGroupMode.Isolated(composite),
+			groupMode = PartGroupMode.Isolated,
+			composite = composite,
 		)
 
 	private fun renderImage(source: PuppetModel): IntArray {
