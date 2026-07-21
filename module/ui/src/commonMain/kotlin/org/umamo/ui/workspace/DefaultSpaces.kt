@@ -16,7 +16,6 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.ViewportSpaceCamera
 import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
-import org.umamo.ui.workspace.spaces.InspectorSpace
 import org.umamo.ui.workspace.spaces.LogsHeaderControls
 import org.umamo.ui.workspace.spaces.LogsSpace
 import org.umamo.ui.workspace.spaces.OutlinerHeaderControls
@@ -35,7 +34,7 @@ import org.umamo.ui.workspace.spaces.ViewportToolbarOverlay
 /**
  * Builds the base [SpaceRegistry] every shell starts from: a descriptor for each [SpaceKind]. The 2D
  * viewport delegates to the host-injected [LocalViewportHost] (placeholder when absent); the others
- * are placeholders here and get real bodies as the panels land (Outliner/Parameters/Inspector in the
+ * are placeholders here and get real bodies as the panels land (Outliner/Parameters/Properties in the
  * read-only-panels step, via withOverrides or by replacing these factories). The app layers its
  * overrides on with [SpaceRegistry.withOverrides].
  *
@@ -75,8 +74,6 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					LocalUmamoIcons.spaceParameters,
 					headerContent = { scope -> ParametersHeaderControls(scope) },
 				) { scope -> ParametersSpace(scope) },
-			SpaceKind.Inspector to
-				SpaceDescriptor(SpaceKind.Inspector, Res.string.space_inspector, LocalUmamoIcons.spaceInspector) { InspectorSpace() },
 			SpaceKind.Properties to
 				SpaceDescriptor(
 					SpaceKind.Properties,

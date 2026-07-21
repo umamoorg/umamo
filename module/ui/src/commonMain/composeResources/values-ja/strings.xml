@@ -25,7 +25,6 @@
 	<string name="space_uv">UV エディタ</string>
 	<string name="space_outliner">アウトライナー</string>
 	<string name="space_parameters">パラメータ</string>
-	<string name="space_inspector">インスペクター</string>
 	<string name="space_properties">プロパティ</string>
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
@@ -123,8 +122,6 @@
 	<string name="search_hint">検索</string>
 	<string name="search_clear">検索をクリア</string>
 
-	<string name="inspector_nothing_selected">選択されていません</string>
-
 	<!-- 履歴パネルの段ラベル。Change.labelKey ごとに1つ。初期状態は history_open、未対応キーは history_unknown。 -->
 	<string name="history_open">開く</string>
 	<string name="history_unknown">編集</string>
@@ -193,7 +190,6 @@
 	<string name="outliner_menu_delete">削除</string>
 	<string name="outliner_menu_delete_hierarchy">階層を削除</string>
 
-	<string name="inspector_model">モデル</string>
 	<string name="inspector_parts">パーツ: %1$d</string>
 	<string name="inspector_drawables">描画オブジェクト: %1$d</string>
 	<string name="inspector_parameters">パラメータ: %1$d</string>
@@ -306,32 +302,18 @@
 	<string name="sidebar_title">サイドバー</string>
 	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
 
-	<string name="inspector_part">パーツ</string>
-	<string name="inspector_drawable">描画オブジェクト</string>
-	<string name="inspector_deformer">デフォーマ</string>
-	<string name="inspector_name">名前: %1$s</string>
-	<string name="inspector_id">ID: %1$s</string>
-	<string name="inspector_visible">表示: %1$s</string>
-	<string name="inspector_sketch">ガイド画像: %1$s</string>
-	<string name="inspector_child_count">子: %1$d</string>
-	<string name="inspector_part_ref">パーツ: %1$s</string>
-	<string name="inspector_parent_deformer">親デフォーマ: %1$s</string>
-	<string name="inspector_blend_mode">合成: %1$s</string>
-	<string name="inspector_mask_count">マスク: %1$d</string>
-	<string name="inspector_invert_mask">マスク反転: %1$s</string>
-	<string name="inspector_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
-	<string name="inspector_no_mesh">メッシュなし</string>
-	<string name="inspector_deformer_kind">種類: %1$s</string>
-	<string name="inspector_deformer_warp">ワープ</string>
-	<string name="inspector_deformer_rotation">回転</string>
-	<string name="inspector_warp_grid">格子: %1$d × %2$d</string>
-	<string name="inspector_quad_transform">四角形補間: %1$s</string>
-	<string name="inspector_base_angle">基準角度: %1$s</string>
-	<string name="inspector_none">—</string>
-	<string name="inspector_yes">はい</string>
-	<string name="inspector_no">いいえ</string>
+	<string name="properties_child_count">子: %1$d</string>
+	<string name="properties_part_ref">パーツ: %1$s</string>
+	<string name="properties_parent_deformer">親デフォーマ: %1$s</string>
+	<string name="properties_mask_count">マスク: %1$d</string>
+	<string name="properties_invert_mask">マスク反転: %1$s</string>
+	<string name="properties_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
+	<string name="properties_no_mesh">メッシュなし</string>
+	<string name="properties_warp_grid">格子: %1$d × %2$d</string>
+	<string name="properties_none">—</string>
+	<string name="properties_yes">はい</string>
+	<string name="properties_no">いいえ</string>
 	<string name="inspector_multi_selected">%1$d 個選択</string>
-	<string name="inspector_multi_breakdown">パーツ: %1$d   描画: %2$d   デフォーマ: %3$d</string>
 
 	<!-- プロパティパネル（Blender 風のタブ式プロパティエディタ）。機械翻訳の下訳、翻訳者による確認待ち。 -->
 	<string name="properties_no_matches">一致するプロパティがありません</string>

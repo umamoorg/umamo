@@ -80,21 +80,34 @@ enum class PropertyTabId {
 }
 
 /**
- * One collapsible section within a tab: a localized [title], the localized labels it renders
- * ([searchTerms], matched by the header search), and the [content] that draws its rows from a
+ * One row within a section: the localized [terms] it exposes to the header search (its own label, plus
+ * any extra labels a stacked group folds in) and the [content] that draws it from a [PropertyContext].
+ * A section is a list of these, so the header search can hide the individual non-matching rows rather
+ * than the whole section.  A visually fused stack (a FieldStack) is one row whose terms cover every field
+ * in it, so the group stays intact under filtering.
+ *
+ * @property List terms The localized labels this row exposes to the header search (arg-free).
+ * @property Function content The composable that draws this one row.
+ */
+class PropertyRow(
+	val terms: List<StringResource>,
+	val content: @Composable (PropertyContext) -> Unit,
+)
+
+/**
+ * One collapsible section within a tab: a localized [title] and the [rows] it draws from a
  * [PropertyContext].  A section's [id] keys both its expanded/collapsed state and its search haystack, so
- * it must be stable and unique across the whole catalog.
+ * it must be stable and unique across the whole catalog.  The search index is the union of the rows'
+ * terms, so there is no separate term list to keep in sync with what the rows render.
  *
  * @property String id The stable, catalog-unique section key.
  * @property StringResource title The localized section heading.
- * @property List searchTerms The localized row labels this section exposes to the header search.
- * @property Function content The composable that draws the section's rows.
+ * @property Function rows The section's rows for the given context, top to bottom.
  */
 class PropertySection(
 	val id: String,
 	val title: StringResource,
-	val searchTerms: List<StringResource>,
-	val content: @Composable (PropertyContext) -> Unit,
+	val rows: (PropertyContext) -> List<PropertyRow>,
 )
 
 /**

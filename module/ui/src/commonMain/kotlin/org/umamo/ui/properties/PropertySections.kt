@@ -42,10 +42,10 @@ import org.umamo.ui.theme.UmamoIcon
 import kotlin.math.round
 
 /*
- * The read-only property sections for the first cut.  Each is a stable, top-level [PropertySection]
- * singleton so its id is the catalog key for search and expanded state, and the Data tab can reference the
- * same instances it hands back per selection type.  Rendering reuses the Inspector's label:value idiom and
- * its existing `inspector_*` strings; this duplication resolves when the Inspector space is retired.
+ * The property sections.  Each is a stable, top-level [PropertySection] singleton so its id is the catalog
+ * key for search and expanded state, and the Data tab can reference the same instances it hands back per
+ * selection type.  A section renders a list of [PropertyRow]s so the header search can hide the individual
+ * rows that do not match, not just whole sections.
  */
 
 /**
@@ -59,13 +59,13 @@ internal fun PropertyLine(text: String) {
 }
 
 /**
- * Resolves a boolean to the localized Yes / No string (shared with the Inspector's vocabulary).
+ * Resolves a boolean to the localized Yes / No string.
  *
  * @param Boolean value The flag.
  * @return String The localized "Yes" or "No".
  */
 @Composable
-internal fun yesNo(value: Boolean): String = stringResource(if (value) Res.string.inspector_yes else Res.string.inspector_no)
+internal fun yesNo(value: Boolean): String = stringResource(if (value) Res.string.properties_yes else Res.string.properties_no)
 
 /**
  * Formats a canvas / transform dimension: two decimals at most, with a whole number shown without a
@@ -173,75 +173,79 @@ internal val CanvasSection =
 	PropertySection(
 		id = "document.canvas",
 		title = Res.string.properties_section_canvas,
-		searchTerms =
-			listOf(
-				Res.string.properties_field_canvas_width,
-				Res.string.properties_field_canvas_height,
-				Res.string.properties_field_origin_x,
-				Res.string.properties_field_origin_y,
-			),
-		content = { context ->
+		rows = { context ->
 			val puppet = context.puppet
 			val session = context.session
-			val pixels = stringResource(Res.string.unit_pixels)
-			// Width + height joined into one stacked group; the origin x / y into a second below it.
-			FieldStack(
-				listOf(
-					{ position ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_canvas_width)) {
-							NumberField(
-								value = puppet.canvasWidth,
-								onValueChange = { newWidth -> session?.setCanvasSize(newWidth, puppet.canvasHeight) },
-								modifier = Modifier.fillMaxWidth(),
-								range = POSITIVE_RANGE,
-								decimals = 0,
-								unitSuffix = pixels,
-								stackPosition = position,
-							)
-						}
-					},
-					{ position ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_canvas_height)) {
-							NumberField(
-								value = puppet.canvasHeight,
-								onValueChange = { newHeight -> session?.setCanvasSize(puppet.canvasWidth, newHeight) },
-								modifier = Modifier.fillMaxWidth(),
-								range = POSITIVE_RANGE,
-								decimals = 0,
-								unitSuffix = pixels,
-								stackPosition = position,
-							)
-						}
-					},
-				),
-			)
-			FieldStack(
-				listOf(
-					{ position ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_origin_x)) {
-							NumberField(
-								value = puppet.worldOriginX,
-								onValueChange = { newX -> session?.setWorldOrigin(newX, puppet.worldOriginY) },
-								modifier = Modifier.fillMaxWidth(),
-								range = UNBOUNDED_RANGE,
-								decimals = 1,
-								stackPosition = position,
-							)
-						}
-					},
-					{ position ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_origin_y)) {
-							NumberField(
-								value = puppet.worldOriginY,
-								onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
-								modifier = Modifier.fillMaxWidth(),
-								range = UNBOUNDED_RANGE,
-								decimals = 1,
-								stackPosition = position,
-							)
-						}
-					},
-				),
+			listOf(
+				// Width + height joined into one stacked group; the whole stack is one searchable row.
+				PropertyRow(
+					terms = listOf(Res.string.properties_field_canvas_width, Res.string.properties_field_canvas_height),
+				) { _ ->
+					val pixels = stringResource(Res.string.unit_pixels)
+					FieldStack(
+						listOf(
+							{ position ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_width)) {
+									NumberField(
+										value = puppet.canvasWidth,
+										onValueChange = { newWidth -> session?.setCanvasSize(newWidth, puppet.canvasHeight) },
+										modifier = Modifier.fillMaxWidth(),
+										range = POSITIVE_RANGE,
+										decimals = 0,
+										unitSuffix = pixels,
+										stackPosition = position,
+									)
+								}
+							},
+							{ position ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_height)) {
+									NumberField(
+										value = puppet.canvasHeight,
+										onValueChange = { newHeight -> session?.setCanvasSize(puppet.canvasWidth, newHeight) },
+										modifier = Modifier.fillMaxWidth(),
+										range = POSITIVE_RANGE,
+										decimals = 0,
+										unitSuffix = pixels,
+										stackPosition = position,
+									)
+								}
+							},
+						),
+					)
+				},
+				// The origin x / y into a second stacked group below it.
+				PropertyRow(
+					terms = listOf(Res.string.properties_field_origin_x, Res.string.properties_field_origin_y),
+				) { _ ->
+					FieldStack(
+						listOf(
+							{ position ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_origin_x)) {
+									NumberField(
+										value = puppet.worldOriginX,
+										onValueChange = { newX -> session?.setWorldOrigin(newX, puppet.worldOriginY) },
+										modifier = Modifier.fillMaxWidth(),
+										range = UNBOUNDED_RANGE,
+										decimals = 1,
+										stackPosition = position,
+									)
+								}
+							},
+							{ position ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_origin_y)) {
+									NumberField(
+										value = puppet.worldOriginY,
+										onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
+										modifier = Modifier.fillMaxWidth(),
+										range = UNBOUNDED_RANGE,
+										decimals = 1,
+										stackPosition = position,
+									)
+								}
+							},
+						),
+					)
+				},
 			)
 		},
 	)
@@ -255,9 +259,12 @@ internal val RuntimeSection =
 	PropertySection(
 		id = "document.runtime",
 		title = Res.string.properties_section_runtime,
-		searchTerms = listOf(Res.string.properties_runtime_placeholder),
-		content = {
-			PropertyLine(stringResource(Res.string.properties_runtime_placeholder))
+		rows = { _ ->
+			listOf(
+				PropertyRow(terms = listOf(Res.string.properties_runtime_placeholder)) { _ ->
+					PropertyLine(stringResource(Res.string.properties_runtime_placeholder))
+				},
+			)
 		},
 	)
 
@@ -266,8 +273,7 @@ internal val TransformSection =
 	PropertySection(
 		id = "object.transform",
 		title = Res.string.properties_section_transform,
-		searchTerms = listOf(Res.string.properties_transform_position, Res.string.properties_transform_size, Res.string.inspector_base_angle),
-		content = { context ->
+		rows = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
 			val session = context.session
@@ -275,21 +281,35 @@ internal val TransformSection =
 			if (drawable != null && mesh != null && mesh.vertexCount > 0) {
 				// A drawable has no scalar transform - its placement is its rest geometry - so bounds stay read-only.
 				val bounds = computeMeshBounds(mesh.positions)
-				PropertyLine(stringResource(Res.string.properties_transform_position, formatDimension(bounds.centerX), formatDimension(bounds.centerY)))
-				PropertyLine(stringResource(Res.string.properties_transform_size, formatDimension(bounds.width), formatDimension(bounds.height)))
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_transform_position)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_transform_position, formatDimension(bounds.centerX), formatDimension(bounds.centerY)))
+					},
+					PropertyRow(terms = listOf(Res.string.properties_transform_size)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_transform_size, formatDimension(bounds.width), formatDimension(bounds.height)))
+					},
+				)
 			} else if (deformer is Deformer.Rotation) {
-				PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
-					NumberField(
-						value = deformer.baseAngle,
-						onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-						modifier = Modifier.fillMaxWidth(),
-						range = UNBOUNDED_RANGE,
-						decimals = 1,
-						unitSuffix = stringResource(Res.string.unit_degrees),
-					)
-				}
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+							NumberField(
+								value = deformer.baseAngle,
+								onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+								modifier = Modifier.fillMaxWidth(),
+								range = UNBOUNDED_RANGE,
+								decimals = 1,
+								unitSuffix = stringResource(Res.string.unit_degrees),
+							)
+						}
+					},
+				)
 			} else {
-				PropertyLine(stringResource(Res.string.properties_transform_none))
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_transform_none)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_transform_none))
+					},
+				)
 			}
 		},
 	)
@@ -299,23 +319,44 @@ internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",
 		title = Res.string.properties_section_relations,
-		searchTerms = listOf(Res.string.inspector_part_ref, Res.string.inspector_parent_deformer, Res.string.inspector_mask_count),
-		content = { context ->
+		rows = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
 			val part = context.activePart()
 			if (drawable != null) {
-				val ownerPartId = context.puppet.partByDrawable()[drawable.id]
-				val partLabel = ownerPartId?.let { id -> context.puppet.parts.firstOrNull { it.id == id }?.name ?: id.raw } ?: stringResource(Res.string.inspector_none)
-				PropertyLine(stringResource(Res.string.inspector_part_ref, partLabel))
-				PropertyLine(stringResource(Res.string.inspector_parent_deformer, drawable.parentDeformerId?.raw ?: stringResource(Res.string.inspector_none)))
-				PropertyLine(stringResource(Res.string.inspector_mask_count, drawable.maskedBy.size))
-				PropertyLine(stringResource(Res.string.inspector_invert_mask, yesNo(drawable.invertMask)))
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
+						val ownerPartId = context.puppet.partByDrawable()[drawable.id]
+						val partLabel = ownerPartId?.let { id -> context.puppet.parts.firstOrNull { it.id == id }?.name ?: id.raw } ?: stringResource(Res.string.properties_none)
+						PropertyLine(stringResource(Res.string.properties_part_ref, partLabel))
+					},
+					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_parent_deformer, drawable.parentDeformerId?.raw ?: stringResource(Res.string.properties_none)))
+					},
+					PropertyRow(terms = listOf(Res.string.properties_mask_count)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_mask_count, drawable.maskedBy.size))
+					},
+					PropertyRow(terms = listOf(Res.string.properties_invert_mask)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_invert_mask, yesNo(drawable.invertMask)))
+					},
+				)
 			} else if (deformer != null) {
-				PropertyLine(stringResource(Res.string.inspector_part_ref, deformer.partId?.raw ?: stringResource(Res.string.inspector_none)))
-				PropertyLine(stringResource(Res.string.inspector_parent_deformer, deformer.parent?.raw ?: stringResource(Res.string.inspector_none)))
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_part_ref, deformer.partId?.raw ?: stringResource(Res.string.properties_none)))
+					},
+					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_parent_deformer, deformer.parent?.raw ?: stringResource(Res.string.properties_none)))
+					},
+				)
 			} else if (part != null) {
-				PropertyLine(stringResource(Res.string.inspector_child_count, part.children.size))
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_child_count)) { _ ->
+						PropertyLine(stringResource(Res.string.properties_child_count, part.children.size))
+					},
+				)
+			} else {
+				emptyList()
 			}
 		},
 	)
@@ -325,14 +366,17 @@ internal val MeshSection =
 	PropertySection(
 		id = "data.mesh",
 		title = Res.string.properties_section_mesh,
-		searchTerms = listOf(Res.string.inspector_mesh),
-		content = { context ->
+		rows = { context ->
 			val mesh = context.activeDrawable()?.mesh
-			if (mesh != null) {
-				PropertyLine(stringResource(Res.string.inspector_mesh, mesh.vertexCount, mesh.triangleCount))
-			} else {
-				PropertyLine(stringResource(Res.string.inspector_no_mesh))
-			}
+			listOf(
+				PropertyRow(terms = listOf(Res.string.properties_mesh)) { _ ->
+					if (mesh != null) {
+						PropertyLine(stringResource(Res.string.properties_mesh, mesh.vertexCount, mesh.triangleCount))
+					} else {
+						PropertyLine(stringResource(Res.string.properties_no_mesh))
+					}
+				},
+			)
 		},
 	)
 
@@ -341,14 +385,17 @@ internal val TextureSection =
 	PropertySection(
 		id = "data.texture",
 		title = Res.string.properties_section_texture,
-		searchTerms = listOf(Res.string.properties_texture_source),
-		content = { context ->
+		rows = { context ->
 			val source = context.activeDrawable()?.textureSourceId
-			if (source != null) {
-				PropertyLine(stringResource(Res.string.properties_texture_source, source.raw))
-			} else {
-				PropertyLine(stringResource(Res.string.properties_texture_own))
-			}
+			listOf(
+				PropertyRow(terms = listOf(Res.string.properties_texture_source)) { _ ->
+					if (source != null) {
+						PropertyLine(stringResource(Res.string.properties_texture_source, source.raw))
+					} else {
+						PropertyLine(stringResource(Res.string.properties_texture_own))
+					}
+				},
+			)
 		},
 	)
 
@@ -357,47 +404,52 @@ internal val BlendSection =
 	PropertySection(
 		id = "data.blend",
 		title = Res.string.properties_section_blend,
-		searchTerms =
-			listOf(
-				Res.string.properties_field_blend_mode,
-				Res.string.properties_field_alpha_mode,
-				Res.string.properties_field_culling,
-				Res.string.properties_field_invert_mask,
-			),
-		content = { context ->
+		rows = { context ->
 			val drawable = context.activeDrawable()
 			if (drawable != null) {
 				val session = context.session
-				val blendLabels = blendModeLabels()
-				val alphaLabels = alphaBlendModeLabels()
-				PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
-					SelectField(
-						selected = drawable.blendMode,
-						modifier = Modifier.fillMaxWidth(),
-						options = BlendMode.entries,
-						label = { mode -> blendLabels[mode] ?: mode.name },
-						onSelect = { mode -> session?.setDrawableBlendMode(drawable.id, mode) },
-					)
-				}
-				PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
-					SelectField(
-						selected = drawable.alphaBlendMode,
-						modifier = Modifier.fillMaxWidth(),
-						options = AlphaBlendMode.entries,
-						label = { mode -> alphaLabels[mode] ?: mode.name },
-						onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
-					)
-				}
-				PropertyCheckboxRow(
-					checked = drawable.culling,
-					onCheckedChange = { culling -> session?.setDrawableCulling(drawable.id, culling) },
-					label = stringResource(Res.string.properties_field_culling),
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
+						val blendLabels = blendModeLabels()
+						PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+							SelectField(
+								selected = drawable.blendMode,
+								modifier = Modifier.fillMaxWidth(),
+								options = BlendMode.entries,
+								label = { mode -> blendLabels[mode] ?: mode.name },
+								onSelect = { mode -> session?.setDrawableBlendMode(drawable.id, mode) },
+							)
+						}
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
+						val alphaLabels = alphaBlendModeLabels()
+						PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+							SelectField(
+								selected = drawable.alphaBlendMode,
+								modifier = Modifier.fillMaxWidth(),
+								options = AlphaBlendMode.entries,
+								label = { mode -> alphaLabels[mode] ?: mode.name },
+								onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
+							)
+						}
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_culling)) { _ ->
+						PropertyCheckboxRow(
+							checked = drawable.culling,
+							onCheckedChange = { culling -> session?.setDrawableCulling(drawable.id, culling) },
+							label = stringResource(Res.string.properties_field_culling),
+						)
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
+						PropertyCheckboxRow(
+							checked = drawable.invertMask,
+							onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
+							label = stringResource(Res.string.properties_field_invert_mask),
+						)
+					},
 				)
-				PropertyCheckboxRow(
-					checked = drawable.invertMask,
-					onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
-					label = stringResource(Res.string.properties_field_invert_mask),
-				)
+			} else {
+				emptyList()
 			}
 		},
 	)
@@ -407,35 +459,41 @@ internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
 		title = Res.string.properties_section_deformer,
-		searchTerms = listOf(Res.string.inspector_warp_grid, Res.string.properties_field_quad_transform, Res.string.properties_field_base_angle),
-		content = { context ->
+		rows = { context ->
 			val session = context.session
 			when (val deformer = context.activeDeformer()) {
-				is Deformer.Warp -> {
-					// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
-					PropertyLine(stringResource(Res.string.inspector_warp_grid, deformer.rows, deformer.columns))
-					PropertyCheckboxRow(
-						checked = deformer.isQuadTransform,
-						onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
-						label = stringResource(Res.string.properties_field_quad_transform),
+				is Deformer.Warp ->
+					listOf(
+						PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
+							// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
+							PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
+						},
+						PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
+							PropertyCheckboxRow(
+								checked = deformer.isQuadTransform,
+								onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+								label = stringResource(Res.string.properties_field_quad_transform),
+							)
+						},
 					)
-				}
 
-				is Deformer.Rotation -> {
-					PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
-						NumberField(
-							value = deformer.baseAngle,
-							onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							unitSuffix = stringResource(Res.string.unit_degrees),
-						)
-					}
-				}
+				is Deformer.Rotation ->
+					listOf(
+						PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
+							PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+								NumberField(
+									value = deformer.baseAngle,
+									onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+									modifier = Modifier.fillMaxWidth(),
+									range = UNBOUNDED_RANGE,
+									decimals = 1,
+									unitSuffix = stringResource(Res.string.unit_degrees),
+								)
+							}
+						},
+					)
 
-				null -> {
-				}
+				null -> emptyList()
 			}
 		},
 	)
@@ -445,104 +503,114 @@ internal val PartSection =
 	PropertySection(
 		id = "data.part",
 		title = Res.string.properties_section_part,
-		searchTerms =
-			listOf(
-				Res.string.inspector_child_count,
-				Res.string.properties_field_draw_order,
-				Res.string.properties_field_sketch,
-				Res.string.properties_field_group_mode,
-				Res.string.properties_field_opacity,
-			),
-		content = { context ->
+		rows = { context ->
 			val part = context.activePart()
 			if (part != null) {
 				val session = context.session
-				val groupLabels = partGroupModeLabels()
-				PropertyLine(stringResource(Res.string.inspector_child_count, part.children.size))
-				PropertyCheckboxRow(
-					checked = part.isSketch,
-					onCheckedChange = { sketch -> session?.setPartSketch(part.id, sketch) },
-					label = stringResource(Res.string.properties_field_sketch),
-				)
-				PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
-					NumberField(
-						value = part.drawOrder,
-						onValueChange = { order -> session?.setPartDrawOrder(part.id, order) },
-						range = 0..1000,
-						modifier = Modifier.fillMaxWidth(),
+				buildList {
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_child_count)) { _ ->
+							PropertyLine(stringResource(Res.string.properties_child_count, part.children.size))
+						},
 					)
-				}
-				PropertyFieldRow(stringResource(Res.string.properties_field_group_mode)) {
-					SelectField(
-						selected = part.groupMode.kind(),
-						modifier = Modifier.fillMaxWidth(),
-						options = PartGroupModeKind.entries,
-						label = { kind -> groupLabels[kind] ?: kind.name },
-						onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind)) },
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_field_sketch)) { _ ->
+							PropertyCheckboxRow(
+								checked = part.isSketch,
+								onCheckedChange = { sketch -> session?.setPartSketch(part.id, sketch) },
+								label = stringResource(Res.string.properties_field_sketch),
+							)
+						},
 					)
-				}
-				// An isolated part composites its subtree as one layer; expose the composite's scalar channels
-				// (colors need a color-picker field, deferred).  The composite is stored latently on the part, so
-				// each sub-field edits it via setPartComposite - it survives a mode round-trip and is shown only
-				// while the part is Isolated (activeComposite is non-null exactly then).
-				val composite = part.activeComposite
-				if (composite != null) {
-					val blendLabels = blendModeLabels()
-					val alphaLabels = alphaBlendModeLabels()
-					PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
-						NumberField(
-							value = composite.opacity,
-							onValueChange = { opacity -> session?.setPartComposite(part.id, composite.copy(opacity = opacity)) },
-							modifier = Modifier.fillMaxWidth(),
-							range = 0f..1f,
-							decimals = 2,
-							step = 0.05f,
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
+							PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
+								NumberField(
+									value = part.drawOrder,
+									onValueChange = { order -> session?.setPartDrawOrder(part.id, order) },
+									range = 0..1000,
+									modifier = Modifier.fillMaxWidth(),
+								)
+							}
+						},
+					)
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_field_group_mode)) { _ ->
+							val groupLabels = partGroupModeLabels()
+							PropertyFieldRow(stringResource(Res.string.properties_field_group_mode)) {
+								SelectField(
+									selected = part.groupMode.kind(),
+									modifier = Modifier.fillMaxWidth(),
+									options = PartGroupModeKind.entries,
+									label = { kind -> groupLabels[kind] ?: kind.name },
+									onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind)) },
+								)
+							}
+						},
+					)
+					// An isolated part composites its subtree as one layer; expose the composite's scalar channels
+					// (colors need a color-picker field, deferred).  The composite is stored latently on the part, so
+					// each sub-field edits it via setPartComposite - it survives a mode round-trip and is shown only
+					// while the part is Isolated (activeComposite is non-null exactly then).
+					val composite = part.activeComposite
+					if (composite != null) {
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
+									NumberField(
+										value = composite.opacity,
+										onValueChange = { opacity -> session?.setPartComposite(part.id, composite.copy(opacity = opacity)) },
+										modifier = Modifier.fillMaxWidth(),
+										range = 0f..1f,
+										decimals = 2,
+										step = 0.05f,
+									)
+								}
+							},
+						)
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
+								val blendLabels = blendModeLabels()
+								PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+									SelectField(
+										selected = composite.blendMode,
+										modifier = Modifier.fillMaxWidth(),
+										options = BlendMode.entries,
+										label = { mode -> blendLabels[mode] ?: mode.name },
+										onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(blendMode = mode)) },
+									)
+								}
+							},
+						)
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
+								val alphaLabels = alphaBlendModeLabels()
+								PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+									SelectField(
+										selected = composite.alphaBlendMode,
+										modifier = Modifier.fillMaxWidth(),
+										options = AlphaBlendMode.entries,
+										label = { mode -> alphaLabels[mode] ?: mode.name },
+										onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(alphaBlendMode = mode)) },
+									)
+								}
+							},
+						)
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
+								PropertyCheckboxRow(
+									checked = composite.invertMask,
+									onCheckedChange = { invert -> session?.setPartComposite(part.id, composite.copy(invertMask = invert)) },
+									label = stringResource(Res.string.properties_field_invert_mask),
+								)
+							},
 						)
 					}
-					PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
-						SelectField(
-							selected = composite.blendMode,
-							modifier = Modifier.fillMaxWidth(),
-							options = BlendMode.entries,
-							label = { mode -> blendLabels[mode] ?: mode.name },
-							onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(blendMode = mode)) },
-						)
-					}
-					PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
-						SelectField(
-							selected = composite.alphaBlendMode,
-							modifier = Modifier.fillMaxWidth(),
-							options = AlphaBlendMode.entries,
-							label = { mode -> alphaLabels[mode] ?: mode.name },
-							onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(alphaBlendMode = mode)) },
-						)
-					}
-					PropertyCheckboxRow(
-						checked = composite.invertMask,
-						onCheckedChange = { invert -> session?.setPartComposite(part.id, composite.copy(invertMask = invert)) },
-						label = stringResource(Res.string.properties_field_invert_mask),
-					)
 				}
+			} else {
+				emptyList()
 			}
 		},
-	)
-
-/**
- * Every property section that can appear, in a stable order.  The Properties space resolves this whole
- * catalog's localized labels once per recomposition (a fixed-length loop, so Compose-safe) to build the
- * header search index; the tabs hand back subsets of these same instances.
- */
-internal val PROPERTY_SECTION_CATALOG: List<PropertySection> =
-	listOf(
-		CanvasSection,
-		RuntimeSection,
-		TransformSection,
-		RelationsSection,
-		MeshSection,
-		TextureSection,
-		BlendSection,
-		DeformerSection,
-		PartSection,
 	)
 
 /**

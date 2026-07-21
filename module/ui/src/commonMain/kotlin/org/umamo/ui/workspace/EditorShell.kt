@@ -57,6 +57,9 @@ import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.properties.LocalPropertyTabRegistry
+import org.umamo.ui.properties.PropertyTab
+import org.umamo.ui.properties.defaultPropertyTabRegistry
 import org.umamo.ui.resources.*
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
@@ -82,6 +85,7 @@ import org.umamo.ui.theme.UmamoTheme
  * @param InterfaceLayout initialLayout The starting layout (defaults to the seeded two-workspace layout).
  * @param ViewportHost? viewportHost The platform GL viewport injector, or null for placeholders.
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
+ * @param List propertyTabOverrides Property tabs layered over the base tab set (a vendor extension seam).
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
  * @param List appMenu The application menu-bar contents, shown to the left of the workspace tabs; empty
  *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
@@ -96,6 +100,7 @@ fun EditorShell(
 	initialLayout: InterfaceLayout = defaultLayout(),
 	viewportHost: ViewportHost? = null,
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
+	propertyTabOverrides: List<PropertyTab> = emptyList(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	appMenu: List<TopLevelMenu> = emptyList(),
 	languageTag: String = "en",
@@ -111,6 +116,7 @@ fun EditorShell(
 	// button passes to onCreate, so the menu's New Workspace and the tab strip agree.
 	val newWorkspaceBaseName = stringResource(Res.string.workspace_new_name)
 	val spaceRegistry = remember(spaceOverrides) { defaultSpaceRegistry().withOverrides(spaceOverrides) }
+	val propertyTabRegistry = remember(propertyTabOverrides) { defaultPropertyTabRegistry().withOverrides(propertyTabOverrides) }
 	val focusRequester = remember { FocusRequester() }
 	val dragController = remember { AreaDragController() }
 	// Shared with the menu bar so this shell's root key handler can dismiss an open menu before the keymap
@@ -226,6 +232,7 @@ fun EditorShell(
 				LocalCommands provides commandRegistry,
 				LocalKeymap provides keymap,
 				LocalSpaceRegistry provides spaceRegistry,
+				LocalPropertyTabRegistry provides propertyTabRegistry,
 				LocalViewportHost provides viewportHost,
 				LocalAreaDragController provides dragController,
 				LocalMenuBarController provides menuBarController,

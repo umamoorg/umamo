@@ -32,7 +32,6 @@
 	<string name="space_uv">UV Editor</string>
 	<string name="space_outliner">Outliner</string>
 	<string name="space_parameters">Parameters</string>
-	<string name="space_inspector">Inspector</string>
 	<string name="space_properties">Properties</string>
 	<string name="space_tooldetails">Tool Settings</string>
 	<string name="space_history">History</string>
@@ -141,9 +140,6 @@
 	<string name="search_hint">Search</string>
 	<string name="search_clear">Clear search</string>
 
-	<!-- Space content placeholders / empty states. -->
-	<string name="inspector_nothing_selected">Nothing selected</string>
-
 	<!--
 	  History panel step labels. One per Change.labelKey (the stable key carried by every edit); the seed
 	  (initial open) row uses history_open and an unmapped key falls back to history_unknown. These name
@@ -218,7 +214,6 @@
 	<string name="outliner_menu_delete_hierarchy">Delete Hierarchy</string>
 
 	<!-- Inspector model summary (a basic read-only view until per-entity selection lands). -->
-	<string name="inspector_model">Model</string>
 	<string name="inspector_parts">Parts: %1$d</string>
 	<string name="inspector_drawables">Drawables: %1$d</string>
 	<string name="inspector_parameters">Parameters: %1$d</string>
@@ -342,38 +337,24 @@
 	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
-	<string name="inspector_part">Part</string>
-	<string name="inspector_drawable">Drawable</string>
-	<string name="inspector_deformer">Deformer</string>
-	<string name="inspector_name">Name: %1$s</string>
-	<string name="inspector_id">ID: %1$s</string>
-	<string name="inspector_visible">Visible: %1$s</string>
-	<string name="inspector_sketch">Guide image: %1$s</string>
-	<string name="inspector_child_count">Children: %1$d</string>
-	<string name="inspector_part_ref">Part: %1$s</string>
-	<string name="inspector_parent_deformer">Parent deformer: %1$s</string>
-	<string name="inspector_blend_mode">Blend: %1$s</string>
-	<string name="inspector_mask_count">Masks: %1$d</string>
-	<string name="inspector_invert_mask">Invert mask: %1$s</string>
-	<string name="inspector_mesh">Mesh: %1$d verts, %2$d tris</string>
-	<string name="inspector_no_mesh">No mesh</string>
-	<string name="inspector_deformer_kind">Type: %1$s</string>
-	<string name="inspector_deformer_warp">Warp</string>
-	<string name="inspector_deformer_rotation">Rotation</string>
-	<string name="inspector_warp_grid">Grid: %1$d × %2$d</string>
-	<string name="inspector_quad_transform">Quad interpolation: %1$s</string>
-	<string name="inspector_base_angle">Base angle: %1$s</string>
-	<string name="inspector_none">—</string>
-	<string name="inspector_yes">Yes</string>
-	<string name="inspector_no">No</string>
+	<string name="properties_child_count">Children: %1$d</string>
+	<string name="properties_part_ref">Part: %1$s</string>
+	<string name="properties_parent_deformer">Parent deformer: %1$s</string>
+	<string name="properties_mask_count">Masks: %1$d</string>
+	<string name="properties_invert_mask">Invert mask: %1$s</string>
+	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
+	<string name="properties_no_mesh">No mesh</string>
+	<string name="properties_warp_grid">Grid: %1$d × %2$d</string>
+	<string name="properties_none">—</string>
+	<string name="properties_yes">Yes</string>
+	<string name="properties_no">No</string>
 	<string name="inspector_multi_selected">%1$d selected</string>
-	<string name="inspector_multi_breakdown">Parts: %1$d   Drawables: %2$d   Deformers: %3$d</string>
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
 	  icon strip), the section headings, and the read-only sample fields not already covered by inspector_*.
 	-->
-	<string name="properties_no_matches">No matching properties</string>
+	<string name="properties_no_matches">No matching properties.</string>
 	<string name="properties_tab_document">Document</string>
 	<string name="properties_tab_object">Object</string>
 	<string name="properties_tab_data">Data</string>

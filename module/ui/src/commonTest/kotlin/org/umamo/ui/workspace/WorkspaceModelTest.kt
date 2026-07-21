@@ -49,7 +49,7 @@ class WorkspaceModelTest {
 											SplitOrientation.Horizontal,
 											0.25f,
 											LeafArea("c", SpaceKind.Parameters),
-											LeafArea("d", SpaceKind.Inspector),
+											LeafArea("d", SpaceKind.Properties),
 										),
 									),
 								),
@@ -114,9 +114,9 @@ class WorkspaceModelTest {
 	@Test
 	fun switchSpaceKeepsId() {
 		val root = LeafArea("a", SpaceKind.Viewport2D)
-		val result = reduce(root, AreaCommand.SwitchSpace("a", SpaceKind.Inspector)) as LeafArea
+		val result = reduce(root, AreaCommand.SwitchSpace("a", SpaceKind.Properties)) as LeafArea
 		assertEquals("a", result.id)
-		assertEquals(SpaceKind.Inspector, result.space)
+		assertEquals(SpaceKind.Properties, result.space)
 	}
 
 	/**
@@ -162,7 +162,7 @@ class WorkspaceModelTest {
 				SplitOrientation.Horizontal,
 				0.5f,
 				LeafArea("a", SpaceKind.Viewport2D),
-				LeafArea("b", SpaceKind.Inspector),
+				LeafArea("b", SpaceKind.Properties),
 			)
 		// "a" survives and consumes its sibling "b": the split collapses to just "a".
 		assertEquals(LeafArea("a", SpaceKind.Viewport2D), reduce(root, AreaCommand.JoinAreas("a", "b")))
@@ -179,9 +179,9 @@ class WorkspaceModelTest {
 				SplitOrientation.Horizontal,
 				0.5f,
 				LeafArea("a", SpaceKind.Viewport2D),
-				LeafArea("b", SpaceKind.Inspector),
+				LeafArea("b", SpaceKind.Properties),
 			)
-		assertEquals(LeafArea("b", SpaceKind.Inspector), reduce(root, AreaCommand.JoinAreas("b", "a")))
+		assertEquals(LeafArea("b", SpaceKind.Properties), reduce(root, AreaCommand.JoinAreas("b", "a")))
 	}
 
 	/**
@@ -233,7 +233,7 @@ class WorkspaceModelTest {
 	 */
 	@Test
 	fun joinSameIdIsNoOp() {
-		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Inspector))
+		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Properties))
 		assertEquals(root, reduce(root, AreaCommand.JoinAreas("a", "a")))
 	}
 
@@ -242,7 +242,7 @@ class WorkspaceModelTest {
 	 */
 	@Test
 	fun joinUnknownIdIsNoOp() {
-		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Inspector))
+		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Properties))
 		assertEquals(root, reduce(root, AreaCommand.JoinAreas("a", "zzz")))
 	}
 
@@ -261,14 +261,14 @@ class WorkspaceModelTest {
 					SplitOrientation.Vertical,
 					0.5f,
 					LeafArea("o", SpaceKind.Outliner),
-					LeafArea("p", SpaceKind.Inspector),
+					LeafArea("p", SpaceKind.Properties),
 				),
 			)
 		// Dock "p" to the bottom: "p"'s column collapses to "o", and "p" becomes a full-width bottom row.
 		val result = reduce(root, AreaCommand.DockArea("p", DockEdge.Bottom, 0.3f)) as SplitNode
 		assertEquals(SplitOrientation.Vertical, result.orientation)
 		assertEquals(0.7f, result.ratio, 0.0001f, "the remainder leads and takes 1 - strip fraction")
-		assertEquals(LeafArea("p", SpaceKind.Inspector), result.second, "the docked leaf keeps its id and space")
+		assertEquals(LeafArea("p", SpaceKind.Properties), result.second, "the docked leaf keeps its id and space")
 		val topRow = result.first as SplitNode
 		assertEquals(SplitOrientation.Horizontal, topRow.orientation)
 		assertEquals(LeafArea("v", SpaceKind.Viewport2D), topRow.first)
@@ -286,12 +286,12 @@ class WorkspaceModelTest {
 				SplitOrientation.Horizontal,
 				0.5f,
 				LeafArea("v", SpaceKind.Viewport2D),
-				LeafArea("p", SpaceKind.Inspector),
+				LeafArea("p", SpaceKind.Properties),
 			)
 		val result = reduce(root, AreaCommand.DockArea("p", DockEdge.Top, 0.3f)) as SplitNode
 		assertEquals(SplitOrientation.Vertical, result.orientation)
 		assertEquals(0.3f, result.ratio, 0.0001f, "the strip leads and takes the strip fraction")
-		assertEquals(LeafArea("p", SpaceKind.Inspector), result.first)
+		assertEquals(LeafArea("p", SpaceKind.Properties), result.first)
 		assertEquals(LeafArea("v", SpaceKind.Viewport2D), result.second, "the remainder is the lone sibling")
 	}
 
@@ -309,7 +309,7 @@ class WorkspaceModelTest {
 	 */
 	@Test
 	fun unknownTargetIsNoOp() {
-		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Inspector))
+		val root = SplitNode(SplitOrientation.Horizontal, 0.5f, LeafArea("a", SpaceKind.Outliner), LeafArea("b", SpaceKind.Properties))
 		assertEquals(root, reduce(root, AreaCommand.SwitchSpace("zzz", SpaceKind.Parameters)))
 	}
 
