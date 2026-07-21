@@ -37,7 +37,6 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 ## Part Group Mode (compositing)
 * DONE: an isolated part's composite settings now persist as latent model state (`Part.composite`, applied via `Part.activeComposite` only while Isolated), so they survive leaving and re-entering Isolated; CMO3/MOC3 import captures them for every part. Remaining composite follow-ups:
 	* Composite `multiplyColor` / `screenColor` editing (needs a color-picker field) and `maskedBy` (relation-list editor) — the fields are captured/stored, just not yet editable in the panel.
-	* Editing the composite while a part is not Isolated (Cubism greys these out); today the sub-controls show only when Isolated, though the model retains the settings regardless.
 	* UMA serialization of the latent composite (the format work this unblocks).
 
 ## Portability
