@@ -21,12 +21,12 @@ internal fun colorBlendOfToken(name: String?): BlendMode =
 	// CMO3: ColorComposition constants, matched by name (the generated enum is observed-only).
 	when (name) {
 		"NORMAL" -> BlendMode.Normal
-		"ADD" -> BlendMode.Additive
-		"MULTIPLY" -> BlendMode.Multiply
-		"ADD_R2_TSL" -> BlendMode.AdditiveModern
+		"ADD" -> BlendMode.AdditivePremultiplied
+		"MULTIPLY" -> BlendMode.MultiplyPremultiplied
+		"ADD_R2_TSL" -> BlendMode.Additive
 		"ADD_R2" -> BlendMode.AdditiveGlow
 		"DARKEN" -> BlendMode.Darken
-		"MULTIPLY_R2" -> BlendMode.MultiplyModern
+		"MULTIPLY_R2" -> BlendMode.Multiply
 		"COLORBURN_TSL" -> BlendMode.ColorBurn
 		"LINEARBURN_TSL" -> BlendMode.LinearBurn
 		"LIGHTEN" -> BlendMode.Lighten
@@ -69,12 +69,12 @@ internal fun colorBlendOfPacked(packed: Int): BlendMode =
 	// MOC3 v6 §5.6 s153/s157: colorMode 0-17 in editor-dropdown order (legacy first).
 	when (packed and 0xFF) {
 		0 -> BlendMode.Normal
-		1 -> BlendMode.Additive
-		2 -> BlendMode.Multiply
-		3 -> BlendMode.AdditiveModern
+		1 -> BlendMode.AdditivePremultiplied
+		2 -> BlendMode.MultiplyPremultiplied
+		3 -> BlendMode.Additive
 		4 -> BlendMode.AdditiveGlow
 		5 -> BlendMode.Darken
-		6 -> BlendMode.MultiplyModern
+		6 -> BlendMode.Multiply
 		7 -> BlendMode.ColorBurn
 		8 -> BlendMode.LinearBurn
 		9 -> BlendMode.Lighten

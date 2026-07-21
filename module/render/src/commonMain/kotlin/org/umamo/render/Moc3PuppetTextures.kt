@@ -36,6 +36,9 @@ fun buildPuppetTextures(pageBytes: List<ByteArray>, atlasIndexByDrawableId: Map<
 			DecodedImage(image.rgba, image.width, image.height)
 		}
 	// Cubism texture files are straight-alpha PNGs (premultiplication is a runtime load option, not a
-	// property of the files), matching the straight-alpha stream PngCodec yields.
+	// property of the files), matching the straight-alpha stream PngCodec yields.  The premultiplied-vs-
+	// straight COMPOSITING distinction (legacy vs 5.3+ blend modes) rides BlendMode.isLegacy, not this
+	// flag; see PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs straight
+	// alpha".
 	return PuppetTextures(atlases, atlasIndexByDrawableId, premultipliedAlpha = false)
 }

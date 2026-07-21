@@ -28,7 +28,10 @@ internal fun compositeVertexShader(dialect: GlslDialect): String =
  * multiply/screen colors) to the layer, then computes the color blend B(Cb, Cs) and the alpha
  * mode's Porter-Duff combination in-shader, writing premultiplied with blending DISABLED.
  *
- * The colorMode/alphaMode ints are the MOC3 packed halves (colorMode 0-17, alphaMode 0-4).
+ * The colorMode/alphaMode ints are the MOC3 packed halves (colorMode 0-17, alphaMode 0-4).  The legacy
+ * "(Before 5.3)" Add/Multiply (colorMode 1/2) take the fixed-function premultiplied branch regardless of
+ * the alpha mode (they ignore Alpha blend, per BlendMath.compositeReference); Normal (0) does so only
+ * under Over.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
@@ -156,7 +159,7 @@ internal fun compositeFragmentShader(dialect: GlslDialect): String =
 			Cs = Cs + screenColor - Cs * screenColor;
 			vec3 Cb = (ab > 0.0) ? dest.rgb / ab : vec3(0.0);
 			vec4 outColor;
-			if (alphaMode == 0 && colorMode <= 2) {
+			if (colorMode == 1 || colorMode == 2 || (alphaMode == 0 && colorMode == 0)) {
 				vec3 srcPremul = Cs * as;
 				if (colorMode == 0) {
 					outColor = vec4(srcPremul + dest.rgb * (1.0 - as), as + ab * (1.0 - as));

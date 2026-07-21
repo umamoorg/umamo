@@ -358,10 +358,10 @@
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>
 	<string name="blend_mode_multiply">乗算</string>
-	<string name="blend_mode_additive_modern">加算（モダン）</string>
+	<string name="blend_mode_additive_premultiplied">加算（レガシー）</string>
 	<string name="blend_mode_additive_glow">加算（グロー）</string>
 	<string name="blend_mode_darken">比較（暗）</string>
-	<string name="blend_mode_multiply_modern">乗算（モダン）</string>
+	<string name="blend_mode_multiply_premultiplied">乗算（レガシー）</string>
 	<string name="blend_mode_color_burn">焼き込みカラー</string>
 	<string name="blend_mode_linear_burn">焼き込みリニア</string>
 	<string name="blend_mode_lighten">比較（明）</string>

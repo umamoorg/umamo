@@ -16,14 +16,14 @@ enum class BlendMode {
 	/** Legacy Normal. CMO3 `NORMAL`; MOC3 colorMode 0 (constant-flags bits clear). */
 	Normal,
 
-	/** Legacy Add ("Add (Before 5.3)"). CMO3 `ADD`; MOC3 colorMode 1 (constant-flags bit 0). */
+	/** Add (Before 5.3), premultiplied fixed-function. CMO3 `ADD`; MOC3 colorMode 1 (constant-flags bit 0). */
+	AdditivePremultiplied,
+
+	/** Multiply (Before 5.3), premultiplied fixed-function. CMO3 `MULTIPLY`; MOC3 colorMode 2 (constant-flags bit 1). */
+	MultiplyPremultiplied,
+
+	/** Add (5.3+). CMO3 `ADD_R2_TSL`; MOC3 colorMode 3. */
 	Additive,
-
-	/** Legacy Multiply ("Multiply (Before 5.3)"). CMO3 `MULTIPLY`; MOC3 colorMode 2 (constant-flags bit 1). */
-	Multiply,
-
-	/** Modern Add (5.3). CMO3 `ADD_R2_TSL`; MOC3 colorMode 3. */
-	AdditiveModern,
 
 	/** Add (Glow) (5.3). CMO3 `ADD_R2`; MOC3 colorMode 4. */
 	AdditiveGlow,
@@ -31,8 +31,8 @@ enum class BlendMode {
 	/** Darken (5.3). CMO3 `DARKEN`; MOC3 colorMode 5. */
 	Darken,
 
-	/** Modern Multiply (5.3). CMO3 `MULTIPLY_R2`; MOC3 colorMode 6. */
-	MultiplyModern,
+	/** Multiply (5.3+). CMO3 `MULTIPLY_R2`; MOC3 colorMode 6. */
+	Multiply,
 
 	/** Color burn (5.3). CMO3 `COLORBURN_TSL`; MOC3 colorMode 7. */
 	ColorBurn,
@@ -73,7 +73,14 @@ enum class BlendMode {
 	 * True for the three pre-5.3 modes, whose semantics are plain fixed-function blending; every
 	 * other mode requires the destination-sampling composite path.
 	 */
-	val isLegacy: Boolean get() = this == Normal || this == Additive || this == Multiply
+	val isLegacy: Boolean get() = this == Normal || this == AdditivePremultiplied || this == MultiplyPremultiplied
+
+	/**
+	 * Whether this color blend mode ignores the Alpha blend setting.  Per the Cubism editor, the pre-5.3
+	 * "Add (Before 5.3)" and "Multiply (Before 5.3)" modes composite in premultiplied format and disregard
+	 * the Alpha blend selection.  Drives the composite math and the properties panel alpha-field visibility.
+	 */
+	val ignoresAlphaBlend: Boolean get() = this == AdditivePremultiplied || this == MultiplyPremultiplied
 }
 
 /**

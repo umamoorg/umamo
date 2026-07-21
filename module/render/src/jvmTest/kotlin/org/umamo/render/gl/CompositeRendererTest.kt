@@ -151,16 +151,43 @@ class CompositeRendererTest {
 			val base = drawable("base")
 			val fixedFunction =
 				model(
-					drawables = listOf(base, drawable("top", blendMode = BlendMode.Multiply, opacity = 0.6f)),
+					drawables = listOf(base, drawable("top", blendMode = BlendMode.MultiplyPremultiplied, opacity = 0.6f)),
 					rootChildren = listOf(OrgChild.Drawable(DrawableId("base")), OrgChild.Drawable(DrawableId("top"))),
 				)
 			val composited =
 				model(
 					drawables = listOf(base, drawable("top", opacity = 0.6f)),
-					parts = listOf(isolatedPart("fx", "top", PartComposite(blendMode = BlendMode.Multiply))),
+					parts = listOf(isolatedPart("fx", "top", PartComposite(blendMode = BlendMode.MultiplyPremultiplied))),
 					rootChildren = listOf(OrgChild.Drawable(DrawableId("base")), OrgChild.Part(PartId("fx"))),
 				)
 			assertPixelClose(renderCenterPixel(fixedFunction), renderCenterPixel(composited), "legacy multiply parity")
+		} finally {
+			GLFW.glfwDestroyWindow(window)
+			GLFW.glfwTerminate()
+		}
+	}
+
+	@Test
+	fun premultipliedModesIgnoreTheAlphaBlendSetting() {
+		val window = createHeadlessGl()
+		assumeGlContext("[composite-renderer]", window)
+		try {
+			// The "(Before 5.3)" Add/Multiply composite in premultiplied format and ignore the Alpha
+			// blend setting, so an isolated composite using one renders identically whether its alpha
+			// mode is Over or Disjoint.  A modern mode would diverge (it honors the alpha mode).
+			for (mode in listOf(BlendMode.AdditivePremultiplied, BlendMode.MultiplyPremultiplied)) {
+				fun composited(alpha: AlphaBlendMode): PuppetModel =
+					model(
+						drawables = listOf(drawable("base"), drawable("top", opacity = 0.6f)),
+						parts = listOf(isolatedPart("fx", "top", PartComposite(blendMode = mode, alphaBlendMode = alpha))),
+						rootChildren = listOf(OrgChild.Drawable(DrawableId("base")), OrgChild.Part(PartId("fx"))),
+					)
+				assertPixelClose(
+					renderCenterPixel(composited(AlphaBlendMode.Over)),
+					renderCenterPixel(composited(AlphaBlendMode.Disjoint)),
+					"$mode ignores alpha blend (Over == Disjoint)",
+				)
+			}
 		} finally {
 			GLFW.glfwDestroyWindow(window)
 			GLFW.glfwTerminate()

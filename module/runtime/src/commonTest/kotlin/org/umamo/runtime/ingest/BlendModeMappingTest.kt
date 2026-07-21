@@ -18,12 +18,12 @@ class BlendModeMappingTest {
 	private val colorRows =
 		listOf(
 			ColorRow("NORMAL", 0, BlendMode.Normal),
-			ColorRow("ADD", 1, BlendMode.Additive),
-			ColorRow("MULTIPLY", 2, BlendMode.Multiply),
-			ColorRow("ADD_R2_TSL", 3, BlendMode.AdditiveModern),
+			ColorRow("ADD", 1, BlendMode.AdditivePremultiplied),
+			ColorRow("MULTIPLY", 2, BlendMode.MultiplyPremultiplied),
+			ColorRow("ADD_R2_TSL", 3, BlendMode.Additive),
 			ColorRow("ADD_R2", 4, BlendMode.AdditiveGlow),
 			ColorRow("DARKEN", 5, BlendMode.Darken),
-			ColorRow("MULTIPLY_R2", 6, BlendMode.MultiplyModern),
+			ColorRow("MULTIPLY_R2", 6, BlendMode.Multiply),
 			ColorRow("COLORBURN_TSL", 7, BlendMode.ColorBurn),
 			ColorRow("LINEARBURN_TSL", 8, BlendMode.LinearBurn),
 			ColorRow("LIGHTEN", 9, BlendMode.Lighten),
@@ -72,10 +72,10 @@ class BlendModeMappingTest {
 	@Test
 	fun packedHalvesAreIndependent() {
 		// The corpus-observed combinations: 522 = Screen or (Out shl 8) (the PartClipping drawable),
-		// 262 = MultiplyModern or (Atop shl 8), 256 = Normal or (Atop shl 8) (Model A offscreens).
+		// 262 = Multiply or (Atop shl 8), 256 = Normal or (Atop shl 8) (Model A offscreens).
 		assertEquals(BlendMode.Screen, colorBlendOfPacked(522))
 		assertEquals(AlphaBlendMode.Out, alphaBlendOfPacked(522))
-		assertEquals(BlendMode.MultiplyModern, colorBlendOfPacked(262))
+		assertEquals(BlendMode.Multiply, colorBlendOfPacked(262))
 		assertEquals(AlphaBlendMode.Atop, alphaBlendOfPacked(262))
 		assertEquals(BlendMode.Normal, colorBlendOfPacked(256))
 		assertEquals(AlphaBlendMode.Atop, alphaBlendOfPacked(256))
@@ -96,7 +96,13 @@ class BlendModeMappingTest {
 	@Test
 	fun legacyPredicateCoversExactlyThePreFiveThreeModes() {
 		val legacyModes = BlendMode.entries.filter { it.isLegacy }
-		assertEquals(listOf(BlendMode.Normal, BlendMode.Additive, BlendMode.Multiply), legacyModes)
+		assertEquals(listOf(BlendMode.Normal, BlendMode.AdditivePremultiplied, BlendMode.MultiplyPremultiplied), legacyModes)
 		assertTrue(BlendMode.entries.filterNot { it.isLegacy }.size == 15, "fifteen 5.3 modes")
+	}
+
+	@Test
+	fun ignoresAlphaBlendCoversExactlyTheTwoPremultipliedModes() {
+		val ignoringModes = BlendMode.entries.filter { it.ignoresAlphaBlend }
+		assertEquals(listOf(BlendMode.AdditivePremultiplied, BlendMode.MultiplyPremultiplied), ignoringModes)
 	}
 }

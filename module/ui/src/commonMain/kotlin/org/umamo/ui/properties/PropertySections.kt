@@ -26,7 +26,6 @@ import org.umamo.edit.setPartGroupMode
 import org.umamo.edit.setPartSketch
 import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.AlphaBlendMode
-import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.ui.kit.Checkbox
@@ -408,29 +407,33 @@ internal val BlendSection =
 			val drawable = context.activeDrawable()
 			if (drawable != null) {
 				val session = context.session
-				listOf(
+				listOfNotNull(
 					PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 						val blendLabels = blendModeLabels()
 						PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
 							SelectField(
 								selected = drawable.blendMode,
 								modifier = Modifier.fillMaxWidth(),
-								options = BlendMode.entries,
+								options = blendModeDisplayOrder(),
 								label = { mode -> blendLabels[mode] ?: mode.name },
 								onSelect = { mode -> session?.setDrawableBlendMode(drawable.id, mode) },
 							)
 						}
 					},
-					PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
-						val alphaLabels = alphaBlendModeLabels()
-						PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
-							SelectField(
-								selected = drawable.alphaBlendMode,
-								modifier = Modifier.fillMaxWidth(),
-								options = AlphaBlendMode.entries,
-								label = { mode -> alphaLabels[mode] ?: mode.name },
-								onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
-							)
+					if (drawable.blendMode.ignoresAlphaBlend) {
+						null
+					} else {
+						PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
+							val alphaLabels = alphaBlendModeLabels()
+							PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+								SelectField(
+									selected = drawable.alphaBlendMode,
+									modifier = Modifier.fillMaxWidth(),
+									options = AlphaBlendMode.entries,
+									label = { mode -> alphaLabels[mode] ?: mode.name },
+									onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
+								)
+							}
 						}
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_culling)) { _ ->
@@ -575,27 +578,29 @@ internal val PartSection =
 									SelectField(
 										selected = composite.blendMode,
 										modifier = Modifier.fillMaxWidth(),
-										options = BlendMode.entries,
+										options = blendModeDisplayOrder(),
 										label = { mode -> blendLabels[mode] ?: mode.name },
 										onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(blendMode = mode)) },
 									)
 								}
 							},
 						)
-						add(
-							PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
-								val alphaLabels = alphaBlendModeLabels()
-								PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
-									SelectField(
-										selected = composite.alphaBlendMode,
-										modifier = Modifier.fillMaxWidth(),
-										options = AlphaBlendMode.entries,
-										label = { mode -> alphaLabels[mode] ?: mode.name },
-										onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(alphaBlendMode = mode)) },
-									)
-								}
-							},
-						)
+						if (!composite.blendMode.ignoresAlphaBlend) {
+							add(
+								PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
+									val alphaLabels = alphaBlendModeLabels()
+									PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+										SelectField(
+											selected = composite.alphaBlendMode,
+											modifier = Modifier.fillMaxWidth(),
+											options = AlphaBlendMode.entries,
+											label = { mode -> alphaLabels[mode] ?: mode.name },
+											onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(alphaBlendMode = mode)) },
+										)
+									}
+								},
+							)
+						}
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
 								PropertyCheckboxRow(
