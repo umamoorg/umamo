@@ -24,6 +24,8 @@ import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
+import org.umamo.format.cmo3.model.gen.CTextureInputExtension
+import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
@@ -644,32 +646,57 @@ object Cmo3Import {
 	 * Reads an art mesh's rest-pose geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).
 	 *
-	 * The stored `uvs` are in the model-image LOGICAL [0,1] frame, not the sampled image's own frame, so
-	 * they are remapped through [imageResourceUvs] before entering the runtime mesh.
+	 * An UNPACKED drawable stores its `uvs` in the model-image LOGICAL [0,1] frame, not the sampled image's
+	 * own frame, so those are remapped through [imageResourceUvs]; a PACKED drawable's UVs already index the
+	 * image and are taken verbatim (see [hasAtlasRegion]).
 	 *
 	 * @param CArtMeshSource source The art-mesh source.
 	 * @return DrawableMesh? The base mesh, or null when the source carries no positions.
 	 */
 	private fun meshOf(source: CArtMeshSource): DrawableMesh? {
 		val positions = source.positions as? FloatArray ?: return null
-		val logicalUvs = source.uvs as? FloatArray ?: FloatArray(0)
+		val storedUvs = source.uvs as? FloatArray ?: FloatArray(0)
 		val indices = source.indices as? IntArray ?: IntArray(0)
-		val uvs = imageResourceUvs(logicalUvs, source.texture as? GTexture2D)
+		val uvs =
+			if (hasAtlasRegion(source)) {
+				storedUvs
+			} else {
+				imageResourceUvs(storedUvs, source.texture as? GTexture2D)
+			}
 		return DrawableMesh(positions, uvs, indices)
 	}
 
 	/**
-	 * Remaps a mesh's UVs from the model-image logical [0,1] frame into the [0,1] frame of the image the
-	 * drawable actually samples (`GTexture2D.srcImageResource`).
+	 * Whether a drawable carries a `CTextureInput_TextureAtlasRegion` in its texture-input extension - i.e.
+	 * it was packed into a texture atlas at some point.  This is the join key for the UV frame convention:
+	 * packing rewrites a mesh's `uvs` into its source-image [0,1] frame (and they stay there even when the
+	 * model is toggled back to combined-layer display), while a never-packed drawable keeps its `uvs` in the
+	 * model-image logical frame.  A model with no atlas at all (MultiplyScreenColors) has only model-image
+	 * inputs, so every drawable returns false; a model built with an atlas but shown in combined-layer mode
+	 * (modelA) returns true for its packed drawables and false for any left unpacked (a stray guide layer).
 	 *
-	 * CMO3 stores each art mesh's `uvs` against the logical model image, while the bound texture is either
-	 * the packed atlas page (atlas mode) or the drawable's own per-layer PNG (combined-layer mode, or an
-	 * individual layer such as a guide image that was never packed).  `GTexture2D` carries the affine
-	 * `transformImageResource01toLogical01` mapping that image's [0,1] into the logical frame; sampling the
-	 * image therefore needs the INVERSE of it.  For an atlas-packed drawable the image is the atlas page and
-	 * the affine is identity, so the UVs are returned untouched (the common case).  For a per-layer drawable
-	 * the affine is a non-identity scale: without inverting it the smaller image overhangs its UV region and
-	 * the art renders enlarged with its outer margin clipped.  See docs/format/CMO3.md §4.
+	 * CMO3: CArtMeshSource _extensions -> CTextureInputExtension._textureInputs holds a
+	 * CTextureInput_ModelImage and, once packed, a CTextureInput_TextureAtlasRegion.  See docs/format/CMO3.md §4.
+	 *
+	 * @param CArtMeshSource source The art-mesh source.
+	 * @return Boolean True when the drawable has an atlas-region texture input.
+	 */
+	private fun hasAtlasRegion(source: CArtMeshSource): Boolean {
+		val extension = elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: return false
+		return elementsOf(extension._textureInputs).any { it is CTextureInput_TextureAtlasRegion }
+	}
+
+	/**
+	 * Remaps an UNPACKED drawable's UVs from the model-image logical [0,1] frame into the [0,1] frame of the
+	 * per-layer image it samples (`GTexture2D.srcImageResource`).  Only ever called for drawables with no
+	 * atlas region ([hasAtlasRegion] is false); a packed drawable's UVs already index its image and must not
+	 * pass through here.
+	 *
+	 * `GTexture2D` carries the affine `transformImageResource01toLogical01` mapping the image's [0,1] into the
+	 * logical frame, so sampling the image needs the INVERSE of it.  Without it the smaller image overhangs
+	 * its UV region and the art renders enlarged with its outer margin clipped (the MultiplyScreenColors
+	 * "white border cut off" symptom).  A near-identity affine (image already fills the logical frame) or a
+	 * degenerate one leaves the UVs untouched.  See docs/format/CMO3.md §4.
 	 *
 	 * CMO3: GTexture2D field transformImageResource01toLogical01 - a CAffine, imageResource[0,1] to logical[0,1].
 	 *
@@ -680,8 +707,8 @@ object Cmo3Import {
 	private fun imageResourceUvs(logicalUvs: FloatArray, texture: GTexture2D?): FloatArray {
 		val affine = texture?.transformImageResource01toLogical01 as? CAffine ?: return logicalUvs
 		val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
-		// Identity (the atlas-packed case) or a degenerate affine: leave the logical UVs as-is - they
-		// already index the bound image, and inverting a zero-determinant affine would yield NaN/Inf.
+		// Identity (image already fills the logical frame) or a degenerate affine: leave the UVs as-is -
+		// inverting a zero-determinant affine would yield NaN/Inf.
 		val isIdentity =
 			affine.m00 == 1f && affine.m01 == 0f && affine.m02 == 0f && affine.m10 == 0f && affine.m11 == 1f && affine.m12 == 0f
 		if (isIdentity || determinant == 0f) {
