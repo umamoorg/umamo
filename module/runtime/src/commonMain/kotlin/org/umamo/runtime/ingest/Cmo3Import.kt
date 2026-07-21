@@ -27,6 +27,7 @@ import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyOnParameter
@@ -39,6 +40,7 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
@@ -642,14 +644,60 @@ object Cmo3Import {
 	 * Reads an art mesh's rest-pose geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).
 	 *
+	 * The stored `uvs` are in the model-image LOGICAL [0,1] frame, not the sampled image's own frame, so
+	 * they are remapped through [imageResourceUvs] before entering the runtime mesh.
+	 *
 	 * @param CArtMeshSource source The art-mesh source.
 	 * @return DrawableMesh? The base mesh, or null when the source carries no positions.
 	 */
 	private fun meshOf(source: CArtMeshSource): DrawableMesh? {
 		val positions = source.positions as? FloatArray ?: return null
-		val uvs = source.uvs as? FloatArray ?: FloatArray(0)
+		val logicalUvs = source.uvs as? FloatArray ?: FloatArray(0)
 		val indices = source.indices as? IntArray ?: IntArray(0)
+		val uvs = imageResourceUvs(logicalUvs, source.texture as? GTexture2D)
 		return DrawableMesh(positions, uvs, indices)
+	}
+
+	/**
+	 * Remaps a mesh's UVs from the model-image logical [0,1] frame into the [0,1] frame of the image the
+	 * drawable actually samples (`GTexture2D.srcImageResource`).
+	 *
+	 * CMO3 stores each art mesh's `uvs` against the logical model image, while the bound texture is either
+	 * the packed atlas page (atlas mode) or the drawable's own per-layer PNG (combined-layer mode, or an
+	 * individual layer such as a guide image that was never packed).  `GTexture2D` carries the affine
+	 * `transformImageResource01toLogical01` mapping that image's [0,1] into the logical frame; sampling the
+	 * image therefore needs the INVERSE of it.  For an atlas-packed drawable the image is the atlas page and
+	 * the affine is identity, so the UVs are returned untouched (the common case).  For a per-layer drawable
+	 * the affine is a non-identity scale: without inverting it the smaller image overhangs its UV region and
+	 * the art renders enlarged with its outer margin clipped.  See docs/format/CMO3.md §4.
+	 *
+	 * CMO3: GTexture2D field transformImageResource01toLogical01 - a CAffine, imageResource[0,1] to logical[0,1].
+	 *
+	 * @param FloatArray  logicalUvs The interleaved (u, v) UVs in the logical model-image frame.
+	 * @param GTexture2D? texture    The drawable's texture, holding the imageResource to logical affine.
+	 * @return FloatArray The UVs in the sampled image's [0,1] frame (the same array when no remap applies).
+	 */
+	private fun imageResourceUvs(logicalUvs: FloatArray, texture: GTexture2D?): FloatArray {
+		val affine = texture?.transformImageResource01toLogical01 as? CAffine ?: return logicalUvs
+		val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
+		// Identity (the atlas-packed case) or a degenerate affine: leave the logical UVs as-is - they
+		// already index the bound image, and inverting a zero-determinant affine would yield NaN/Inf.
+		val isIdentity =
+			affine.m00 == 1f && affine.m01 == 0f && affine.m02 == 0f && affine.m10 == 0f && affine.m11 == 1f && affine.m12 == 0f
+		if (isIdentity || determinant == 0f) {
+			return logicalUvs
+		}
+		// Apply the inverse of the 2x3 affine: subtract the translation, then the inverse 2x2 linear part.
+		val result = FloatArray(logicalUvs.size)
+		var componentIndex = 0
+		while (componentIndex + 1 < logicalUvs.size) {
+			val logicalU = logicalUvs[componentIndex] - affine.m02
+			val logicalV = logicalUvs[componentIndex + 1] - affine.m12
+			result[componentIndex] = (affine.m11 * logicalU - affine.m01 * logicalV) / determinant
+			result[componentIndex + 1] = (-affine.m10 * logicalU + affine.m00 * logicalV) / determinant
+			componentIndex += 2
+		}
+		return result
 	}
 
 	/**
