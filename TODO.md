@@ -26,14 +26,9 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
   export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it
   drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass
   (depends on cataloguing each target runtime's capabilities).
-- Removing the Inspector space and swapping it out of the default workspace layout.
-- Moving the AreaHeader's selected-item readout into this panel (TODO.md § Overlays Toggle).
-- `LocalPropertyTabRegistry` composition-local + vendor `withOverrides` wiring (type seam exists; provider deferred).
-- Per-row (vs per-section) search granularity.
 - Composite `multiplyColor` / `screenColor` editing (needs a color-picker field) and `maskedBy`
-  (relation-list editor) — still deferred; the fields are captured/stored, just not yet editable.
-- Editing the composite while a part is **not** Isolated (Cubism greys these out). This pass keeps the
-  composite sub-controls visible only when Isolated; the model retains the settings regardless.
+  (relation-list editor) — still deferred; the fields are captured/stored, just not yet editable. The new
+  `PropertyRow` model is the substrate these build on.
 - UMA serialization of the latent composite (the format work this unblocks).
 
 ## Artwork Import

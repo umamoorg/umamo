@@ -35,9 +35,6 @@ enum class SpaceKind(val key: String) {
 	/** The parameter cockpit: sliders and (later) the multi-key 2D pad. */
 	Parameters("parameters"),
 
-	/** Properties of the selected drawable / deformer / part. */
-	Inspector("inspector"),
-
 	/** A tabbed mega-panel (Document / Object / Data) of the document and the selected item. */
 	Properties("properties"),
 

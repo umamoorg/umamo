@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,14 +31,15 @@ import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PROPERTIES_VIEW_STATE_KEY
-import org.umamo.ui.properties.PROPERTY_SECTION_CATALOG
 import org.umamo.ui.properties.PropertiesViewState
 import org.umamo.ui.properties.PropertyContext
+import org.umamo.ui.properties.PropertyRow
+import org.umamo.ui.properties.PropertySection
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.PropertyTabId
-import org.umamo.ui.properties.defaultPropertyTabRegistry
-import org.umamo.ui.properties.matchesQuery
+import org.umamo.ui.properties.sectionVisibility
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -77,46 +77,26 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 	val context = PropertyContext(puppet, selection, activeTarget, LocalEditorSession.current)
 	val viewState = scope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }
-	val registry = remember { defaultPropertyTabRegistry() }
+	val registry = LocalPropertyTabRegistry.current
 	val colors = LocalUmamoColors.current
 	val scrollState = rememberScrollState()
-
-	// Resolve the search haystacks for the full, static section catalog.  Iterating a fixed-length list
-	// keeps stringResource's call count constant across recompositions (within Compose's positional
-	// memoization rules), and gives a plain-Kotlin match test for the tab strip and body below.  Search
-	// granularity is section-level here; finer per-row filtering waits on the editable field-row model.
-	val haystacks = HashMap<String, List<String>>(PROPERTY_SECTION_CATALOG.size)
-	for (section in PROPERTY_SECTION_CATALOG) {
-		val terms = ArrayList<String>(1 + section.searchTerms.size)
-		terms.add(stringResource(section.title))
-		for (term in section.searchTerms) {
-			terms.add(stringResource(term))
-		}
-		haystacks[section.id] = terms
-	}
 
 	val query = viewState.query.trim()
 	val searching = query.isNotEmpty()
 	val visibleTabs = registry.visibleTabs(context)
-	// While searching, the strip shows only tabs that have a matching section (the "auto-switch tabs" cue).
+	// Resolve per-row search visibility once for every visible tab; the strip filter and the body both read
+	// it.  Each section's rows are built once here and reused when rendering, so a section's row-building
+	// (and its label lookups) runs a single time per recomposition.
+	val visibilityByTab = buildVisibilityIndex(visibleTabs, context, query)
+	// While searching, the strip shows only tabs that still have a visible section (the "auto-switch tabs" cue).
 	val stripTabs =
 		if (searching) {
-			visibleTabs.filter { tab ->
-				tab.sections(context).any { section -> matchesQuery(haystacks[section.id].orEmpty(), query) }
-			}
+			visibleTabs.filter { tab -> visibilityByTab[tab.id]?.isNotEmpty() == true }
 		} else {
 			visibleTabs
 		}
 	val activeTabId = resolveActiveTab(searching, stripTabs, visibleTabs, viewState.activeTab)
-	val activeTab = visibleTabs.firstOrNull { tab -> tab.id == activeTabId }
-	val bodySections =
-		activeTab?.sections(context)?.let { sections ->
-			if (searching) {
-				sections.filter { section -> matchesQuery(haystacks[section.id].orEmpty(), query) }
-			} else {
-				sections
-			}
-		} ?: emptyList()
+	val bodySections = visibilityByTab[activeTabId].orEmpty()
 
 	Row(modifier = modifier.fillMaxSize()) {
 		Column(
@@ -139,7 +119,9 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 		Box(modifier = Modifier.weight(1f).fillMaxHeight().background(colors.headerBackground)) {
 			if (bodySections.isEmpty()) {
-				PlaceholderSpace(stringResource(if (searching) Res.string.properties_no_matches else Res.string.inspector_nothing_selected))
+				if (searching) {
+					PlaceholderSpace(stringResource(Res.string.properties_no_matches))
+				}
 			} else {
 				Column(
 					modifier =
@@ -147,7 +129,8 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							.padding(horizontal = 6.dp, vertical = 6.dp),
 					verticalArrangement = Arrangement.spacedBy(6.dp),
 				) {
-					for (section in bodySections) {
+					for (visible in bodySections) {
+						val section = visible.section
 						key(section.id) {
 							// A search forces its matching sections open; otherwise the user's fold state wins,
 							// defaulting to open for an untouched section.
@@ -170,7 +153,12 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										// FieldStack's own 1.dp seam is internal, so stacked groups stay tight.
 										verticalArrangement = Arrangement.spacedBy(4.dp),
 									) {
-										section.content(context)
+										// Only the rows that survived the search (every row when not searching).
+										for (rowIndex in visible.visibleRowIndices) {
+											key(rowIndex) {
+												visible.rows[rowIndex].content(context)
+											}
+										}
 									}
 								}
 							}
@@ -181,6 +169,54 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			}
 		}
 	}
+}
+
+/**
+ * One section that survived the header-search filter: the [section] itself, its already-resolved [rows]
+ * (built once so rendering reuses them), and the [visibleRowIndices] to draw - every row when not
+ * searching or when the section title matched, else just the matching rows.
+ *
+ * @property PropertySection section The surviving section.
+ * @property List rows The section's rows for the current context, resolved once.
+ * @property List visibleRowIndices The indices into [rows] to draw, in order.
+ */
+private class VisibleSection(
+	val section: PropertySection,
+	val rows: List<PropertyRow>,
+	val visibleRowIndices: List<Int>,
+)
+
+/**
+ * Resolves, for every visible tab, which of its sections and rows survive the current [query].  Resolving
+ * the localized section titles and row terms needs Compose, so this runs in the composition and the pure
+ * [sectionVisibility] decides the match.  A tab maps to its surviving sections in order (empty when none
+ * match), which both the strip filter and the body read.
+ *
+ * @param List visibleTabs The tabs visible for the context, in strip order.
+ * @param PropertyContext context The current context the sections read from.
+ * @param String query The trimmed search text.
+ * @return Map The surviving sections per tab id.
+ */
+@Composable
+private fun buildVisibilityIndex(
+	visibleTabs: List<PropertyTab>,
+	context: PropertyContext,
+	query: String,
+): Map<PropertyTabId, List<VisibleSection>> {
+	val index = LinkedHashMap<PropertyTabId, List<VisibleSection>>(visibleTabs.size)
+	for (tab in visibleTabs) {
+		val survivors = ArrayList<VisibleSection>()
+		for (section in tab.sections(context)) {
+			val rows = section.rows(context)
+			val rowTerms = rows.map { row -> row.terms.map { term -> stringResource(term) } }
+			val visibility = sectionVisibility(stringResource(section.title), rowTerms, query)
+			if (visibility.shown) {
+				survivors.add(VisibleSection(section, rows, visibility.visibleRowIndices))
+			}
+		}
+		index[tab.id] = survivors
+	}
+	return index
 }
 
 /**

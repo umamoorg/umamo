@@ -6,9 +6,13 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.properties_tab_document
+import org.umamo.ui.resources.properties_tab_object
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -74,5 +78,58 @@ class PropertyTabRegistryTest {
 		assertTrue(matchesQuery(haystack, "SIZE"))
 		assertFalse(matchesQuery(haystack, "runtime"))
 		assertFalse(matchesQuery(emptyList(), "x"))
+	}
+
+	/**
+	 * Per-row visibility: a blank query or a section-title match shows every row; a field query keeps only
+	 * the matching rows; and a stacked row (several terms) survives when any of its terms match.
+	 */
+	@Test
+	fun sectionVisibilityHidesNonMatchingRows() {
+		val rows = listOf(listOf("Opacity"), listOf("Blend Mode"), listOf("Invert Mask"))
+
+		// Blank query: the whole section, every row.
+		sectionVisibility("Compositing", rows, "").let { result ->
+			assertTrue(result.shown)
+			assertEquals(listOf(0, 1, 2), result.visibleRowIndices)
+		}
+		// A field-name query keeps only the matching row.
+		sectionVisibility("Compositing", rows, "blend").let { result ->
+			assertTrue(result.shown)
+			assertEquals(listOf(1), result.visibleRowIndices)
+		}
+		// A section-title match shows every row (the whole section is relevant), even when no row matches.
+		sectionVisibility("Compositing", rows, "compos").let { result ->
+			assertTrue(result.shown)
+			assertEquals(listOf(0, 1, 2), result.visibleRowIndices)
+		}
+		// No match anywhere hides the section outright.
+		sectionVisibility("Compositing", rows, "zzz").let { result ->
+			assertFalse(result.shown)
+			assertTrue(result.visibleRowIndices.isEmpty())
+		}
+		// A stacked row (canvas width + height) matches on any of its terms.
+		sectionVisibility("Canvas", listOf(listOf("Width", "Height")), "height").let { result ->
+			assertTrue(result.shown)
+			assertEquals(listOf(0), result.visibleRowIndices)
+		}
+	}
+
+	/** A same-id override replaces its tab in place (keeping strip position); a new id appends after. */
+	@Test
+	fun withOverridesReplacesInPlaceAndAppends() {
+		val original = PropertyTab(PropertyTabId.Document, Res.string.properties_tab_document, { error("icon unused") }, { true }, { emptyList() })
+		val base = PropertyTabRegistry(listOf(original))
+		val replacement = PropertyTab(PropertyTabId.Document, Res.string.properties_tab_document, { error("icon unused") }, { true }, { emptyList() })
+		val appended = PropertyTab(PropertyTabId.Object, Res.string.properties_tab_object, { error("icon unused") }, { true }, { emptyList() })
+
+		val merged = base.withOverrides(listOf(replacement, appended))
+
+		val visibleContext = PropertyContext(emptyPuppet(), Selection(), null, session = null)
+		assertEquals(listOf(PropertyTabId.Document, PropertyTabId.Object), merged.visibleTabs(visibleContext).map { it.id })
+		assertSame(replacement, merged.tab(PropertyTabId.Document))
+		assertSame(appended, merged.tab(PropertyTabId.Object))
+		// The base registry is untouched - withOverrides returns a new registry.
+		assertSame(original, base.tab(PropertyTabId.Document))
 	}
 }
