@@ -22,21 +22,22 @@ sealed interface PartGroupMode {
 	data object Grouped : PartGroupMode
 
 	/**
-	 * Grouped, and additionally rendered to its own layer and composited back into the scene as
-	 * one unit per [composite].  (Cubism 5.3 "offscreen drawing"; CMO3 CPartSource.useOffscreen;
-	 * MOC3 §5.6 sections 152-163.)
+	 * Grouped, and additionally rendered to its own layer and composited back into the scene as one
+	 * unit per the part's [Part.composite] settings.  Payload-free: the compositing settings live on the
+	 * part (latent), not on the mode, so they survive the part leaving and re-entering Isolated.  (Cubism
+	 * 5.3 "offscreen drawing"; CMO3 CPartSource.useOffscreen; MOC3 §5.6 sections 152-163.)
 	 */
-	data class Isolated(val composite: PartComposite) : PartGroupMode
+	data object Isolated : PartGroupMode
 }
 
 /**
- * An isolated part's compositing settings: how the subtree's rendered layer blends back into the
- * scene.  The keyformed composite channels (opacity, multiply/screen colors) ride the part's
+ * A part's latent compositing settings: how the subtree's rendered layer blends back into the scene
+ * when the part's group mode is [PartGroupMode.Isolated].  Stored on [Part.composite] independent of the
+ * mode, so the settings survive the part leaving and re-entering Isolated (and the UMA native format can
+ * track them).  The keyformed composite channels (opacity, multiply/screen colors) ride the part's
  * [Part.formGrid]; the static fallbacks here apply when that grid is absent, mirroring the
  * [Part.drawOrder] + grid pattern.  (Cubism 5.3 "offscreen drawing" - CMO3
  * `CPartSource.useOffscreen` and friends; MOC3 §5.6 sections 152-163.)
- *
- * 分離パートの合成設定。サブツリーを一枚のレイヤーとして合成する。
  */
 data class PartComposite(
 	/** The composite's color blend mode. (CMO3 colorComposition; MOC3 s157 colorMode.) */

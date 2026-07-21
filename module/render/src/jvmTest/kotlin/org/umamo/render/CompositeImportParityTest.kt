@@ -78,8 +78,11 @@ class CompositeImportParityTest {
 		for (moc3Part in moc3Puppet.parts) {
 			// The bake drops sketch parts; iterate the moc side, which must be a subset.
 			val cmo3Part = assertNotNull(cmo3Parts[moc3Part.id], "$pairName: moc part ${moc3Part.id.raw} in cmo3")
-			val moc3Composite = moc3Part.composite
-			val cmo3Composite = cmo3Part.composite
+			// Compare the applied composite (active only while Isolated): both import paths agree there.  The
+			// stored latent composite differs by design off-Isolated (CMO3 captures authored fields, MOC3 has
+			// none), so parity is asserted on activeComposite, not the always-present stored composite.
+			val moc3Composite = moc3Part.activeComposite
+			val cmo3Composite = cmo3Part.activeComposite
 			assertEquals(cmo3Composite != null, moc3Composite != null, "$pairName: composite presence of ${moc3Part.id.raw}")
 			if (cmo3Composite == null || moc3Composite == null) {
 				continue

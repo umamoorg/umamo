@@ -6,6 +6,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -402,6 +403,26 @@ fun PuppetModel.withPartGroupMode(id: PartId, mode: PartGroupMode): PuppetModel 
 	}
 	val updated = parts.toMutableList()
 	updated[index] = updated[index].copy(groupMode = mode)
+	return copy(parts = updated)
+}
+
+/**
+ * Returns a copy of [this] with the part [id]'s latent compositing settings set to [composite], sharing
+ * every other entity.  Stored independent of the part's group mode (so it survives a mode round-trip) and
+ * applied only while the part is Isolated.  A no-op id (no such part, or the composite already matches)
+ * returns the same instance.
+ *
+ * @param PartId id The part to retarget.
+ * @param PartComposite composite The new composite settings.
+ * @return PuppetModel The model with that part's composite updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withPartComposite(id: PartId, composite: PartComposite): PuppetModel {
+	val index = parts.indexOfFirst { part -> part.id == id }
+	if (index < 0 || parts[index].composite == composite) {
+		return this
+	}
+	val updated = parts.toMutableList()
+	updated[index] = updated[index].copy(composite = composite)
 	return copy(parts = updated)
 }
 

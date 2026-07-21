@@ -4,6 +4,7 @@ import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 
@@ -108,6 +109,17 @@ fun EditorSession.setPartDrawOrder(id: PartId, order: Int) {
  */
 fun EditorSession.setPartGroupMode(id: PartId, mode: PartGroupMode) {
 	mutate(PartChange.SetGroupMode(id, mode)) { model -> model.withPartGroupMode(id, mode) }
+}
+
+/**
+ * Sets part [id]'s latent compositing settings as one undo step.  Stored independent of the group mode,
+ * so an isolated part's composite survives leaving and re-entering Isolated; applied only while Isolated.
+ *
+ * @param PartId id The part to retarget.
+ * @param PartComposite composite The new composite settings.
+ */
+fun EditorSession.setPartComposite(id: PartId, composite: PartComposite) {
+	mutate(PartChange.SetComposite(id, composite)) { model -> model.withPartComposite(id, composite) }
 }
 
 /**

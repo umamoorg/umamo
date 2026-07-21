@@ -2,12 +2,9 @@ package org.umamo.ui.properties
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
-import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 
 /**
  * Pins the enum-label coverage and the part group-mode projection.  The label resolvers are exhaustive
@@ -31,22 +28,18 @@ class EnumLabelsTest {
 	fun groupModeKindProjectsEveryCase() {
 		assertEquals(PartGroupModeKind.PassThrough, PartGroupMode.PassThrough.kind())
 		assertEquals(PartGroupModeKind.Grouped, PartGroupMode.Grouped.kind())
-		assertEquals(PartGroupModeKind.Isolated, PartGroupMode.Isolated(PartComposite()).kind())
+		assertEquals(PartGroupModeKind.Isolated, PartGroupMode.Isolated.kind())
 	}
 
 	@Test
-	fun partGroupModeOfRoundTripsAndPreservesTheComposite() {
-		// Each kind rebuilds to a mode of that same kind.
+	fun partGroupModeOfProjectsEveryKind() {
+		// The modes are payload-free (the composite lives latently on the part), so this is a plain
+		// projection: each kind maps to its mode and round-trips through kind().
+		assertEquals(PartGroupMode.PassThrough, partGroupModeOf(PartGroupModeKind.PassThrough))
+		assertEquals(PartGroupMode.Grouped, partGroupModeOf(PartGroupModeKind.Grouped))
+		assertEquals(PartGroupMode.Isolated, partGroupModeOf(PartGroupModeKind.Isolated))
 		for (kind in PartGroupModeKind.entries) {
-			assertEquals(kind, partGroupModeOf(kind, PartGroupMode.PassThrough).kind())
+			assertEquals(kind, partGroupModeOf(kind).kind())
 		}
-
-		// Re-selecting Isolated keeps the existing composite; arriving from a non-Isolated mode gets a default.
-		val existing = PartGroupMode.Isolated(PartComposite(opacity = 0.25f))
-		val kept = partGroupModeOf(PartGroupModeKind.Isolated, existing) as PartGroupMode.Isolated
-		assertSame(existing.composite, kept.composite)
-
-		val fresh = partGroupModeOf(PartGroupModeKind.Isolated, PartGroupMode.PassThrough) as PartGroupMode.Isolated
-		assertTrue(fresh.composite.opacity == PartComposite().opacity)
 	}
 }

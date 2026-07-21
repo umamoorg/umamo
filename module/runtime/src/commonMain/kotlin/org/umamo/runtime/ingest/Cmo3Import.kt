@@ -239,9 +239,11 @@ object Cmo3Import {
 				}
 			}
 
-		// CMO3: CPartSource.useOffscreen gates the whole block; the composition/clip fields are latent
-		// on non-offscreen 5.3 parts (they survive unchecking) and pre-5.3 CPartForms carry no
-		// opacity/color elements at all, so this is only called when the checkbox is on.
+		// CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
+		// called for every part (not just offscreen ones) to capture the settings regardless of mode; the
+		// composite is only applied while the part is Isolated.  Each field defaults gracefully when absent
+		// (colorComposition/alphaComposition -> Normal/Over via the token maps; pre-5.3 CPartForms carry no
+		// opacity/color elements, so firstForm's channels fall back to identity).
 		fun partCompositeOf(source: CPartSource): PartComposite {
 			val firstForm = elementsOf(source.keyforms).filterIsInstance<CPartForm>().firstOrNull()
 			return PartComposite(
@@ -275,12 +277,16 @@ object Cmo3Import {
 					// enableDrawOrderGroup = "Group by Draw Order"; CPartForm.drawOrder = the slot.
 					groupMode =
 						when {
-							source.useOffscreen -> PartGroupMode.Isolated(partCompositeOf(source))
+							source.useOffscreen -> PartGroupMode.Isolated
 							source.enableDrawOrderGroup -> PartGroupMode.Grouped
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
 					formGrid = partFormGridOf(source),
+					// The composite is stored latently on every part (not just offscreen ones): the CMO3
+					// composition/clip fields survive unchecking offscreen, so we capture them regardless of the
+					// mode and apply them only while Isolated.  partCompositeOf defaults gracefully when absent.
+					composite = partCompositeOf(source),
 				)
 			}
 

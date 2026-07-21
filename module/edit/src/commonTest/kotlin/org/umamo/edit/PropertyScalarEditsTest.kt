@@ -123,14 +123,29 @@ class PropertyScalarEditsTest {
 	}
 
 	@Test
-	fun partGroupModeCarriesIsolatedComposite() {
+	fun partCompositeIsStoredAndSurvivesModeRoundTrip() {
 		val base = model()
-		val edited = base.withPartGroupMode(partId, PartGroupMode.Isolated(PartComposite(opacity = 0.5f)))
+		val custom = PartComposite(opacity = 0.5f)
 
-		val mode = edited.parts.first().groupMode
-		assertTrue(mode is PartGroupMode.Isolated)
-		assertEquals(0.5f, (mode as PartGroupMode.Isolated).composite.opacity)
+		// The composite is stored on the part independent of the mode.
+		val withComposite = base.withPartComposite(partId, custom)
+		assertEquals(custom, withComposite.parts.first().composite)
+		// Only applied while Isolated: activeComposite is null until the mode is Isolated.
+		assertEquals(null, withComposite.parts.first().activeComposite)
 
+		val isolated = withComposite.withPartGroupMode(partId, PartGroupMode.Isolated)
+		assertEquals(custom, isolated.parts.first().activeComposite)
+
+		// Leaving and re-entering Isolated does NOT reset the composite (the whole point).
+		val roundTripped =
+			isolated
+				.withPartGroupMode(partId, PartGroupMode.PassThrough)
+				.withPartGroupMode(partId, PartGroupMode.Isolated)
+		assertEquals(custom, roundTripped.parts.first().composite)
+		assertEquals(custom, roundTripped.parts.first().activeComposite)
+
+		// No-op composite / mode edits return the same instance.
+		assertSame(withComposite, withComposite.withPartComposite(partId, custom))
 		assertSame(base, base.withPartGroupMode(partId, PartGroupMode.PassThrough))
 	}
 
@@ -188,5 +203,17 @@ class PropertyScalarEditsTest {
 		session.undo()
 		assertEquals(PartGroupMode.PassThrough, session.model.value.parts.first().groupMode)
 		assertEquals(100f, session.model.value.canvasWidth)
+	}
+
+	@Test
+	fun sessionSetPartCompositeCommitsOneStep() {
+		val session = EditorSession(model())
+		val custom = PartComposite(opacity = 0.25f)
+
+		session.setPartComposite(partId, custom)
+		assertEquals(custom, session.model.value.parts.first().composite)
+
+		session.undo()
+		assertEquals(PartComposite(), session.model.value.parts.first().composite)
 	}
 }

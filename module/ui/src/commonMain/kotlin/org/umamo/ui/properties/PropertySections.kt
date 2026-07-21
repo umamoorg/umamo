@@ -20,6 +20,7 @@ import org.umamo.edit.setDrawableAlphaBlendMode
 import org.umamo.edit.setDrawableBlendMode
 import org.umamo.edit.setDrawableCulling
 import org.umamo.edit.setDrawableInvertMask
+import org.umamo.edit.setPartComposite
 import org.umamo.edit.setPartDrawOrder
 import org.umamo.edit.setPartGroupMode
 import org.umamo.edit.setPartSketch
@@ -27,7 +28,6 @@ import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.FieldStack
@@ -478,20 +478,21 @@ internal val PartSection =
 						modifier = Modifier.fillMaxWidth(),
 						options = PartGroupModeKind.entries,
 						label = { kind -> groupLabels[kind] ?: kind.name },
-						onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind, part.groupMode)) },
+						onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind)) },
 					)
 				}
 				// An isolated part composites its subtree as one layer; expose the composite's scalar channels
-				// (colors need a color-picker field, deferred).  Rebuilding the whole Isolated mode on each edit
-				// keeps one Change / session method covering the mode swap and every sub-field alike.
-				val composite = (part.groupMode as? PartGroupMode.Isolated)?.composite
+				// (colors need a color-picker field, deferred).  The composite is stored latently on the part, so
+				// each sub-field edits it via setPartComposite - it survives a mode round-trip and is shown only
+				// while the part is Isolated (activeComposite is non-null exactly then).
+				val composite = part.activeComposite
 				if (composite != null) {
 					val blendLabels = blendModeLabels()
 					val alphaLabels = alphaBlendModeLabels()
 					PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
 						NumberField(
 							value = composite.opacity,
-							onValueChange = { opacity -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(opacity = opacity))) },
+							onValueChange = { opacity -> session?.setPartComposite(part.id, composite.copy(opacity = opacity)) },
 							modifier = Modifier.fillMaxWidth(),
 							range = 0f..1f,
 							decimals = 2,
@@ -504,7 +505,7 @@ internal val PartSection =
 							modifier = Modifier.fillMaxWidth(),
 							options = BlendMode.entries,
 							label = { mode -> blendLabels[mode] ?: mode.name },
-							onSelect = { mode -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(blendMode = mode))) },
+							onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(blendMode = mode)) },
 						)
 					}
 					PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
@@ -513,12 +514,12 @@ internal val PartSection =
 							modifier = Modifier.fillMaxWidth(),
 							options = AlphaBlendMode.entries,
 							label = { mode -> alphaLabels[mode] ?: mode.name },
-							onSelect = { mode -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(alphaBlendMode = mode))) },
+							onSelect = { mode -> session?.setPartComposite(part.id, composite.copy(alphaBlendMode = mode)) },
 						)
 					}
 					PropertyCheckboxRow(
 						checked = composite.invertMask,
-						onCheckedChange = { invert -> session?.setPartGroupMode(part.id, PartGroupMode.Isolated(composite.copy(invertMask = invert))) },
+						onCheckedChange = { invert -> session?.setPartComposite(part.id, composite.copy(invertMask = invert)) },
 						label = stringResource(Res.string.properties_field_invert_mask),
 					)
 				}

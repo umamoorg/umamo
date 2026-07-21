@@ -6,6 +6,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 
@@ -144,6 +145,19 @@ sealed interface PartChange : Change {
 	data class SetGroupMode(val id: PartId, val mode: PartGroupMode) : PartChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.part.groupMode"
+	}
+
+	/**
+	 * Sets a part's compositing settings (opacity / blend / alpha / mask), stored latently regardless of
+	 * group mode - so an isolated part's composite survives leaving and re-entering Isolated.  Applied only
+	 * while the part is Isolated.
+	 *
+	 * @property PartId id The part whose composite changed.
+	 * @property PartComposite composite The new composite settings.
+	 */
+	data class SetComposite(val id: PartId, val composite: PartComposite) : PartChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.part.composite"
 	}
 }
 

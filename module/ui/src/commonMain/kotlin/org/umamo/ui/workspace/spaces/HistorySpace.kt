@@ -196,6 +196,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.part.sketch" -> stringResource(Res.string.history_part_sketch)
 		"change.part.drawOrder" -> stringResource(Res.string.history_part_draw_order)
 		"change.part.groupMode" -> stringResource(Res.string.history_part_group_mode)
+		"change.part.composite" -> stringResource(Res.string.history_part_composite)
 		"change.drawable.blendMode" -> stringResource(Res.string.history_drawable_blend_mode)
 		"change.drawable.alphaBlendMode" -> stringResource(Res.string.history_drawable_alpha_blend_mode)
 		"change.drawable.culling" -> stringResource(Res.string.history_drawable_culling)

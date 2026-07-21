@@ -187,6 +187,7 @@
 	<string name="history_part_sketch">Toggle Guide Image</string>
 	<string name="history_part_draw_order">Set Part Draw Order</string>
 	<string name="history_part_group_mode">Set Group Mode</string>
+	<string name="history_part_composite">Set Composite</string>
 	<string name="history_drawable_blend_mode">Set Blend Mode</string>
 	<string name="history_drawable_alpha_blend_mode">Set Alpha Mode</string>
 	<string name="history_drawable_culling">Toggle Back-Face Culling</string>
