@@ -18,10 +18,12 @@ import kotlin.math.sqrt
  * matches visually.  Combinations the corpus does not yet exercise with real art (the remaining
  * `_TSL` variants, Conjoint) are unconfirmed against the editor.
  *
- * Everything operates on PREMULTIPLIED RGBA (the renderer's framebuffer convention).  The three
- * legacy modes under Over alpha replicate the fixed-function equations of GlFrameEncoder.applyBlend
- * EXACTLY (that path is pinned by a shader==fixed-function GL test); every other combination takes
- * the generic unpremultiply -> blend -> Porter-Duff path.
+ * Everything operates on PREMULTIPLIED RGBA (the renderer's framebuffer convention).  The fixed-function
+ * premultiplied path replicates the equations of GlFrameEncoder.applyBlend EXACTLY (pinned by a
+ * shader==fixed-function GL test) and is taken by legacy Normal under Over alpha, plus
+ * AdditivePremultiplied / MultiplyPremultiplied under ANY alpha mode - the "(Before 5.3)" Add and
+ * Multiply ignore the Alpha blend setting per the Cubism editor.  Every other combination takes the
+ * generic unpremultiply -> blend -> Porter-Duff path.
  */
 
 /**
@@ -34,12 +36,12 @@ import kotlin.math.sqrt
 public fun packedColorModeOf(blendMode: BlendMode): Int =
 	when (blendMode) {
 		BlendMode.Normal -> 0
-		BlendMode.Additive -> 1
-		BlendMode.Multiply -> 2
-		BlendMode.AdditiveModern -> 3
+		BlendMode.AdditivePremultiplied -> 1
+		BlendMode.MultiplyPremultiplied -> 2
+		BlendMode.Additive -> 3
 		BlendMode.AdditiveGlow -> 4
 		BlendMode.Darken -> 5
-		BlendMode.MultiplyModern -> 6
+		BlendMode.Multiply -> 6
 		BlendMode.ColorBurn -> 7
 		BlendMode.LinearBurn -> 8
 		BlendMode.Lighten -> 9
@@ -88,9 +90,9 @@ public fun compositeReference(
 	val sourceAlpha = srcPremul[3]
 	val destinationAlpha = dstPremul[3]
 
-	// The three legacy modes under Over replicate fixed-function blending bit-for-bit (the pre-5.3
-	// semantics the old runtime renders); everything else goes through the generic path.
-	if (alphaBlendMode == AlphaBlendMode.Over && blendMode.isLegacy) {
+	// Fixed-function premultiplied path: legacy Normal under Over, and the "(Before 5.3)" Add/Multiply
+	// under ANY alpha (they ignore the Alpha blend setting).  Everything else goes through the generic path.
+	if ((alphaBlendMode == AlphaBlendMode.Over && blendMode.isLegacy) || blendMode.ignoresAlphaBlend) {
 		val out =
 			when (blendMode) {
 				// (ONE, ONE_MINUS_SRC_ALPHA) on both color and alpha - premultiplied source-over.
@@ -102,7 +104,7 @@ public fun compositeReference(
 						sourceAlpha + destinationAlpha * (1f - sourceAlpha),
 					)
 				// (ONE, ONE) color, (ZERO, ONE) alpha.
-				BlendMode.Additive ->
+				BlendMode.AdditivePremultiplied ->
 					floatArrayOf(
 						srcPremul[0] + dstPremul[0],
 						srcPremul[1] + dstPremul[1],
@@ -192,9 +194,9 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 		// fixed-function semantics apply only under Over (see compositeReference).  Add (Glow) has
 		// been checked against the official editor via Model A and matches this shared formula;
 		// Add's modern (_TSL) variant shares it too but is unconfirmed against the editor.
-		BlendMode.Additive, BlendMode.AdditiveModern, BlendMode.AdditiveGlow ->
+		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow ->
 			perChannel(backdrop, source) { backdropChannel, sourceChannel -> min(1f, backdropChannel + sourceChannel) }
-		BlendMode.Multiply, BlendMode.MultiplyModern ->
+		BlendMode.MultiplyPremultiplied, BlendMode.Multiply ->
 			perChannel(backdrop, source) { backdropChannel, sourceChannel -> backdropChannel * sourceChannel }
 		BlendMode.Darken -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> min(backdropChannel, sourceChannel) }
 		BlendMode.Lighten -> perChannel(backdrop, source) { backdropChannel, sourceChannel -> max(backdropChannel, sourceChannel) }

@@ -73,7 +73,7 @@ class CompositeImportTest {
 		assertEquals(BlendMode.Normal, face.blendMode, "Face color blend")
 		assertEquals(AlphaBlendMode.Over, face.alphaBlendMode, "Face alpha blend")
 		val eye = assertNotNull(puppet.parts.find { it.name == "Eye" }?.activeComposite, "Eye offscreen")
-		assertEquals(BlendMode.Multiply, eye.blendMode, "Eye color blend (bare legacy token)")
+		assertEquals(BlendMode.MultiplyPremultiplied, eye.blendMode, "Eye color blend (bare legacy token)")
 		assertEquals(AlphaBlendMode.Disjoint, eye.alphaBlendMode, "Eye alpha blend")
 	}
 

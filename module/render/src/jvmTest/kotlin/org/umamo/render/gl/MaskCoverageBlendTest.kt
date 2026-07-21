@@ -92,7 +92,7 @@ class MaskCoverageBlendTest {
 		assumeGlContext("[mask-blend]", window)
 		try {
 			// The mask source is Multiply - the mode that most clearly breaks a coverage pass that honours it.
-			val litColumns = renderAndCountArtColumns(model(BlendMode.Multiply))
+			val litColumns = renderAndCountArtColumns(model(BlendMode.MultiplyPremultiplied))
 			assertTrue(
 				litColumns > viewportSize / 2,
 				"a Multiply-blend mask source must still produce coverage: the masked quad should fill the row " +

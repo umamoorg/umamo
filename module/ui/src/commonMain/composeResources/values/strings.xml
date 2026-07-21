@@ -398,10 +398,10 @@
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
 	<string name="blend_mode_multiply">Multiply</string>
-	<string name="blend_mode_additive_modern">Additive (Modern)</string>
+	<string name="blend_mode_additive_premultiplied">Additive (Legacy)</string>
 	<string name="blend_mode_additive_glow">Additive (Glow)</string>
 	<string name="blend_mode_darken">Darken</string>
-	<string name="blend_mode_multiply_modern">Multiply (Modern)</string>
+	<string name="blend_mode_multiply_premultiplied">Multiply (Legacy)</string>
 	<string name="blend_mode_color_burn">Color Burn</string>
 	<string name="blend_mode_linear_burn">Linear Burn</string>
 	<string name="blend_mode_lighten">Lighten</string>

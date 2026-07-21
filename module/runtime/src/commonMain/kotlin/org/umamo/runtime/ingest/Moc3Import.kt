@@ -1095,8 +1095,8 @@ object Moc3Import {
 	 */
 	private fun blendModeOf(constantFlags: Int): BlendMode =
 		when {
-			constantFlags and ConstantFlag.BLEND_ADDITIVE != 0 -> BlendMode.Additive
-			constantFlags and ConstantFlag.BLEND_MULTIPLICATIVE != 0 -> BlendMode.Multiply
+			constantFlags and ConstantFlag.BLEND_ADDITIVE != 0 -> BlendMode.AdditivePremultiplied
+			constantFlags and ConstantFlag.BLEND_MULTIPLICATIVE != 0 -> BlendMode.MultiplyPremultiplied
 			else -> BlendMode.Normal
 		}
 

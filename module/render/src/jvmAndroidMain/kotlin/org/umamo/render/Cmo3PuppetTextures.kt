@@ -35,6 +35,12 @@ fun extractPuppetTextures(model: Cmo3Model): PuppetTextures {
 	for (mesh in artMeshes) {
 		val drawableId = (mesh.id as? Id)?.idstr?.takeIf { it.isNotEmpty() } ?: continue
 		val texture = mesh.texture as? GTexture2D ?: continue
+		// CMO3: GTexture2D.isPremultiplied is an editor texture-upload-convention flag (serialized true on
+		// nearly every model), NOT a claim the embedded PNG is premultiplied - PngCodec decodes straight
+		// alpha and the shader premultiplies.  Aggregated here but deliberately unconsumed downstream; do
+		// not drive rendering off it (that would over-darken the corpus).  The version-dependent
+		// premultiplied-vs-straight COMPOSITING axis rides BlendMode.isLegacy, not this flag.  See
+		// PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs straight alpha".
 		premultiplied = premultiplied || texture.isPremultiplied
 		val resource = texture.srcImageResource as? CImageResource ?: continue
 		val index =

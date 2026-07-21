@@ -14,7 +14,7 @@ import org.umamo.ui.resources.alpha_blend_out
 import org.umamo.ui.resources.alpha_blend_over
 import org.umamo.ui.resources.blend_mode_additive
 import org.umamo.ui.resources.blend_mode_additive_glow
-import org.umamo.ui.resources.blend_mode_additive_modern
+import org.umamo.ui.resources.blend_mode_additive_premultiplied
 import org.umamo.ui.resources.blend_mode_color
 import org.umamo.ui.resources.blend_mode_color_burn
 import org.umamo.ui.resources.blend_mode_color_dodge
@@ -25,7 +25,7 @@ import org.umamo.ui.resources.blend_mode_lighten
 import org.umamo.ui.resources.blend_mode_linear_burn
 import org.umamo.ui.resources.blend_mode_linear_light
 import org.umamo.ui.resources.blend_mode_multiply
-import org.umamo.ui.resources.blend_mode_multiply_modern
+import org.umamo.ui.resources.blend_mode_multiply_premultiplied
 import org.umamo.ui.resources.blend_mode_normal
 import org.umamo.ui.resources.blend_mode_overlay
 import org.umamo.ui.resources.blend_mode_screen
@@ -90,10 +90,10 @@ fun blendModeLabelRes(mode: BlendMode): StringResource =
 		BlendMode.Normal -> Res.string.blend_mode_normal
 		BlendMode.Additive -> Res.string.blend_mode_additive
 		BlendMode.Multiply -> Res.string.blend_mode_multiply
-		BlendMode.AdditiveModern -> Res.string.blend_mode_additive_modern
+		BlendMode.AdditivePremultiplied -> Res.string.blend_mode_additive_premultiplied
 		BlendMode.AdditiveGlow -> Res.string.blend_mode_additive_glow
 		BlendMode.Darken -> Res.string.blend_mode_darken
-		BlendMode.MultiplyModern -> Res.string.blend_mode_multiply_modern
+		BlendMode.MultiplyPremultiplied -> Res.string.blend_mode_multiply_premultiplied
 		BlendMode.ColorBurn -> Res.string.blend_mode_color_burn
 		BlendMode.LinearBurn -> Res.string.blend_mode_linear_burn
 		BlendMode.Lighten -> Res.string.blend_mode_lighten
@@ -143,6 +143,18 @@ fun partGroupModeLabelRes(kind: PartGroupModeKind): StringResource =
  */
 @Composable
 fun blendModeLabels(): Map<BlendMode, String> = BlendMode.entries.associateWith { mode -> stringResource(blendModeLabelRes(mode)) }
+
+/**
+ * The blend modes in dropdown display order: the 5.3 modes first, in their canonical MOC3 colorMode
+ * order, then the "(Legacy)" pre-5.3 premultiplied modes (AdditivePremultiplied and
+ * MultiplyPremultiplied - exactly the two that ignore the alpha blend setting) sunk to the bottom so
+ * they stay out of the way for new work.  [BlendMode.entries] - the enum/format order backing the
+ * packed-int mapping - is NOT reordered; only the picker's presentation changes.
+ *
+ * @return List The blend modes in the order the picker should present them.
+ */
+fun blendModeDisplayOrder(): List<BlendMode> =
+	BlendMode.entries.filterNot { it.ignoresAlphaBlend } + BlendMode.entries.filter { it.ignoresAlphaBlend }
 
 /**
  * Resolves every alpha-blend-mode label once, as an option-to-string map for a dropdown.

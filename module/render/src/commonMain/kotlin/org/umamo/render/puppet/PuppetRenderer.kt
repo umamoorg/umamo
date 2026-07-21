@@ -1545,14 +1545,14 @@ class PuppetRenderer(
 	private fun blendOf(mode: BlendMode): PipelineBlend =
 		when (mode) {
 			BlendMode.Normal -> PipelineBlend.Normal
-			BlendMode.Additive -> PipelineBlend.Additive
-			BlendMode.Multiply -> PipelineBlend.Multiply
+			BlendMode.AdditivePremultiplied -> PipelineBlend.Additive
+			BlendMode.MultiplyPremultiplied -> PipelineBlend.Multiply
 			// Scene draws never reach here with a 5.3 mode (renderPlanNodes routes extended blends
 			// through the destination-sampling composite pass); these branches are a safe fallback
 			// approximating with the legacy fixed-function analog where one exists - the same
 			// approximation the MOC3 constant-flags 2-bit field encodes for old runtimes.
-			BlendMode.AdditiveModern, BlendMode.AdditiveGlow -> PipelineBlend.Additive
-			BlendMode.MultiplyModern -> PipelineBlend.Multiply
+			BlendMode.Additive, BlendMode.AdditiveGlow -> PipelineBlend.Additive
+			BlendMode.Multiply -> PipelineBlend.Multiply
 			BlendMode.Darken,
 			BlendMode.ColorBurn,
 			BlendMode.LinearBurn,
