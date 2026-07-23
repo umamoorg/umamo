@@ -1,4 +1,4 @@
-package org.umamo.ui.properties
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.meshBounds

@@ -45,9 +45,6 @@ import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.edit.selectableOf
 import org.umamo.edit.withMeshPositions
 import org.umamo.render.ViewportCamera
-import org.umamo.render.eval.DrawableSpaceMapping
-import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.pick.drawablesInBox
 import org.umamo.render.pick.drawablesInCircle
@@ -55,6 +52,8 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.captureDrawableWorld
 import kotlin.math.max
 import kotlin.math.min
 
@@ -67,17 +66,22 @@ import kotlin.math.min
  * whole mesh).  [groups] carries each drawable's pivot groups per the active
  * [org.umamo.edit.TransformPivotMode] (a shared anchor, or the drawable's own centroid for Individual
  * Origins); [anchor] is the world-space point the pointer math measures factors and angles against.
+ *
+ * [operatorKind] freezes here with everything else so the commit names the operation that actually ran.
+ * Re-reading the latch at confirm time would need a fallback for the null case, and a wrong fallback
+ * mislabels the history step silently; the latch cannot change under a live capture anyway, since a new
+ * ActiveOperator value re-runs the capture effect.
  */
 private class ObjectGestureCapture(
-	val drawableIds: List<DrawableId>,
-	val mappings: List<DrawableSpaceMapping>,
-	val displayed: List<FloatArray>,
-	val world: List<FloatArray>,
-	val base: List<FloatArray>,
+	val geometries: List<DrawableWorldGeometry>,
 	val indices: List<Set<Int>>,
 	val groups: List<List<TransformPivotGroup>>,
 	val anchor: Pair<Float, Float>,
+	val operatorKind: MeshOperatorKind,
 ) {
+	/** The captured drawables, in capture order (the key every per-index list is aligned to). */
+	val drawableIds: List<DrawableId> get() = geometries.map { geometry -> geometry.drawableId }
+
 	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
 	val rotationTracker = RotationAngleTracker()
 }
@@ -102,7 +106,7 @@ private class ObjectGestureCapture(
  *     (one undo step), previewed live through the GPU tint via [EditorSession.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
  *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
- *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.MoveDrawables]).
+ *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformDrawables]).
  *     A right-click or Escape cancels (the renderer re-syncs to the committed model); a primary click or Enter
  *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
  *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
@@ -301,7 +305,7 @@ fun ObjectGizmoOverlay(
 		val committed = preview
 		val captured = capture
 		if (committed != null && captured != null && committed.isNotEmpty()) {
-			session.commitObjectPositions(MeshChange.MoveDrawables(captured.drawableIds), committed)
+			session.commitObjectPositions(MeshChange.TransformDrawables(captured.drawableIds, captured.operatorKind), committed)
 		}
 		session.clearObjectOperator()
 	}
@@ -315,13 +319,14 @@ fun ObjectGizmoOverlay(
 		val captured = capture ?: return false
 		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.
 		val frame = TransformGestureFrame(captured.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
-		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.drawableIds.size)
+		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.geometries.size)
 		var folded = session.model.value
-		for (drawableIndex in captured.drawableIds.indices) {
+		for (drawableIndex in captured.geometries.indices) {
+			val geometry = captured.geometries[drawableIndex]
 			val transformedWorld =
 				applyOperator(
 					operator,
-					captured.world[drawableIndex],
+					geometry.world,
 					captured.groups[drawableIndex],
 					frame,
 					// Proportional editing is an Edit-mode feature: object mode moves whole
@@ -329,12 +334,9 @@ fun ObjectGizmoOverlay(
 					emptyMap(),
 					captured.rotationTracker,
 				)
-			val transformedLocal =
-				captured.mappings[drawableIndex].worldToLocalLinearized(transformedWorld, captured.displayed[drawableIndex], captured.world[drawableIndex], captured.indices[drawableIndex])
-			val newBase = movementToBase(captured.base[drawableIndex], transformedLocal, captured.displayed[drawableIndex])
-			val drawableId = captured.drawableIds[drawableIndex]
-			newBaseByDrawable[drawableId] = newBase
-			folded = folded.withMeshPositions(drawableId, newBase)
+			val newBase = geometry.worldToBase(transformedWorld, captured.indices[drawableIndex])
+			newBaseByDrawable[geometry.drawableId] = newBase
+			folded = folded.withMeshPositions(geometry.drawableId, newBase)
 		}
 		preview = newBaseByDrawable
 		service.setModel(folded)
@@ -342,7 +344,7 @@ fun ObjectGizmoOverlay(
 	}
 
 	// The modal gesture's commit-side seam: the Object overlay drives whole-drawable previews, confirms
-	// as one MoveDrawables undo step, and cancels through the session's operator clear.  The
+	// as one TransformDrawables undo step, and cancels through the session's operator clear.  The
 	// pointer-side mechanics live in ModalTransformController; no scroll behavior in Object mode.
 	val modalTarget =
 		object : ModalTransformTarget {
@@ -372,28 +374,12 @@ fun ObjectGizmoOverlay(
 			val model = session.model.value
 			val pose = session.pose.value
 			val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
-			val ids = ArrayList<DrawableId>()
-			val mappings = ArrayList<DrawableSpaceMapping>()
-			val displayedList = ArrayList<FloatArray>()
-			val worldList = ArrayList<FloatArray>()
-			val baseList = ArrayList<FloatArray>()
-			val indicesList = ArrayList<Set<Int>>()
-			if (eligibleIds != null) {
-				for (drawableId in eligibleIds) {
-					// A drawable with a hidden ancestor has no world mapping - skip it rather than abort the whole
-					// gesture (the others still transform).
-					val mapping = drawableSpaceMapping(model, pose, drawableId) ?: continue
-					val base = model.drawables.firstOrNull { it.id == drawableId }?.mesh?.positions ?: continue
-					val displayed = drawableLocalPosed(model, pose, drawableId) ?: base
-					val world = mapping.localToWorld(displayed)
-					ids.add(drawableId)
-					mappings.add(mapping)
-					displayedList.add(displayed)
-					worldList.add(world)
-					baseList.add(base.copyOf())
-					indicesList.add((0 until world.size / 2).toSet())
-				}
-			}
+			// A drawable with a hidden ancestor has no world mapping and captures as null - skip it rather than
+			// abort the whole gesture (the others still transform).
+			val geometries = eligibleIds.orEmpty().mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+			val ids = geometries.map { geometry -> geometry.drawableId }
+			val worldList = geometries.map { geometry -> geometry.world }
+			val indicesList = geometries.map { geometry -> geometry.allIndices }
 			if (ids.isEmpty()) {
 				// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 				session.clearObjectOperator()
@@ -428,7 +414,7 @@ fun ObjectGizmoOverlay(
 							TransformPivots.sharedGroup(indicesList[drawableIndex], anchor.first, anchor.second)
 						}
 					}
-				capture = ObjectGestureCapture(ids, mappings, displayedList, worldList, baseList, indicesList, groups, anchor)
+				capture = ObjectGestureCapture(geometries, indicesList, groups, anchor, operator.kind)
 				gestureStart = lastPointer
 				preview = null
 				cursorWrap.reset()

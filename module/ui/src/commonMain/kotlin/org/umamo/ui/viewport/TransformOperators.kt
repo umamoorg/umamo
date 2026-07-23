@@ -36,27 +36,6 @@ internal class TransformGestureFrame(
 )
 
 /**
- * Transfers a displayed-shape movement onto the base mesh: `newBase = base + (after - before)`. The rest
- * shape a rigger sees is base + the neutral keyform blend; because the blend cancels out of the
- * subtraction, the moved rest shape re-renders exactly at `after` while only DrawableMesh.positions is
- * written - no keyform cell is touched, and blend-shape deltas (relative to base) follow the edit. For a
- * grid-less drawable `before` equals base, so this degenerates to `newBase = after`.
- *
- * @param FloatArray base The rest positions captured at gesture start.
- * @param FloatArray after The transformed displayed shape.
- * @param FloatArray before The displayed shape captured at gesture start.
- * @return FloatArray The new base positions (a fresh array).
- */
-internal fun movementToBase(base: FloatArray, after: FloatArray, before: FloatArray): FloatArray =
-	FloatArray(base.size) { coordIndex ->
-		if (coordIndex < after.size && coordIndex < before.size) {
-			base[coordIndex] + after[coordIndex] - before[coordIndex]
-		} else {
-			base[coordIndex]
-		}
-	}
-
-/**
  * Slides one vertex along the edge toward [neighborIndex]: the pointer projects onto the edge's screen
  * direction and the parameter clamps between the endpoints (Blender's Shift+V, without the unclamped
  * and even-slide variants).

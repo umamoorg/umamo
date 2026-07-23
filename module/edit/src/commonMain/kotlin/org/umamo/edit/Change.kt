@@ -535,21 +535,40 @@ sealed interface DocumentChange : Change {
 	}
 }
 
-/** Changes to a drawable's art mesh (its interior geometry, edited in Edit mode). */
+/**
+ * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode).
+ *
+ * The three whole-gesture transforms ([TransformVertices], [TransformDrawables], [TransformUvs]) each carry
+ * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing
+ * every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
+ * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
+ *
+ * Each label key is resolved by an exhaustive `when` over the kind rather than by interpolating a suffix
+ * into a namespace.  Interpolation would happily mint a key like `change.object.slide` that no string
+ * resource answers, and an unmapped key degrades silently to the generic "Edit" label in the history panel.
+ */
 sealed interface MeshChange : Change {
 	/**
-	 * Moves a set of mesh vertices to new rest positions, per drawable - an Edit session spans several
-	 * meshes, so one gesture can move vertices on each of them as a single undo step. Covers all three
-	 * modal operators (translate / scale / rotate) - each produces new base-position arrays, so one
-	 * change kind and label suffice. The pose is unaffected; this edits the rest geometry, which is
-	 * document content.
+	 * Transforms a set of mesh vertices to new rest positions, per drawable - an Edit session spans several
+	 * meshes, so one gesture can move vertices on each of them as a single undo step. The pose is
+	 * unaffected; this edits the rest geometry, which is document content.
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices this gesture moved, per
 	 *   drawable (for the history-panel detail).
+	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
 	 */
-	data class MoveVertices(val vertexIndicesByDrawable: Map<DrawableId, List<Int>>) : MeshChange {
+	data class TransformVertices(
+		val vertexIndicesByDrawable: Map<DrawableId, List<Int>>,
+		val kind: MeshOperatorKind,
+	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.mesh.move"
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Grab -> "change.mesh.move"
+				MeshOperatorKind.Scale -> "change.mesh.scale"
+				MeshOperatorKind.Rotate -> "change.mesh.rotate"
+				MeshOperatorKind.VertexSlide -> "change.mesh.slide"
+			}
 	}
 
 	/**
@@ -565,58 +584,63 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
-	 * Moves every vertex of one or more whole drawables to new rest positions - an Object-mode Grab / Scale /
-	 * Rotate of the selected drawables, transforming all of their geometry at once.  Covers all three object
-	 * operators (one change kind and label, like [MoveVertices]).  Recorded as one undo step for the whole
-	 * gesture even though several drawables move.  The pose is unaffected; this edits rest geometry, which is
-	 * document content.
+	 * Transforms every vertex of one or more whole drawables to new rest positions - an Object-mode Grab /
+	 * Scale / Rotate of the selected drawables, or the Properties panel's typed Position / Size rows.
+	 * Recorded as one undo step for the whole gesture even though several drawables move.  The pose is
+	 * unaffected; this edits rest geometry, which is document content.
 	 *
 	 * @property List<DrawableId> drawableIds The drawables this gesture moved (for the history-panel detail).
+	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
 	 */
-	data class MoveDrawables(val drawableIds: List<DrawableId>) : MeshChange {
+	data class TransformDrawables(val drawableIds: List<DrawableId>, val kind: MeshOperatorKind) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.object.move"
+		override val labelKey: String =
+			when (kind) {
+				// Object mode cannot latch a Vertex Slide (the command is Edit-mode gated), so it can only
+				// arrive here through a future caller - where reading as a plain move is the honest label.
+				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide -> "change.object.move"
+				MeshOperatorKind.Scale -> "change.object.scale"
+				MeshOperatorKind.Rotate -> "change.object.rotate"
+			}
 	}
 
 	/**
-	 * Rescales one or more whole drawables about their bounds center - the Properties panel's Size row.  A
-	 * sibling of [MoveDrawables] rather than a reuse of it purely so the history entry reads "Resize" instead
-	 * of "Move"; the committed payload is identical (new rest positions per drawable).  Like every rest-geometry
-	 * edit this is document content and one undo step.
-	 *
-	 * @property List<DrawableId> drawableIds The drawables this edit resized (for the history-panel detail).
-	 */
-	data class ResizeDrawables(val drawableIds: List<DrawableId>) : MeshChange {
-		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.object.resize"
-	}
-
-	/**
-	 * Moves a set of mesh vertices' texture coordinates to new atlas positions, per drawable - the UV
-	 * editor's modal Grab / Scale / Rotate, the texture-mapping counterpart of [MoveVertices].  Covers
-	 * all three modal operators (one change kind and label).  Rest geometry and the pose are unaffected;
-	 * this edits which atlas texels the mesh samples, which is document content.
+	 * Transforms a set of mesh vertices' texture coordinates to new atlas positions, per drawable - the UV
+	 * editor's modal Grab / Scale / Rotate, the texture-mapping counterpart of [TransformVertices].  Rest
+	 * geometry and the pose are unaffected; this edits which atlas texels the mesh samples, which is
+	 * document content.
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices whose UVs this gesture
 	 *   moved, per drawable (for the history-panel detail).
+	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
 	 */
-	data class MoveUvs(val vertexIndicesByDrawable: Map<DrawableId, List<Int>>) : MeshChange {
+	data class TransformUvs(
+		val vertexIndicesByDrawable: Map<DrawableId, List<Int>>,
+		val kind: MeshOperatorKind,
+	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.mesh.moveUvs"
+		override val labelKey: String =
+			when (kind) {
+				// The UV editor has no Vertex Slide yet (see TODO § UV Editor); until it does, a slide can
+				// only reach here as a move.
+				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide -> "change.uv.move"
+				MeshOperatorKind.Scale -> "change.uv.scale"
+				MeshOperatorKind.Rotate -> "change.uv.rotate"
+			}
 	}
 
 	/**
 	 * Mirrors the selected vertices' texture coordinates about the transform pivot - the UV editor's
 	 * explicit Mirror U / V commands, which serve the duplicated-and-flipped texture regions workflow
 	 * (e.g. both eyes sampling one eye texture).  Rest geometry and the pose are unaffected; document
-	 * content like [MoveUvs].
+	 * content like [TransformUvs].
 	 *
 	 * @property List<DrawableId> drawableIds The drawables whose UVs mirrored (for the history-panel detail).
 	 * @property Boolean mirrorU True for a U (horizontal) mirror, false for a V (vertical) mirror.
 	 */
 	data class MirrorUvs(val drawableIds: List<DrawableId>, val mirrorU: Boolean) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.mesh.mirrorUvs"
+		override val labelKey: String = "change.uv.mirror"
 	}
 }
 

@@ -173,6 +173,11 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             (the old `decodePngToRgba` expect/actual is retired).  The CMO3 atlas
                             extraction sits in jvmAndroidMain (takes a `Cmo3Model`, hence the
                             jvmAndroid-only :format dep).  LWJGL is DESKTOP-ONLY.
+                            The CPU eval (`eval/`) depends on nothing in :render and would move to
+                            :runtime cleanly — it stays here ON PURPOSE, paired with the GPU deform
+                            shaders it mirrors and that the differential oracle diffs it against.
+                            That is why :ui, not :edit, owns the world-space transform helpers
+                            (`org.umamo.ui.transform`): :edit and :render are siblings over :runtime.
 :ui           commonMain  — Compose Multiplatform editor UI (panels, tree, timeline, parameter
                             grid) AND the shared app shell: the viewport composables + gizmo overlay
                             (`org.umamo.ui.viewport`, over the `PuppetViewportService` seam) in

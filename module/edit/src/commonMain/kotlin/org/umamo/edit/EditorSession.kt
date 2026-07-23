@@ -485,7 +485,7 @@ class EditorSession(
 	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
 	 * records nothing.
 	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.MoveVertices]).
+	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformVertices]).
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each edited drawable's committed rest positions.
 	 */
 	fun commitMeshPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
@@ -504,7 +504,7 @@ class EditorSession(
 	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
 	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
 	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.MoveDrawables]).
+	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each moved drawable's committed rest positions.
 	 */
 	fun commitObjectPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
@@ -524,7 +524,7 @@ class EditorSession(
 	 * (the sampled atlas texels are document content), so it marks the document dirty; a no-op (every
 	 * array unchanged / mismatched) records nothing.
 	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.MoveUvs] or [MeshChange.MirrorUvs]).
+	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformUvs] or [MeshChange.MirrorUvs]).
 	 * @param Map<DrawableId, FloatArray> newUvsByDrawable Each edited drawable's committed atlas UVs.
 	 */
 	fun commitMeshUvs(change: MeshChange, newUvsByDrawable: Map<DrawableId, FloatArray>) {

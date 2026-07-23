@@ -130,6 +130,37 @@ fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 }
 
 /**
+ * Every part in [id]'s org-tree subtree, including [id] itself.  The set a part may NOT be re-homed under -
+ * doing so would orphan a cycle - so the org-move guard and the Properties picker's candidate filter derive
+ * from this one definition instead of each walking the tree its own way (they walked it in OPPOSITE
+ * directions before this existed, which is exactly how two implementations of one invariant drift).
+ *
+ * The org tree is the only hierarchy source for parts: a part's children live in [Part.children], and there
+ * is no parent back-pointer, so this walks DOWN like [deformerSelfAndDescendants] does.
+ *
+ * @param PartId id The part whose subtree to collect.
+ * @return Set<PartId> The part and every part beneath it.
+ */
+fun PuppetModel.partSelfAndDescendants(id: PartId): Set<PartId> {
+	val partById = parts.associateBy { part -> part.id }
+	val collected = LinkedHashSet<PartId>()
+
+	fun walk(current: PartId) {
+		// add() guards a malformed (already cyclic) tree from recursing forever.
+		if (!collected.add(current)) {
+			return
+		}
+		partById[current]?.children?.forEach { child ->
+			if (child is OrgChild.Part) {
+				walk(child.id)
+			}
+		}
+	}
+	walk(id)
+	return collected
+}
+
+/**
  * Every deformer in [id]'s nesting subtree, including [id] itself.  The set a deformer may NOT be re-nested
  * under - doing so would make the hierarchy a cycle - so both the move guard and the Properties picker's
  * candidate filter derive from this one definition rather than each rolling their own walk.

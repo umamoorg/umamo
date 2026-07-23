@@ -7,6 +7,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.deformerSelfAndDescendants
+import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
@@ -23,35 +24,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 /** True when [child] is present somewhere in the org tree (the root level or some part's children). */
 private fun PuppetModel.containsOrgChild(child: OrgChild): Boolean =
 	child in rootChildren || parts.any { child in it.children }
-
-/**
- * True when [candidateId] is [partId] itself or one of its descendants in the org tree - the guard that
- * stops a part being dropped inside its own subtree (which would orphan a cycle).
- *
- * @param PartId partId The part being moved.
- * @param PartId candidateId The candidate destination part.
- * @return Boolean True when the destination is inside the moved part's own subtree.
- */
-private fun PuppetModel.isPartSelfOrDescendant(partId: PartId, candidateId: PartId): Boolean {
-	if (partId == candidateId) {
-		return true
-	}
-	val partById = parts.associateBy { it.id }
-	val stack = ArrayDeque<PartId>()
-	stack.add(partId)
-	val seen = HashSet<PartId>()
-	while (stack.isNotEmpty()) {
-		val next = stack.removeLast()
-		if (!seen.add(next)) {
-			continue
-		}
-		if (next == candidateId) {
-			return true
-		}
-		partById[next]?.children?.forEach { child -> if (child is OrgChild.Part) stack.add(child.id) }
-	}
-	return false
-}
 
 /** This child list with [child] inserted before [before] (or appended when [before] is null or absent). */
 private fun List<OrgChild>.withChildInsertedBefore(child: OrgChild, before: OrgChild?): List<OrgChild> {
@@ -78,7 +50,10 @@ fun PuppetModel.withOrgChildMoved(child: OrgChild, newParentId: PartId?, before:
 	if (!containsOrgChild(child)) {
 		return this
 	}
-	if (child is OrgChild.Part && newParentId != null && isPartSelfOrDescendant(child.id, newParentId)) {
+	// The subtree set contains the part itself, so this rejects self-parenting and any deeper cycle at once.
+	// The Properties picker filters its candidates against the same query, so an illegal target is not
+	// offered there rather than being silently refused here.
+	if (child is OrgChild.Part && newParentId != null && newParentId in partSelfAndDescendants(child.id)) {
 		return this
 	}
 	// Detach from wherever it currently sits (the root level and / or some part's children).

@@ -1,18 +1,17 @@
-package org.umamo.ui.properties
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshBounds
 import org.umamo.edit.MeshChange
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
 import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.meshBounds
 import org.umamo.edit.movedToBoundsCenter
 import org.umamo.edit.resizedAboutBoundsCenter
 import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.viewport.movementToBase
 
 /*
  * The Properties Transform panel's coordinate space.
@@ -58,9 +57,11 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 	if (base.size < 2) {
 		return null
 	}
-	val displayed = drawableLocalPosed(model, pose, id) ?: base
-	val mapping = drawableSpaceMapping(model, pose, id)
-	if (mapping == null) {
+	val captured = captureDrawableWorld(model, pose, id)
+	if (captured == null) {
+		// No world mapping (a hidden ancestor).  The posed local shape is still worth showing, so resolve it
+		// directly rather than going through the capture, which requires a mapping.
+		val displayed = drawableLocalPosed(model, pose, id) ?: base
 		// No world mapping (a hidden ancestor), so fall back to the posed LOCAL geometry - but negate the
 		// centre's y first.  localToWorld flips y (world y grows upward), so reporting local y raw would make
 		// the Position Z row jump sign purely because an ancestor was toggled invisible.  Extents are
@@ -71,7 +72,7 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 			editable = false,
 		)
 	}
-	return DrawableWorldTransform(meshBounds(mapping.localToWorld(displayed)), editable = isPoseNeutral(model, pose))
+	return DrawableWorldTransform(meshBounds(captured.world), editable = isPoseNeutral(model, pose))
 }
 
 /**
@@ -99,17 +100,12 @@ private fun EditorSession.commitWorldTransform(
 	if (!isPoseNeutral(currentModel, currentPose)) {
 		return
 	}
-	val base = currentModel.drawables.firstOrNull { drawable -> drawable.id == id }?.mesh?.positions ?: return
-	val mapping = drawableSpaceMapping(currentModel, currentPose, id) ?: return
-	val displayed = drawableLocalPosed(currentModel, currentPose, id) ?: base
-	val world = mapping.localToWorld(displayed)
-	val targetWorld = transformWorld(world)
-	if (targetWorld === world) {
+	val captured = captureDrawableWorld(currentModel, currentPose, id) ?: return
+	val targetWorld = transformWorld(captured.world)
+	if (targetWorld === captured.world) {
 		return
 	}
-	val allIndices = (0 until world.size / 2).toSet()
-	val newLocal = mapping.worldToLocalLinearized(targetWorld, displayed, world, allIndices)
-	commitObjectPositions(change, mapOf(id to movementToBase(base, newLocal, displayed)))
+	commitObjectPositions(change, mapOf(id to captured.worldToBase(targetWorld)))
 }
 
 /**
@@ -121,7 +117,7 @@ private fun EditorSession.commitWorldTransform(
  * @param Float centerY The world y (panel Z) its bounds center should land on.
  */
 internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerY: Float) {
-	commitWorldTransform(id, MeshChange.MoveDrawables(listOf(id))) { world ->
+	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
 		movedToBoundsCenter(world, centerX, centerY)
 	}
 }
@@ -136,7 +132,8 @@ internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float
  * @param Float height The target world y extent.
  */
 internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float) {
-	commitWorldTransform(id, MeshChange.ResizeDrawables(listOf(id))) { world ->
+	// Scale, though no modal operator ran: the kind names what the transform WAS, not how it was driven.
+	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Scale)) { world ->
 		resizedAboutBoundsCenter(world, width, height)
 	}
 }

@@ -136,7 +136,7 @@ class ObjectOperatorSessionTest {
 		assertFalse(session.canUndo.value)
 
 		val moved = floatArrayOf(10f, 10f, 11f, 10f, 10f, 11f)
-		session.commitObjectPositions(MeshChange.MoveDrawables(listOf(DrawableId("a"))), mapOf(DrawableId("a") to moved))
+		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to moved))
 
 		assertTrue(session.canUndo.value, "the commit is undoable")
 		assertTrue(session.dirty.value, "a rest-geometry edit dirties the document")
@@ -154,15 +154,11 @@ class ObjectOperatorSessionTest {
 		val session = session()
 		val current = session.model.value.drawables.first { it.id == DrawableId("a") }.mesh!!.positions
 
-		session.commitObjectPositions(MeshChange.MoveDrawables(listOf(DrawableId("a"))), mapOf(DrawableId("a") to current))
+		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to current))
 		assertFalse(session.canUndo.value, "committing the same positions records nothing")
 	}
 
-	/** The MoveDrawables change carries the object-move history label. */
-	@Test
-	fun moveDrawablesLabelKey() {
-		assertEquals("change.object.move", MeshChange.MoveDrawables(listOf(DrawableId("a"))).labelKey)
-	}
+	// (The object change's history label is pinned across every operator kind in TransformChangeLabelTest.)
 
 	/** Switching to Edit mode clears an armed object select tool, so it cannot leak into the Edit overlay. */
 	@Test
@@ -180,7 +176,7 @@ class ObjectOperatorSessionTest {
 	fun undoClearsArmedObjectTool() {
 		val session = session()
 		// A committed step so there is something to undo.
-		session.commitObjectPositions(MeshChange.MoveDrawables(listOf(DrawableId("a"))), mapOf(DrawableId("a") to floatArrayOf(9f, 9f, 9f, 9f, 9f, 9f)))
+		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to floatArrayOf(9f, 9f, 9f, 9f, 9f, 9f)))
 		session.beginBoxSelect("area-test")
 		assertTrue(session.activeSelectTool.value is ActiveSelectTool.BoxArmed)
 

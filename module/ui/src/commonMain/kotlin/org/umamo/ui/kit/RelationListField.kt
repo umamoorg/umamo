@@ -64,8 +64,6 @@ private val RELATION_GRIP_HEIGHT = 10.dp
  * The bound list is a set, not a sequence - for clip masks the order does not affect coverage - so rows are
  * not reorderable.
  *
- * [RelationField] の複数値版。束縛済みの一覧（種別アイコン・名前・削除）と、追加用の検索欄からなる。
- *
  * @param T The bound entity type.
  * @param List entries The currently bound entities, in display order.
  * @param List candidates The entities the add field offers (the caller excludes those already bound).

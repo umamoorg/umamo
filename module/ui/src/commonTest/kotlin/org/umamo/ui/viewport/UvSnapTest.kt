@@ -97,7 +97,7 @@ class UvSnapTest {
 		snap(session, UvSnapKind.SelectionToPixels)
 		// (12.3,45.7)->(12,46) (34.6,45.7)->(35,46) (12.3,78.2)->(12,78), back through the display mapping.
 		assertUvsEqual(listOf(0.12f, 0.54f, 0.35f, 0.54f, 0.12f, 0.22f), currentUvs(session), "each vertex snaps to a pixel corner")
-		assertEquals("change.mesh.moveUvs", session.historyView.value.steps.last().labelKey, "one MoveUvs undo step")
+		assertEquals("change.uv.move", session.historyView.value.steps.last().labelKey, "one TransformUvs undo step")
 	}
 
 	/** Selection to Grid rounds each covered vertex to the page / subdivisions grid (step 10 here). */

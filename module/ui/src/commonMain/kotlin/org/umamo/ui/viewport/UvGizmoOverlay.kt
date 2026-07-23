@@ -78,6 +78,8 @@ private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
  * @property Pair<Float, Float> anchor The display-space point factors and angles measure against.
  * @property Int pageWidth The atlas page width the display mapping used, in texels.
  * @property Int pageHeight The atlas page height the display mapping used, in texels.
+ * @property MeshOperatorKind operatorKind The operator that latched, frozen so the commit names the
+ *   operation that actually ran rather than re-reading a latch that may already have cleared.
  */
 private class UvGestureCapture(
 	val drawableIds: List<DrawableId>,
@@ -88,6 +90,7 @@ private class UvGestureCapture(
 	val anchor: Pair<Float, Float>,
 	val pageWidth: Int,
 	val pageHeight: Int,
+	val operatorKind: MeshOperatorKind,
 ) {
 	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
 	val rotationTracker = RotationAngleTracker()
@@ -271,7 +274,7 @@ internal fun UvGizmoOverlay(
 				vertexIndicesByDrawable[capturedId] = captured.movedIndices[meshIndex].toList()
 			}
 			if (newUvsByDrawable.isNotEmpty()) {
-				session.commitMeshUvs(MeshChange.MoveUvs(vertexIndicesByDrawable), newUvsByDrawable)
+				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, captured.operatorKind), newUvsByDrawable)
 			}
 		}
 		session.clearUvOperator()
@@ -491,6 +494,7 @@ internal fun UvGizmoOverlay(
 						anchor = anchor,
 						pageWidth = livePageWidth.value,
 						pageHeight = livePageHeight.value,
+						operatorKind = operator.kind,
 					).also { fresh ->
 						fresh.applyProportional(session.proportionalEdit.value, effectiveProportionalRadius())
 					}
