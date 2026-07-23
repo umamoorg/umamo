@@ -19,25 +19,37 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
+## World Origin
+I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
+
+## MOC3 Lowering
+LimeBirb has some non-byte exactness to investigate.
+
 ## Properties Panel
 A mega area panel of sorts with left side icon tab strip and each tab having collapsible sections.  This panel will have a lot of data and controls so it is important to make sure we get the data design right ahead of time.
 
-- The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled
-  export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it
-  drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass
-  (depends on cataloguing each target runtime's capabilities).
-- Composite `multiplyColor` / `screenColor` editing (needs a color-picker field) and `maskedBy`
-  (relation-list editor) — still deferred; the fields are captured/stored, just not yet editable. The new
-  `PropertyRow` model is the substrate these build on.
-- UMA serialization of the latent composite (the format work this unblocks).
+* The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
+* DONE: Composite `multiplyColor` / `screenColor` are editable via a color picker (the swatch on the shared `HexColorField` now opens an RGB-slider popover, so the Settings color rows get it too), and `maskedBy` has an add/remove relation-list editor (`PartMaskEditor`) in the Isolated-part composite block. Both write through the existing `setPartComposite` (one undo step). Remaining: editing a `Drawable`'s own `maskedBy` (the read-only mask count in Relations) once a drawable mask-list edit op exists; per-key (keyform-grid) tint-color editing (this edits the static fallback only).
+* UMA serialization of the latent composite (the format work this unblocks).
+* Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
+* Improvements
+	* DONE: A horizontal drag on a `NumberField` now shows the editor's own `ewScroll` cursor (the chevrons take back the default pointer, so they still read as buttons).  New `umamoPointerIcon(UmamoCursor)` seam in `:ui`'s `theme/SystemCursor.kt` rasterizes any `UmamoCursor` into a platform cursor (cached; hotspot resolved with the same maths `drawCursor` uses), so the designed set now applies to panel chrome and not just the viewport — splitters use `ewScroll`/`nsScroll`, area drag corners and viewport pan use `nsewScroll`.  This replaced the four one-off AWT system-cursor expect/actuals (`splitterPointerIcon` / `areaMovePointerIcon` / `grabPanPointerIcon`); only `hiddenPointerIcon` remains, since "hide the pointer" is not cursor art.  `Slider` is deliberately excluded — its drag is absolute-position, not a relative scrub.
+	* DONE: A section that builds no rows for the current context no longer renders a header-only card.  The rule lives in the pure `sectionVisibility`, so it covers every section, and `TransformSection` opts out by returning `emptyList()` for a Part / warp deformer / mesh-less drawable.
+	* DONE: Transform Position and Size are editable (Position X/Z, Size X/Z, labelled per the Y+ forward / Z+ up UI convention).  Size scales about the **bounds center** — the fixed point of the scale, so the Position readout never jumps — with an aspect-ratio lock (`linked`/`unlinked`, transient `remember`).  `Document > Canvas`'s "Origin Y" was renamed "Origin Z" to match.
+		* The rows work in **world space** (`:ui`'s `properties/DrawableWorldTransform.kt`), NOT `Drawable.mesh.positions`.  A keyformed drawable's base array is not its displayed shape (`displayed = base + Σwᵢ·Δᵢ`, then the deformer chain): on a corpus model an art mesh has a base array 1.9 units wide while the drawable is 183.8 wide, so reading base showed meaningless numbers and made a +1.5 nudge a 79% scale.  The write reuses the object gizmo's round trip — capture world, transform, `worldToLocalLinearized`, `movementToBase` — and is therefore **gated on the neutral pose** like `beginObjectOperator`; the fields disable while any parameter is scrubbed.  The pure `meshBounds` / `movedToBoundsCenter` / `resizedAboutBoundsCenter` in `:edit` stayed space-agnostic and are fed world positions.
+		* `NumberField` gained an `enabled` parameter (dims the text, attaches no gesture/cursor affordance at all) — that was the previously-noted gap.
+	* Follow-ups from that work:
+		* The viewport's object Scale / Rotate still commit `MeshChange.MoveDrawables`, so History labels them "Move Objects"; the Properties Size row has its own `ResizeDrawables` / "Resize Objects" label.  Route the gizmo through kind-specific labels in a later pass.
+		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+
+* Single/multiple relation pickers.
+	* Improvements
+		* Persist list height.(Stored in UMA format, maybe?)
+		* Deformer pickAt().
+		* Context Menus
 
 ## Artwork Import
-* We need to properly handle different blending mode imports from artwork.
-
-## Part Group Mode (compositing)
-* DONE: an isolated part's composite settings now persist as latent model state (`Part.composite`, applied via `Part.activeComposite` only while Isolated), so they survive leaving and re-entering Isolated; CMO3/MOC3 import captures them for every part. Remaining composite follow-ups:
-	* Composite `multiplyColor` / `screenColor` editing (needs a color-picker field) and `maskedBy` (relation-list editor) — the fields are captured/stored, just not yet editable in the panel.
-	* UMA serialization of the latent composite (the format work this unblocks).
+* We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
 ## Portability
 * Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?

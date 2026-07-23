@@ -274,6 +274,31 @@ sealed interface DrawableChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.drawable.invertMask"
 	}
+
+	/**
+	 * Binds a drawable to the deformer that deforms it (or unbinds it).  This is a cross-link, not a tree
+	 * edge - a drawable is never a child of a deformer in the org tree - so it is a flat field write with
+	 * no hierarchy surgery and no draw-order rederive.
+	 *
+	 * @property DrawableId id The drawable being rebound.
+	 * @property DeformerId? parentDeformerId The deformer that now deforms it, or null to unbind.
+	 */
+	data class SetParentDeformer(val id: DrawableId, val parentDeformerId: DeformerId?) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.parentDeformer"
+	}
+
+	/**
+	 * Replaces the whole list of drawables whose alpha clips this one.  The list flows as one value, so
+	 * adding or removing a single mask is one undo step.
+	 *
+	 * @property DrawableId id The drawable whose mask list changed.
+	 * @property List maskedBy The drawables that now clip it.
+	 */
+	data class SetMaskedBy(val id: DrawableId, val maskedBy: List<DrawableId>) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.maskedBy"
+	}
 }
 
 /** Changes to a deformer (warp or rotation). */
@@ -310,6 +335,19 @@ sealed interface DeformerChange : Change {
 	data class Move(val id: DeformerId, val toParentId: DeformerId?, val beforeId: DeformerId?) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.deformer.move"
+	}
+
+	/**
+	 * Binds a deformer to the organisational part that owns it (or clears the binding).  A loose reference
+	 * into the org tree - no [org.umamo.runtime.model.Part.children] entry corresponds to it - so this is a
+	 * flat field write, not tree surgery.
+	 *
+	 * @property DeformerId id The deformer being rebound.
+	 * @property PartId? partId The part that now owns it, or null to clear.
+	 */
+	data class SetPart(val id: DeformerId, val partId: PartId?) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.part"
 	}
 
 	/**
@@ -538,6 +576,19 @@ sealed interface MeshChange : Change {
 	data class MoveDrawables(val drawableIds: List<DrawableId>) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.object.move"
+	}
+
+	/**
+	 * Rescales one or more whole drawables about their bounds center - the Properties panel's Size row.  A
+	 * sibling of [MoveDrawables] rather than a reuse of it purely so the history entry reads "Resize" instead
+	 * of "Move"; the committed payload is identical (new rest positions per drawable).  Like every rest-geometry
+	 * edit this is document content and one undo step.
+	 *
+	 * @property List<DrawableId> drawableIds The drawables this edit resized (for the history-panel detail).
+	 */
+	data class ResizeDrawables(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.object.resize"
 	}
 
 	/**

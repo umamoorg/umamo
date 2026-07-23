@@ -1,18 +1,6 @@
 package org.umamo.ui.viewport
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerIcon
-
-/**
- * The cursor shown while panning the viewport (the hand/grab pointer). Platform seam alongside
- * areaMovePointerIcon/splitterPointerIcon: desktop returns a system cursor, touch platforms have
- * no hover cursor and return the default.
- *
- * ビューポートをパン中に表示するカーソル。デスクトップはシステムカーソル、タッチ環境は既定を返す。
- *
- * @return PointerIcon The pan/grab cursor.
- */
-expect fun grabPanPointerIcon(): PointerIcon
 
 /**
  * Warps the OS pointer to an absolute screen position mid-gesture - Blender's cursor-wrap for modal
@@ -34,15 +22,3 @@ expect fun grabPanPointerIcon(): PointerIcon
  *   happened (platforms or configurations without warp support).
  */
 expect fun warpViewportCursor(screenX: Float, screenY: Float): Offset?
-
-/**
- * A fully transparent pointer icon, used to hide the OS cursor during a modal transform so the overlay's
- * own drawn cursor (the double-arrow and the dashed line to the pivot) reads cleanly without the system
- * pointer doubled on top.  Desktop returns a transparent custom cursor; touch platforms have no cursor to
- * hide and return the default.
- *
- * モーダル変換中に OS カーソルを隠すための透明なポインタアイコン。デスクトップのみ実装。
- *
- * @return PointerIcon A transparent (invisible) cursor, or the default where none can be built.
- */
-expect fun hiddenPointerIcon(): PointerIcon

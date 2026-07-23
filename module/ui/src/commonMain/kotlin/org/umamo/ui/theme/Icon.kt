@@ -76,6 +76,7 @@ data class UmamoIcons(
 	val search: UmamoIcon,
 	val close: UmamoIcon,
 	val plus: UmamoIcon,
+	val eyedropper: UmamoIcon,
 	val puppetRoot: UmamoIcon,
 	val filterUnfiltered: UmamoIcon,
 	val filterFiltered: UmamoIcon,
@@ -197,6 +198,8 @@ val LocalUmamoIcons =
 		close = simpleIcon("M18 6l-12 12 M6 6l12 12"),
 		// Tabler "plus" (viewBox 0 0 24 24, stroked).
 		plus = simpleIcon("M12 5l0 14 M5 12l14 0"),
+		// Tabler "color-picker" (viewBox 0 0 24 24, stroked).
+		eyedropper = simpleIcon("M11 7l6 6 M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4"),
 		// Tabler "play-basketball" - Modified (viewBox 0 0 24 24, stroked).
 		puppetRoot = simpleIcon("M14.493,5C14.493,6.097 13.59,7 12.493,7C11.396,7 10.493,6.097 10.493,5C10.493,3.903 11.396,3 12.493,3C13.59,3 14.493,3.903 14.493,5 M18.5,21L15.5,18L14.75,16.5 M9.5,21L9.5,17L13.5,14L13,8 M18.5,12L17.5,9L13,8L9.5,11L5.5,10.5"),
 		// Tabler "filter" (viewBox 0 0 24 24, stroked).

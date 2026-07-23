@@ -306,6 +306,68 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
 }
 
 /**
+ * Returns a copy of [this] with the drawable [id] bound to the deformer [parentDeformerId] (null unbinds),
+ * sharing every other entity. A no-op id (no such drawable, or the binding already matches) returns the
+ * same instance. A drawable is deformed by, but never a child of, a deformer - so this is a flat field
+ * write with no tree surgery and no render-order rederive.
+ *
+ * @param DrawableId id The drawable to rebind.
+ * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
+ * @return PuppetModel The model with that binding updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].parentDeformerId == parentDeformerId) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(parentDeformerId = parentDeformerId)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s clip-mask list replaced by [maskedBy], sharing every
+ * other entity. A no-op id (no such drawable, or the list already matches) returns the same instance.
+ *
+ * @param DrawableId id The drawable whose masks change.
+ * @param List maskedBy The drawables whose alpha now clips it.
+ * @return PuppetModel The model with that mask list updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableMaskedBy(id: DrawableId, maskedBy: List<DrawableId>): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].maskedBy == maskedBy) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(maskedBy = maskedBy)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the deformer [id] bound to the organisational part [partId] (null clears
+ * it), sharing every other entity. A no-op id (no such deformer, or the binding already matches) returns
+ * the same instance. The part reference is loose - no Part.children entry corresponds to it - so this is a
+ * flat field write; the copy is per-subtype because Deformer is a sealed interface.
+ *
+ * @param DeformerId id The deformer to rebind.
+ * @param PartId? partId The part that owns it, or null to clear.
+ * @return PuppetModel The model with that binding updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerPart(id: DeformerId, partId: PartId?): PuppetModel {
+	val index = deformers.indexOfFirst { deformer -> deformer.id == id }
+	if (index < 0 || deformers[index].partId == partId) {
+		return this
+	}
+	val updated = deformers.toMutableList()
+	updated[index] =
+		when (val deformer = updated[index]) {
+			is Deformer.Warp -> deformer.copy(partId = partId)
+			is Deformer.Rotation -> deformer.copy(partId = partId)
+		}
+	return copy(deformers = updated)
+}
+
+/**
  * Returns a copy of [this] with the rotation deformer [id]'s base angle set to [angle], sharing every
  * other entity. A no-op (no such deformer, a warp deformer - which has no base angle - or the angle
  * already matches) returns the same instance.

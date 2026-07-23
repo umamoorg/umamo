@@ -30,6 +30,26 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 	val partById = parts.associateBy { it.id }
 	val drawableIds = drawables.mapTo(HashSet()) { it.id }
 
+	// Parts used as clip masks are an Umamo extension the renderer never sees: expand each to its
+	// descendant drawables here, so a RenderGroup's composite carries one flat drawable-only mask list.
+	// Shares flattenedMasks with the export path, so what ships can never clip differently from what the
+	// viewport shows.  Most models mask by drawables alone and short-circuit without walking anything.
+	//
+	// The index is built at most once per derive, and only when some composite actually uses part masks -
+	// building it per composite would cost O(parts * masked composites) on every model mutation.
+	val maskSubtrees by lazy { drawablesByPartSubtree() }
+
+	fun resolvedComposite(part: Part): PartComposite? {
+		val composite = part.activeComposite ?: return null
+		if (composite.maskedByParts.isEmpty()) {
+			return composite
+		}
+		// maskedByParts is CLEARED, not just expanded: PartComposite documents that the render tree sees the
+		// expansion and never these ids, so leaving them would let any consumer that later honors them apply
+		// the same drawables twice.
+		return composite.copy(maskedBy = flattenedMasks(composite, maskSubtrees), maskedByParts = emptyList())
+	}
+
 	fun collect(children: List<OrgChild>, into: ArrayList<RenderNode>) {
 		// Panel order is top = front; render order is back-to-front, so walk reversed.
 		for (child in children.asReversed()) {
@@ -46,7 +66,7 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 					} else {
 						val groupChildren = ArrayList<RenderNode>()
 						collect(part.children, groupChildren)
-						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.formGrid, part.activeComposite))
+						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.formGrid, resolvedComposite(part)))
 					}
 				}
 			}

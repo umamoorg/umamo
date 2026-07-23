@@ -56,6 +56,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.hiddenPointerIcon
 import kotlin.math.pow
 
 /**

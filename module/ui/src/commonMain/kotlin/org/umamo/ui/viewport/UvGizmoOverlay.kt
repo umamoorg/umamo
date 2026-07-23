@@ -51,6 +51,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.hiddenPointerIcon
 import kotlin.math.pow
 import kotlin.math.roundToInt
 

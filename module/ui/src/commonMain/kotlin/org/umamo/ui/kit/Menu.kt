@@ -7,14 +7,18 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -47,6 +52,18 @@ private val ROW_TRAILING_GAP = 24.dp
 
 /** Edge length of a row's leading icon, matching the kit's other 16.dp Canvas icons. */
 private val MENU_ICON_SIZE = 16.dp
+
+/**
+ * The breathing room kept between a menu and the window edge.  A menu grows to the window minus this and
+ * only then scrolls, so a long-but-fitting list (the blend modes) shows in full rather than being cut off.
+ */
+private val MENU_WINDOW_MARGIN = 16.dp
+
+/** The shortest a menu is ever capped to, so a tiny window still shows a usable strip of rows. */
+private val MENU_MIN_HEIGHT = 96.dp
+
+/** The cap used when a menu is measured unbounded (no window height to subtract from). */
+private val MENU_FALLBACK_MAX_HEIGHT = 360.dp
 
 /** The gap between a row's leading icon (or its reserved slot) and the label. */
 private val MENU_ICON_LABEL_GAP = 8.dp
@@ -104,34 +121,59 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
 	val colors = LocalUmamoColors.current
 	var openSubmenuIndex by remember { mutableStateOf<Int?>(null) }
 	val reserveIconSlot = items.any { menuEntry -> menuEntry is MenuItem.Action && menuEntry.icon != null }
+	val scrollState = rememberScrollState()
 	Surface(color = colors.menuBackground, shape = LocalUmamoShapes.current.medium) {
-		Column(modifier = modifier.width(IntrinsicSize.Max).padding(vertical = 2.dp)) {
-			items.forEachIndexed { index, item ->
-				when (item) {
-					is MenuItem.Action ->
-						MenuActionRow(
-							item = item,
-							reserveIconSlot = reserveIconSlot,
-							onClick = {
-								item.onSelect()
-								dismissRoot()
-							},
-						)
+		// A popup is measured against the window, so its incoming max height IS the window height: cap the
+		// rows to that minus a margin and only then scroll.  A long-but-fitting menu (the blend modes) shows
+		// in full instead of being cut off at an arbitrary constant.
+		BoxWithConstraints {
+			val available = this@BoxWithConstraints.maxHeight
+			val rowCap =
+				if (available == Dp.Infinity) {
+					MENU_FALLBACK_MAX_HEIGHT
+				} else {
+					(available - MENU_WINDOW_MARGIN).coerceAtLeast(MENU_MIN_HEIGHT)
+				}
+			Box {
+				// The cap and the scroll ride on an OUTER column so the row column below keeps measuring its
+				// IntrinsicSize.Max width exactly as before - intrinsics are asked of that node, never
+				// through the scrolling one.
+				Column(modifier = Modifier.heightIn(max = rowCap).verticalScroll(scrollState)) {
+					Column(modifier = modifier.width(IntrinsicSize.Max).padding(vertical = 2.dp)) {
+						items.forEachIndexed { index, item ->
+							when (item) {
+								is MenuItem.Action ->
+									MenuActionRow(
+										item = item,
+										reserveIconSlot = reserveIconSlot,
+										onClick = {
+											item.onSelect()
+											dismissRoot()
+										},
+									)
 
-					is MenuItem.Separator -> MenuSeparatorRow()
-					is MenuItem.Submenu ->
-						MenuSubmenuRow(
-							item = item,
-							reserveIconSlot = reserveIconSlot,
-							expanded = openSubmenuIndex == index,
-							onRequestOpen = { openSubmenuIndex = index },
-							onRequestClose = {
-								if (openSubmenuIndex == index) {
-									openSubmenuIndex = null
-								}
-							},
-							dismissRoot = dismissRoot,
-						)
+								is MenuItem.Separator -> MenuSeparatorRow()
+								is MenuItem.Submenu ->
+									MenuSubmenuRow(
+										item = item,
+										reserveIconSlot = reserveIconSlot,
+										expanded = openSubmenuIndex == index,
+										onRequestOpen = { openSubmenuIndex = index },
+										onRequestClose = {
+											if (openSubmenuIndex == index) {
+												openSubmenuIndex = null
+											}
+										},
+										dismissRoot = dismissRoot,
+									)
+							}
+						}
+					}
+				}
+				// matchParentSize keeps the scrollbar a pure overlay: it fills its own box rather than the
+				// popup's window-sized constraints, so it can no longer inflate the menu to full height.
+				Box(modifier = Modifier.matchParentSize()) {
+					VerticalScrollbarOverlay(scrollState)
 				}
 			}
 		}
@@ -314,9 +356,10 @@ private fun MenuSubmenuRow(
 
 /**
  * Positions a popup at its anchor's bottom-left - a menu dropping straight down from its trigger (the
- * menu-bar label or the area type selector).
- *
- * ポップアップをアンカーの左下に配置する（トリガーの真下に開くメニュー）。
+ * menu-bar label or the area type selector) - kept on screen: the left edge is clamped into the window,
+ * and a menu that would overflow the bottom flips ABOVE its anchor instead, falling back to a clamped
+ * position when it fits neither way (a menu taller than the window then starts at the top edge and
+ * scrolls).  Without this a long dropdown simply ran off the bottom and its tail was unreachable.
  */
 internal object BelowAnchorPositionProvider : PopupPositionProvider {
 	override fun calculatePosition(
@@ -324,7 +367,18 @@ internal object BelowAnchorPositionProvider : PopupPositionProvider {
 		windowSize: IntSize,
 		layoutDirection: LayoutDirection,
 		popupContentSize: IntSize,
-	): IntOffset = IntOffset(anchorBounds.left, anchorBounds.bottom)
+	): IntOffset {
+		val left = anchorBounds.left.coerceIn(0, max(0, windowSize.width - popupContentSize.width))
+		val fitsBelow = anchorBounds.bottom + popupContentSize.height <= windowSize.height
+		val above = anchorBounds.top - popupContentSize.height
+		val top =
+			when {
+				fitsBelow -> anchorBounds.bottom
+				above >= 0 -> above
+				else -> windowSize.height - popupContentSize.height
+			}
+		return IntOffset(left, top.coerceIn(0, max(0, windowSize.height - popupContentSize.height)))
+	}
 }
 
 /**

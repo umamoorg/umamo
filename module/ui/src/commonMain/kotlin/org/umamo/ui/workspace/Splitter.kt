@@ -14,10 +14,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.UmamoCursor
+import org.umamo.ui.theme.umamoPointerIcon
 import kotlin.math.max
 import kotlin.math.min
 
@@ -28,17 +30,19 @@ internal val SPLITTER_THICKNESS = 4.dp
 internal val MIN_AREA_DP = 48.dp
 
 /**
- * The hover cursor for a splitter of the given orientation - a horizontal-resize arrow for a
- * Horizontal split (children side by side, dragged left/right) and a vertical-resize arrow for a
- * Vertical split. expect/actual because the system resize cursors are a desktop (java.awt) concept;
- * touch platforms have no pointer and return the default.
+ * The cursor art for a splitter of the given orientation - the east-west arrows for a Horizontal split
+ * (children side by side, dragged left/right) and the north-south arrows for a Vertical split.
  *
- * 指定向きのスプリッタのホバーカーソル（左右分割は横リサイズ、上下分割は縦リサイズ）。
+ * 指定向きのスプリッタのカーソル（左右分割は東西、上下分割は南北の矢印）。
  *
  * @param SplitOrientation orientation The split's orientation.
- * @return PointerIcon The resize cursor to show on hover.
+ * @return UmamoCursor The editor's own arrows for that drag axis.
  */
-expect fun splitterPointerIcon(orientation: SplitOrientation): PointerIcon
+private fun splitterCursor(orientation: SplitOrientation): UmamoCursor =
+	when (orientation) {
+		SplitOrientation.Horizontal -> LocalUmamoCursors.ewScroll
+		SplitOrientation.Vertical -> LocalUmamoCursors.nsScroll
+	}
 
 /**
  * Which end of a subtree touches the divider being dragged: the divider sits after a Trailing-edge
@@ -246,7 +250,7 @@ fun Splitter(orientation: SplitOrientation, onDragByPx: (Float) -> Unit, modifie
 		modifier =
 			modifier
 				.then(bar)
-				.pointerHoverIcon(splitterPointerIcon(orientation))
+				.pointerHoverIcon(umamoPointerIcon(splitterCursor(orientation)))
 				.draggable(state = dragState, orientation = dragOrientation)
 				.background(colors.divider),
 	)

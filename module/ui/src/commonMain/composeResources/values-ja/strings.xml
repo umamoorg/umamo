@@ -153,6 +153,7 @@
 	<string name="history_mesh_move_uvs">UV を移動</string>
 	<string name="history_mesh_mirror_uvs">UV を反転</string>
 	<string name="history_object_move">オブジェクトを移動</string>
+	<string name="history_object_resize">オブジェクトをリサイズ</string>
 	<string name="history_mesh_select">メッシュ要素を選択</string>
 	<string name="history_mesh_select_mode">選択モード変更</string>
 	<string name="history_part_delete">パーツを削除</string>
@@ -166,6 +167,9 @@
 	<string name="history_drawable_alpha_blend_mode">アルファモードを設定</string>
 	<string name="history_drawable_culling">裏面カリングを切り替え</string>
 	<string name="history_drawable_invert_mask">マスク反転を切り替え</string>
+	<string name="history_drawable_parent_deformer">親デフォーマを設定</string>
+	<string name="history_drawable_masked_by">マスクを設定</string>
+	<string name="history_deformer_part">パーツを設定</string>
 	<string name="history_deformer_base_angle">基準角度を設定</string>
 	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>
 	<string name="history_document_canvas_size">キャンバスサイズを設定</string>
@@ -190,11 +194,11 @@
 	<string name="outliner_menu_delete">削除</string>
 	<string name="outliner_menu_delete_hierarchy">階層を削除</string>
 
-	<string name="inspector_parts">パーツ: %1$d</string>
-	<string name="inspector_drawables">描画オブジェクト: %1$d</string>
-	<string name="inspector_parameters">パラメータ: %1$d</string>
-	<string name="inspector_deformers">デフォーマ: %1$d</string>
-	<string name="inspector_glues">グルー: %1$d</string>
+	<string name="status_parts">パーツ: %1$d</string>
+	<string name="status_drawables">描画オブジェクト: %1$d</string>
+	<string name="status_parameters">パラメータ: %1$d</string>
+	<string name="status_deformers">デフォーマ: %1$d</string>
+	<string name="status_glues">グルー: %1$d</string>
 
 	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
 	<string name="status_bind_palette">コマンドパレット</string>
@@ -302,18 +306,13 @@
 	<string name="sidebar_title">サイドバー</string>
 	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
 
-	<string name="properties_child_count">子: %1$d</string>
-	<string name="properties_part_ref">パーツ: %1$s</string>
-	<string name="properties_parent_deformer">親デフォーマ: %1$s</string>
+	<string name="properties_part_ref">親パーツ</string>
+	<string name="properties_parent_deformer">親デフォーマ</string>
 	<string name="properties_mask_count">マスク: %1$d</string>
-	<string name="properties_invert_mask">マスク反転: %1$s</string>
 	<string name="properties_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
 	<string name="properties_no_mesh">メッシュなし</string>
 	<string name="properties_warp_grid">格子: %1$d × %2$d</string>
-	<string name="properties_none">—</string>
-	<string name="properties_yes">はい</string>
-	<string name="properties_no">いいえ</string>
-	<string name="inspector_multi_selected">%1$d 個選択</string>
+	<string name="status_multi_selected">%1$d 個選択</string>
 
 	<!-- プロパティパネル（Blender 風のタブ式プロパティエディタ）。機械翻訳の下訳、翻訳者による確認待ち。 -->
 	<string name="properties_no_matches">一致するプロパティがありません</string>
@@ -331,9 +330,6 @@
 	<string name="properties_section_part">パーツ</string>
 	<string name="properties_canvas_none">キャンバスなし</string>
 	<string name="properties_runtime_placeholder">ランタイム互換オプションがここに表示されます。</string>
-	<string name="properties_transform_position">位置: %1$s, %2$s</string>
-	<string name="properties_transform_size">サイズ: %1$s × %2$s</string>
-	<string name="properties_transform_none">—</string>
 	<string name="properties_texture_source">テクスチャソース: %1$s</string>
 	<string name="properties_texture_own">独自のアトラス割り当て</string>
 
@@ -341,7 +337,12 @@
 	<string name="properties_field_canvas_width">幅</string>
 	<string name="properties_field_canvas_height">高さ</string>
 	<string name="properties_field_origin_x">原点 X</string>
-	<string name="properties_field_origin_y">原点 Y</string>
+	<string name="properties_field_origin_z">原点 Z</string>
+	<string name="properties_field_position_x">位置 X</string>
+	<string name="properties_field_position_z">位置 Z</string>
+	<string name="properties_field_size_x">サイズ X</string>
+	<string name="properties_field_size_z">サイズ Z</string>
+	<string name="properties_transform_lock_aspect">縦横比を固定</string>
 	<string name="properties_field_blend_mode">ブレンド</string>
 	<string name="properties_field_alpha_mode">アルファ</string>
 	<string name="properties_field_culling">裏面をカリング</string>
@@ -352,6 +353,13 @@
 	<string name="properties_field_draw_order">描画順</string>
 	<string name="properties_field_group_mode">グループモード</string>
 	<string name="properties_field_opacity">不透明度</string>
+	<string name="properties_field_multiply_color">乗算色</string>
+	<string name="properties_field_screen_color">スクリーン色</string>
+	<string name="properties_field_masked_by">マスク</string>
+	<string name="properties_mask_add">マスクを追加…</string>
+	<string name="properties_mask_remove">マスクを削除</string>
+	<string name="properties_relation_clear">リレーションをクリア</string>
+	<string name="properties_relation_pick">ビューポートまたはアウトライナから取得</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
@@ -450,4 +458,8 @@
 	<string name="settings_colors_role_selected">選択中</string>
 	<string name="settings_colors_role_active">アクティブ</string>
 	<string name="settings_colors_role_offkey">キー外</string>
+	<!-- リレーション選択（スポイト）：クリックで取得する対象を示すカーソル脇のバッジ。 -->
+	<string name="pick_hover_drawable">メッシュ: %1$s</string>
+	<string name="pick_hover_part">パーツ: %1$s</string>
+	<string name="pick_hover_deformer">デフォーマ: %1$s</string>
 </resources>

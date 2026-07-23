@@ -1,25 +1,41 @@
 package org.umamo.ui.properties
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.MeshBounds
+import org.umamo.edit.Pose
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.moveDeformer
+import org.umamo.edit.moveOrgChild
 import org.umamo.edit.setCanvasSize
 import org.umamo.edit.setDeformerBaseAngle
+import org.umamo.edit.setDeformerPart
 import org.umamo.edit.setDeformerQuadTransform
 import org.umamo.edit.setDrawableAlphaBlendMode
 import org.umamo.edit.setDrawableBlendMode
 import org.umamo.edit.setDrawableCulling
 import org.umamo.edit.setDrawableInvertMask
+import org.umamo.edit.setDrawableMaskedBy
+import org.umamo.edit.setDrawableParentDeformer
 import org.umamo.edit.setPartComposite
 import org.umamo.edit.setPartDrawOrder
 import org.umamo.edit.setPartGroupMode
@@ -27,18 +43,40 @@ import org.umamo.edit.setPartSketch
 import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartComposite
+import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.deformerSelfAndDescendants
+import org.umamo.runtime.model.parentPartByPart
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.ui.graphics.formatHexColor
+import org.umamo.ui.graphics.parseHexColor
+import org.umamo.ui.graphics.toColorRgb
+import org.umamo.ui.graphics.toComposeColor
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.FieldStack
+import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
+import org.umamo.ui.kit.RelationField
+import org.umamo.ui.kit.RelationListField
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.Tooltip
+import org.umamo.ui.kit.button.IconButton
+import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
-import kotlin.math.round
+import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.PickKind
+import org.umamo.ui.workspace.pickingFor
 
 /*
  * The property sections.  Each is a stable, top-level [PropertySection] singleton so its id is the catalog
@@ -57,67 +95,6 @@ internal fun PropertyLine(text: String) {
 	Text(text = text, style = LocalUmamoTypography.current.bodySmall, modifier = Modifier.padding(top = 1.dp, bottom = 1.dp))
 }
 
-/**
- * Resolves a boolean to the localized Yes / No string.
- *
- * @param Boolean value The flag.
- * @return String The localized "Yes" or "No".
- */
-@Composable
-internal fun yesNo(value: Boolean): String = stringResource(if (value) Res.string.properties_yes else Res.string.properties_no)
-
-/**
- * Formats a canvas / transform dimension: two decimals at most, with a whole number shown without a
- * trailing ".0" so canvas sizes read cleanly.
- *
- * @param Float value The dimension in canvas units.
- * @return String The trimmed number.
- */
-private fun formatDimension(value: Float): String {
-	val rounded = round(value * 100f) / 100f
-	val asLong = rounded.toLong()
-	return if (rounded == asLong.toFloat()) asLong.toString() else rounded.toString()
-}
-
-/** The axis-aligned bounds of a mesh in canvas space: its center and extents. */
-private class MeshBounds(val centerX: Float, val centerY: Float, val width: Float, val height: Float)
-
-/**
- * Computes the axis-aligned bounds of an interleaved (x, y) position array.  A drawable has no scalar
- * transform - its placement is its rest-mesh geometry - so "Transform" is derived from these bounds.
- *
- * @param FloatArray positions Interleaved x, y vertex positions.
- * @return MeshBounds The center and extents; a zero box when there are no vertices.
- */
-private fun computeMeshBounds(positions: FloatArray): MeshBounds {
-	if (positions.size < 2) {
-		return MeshBounds(0f, 0f, 0f, 0f)
-	}
-	var minX = Float.POSITIVE_INFINITY
-	var minY = Float.POSITIVE_INFINITY
-	var maxX = Float.NEGATIVE_INFINITY
-	var maxY = Float.NEGATIVE_INFINITY
-	var index = 0
-	while (index + 1 < positions.size) {
-		val x = positions[index]
-		val y = positions[index + 1]
-		if (x < minX) {
-			minX = x
-		}
-		if (x > maxX) {
-			maxX = x
-		}
-		if (y < minY) {
-			minY = y
-		}
-		if (y > maxY) {
-			maxY = y
-		}
-		index += 2
-	}
-	return MeshBounds((minX + maxX) / 2f, (minY + maxY) / 2f, maxX - minX, maxY - minY)
-}
-
 /** An unbounded float range: a numeric field that clamps nothing and draws no magnitude fill. */
 private val UNBOUNDED_RANGE = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY
 
@@ -125,15 +102,38 @@ private val UNBOUNDED_RANGE = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY
 private val POSITIVE_RANGE = 1f..Float.POSITIVE_INFINITY
 
 /**
+ * The clamp for a drawable's world extent.  Deliberately NOT [POSITIVE_RANGE]: a canvas is measured in
+ * whole pixels so a floor of 1 is meaningful there, but a drawable extent is in world units and can
+ * legitimately be a fraction - clamping it to 1 would silently double a typed 0.5.  The floor is the
+ * smallest value the row's one-decimal display can actually show, which keeps the number in the field
+ * honest while still refusing the zero (collapse) and negative (mirror) cases.
+ */
+private val DRAWABLE_EXTENT_RANGE = 0.1f..Float.POSITIVE_INFINITY
+
+/**
+ * Space the Size rows reserve at their right edge for the aspect lock that overlays it: the 20dp icon
+ * button plus a little breathing room.  Keeping it a named constant is what ties the reservation and the
+ * overlaid control to the same width - if they drift, the lock either overlaps the field or floats away.
+ */
+private val ASPECT_LOCK_GUTTER = 24.dp
+
+/**
  * A labelled Properties field row, Blender-style: the right-aligned label takes the left half and the
  * control fills the right half, so a column of rows aligns and every field spans a consistent width.  The
  * control should [Modifier.fillMaxWidth] so it fills its half.
  *
+ * [trailingGutter] reserves space at the RIGHT EDGE OF THE CONTROL for an adornment that sits outside the
+ * row (the Size stack's aspect lock).  It shrinks the control only - the label column keeps its half of the
+ * full row width, so a row with a gutter still lines up with the plain rows above and below it.  Reserving
+ * the space here rather than wrapping the whole row in a narrower box is the difference between the field
+ * shrinking and the entire two-column grid shifting.
+ *
  * @param String label The localized field label.
+ * @param Dp trailingGutter Space reserved after the control for an out-of-row adornment (0 for none).
  * @param Function control The editable control (a fillMaxWidth NumberField, SelectField, etc.).
  */
 @Composable
-private fun PropertyFieldRow(label: String, control: @Composable () -> Unit) {
+private fun PropertyFieldRow(label: String, trailingGutter: Dp = 0.dp, control: @Composable () -> Unit) {
 	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		Text(
 			text = label,
@@ -142,7 +142,7 @@ private fun PropertyFieldRow(label: String, control: @Composable () -> Unit) {
 			textAlign = TextAlign.End,
 			modifier = Modifier.weight(1f).padding(end = 8.dp),
 		)
-		Box(modifier = Modifier.weight(1f)) {
+		Box(modifier = Modifier.weight(1f).padding(end = trailingGutter)) {
 			control()
 		}
 	}
@@ -164,6 +164,220 @@ private fun PropertyCheckboxRow(checked: Boolean, onCheckedChange: (Boolean) -> 
 		Box(modifier = Modifier.weight(1f)) {
 			Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label)
 		}
+	}
+}
+
+/**
+ * The drawables eligible to be added as clip masks for a composite: every drawable not already applied.
+ * Any drawable is a valid mask target (the model has no is-mask flag), so the candidate set is simply the
+ * complement of [current].  Pure, so the "add mask" menu contents are unit-testable.
+ *
+ * @param List drawables Every drawable in the model.
+ * @param List current The mask ids already applied to the composite.
+ * @return List The drawables not yet masking, in model order.
+ */
+internal fun maskCandidates(drawables: List<Drawable>, current: List<DrawableId>): List<Drawable> {
+	val applied = current.toSet()
+	return drawables.filter { drawable -> drawable.id !in applied }
+}
+
+/**
+ * One entry in a composite's clip-mask list.  A drawable clips directly; a part stands for every drawable
+ * in its subtree and is resolved to them only in the derived render tree, so the mask follows the part as
+ * its children change (see [org.umamo.runtime.model.PartComposite.maskedByParts]).
+ */
+private sealed interface MaskEntry {
+	/** The entry's display name. */
+	val name: String
+
+	/** A drawable whose alpha clips directly. */
+	data class OfDrawable(val id: DrawableId, override val name: String) : MaskEntry
+
+	/** A part standing for its descendant drawables. */
+	data class OfPart(val id: PartId, override val name: String) : MaskEntry
+}
+
+/**
+ * A mask entry's stable row identity.  The wrapping entry is rebuilt every recomposition, and the display
+ * name is source-art data that repeats, so the underlying id is the only thing that identifies a row.
+ *
+ * @return Any The entry's stable key.
+ */
+private fun MaskEntry.key(): Any =
+	when (this) {
+		is MaskEntry.OfDrawable -> id
+		is MaskEntry.OfPart -> id
+	}
+
+/**
+ * The type glyph for a mask entry, so drawable and part masks read apart in the list.
+ *
+ * @return UmamoIcon The entry's type icon.
+ */
+private fun MaskEntry.glyph(): UmamoIcon =
+	when (this) {
+		is MaskEntry.OfDrawable -> LocalUmamoIcons.mesh
+		is MaskEntry.OfPart -> LocalUmamoIcons.part
+	}
+
+/**
+ * A labelled block wrapping a relation list, since a tall list does not fit the two-column field row.
+ *
+ * @param String label The block's localized label.
+ * @param Function content The list to draw beneath it.
+ */
+@Composable
+private fun RelationListBlock(label: String, content: @Composable () -> Unit) {
+	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+		Text(text = label, style = LocalUmamoTypography.current.bodySmall, color = LocalUmamoColors.current.text)
+		content()
+	}
+}
+
+/**
+ * The isolated part composite's clip-mask editor: a scrollable, resizable list of the drawables and parts
+ * clipping the layer, over a search field whose eyedropper takes a mask straight from the viewport or the
+ * outliner.  Every edit routes the whole updated composite through setPartComposite, so it is one undo step
+ * and survives a mode round-trip like the other composite fields.  Masks are a set (order does not affect
+ * coverage), so the list is not reorderable.
+ *
+ * A viewport click resolves to the drawable it hits; picking a whole part is done from the list or the
+ * outliner, since the viewport hit test is drawable-only.
+ *
+ * @param Part part The part whose composite is edited.
+ * @param PartComposite composite The active (Isolated) composite being edited.
+ * @param PropertyContext context The context supplying the model and session.
+ */
+@Composable
+private fun PartMaskEditor(part: Part, composite: PartComposite, context: PropertyContext) {
+	val session = context.session
+	val relationPick = LocalRelationPick.current
+	val owner = "part.maskedBy:${part.id.raw}"
+	// Every write re-reads the part's CURRENT composite rather than the one captured in this composition.
+	// An armed eyedropper resolves LONG after it was armed and the panel stays editable in between, so
+	// closing over `composite` would silently revert any opacity / colour edit made while the pick was in
+	// flight - one undo step that quietly undoes two others.
+	val mutateComposite: (PartComposite.() -> PartComposite) -> Unit = { change ->
+		val live = session?.model?.value?.parts?.firstOrNull { it.id == part.id }?.activeComposite
+		if (live != null) {
+			session.setPartComposite(part.id, live.change())
+		}
+	}
+
+	val entries =
+		buildList {
+			for (maskId in composite.maskedBy) {
+				context.puppet.drawables.firstOrNull { it.id == maskId }?.let { masker ->
+					add(MaskEntry.OfDrawable(masker.id, masker.name.ifBlank { masker.id.raw }))
+				}
+			}
+			for (maskPartId in composite.maskedByParts) {
+				context.puppet.parts.firstOrNull { it.id == maskPartId }?.let { masker ->
+					add(MaskEntry.OfPart(masker.id, masker.name.ifBlank { masker.id.raw }))
+				}
+			}
+		}
+	val candidates =
+		buildList {
+			for (candidate in maskCandidates(context.puppet.drawables, composite.maskedBy)) {
+				add(MaskEntry.OfDrawable(candidate.id, candidate.name.ifBlank { candidate.id.raw }))
+			}
+			// A part cannot mask itself (it would clip the very layer it composites).
+			for (candidate in context.puppet.parts) {
+				if (candidate.id != part.id && candidate.id !in composite.maskedByParts) {
+					add(MaskEntry.OfPart(candidate.id, candidate.name.ifBlank { candidate.id.raw }))
+				}
+			}
+		}
+	val addEntry: (MaskEntry) -> Unit = { entry ->
+		when (entry) {
+			is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = (maskedBy + entry.id).distinct()) }
+			// A part masking itself would clip the very layer it composites; the candidate list excludes it,
+			// and the eyedropper has to refuse it too or the outliner becomes a way around the guard.
+			is MaskEntry.OfPart -> if (entry.id != part.id) mutateComposite { copy(maskedByParts = (maskedByParts + entry.id).distinct()) }
+		}
+	}
+
+	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
+		RelationListField(
+			entries = entries,
+			candidates = candidates,
+			label = { entry -> entry.name },
+			keyOf = { entry -> entry.key() },
+			icon = { entry -> entry.glyph() },
+			onAdd = addEntry,
+			onRemove = { entry ->
+				when (entry) {
+					is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = maskedBy - entry.id) }
+					is MaskEntry.OfPart -> mutateComposite { copy(maskedByParts = maskedByParts - entry.id) }
+				}
+			},
+			modifier = Modifier.fillMaxWidth(),
+			onPick = {
+				relationPick.arm(setOf(PickKind.Drawable, PickKind.Part), owner) { target ->
+					when (target) {
+						is SelectionTarget.Drawable -> addEntry(MaskEntry.OfDrawable(target.id, target.id.raw))
+						is SelectionTarget.Part -> addEntry(MaskEntry.OfPart(target.id, target.id.raw))
+						is SelectionTarget.Deformer -> {}
+					}
+				}
+			},
+			picking = relationPick.pickingFor(owner),
+			addPlaceholder = stringResource(Res.string.properties_mask_add),
+			removeDescription = stringResource(Res.string.properties_mask_remove),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
+		)
+	}
+}
+
+/**
+ * A drawable's own clip-mask editor, the same list over [org.umamo.runtime.model.Drawable.maskedBy].  Only
+ * drawables may clip a drawable (the part extension applies to the composite layer alone), and a drawable
+ * may not mask itself.
+ *
+ * @param Drawable drawable The drawable whose masks are edited.
+ * @param PropertyContext context The context supplying the model and session.
+ */
+@Composable
+private fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
+	val session = context.session
+	val relationPick = LocalRelationPick.current
+	val owner = "drawable.maskedBy:${drawable.id.raw}"
+	val entries = drawable.maskedBy.mapNotNull { maskId -> context.puppet.drawables.firstOrNull { it.id == maskId } }
+	val candidates = maskCandidates(context.puppet.drawables, drawable.maskedBy).filterNot { it.id == drawable.id }
+	// Live read for the same reason as PartMaskEditor's mutateComposite: an armed pick resolves later, and
+	// the captured list would revert any mask added in the meantime.
+	val addMask: (DrawableId) -> Unit = { maskId ->
+		val live = session?.model?.value?.drawables?.firstOrNull { it.id == drawable.id }?.maskedBy
+		if (live != null) {
+			session.setDrawableMaskedBy(drawable.id, (live + maskId).distinct())
+		}
+	}
+
+	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
+		RelationListField(
+			entries = entries,
+			candidates = candidates,
+			label = { masker -> masker.name.ifBlank { masker.id.raw } },
+			keyOf = { masker -> masker.id },
+			icon = { LocalUmamoIcons.mesh },
+			onAdd = { masker -> addMask(masker.id) },
+			onRemove = { masker -> session?.setDrawableMaskedBy(drawable.id, drawable.maskedBy - masker.id) },
+			modifier = Modifier.fillMaxWidth(),
+			onPick = {
+				relationPick.arm(setOf(PickKind.Drawable), owner) { target ->
+					(target as? SelectionTarget.Drawable)?.let { picked ->
+						if (picked.id != drawable.id) {
+							addMask(picked.id)
+						}
+					}
+				}
+			},
+			picking = relationPick.pickingFor(owner),
+			addPlaceholder = stringResource(Res.string.properties_mask_add),
+			removeDescription = stringResource(Res.string.properties_mask_remove),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
+		)
 	}
 }
 
@@ -214,7 +428,7 @@ internal val CanvasSection =
 				},
 				// The origin x / y into a second stacked group below it.
 				PropertyRow(
-					terms = listOf(Res.string.properties_field_origin_x, Res.string.properties_field_origin_y),
+					terms = listOf(Res.string.properties_field_origin_x, Res.string.properties_field_origin_z),
 				) { _ ->
 					FieldStack(
 						listOf(
@@ -231,7 +445,7 @@ internal val CanvasSection =
 								}
 							},
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_origin_y)) {
+								PropertyFieldRow(stringResource(Res.string.properties_field_origin_z)) {
 									NumberField(
 										value = puppet.worldOriginY,
 										onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
@@ -267,7 +481,17 @@ internal val RuntimeSection =
 		},
 	)
 
-/** Object > Transform: derived placement of the active item (drawable bounds, rotation base angle). */
+/**
+ * Object > Transform: the active item's placement.  A drawable has no scalar transform - its placement IS
+ * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array).
+ *
+ * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
+ * world y, which grows upward - the same naming the G / S / R axis lock uses.
+ *
+ * An item with no transform to show (a Part, a warp deformer, a mesh-less drawable) contributes NO rows,
+ * and sectionVisibility then hides the whole section rather than drawing an empty card.
+ */
 internal val TransformSection =
 	PropertySection(
 		id = "object.transform",
@@ -278,14 +502,16 @@ internal val TransformSection =
 			val session = context.session
 			val mesh = drawable?.mesh
 			if (drawable != null && mesh != null && mesh.vertexCount > 0) {
-				// A drawable has no scalar transform - its placement is its rest geometry - so bounds stay read-only.
-				val bounds = computeMeshBounds(mesh.positions)
 				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_transform_position)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_transform_position, formatDimension(bounds.centerX), formatDimension(bounds.centerY)))
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						DrawableTransformRows(rowContext, drawable.id, showSize = false)
 					},
-					PropertyRow(terms = listOf(Res.string.properties_transform_size)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_transform_size, formatDimension(bounds.width), formatDimension(bounds.height)))
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						DrawableTransformRows(rowContext, drawable.id, showSize = true)
 					},
 				)
 			} else if (deformer is Deformer.Rotation) {
@@ -304,14 +530,290 @@ internal val TransformSection =
 					},
 				)
 			} else {
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_transform_none)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_transform_none))
-					},
-				)
+				// Nothing transformable: contribute no rows so the section hides entirely (see the docblock).
+				emptyList()
 			}
 		},
 	)
+
+/**
+ * One of the two drawable Transform rows - Position X/Z, or Size X/Z with its aspect lock.
+ *
+ * Both live in one composable because both need the same two things resolved IN the composition: the live
+ * pose (so the fields disable the moment a parameter leaves its default) and the world bounds derived from
+ * it.  The section's rows() lambda cannot do that - it is not composable, and it only re-runs when the
+ * MODEL changes, so a pose scrub would never reach it.
+ *
+ * While the pose is off neutral the fields show the current world numbers but are inert: the write path
+ * inverts through the deformer chain, which is exact only at the neutral pose, so this is the panel's face
+ * of the same guard that blocks a viewport object transform on a posed rig.
+ *
+ * @param PropertyContext context The row's context (its session supplies the live pose).
+ * @param DrawableId drawableId The active drawable.
+ * @param Boolean showSize False for the Position pair, true for the Size pair.
+ */
+@Composable
+private fun DrawableTransformRows(context: PropertyContext, drawableId: DrawableId, showSize: Boolean) {
+	val session = context.session
+	// Collected, not read: the pose changes without the model changing, and the disabled state tracks it.
+	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
+	// Keyed, because this is a full posed evaluation of the drawable's deformer chain - not something to
+	// redo when an unrelated recomposition happens to sweep the panel.  (Both Transform rows still evaluate
+	// once each when the model or pose genuinely changes; sharing one evaluation across them would mean
+	// merging them into a single row and giving up per-row search.)
+	val transform =
+		remember(context.puppet, pose, drawableId) {
+			drawableWorldTransform(context.puppet, pose, drawableId)
+		} ?: return
+	val bounds = transform.bounds
+	val editable = session != null && transform.editable
+	if (showSize) {
+		SizeFieldsWithAspectLock(bounds, editable) { newWidth, newHeight ->
+			session?.setDrawableWorldSize(drawableId, newWidth, newHeight)
+		}
+	} else {
+		FieldStack(
+			listOf(
+				{ position ->
+					PropertyFieldRow(stringResource(Res.string.properties_field_position_x)) {
+						NumberField(
+							value = bounds.centerX,
+							onValueChange = { newX -> session?.setDrawableWorldCenter(drawableId, newX, bounds.centerY) },
+							modifier = Modifier.fillMaxWidth(),
+							range = UNBOUNDED_RANGE,
+							decimals = 1,
+							enabled = editable,
+							stackPosition = position,
+						)
+					}
+				},
+				{ position ->
+					PropertyFieldRow(stringResource(Res.string.properties_field_position_z)) {
+						NumberField(
+							value = bounds.centerY,
+							onValueChange = { newZ -> session?.setDrawableWorldCenter(drawableId, bounds.centerX, newZ) },
+							modifier = Modifier.fillMaxWidth(),
+							range = UNBOUNDED_RANGE,
+							decimals = 1,
+							enabled = editable,
+							stackPosition = position,
+						)
+					}
+				},
+			),
+		)
+	}
+}
+
+/**
+ * The Size X / Size Z stack plus its aspect-ratio lock.  Its own composable rather than an inline pair of
+ * rows because the lock is stateful and the two fields are coupled through it: while locked, editing one
+ * axis scales the other by the same factor, so the mesh keeps its proportions.
+ *
+ * The lock is transient UI state (a tool preference, not document data), so it lives in a remember and
+ * resets when the panel unmounts.  The ratio is read from the CURRENT bounds at commit time rather than
+ * captured when the lock was engaged, so it always reflects what the fields are showing.
+ *
+ * A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one falls back to
+ * changing only the edited axis - and [resizedAboutBoundsCenter] then leaves the degenerate one alone.
+ *
+ * @param MeshBounds bounds The active drawable's current world bounds (the displayed extents).
+ * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
+ * @param Function onResize Commits new (width, height) extents as one undo step.
+ */
+@Composable
+private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onResize: (Float, Float) -> Unit) {
+	var lockAspect by remember { mutableStateOf(false) }
+	val icons = LocalUmamoIcons
+	// A locked edit on one axis derives the other from the ratio the mesh currently has.
+	val commitWidth: (Float) -> Unit = { newWidth ->
+		val scaledHeight =
+			if (lockAspect && bounds.width > 0f) {
+				bounds.height * (newWidth / bounds.width)
+			} else {
+				bounds.height
+			}
+		onResize(newWidth, scaledHeight)
+	}
+	val commitHeight: (Float) -> Unit = { newHeight ->
+		val scaledWidth =
+			if (lockAspect && bounds.height > 0f) {
+				bounds.width * (newHeight / bounds.height)
+			} else {
+				bounds.width
+			}
+		onResize(scaledWidth, newHeight)
+	}
+	// The lock overlays the gutter the rows reserve, so the fields shrink by exactly the lock's width while
+	// the label column keeps its half of the FULL row width - that is what keeps these rows lined up with
+	// the Position rows above.
+	Box(modifier = Modifier.fillMaxWidth()) {
+		FieldStack(
+			listOf(
+				{ position ->
+					PropertyFieldRow(stringResource(Res.string.properties_field_size_x), trailingGutter = ASPECT_LOCK_GUTTER) {
+						NumberField(
+							value = bounds.width,
+							onValueChange = commitWidth,
+							modifier = Modifier.fillMaxWidth(),
+							range = DRAWABLE_EXTENT_RANGE,
+							decimals = 1,
+							enabled = enabled,
+							stackPosition = position,
+						)
+					}
+				},
+				{ position ->
+					PropertyFieldRow(stringResource(Res.string.properties_field_size_z), trailingGutter = ASPECT_LOCK_GUTTER) {
+						NumberField(
+							value = bounds.height,
+							onValueChange = commitHeight,
+							modifier = Modifier.fillMaxWidth(),
+							range = DRAWABLE_EXTENT_RANGE,
+							decimals = 1,
+							enabled = enabled,
+							stackPosition = position,
+						)
+					}
+				},
+			),
+		)
+		// The chain glyph spans both fields.
+		Tooltip(
+			text = stringResource(Res.string.properties_transform_lock_aspect),
+			modifier = Modifier.align(Alignment.CenterEnd),
+		) {
+			IconButton(
+				icon = if (lockAspect) icons.linked else icons.unlinked,
+				contentDescription = stringResource(Res.string.properties_transform_lock_aspect),
+				onClick = { lockAspect = !lockAspect },
+				active = lockAspect,
+				enabled = enabled,
+				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+			)
+		}
+	}
+}
+
+/**
+ * Whether [candidateId] is [partId] itself or sits somewhere beneath it, walking up the parent chain.  Such
+ * a part cannot become [partId]'s owner - that would make the tree a cycle.  The walk is bounded by the
+ * chain it follows, and the visited guard keeps a malformed tree from looping forever.
+ *
+ * @param PartId candidateId The part being offered as an owner.
+ * @param PartId partId The part being re-homed.
+ * @param Map parentOf Nested part id to its owning part (see parentPartByPart).
+ * @return Boolean True when the candidate is the part itself or one of its descendants.
+ */
+private fun isPartSelfOrDescendant(candidateId: PartId, partId: PartId, parentOf: Map<PartId, PartId>): Boolean {
+	val visited = mutableSetOf<PartId>()
+	var cursor: PartId? = candidateId
+	while (cursor != null && visited.add(cursor)) {
+		if (cursor == partId) {
+			return true
+		}
+		cursor = parentOf[cursor]
+	}
+	return false
+}
+
+/**
+ * The type glyph for a deformer, matching the outliner's warp-versus-rotation split.
+ *
+ * @param Deformer deformer The deformer to glyph.
+ * @return UmamoIcon Its type icon.
+ */
+private fun deformerIcon(deformer: Deformer): UmamoIcon =
+	when (deformer) {
+		is Deformer.Rotation -> LocalUmamoIcons.rotationDeformer
+		is Deformer.Warp -> LocalUmamoIcons.warpDeformer
+	}
+
+/**
+ * A labelled row binding the active item to an organisational part, through the shared relation picker:
+ * the field lists every part, and its eyedropper takes a part from a viewport click (resolved through the
+ * clicked drawable's owner) or an outliner row.
+ *
+ * @param StringResource labelRes The row's localized label.
+ * @param PropertyContext context The context supplying the model.
+ * @param PartId? selectedPartId The currently bound part, or null when unbound.
+ * @param Function excluding Drops ineligible candidates (a part may not be nested inside itself).
+ * @param Any owner This field's identity, so only it lights its eyedropper.
+ * @param Function onSelect Applies the new binding (null clears it).
+ */
+@Composable
+private fun PartRelationRow(
+	labelRes: StringResource,
+	context: PropertyContext,
+	selectedPartId: PartId?,
+	excluding: (Part) -> Boolean = { false },
+	owner: Any,
+	onSelect: (PartId?) -> Unit,
+) {
+	val relationPick = LocalRelationPick.current
+	val parts = context.puppet.parts.filterNot(excluding)
+	PropertyFieldRow(stringResource(labelRes)) {
+		RelationField(
+			selected = parts.firstOrNull { candidate -> candidate.id == selectedPartId },
+			candidates = parts,
+			label = { candidate -> candidate.name.ifBlank { candidate.id.raw } },
+			icon = { LocalUmamoIcons.part },
+			onSelect = { candidate -> onSelect(candidate?.id) },
+			modifier = Modifier.fillMaxWidth(),
+			onPick = {
+				relationPick.arm(setOf(PickKind.Part), owner) { target ->
+					(target as? SelectionTarget.Part)?.let { picked -> onSelect(picked.id) }
+				}
+			},
+			picking = relationPick.pickingFor(owner),
+			clearDescription = stringResource(Res.string.properties_relation_clear),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
+		)
+	}
+}
+
+/**
+ * A labelled row binding the active item to a deformer, through the shared relation picker.  A viewport
+ * click cannot hit a deformer (the hit test is drawable-only), so this field's eyedropper resolves from
+ * the outliner.
+ *
+ * @param StringResource labelRes The row's localized label.
+ * @param PropertyContext context The context supplying the model.
+ * @param DeformerId? selectedDeformerId The currently bound deformer, or null when unbound.
+ * @param Function excluding Drops ineligible candidates (a deformer may not parent itself).
+ * @param Any owner This field's identity, so only it lights its eyedropper.
+ * @param Function onSelect Applies the new binding (null clears it).
+ */
+@Composable
+private fun DeformerRelationRow(
+	labelRes: StringResource,
+	context: PropertyContext,
+	selectedDeformerId: DeformerId?,
+	excluding: (Deformer) -> Boolean = { false },
+	owner: Any,
+	onSelect: (DeformerId?) -> Unit,
+) {
+	val relationPick = LocalRelationPick.current
+	val deformers = context.puppet.deformers.filterNot(excluding)
+	PropertyFieldRow(stringResource(labelRes)) {
+		RelationField(
+			selected = deformers.firstOrNull { candidate -> candidate.id == selectedDeformerId },
+			candidates = deformers,
+			label = { candidate -> candidate.name.ifBlank { candidate.id.raw } },
+			icon = { candidate -> deformerIcon(candidate) },
+			onSelect = { candidate -> onSelect(candidate?.id) },
+			modifier = Modifier.fillMaxWidth(),
+			onPick = {
+				relationPick.arm(setOf(PickKind.Deformer), owner) { target ->
+					(target as? SelectionTarget.Deformer)?.let { picked -> onSelect(picked.id) }
+				}
+			},
+			picking = relationPick.pickingFor(owner),
+			clearDescription = stringResource(Res.string.properties_relation_clear),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
+		)
+	}
+}
 
 /** Object > Relations: owning part, parent deformer, masks / children of the active item. */
 internal val RelationsSection =
@@ -322,36 +824,68 @@ internal val RelationsSection =
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
 			val part = context.activePart()
+			val session = context.session
 			if (drawable != null) {
 				listOf(
 					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						val ownerPartId = context.puppet.partByDrawable()[drawable.id]
-						val partLabel = ownerPartId?.let { id -> context.puppet.parts.firstOrNull { it.id == id }?.name ?: id.raw } ?: stringResource(Res.string.properties_none)
-						PropertyLine(stringResource(Res.string.properties_part_ref, partLabel))
+						// Part membership lives only in the org tree, so re-homing a drawable is a tree move.
+						// Note it appends at the destination, which changes draw order (Cubism does the same).
+						PartRelationRow(
+							labelRes = Res.string.properties_part_ref,
+							context = context,
+							selectedPartId = context.puppet.partByDrawable()[drawable.id],
+							owner = "drawable.part:${drawable.id.raw}",
+						) { partId -> session?.moveOrgChild(OrgChild.Drawable(drawable.id), partId, null) }
 					},
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_parent_deformer, drawable.parentDeformerId?.raw ?: stringResource(Res.string.properties_none)))
-					},
-					PropertyRow(terms = listOf(Res.string.properties_mask_count)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_mask_count, drawable.maskedBy.size))
-					},
-					PropertyRow(terms = listOf(Res.string.properties_invert_mask)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_invert_mask, yesNo(drawable.invertMask)))
+						DeformerRelationRow(
+							labelRes = Res.string.properties_parent_deformer,
+							context = context,
+							selectedDeformerId = drawable.parentDeformerId,
+							owner = "drawable.parentDeformer:${drawable.id.raw}",
+						) { deformerId -> session?.setDrawableParentDeformer(drawable.id, deformerId) }
 					},
 				)
 			} else if (deformer != null) {
+				// Computed once for the row rather than per candidate, so filtering the list stays linear.
+				val cyclicParents = context.puppet.deformerSelfAndDescendants(deformer.id)
 				listOf(
 					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_part_ref, deformer.partId?.raw ?: stringResource(Res.string.properties_none)))
+						PartRelationRow(
+							labelRes = Res.string.properties_part_ref,
+							context = context,
+							selectedPartId = deformer.partId,
+							owner = "deformer.part:${deformer.id.raw}",
+						) { partId -> session?.setDeformerPart(deformer.id, partId) }
 					},
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_parent_deformer, deformer.parent?.raw ?: stringResource(Res.string.properties_none)))
+						DeformerRelationRow(
+							labelRes = Res.string.properties_parent_deformer,
+							context = context,
+							selectedDeformerId = deformer.parent,
+							// Nesting a deformer inside its own subtree would make the hierarchy a cycle, so
+							// those candidates are dropped rather than offered and then silently refused by
+							// withDeformerMoved.  Same query the move guard uses, so the two cannot disagree.
+							excluding = { candidate -> candidate.id in cyclicParents },
+							owner = "deformer.parent:${deformer.id.raw}",
+						) { parentId -> session?.moveDeformer(deformer.id, parentId, null) }
 					},
 				)
 			} else if (part != null) {
+				// A part nested under another part shows (and can rebind) its owner; a top-level part reads
+				// as unbound, and clearing the field moves it back out to the root.
+				val parentOf = context.puppet.parentPartByPart()
 				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_child_count)) { _ ->
-						PropertyLine(stringResource(Res.string.properties_child_count, part.children.size))
+					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
+						PartRelationRow(
+							labelRes = Res.string.properties_part_ref,
+							context = context,
+							selectedPartId = parentOf[part.id],
+							// A part may not be nested inside itself or its own descendants; withOrgChildMoved
+							// refuses such a move anyway, this just keeps them out of the list.
+							excluding = { candidate -> isPartSelfOrDescendant(candidate.id, part.id, parentOf) },
+							owner = "part.parent:${part.id.raw}",
+						) { parentId -> session?.moveOrgChild(OrgChild.Part(part.id), parentId, null) }
 					},
 				)
 			} else {
@@ -443,6 +977,11 @@ internal val BlendSection =
 							label = stringResource(Res.string.properties_field_culling),
 						)
 					},
+					// Clipping lives with the blend data, not under Relations: it is how the drawable is
+					// composited, and it pairs with the invert toggle right below it.
+					PropertyRow(terms = listOf(Res.string.properties_field_masked_by, Res.string.properties_mask_count)) { _ ->
+						DrawableMaskEditor(drawable, context)
+					},
 					PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
 						PropertyCheckboxRow(
 							checked = drawable.invertMask,
@@ -512,11 +1051,6 @@ internal val PartSection =
 				val session = context.session
 				buildList {
 					add(
-						PropertyRow(terms = listOf(Res.string.properties_child_count)) { _ ->
-							PropertyLine(stringResource(Res.string.properties_child_count, part.children.size))
-						},
-					)
-					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_sketch)) { _ ->
 							PropertyCheckboxRow(
 								checked = part.isSketch,
@@ -551,10 +1085,10 @@ internal val PartSection =
 							}
 						},
 					)
-					// An isolated part composites its subtree as one layer; expose the composite's scalar channels
-					// (colors need a color-picker field, deferred).  The composite is stored latently on the part, so
-					// each sub-field edits it via setPartComposite - it survives a mode round-trip and is shown only
-					// while the part is Isolated (activeComposite is non-null exactly then).
+					// An isolated part composites its subtree as one layer; expose the composite's scalar channels,
+					// tint colors, and clip masks.  The composite is stored latently on the part, so each sub-field
+					// edits it via setPartComposite - it survives a mode round-trip and is shown only while the part
+					// is Isolated (activeComposite is non-null exactly then).
 					val composite = part.activeComposite
 					if (composite != null) {
 						add(
@@ -601,6 +1135,41 @@ internal val PartSection =
 								},
 							)
 						}
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_multiply_color)) {
+									HexColorField(
+										value = formatHexColor(composite.multiplyColor.toComposeColor()),
+										onValueChange = { hex ->
+											parseHexColor(hex)?.let { picked ->
+												session?.setPartComposite(part.id, composite.copy(multiplyColor = picked.toColorRgb()))
+											}
+										},
+										modifier = Modifier.fillMaxWidth(),
+									)
+								}
+							},
+						)
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_screen_color)) {
+									HexColorField(
+										value = formatHexColor(composite.screenColor.toComposeColor()),
+										onValueChange = { hex ->
+											parseHexColor(hex)?.let { picked ->
+												session?.setPartComposite(part.id, composite.copy(screenColor = picked.toColorRgb()))
+											}
+										},
+										modifier = Modifier.fillMaxWidth(),
+									)
+								}
+							},
+						)
+						add(
+							PropertyRow(terms = listOf(Res.string.properties_field_masked_by)) { rowContext ->
+								PartMaskEditor(part, composite, rowContext)
+							},
+						)
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
 								PropertyCheckboxRow(

@@ -115,6 +115,29 @@ class PropertyTabRegistryTest {
 		}
 	}
 
+	/**
+	 * A section that built no rows for the current context never shows - not on a blank query, and not on a
+	 * title match either.  This is how Transform opts out for an item with no transform (a Part, a warp
+	 * deformer) instead of drawing an empty card, so a title match must not resurrect it.
+	 */
+	@Test
+	fun sectionVisibilityHidesASectionThatBuiltNoRows() {
+		val noRows = emptyList<List<String>>()
+
+		sectionVisibility("Transform", noRows, "").let { result ->
+			assertFalse(result.shown, "an empty section is not shown on a blank query")
+			assertTrue(result.visibleRowIndices.isEmpty())
+		}
+		sectionVisibility("Transform", noRows, "transf").let { result ->
+			assertFalse(result.shown, "a title match must not resurrect an empty section")
+			assertTrue(result.visibleRowIndices.isEmpty())
+		}
+		sectionVisibility("Transform", noRows, "zzz").let { result ->
+			assertFalse(result.shown)
+			assertTrue(result.visibleRowIndices.isEmpty())
+		}
+	}
+
 	/** A same-id override replaces its tab in place (keeping strip position); a new id appends after. */
 	@Test
 	fun withOverridesReplacesInPlaceAndAppends() {

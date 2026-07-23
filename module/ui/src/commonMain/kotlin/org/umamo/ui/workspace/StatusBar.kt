@@ -233,7 +233,7 @@ private fun SelectedItemZone() {
 			if (selection == null || selection.isEmpty) {
 				null
 			} else if (selection.size > 1) {
-				stringResource(Res.string.inspector_multi_selected, selection.size)
+				stringResource(Res.string.status_multi_selected, selection.size)
 			} else {
 				val target = selection.active ?: selection.targets.first()
 				when (target) {
@@ -325,11 +325,11 @@ private fun ModelStats() {
 			?: stringResource(Res.string.status_tris_selected, "0", totals.triangleCount)
 	val line =
 		listOf(
-			stringResource(Res.string.inspector_parts, puppet.parts.size),
-			stringResource(Res.string.inspector_drawables, puppet.drawables.size),
-			stringResource(Res.string.inspector_parameters, puppet.parameters.size),
-			stringResource(Res.string.inspector_deformers, puppet.deformers.size),
-			stringResource(Res.string.inspector_glues, puppet.glues.size),
+			stringResource(Res.string.status_parts, puppet.parts.size),
+			stringResource(Res.string.status_drawables, puppet.drawables.size),
+			stringResource(Res.string.status_parameters, puppet.parameters.size),
+			stringResource(Res.string.status_deformers, puppet.deformers.size),
+			stringResource(Res.string.status_glues, puppet.glues.size),
 			vertsEntry,
 			trisEntry,
 		).joinToString(separator = STAT_SEPARATOR)

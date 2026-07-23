@@ -6,6 +6,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerSelfAndDescendants
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
@@ -126,24 +127,6 @@ private fun Deformer.withParent(newParent: DeformerId?): Deformer =
 	}
 
 /**
- * True when [candidate] is [id] itself or one of its descendants in the deformer nesting hierarchy - the
- * guard that stops a deformer being nested inside its own subtree (a cycle). Walks up from [candidate]: if
- * it reaches [id], [candidate] sits below [id].
- */
-private fun PuppetModel.isDeformerSelfOrDescendant(id: DeformerId, candidate: DeformerId): Boolean {
-	val parentById = deformers.associate { deformer -> deformer.id to deformer.parent }
-	var cursor: DeformerId? = candidate
-	val seen = HashSet<DeformerId>()
-	while (cursor != null && seen.add(cursor)) {
-		if (cursor == id) {
-			return true
-		}
-		cursor = parentById[cursor]
-	}
-	return false
-}
-
-/**
  * Returns a copy of [this] with the deformer [id] re-nested under [newParentId] (null = an armature root)
  * and re-positioned among the deformers list before [beforeId] (null = appended). Reparent and reorder are
  * one move: [Deformer.parent] sets the transform nesting (which changes deformation), and the deformers
@@ -157,7 +140,10 @@ private fun PuppetModel.isDeformerSelfOrDescendant(id: DeformerId, candidate: De
  */
 fun PuppetModel.withDeformerMoved(id: DeformerId, newParentId: DeformerId?, beforeId: DeformerId?): PuppetModel {
 	val deformer = deformers.firstOrNull { it.id == id } ?: return this
-	if (newParentId == id || (newParentId != null && isDeformerSelfOrDescendant(id, newParentId))) {
+	// The subtree set contains id itself, so this rejects self-parenting and any deeper cycle at once.  The
+	// Properties picker filters its candidates against the same query, so an illegal target is not offered
+	// there rather than being silently refused here.
+	if (newParentId != null && newParentId in deformerSelfAndDescendants(id)) {
 		return this
 	}
 	val moved = deformer.withParent(newParentId)
