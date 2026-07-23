@@ -33,8 +33,6 @@ internal val MIN_AREA_DP = 48.dp
  * The cursor art for a splitter of the given orientation - the east-west arrows for a Horizontal split
  * (children side by side, dragged left/right) and the north-south arrows for a Vertical split.
  *
- * 指定向きのスプリッタのカーソル（左右分割は東西、上下分割は南北の矢印）。
- *
  * @param SplitOrientation orientation The split's orientation.
  * @return UmamoCursor The editor's own arrows for that drag axis.
  */

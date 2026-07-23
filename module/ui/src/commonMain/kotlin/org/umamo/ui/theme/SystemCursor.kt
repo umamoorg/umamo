@@ -33,8 +33,6 @@ expect fun umamoPointerIcon(cursor: UmamoCursor): PointerIcon
  * own drawn cursor reads cleanly without the system pointer doubled on top.  Desktop returns a transparent
  * custom cursor; touch platforms have no cursor to hide and return the default.
  *
- * モーダル変換中に OS カーソルを隠すための透明なポインタアイコン。デスクトップのみ実装。
- *
  * @return PointerIcon A transparent (invisible) cursor, or the default where none can be built.
  */
 expect fun hiddenPointerIcon(): PointerIcon
