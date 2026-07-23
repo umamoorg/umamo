@@ -197,6 +197,8 @@
 	<string name="history_drawable_invert_mask">Toggle Invert Mask</string>
 	<string name="history_drawable_parent_deformer">Set Parent Deformer</string>
 	<string name="history_drawable_masked_by">Set Masks</string>
+	<string name="history_drawable_multiply_color">Set Multiply Color</string>
+	<string name="history_drawable_screen_color">Set Screen Color</string>
 	<string name="history_deformer_part">Set Part</string>
 	<string name="history_deformer_base_angle">Set Base Angle</string>
 	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>

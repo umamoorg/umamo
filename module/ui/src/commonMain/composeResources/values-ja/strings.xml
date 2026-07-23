@@ -175,6 +175,8 @@
 	<string name="history_drawable_invert_mask">マスク反転を切り替え</string>
 	<string name="history_drawable_parent_deformer">親デフォーマを設定</string>
 	<string name="history_drawable_masked_by">マスクを設定</string>
+	<string name="history_drawable_multiply_color">乗算色を設定</string>
+	<string name="history_drawable_screen_color">スクリーン色を設定</string>
 	<string name="history_deformer_part">パーツを設定</string>
 	<string name="history_deformer_base_angle">基準角度を設定</string>
 	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>

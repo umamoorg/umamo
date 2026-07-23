@@ -66,6 +66,12 @@ public class DeformUniforms {
  * @property Float   opacity      The pose-blended opacity, multiplied into alpha.
  * @property Boolean useMask      Multiply alpha by the mask coverage.
  * @property Boolean invertMask   Use 1 - coverage instead.
+ * @property Float   multiplyRed    Per-drawable multiply-color red   (identity 1), applied before premultiply.
+ * @property Float   multiplyGreen  Per-drawable multiply-color green (identity 1).
+ * @property Float   multiplyBlue   Per-drawable multiply-color blue  (identity 1).
+ * @property Float   screenRed      Per-drawable screen-color red   (identity 0).
+ * @property Float   screenGreen    Per-drawable screen-color green (identity 0).
+ * @property Float   screenBlue     Per-drawable screen-color blue  (identity 0).
  * @property Float   highlight    How far to tint toward the highlight color (0 = untinted).
  * @property Float   highlightRed   Highlight tint red.
  * @property Float   highlightGreen Highlight tint green.
@@ -80,6 +86,14 @@ public class FragmentUniforms {
 	var opacity: Float = 1f
 	var useMask: Boolean = false
 	var invertMask: Boolean = false
+
+	// The 5.3 per-art-mesh tint (Cs = Cs * multiply; Cs = Cs + screen - Cs*screen), identity by default.
+	var multiplyRed: Float = 1f
+	var multiplyGreen: Float = 1f
+	var multiplyBlue: Float = 1f
+	var screenRed: Float = 0f
+	var screenGreen: Float = 0f
+	var screenBlue: Float = 0f
 	var highlight: Float = 0f
 	var highlightRed: Float = 0f
 	var highlightGreen: Float = 0f

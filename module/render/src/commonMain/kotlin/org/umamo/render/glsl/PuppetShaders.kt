@@ -96,6 +96,8 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		uniform sampler2D maskTexture;
 		uniform vec2 viewportSize;
 		uniform int invertMask;
+		uniform vec3 multiplyColor;
+		uniform vec3 screenColor;
 		uniform float highlight;
 		uniform vec3 highlightColor;
 		void main() {
@@ -105,7 +107,9 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 				float coverage = texture(maskTexture, gl_FragCoord.xy / viewportSize).a;
 				alpha *= (invertMask == 1) ? (1.0 - coverage) : coverage;
 			}
-			vec3 rgb = mix(base.rgb, highlightColor, highlight);
+			vec3 tinted = base.rgb * multiplyColor;
+			tinted = tinted + screenColor - tinted * screenColor;
+			vec3 rgb = mix(tinted, highlightColor, highlight);
 			fragColor = vec4(rgb * alpha, alpha);
 		}
 		""".trimIndent()

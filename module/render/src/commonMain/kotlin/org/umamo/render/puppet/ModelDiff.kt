@@ -33,13 +33,17 @@ internal sealed interface DrawableAction {
 
 	/**
 	 * The residency is reusable. Non-null [positions] / [uvs] are in-place re-uploads for the tiers that
-	 * changed; both null means nothing to do at all - the common case for an untouched drawable.
+	 * changed; both null means no BUFFER work - but the resident's static composite state (blend/alpha
+	 * mode, culling, mask ids, invert) is still re-stamped from [drawable], since a composite-only edit
+	 * changes no mesh array and so lands here, not in Reupload.
 	 */
 	class Keep(
-		override val drawableId: DrawableId,
+		val drawable: Drawable,
 		val positions: FloatArray?,
 		val uvs: FloatArray?,
-	) : DrawableAction
+	) : DrawableAction {
+		override val drawableId: DrawableId get() = drawable.id
+	}
 }
 
 /**
@@ -120,14 +124,14 @@ internal fun diffModel(
 			continue
 		}
 		if (newMesh == null || oldMesh == null) {
-			actions.add(DrawableAction.Keep(drawable.id, positions = null, uvs = null))
+			actions.add(DrawableAction.Keep(drawable, positions = null, uvs = null))
 			continue
 		}
 		val positions = newMesh.positions.takeIf { it !== oldMesh.positions }
 		// The length guard is defensive: the copy-on-write UV edit never changes the array length, so a
 		// mismatch can only mean a mesh the backend padded at upload - leave that resident's UVs alone.
 		val uvs = newMesh.uvs.takeIf { it !== oldMesh.uvs && it.size == residentVertexCount * 2 }
-		actions.add(DrawableAction.Keep(drawable.id, positions, uvs))
+		actions.add(DrawableAction.Keep(drawable, positions, uvs))
 	}
 	// Anything resident with no action is gone from the model. A Reupload is an ACTION, so a drawable that
 	// is freed and then fails to re-upload cannot also appear here - which is what stops the free happening

@@ -35,17 +35,21 @@ class KeyformGrid<TForm>(
 
 /**
  * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh base
- * (`p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU vertex-shader morph), plus the two animatable
+ * (`p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU vertex-shader morph), plus the animatable
  * scalars that ride on the same keyform. [drawOrder] (Cubism default 500) is the primary render-order
- * sort key; [opacity] (0..1) scales the drawable's alpha. Both blend with the same multilinear weights
- * as the positions.
+ * sort key; [opacity] (0..1) scales the drawable's alpha; [multiplyColor] / [screenColor] tint the
+ * drawable per the Cubism 5.3 per-art-mesh color (CMO3 `CArtMeshForm.multiplyColor`/`screenColor`, MOC3
+ * color-table rows 108-113), left at their identities on pre-5.3 sources. All blend with the same
+ * multilinear weights as the positions.
  */
 class MeshForm(
 	val positionDeltas: FloatArray,
-	// Defaults are Cubism's own (drawOrder 500, fully opaque); the CMO3 importer always sets them
-	// explicitly, so the defaults only serve geometry-only unit tests that don't exercise these.
+	// Defaults are Cubism's own (drawOrder 500, fully opaque, identity tints); the CMO3 importer always
+	// sets them explicitly, so the defaults only serve geometry-only unit tests that don't exercise these.
 	val drawOrder: Float = 500f,
 	val opacity: Float = 1f,
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 )
 
 /**

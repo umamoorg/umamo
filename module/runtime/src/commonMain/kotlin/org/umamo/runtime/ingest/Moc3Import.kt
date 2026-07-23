@@ -588,6 +588,10 @@ object Moc3Import {
 										positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
 										drawOrder = keyform.drawOrder,
 										opacity = keyform.opacity,
+										// MOC3 color-table rows 108-113: the 5.3 per-art-mesh multiply/screen color; null
+										// (pre-5.3, no color table) falls back to the tint identities.
+										multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+										screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
 									)
 								}
 							},

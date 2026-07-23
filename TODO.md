@@ -22,6 +22,9 @@
 ## World Origin
 I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 
+## Performance
+Investigate if dragging an area gutter is performance bound or if something stupid is happening like thousands of updates per second.
+
 ## MOC3 Lowering
 LimeBirb has some non-byte exactness to investigate.
 
@@ -30,8 +33,8 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 
 * The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
 * DONE: Composite `multiplyColor` / `screenColor` are editable via a color picker (the swatch on the shared `HexColorField` now opens an RGB-slider popover, so the Settings color rows get it too), and `maskedBy` has an add/remove relation-list editor (`PartMaskEditor`) in the Isolated-part composite block. Both write through the existing `setPartComposite` (one undo step). Remaining: editing a `Drawable`'s own `maskedBy` (the read-only mask count in Relations) once a drawable mask-list edit op exists; per-key (keyform-grid) tint-color editing (this edits the static fallback only).
-* UMA serialization of the latent composite (the format work this unblocks).
 * Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
+* UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
 	* Follow-ups still open:
 		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.

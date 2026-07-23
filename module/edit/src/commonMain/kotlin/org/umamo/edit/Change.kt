@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterGroupId
@@ -298,6 +299,30 @@ sealed interface DrawableChange : Change {
 	data class SetMaskedBy(val id: DrawableId, val maskedBy: List<DrawableId>) : DrawableChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.drawable.maskedBy"
+	}
+
+	/**
+	 * Sets a drawable's 5.3 per-art-mesh multiply color uniformly across its keyform grid.  The color is a
+	 * keyformed channel, so this writes every cell (see PuppetModelEdits.withDrawableMultiplyColor for the
+	 * flatten / re-upload follow-up).
+	 *
+	 * @property DrawableId id The drawable whose multiply color changed.
+	 * @property ColorRgb color The new multiply color.
+	 */
+	data class SetMultiplyColor(val id: DrawableId, val color: ColorRgb) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.multiplyColor"
+	}
+
+	/**
+	 * Sets a drawable's 5.3 per-art-mesh screen color uniformly across its keyform grid.
+	 *
+	 * @property DrawableId id The drawable whose screen color changed.
+	 * @property ColorRgb color The new screen color.
+	 */
+	data class SetScreenColor(val id: DrawableId, val color: ColorRgb) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.screenColor"
 	}
 }
 

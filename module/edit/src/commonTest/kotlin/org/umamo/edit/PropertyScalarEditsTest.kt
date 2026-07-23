@@ -2,15 +2,25 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.KeyformAxis
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -147,6 +157,78 @@ class PropertyScalarEditsTest {
 		// No-op composite / mode edits return the same instance.
 		assertSame(withComposite, withComposite.withPartComposite(partId, custom))
 		assertSame(base, base.withPartGroupMode(partId, PartGroupMode.PassThrough))
+	}
+
+	/**
+	 * The part in the org tree (so deriveRenderRoot emits a RenderGroup for it), Isolated by default so
+	 * its composite resolves onto the group, with a freshly derived renderRoot.
+	 */
+	private fun modelWithPartInTree(groupMode: PartGroupMode = PartGroupMode.Isolated): PuppetModel =
+		model()
+			.copy(parts = listOf(part.copy(groupMode = groupMode)), rootChildren = listOf(OrgChild.Part(partId)))
+			.withDerivedRenderRoot()
+
+	/** The derived render group owning [id], or null when the part is not a render-tree boundary. */
+	private fun groupFor(model: PuppetModel, id: PartId): RenderGroup? {
+		fun search(node: RenderNode): RenderGroup? {
+			if (node !is RenderGroup) {
+				return null
+			}
+			if (node.partId == id) {
+				return node
+			}
+			for (child in node.children) {
+				search(child)?.let { return it }
+			}
+			return null
+		}
+		return search(model.renderRoot)
+	}
+
+	@Test
+	fun partCompositeEditsReDeriveTheRenderRoot() {
+		// The renderer reads composite/draw-order/group structure from renderRoot, not from parts, so a
+		// composite property edit that does not re-derive renderRoot never reaches the viewport (the bug
+		// this pins): resolvedComposite bakes the composite into RenderGroup.composite at derive time.
+		val base = modelWithPartInTree()
+		assertEquals(PartComposite(), groupFor(base, partId)?.composite)
+
+		val edited = base.withPartComposite(partId, PartComposite(opacity = 0.5f))
+		assertEquals(0.5f, groupFor(edited, partId)?.composite?.opacity)
+
+		// A part draw-order edit updates the group's sort key in the render tree.
+		assertEquals(700, groupFor(base.withPartDrawOrder(partId, 700), partId)?.drawOrder)
+
+		// PassThrough removes the group boundary entirely (its children hoist into the enclosing group).
+		assertEquals(null, groupFor(base.withPartGroupMode(partId, PartGroupMode.PassThrough), partId))
+	}
+
+	@Test
+	fun drawableColorBuildersRewriteEveryKeyformCellAndNoOp() {
+		// The 5.3 per-art-mesh color is keyformed, so the builder retints every cell uniformly.
+		val keyed =
+			drawable.copy(
+				keyforms =
+					KeyformGrid(
+						listOf(KeyformAxis(ParameterId("A"), floatArrayOf(0f, 1f))),
+						listOf(
+							KeyformCell(intArrayOf(0), MeshForm(FloatArray(6))),
+							KeyformCell(intArrayOf(1), MeshForm(FloatArray(6))),
+						),
+					),
+			)
+		val base = model().copy(drawables = listOf(keyed))
+		val red = ColorRgb(1f, 0f, 0f)
+
+		val tinted = base.withDrawableMultiplyColor(drawableId, red)
+		assertTrue(tinted.drawables.first().keyforms!!.cells.all { it.form.multiplyColor == red }, "every cell recolored")
+
+		// Already-uniform, missing id, and unkeyed drawable are all no-ops (same instance).
+		assertSame(tinted, tinted.withDrawableMultiplyColor(drawableId, red))
+		assertSame(base, base.withDrawableMultiplyColor(drawableId, ColorRgb.MultiplyIdentity))
+		assertSame(base, base.withDrawableScreenColor(DrawableId("missing"), ColorRgb.ScreenIdentity))
+		val unkeyed = model() // the shared `drawable` has keyforms = null
+		assertSame(unkeyed, unkeyed.withDrawableMultiplyColor(drawableId, red))
 	}
 
 	@Test

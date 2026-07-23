@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
@@ -56,6 +57,26 @@ fun EditorSession.setDrawableCulling(id: DrawableId, culling: Boolean) {
  */
 fun EditorSession.setDrawableInvertMask(id: DrawableId, invert: Boolean) {
 	mutate(DrawableChange.SetInvertMask(id, invert)) { model -> model.withDrawableInvertMask(id, invert) }
+}
+
+/**
+ * Sets drawable [id]'s 5.3 multiply color (uniformly across its keyform grid) as one undo step.
+ *
+ * @param DrawableId id The drawable to retint.
+ * @param ColorRgb color The new multiply color.
+ */
+fun EditorSession.setDrawableMultiplyColor(id: DrawableId, color: ColorRgb) {
+	mutate(DrawableChange.SetMultiplyColor(id, color)) { model -> model.withDrawableMultiplyColor(id, color) }
+}
+
+/**
+ * Sets drawable [id]'s 5.3 screen color (uniformly across its keyform grid) as one undo step.
+ *
+ * @param DrawableId id The drawable to retint.
+ * @param ColorRgb color The new screen color.
+ */
+fun EditorSession.setDrawableScreenColor(id: DrawableId, color: ColorRgb) {
+	mutate(DrawableChange.SetScreenColor(id, color)) { model -> model.withDrawableScreenColor(id, color) }
 }
 
 /**

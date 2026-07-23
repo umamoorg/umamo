@@ -337,6 +337,38 @@ class CompositeRendererTest {
 	}
 
 	@Test
+	fun drawableMultiplyColorTintsThePlainDraw() {
+		val window = createHeadlessGl()
+		assumeGlContext("[composite-renderer]", window)
+		try {
+			// A flat drawable over black with NO composite - just its own 5.3 per-art-mesh multiply color
+			// (1,0,0) on the plain draw path.  Over black the pixel is the layer's premultiplied color, so
+			// the tint must keep red and zero green/blue.
+			val positions = fullQuad
+			val tinted =
+				Drawable(
+					id = DrawableId("top"),
+					name = "top",
+					parentDeformerId = null,
+					blendMode = BlendMode.Normal,
+					maskedBy = emptyList(),
+					mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+					keyforms =
+						KeyformGrid(
+							listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+							listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = 1f, multiplyColor = ColorRgb(1f, 0f, 0f)))),
+						),
+				)
+			val plainPixel = renderCenterPixel(model(listOf(drawable("top")), rootChildren = listOf(OrgChild.Drawable(DrawableId("top")))))
+			val tintedPixel = renderCenterPixel(model(listOf(tinted), rootChildren = listOf(OrgChild.Drawable(DrawableId("top")))))
+			assertPixelClose(intArrayOf(plainPixel[0], 0, 0, tintedPixel[3]), tintedPixel, "drawable multiply (1,0,0) keeps red, zeroes green/blue")
+		} finally {
+			GLFW.glfwDestroyWindow(window)
+			GLFW.glfwTerminate()
+		}
+	}
+
+	@Test
 	fun backFaceCullingHidesOnlyFlippedTriangles() {
 		val window = createHeadlessGl()
 		assumeGlContext("[composite-renderer]", window)

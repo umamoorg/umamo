@@ -2,14 +2,19 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
  * Pure transforms over the immutable PuppetModel: each returns a new model that structurally shares
@@ -288,6 +293,62 @@ fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetMod
 }
 
 /**
+ * Rewrites every keyform cell of drawable [id] through [recolor], sharing every other entity.  A no-op id
+ * (missing / unkeyed drawable) or a grid where [alreadyApplied] holds for every cell returns the same
+ * instance.  The 5.3 per-art-mesh color is a KEYFORMED channel, so the properties panel edits it uniformly
+ * across the whole grid - a single picker sets "the drawable's color".
+ *
+ * FOLLOW-UP: this replaces the keyform grid, so [org.umamo.render.puppet.diffModel] re-uploads the
+ * drawable's geometry (colors are not in the delta texture, so the upload is wasted work), and setting the
+ * whole grid flattens any authored per-keyform color animation.  A color-only reconcile tier and a
+ * keyform-aware color editor are follow-up work for when the keyform/parameter editing workflow lands.
+ */
+private fun PuppetModel.withRecoloredDrawable(
+	id: DrawableId,
+	alreadyApplied: (MeshForm) -> Boolean,
+	recolor: (MeshForm) -> MeshForm,
+): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0) {
+		return this
+	}
+	val grid = drawables[index].keyforms ?: return this
+	if (grid.cells.all { cell -> alreadyApplied(cell.form) }) {
+		return this
+	}
+	val recolored = KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, recolor(cell.form)) })
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(keyforms = recolored)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with drawable [id]'s 5.3 multiply color set to [color] on every keyform cell.
+ * A no-op (missing / unkeyed drawable, or the color already uniform) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retint.
+ * @param ColorRgb color The new multiply color.
+ * @return PuppetModel The model with that drawable's multiply color updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableMultiplyColor(id: DrawableId, color: ColorRgb): PuppetModel =
+	withRecoloredDrawable(id, { form -> form.multiplyColor == color }) { form ->
+		MeshForm(form.positionDeltas, form.drawOrder, form.opacity, color, form.screenColor)
+	}
+
+/**
+ * Returns a copy of [this] with drawable [id]'s 5.3 screen color set to [color] on every keyform cell.
+ * A no-op (missing / unkeyed drawable, or the color already uniform) returns the same instance.
+ *
+ * @param DrawableId id The drawable to retint.
+ * @param ColorRgb color The new screen color.
+ * @return PuppetModel The model with that drawable's screen color updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableScreenColor(id: DrawableId, color: ColorRgb): PuppetModel =
+	withRecoloredDrawable(id, { form -> form.screenColor == color }) { form ->
+		MeshForm(form.positionDeltas, form.drawOrder, form.opacity, form.multiplyColor, color)
+	}
+
+/**
  * Returns a copy of [this] with the drawable [id]'s mask-inversion flag set to [invert], sharing every
  * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
  *
@@ -446,7 +507,9 @@ fun PuppetModel.withPartDrawOrder(id: PartId, order: Int): PuppetModel {
 	}
 	val updated = parts.toMutableList()
 	updated[index] = updated[index].copy(drawOrder = order)
-	return copy(parts = updated)
+	// Draw order feeds the derived render tree (a part's group slot), so re-derive renderRoot or the
+	// renderer keeps sorting by the pre-edit order - the same reason every structural edit re-derives.
+	return copy(parts = updated).withDerivedRenderRoot()
 }
 
 /**
@@ -465,7 +528,9 @@ fun PuppetModel.withPartGroupMode(id: PartId, mode: PartGroupMode): PuppetModel 
 	}
 	val updated = parts.toMutableList()
 	updated[index] = updated[index].copy(groupMode = mode)
-	return copy(parts = updated)
+	// Group mode decides whether the part is a render-tree boundary (Isolated/Grouped) or transparent
+	// (PassThrough hoists its children), so re-derive renderRoot or the plan keeps the old structure.
+	return copy(parts = updated).withDerivedRenderRoot()
 }
 
 /**
@@ -485,7 +550,9 @@ fun PuppetModel.withPartComposite(id: PartId, composite: PartComposite): PuppetM
 	}
 	val updated = parts.toMutableList()
 	updated[index] = updated[index].copy(composite = composite)
-	return copy(parts = updated)
+	// resolvedComposite bakes the composite into RenderGroup.composite at derive time (masked-by parts
+	// expanded), so re-derive renderRoot or the renderer re-reads the pre-edit blend/opacity/colors/masks.
+	return copy(parts = updated).withDerivedRenderRoot()
 }
 
 /**

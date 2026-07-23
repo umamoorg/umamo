@@ -205,13 +205,16 @@ class PuppetRenderer(
 		val cpTexture: GpuTexture?,
 		val atlasTexture: GpuTexture?,
 		val color: FloatArray,
-		val blendMode: BlendMode,
+		// Static composite state: var because a composite-only edit is a ModelDiff Keep (no buffer work),
+		// which re-stamps these on the reused resident in updateModel - or the viewport would keep drawing
+		// with the blend/mask/culling captured at upload until an unrelated topology change forced a reupload.
+		var blendMode: BlendMode,
 		/** The drawable's 5.3 alpha blend; non-Over routes the draw through the composite path. */
-		val alphaBlendMode: AlphaBlendMode,
+		var alphaBlendMode: AlphaBlendMode,
 		/** The Cubism Culling toggle: true culls back faces, false (default) is double-sided. */
-		val culling: Boolean,
-		val maskIds: List<DrawableId>,
-		val invertMask: Boolean,
+		var culling: Boolean,
+		var maskIds: List<DrawableId>,
+		var invertMask: Boolean,
 		val isGlueMesh: Boolean,
 		val glueBaseOffset: Int,
 		/** The static blend-shape column assignment in [deltaTexture] (empty when binding-free). */
@@ -229,6 +232,10 @@ class PuppetRenderer(
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
 		var opacity: Float = 1f
+
+		// The pose-blended 5.3 per-art-mesh tint, stamped each pose like opacity (identity when untinted).
+		var multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity
+		var screenColor: ColorRgb = ColorRgb.ScreenIdentity
 		var visible: Boolean = false
 
 		/** The pose's resolved blend-shape state; null for binding-free drawables. */
@@ -450,6 +457,8 @@ class PuppetRenderer(
 				device.updateFloatTexture(gpuDrawable.cpTexture, parentWorld.cols + 1, parentWorld.rows + 1, parentWorld.cp)
 			}
 			gpuDrawable.opacity = posedDrawable.opacity
+			gpuDrawable.multiplyColor = posedDrawable.multiplyColor
+			gpuDrawable.screenColor = posedDrawable.screenColor
 			gpuDrawable.blend = posedDrawable.blend
 			gpuDrawable.visible = true
 		}
@@ -713,6 +722,14 @@ class PuppetRenderer(
 				is DrawableAction.Keep -> {
 					val existing = gpuById[action.drawableId] ?: continue
 					reconciled[action.drawableId] = existing
+					// Re-stamp the static composite state from the edited drawable: a blend/alpha/culling/
+					// mask/invert edit does no buffer work, so it lands here, and these were otherwise
+					// frozen at upload (isExtendedBlend is a getter, so draw routing updates for free).
+					existing.blendMode = action.drawable.blendMode
+					existing.alphaBlendMode = action.drawable.alphaBlendMode
+					existing.culling = action.drawable.culling
+					existing.maskIds = action.drawable.maskedBy
+					existing.invertMask = action.drawable.invertMask
 					action.positions?.let {
 						device.updateMeshPositions(existing.mesh, it)
 						// Re-point the bounds walk at the new rest positions too, or the composite scissor
@@ -1424,6 +1441,14 @@ class PuppetRenderer(
 		fragment.opacity = opacity
 		fragment.useMask = masked
 		fragment.invertMask = masked && gpuDrawable.invertMask
+		// The 5.3 per-art-mesh tint, applied on the plain draw path (a masked source uses only alpha
+		// coverage, so its tint is harmless; a composited singleton draws its layer here at its own tint).
+		fragment.multiplyRed = gpuDrawable.multiplyColor.red
+		fragment.multiplyGreen = gpuDrawable.multiplyColor.green
+		fragment.multiplyBlue = gpuDrawable.multiplyColor.blue
+		fragment.screenRed = gpuDrawable.screenColor.red
+		fragment.screenGreen = gpuDrawable.screenColor.green
+		fragment.screenBlue = gpuDrawable.screenColor.blue
 		fragment.highlight = highlight
 		val tint = if (isActive) activeHighlightColor else highlightColor
 		fragment.highlightRed = tint[0]
@@ -1585,6 +1610,12 @@ private fun FragmentUniforms.reset() {
 	opacity = 1f
 	useMask = false
 	invertMask = false
+	multiplyRed = 1f
+	multiplyGreen = 1f
+	multiplyBlue = 1f
+	screenRed = 0f
+	screenGreen = 0f
+	screenBlue = 0f
 	highlight = 0f
 	highlightRed = 0f
 	highlightGreen = 0f
