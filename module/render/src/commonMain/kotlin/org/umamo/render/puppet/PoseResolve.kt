@@ -28,10 +28,8 @@ internal class PosedDrawable(
 	val corners: List<WeightedCell>,
 	val parentWorld: DeformerWorld?,
 	val opacity: Float,
-	/** The pose-blended 5.3 per-art-mesh tint; identity for pre-5.3 / untinted drawables. */
 	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
-	/** The drawable's resolved blend-shape state at this pose; null when it has no bindings. */
 	val blend: MeshBlendState? = null,
 )
 

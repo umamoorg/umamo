@@ -38,7 +38,7 @@ class KeyformGrid<TForm>(
  * (`p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU vertex-shader morph), plus the animatable
  * scalars that ride on the same keyform. [drawOrder] (Cubism default 500) is the primary render-order
  * sort key; [opacity] (0..1) scales the drawable's alpha; [multiplyColor] / [screenColor] tint the
- * drawable per the Cubism 5.3 per-art-mesh color (CMO3 `CArtMeshForm.multiplyColor`/`screenColor`, MOC3
+ * drawable per the Cubism per-art-mesh color (CMO3 `CArtMeshForm.multiplyColor`/`screenColor`, MOC3
  * color-table rows 108-113), left at their identities on pre-5.3 sources. All blend with the same
  * multilinear weights as the positions.
  */

@@ -232,8 +232,6 @@ class PuppetRenderer(
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
 		var opacity: Float = 1f
-
-		// The pose-blended 5.3 per-art-mesh tint, stamped each pose like opacity (identity when untinted).
 		var multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity
 		var screenColor: ColorRgb = ColorRgb.ScreenIdentity
 		var visible: Boolean = false
@@ -1441,8 +1439,6 @@ class PuppetRenderer(
 		fragment.opacity = opacity
 		fragment.useMask = masked
 		fragment.invertMask = masked && gpuDrawable.invertMask
-		// The 5.3 per-art-mesh tint, applied on the plain draw path (a masked source uses only alpha
-		// coverage, so its tint is harmless; a composited singleton draws its layer here at its own tint).
 		fragment.multiplyRed = gpuDrawable.multiplyColor.red
 		fragment.multiplyGreen = gpuDrawable.multiplyColor.green
 		fragment.multiplyBlue = gpuDrawable.multiplyColor.blue

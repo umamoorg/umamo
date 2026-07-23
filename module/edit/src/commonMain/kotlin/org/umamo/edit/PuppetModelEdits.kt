@@ -295,7 +295,7 @@ fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetMod
 /**
  * Rewrites every keyform cell of drawable [id] through [recolor], sharing every other entity.  A no-op id
  * (missing / unkeyed drawable) or a grid where [alreadyApplied] holds for every cell returns the same
- * instance.  The 5.3 per-art-mesh color is a KEYFORMED channel, so the properties panel edits it uniformly
+ * instance.  The per-art-mesh color is a KEYFORMED channel, so the properties panel edits it uniformly
  * across the whole grid - a single picker sets "the drawable's color".
  *
  * FOLLOW-UP: this replaces the keyform grid, so [org.umamo.render.puppet.diffModel] re-uploads the

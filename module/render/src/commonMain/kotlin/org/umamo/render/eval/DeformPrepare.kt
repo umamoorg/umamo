@@ -28,10 +28,8 @@ internal class DrawableDeformInputs(
 	val isParented: Boolean,
 	val drawOrder: Float,
 	val opacity: Float,
-	/** The pose-blended 5.3 per-art-mesh tint; identity for pre-5.3 / untinted drawables. */
 	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
-	/** The drawable's resolved blend-shape state at this pose; null when it has no bindings. */
 	val blend: MeshBlendState? = null,
 )
 
@@ -114,8 +112,6 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				isParented = parentDeformerId != null,
 				drawOrder = drawOrder,
 				opacity = opacity,
-				// Blend-shape color deltas are not modeled (dropped at ingest), so the tint is the keyform
-				// grid blend alone - identity when the source carried no 5.3 per-art-mesh color.
 				multiplyColor = scalars?.multiplyColor ?: ColorRgb.MultiplyIdentity,
 				screenColor = scalars?.screenColor ?: ColorRgb.ScreenIdentity,
 				blend = blend,

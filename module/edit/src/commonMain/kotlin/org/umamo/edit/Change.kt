@@ -302,7 +302,7 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Sets a drawable's 5.3 per-art-mesh multiply color uniformly across its keyform grid.  The color is a
+	 * Sets a drawable's per-art-mesh multiply color uniformly across its keyform grid.  The color is a
 	 * keyformed channel, so this writes every cell (see PuppetModelEdits.withDrawableMultiplyColor for the
 	 * flatten / re-upload follow-up).
 	 *
@@ -315,7 +315,7 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Sets a drawable's 5.3 per-art-mesh screen color uniformly across its keyform grid.
+	 * Sets a drawable's per-art-mesh screen color uniformly across its keyform grid.
 	 *
 	 * @property DrawableId id The drawable whose screen color changed.
 	 * @property ColorRgb color The new screen color.

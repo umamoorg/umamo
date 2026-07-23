@@ -86,8 +86,6 @@ public class FragmentUniforms {
 	var opacity: Float = 1f
 	var useMask: Boolean = false
 	var invertMask: Boolean = false
-
-	// The 5.3 per-art-mesh tint (Cs = Cs * multiply; Cs = Cs + screen - Cs*screen), identity by default.
 	var multiplyRed: Float = 1f
 	var multiplyGreen: Float = 1f
 	var multiplyBlue: Float = 1f

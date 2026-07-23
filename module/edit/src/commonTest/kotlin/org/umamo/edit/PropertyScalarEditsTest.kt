@@ -205,7 +205,7 @@ class PropertyScalarEditsTest {
 
 	@Test
 	fun drawableColorBuildersRewriteEveryKeyformCellAndNoOp() {
-		// The 5.3 per-art-mesh color is keyformed, so the builder retints every cell uniformly.
+		// The per-art-mesh color is keyformed, so the builder retints every cell uniformly.
 		val keyed =
 			drawable.copy(
 				keyforms =
