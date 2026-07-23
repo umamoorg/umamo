@@ -31,16 +31,16 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTransforms
-import org.umamo.edit.RotationAngleTracker
+import org.umamo.edit.ModalCaptureSource
+import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.TransformPivotGroup
-import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.TransformPivots
+import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.edit.selectableOf
 import org.umamo.edit.withMeshPositions
@@ -58,33 +58,19 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The captured state of an in-flight Object-mode transform, frozen when the operator latches so the whole
- * drag is atomic across N drawables.  Each list is parallel to [drawableIds]: [mappings] projects a
- * drawable's local rest shape to world (and back), [displayed] is the local posed shape the movement is
- * measured from, [world] is that shape in world space (what [applyOperator] transforms), [base] is the rest
- * mesh the movement lands on, and [indices] is every vertex of that drawable (object transforms move the
- * whole mesh).  [groups] carries each drawable's pivot groups per the active
- * [org.umamo.edit.TransformPivotMode] (a shared anchor, or the drawable's own centroid for Individual
- * Origins); [anchor] is the world-space point the pointer math measures factors and angles against.
+ * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
+ * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
+ * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the base mesh.
+ * The geometry is held in a map keyed on the drawable id, looked up by [org.umamo.edit.ModalCaptureEntry],
+ * so nothing stays index-aligned with the capture's entry list.
  *
- * [operatorKind] freezes here with everything else so the commit names the operation that actually ran.
- * Re-reading the latch at confirm time would need a fallback for the null case, and a wrong fallback
- * mislabels the history step silently; the latch cannot change under a live capture anyway, since a new
- * ActiveOperator value re-runs the capture effect.
+ * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
+ * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each captured drawable's world geometry.
  */
-private class ObjectGestureCapture(
-	val geometries: List<DrawableWorldGeometry>,
-	val indices: List<Set<Int>>,
-	val groups: List<List<TransformPivotGroup>>,
-	val anchor: Pair<Float, Float>,
-	val operatorKind: MeshOperatorKind,
-) {
-	/** The captured drawables, in capture order (the key every per-index list is aligned to). */
-	val drawableIds: List<DrawableId> get() = geometries.map { geometry -> geometry.drawableId }
-
-	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
-	val rotationTracker = RotationAngleTracker()
-}
+private class ObjectGesture(
+	val transform: ModalTransformCapture,
+	val geometryById: Map<DrawableId, DrawableWorldGeometry>,
+)
 
 /**
  * The Object-mode gizmo overlay: the Object-mode counterpart to [EditGizmoOverlay], driving whole-drawable
@@ -111,9 +97,9 @@ private class ObjectGestureCapture(
  *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
  *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
  *
- * The transform math ([applyOperator], [MeshTransforms], [movementToBase]), the cursor-wrap scheme, and the
- * screen projection ([worldToScreen] / [screenToWorld]) are shared verbatim with the Edit gizmo; only the
- * capture (N drawables, each with its own space mapping) and the selection domain (whole drawables) differ.
+ * The transform math ([applyOperator], [MeshTransforms], the shared world->base round trip), the cursor-wrap
+ * scheme, and the screen projection ([worldToScreen] / [screenToWorld]) are shared verbatim with the Edit
+ * gizmo; only the capture's per-drawable geometry and the selection domain (whole drawables) differ.
  *
  * オブジェクトモードのギズモ重畳。描画メッシュ全体の選択（クリック・ボックス・サークル）と G / S / R
  * 変形を駆動する。編集モードのギズモのオブジェクト版で、モードで相互排他。
@@ -159,7 +145,6 @@ fun ObjectGizmoOverlay(
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 
-	var lastPointer by remember(areaId) { mutableStateOf(Offset.Zero) }
 	// idleBoxing marks a non-armed box drag (started from a plain primary press rather than Blender's B),
 	// whose sub-threshold release is a click pick; the rubber-band itself lives in the marquee controller.
 	var idleBoxing by remember(areaId) { mutableStateOf(false) }
@@ -167,18 +152,9 @@ fun ObjectGizmoOverlay(
 	// the whole drag, so one snapshot serves every move) and tested against the region each frame.
 	var cachedCentroids by remember(areaId) { mutableStateOf<Map<DrawableId, FloatArray>>(emptyMap()) }
 
-	// Object-transform gesture capture (frozen when the operator latches) and its live preview: the new base
-	// positions per drawable that the confirm commits, and that each move folds into the renderer's preview model.
-	var capture by remember(areaId) { mutableStateOf<ObjectGestureCapture?>(null) }
-	var preview by remember(areaId) { mutableStateOf<Map<DrawableId, FloatArray>?>(null) }
-	var gestureStart by remember(areaId) { mutableStateOf<Offset?>(null) }
-	var areaScreenOrigin by remember(areaId) { mutableStateOf<Offset?>(null) }
-	// The gesture's cursor-wrap bookkeeping: the accumulated wrap offset (the virtual pointer), the
-	// stale pre-warp-event guard, and the actual-landing fold rule (see CursorWrapState).
-	val cursorWrap = remember(areaId) { CursorWrapState() }
-
-	// The shared pointer-side driver of the modal gesture (stale discard, drive, wrap, buttons).
-	val modalController = remember(areaId) { ModalTransformController(cursorWrap) }
+	// The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
+	// pointer controller); the capture is the Object-mode gesture (shared transform capture + geometry map).
+	val gesture = remember(areaId) { ModalGestureState<ObjectGesture>() }
 
 	// The drawable ids a working selection currently paints, for the live GPU tint preview.
 	fun Selection.drawableIds(): Set<DrawableId> =
@@ -298,14 +274,25 @@ fun ObjectGizmoOverlay(
 		}
 	}
 
+	// The recomposition-gated tool-switch backstop the Edit and UV overlays already carry: an armed tool that
+	// is cleared or switched (box<->circle) resolves any in-flight marquee.  Keyed on the tool KIND (not the
+	// whole value) so a circle-brush resize does not re-fire and wipe the stroke mid-paint.  Object's body
+	// mirrors its own cancel collector above (marquee plus the idle box), since it - unlike Edit / UV - also
+	// carries an un-armed box drag; the pointer loop's own idle-box cancel and this one are order-independent.
+	LaunchedEffect(selectToolKind(ownedSelectTool)) {
+		marquee.cancel()
+		cancelIdleBox()
+	}
+
 	// Confirms the in-flight object transform: commit every drawable's new base positions as one undo step (a
 	// null / empty preview means no movement, so nothing commits), then clear the operator - its teardown
 	// re-syncs the renderer.
 	fun confirmObjectGesture() {
-		val committed = preview
-		val captured = capture
-		if (committed != null && captured != null && committed.isNotEmpty()) {
-			session.commitObjectPositions(MeshChange.TransformDrawables(captured.drawableIds, captured.operatorKind), committed)
+		val committed = gesture.preview
+		val gestureData = gesture.capture
+		if (committed != null && gestureData != null && committed.isNotEmpty()) {
+			val transform = gestureData.transform
+			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed)
 		}
 		session.clearObjectOperator()
 	}
@@ -315,30 +302,31 @@ fun ObjectGizmoOverlay(
 	// deformer-chain inverse, and pushes the folded model to the renderer.  False when the capture has
 	// not landed yet.
 	fun driveObjectPreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
-		val start = gestureStart ?: return false
-		val captured = capture ?: return false
+		val start = gesture.gestureStart ?: return false
+		val gestureData = gesture.capture ?: return false
+		val transform = gestureData.transform
 		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.
-		val frame = TransformGestureFrame(captured.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
-		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.geometries.size)
+		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 		var folded = session.model.value
-		for (drawableIndex in captured.geometries.indices) {
-			val geometry = captured.geometries[drawableIndex]
+		for (entry in transform.entries) {
+			val geometry = gestureData.geometryById.getValue(entry.drawableId)
 			val transformedWorld =
 				applyOperator(
 					operator,
-					geometry.world,
-					captured.groups[drawableIndex],
+					entry.positions,
+					entry.groups,
 					frame,
 					// Proportional editing is an Edit-mode feature: object mode moves whole
 					// drawables, so there are no unselected vertices to weight.
 					emptyMap(),
-					captured.rotationTracker,
+					transform.rotationTracker,
 				)
-			val newBase = geometry.worldToBase(transformedWorld, captured.indices[drawableIndex])
-			newBaseByDrawable[geometry.drawableId] = newBase
-			folded = folded.withMeshPositions(geometry.drawableId, newBase)
+			val newBase = geometry.worldToBase(transformedWorld, entry.coveredIndices)
+			newBaseByDrawable[entry.drawableId] = newBase
+			folded = folded.withMeshPositions(entry.drawableId, newBase)
 		}
-		preview = newBaseByDrawable
+		gesture.preview = newBaseByDrawable
 		service.setModel(folded)
 		return true
 	}
@@ -365,9 +353,9 @@ fun ObjectGizmoOverlay(
 		}
 
 	// Seed / tear down the transform capture as the operator latches / clears.  On latch, freeze each selected
-	// drawable's mapping, posed shapes, base mesh, and vertex set at the current object-mode pose, plus the one
-	// shared combined-centroid pivot.  On clear (confirm or cancel), re-sync the renderer to the committed model,
-	// discarding any throwaway preview the drive loop pushed.
+	// drawable's world geometry at the current object-mode pose and hand the shared builder its sources plus
+	// this area's active-element / cursor anchors.  On clear (confirm or cancel), re-sync the renderer to the
+	// committed model, discarding any throwaway preview the drive loop pushed.
 	LaunchedEffect(activeObjectOperator) {
 		val operator = activeObjectOperator?.takeIf { it.areaId == areaId }
 		if (operator != null) {
@@ -377,59 +365,43 @@ fun ObjectGizmoOverlay(
 			// A drawable with a hidden ancestor has no world mapping and captures as null - skip it rather than
 			// abort the whole gesture (the others still transform).
 			val geometries = eligibleIds.orEmpty().mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
-			val ids = geometries.map { geometry -> geometry.drawableId }
-			val worldList = geometries.map { geometry -> geometry.world }
-			val indicesList = geometries.map { geometry -> geometry.allIndices }
-			if (ids.isEmpty()) {
+			val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
+			// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
+			// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.
+			val sources =
+				geometries.map { geometry ->
+					ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
+				}
+			// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
+			// centroid and the 2D cursor.  The builder falls back to the combined median when either is null.
+			val activeAnchor =
+				(session.selection.value.active as? SelectionTarget.Drawable)?.id
+					?.let { activeId -> geometryById[activeId] }
+					?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
+			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldY }
+			val transform =
+				buildModalTransformCapture(
+					sources = sources,
+					pivotMode = session.pivotMode.value,
+					// Object mode's Individual Origins turns each whole drawable about its own centroid.
+					individualOriginScope = IndividualOriginScope.WholeMesh,
+					operatorKind = operator.kind,
+					activeAnchor = activeAnchor,
+					cursorAnchor = cursorAnchor,
+				)
+			if (transform == null) {
 				// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 				session.clearObjectOperator()
 			} else {
-				// The gesture anchor per the active pivot mode: the combined centroid (the default and the
-				// Individual Origins measuring center), the active drawable's own centroid, or the 2D cursor -
-				// the latter two falling back to the combined centroid when absent.
-				val combined = MeshTransforms.combinedCentroid(worldList)
-				val pivotMode = session.pivotMode.value
-				val anchor =
-					when (pivotMode) {
-						TransformPivotMode.MedianPoint, TransformPivotMode.IndividualOrigins -> combined
-						TransformPivotMode.ActiveElement -> {
-							val activeId = (session.selection.value.active as? SelectionTarget.Drawable)?.id
-							val activeIndex = activeId?.let { candidate -> ids.indexOf(candidate) } ?: -1
-							if (activeIndex >= 0) {
-								MeshTransforms.medianPivot(worldList[activeIndex], indicesList[activeIndex])
-							} else {
-								combined
-							}
-						}
-						TransformPivotMode.Cursor ->
-							session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldY } ?: combined
-					}
-				val groups =
-					ids.indices.map { drawableIndex ->
-						if (pivotMode == TransformPivotMode.IndividualOrigins) {
-							// Each drawable turns about its own centroid (the object-mode island).
-							val ownCentroid = MeshTransforms.medianPivot(worldList[drawableIndex], indicesList[drawableIndex])
-							TransformPivots.sharedGroup(indicesList[drawableIndex], ownCentroid.first, ownCentroid.second)
-						} else {
-							TransformPivots.sharedGroup(indicesList[drawableIndex], anchor.first, anchor.second)
-						}
-					}
-				capture = ObjectGestureCapture(geometries, indicesList, groups, anchor, operator.kind)
-				gestureStart = lastPointer
-				preview = null
-				cursorWrap.reset()
+				gesture.begin(ObjectGesture(transform, geometryById), gesture.lastPointer)
 			}
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the effect also runs its else
 			// branch at mount (and when another area's operator latches), and an unguarded setModel from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
-			if (capture != null) {
+			if (gesture.end()) {
 				service.setModel(session.model.value)
 			}
-			capture = null
-			preview = null
-			gestureStart = null
-			cursorWrap.reset()
 		}
 	}
 
@@ -458,7 +430,7 @@ fun ObjectGizmoOverlay(
 			modifier
 				.fillMaxSize()
 				.clipToBounds()
-				.onGloballyPositioned { coordinates -> areaScreenOrigin = coordinates.positionOnScreen() }
+				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
 				.then(
 					if (armed) {
 						Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
@@ -471,7 +443,7 @@ fun ObjectGizmoOverlay(
 						while (true) {
 							val event = awaitPointerEvent()
 							val change = event.changes.firstOrNull() ?: continue
-							lastPointer = change.position
+							gesture.lastPointer = change.position
 							val latchedOperator = session.activeObjectOperator.value
 							val latchedTool = session.activeSelectTool.value
 							// A gesture belongs to its initiating area: while another viewport's operator or tool is
@@ -500,7 +472,7 @@ fun ObjectGizmoOverlay(
 								// MODAL transform: the shared controller drives every captured drawable over the
 								// shared pivot and swallows every event (stale discard, virtual-pointer drive,
 								// cursor wrap, RMB-cancel / LMB-confirm).
-								lastPointer = modalController.handleEvent(event, change, modalTarget, activeCamera, size, areaScreenOrigin)
+								gesture.lastPointer = gesture.modalController.handleEvent(event, change, modalTarget, activeCamera, size, gesture.areaScreenOrigin)
 							} else if (tool is ActiveSelectTool.Circle) {
 								// CIRCLE SELECT: the shared controller paints drawables by centroid, previews the
 								// stroke through the GPU tint, and consumes every event; see
@@ -604,7 +576,7 @@ fun ObjectGizmoOverlay(
 			// the arming area draws them - the latch is session-global, every split viewport draws.
 			drawSelectToolAffordances(
 				tool = ownedSelectTool,
-				pointer = lastPointer,
+				pointer = gesture.lastPointer,
 				boxDragInFlight = marquee.boxStart != null,
 				viewport = fullSize,
 				style = overlayStyle,
@@ -614,13 +586,14 @@ fun ObjectGizmoOverlay(
 			// Modal transform HUD, shared chrome with the Edit gizmo (see drawModalTransformHud).
 			// Only the initiating area draws it: the capture exists solely in the overlay whose area
 			// the operator latch names, so its presence IS the ownership gate.
-			val captured = capture
+			val captured = gesture.capture
 			if (activeObjectOperator != null && captured != null) {
+				val anchor = captured.transform.anchor
 				drawModalTransformHud(
 					axisConstraint = axisConstraint,
-					pivotScreen = worldToScreen(captured.anchor.first, captured.anchor.second, camera, IntSize(widthPx, heightPx)),
-					virtualPointer = cursorWrap.virtualPointer(lastPointer),
-					realPointer = lastPointer,
+					pivotScreen = worldToScreen(anchor.first, anchor.second, camera, IntSize(widthPx, heightPx)),
+					virtualPointer = gesture.cursorWrap.virtualPointer(gesture.lastPointer),
+					realPointer = gesture.lastPointer,
 					viewport = fullSize,
 					lineColor = overlayColors.viewportMarquee,
 					pointerCursor = LocalUmamoCursors.nsewScroll,

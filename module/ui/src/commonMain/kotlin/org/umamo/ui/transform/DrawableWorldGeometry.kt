@@ -89,15 +89,15 @@ internal fun captureDrawableWorld(model: PuppetModel, pose: Pose, drawableId: Dr
  * written - no keyform cell is touched, and blend-shape deltas (relative to base) follow the edit. For a
  * grid-less drawable `before` equals base, so this degenerates to `newBase = after`.
  *
- * Exposed alongside [DrawableWorldGeometry.worldToBase] because the Edit-mode gizmo applies it to a
- * per-vertex capture that is not a whole-drawable one.
+ * The one caller is [DrawableWorldGeometry.worldToBase], which owns the second half of every whole-drawable
+ * write-back; the overlays and the Properties panel all reach it through that method rather than directly.
  *
  * @param FloatArray base The rest positions captured at gesture start.
  * @param FloatArray after The transformed displayed shape.
  * @param FloatArray before The displayed shape captured at gesture start.
  * @return FloatArray The new base positions (a fresh array).
  */
-internal fun movementToBase(base: FloatArray, after: FloatArray, before: FloatArray): FloatArray =
+private fun movementToBase(base: FloatArray, after: FloatArray, before: FloatArray): FloatArray =
 	FloatArray(base.size) { coordIndex ->
 		if (coordIndex < after.size && coordIndex < before.size) {
 			base[coordIndex] + after[coordIndex] - before[coordIndex]

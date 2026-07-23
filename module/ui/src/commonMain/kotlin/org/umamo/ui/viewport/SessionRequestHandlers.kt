@@ -22,7 +22,6 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.transform.captureDrawableWorld
-import org.umamo.ui.transform.movementToBase
 import kotlin.math.roundToInt
 
 /*
@@ -274,8 +273,7 @@ internal fun handleEditSnapRequest(
 						// The cursor moves were handled above; nothing else reaches here.
 						SnapKind.CursorToSelected, SnapKind.CursorToActive -> world
 					}
-				val transformedDisplayed = geometry.mapping.worldToLocalLinearized(transformedWorld, geometry.displayed, world, covered)
-				newPositionsByDrawable[geometry.drawableId] = movementToBase(geometry.mesh.positions, transformedDisplayed, geometry.displayed)
+				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, covered)
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
 			// A snap relocates geometry without scaling or turning it, so it files under the move label.
