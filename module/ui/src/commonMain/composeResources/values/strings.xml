@@ -399,7 +399,7 @@
 	<string name="properties_mask_add">Add Mask…</string>
 	<string name="properties_mask_remove">Remove Mask</string>
 	<string name="properties_relation_clear">Clear relation</string>
-	<string name="properties_relation_pick">Pick from the viewport or outliner</string>
+	<string name="properties_relation_pick">Pick from the viewport or outliner.</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- Blend modes (Cubism color blend list). -->

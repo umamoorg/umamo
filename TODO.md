@@ -42,9 +42,6 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 		* The viewport's object Scale / Rotate still commit `MeshChange.MoveDrawables`, so History labels them "Move Objects"; the Properties Size row has its own `ResizeDrawables` / "Resize Objects" label.  Route the gizmo through kind-specific labels in a later pass.
 		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
 
-* module/ui/src/commonMain/kotlin/org/umamo/ui/properties/DrawableWorldTransform.kt >
-	* module/edit/src/commonMain/kotlin/org/umamo/edit/DrawableWorldTransform.kt
-
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
