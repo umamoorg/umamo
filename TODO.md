@@ -33,12 +33,9 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 * UMA serialization of the latent composite (the format work this unblocks).
 * Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
 * Improvements
-	* Follow-ups from that work:
-		* The viewport's object Scale / Rotate still commit `MeshChange.MoveDrawables`, so History labels them "Move Objects"; the Properties Size row has its own `ResizeDrawables` / "Resize Objects" label.  Route the gizmo through kind-specific labels in a later pass.
+	* Follow-ups still open:
 		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-		* `EditGizmoOverlay`'s `EditMeshGeometry` still keeps its own parallel `displayedList`/`baseList` capture — it carries edit-mode selection state too, so folding it onto `DrawableWorldGeometry` is its own pass.
-		* `DrawableWorldTransform` sits in `:ui`, not `:edit`, because it needs `:render`'s evaluator and `:edit`/`:render` are siblings over `:runtime`.  Moving the evaluator (`DrawableSpaceMapping` + `DeformerCascade` + `DeformTransforms` + `KeyformGridEval`, ~1,270 lines) down to `:runtime/eval` beside `KeyformGridSampling.kt` would let it live in `:edit` with no new module edge — better layering, but it rewrites CLAUDE.md's ":render owns deformation eval (CPU)" claim and is its own project.
-	* Out of scope: EditGizmoOverlay's EditMeshGeometry carries edit-mode selection state as well, so folding it in is a follow-up, not part of this.
+		* Deferred — unify the modal gesture captures.  The index-aligned parallel-list capture is THREE-way, not two: `EditGestureCapture` (7 aligned lists), `UvGestureCapture` (5 + 2 mutable), `ObjectGestureCapture` (3), and `UvGestureCapture.applyProportional` is a near-verbatim copy of `EditGestureCapture`'s.  The shared shape is a per-mesh entry (positions, covered indices, triangles, pivot groups, proportional influence + moved set), which would live in `:edit` next to `TransformPivots` and the proportional-editing ops.  Folding `EditMeshGeometry` onto `DrawableWorldGeometry` alone is the least valuable slice, so do the whole thing or none of it.  Zero user-visible value against the two hottest interaction files (`EditGizmoOverlay` 990 lines, `UvGizmoOverlay` 751), hence deferred.
 
 * Single/multiple relation pickers.
 	* Improvements

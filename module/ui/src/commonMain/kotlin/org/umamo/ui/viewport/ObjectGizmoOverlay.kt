@@ -66,12 +66,18 @@ import kotlin.math.min
  * whole mesh).  [groups] carries each drawable's pivot groups per the active
  * [org.umamo.edit.TransformPivotMode] (a shared anchor, or the drawable's own centroid for Individual
  * Origins); [anchor] is the world-space point the pointer math measures factors and angles against.
+ *
+ * [operatorKind] freezes here with everything else so the commit names the operation that actually ran.
+ * Re-reading the latch at confirm time would need a fallback for the null case, and a wrong fallback
+ * mislabels the history step silently; the latch cannot change under a live capture anyway, since a new
+ * ActiveOperator value re-runs the capture effect.
  */
 private class ObjectGestureCapture(
 	val geometries: List<DrawableWorldGeometry>,
 	val indices: List<Set<Int>>,
 	val groups: List<List<TransformPivotGroup>>,
 	val anchor: Pair<Float, Float>,
+	val operatorKind: MeshOperatorKind,
 ) {
 	/** The captured drawables, in capture order (the key every per-index list is aligned to). */
 	val drawableIds: List<DrawableId> get() = geometries.map { geometry -> geometry.drawableId }
@@ -100,7 +106,7 @@ private class ObjectGestureCapture(
  *     (one undo step), previewed live through the GPU tint via [EditorSession.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
  *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
- *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.MoveDrawables]).
+ *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformDrawables]).
  *     A right-click or Escape cancels (the renderer re-syncs to the committed model); a primary click or Enter
  *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
  *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
@@ -299,7 +305,7 @@ fun ObjectGizmoOverlay(
 		val committed = preview
 		val captured = capture
 		if (committed != null && captured != null && committed.isNotEmpty()) {
-			session.commitObjectPositions(MeshChange.MoveDrawables(captured.drawableIds), committed)
+			session.commitObjectPositions(MeshChange.TransformDrawables(captured.drawableIds, captured.operatorKind), committed)
 		}
 		session.clearObjectOperator()
 	}
@@ -338,7 +344,7 @@ fun ObjectGizmoOverlay(
 	}
 
 	// The modal gesture's commit-side seam: the Object overlay drives whole-drawable previews, confirms
-	// as one MoveDrawables undo step, and cancels through the session's operator clear.  The
+	// as one TransformDrawables undo step, and cancels through the session's operator clear.  The
 	// pointer-side mechanics live in ModalTransformController; no scroll behavior in Object mode.
 	val modalTarget =
 		object : ModalTransformTarget {
@@ -408,7 +414,7 @@ fun ObjectGizmoOverlay(
 							TransformPivots.sharedGroup(indicesList[drawableIndex], anchor.first, anchor.second)
 						}
 					}
-				capture = ObjectGestureCapture(geometries, indicesList, groups, anchor)
+				capture = ObjectGestureCapture(geometries, indicesList, groups, anchor, operator.kind)
 				gestureStart = lastPointer
 				preview = null
 				cursorWrap.reset()

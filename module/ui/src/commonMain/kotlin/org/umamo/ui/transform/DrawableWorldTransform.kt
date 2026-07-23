@@ -3,6 +3,7 @@ package org.umamo.ui.transform
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshBounds
 import org.umamo.edit.MeshChange
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
 import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.meshBounds
@@ -116,7 +117,7 @@ private fun EditorSession.commitWorldTransform(
  * @param Float centerY The world y (panel Z) its bounds center should land on.
  */
 internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerY: Float) {
-	commitWorldTransform(id, MeshChange.MoveDrawables(listOf(id))) { world ->
+	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
 		movedToBoundsCenter(world, centerX, centerY)
 	}
 }
@@ -131,7 +132,8 @@ internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float
  * @param Float height The target world y extent.
  */
 internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float) {
-	commitWorldTransform(id, MeshChange.ResizeDrawables(listOf(id))) { world ->
+	// Scale, though no modal operator ran: the kind names what the transform WAS, not how it was driven.
+	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Scale)) { world ->
 		resizedAboutBoundsCenter(world, width, height)
 	}
 }

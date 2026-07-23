@@ -116,7 +116,7 @@ class UvEditsTest {
 		assertFalse(session.dirty.value, "selection setup never dirties the document")
 
 		session.commitMeshUvs(
-			MeshChange.MoveUvs(mapOf(DrawableId("a") to listOf(0, 1, 2), DrawableId("b") to listOf(0, 1, 2))),
+			MeshChange.TransformUvs(mapOf(DrawableId("a") to listOf(0, 1, 2), DrawableId("b") to listOf(0, 1, 2)), MeshOperatorKind.Grab),
 			mapOf(
 				DrawableId("a") to floatArrayOf(0.3f, 0.2f, 0.5f, 0.2f, 0.7f, 0.5f),
 				DrawableId("b") to floatArrayOf(0.2f, 0.7f, 0.4f, 0.7f, 0.2f, 0.8f),
@@ -124,7 +124,7 @@ class UvEditsTest {
 		)
 
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size, "both drawables commit as one step")
-		assertEquals("change.mesh.moveUvs", session.historyView.value.steps.last().labelKey)
+		assertEquals("change.uv.move", session.historyView.value.steps.last().labelKey)
 		assertTrue(session.dirty.value, "a UV edit is document content")
 		assertNotSame(originalUvsA, session.model.value.drawables[0].mesh!!.uvs)
 
@@ -141,10 +141,10 @@ class UvEditsTest {
 		val modelBefore = session.model.value
 		val stepsBefore = session.historyView.value.steps.size
 
-		session.commitMeshUvs(MeshChange.MoveUvs(emptyMap()), emptyMap())
-		session.commitMeshUvs(MeshChange.MoveUvs(mapOf(DrawableId("a") to emptyList())), mapOf(DrawableId("a") to FloatArray(4)))
+		session.commitMeshUvs(MeshChange.TransformUvs(emptyMap(), MeshOperatorKind.Grab), emptyMap())
+		session.commitMeshUvs(MeshChange.TransformUvs(mapOf(DrawableId("a") to emptyList()), MeshOperatorKind.Grab), mapOf(DrawableId("a") to FloatArray(4)))
 		session.commitMeshUvs(
-			MeshChange.MoveUvs(mapOf(DrawableId("a") to emptyList())),
+			MeshChange.TransformUvs(mapOf(DrawableId("a") to emptyList()), MeshOperatorKind.Grab),
 			mapOf(DrawableId("a") to modelBefore.drawables[0].mesh!!.uvs),
 		)
 
@@ -261,7 +261,7 @@ class UvEditsTest {
 		val mirroredU = session.model.value.drawables[0].mesh!!.uvs
 		assertUvsEqual(listOf(0.6f, 0.1f, 0.4f, 0.1f, 0.2f, 0.4f), mirroredU, "u reflects about 0.4, v is untouched")
 		assertSame(originalPositions, session.model.value.drawables[0].mesh!!.positions, "rest geometry is untouched by reference")
-		assertEquals("change.mesh.mirrorUvs", session.historyView.value.steps.last().labelKey)
+		assertEquals("change.uv.mirror", session.historyView.value.steps.last().labelKey)
 
 		// Covered v values are now 0.1 / 0.1 / 0.4, so the median pivot's v is 0.2.
 		session.mirrorSelectedUvs(mirrorU = false)

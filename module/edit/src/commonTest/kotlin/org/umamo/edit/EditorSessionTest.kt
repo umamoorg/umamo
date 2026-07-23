@@ -1007,7 +1007,7 @@ class EditorSessionTest {
 		val originalArray = initial.drawables.first().mesh!!.positions
 		val moved = floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f)
 
-		session.commitMeshPositions(MeshChange.MoveVertices(mapOf(DrawableId("d") to listOf(0))), mapOf(DrawableId("d") to moved))
+		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0)), MeshOperatorKind.Grab), mapOf(DrawableId("d") to moved))
 		assertTrue(session.dirty.value, "a mesh edit dirties the document")
 		assertTrue(session.canUndo.value)
 		assertEquals(9f, session.model.value.drawables.first().mesh!!.positions[0])
@@ -1038,7 +1038,7 @@ class EditorSessionTest {
 		assertFalse(session.dirty.value, "a vertex-selection gesture does not dirty the document")
 
 		session.commitMeshPositions(
-			MeshChange.MoveVertices(mapOf(DrawableId("d") to listOf(0, 1))),
+			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0, 1)), MeshOperatorKind.Grab),
 			mapOf(DrawableId("d") to floatArrayOf(9f, 9f, 9f, 0f, 0f, 2f)),
 		)
 		session.setMeshSelection(MeshSelectionOps.replace(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(2)))
@@ -1306,7 +1306,7 @@ class EditorSessionTest {
 		// One commit moving vertices on both meshes is a single undo step restoring both.
 		val stepsBefore = session.historyView.value.steps.size
 		session.commitMeshPositions(
-			MeshChange.MoveVertices(mapOf(DrawableId("d") to listOf(0), DrawableId("d2") to listOf(1))),
+			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0), DrawableId("d2") to listOf(1)), MeshOperatorKind.Grab),
 			mapOf(
 				DrawableId("d") to floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f),
 				DrawableId("d2") to floatArrayOf(0f, 0f, 7f, 7f, 0f, 2f),

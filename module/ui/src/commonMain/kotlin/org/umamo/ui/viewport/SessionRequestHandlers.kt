@@ -278,7 +278,11 @@ internal fun handleEditSnapRequest(
 				newPositionsByDrawable[geometry.drawableId] = movementToBase(geometry.mesh.positions, transformedDisplayed, geometry.displayed)
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
-			session.commitMeshPositions(MeshChange.MoveVertices(movedIndicesByDrawable), newPositionsByDrawable)
+			// A snap relocates geometry without scaling or turning it, so it files under the move label.
+			session.commitMeshPositions(
+				MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
+				newPositionsByDrawable,
+			)
 		}
 	}
 }
@@ -351,7 +355,10 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, allIndices)
 			}
 			if (newPositionsByDrawable.isNotEmpty()) {
-				session.commitObjectPositions(MeshChange.MoveDrawables(newPositionsByDrawable.keys.toList()), newPositionsByDrawable)
+				session.commitObjectPositions(
+					MeshChange.TransformDrawables(newPositionsByDrawable.keys.toList(), MeshOperatorKind.Grab),
+					newPositionsByDrawable,
+				)
 			}
 		}
 	}
@@ -360,7 +367,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 /**
  * Executes the UV editor's Shift+S snaps over the shown atlas page's texture coordinates: the cursor
  * moves read the UV cursor or the covered median and write the UV cursor directly, and the selection
- * moves transform the covered vertices in the texel display space and commit ONE MoveUvs step (the
+ * moves transform the covered vertices in the texel display space and commit ONE TransformUvs step (the
  * same commit path a finished modal UV gesture uses).  All math is identity display space - no deformer
  * inverse, no movement transfer - since UVs live in one flat space; only the covered vertices of the
  * meshes on the shown page participate (the overlay only shows one page at a time, exactly as the modal
@@ -498,7 +505,7 @@ internal fun handleUvSnapRequest(
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
 			if (newUvsByDrawable.isNotEmpty()) {
-				session.commitMeshUvs(MeshChange.MoveUvs(movedIndicesByDrawable), newUvsByDrawable)
+				session.commitMeshUvs(MeshChange.TransformUvs(movedIndicesByDrawable, MeshOperatorKind.Grab), newUvsByDrawable)
 			}
 		}
 	}

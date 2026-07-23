@@ -115,6 +115,11 @@ private class FrameMeshGeometry(
  * set of vertices the gesture moves (covered plus influenced).  They are the capture's only mutable
  * fields (with [rotationTracker]'s accumulation) because a mid-gesture radius scroll re-derives them -
  * always from the frozen originals - while everything else stays fixed for the drag.
+ *
+ * [operatorKind] freezes here too so the commit names the operation that actually ran.  Re-reading the
+ * latch at confirm time would need a fallback for the null case, and a wrong fallback mislabels the
+ * history step silently; the latch cannot change under a live capture anyway, since a new ActiveOperator
+ * value re-runs the capture effect.
  */
 private class EditGestureCapture(
 	val drawableIds: List<DrawableId>,
@@ -126,6 +131,7 @@ private class EditGestureCapture(
 	val triangleIndices: List<IntArray>,
 	val groups: List<List<TransformPivotGroup>>,
 	val anchor: Pair<Float, Float>,
+	val operatorKind: MeshOperatorKind,
 ) {
 	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
 	val rotationTracker = RotationAngleTracker()
@@ -422,7 +428,10 @@ fun EditGizmoOverlay(
 				vertexIndicesByDrawable[capturedId] = captured.movedIndices[meshIndex].toList()
 			}
 			if (newPositionsByDrawable.isNotEmpty()) {
-				session.commitMeshPositions(MeshChange.MoveVertices(vertexIndicesByDrawable), newPositionsByDrawable)
+				session.commitMeshPositions(
+					MeshChange.TransformVertices(vertexIndicesByDrawable, captured.operatorKind),
+					newPositionsByDrawable,
+				)
 			}
 		}
 		session.clearMeshOperator()
@@ -742,6 +751,7 @@ fun EditGizmoOverlay(
 						triangleIndices = capturedIds.indices.map { meshIndex -> geometryList[meshIndex].mesh.indices },
 						groups = groups,
 						anchor = anchor,
+						operatorKind = operator.kind,
 					).also { fresh ->
 						// Proportional editing weights the unselected vertices near the selection; Vertex
 						// Slide is positions-only single-vertex math, so it never takes weights - and a

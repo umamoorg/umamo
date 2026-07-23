@@ -19,8 +19,6 @@ import org.umamo.runtime.model.PuppetModel
  *
  * Lives in :ui rather than :edit because the mapping comes from :render's evaluator, and :edit and :render
  * are siblings over :runtime - :edit cannot see it.  See the plan's Context for why that layering stands.
- *
- * 描画オブジェクトの 3 つの空間（base / 表示ローカル / ワールド）と、その往復変換。
  */
 
 /**
