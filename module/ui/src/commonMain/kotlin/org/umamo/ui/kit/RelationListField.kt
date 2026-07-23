@@ -30,7 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.button.IconButton
@@ -71,6 +70,9 @@ private val RELATION_GRIP_HEIGHT = 10.dp
  * @param List entries The currently bound entities, in display order.
  * @param List candidates The entities the add field offers (the caller excludes those already bound).
  * @param Function label The display name of an entity (also what the add field's search matches).
+ * @param Function keyOf The entity's STABLE identity, used to key its row.  Not the label: a display name
+ *   comes from the source art and is not unique (a PSD routinely holds several "Layer 1"), so keying on it
+ *   would let two rows share one key and reuse each other's per-row state.
  * @param Function icon The type glyph of an entity.
  * @param Function onAdd Binds an entity.
  * @param Function onRemove Unbinds an entity.
@@ -80,12 +82,14 @@ private val RELATION_GRIP_HEIGHT = 10.dp
  * @param String addPlaceholder The muted text shown in the empty add field.
  * @param String emptyLabel The muted text shown when nothing is bound.
  * @param String removeDescription The accessible label of a row's remove button.
+ * @param String pickDescription The accessible label of the add field's eyedropper.
  */
 @Composable
 fun <T> RelationListField(
 	entries: List<T>,
 	candidates: List<T>,
 	label: (T) -> String,
+	keyOf: (T) -> Any,
 	icon: (T) -> UmamoIcon,
 	onAdd: (T) -> Unit,
 	onRemove: (T) -> Unit,
@@ -95,6 +99,7 @@ fun <T> RelationListField(
 	addPlaceholder: String = "",
 	emptyLabel: String = "",
 	removeDescription: String = "",
+	pickDescription: String = "",
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -122,6 +127,7 @@ fun <T> RelationListField(
 			onPick = onPick,
 			picking = picking,
 			placeholder = addPlaceholder,
+			pickDescription = pickDescription,
 		)
 		Box(
 			modifier =
@@ -143,7 +149,7 @@ fun <T> RelationListField(
 					)
 				} else {
 					for (entry in entries) {
-						key(label(entry)) {
+						key(keyOf(entry)) {
 							RelationBoundRow(
 								label = label(entry),
 								icon = icon(entry),
@@ -208,6 +214,3 @@ private fun RelationBoundRow(label: String, icon: UmamoIcon, removeDescription: 
 		)
 	}
 }
-
-/** The height a relation list opens at, exposed so a caller can reason about its default footprint. */
-val relationListDefaultHeight: Dp get() = RELATION_LIST_DEFAULT_HEIGHT

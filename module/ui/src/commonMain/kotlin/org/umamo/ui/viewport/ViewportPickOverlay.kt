@@ -3,6 +3,7 @@ package org.umamo.ui.viewport
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -35,8 +36,6 @@ import org.umamo.ui.workspace.PickKind
  * eyedropper cursor itself is drawn at the SHELL level, not here, so it is visible the instant a pick is
  * armed no matter which panel the pointer happens to be over.
  *
- * リレーション選択用の重畳。武装中のみビューポート全面を覆い、次のクリックを対象の取得に変える。
- *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for the hit test).
  * @param Modifier modifier The layout modifier.
@@ -46,19 +45,31 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 	val picker = LocalRelationPick.current
 	val request = picker.request
 	val puppet = LocalPuppet.current
-	val resolvableHere = request != null && (PickKind.Drawable in request.accepts || PickKind.Part in request.accepts)
-	if (request == null || puppet == null || !resolvableHere) {
+	if (request == null || puppet == null) {
 		return
 	}
+	// Whether a click HERE can bind anything.  A deformer-only pick cannot - the hit test is drawable-only -
+	// but the overlay still mounts, because the alternative is worse: with no overlay the click falls through
+	// to the object gizmo, changes the selection, and swaps the arming field out from under the live pick.
+	// Same rule the outliner follows via PickClickOutcome.Swallowed - while ANY pick is armed, the viewport
+	// must not select.
+	val resolvableHere = PickKind.Drawable in request.accepts || PickKind.Part in request.accepts
+
+	// Built once per model, not per pointer event: a Part pick calls this on every Move, and partByDrawable
+	// walks the whole org tree allocating a fresh map.
+	val partOfDrawable = remember(puppet) { puppet.partByDrawable() }
 
 	// Resolves the entity a click at this position would bind, or null for a miss.  The selectability filter
 	// the Object gizmo applies is deliberately skipped - an eyedropper may bind an unselectable object.
 	fun targetAt(x: Float, y: Float): SelectionTarget? {
+		if (!resolvableHere) {
+			return null
+		}
 		val hit = service.pickAt(areaId, x, y) ?: return null
 		return if (PickKind.Drawable in request.accepts) {
 			SelectionTarget.Drawable(hit)
 		} else {
-			puppet.partByDrawable()[hit]?.let { partId -> SelectionTarget.Part(partId) }
+			partOfDrawable[hit]?.let { partId -> SelectionTarget.Part(partId) }
 		}
 	}
 
@@ -91,8 +102,9 @@ fun ViewportPickOverlay(areaId: String, service: PuppetViewportService, modifier
 							if (!event.buttons.isPrimaryPressed) {
 								continue
 							}
-							// Consume every primary press, hit or miss: the gizmo beneath must never see it, or a
-							// missed pick would clear the selection.  A miss leaves the pick armed to try again.
+							// Consume every primary press, hit or miss - and also when nothing here is resolvable at
+							// all: the gizmo beneath must never see it, or a missed (or unresolvable) pick would
+							// change the selection.  A miss leaves the pick armed to try again.
 							change.consume()
 							targetAt(change.position.x, change.position.y)?.let { target -> picker.resolve(target) }
 						}

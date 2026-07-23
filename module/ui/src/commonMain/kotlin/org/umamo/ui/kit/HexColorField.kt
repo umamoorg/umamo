@@ -102,13 +102,20 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 						.clip(shapes.small)
 						.background(swatchColor)
 						.border(1.dp, colors.controlBorder, shapes.small)
-						.clickable { pickerOpen = !pickerOpen },
+						// Opens only.  It must NOT toggle: an outside-click dismiss fires first and closes the
+						// popover, and this click would then immediately reopen it, so the swatch could never
+						// be used to close.  Closing is the popup's own job (click-away or Escape).
+						.clickable { pickerOpen = true },
 			)
 			if (pickerOpen) {
 				Popup(
 					popupPositionProvider = BelowAnchorPositionProvider,
 					onDismissRequest = { pickerOpen = false },
-					properties = PopupProperties(focusable = true),
+					// NOT focusable: a focusable popup pulls focus off the shell root, and nothing restores it
+					// on dismiss - every keyboard shortcut stays dead until Tab traversal reclaims it (the
+					// hazard IconButton.suppressFocus exists to avoid).  The sliders are pointer-driven, so the
+					// popover needs no focus of its own; dismissal still works via the outside-click handler.
+					properties = PopupProperties(focusable = false),
 				) {
 					// The popover edits the persisted color; a slider commit round-trips through onValueChange
 					// (canonical hex), which re-seeds the swatch and the text field.

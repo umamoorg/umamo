@@ -218,11 +218,11 @@
 	<string name="outliner_menu_delete_hierarchy">Delete Hierarchy</string>
 
 	<!-- Inspector model summary (a basic read-only view until per-entity selection lands). -->
-	<string name="inspector_parts">Parts: %1$d</string>
-	<string name="inspector_drawables">Drawables: %1$d</string>
-	<string name="inspector_parameters">Parameters: %1$d</string>
-	<string name="inspector_deformers">Deformers: %1$d</string>
-	<string name="inspector_glues">Glues: %1$d</string>
+	<string name="status_parts">Parts: %1$d</string>
+	<string name="status_drawables">Drawables: %1$d</string>
+	<string name="status_parameters">Parameters: %1$d</string>
+	<string name="status_deformers">Deformers: %1$d</string>
+	<string name="status_glues">Glues: %1$d</string>
 
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
 	<string name="status_bind_palette">Command Palette</string>
@@ -347,11 +347,11 @@
 	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
 	<string name="properties_no_mesh">No mesh</string>
 	<string name="properties_warp_grid">Grid: %1$d × %2$d</string>
-	<string name="inspector_multi_selected">%1$d selected</string>
+	<string name="status_multi_selected">%1$d selected</string>
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
-	  icon strip), the section headings, and the read-only sample fields not already covered by inspector_*.
+	  icon strip), the section headings, and the read-only sample fields not already covered by the status bar strings.
 	-->
 	<string name="properties_no_matches">No matching properties.</string>
 	<string name="properties_tab_document">Document</string>
@@ -398,6 +398,8 @@
 	<string name="properties_field_masked_by">Masked By</string>
 	<string name="properties_mask_add">Add Mask…</string>
 	<string name="properties_mask_remove">Remove Mask</string>
+	<string name="properties_relation_clear">Clear relation</string>
+	<string name="properties_relation_pick">Pick from the viewport or outliner</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- Blend modes (Cubism color blend list). -->

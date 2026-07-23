@@ -194,11 +194,11 @@
 	<string name="outliner_menu_delete">削除</string>
 	<string name="outliner_menu_delete_hierarchy">階層を削除</string>
 
-	<string name="inspector_parts">パーツ: %1$d</string>
-	<string name="inspector_drawables">描画オブジェクト: %1$d</string>
-	<string name="inspector_parameters">パラメータ: %1$d</string>
-	<string name="inspector_deformers">デフォーマ: %1$d</string>
-	<string name="inspector_glues">グルー: %1$d</string>
+	<string name="status_parts">パーツ: %1$d</string>
+	<string name="status_drawables">描画オブジェクト: %1$d</string>
+	<string name="status_parameters">パラメータ: %1$d</string>
+	<string name="status_deformers">デフォーマ: %1$d</string>
+	<string name="status_glues">グルー: %1$d</string>
 
 	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
 	<string name="status_bind_palette">コマンドパレット</string>
@@ -312,7 +312,7 @@
 	<string name="properties_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
 	<string name="properties_no_mesh">メッシュなし</string>
 	<string name="properties_warp_grid">格子: %1$d × %2$d</string>
-	<string name="inspector_multi_selected">%1$d 個選択</string>
+	<string name="status_multi_selected">%1$d 個選択</string>
 
 	<!-- プロパティパネル（Blender 風のタブ式プロパティエディタ）。機械翻訳の下訳、翻訳者による確認待ち。 -->
 	<string name="properties_no_matches">一致するプロパティがありません</string>
@@ -358,6 +358,8 @@
 	<string name="properties_field_masked_by">マスク</string>
 	<string name="properties_mask_add">マスクを追加…</string>
 	<string name="properties_mask_remove">マスクを削除</string>
+	<string name="properties_relation_clear">リレーションをクリア</string>
+	<string name="properties_relation_pick">ビューポートまたはアウトライナから取得</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->

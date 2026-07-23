@@ -236,6 +236,14 @@ private fun NumberFieldCore(
 	// The live scrub value while a drag is in flight (null when idle); previews without committing per frame.
 	var dragValue by remember { mutableStateOf<Float?>(null) }
 
+	// Being disabled ENDS an in-flight edit rather than parking it: leaving `editing` set would re-open the
+	// type-in box - autoFocus and all - the moment the field became editable again, stealing focus for an
+	// edit the user abandoned long ago.  A scrub preview is dropped for the same reason.
+	if (!enabled && (editing || dragValue != null)) {
+		editing = false
+		dragValue = null
+	}
+
 	if (editing && enabled) {
 		NumberEntryField(
 			display = format(value),

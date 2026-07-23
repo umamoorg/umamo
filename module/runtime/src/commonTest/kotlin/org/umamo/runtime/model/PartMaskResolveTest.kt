@@ -100,6 +100,18 @@ class PartMaskResolveTest {
 	}
 
 	@Test
+	fun theRenderCompositeCarriesNoPartIdsAtAll() {
+		// PartComposite documents that the render tree sees the EXPANSION and never the part ids.  Leaving
+		// them beside the expansion would let any consumer that later honours them clip by the same drawables
+		// twice, so the resolved copy must clear the field, not merely add to maskedBy.
+		val authored = PartComposite(maskedByParts = listOf(maskPartId))
+		val rendered = renderedComposite(model(authored))
+
+		assertTrue(rendered?.maskedByParts?.isEmpty() == true, "the renderer must not receive part ids")
+		assertEquals(listOf(maskLeafId, maskNestedId), rendered?.maskedBy)
+	}
+
+	@Test
 	fun directAndPartReachedMasksMergeWithoutDuplicates() {
 		// maskLeaf is masked directly AND sits under the masking part: it must appear once.
 		val authored = PartComposite(maskedBy = listOf(maskLeafId), maskedByParts = listOf(maskPartId))

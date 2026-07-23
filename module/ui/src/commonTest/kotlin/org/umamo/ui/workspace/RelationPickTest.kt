@@ -7,6 +7,7 @@ import org.umamo.runtime.model.PartId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -127,5 +128,28 @@ class RelationPickTest {
 		assertNull(controller.hoveredTarget)
 		assertFalse(fired)
 		assertFalse(controller.resolve(drawable))
+	}
+
+	/**
+	 * cancelFor is what the arming field's teardown calls, so it MUST be scoped: an armed pick parks a
+	 * callback and a full-window hidden cursor in shell state, and a blanket cancel from an unrelated field
+	 * disposing would silently kill a pick the user is still in the middle of.
+	 */
+	@Test
+	fun cancelForOnlyCancelsThePickItsOwnerArmed() {
+		val controller = RelationPickController()
+		controller.arm(setOf(PickKind.Drawable), owner = "field.a") {}
+
+		// Another field going away must not touch this pick.
+		controller.cancelFor("field.b")
+		assertNotNull(controller.request, "a different owner cannot cancel it")
+		assertTrue(controller.isPickingFor("field.a"))
+
+		// A null owner never matches, so an unowned teardown cannot cancel either.
+		controller.cancelFor(null)
+		assertNotNull(controller.request)
+
+		controller.cancelFor("field.a")
+		assertNull(controller.request, "the arming field's teardown does cancel it")
 	}
 }

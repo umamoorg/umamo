@@ -161,14 +161,19 @@ fun PuppetModel.deformerSelfAndDescendants(id: DeformerId): Set<DeformerId> {
  * through it, and an exporter to a format that cannot express part masks MUST use it too, so the two can
  * never disagree about the clipping the user sees.
  *
+ * Takes the part-subtree index rather than building it: both callers resolve MANY composites in one pass,
+ * and [drawablesByPartSubtree] walks the whole part tree, so building it per composite would make a model
+ * with K part-masked composites over N parts cost O(K*N) on every render-root derive.  Pass
+ * `drawablesByPartSubtree()` computed once for the batch.
+ *
  * @param PartComposite composite The authored composite.
+ * @param Map subtrees Each part's descendant drawables, from [drawablesByPartSubtree], built once per batch.
  * @return List<DrawableId> The effective clip masks, in order.
  */
-fun PuppetModel.flattenedMasks(composite: PartComposite): List<DrawableId> {
+fun flattenedMasks(composite: PartComposite, subtrees: Map<PartId, List<DrawableId>>): List<DrawableId> {
 	if (composite.maskedByParts.isEmpty()) {
 		return composite.maskedBy
 	}
-	val subtrees = drawablesByPartSubtree()
 	val expanded = composite.maskedByParts.flatMap { maskPartId -> subtrees[maskPartId].orEmpty() }
 	return (composite.maskedBy + expanded).distinct()
 }
@@ -190,13 +195,17 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 	if (parts.none { part -> part.composite.maskedByParts.isNotEmpty() }) {
 		return this
 	}
+	// One index for the whole batch (see flattenedMasks).
+	val subtrees = drawablesByPartSubtree()
 	val flattened =
 		parts.map { part ->
 			val composite = part.composite
 			if (composite.maskedByParts.isEmpty()) {
 				part
 			} else {
-				part.copy(composite = composite.copy(maskedBy = flattenedMasks(composite), maskedByParts = emptyList()))
+				part.copy(
+					composite = composite.copy(maskedBy = flattenedMasks(composite, subtrees), maskedByParts = emptyList()),
+				)
 			}
 		}
 	return copy(parts = flattened).withDerivedRenderRoot()

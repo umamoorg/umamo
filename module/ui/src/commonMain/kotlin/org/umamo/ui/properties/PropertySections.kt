@@ -76,6 +76,7 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.workspace.LocalRelationPick
 import org.umamo.ui.workspace.PickKind
+import org.umamo.ui.workspace.pickingFor
 
 /*
  * The property sections.  Each is a stable, top-level [PropertySection] singleton so its id is the catalog
@@ -99,6 +100,15 @@ private val UNBOUNDED_RANGE = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY
 
 /** A half-open float range (min set, no max): clamps below and draws no fill (needs both bounds). */
 private val POSITIVE_RANGE = 1f..Float.POSITIVE_INFINITY
+
+/**
+ * The clamp for a drawable's world extent.  Deliberately NOT [POSITIVE_RANGE]: a canvas is measured in
+ * whole pixels so a floor of 1 is meaningful there, but a drawable extent is in world units and can
+ * legitimately be a fraction - clamping it to 1 would silently double a typed 0.5.  The floor is the
+ * smallest value the row's one-decimal display can actually show, which keeps the number in the field
+ * honest while still refusing the zero (collapse) and negative (mirror) cases.
+ */
+private val DRAWABLE_EXTENT_RANGE = 0.1f..Float.POSITIVE_INFINITY
 
 /**
  * Space the Size rows reserve at their right edge for the aspect lock that overlays it: the 20dp icon
@@ -188,6 +198,18 @@ private sealed interface MaskEntry {
 }
 
 /**
+ * A mask entry's stable row identity.  The wrapping entry is rebuilt every recomposition, and the display
+ * name is source-art data that repeats, so the underlying id is the only thing that identifies a row.
+ *
+ * @return Any The entry's stable key.
+ */
+private fun MaskEntry.key(): Any =
+	when (this) {
+		is MaskEntry.OfDrawable -> id
+		is MaskEntry.OfPart -> id
+	}
+
+/**
  * The type glyph for a mask entry, so drawable and part masks read apart in the list.
  *
  * @return UmamoIcon The entry's type icon.
@@ -231,7 +253,16 @@ private fun PartMaskEditor(part: Part, composite: PartComposite, context: Proper
 	val session = context.session
 	val relationPick = LocalRelationPick.current
 	val owner = "part.maskedBy:${part.id.raw}"
-	val apply: (PartComposite) -> Unit = { updated -> session?.setPartComposite(part.id, updated) }
+	// Every write re-reads the part's CURRENT composite rather than the one captured in this composition.
+	// An armed eyedropper resolves LONG after it was armed and the panel stays editable in between, so
+	// closing over `composite` would silently revert any opacity / colour edit made while the pick was in
+	// flight - one undo step that quietly undoes two others.
+	val mutateComposite: (PartComposite.() -> PartComposite) -> Unit = { change ->
+		val live = session?.model?.value?.parts?.firstOrNull { it.id == part.id }?.activeComposite
+		if (live != null) {
+			session.setPartComposite(part.id, live.change())
+		}
+	}
 
 	val entries =
 		buildList {
@@ -260,8 +291,10 @@ private fun PartMaskEditor(part: Part, composite: PartComposite, context: Proper
 		}
 	val addEntry: (MaskEntry) -> Unit = { entry ->
 		when (entry) {
-			is MaskEntry.OfDrawable -> apply(composite.copy(maskedBy = (composite.maskedBy + entry.id).distinct()))
-			is MaskEntry.OfPart -> apply(composite.copy(maskedByParts = (composite.maskedByParts + entry.id).distinct()))
+			is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = (maskedBy + entry.id).distinct()) }
+			// A part masking itself would clip the very layer it composites; the candidate list excludes it,
+			// and the eyedropper has to refuse it too or the outliner becomes a way around the guard.
+			is MaskEntry.OfPart -> if (entry.id != part.id) mutateComposite { copy(maskedByParts = (maskedByParts + entry.id).distinct()) }
 		}
 	}
 
@@ -270,12 +303,13 @@ private fun PartMaskEditor(part: Part, composite: PartComposite, context: Proper
 			entries = entries,
 			candidates = candidates,
 			label = { entry -> entry.name },
+			keyOf = { entry -> entry.key() },
 			icon = { entry -> entry.glyph() },
 			onAdd = addEntry,
 			onRemove = { entry ->
 				when (entry) {
-					is MaskEntry.OfDrawable -> apply(composite.copy(maskedBy = composite.maskedBy - entry.id))
-					is MaskEntry.OfPart -> apply(composite.copy(maskedByParts = composite.maskedByParts - entry.id))
+					is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = maskedBy - entry.id) }
+					is MaskEntry.OfPart -> mutateComposite { copy(maskedByParts = maskedByParts - entry.id) }
 				}
 			},
 			modifier = Modifier.fillMaxWidth(),
@@ -288,9 +322,10 @@ private fun PartMaskEditor(part: Part, composite: PartComposite, context: Proper
 					}
 				}
 			},
-			picking = relationPick.isPickingFor(owner),
+			picking = relationPick.pickingFor(owner),
 			addPlaceholder = stringResource(Res.string.properties_mask_add),
 			removeDescription = stringResource(Res.string.properties_mask_remove),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
 		)
 	}
 }
@@ -310,8 +345,13 @@ private fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
 	val owner = "drawable.maskedBy:${drawable.id.raw}"
 	val entries = drawable.maskedBy.mapNotNull { maskId -> context.puppet.drawables.firstOrNull { it.id == maskId } }
 	val candidates = maskCandidates(context.puppet.drawables, drawable.maskedBy).filterNot { it.id == drawable.id }
+	// Live read for the same reason as PartMaskEditor's mutateComposite: an armed pick resolves later, and
+	// the captured list would revert any mask added in the meantime.
 	val addMask: (DrawableId) -> Unit = { maskId ->
-		session?.setDrawableMaskedBy(drawable.id, (drawable.maskedBy + maskId).distinct())
+		val live = session?.model?.value?.drawables?.firstOrNull { it.id == drawable.id }?.maskedBy
+		if (live != null) {
+			session.setDrawableMaskedBy(drawable.id, (live + maskId).distinct())
+		}
 	}
 
 	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
@@ -319,6 +359,7 @@ private fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
 			entries = entries,
 			candidates = candidates,
 			label = { masker -> masker.name.ifBlank { masker.id.raw } },
+			keyOf = { masker -> masker.id },
 			icon = { LocalUmamoIcons.mesh },
 			onAdd = { masker -> addMask(masker.id) },
 			onRemove = { masker -> session?.setDrawableMaskedBy(drawable.id, drawable.maskedBy - masker.id) },
@@ -332,9 +373,10 @@ private fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
 					}
 				}
 			},
-			picking = relationPick.isPickingFor(owner),
+			picking = relationPick.pickingFor(owner),
 			addPlaceholder = stringResource(Res.string.properties_mask_add),
 			removeDescription = stringResource(Res.string.properties_mask_remove),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
 		)
 	}
 }
@@ -515,7 +557,14 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 	val session = context.session
 	// Collected, not read: the pose changes without the model changing, and the disabled state tracks it.
 	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
-	val transform = drawableWorldTransform(context.puppet, pose, drawableId) ?: return
+	// Keyed, because this is a full posed evaluation of the drawable's deformer chain - not something to
+	// redo when an unrelated recomposition happens to sweep the panel.  (Both Transform rows still evaluate
+	// once each when the model or pose genuinely changes; sharing one evaluation across them would mean
+	// merging them into a single row and giving up per-row search.)
+	val transform =
+		remember(context.puppet, pose, drawableId) {
+			drawableWorldTransform(context.puppet, pose, drawableId)
+		} ?: return
 	val bounds = transform.bounds
 	val editable = session != null && transform.editable
 	if (showSize) {
@@ -607,7 +656,7 @@ private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onRes
 							value = bounds.width,
 							onValueChange = commitWidth,
 							modifier = Modifier.fillMaxWidth(),
-							range = POSITIVE_RANGE,
+							range = DRAWABLE_EXTENT_RANGE,
 							decimals = 1,
 							enabled = enabled,
 							stackPosition = position,
@@ -620,7 +669,7 @@ private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onRes
 							value = bounds.height,
 							onValueChange = commitHeight,
 							modifier = Modifier.fillMaxWidth(),
-							range = POSITIVE_RANGE,
+							range = DRAWABLE_EXTENT_RANGE,
 							decimals = 1,
 							enabled = enabled,
 							stackPosition = position,
@@ -716,7 +765,9 @@ private fun PartRelationRow(
 					(target as? SelectionTarget.Part)?.let { picked -> onSelect(picked.id) }
 				}
 			},
-			picking = relationPick.isPickingFor(owner),
+			picking = relationPick.pickingFor(owner),
+			clearDescription = stringResource(Res.string.properties_relation_clear),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
 		)
 	}
 }
@@ -757,7 +808,9 @@ private fun DeformerRelationRow(
 					(target as? SelectionTarget.Deformer)?.let { picked -> onSelect(picked.id) }
 				}
 			},
-			picking = relationPick.isPickingFor(owner),
+			picking = relationPick.pickingFor(owner),
+			clearDescription = stringResource(Res.string.properties_relation_clear),
+			pickDescription = stringResource(Res.string.properties_relation_pick),
 		)
 	}
 }

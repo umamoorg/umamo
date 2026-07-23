@@ -1,5 +1,7 @@
 package org.umamo.ui.workspace
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,8 +12,6 @@ import org.umamo.edit.SelectionTarget
  * The kinds of rig entity a relation pick will accept, mirroring [SelectionTarget]'s taxonomy without
  * carrying an id.  A request names the kinds its field can bind, so the viewport overlay and the outliner
  * both know which clicks to honour and which to ignore.
- *
- * リレーション選択が受け付ける要素種別。
  */
 enum class PickKind {
 	/** An organisational tree part. */
@@ -77,8 +77,6 @@ class RelationPickRequest(
  * Resolving a pick must NOT go through the real selection: [org.umamo.edit.EditorSession.setSelection]
  * records an undo step and would swap the Properties panel out from under the field that armed the pick.
  *
- * 進行中のリレーション選択を一つだけ預かるシェルのスロット。ビューポートとアウトライナの双方が解決できる。
- *
  * @property RelationPickRequest? request The in-flight pick, or null when none is armed.
  */
 class RelationPickController {
@@ -143,6 +141,18 @@ class RelationPickController {
 	}
 
 	/**
+	 * Cancels the in-flight pick only when [owner] armed it.  Scoped rather than blanket so a field tearing
+	 * down cannot cancel a pick some other field owns.
+	 *
+	 * @param Any? owner The field identity whose pick should be dropped.
+	 */
+	fun cancelFor(owner: Any?) {
+		if (isPickingFor(owner)) {
+			cancel()
+		}
+	}
+
+	/**
 	 * How a selecting surface (an outliner row) should treat a click on [target].  While ANY pick is armed
 	 * the surface must not change the selection - even for an entity the pick will not accept - because
 	 * selecting would swap the Properties panel, and the arming field with it, out from under the pick.
@@ -183,3 +193,24 @@ class RelationPickController {
  * eyedropper simply never resolves).
  */
 val LocalRelationPick = staticCompositionLocalOf { RelationPickController() }
+
+/**
+ * Whether a pick armed by [owner] is in flight, AND the guarantee that it is cancelled if that field
+ * leaves the composition.
+ *
+ * The two belong together: an armed pick parks a callback plus a full-window hidden cursor in shell state,
+ * so a field that arms one and then disappears - a Properties tab switch, a selection change, closing the
+ * document - would otherwise strand the editor with an invisible pointer, an eyedropper badge, and a
+ * callback closing over entities from a document that is gone.  Reading the flag through this function
+ * means a call site cannot take the cue without also taking the cleanup.
+ *
+ * @param Any? owner The field identity to test.
+ * @return Boolean True when a pick armed by that field is in flight.
+ */
+@Composable
+fun RelationPickController.pickingFor(owner: Any?): Boolean {
+	DisposableEffect(this, owner) {
+		onDispose { cancelFor(owner) }
+	}
+	return isPickingFor(owner)
+}

@@ -77,8 +77,6 @@ private val RELATION_DROPDOWN_MIN_WIDTH = 140.dp
  * Like [NumberField] and [HexColorField] it lends its cancel hook to [LocalInlineEditController] while
  * focused, so the shell's root key handler yields keystrokes to the field instead of firing shortcuts.
  *
- * Blender 風の単一リレーション選択欄。フォーカス時は検索欄、非フォーカス時は現在の関連付けを表示する。
- *
  * @param T The candidate entity type.
  * @param Object? selected The currently bound entity, or null when unbound.
  * @param List candidates Every entity that may be bound, in menu order.
@@ -89,6 +87,9 @@ private val RELATION_DROPDOWN_MIN_WIDTH = 140.dp
  * @param Function? onPick Arms an eyedropper pick, or null to omit the eyedropper.
  * @param Boolean picking Whether a pick armed by THIS field is in flight (lights the eyedropper).
  * @param String placeholder The muted text shown when nothing is bound.
+ * @param String clearDescription The accessible label of the clear button (NOT the placeholder - that
+ *   would announce the search prompt as the button's name).
+ * @param String pickDescription The accessible label of the eyedropper button.
  */
 @Composable
 fun <T> RelationField(
@@ -101,6 +102,8 @@ fun <T> RelationField(
 	onPick: (() -> Unit)? = null,
 	picking: Boolean = false,
 	placeholder: String = "",
+	clearDescription: String = "",
+	pickDescription: String = "",
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -255,7 +258,7 @@ fun <T> RelationField(
 				IconButton(
 					icon = LocalUmamoIcons.close,
 					onClick = { commit(null) },
-					contentDescription = placeholder,
+					contentDescription = clearDescription,
 					size = DpSize(16.dp, 16.dp),
 					glyphSize = 12.dp,
 				)
@@ -264,7 +267,7 @@ fun <T> RelationField(
 				IconButton(
 					icon = LocalUmamoIcons.eyedropper,
 					onClick = onPick,
-					contentDescription = placeholder,
+					contentDescription = pickDescription,
 					size = DpSize(16.dp, 16.dp),
 					glyphSize = 12.dp,
 					active = picking,

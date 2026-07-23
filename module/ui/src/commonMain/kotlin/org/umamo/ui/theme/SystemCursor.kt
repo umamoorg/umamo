@@ -23,8 +23,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
  * Pass a cursor from [LocalUmamoCursors] - e.g. `LocalUmamoCursors.ewScroll` for a horizontal scrub or
  * drag.  The cursor's own [CursorHotspot] is honored, so the caller never offsets for the tip.
  *
- * エディタ自身のカーソル画像を OS ポインタとして返す。デスクトップはラスタライズしてキャッシュ、タッチは既定。
- *
  * @param UmamoCursor cursor The cursor definition to rasterize.
  * @return PointerIcon The platform pointer showing that art.
  */
