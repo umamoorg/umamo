@@ -16,12 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isCtrlPressed
-import androidx.compose.ui.input.pointer.isMetaPressed
-import androidx.compose.ui.input.pointer.isPrimaryPressed
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -30,21 +24,17 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.MeshTransforms
+import org.umamo.edit.ModalCaptureSource
+import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
-import org.umamo.edit.ProportionalEditState
-import org.umamo.edit.ProportionalInfluence
-import org.umamo.edit.RotationAngleTracker
-import org.umamo.edit.TransformPivotGroup
-import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.TransformPivots
-import org.umamo.edit.proportionalInfluences
-import org.umamo.edit.proportionalInfluencesConnected
+import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.withMeshUvs
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
@@ -59,83 +49,26 @@ import kotlin.math.roundToInt
 private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
 
 /**
- * The captured state of an in-flight UV transform, frozen when the operator latches so the whole drag
- * is atomic across the shown meshes - the texture-space sibling of the Edit overlay's capture, minus
- * every deformer concern: UVs live in one flat display space, so there is no space mapping, no
- * movement transfer, and no world/local split.  The page dimensions freeze here too, so the
- * display-to-uv conversion at drive and commit always matches the space the originals were mapped in
- * (the shown page can hop mid-gesture if the active drawable changes from another area).
+ * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
+ * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
+ * moved sets) together with the atlas page dimensions.  The texture-space sibling of the Edit gesture, minus
+ * every deformer concern: UVs live in one flat display space, so there is no space mapping, no movement
+ * transfer, and no world/local split - the operator transforms the display coordinates directly and the
+ * result converts straight back to normalized UV.
  *
- * [influences] and [movedIndices] carry the proportional-editing state exactly like the Edit capture:
- * re-derived from the FROZEN originals on a mid-gesture radius or falloff change, never from the live
- * preview.
+ * The page dimensions freeze here so the display-to-uv conversion at drive and commit always matches the
+ * space the originals were mapped in (the shown page can hop mid-gesture if the active drawable changes from
+ * another area).
  *
- * @property List<DrawableId> drawableIds The meshes the gesture moves (those with covered vertices).
- * @property List<FloatArray> originalDisplay Each mesh's frozen display-space coordinates.
- * @property List<Set<Int>> capturedIndices The union of vertices each mesh's selected elements cover.
- * @property List<IntArray> triangleIndices Each mesh's triangle vertex indices (for connectivity).
- * @property List<List<TransformPivotGroup>> groups Each mesh's pivot groups per the active pivot mode.
- * @property Pair<Float, Float> anchor The display-space point factors and angles measure against.
+ * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
  * @property Int pageWidth The atlas page width the display mapping used, in texels.
  * @property Int pageHeight The atlas page height the display mapping used, in texels.
- * @property MeshOperatorKind operatorKind The operator that latched, frozen so the commit names the
- *   operation that actually ran rather than re-reading a latch that may already have cleared.
  */
-private class UvGestureCapture(
-	val drawableIds: List<DrawableId>,
-	val originalDisplay: List<FloatArray>,
-	val capturedIndices: List<Set<Int>>,
-	val triangleIndices: List<IntArray>,
-	val groups: List<List<TransformPivotGroup>>,
-	val anchor: Pair<Float, Float>,
+private class UvGesture(
+	val transform: ModalTransformCapture,
 	val pageWidth: Int,
 	val pageHeight: Int,
-	val operatorKind: MeshOperatorKind,
-) {
-	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
-	val rotationTracker = RotationAngleTracker()
-
-	var influences: List<Map<Int, ProportionalInfluence>> = List(drawableIds.size) { emptyMap() }
-		private set
-
-	var movedIndices: List<Set<Int>> = capturedIndices
-		private set
-
-	/**
-	 * Recomputes the proportional influence maps from the FROZEN original display shapes.  The radius
-	 * is the UV editor's own display-unit radius, not the session's canvas-px radiusWorld - the two
-	 * spaces have unrelated scales - while the falloff curve and Connected Only follow the shared
-	 * session state.  A null state clears the influences so the gesture moves only the covered set.
-	 *
-	 * @param ProportionalEditState? state The shared proportional configuration, or null for none.
-	 * @param Float radiusDisplay The influence radius in display (texel) units.
-	 */
-	fun applyProportional(state: ProportionalEditState?, radiusDisplay: Float) {
-		influences =
-			drawableIds.indices.map { meshIndex ->
-				when {
-					state == null -> emptyMap()
-					state.connectedOnly ->
-						proportionalInfluencesConnected(
-							originalDisplay[meshIndex],
-							capturedIndices[meshIndex],
-							radiusDisplay,
-							state.falloff,
-							triangleIndices[meshIndex],
-						)
-					else -> proportionalInfluences(originalDisplay[meshIndex], capturedIndices[meshIndex], radiusDisplay, state.falloff)
-				}
-			}
-		movedIndices =
-			drawableIds.indices.map { meshIndex ->
-				if (influences[meshIndex].isEmpty()) {
-					capturedIndices[meshIndex]
-				} else {
-					capturedIndices[meshIndex] + influences[meshIndex].keys
-				}
-			}
-	}
-}
+)
 
 /**
  * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its atlas
@@ -224,15 +157,10 @@ internal fun UvGizmoOverlay(
 			)
 		}
 
-	// Gesture-local state, the Edit overlay's shape: the frozen capture, the per-mesh display-space
-	// preview arrays, and the modal pointer bookkeeping.
-	var lastPointer by remember(areaId) { mutableStateOf(Offset.Zero) }
-	var capture by remember(areaId) { mutableStateOf<UvGestureCapture?>(null) }
-	var preview by remember(areaId) { mutableStateOf<Map<DrawableId, FloatArray>?>(null) }
-	var gestureStart by remember(areaId) { mutableStateOf<Offset?>(null) }
-	var areaScreenOrigin by remember(areaId) { mutableStateOf<Offset?>(null) }
-	val cursorWrap = remember(areaId) { CursorWrapState() }
-	val modalController = remember(areaId) { ModalTransformController(cursorWrap) }
+	// The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
+	// cursor wrap, pointer controller), the Edit overlay's shape.  The capture is the UV gesture (shared
+	// transform capture + frozen page dimensions); preview holds each moving mesh's display-space coordinates.
+	val gesture = remember(areaId) { ModalGestureState<UvGesture>() }
 
 	// The UV editor's own proportional influence radius, in display (texel) units.  The session's
 	// radiusWorld is scaled for the puppet canvas and means nothing on an atlas page, so only the
@@ -260,21 +188,21 @@ internal fun UvGizmoOverlay(
 	// UV and commit as ONE undo step, then clear the operator (its teardown resyncs the renderer to
 	// the committed model the bridge republishes).  A null preview means no movement - nothing commits.
 	fun confirmGesture() {
-		val committed = preview
-		val captured = capture
-		if (committed != null && captured != null) {
-			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.drawableIds.size)
-			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(captured.drawableIds.size)
-			for (meshIndex in captured.drawableIds.indices) {
-				val capturedId = captured.drawableIds[meshIndex]
-				val transformed = committed[capturedId] ?: continue
-				newUvsByDrawable[capturedId] = displayToUv(transformed, captured.pageWidth, captured.pageHeight)
+		val committed = gesture.preview
+		val gestureData = gesture.capture
+		if (committed != null && gestureData != null) {
+			val transform = gestureData.transform
+			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(transform.entries.size)
+			for (entry in transform.entries) {
+				val transformed = committed[entry.drawableId] ?: continue
+				newUvsByDrawable[entry.drawableId] = displayToUv(transformed, gestureData.pageWidth, gestureData.pageHeight)
 				// The moved set, not just the covered set: proportional editing moves weighted
 				// unselected vertices too, and the change metadata must name every vertex touched.
-				vertexIndicesByDrawable[capturedId] = captured.movedIndices[meshIndex].toList()
+				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
 			}
 			if (newUvsByDrawable.isNotEmpty()) {
-				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, captured.operatorKind), newUvsByDrawable)
+				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, transform.operatorKind), newUvsByDrawable)
 			}
 		}
 		session.clearUvOperator()
@@ -285,26 +213,26 @@ internal fun UvGizmoOverlay(
 	// uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.  False when
 	// the capture has not landed yet.
 	fun driveModalPreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
-		val start = gestureStart ?: return false
-		val captured = capture ?: return false
-		val frame = TransformGestureFrame(captured.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
-		val newPreview = LinkedHashMap<DrawableId, FloatArray>(captured.drawableIds.size)
+		val start = gesture.gestureStart ?: return false
+		val gestureData = gesture.capture ?: return false
+		val transform = gestureData.transform
+		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 		var folded = session.model.value
-		for (meshIndex in captured.drawableIds.indices) {
+		for (entry in transform.entries) {
 			val transformedDisplay =
 				applyOperator(
 					operator,
-					captured.originalDisplay[meshIndex],
-					captured.groups[meshIndex],
+					entry.positions,
+					entry.groups,
 					frame,
-					captured.influences[meshIndex],
-					captured.rotationTracker,
+					entry.influence,
+					transform.rotationTracker,
 				)
-			val capturedId = captured.drawableIds[meshIndex]
-			newPreview[capturedId] = transformedDisplay
-			folded = folded.withMeshUvs(capturedId, displayToUv(transformedDisplay, captured.pageWidth, captured.pageHeight))
+			newPreview[entry.drawableId] = transformedDisplay
+			folded = folded.withMeshUvs(entry.drawableId, displayToUv(transformedDisplay, gestureData.pageWidth, gestureData.pageHeight))
 		}
-		preview = newPreview
+		gesture.preview = newPreview
 		liveRenderSync.value?.previewModel(folded)
 		return true
 	}
@@ -332,15 +260,15 @@ internal fun UvGizmoOverlay(
 				// originals, preview re-driven immediately so the mapping responds without pointer motion.
 				val operator = session.activeUvOperator.value?.takeIf { it.areaId == areaId } ?: return
 				val proportional = session.proportionalEdit.value
-				val captured = capture
-				if (steps != 0f && proportional != null && captured != null) {
-					val maxRadius = 4f * maxOf(captured.pageWidth, captured.pageHeight)
+				val gestureData = gesture.capture
+				if (steps != 0f && proportional != null && gestureData != null) {
+					val maxRadius = 4f * maxOf(gestureData.pageWidth, gestureData.pageHeight)
 					val resized =
 						(effectiveProportionalRadius() * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 							.coerceIn(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY, maxRadius)
 					proportionalRadiusDisplay = resized
-					captured.applyProportional(proportional, resized)
-					driveModalPreview(operator.kind, cursorWrap.virtualPointer(lastPointer), camera, size)
+					gestureData.transform.applyProportional(proportional, resized)
+					driveModalPreview(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
 				}
 			}
 		}
@@ -352,13 +280,7 @@ internal fun UvGizmoOverlay(
 	// live-to-absent here.  The race-free cancel path is the request collector below; this is the
 	// backstop for tool switches and unmounts, where no signal is sent.
 	val ownedSelectTool = activeSelectTool?.takeIf { tool -> tool.areaId == areaId }
-	val selectToolKind =
-		when (ownedSelectTool) {
-			null -> 0
-			is ActiveSelectTool.BoxArmed -> 1
-			is ActiveSelectTool.Circle -> 2
-		}
-	LaunchedEffect(selectToolKind) {
+	LaunchedEffect(selectToolKind(ownedSelectTool)) {
 		marquee.cancel()
 	}
 
@@ -378,7 +300,7 @@ internal fun UvGizmoOverlay(
 			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 				return@collect
 			}
-			handleSelectLinkedRequest(session, liveGeometries.value, request.fromSelection, lastPointer, liveCamera.value, liveSize.value)
+			handleSelectLinkedRequest(session, liveGeometries.value, request.fromSelection, gesture.lastPointer, liveCamera.value, liveSize.value)
 		}
 	}
 
@@ -407,9 +329,9 @@ internal fun UvGizmoOverlay(
 	// frozen originals (the keyboard-side complement of the scroll resize).
 	LaunchedEffect(session) {
 		session.proportionalEdit.collect { state ->
-			val captured = capture
-			if (captured != null && session.activeUvOperator.value != null) {
-				captured.applyProportional(state, effectiveProportionalRadius())
+			val gestureData = gesture.capture
+			if (gestureData != null && session.activeUvOperator.value != null) {
+				gestureData.transform.applyProportional(state, effectiveProportionalRadius())
 			}
 		}
 	}
@@ -420,14 +342,10 @@ internal fun UvGizmoOverlay(
 	LaunchedEffect(activeOperator) {
 		val operator = activeOperator?.takeIf { it.areaId == areaId }
 		if (operator != null) {
-			val capturedIds = ArrayList<DrawableId>()
-			val displayList = ArrayList<FloatArray>()
-			val indicesList = ArrayList<Set<Int>>()
-			val triangleList = ArrayList<IntArray>()
-			var coveredSumX = 0f
-			var coveredSumY = 0f
-			var coveredCount = 0
 			val selection = session.meshSelection.value
+			// Offer each shown mesh with covered vertices to the shared capture builder, its frozen
+			// display-space coordinates as the source positions (no deformer mapping in UV space).
+			val sources = ArrayList<ModalCaptureSource>()
 			for (geometry in liveGeometries.value) {
 				val elements = selection.elementsOf(geometry.drawableId)
 				if (elements.isEmpty()) {
@@ -437,82 +355,50 @@ internal fun UvGizmoOverlay(
 				if (coveredIndices.isEmpty()) {
 					continue
 				}
-				capturedIds.add(geometry.drawableId)
-				displayList.add(geometry.positions.copyOf())
-				indicesList.add(coveredIndices)
-				triangleList.add(geometry.indices)
-				for (vertexIndex in coveredIndices) {
-					coveredSumX += geometry.positions[vertexIndex * 2]
-					coveredSumY += geometry.positions[vertexIndex * 2 + 1]
-					coveredCount++
-				}
+				sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
 			}
-			if (capturedIds.isEmpty()) {
+			// The two per-area anchors the shared builder cannot resolve itself, in display space: the
+			// active element's own covered median and the UV cursor.  Null falls back to the shared median.
+			val activeAnchor =
+				run {
+					val active = selection.activeElement ?: return@run null
+					val activeGeometry = liveGeometries.value.firstOrNull { it.drawableId == active.drawableId } ?: return@run null
+					val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeGeometry.indices)
+					if (activeCovered.isEmpty()) {
+						null
+					} else {
+						MeshTransforms.medianPivot(activeGeometry.positions, activeCovered)
+					}
+				}
+			val cursorAnchor =
+				session.uvCursor.value?.let { cursor ->
+					uvToDisplayX(cursor.u, livePageWidth.value) to uvToDisplayY(cursor.v, livePageHeight.value)
+				}
+			val transform =
+				buildModalTransformCapture(
+					sources = sources,
+					pivotMode = session.pivotMode.value,
+					// UV islands split the same as Edit mode (UVs share the vertex index space).
+					individualOriginScope = IndividualOriginScope.ConnectivityIsland,
+					operatorKind = operator.kind,
+					activeAnchor = activeAnchor,
+					cursorAnchor = cursorAnchor,
+				)
+			if (transform == null) {
 				// Nothing movable on the shown page (the selection's covered meshes live elsewhere or
 				// carry no editable UVs): drop the operator.
 				session.clearUvOperator()
 			} else {
-				val coveredMedian = (coveredSumX / coveredCount) to (coveredSumY / coveredCount)
-				val pivotMode = session.pivotMode.value
-				val anchor =
-					when (pivotMode) {
-						TransformPivotMode.MedianPoint, TransformPivotMode.IndividualOrigins -> coveredMedian
-						TransformPivotMode.ActiveElement -> {
-							val active = selection.activeElement
-							val activeListIndex = active?.let { candidate -> capturedIds.indexOf(candidate.drawableId) } ?: -1
-							if (active != null && activeListIndex >= 0) {
-								val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), triangleList[activeListIndex])
-								if (activeCovered.isNotEmpty()) {
-									MeshTransforms.medianPivot(displayList[activeListIndex], activeCovered)
-								} else {
-									coveredMedian
-								}
-							} else {
-								coveredMedian
-							}
-						}
-						TransformPivotMode.Cursor ->
-							session.uvCursor.value?.let { cursor ->
-								uvToDisplayX(cursor.u, livePageWidth.value) to uvToDisplayY(cursor.v, livePageHeight.value)
-							} ?: coveredMedian
-					}
-				val groups =
-					capturedIds.indices.map { meshIndex ->
-						if (pivotMode == TransformPivotMode.IndividualOrigins) {
-							TransformPivots.islandGroups(displayList[meshIndex], indicesList[meshIndex], triangleList[meshIndex])
-						} else {
-							TransformPivots.sharedGroup(indicesList[meshIndex], anchor.first, anchor.second)
-						}
-					}
-				capture =
-					UvGestureCapture(
-						drawableIds = capturedIds,
-						originalDisplay = displayList,
-						capturedIndices = indicesList,
-						triangleIndices = triangleList,
-						groups = groups,
-						anchor = anchor,
-						pageWidth = livePageWidth.value,
-						pageHeight = livePageHeight.value,
-						operatorKind = operator.kind,
-					).also { fresh ->
-						fresh.applyProportional(session.proportionalEdit.value, effectiveProportionalRadius())
-					}
-				gestureStart = lastPointer
-				preview = null
-				cursorWrap.reset()
+				transform.applyProportional(session.proportionalEdit.value, effectiveProportionalRadius())
+				gesture.begin(UvGesture(transform, livePageWidth.value, livePageHeight.value), gesture.lastPointer)
 			}
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the else branch also runs at
 			// mount and when another area's operator latches, and an unguarded resync from a bystander
 			// would stomp the initiating area's live preview (the ownership doc's mid-gesture-split guard).
-			if (capture != null) {
+			if (gesture.end()) {
 				liveRenderSync.value?.resync()
 			}
-			capture = null
-			preview = null
-			gestureStart = null
-			cursorWrap.reset()
 		}
 	}
 
@@ -522,7 +408,7 @@ internal fun UvGizmoOverlay(
 	// restore teardown and the space's area-death effect; this restores the raster.
 	DisposableEffect(areaId, session) {
 		onDispose {
-			if (capture != null) {
+			if (gesture.capture != null) {
 				liveRenderSync.value?.resync()
 			}
 		}
@@ -553,7 +439,7 @@ internal fun UvGizmoOverlay(
 			modifier
 				.fillMaxSize()
 				.clipToBounds()
-				.onGloballyPositioned { coordinates -> areaScreenOrigin = coordinates.positionOnScreen() }
+				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
 				// While THIS AREA'S modal transform runs, hide the OS cursor so only the overlay's drawn
 				// cursor (double-arrow, crosshair, or brush circle) shows; a gesture owned by another
 				// area leaves this cursor alone.
@@ -574,7 +460,7 @@ internal fun UvGizmoOverlay(
 							while (true) {
 								val event = awaitPointerEvent()
 								val change = event.changes.firstOrNull() ?: continue
-								lastPointer = change.position
+								gesture.lastPointer = change.position
 								val latchedUvOperator = session.activeUvOperator.value
 								val latchedTool = session.activeSelectTool.value
 								// A gesture belongs to its initiating area, and the viewport-owned operators
@@ -594,75 +480,33 @@ internal fun UvGizmoOverlay(
 								if (latchedUvOperator != null) {
 									// MODAL: the shared controller drives the transform over the captured
 									// mapping and swallows every event.
-									lastPointer = modalController.handleEvent(event, change, modalTarget, activeCamera, size, areaScreenOrigin)
+									gesture.lastPointer = gesture.modalController.handleEvent(event, change, modalTarget, activeCamera, size, gesture.areaScreenOrigin)
 								} else if (latchedTool is ActiveSelectTool.Circle) {
 									// CIRCLE SELECT: the shared controller paints / erases / commits the stroke
 									// and consumes every event (paired with the navigation gate so MMB / wheel
 									// do not also pan / zoom).
 									marquee.handleCircleEvent(event, change, latchedTool.radiusPx, activeCamera, size)
 								} else {
-									// IDLE: element selection over the shared session state.  Only
-									// primary-driven events are consumed, so middle-drag pan and wheel zoom
-									// fall through to the space's navigation layer.  Armed Box-select starts a
-									// box on any press (hit-tests skipped) and disarms after the drag.
-									val boxArmed = latchedTool is ActiveSelectTool.BoxArmed
-									when (event.type) {
-										PointerEventType.Press ->
-											if (event.buttons.isSecondaryPressed && event.keyboardModifiers.isShiftPressed) {
-												// Shift+RightClick places the UV cursor at the pointer (the
-												// viewport's 2D-cursor gesture, in this space's units); the
-												// Cursor pivot mode and Mirror anchor on it.
-												val (displayX, displayY) = screenToWorld(change.position.x, change.position.y, activeCamera, size)
-												session.setUvCursor(
-													displayToUvU(displayX, livePageWidth.value),
-													displayToUvV(displayY, livePageHeight.value),
-												)
-												change.consume()
-											} else if (boxArmed && event.buttons.isSecondaryPressed) {
-												session.clearSelectTool()
-												change.consume()
-											} else if (event.buttons.isPrimaryPressed) {
-												val current = session.meshSelection.value
-												val hit = hitTestMeshes(current.selectMode, liveGeometries.value, change.position, activeCamera, size)
-												if (!boxArmed && hit != null) {
-													val modifiers = event.keyboardModifiers
-													val updated =
-														when {
-															// Shift and Ctrl both toggle membership (Blender-style).
-															modifiers.isShiftPressed || modifiers.isCtrlPressed || modifiers.isMetaPressed ->
-																MeshSelectionOps.toggle(current, hit.drawableId, hit.element)
-															else -> MeshSelectionOps.replace(current, hit.drawableId, hit.element)
-														}
-													session.setMeshSelection(updated)
-												} else {
-													marquee.beginBox(change.position)
-												}
-												change.consume()
-											}
-
-										PointerEventType.Move ->
-											if (marquee.dragBox(change.position)) {
-												change.consume()
-											}
-
-										PointerEventType.Release -> {
-											val boxRelease = marquee.releaseBox(change.position, event.keyboardModifiers.isShiftPressed, activeCamera, size)
-											if (boxRelease != BoxRelease.None) {
-												if (boxRelease == BoxRelease.Click && !boxArmed && !session.meshSelection.value.isEmpty) {
-													// A sub-threshold click on empty canvas clears - but not while
-													// armed, where a bare click just disarms the tool (below).
-													session.setMeshSelection(MeshSelectionOps.clear(session.meshSelection.value))
-												}
-												// Armed Box-select is one-shot: disarm after the drag (or a bare click).
-												if (boxArmed) {
-													session.clearSelectTool()
-												}
-												change.consume()
-											}
-										}
-
-										else -> {}
-									}
+									// IDLE: element selection, shared with the 2D viewport's Edit overlay.  Only
+									// primary-driven events are consumed, so middle-drag pan and wheel zoom fall
+									// through; armed Box-select boxes on any press and disarms.  Shift+RightClick
+									// places the UV cursor (the viewport's 2D-cursor gesture, in texture space).
+									handleIdleMeshSelectionEvent(
+										event = event,
+										change = change,
+										session = session,
+										geometries = liveGeometries.value,
+										marquee = marquee,
+										boxArmed = latchedTool is ActiveSelectTool.BoxArmed,
+										camera = activeCamera,
+										size = size,
+										placeCursor = { displayX, displayY ->
+											session.setUvCursor(
+												displayToUvU(displayX, livePageWidth.value),
+												displayToUvV(displayY, livePageHeight.value),
+											)
+										},
+									)
 								}
 							}
 						}
@@ -671,7 +515,7 @@ internal fun UvGizmoOverlay(
 			// The wireframes draw from the live preview arrays during a gesture - this Canvas IS the
 			// display (no asynchronous raster to lag behind, unlike the viewport overlays' frame model).
 			// The live circle stroke drives the highlighted domain so painted elements light up mid-stroke.
-			val activePreview = preview.takeIf { capture != null }
+			val activePreview = gesture.preview.takeIf { gesture.capture != null }
 			for (geometry in geometries) {
 				val highlight = highlightByDrawable[geometry.drawableId] ?: continue
 				drawMeshWireframe(
@@ -707,7 +551,7 @@ internal fun UvGizmoOverlay(
 			// Only the arming area draws them - the latch is session-global, every UV area composes this.
 			drawSelectToolAffordances(
 				tool = ownedSelectTool,
-				pointer = lastPointer,
+				pointer = gesture.lastPointer,
 				boxDragInFlight = marquee.boxStart != null,
 				viewport = Size(widthPx.toFloat(), heightPx.toFloat()),
 				style = overlayStyle,
@@ -718,7 +562,7 @@ internal fun UvGizmoOverlay(
 			// chrome with the viewport overlays.  Only the initiating area draws it - the capture
 			// exists solely in the overlay whose area the operator latch names.
 			val hudOperator = activeOperator
-			val hudPivot = capture?.anchor
+			val hudPivot = gesture.capture?.transform?.anchor
 			if (hudOperator != null && hudPivot != null) {
 				val ringRadiusPx =
 					if (proportionalEdit != null) {
@@ -729,8 +573,8 @@ internal fun UvGizmoOverlay(
 				drawModalTransformHud(
 					axisConstraint = axisConstraint,
 					pivotScreen = worldToScreen(hudPivot.first, hudPivot.second, camera, IntSize(widthPx, heightPx)),
-					virtualPointer = cursorWrap.virtualPointer(lastPointer),
-					realPointer = lastPointer,
+					virtualPointer = gesture.cursorWrap.virtualPointer(gesture.lastPointer),
+					realPointer = gesture.lastPointer,
 					viewport = Size(widthPx.toFloat(), heightPx.toFloat()),
 					lineColor = overlayColors.viewportMarquee,
 					pointerCursor = LocalUmamoCursors.nsewScroll,

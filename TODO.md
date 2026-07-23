@@ -35,7 +35,6 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 * Improvements
 	* Follow-ups still open:
 		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-		* Deferred — unify the modal gesture captures.  The index-aligned parallel-list capture is THREE-way, not two: `EditGestureCapture` (7 aligned lists), `UvGestureCapture` (5 + 2 mutable), `ObjectGestureCapture` (3), and `UvGestureCapture.applyProportional` is a near-verbatim copy of `EditGestureCapture`'s.  The shared shape is a per-mesh entry (positions, covered indices, triangles, pivot groups, proportional influence + moved set), which would live in `:edit` next to `TransformPivots` and the proportional-editing ops.  Folding `EditMeshGeometry` onto `DrawableWorldGeometry` alone is the least valuable slice, so do the whole thing or none of it.  Zero user-visible value against the two hottest interaction files (`EditGizmoOverlay` 990 lines, `UvGizmoOverlay` 751), hence deferred.
 
 * Single/multiple relation pickers.
 	* Improvements
