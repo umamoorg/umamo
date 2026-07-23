@@ -261,7 +261,11 @@ fun rememberPuppetViewportHost(
 					}
 					val image by imageFlow.collectAsState()
 					val camera by cameraFlow.collectAsState()
-					val grabCursor = remember { umamoPointerIcon(LocalUmamoCursors.nsewScroll) }
+					// Keyed on the cursor, not remembered bare: this composable recomposes per rendered frame
+					// (image), so the lookup is worth caching - but the cursor set is documented as gaining a
+					// per-theme override later, and a keyless remember would then serve stale art forever.
+					val panCursor = LocalUmamoCursors.nsewScroll
+					val grabCursor = remember(panCursor) { umamoPointerIcon(panCursor) }
 					var panning by remember(areaId) { mutableStateOf(false) }
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
 					BoxWithConstraints(modifier = modifier.fillMaxSize()) {

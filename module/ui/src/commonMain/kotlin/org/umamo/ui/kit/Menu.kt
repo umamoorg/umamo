@@ -360,8 +360,6 @@ private fun MenuSubmenuRow(
  * and a menu that would overflow the bottom flips ABOVE its anchor instead, falling back to a clamped
  * position when it fits neither way (a menu taller than the window then starts at the top edge and
  * scrolls).  Without this a long dropdown simply ran off the bottom and its tail was unreachable.
- *
- * ポップアップをアンカーの左下に配置し、画面外に出る場合は上側へ反転させる。
  */
 internal object BelowAnchorPositionProvider : PopupPositionProvider {
 	override fun calculatePosition(

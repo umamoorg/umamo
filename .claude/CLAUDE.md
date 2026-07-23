@@ -51,7 +51,7 @@ The puppet canvas is a **GPU surface composited into Compose**:
 **One interface, desktop and tablet.** The same edge-docked UI runs everywhere, modeled on Krita and Clip Studio Paint's desktop mode — both run their full desktop UI on Android tablets, and that is sufficient. There is **no separate slim tablet UI to maintain.**  The tablet gets a touch-tuned _skin_ of the same interface, not a second front-end: larger hit targets, more panels collapsed-to-rail by default, the pen radial menu carrying tool switching, and the menubar folded into an overflow rather than a top strip.
 
 **Blender-style area tree, not free-floating**:
-- The window content is a **recursive binary-split tree of areas**.  Each area hosts exactly one **editor space** — the seven `SpaceKind`s are 2D viewport, UV editor, outliner, parameters, inspector, tool details, and history (undo stack, click an entry to jump to that state; deformers live in the outliner/parameters, not a separate space) — and the space is **agnostic and switchable at runtime** via a dropdown in the area's top-left header — any area can become any space (turn the outliner into a tiny viewport if you like, exactly like Blender).
+- The window content is a **recursive binary-split tree of areas**.  Each area hosts exactly one **editor space** — the eight `SpaceKind`s are 2D viewport, UV editor, outliner, parameters, properties, tool details, history (undo stack, click an entry to jump to that state; deformers live in the outliner/parameters, not a separate space), and logs — and the space is **agnostic and switchable at runtime** via a dropdown in the area's top-left header — any area can become any space (turn the outliner into a tiny viewport if you like, exactly like Blender).
 - Areas split along any edge into nested areas and merge/close; **splitters are draggable** with a min-size clamp; a Blender-style **corner-drag gesture joins two adjacent areas** back into one.
 - A window holds **multiple named workspaces as tabs** (create/duplicate/rename/reorder/reset), each with its own area tree; a single workspace or the whole layout can be exported/imported as text.
 - Each area also has a **right-click context menu** mirroring its header actions plus "Change Editor Type."
@@ -69,9 +69,10 @@ Concretely the shell is `org.umamo.ui.workspace`: a sealed `AreaNode` (split/lea
 - **Canvas / viewport** — the GPU work surface.
 - **Parts** — drawable + deformer hierarchy (with a Project view: source-image → model-image binding).
 - **Parameters** — the rigging cockpit (sliders, multi-key 2D pad, keyform binding).
-- **Inspector** — properties of the selected drawable / deformer / part.
+- **Properties** — a tabbed mega-panel over the document and the selected item: Document (canvas, runtime targets), Object (transform, relations), Data (type-specific — mesh/texture/blend, deformer, part), with a header search that filters to matching rows.  Tabs come from an extensible `PropertyTabRegistry`, so a section is registered, never wired into a render switch.  This replaced the read-only Inspector space, which is retired.
 - **Tool details** — context for the active tool.
 - **History** — undo-history stack; click an entry to jump to that state.
+- **Logs** — the diagnostic console.
 
 Animation later adds wide, bottom-docked panels (timeline, keyframe/graph editors).  Because the set is small and known, the dock shell can be defined early without churn — but get the core rigging working in the default layout first; freeform rearrangement is a fast follow, not a prerequisite.
 

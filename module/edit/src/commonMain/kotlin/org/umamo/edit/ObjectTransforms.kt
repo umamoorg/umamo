@@ -71,8 +71,6 @@ fun isPoseNeutral(model: PuppetModel, pose: Pose): Boolean {
  * decision and a consequential one - see the Properties panel's DrawableWorldTransform, which measures
  * WORLD positions because a keyformed drawable's base array is nothing like its on-screen shape.
  *
- * 描画メッシュの軸平行境界（中心と大きさ）。描画オブジェクトの「トランスフォーム」はここから導出する。
- *
  * @property Float centerX The bounds' center x.
  * @property Float centerY The bounds' center y.
  * @property Float width The x extent (0 for a degenerate or empty mesh).
