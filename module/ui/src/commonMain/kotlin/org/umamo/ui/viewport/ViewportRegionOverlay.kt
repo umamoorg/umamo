@@ -23,6 +23,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.drawCursor
+import org.umamo.ui.theme.hiddenPointerIcon
 import kotlin.math.abs
 import kotlin.math.min
 

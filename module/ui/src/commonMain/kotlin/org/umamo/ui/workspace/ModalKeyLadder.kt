@@ -47,6 +47,7 @@ import org.umamo.ui.viewport.pieMenuEntriesFor
  * @param SelectionHandle? selection The object-selection handle, or null with no document.
  * @param AreaDragController dragController The area drag state (an in-flight drag defers Escape to area.dragCancel).
  * @param RowDragCancelController rowDragCancel The panel row-drag seam (an in-flight row drag claims Escape).
+ * @param RelationPickController relationPick The relation-pick seam (an armed eyedropper claims Escape).
  * @param CommandRegistry commandRegistry The registry modal picks and the fallthrough dispatch into.
  * @param Keymap keymap The active keymap for the fallthrough dispatch.
  * @return Boolean True when the event was consumed.
@@ -60,6 +61,7 @@ internal fun handleModalKeyLadder(
 	selection: SelectionHandle?,
 	dragController: AreaDragController,
 	rowDragCancel: RowDragCancelController,
+	relationPick: RelationPickController,
 	commandRegistry: CommandRegistry,
 	keymap: Keymap,
 ): Boolean {
@@ -241,6 +243,13 @@ internal fun handleModalKeyLadder(
 		(isEscapeDown || isEnterDown) && editorSession?.activeSelectTool?.value != null -> {
 			editorSession.requestMeshGestureCancel()
 			editorSession.clearSelectTool()
+			true
+		}
+		// An armed relation pick (a Properties field's eyedropper) owns Escape: cancel the pick before the
+		// clear-selection branch below, so abandoning a pick never also wipes the user's selection.  Like
+		// the zoom region this is mode-agnostic, and it resolves from the outliner as well as a viewport.
+		isEscapeDown && relationPick.request != null -> {
+			relationPick.cancel()
 			true
 		}
 		// An armed Zoom Region gesture owns Escape: disarm it (mode-agnostic, so it precedes the

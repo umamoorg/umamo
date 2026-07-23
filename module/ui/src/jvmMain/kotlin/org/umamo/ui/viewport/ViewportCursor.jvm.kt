@@ -1,24 +1,9 @@
 package org.umamo.ui.viewport
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerIcon
-import java.awt.Cursor
 import java.awt.MouseInfo
-import java.awt.Point
 import java.awt.Robot
-import java.awt.Toolkit
-import java.awt.image.BufferedImage
 import kotlin.math.roundToInt
-
-/**
- * Desktop actual: the AWT system move cursor (the same four-way cursor the area drag corner uses),
- * shown while middle-mouse panning the viewport.
- *
- * デスクトップ実装：AWT の移動カーソルを返す。
- *
- * @return PointerIcon The AWT-backed move cursor.
- */
-actual fun grabPanPointerIcon(): PointerIcon = PointerIcon(Cursor(Cursor.MOVE_CURSOR))
 
 /**
  * A single shared AWT Robot used to warp the cursor.  It is null when the platform denies low-level input
@@ -55,27 +40,3 @@ actual fun warpViewportCursor(screenX: Float, screenY: Float): Offset? {
 	val landed = MouseInfo.getPointerInfo()?.location ?: return Offset(screenX.roundToInt().toFloat(), screenY.roundToInt().toFloat())
 	return Offset(landed.x.toFloat(), landed.y.toFloat())
 }
-
-/**
- * A single cached transparent AWT cursor; falls back to the default pointer if the toolkit cannot build a
- * custom cursor (a locked-down or headless environment).
- */
-private val hiddenCursorIcon: PointerIcon by lazy {
-	try {
-		val transparent = BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB)
-		val cursor = Toolkit.getDefaultToolkit().createCustomCursor(transparent, Point(0, 0), "umamo-hidden")
-		PointerIcon(cursor)
-	} catch (error: Exception) {
-		// HeadlessException, IndexOutOfBoundsException (bad hotspot), or a toolkit failure - fall back.
-		PointerIcon.Default
-	}
-}
-
-/**
- * Desktop actual: an invisible cursor built from a fully transparent 16x16 image.
- *
- * デスクトップ実装：透明画像から作った不可視カーソルを返す。
- *
- * @return PointerIcon The transparent cursor, or the default where none can be built.
- */
-actual fun hiddenPointerIcon(): PointerIcon = hiddenCursorIcon

@@ -175,6 +175,7 @@
 	<string name="history_mesh_move_uvs">Move UVs</string>
 	<string name="history_mesh_mirror_uvs">Mirror UVs</string>
 	<string name="history_object_move">Move Objects</string>
+	<string name="history_object_resize">Resize Objects</string>
 	<string name="history_mesh_select">Select Elements</string>
 	<string name="history_mesh_select_mode">Change Select Mode</string>
 	<string name="history_part_delete">Delete Part</string>
@@ -188,6 +189,9 @@
 	<string name="history_drawable_alpha_blend_mode">Set Alpha Mode</string>
 	<string name="history_drawable_culling">Toggle Back-Face Culling</string>
 	<string name="history_drawable_invert_mask">Toggle Invert Mask</string>
+	<string name="history_drawable_parent_deformer">Set Parent Deformer</string>
+	<string name="history_drawable_masked_by">Set Masks</string>
+	<string name="history_deformer_part">Set Part</string>
 	<string name="history_deformer_base_angle">Set Base Angle</string>
 	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>
 	<string name="history_document_canvas_size">Set Canvas Size</string>
@@ -337,17 +341,12 @@
 	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
-	<string name="properties_child_count">Children: %1$d</string>
-	<string name="properties_part_ref">Part: %1$s</string>
-	<string name="properties_parent_deformer">Parent deformer: %1$s</string>
+	<string name="properties_part_ref">Parent Part</string>
+	<string name="properties_parent_deformer">Parent Deformer</string>
 	<string name="properties_mask_count">Masks: %1$d</string>
-	<string name="properties_invert_mask">Invert mask: %1$s</string>
 	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
 	<string name="properties_no_mesh">No mesh</string>
 	<string name="properties_warp_grid">Grid: %1$d × %2$d</string>
-	<string name="properties_none">—</string>
-	<string name="properties_yes">Yes</string>
-	<string name="properties_no">No</string>
 	<string name="inspector_multi_selected">%1$d selected</string>
 
 	<!--
@@ -370,9 +369,6 @@
 	<string name="properties_canvas_none">No canvas</string>
 	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
 	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
-	<string name="properties_transform_position">Position: %1$s, %2$s</string>
-	<string name="properties_transform_size">Size: %1$s × %2$s</string>
-	<string name="properties_transform_none">—</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
 
@@ -381,7 +377,12 @@
 	<string name="properties_field_canvas_width">Width</string>
 	<string name="properties_field_canvas_height">Height</string>
 	<string name="properties_field_origin_x">Origin X</string>
-	<string name="properties_field_origin_y">Origin Y</string>
+	<string name="properties_field_origin_z">Origin Z</string>
+	<string name="properties_field_position_x">Position X</string>
+	<string name="properties_field_position_z">Position Z</string>
+	<string name="properties_field_size_x">Size X</string>
+	<string name="properties_field_size_z">Size Z</string>
+	<string name="properties_transform_lock_aspect">Lock Aspect Ratio</string>
 	<string name="properties_field_blend_mode">Blend</string>
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Cull Back Faces</string>
@@ -392,6 +393,11 @@
 	<string name="properties_field_draw_order">Draw Order</string>
 	<string name="properties_field_group_mode">Group Mode</string>
 	<string name="properties_field_opacity">Opacity</string>
+	<string name="properties_field_multiply_color">Multiply Color</string>
+	<string name="properties_field_screen_color">Screen Color</string>
+	<string name="properties_field_masked_by">Masked By</string>
+	<string name="properties_mask_add">Add Mask…</string>
+	<string name="properties_mask_remove">Remove Mask</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- Blend modes (Cubism color blend list). -->
@@ -466,7 +472,7 @@
 	<string name="settings_keymap_preset_default">Default</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>
-	<string name="settings_keybindings_reset">Reset to preset</string>
+	<string name="settings_keybindings_reset">Reset to Preset</string>
 	<string name="settings_keybindings_press_shortcut">Press a shortcut…</string>
 	<string name="settings_keybindings_unbound">Unbound</string>
 	<string name="settings_keybindings_clear">Clear shortcut</string>
@@ -493,4 +499,8 @@
 	<string name="settings_colors_role_selected">Selected</string>
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
+	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
+	<string name="pick_hover_drawable">Drawable: %1$s</string>
+	<string name="pick_hover_part">Part: %1$s</string>
+	<string name="pick_hover_deformer">Deformer: %1$s</string>
 </resources>

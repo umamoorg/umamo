@@ -1,10 +1,8 @@
 package org.umamo.ui.workspace
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -15,15 +13,23 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.SelectionTarget
 import org.umamo.ui.kit.PieMenuOverlay
-import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.TooltipCard
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.noticeText
-import org.umamo.ui.theme.LocalUmamoColors
-import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.pick_hover_deformer
+import org.umamo.ui.resources.pick_hover_drawable
+import org.umamo.ui.resources.pick_hover_part
+import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.drawCursor
 import org.umamo.ui.viewport.pieMenuEntriesFor
 import org.umamo.ui.viewport.pieMenuTitleFor
 import kotlin.math.roundToInt
@@ -104,9 +110,6 @@ internal fun ShellPieMenuHost(pointerPosition: Offset?, modifier: Modifier = Mod
  * even when it hovers a non-viewport panel (the per-area version rendered in whichever viewport the
  * pointer last touched).  Draw-only - installs no pointer input.
  *
- * シェル直上のカーソル付近通知。エリアツリーの上に一つだけ描画され、パネル上でも正しい位置に出る。
- * 数秒後に自動的に消える。描画のみでポインタ入力は持たない。
- *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
  *   pointer event (the notice then anchors at the window's lower centre).
  * @param Modifier modifier The layout modifier (the shell passes a window fill).
@@ -125,29 +128,103 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
 		delay(SHELL_NOTICE_VISIBLE_MS)
 		session.clearNotice(current.serial)
 	}
-	val colors = LocalUmamoColors.current
 	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
 		// Anchor beside the pointer, falling back to the lower centre when no pointer has entered yet
 		// (a keyboard-triggered notice can arrive before any pointer event).
 		val anchor = pointerPosition ?: Offset(constraints.maxWidth / 2f, constraints.maxHeight * 0.75f)
-		Text(
+		TooltipCard(
 			text = noticeText(current.messageKey),
-			style = LocalUmamoTypography.current.labelMedium,
-			color = colors.viewportBadgeText,
-			modifier =
-				Modifier
-					.layout { measurable, constraints ->
-						val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-						layout(constraints.maxWidth, constraints.maxHeight) {
-							// Below-right of the pointer, clamped fully inside the window.
-							val gapPx = SHELL_POINTER_GAP.toPx()
-							val clampedX = (anchor.x + gapPx).roundToInt().coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0))
-							val clampedY = (anchor.y + gapPx).roundToInt().coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
-							placeable.place(clampedX, clampedY)
-						}
-					}
-					.background(colors.viewportBadgeBackground, RoundedCornerShape(4.dp))
-					.padding(horizontal = 8.dp, vertical = 3.dp),
+			modifier = Modifier.nearPointer(anchor, SHELL_POINTER_GAP),
 		)
+	}
+}
+
+/**
+ * Places this node just below-right of [anchor], clamped fully inside the parent, while still measuring
+ * against the whole window.  The placement every shell cursor overlay shares - a near-cursor notice and
+ * the relation-pick badge differ only in their gap, not in how they are pinned.
+ *
+ * @param Offset anchor The pointer position in shell-root pixels.
+ * @param Dp gap The offset from the pointer, clearing whatever is drawn at it.
+ * @return Modifier The positioning modifier.
+ */
+private fun Modifier.nearPointer(anchor: Offset, gap: Dp): Modifier =
+	layout { measurable, constraints ->
+		val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+		layout(constraints.maxWidth, constraints.maxHeight) {
+			val gapPx = gap.toPx()
+			val clampedX = (anchor.x + gapPx).roundToInt().coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0))
+			val clampedY = (anchor.y + gapPx).roundToInt().coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0))
+			placeable.place(clampedX, clampedY)
+		}
+	}
+
+/**
+ * The shell-level relation-pick overlay: while a Properties field's eyedropper is armed, this draws the
+ * eyedropper cursor at the pointer and a badge naming what a click would bind ("Drawable: Hair Front").
+ *
+ * It lives ABOVE the area tree for the same reason the pie menu does - the cursor must be visible the
+ * instant the pick is armed, over panels and the outliner too, not only inside a viewport's clipped box.
+ * The resolving surfaces publish what is under the pointer ([RelationPickController.hover]); this only
+ * names it, so the badge reads identically whether the pointer is over the viewport or an outliner row.
+ * Installs no pointer input, so it never steals a gesture from the surfaces below.
+ *
+ * シェル直上のリレーション選択重畳。武装中はポインタ位置にスポイトカーソルと取得対象名のバッジを描く。
+ *
+ * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any event.
+ * @param Modifier modifier The layout modifier (the shell passes a window fill).
+ */
+@Composable
+internal fun ShellRelationPickOverlay(pointerPosition: Offset?, modifier: Modifier = Modifier) {
+	val picker = LocalRelationPick.current
+	picker.request ?: return
+	val anchor = pointerPosition ?: return
+
+	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+		Canvas(modifier = Modifier.fillMaxSize()) {
+			drawCursor(LocalUmamoCursors.eyedropper, anchor)
+		}
+		// The kit's tooltip card, positioned at the cursor rather than hover-anchored to a control - the
+		// chrome stays owned by Tooltip.kt so this label can never drift from every other tooltip.
+		if (picker.hoveredTarget != null) {
+			TooltipCard(
+				text = relationPickLabel(picker.hoveredTarget),
+				modifier = Modifier.nearPointer(anchor, SHELL_POINTER_GAP),
+			)
+		}
+	}
+}
+
+/**
+ * The badge text for what a pick would bind: the entity's kind and name, or the "nothing under the pointer"
+ * prompt.  Names come from the open document, falling back to the raw id for an unnamed entity.
+ *
+ * @param SelectionTarget? target The entity under the pointer, or null.
+ * @return String The localized badge label.
+ */
+@Composable
+private fun relationPickLabel(target: SelectionTarget?): String {
+	val puppet = LocalPuppet.current
+	if (target == null || puppet == null) {
+		return ""
+	}
+	return when (target) {
+		is SelectionTarget.Drawable ->
+			stringResource(
+				Res.string.pick_hover_drawable,
+				puppet.drawables.firstOrNull { it.id == target.id }?.name?.ifBlank { target.id.raw } ?: target.id.raw,
+			)
+
+		is SelectionTarget.Part ->
+			stringResource(
+				Res.string.pick_hover_part,
+				puppet.parts.firstOrNull { it.id == target.id }?.name?.ifBlank { target.id.raw } ?: target.id.raw,
+			)
+
+		is SelectionTarget.Deformer ->
+			stringResource(
+				Res.string.pick_hover_deformer,
+				puppet.deformers.firstOrNull { it.id == target.id }?.name?.ifBlank { target.id.raw } ?: target.id.raw,
+			)
 	}
 }

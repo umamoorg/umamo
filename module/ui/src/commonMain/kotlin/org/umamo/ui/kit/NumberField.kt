@@ -43,6 +43,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -50,11 +52,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
+import org.umamo.ui.theme.umamoPointerIcon
 import kotlin.math.roundToInt
 
 /** The alpha applied to the accent tint when a bounded field draws its left-to-right magnitude fill. */
@@ -90,6 +94,7 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param String? unitSuffix An optional trailing unit shown in the idle field (e.g. "px", "%"); never in the edit text.
  * @param Boolean showFill Whether to draw the magnitude fill when the range is bounded (off for wide sanity clamps).
  * @param Boolean plain When true, renders a bare type-in box only (no scrub, chevrons, or fill) - the simple field.
+ * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
  */
 @Composable
@@ -103,6 +108,7 @@ fun NumberField(
 	unitSuffix: String? = null,
 	showFill: Boolean = true,
 	plain: Boolean = false,
+	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
@@ -117,6 +123,7 @@ fun NumberField(
 		modifier = modifier,
 		unitSuffix = unitSuffix,
 		plain = plain,
+		enabled = enabled,
 		stackPosition = stackPosition,
 	)
 }
@@ -137,6 +144,7 @@ fun NumberField(
  * @param String? unitSuffix An optional trailing unit shown in the idle field; never in the edit text.
  * @param Boolean showFill Whether to draw the magnitude fill when the range is bounded.
  * @param Boolean plain When true, renders a bare type-in box only (the simple field).
+ * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
  */
 @Composable
@@ -149,6 +157,7 @@ fun NumberField(
 	unitSuffix: String? = null,
 	showFill: Boolean = true,
 	plain: Boolean = false,
+	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
 ) {
 	val floatRange = range.first.toFloat()..range.last.toFloat()
@@ -165,6 +174,7 @@ fun NumberField(
 		modifier = modifier,
 		unitSuffix = unitSuffix,
 		plain = plain,
+		enabled = enabled,
 		stackPosition = stackPosition,
 	)
 }
@@ -186,6 +196,7 @@ fun NumberField(
  * @param Modifier modifier Layout modifier (the width).
  * @param String? unitSuffix The idle trailing unit, or null.
  * @param Boolean plain Whether to render the bare type-in box only.
+ * @param Boolean enabled Whether the field accepts edits at all.
  * @param StackPosition stackPosition The field's position in a vertical stack.
  */
 @Composable
@@ -200,6 +211,7 @@ private fun NumberFieldCore(
 	modifier: Modifier,
 	unitSuffix: String?,
 	plain: Boolean,
+	enabled: Boolean,
 	stackPosition: StackPosition,
 ) {
 	val shapes = LocalUmamoShapes.current
@@ -211,7 +223,12 @@ private fun NumberFieldCore(
 
 	if (plain) {
 		// The simple field: a bare type-in box, matching the pre-upgrade behavior (no scrub / chevrons / fill).
-		NumberEntryField(display = format(value), shape = shape, modifier = modifier, commit = commitTyped)
+		// Disabled, it degrades to the same inert display face the rich field uses, so both faces read alike.
+		if (enabled) {
+			NumberEntryField(display = format(value), shape = shape, modifier = modifier, commit = commitTyped)
+		} else {
+			NumberFieldDisplay(text = format(value), unitSuffix = unitSuffix, fillFraction = null, shape = shape, modifier = modifier, enabled = false)
+		}
 		return
 	}
 
@@ -219,7 +236,7 @@ private fun NumberFieldCore(
 	// The live scrub value while a drag is in flight (null when idle); previews without committing per frame.
 	var dragValue by remember { mutableStateOf<Float?>(null) }
 
-	if (editing) {
+	if (editing && enabled) {
 		NumberEntryField(
 			display = format(value),
 			shape = shape,
@@ -236,6 +253,7 @@ private fun NumberFieldCore(
 			fillFraction = if (bounded) numberFieldFillFraction(shown, range.start, range.endInclusive) else null,
 			shape = shape,
 			modifier = modifier,
+			enabled = enabled,
 			onTapToEdit = { editing = true },
 			onScrubStart = { dragValue = value },
 			onScrub = { totalDeltaPx -> dragValue = scrubValue(value, totalDeltaPx, step, range) },
@@ -261,6 +279,8 @@ private fun NumberFieldCore(
  * @param Float? fillFraction The magnitude fill in 0..1, or null for no fill.
  * @param Shape shape The field's (stack-aware) corner shape.
  * @param Modifier modifier Layout modifier (the width).
+ * @param Boolean enabled When false the text dims and NO edit affordance is attached - no scrub cursor, no
+ *   pointer handlers, no hover chevrons - so a disabled field cannot be interacted with by any route.
  * @param Function onTapToEdit Enters type-in mode (a click that did not become a drag).
  * @param Function onScrubStart Begins a scrub gesture.
  * @param Function onScrub Reports the total horizontal drag delta from the gesture start, in pixels.
@@ -274,11 +294,12 @@ private fun NumberFieldDisplay(
 	fillFraction: Float?,
 	shape: Shape,
 	modifier: Modifier,
-	onTapToEdit: () -> Unit,
-	onScrubStart: () -> Unit,
-	onScrub: (Float) -> Unit,
-	onScrubEnd: () -> Unit,
-	onStep: (Int) -> Unit,
+	enabled: Boolean = true,
+	onTapToEdit: () -> Unit = {},
+	onScrubStart: () -> Unit = {},
+	onScrub: (Float) -> Unit = {},
+	onScrubEnd: () -> Unit = {},
+	onStep: (Int) -> Unit = {},
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
@@ -294,29 +315,42 @@ private fun NumberFieldDisplay(
 			modifier
 				.height(NUMBER_FIELD_HEIGHT)
 				.clip(shape)
-				.background(if (hovered) colors.controlBackgroundHover else colors.controlBackground)
+				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
 				.border(1.dp, Color.Transparent, shape)
-				.hoverable(interaction)
-				.pointerInput(Unit) {
-					detectTapGestures { currentTap() }
-				}
-				// Horizontal-only: the scrub claims left/right drags but leaves vertical drags to the enclosing
-				// scroll (a scroll gesture begun on a field must still scroll the panel, not be eaten as a scrub).
-				.pointerInput(Unit) {
-					var total = 0f
-					detectHorizontalDragGestures(
-						onDragStart = {
-							total = 0f
-							currentScrubStart()
-						},
-						onDragEnd = { currentScrubEnd() },
-						onDragCancel = { currentScrubEnd() },
-					) { change, dragAmount ->
-						change.consume()
-						total += dragAmount
-						currentScrub(total)
-					}
-				},
+				.then(
+					if (!enabled) {
+						// A disabled field attaches no gesture or cursor affordance at all, so it cannot be
+						// scrubbed, typed into, or stepped, and it does not advertise that it could be.
+						Modifier
+					} else {
+						Modifier
+							.hoverable(interaction)
+							// The east-west arrows advertise the scrub before the user tries it - the drag is
+							// otherwise invisible.  Not overrideDescendants: the chevrons take back the default
+							// pointer so they still read as buttons.
+							.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll))
+							.pointerInput(Unit) {
+								detectTapGestures { currentTap() }
+							}
+							// Horizontal-only: the scrub claims left/right drags but leaves vertical drags to the
+							// enclosing scroll (a scroll gesture begun on a field must still scroll the panel).
+							.pointerInput(Unit) {
+								var total = 0f
+								detectHorizontalDragGestures(
+									onDragStart = {
+										total = 0f
+										currentScrubStart()
+									},
+									onDragEnd = { currentScrubEnd() },
+									onDragCancel = { currentScrubEnd() },
+								) { change, dragAmount ->
+									change.consume()
+									total += dragAmount
+									currentScrub(total)
+								}
+							}
+					},
+				),
 		contentAlignment = Alignment.Center,
 	) {
 		if (fillFraction != null) {
@@ -331,13 +365,14 @@ private fun NumberFieldDisplay(
 			modifier = Modifier.padding(horizontal = 4.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			Text(text = text, style = typography.bodySmall, color = colors.text)
+			val textColor = if (enabled) colors.text else colors.textDisabled
+			Text(text = text, style = typography.bodySmall, color = textColor)
 			if (unitSuffix != null) {
 				Spacer(modifier = Modifier.width(2.dp))
-				Text(text = unitSuffix, style = typography.bodySmall, color = colors.text)
+				Text(text = unitSuffix, style = typography.bodySmall, color = textColor)
 			}
 		}
-		if (hovered) {
+		if (hovered && enabled) {
 			StepChevron(
 				icon = LocalUmamoIcons.chevronLeft,
 				onClick = { onStep(-1) },
@@ -373,6 +408,9 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
 			modifier
 				.fillMaxHeight()
 				.width(16.dp)
+				// Takes back the plain pointer from the field's scrub cursor: this edge is a click target, not
+				// a drag zone, and the innermost hover icon wins.
+				.pointerHoverIcon(PointerIcon.Default)
 				.background(if (hovered) colors.buttonHover else colors.controlBackground)
 				.clickable(interactionSource = interaction, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,

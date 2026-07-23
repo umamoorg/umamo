@@ -59,6 +59,39 @@ fun EditorSession.setDrawableInvertMask(id: DrawableId, invert: Boolean) {
 }
 
 /**
+ * Binds drawable [id] to the deformer that deforms it (null unbinds) as one undo step.
+ *
+ * @param DrawableId id The drawable to rebind.
+ * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
+ */
+fun EditorSession.setDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?) {
+	mutate(DrawableChange.SetParentDeformer(id, parentDeformerId)) { model ->
+		model.withDrawableParentDeformer(id, parentDeformerId)
+	}
+}
+
+/**
+ * Replaces drawable [id]'s clip-mask list as one undo step, so adding or removing a single mask is one
+ * step.
+ *
+ * @param DrawableId id The drawable whose masks change.
+ * @param List maskedBy The drawables whose alpha now clips it.
+ */
+fun EditorSession.setDrawableMaskedBy(id: DrawableId, maskedBy: List<DrawableId>) {
+	mutate(DrawableChange.SetMaskedBy(id, maskedBy)) { model -> model.withDrawableMaskedBy(id, maskedBy) }
+}
+
+/**
+ * Binds deformer [id] to the organisational part that owns it (null clears it) as one undo step.
+ *
+ * @param DeformerId id The deformer to rebind.
+ * @param PartId? partId The part that owns it, or null to clear.
+ */
+fun EditorSession.setDeformerPart(id: DeformerId, partId: PartId?) {
+	mutate(DeformerChange.SetPart(id, partId)) { model -> model.withDeformerPart(id, partId) }
+}
+
+/**
  * Sets rotation deformer [id]'s base angle as one undo step. A no-op on a warp deformer (it has no base
  * angle), so the commit short-circuits.
  *

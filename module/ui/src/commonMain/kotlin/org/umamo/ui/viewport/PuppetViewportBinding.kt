@@ -49,7 +49,9 @@ import org.umamo.ui.model.OverlapEntry
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.HoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
@@ -259,7 +261,7 @@ fun rememberPuppetViewportHost(
 					}
 					val image by imageFlow.collectAsState()
 					val camera by cameraFlow.collectAsState()
-					val grabCursor = remember { grabPanPointerIcon() }
+					val grabCursor = remember { umamoPointerIcon(LocalUmamoCursors.nsewScroll) }
 					var panning by remember(areaId) { mutableStateOf(false) }
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
 					BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -367,6 +369,13 @@ fun rememberPuppetViewportHost(
 								camera = camera,
 								widthPx = widthPx,
 								heightPx = heightPx,
+							)
+							// The relation-pick overlay sits above the gizmos so an armed eyedropper claims the
+							// click before Object mode's pick would change the selection. It self-gates on the
+							// shell's pick slot, so it is inert (and passes input through) whenever none is armed.
+							ViewportPickOverlay(
+								areaId = areaId,
+								service = service,
 							)
 							// The HUD layer draws topmost (the 2D cursor and the modal-op status badge). It
 							// installs no pointer input, so it never steals a gesture from the overlays below.

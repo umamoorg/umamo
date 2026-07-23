@@ -32,16 +32,20 @@ expect fun Tooltip(text: String, modifier: Modifier = Modifier, content: @Compos
 /**
  * The tooltip's floating card: a small rounded popover reading like the kit's menus (menu fill, a
  * hairline border, a soft drop shadow) with the label in the primary text color.  Shared by every
- * platform's [Tooltip] so the chrome stays identical.
+ * platform's [Tooltip] so the chrome stays identical, and by any other transient label that should read
+ * as a tooltip - the relation-pick badge positions one at the cursor through [modifier].  Keeping the
+ * chrome here is the point: a second hand-rolled card would drift out of step with this one.
  *
  * ツールチップの浮動カード。メニューと同じ見た目（塗り・枠線・影）でラベルを表示する。
  *
- * @param String text The tooltip label.
+ * @param String   text     The tooltip label.
+ * @param Modifier modifier The layout modifier, applied to the card (a caller may position it).
  */
 @Composable
-internal fun TooltipCard(text: String) {
+internal fun TooltipCard(text: String, modifier: Modifier = Modifier) {
 	val colors = LocalUmamoColors.current
 	Surface(
+		modifier = modifier,
 		color = colors.menuBackground,
 		shape = LocalUmamoShapes.current.small,
 		border = BorderStroke(1.dp, colors.panelBorder),

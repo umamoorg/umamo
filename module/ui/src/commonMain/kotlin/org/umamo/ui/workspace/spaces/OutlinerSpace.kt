@@ -95,7 +95,9 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.workspace.AreaScope
+import org.umamo.ui.workspace.LocalRelationPick
 import org.umamo.ui.workspace.LocalRowDragCancel
+import org.umamo.ui.workspace.PickClickOutcome
 
 /** Per-depth indentation, matching the Parameters space's folder indent. */
 private val INDENT_PER_DEPTH = 12.dp
@@ -168,6 +170,9 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		return
 	}
 	val selectionHandle = LocalSelection.current
+	// An armed relation pick (a Properties eyedropper) resolves from an outliner row as well as from a
+	// viewport, so rows check it before selecting.
+	val relationPick = LocalRelationPick.current
 	val selection = selectionHandle?.selection ?: Selection()
 	// The open document's session drives the per-row edits (eye toggle, inline rename); null when no
 	// document is open, in which case those affordances no-op.
@@ -309,8 +314,14 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							onSelect = { toggle, extend ->
 								val target = row.node.target
 								val handle = selectionHandle
-								// Selectability gates only viewport picking; the outliner always selects.
-								if (target != null && handle != null) {
+								// An armed relation pick (a Properties eyedropper) claims the click. It claims a
+								// row it will NOT accept too - selecting would record an undo step and swap the
+								// Properties panel, and the arming field with it, out from under the pick.
+								val pickOutcome = target?.let { relationPick.click(it) } ?: PickClickOutcome.Ignored
+								if (pickOutcome == PickClickOutcome.Resolved) {
+									suppressReveal = true
+								} else if (pickOutcome == PickClickOutcome.Ignored && target != null && handle != null) {
+									// Selectability gates only viewport picking; the outliner always selects.
 									suppressReveal = true
 									handle.set(
 										selectionAfterClick(
@@ -696,6 +707,17 @@ private fun OutlinerRowBody(
 	// Plain (non-snapshot) holder for the row's layout coordinates so onGloballyPositioned never forces a
 	// recompose; the hover effect reads the live window bounds from it on demand to anchor the preview.
 	val boundsHolder = remember { OutlinerRowBoundsHolder() }
+	// While a relation pick is armed, report this row as what a click here would bind, so the shell's badge
+	// names it exactly as it does for a viewport hover.  Withdrawn on leaving, and only if still ours.
+	val relationPick = LocalRelationPick.current
+	LaunchedEffect(hovered, node.target) {
+		val target = node.target ?: return@LaunchedEffect
+		if (hovered) {
+			relationPick.hover(target)
+		} else {
+			relationPick.unhover(target)
+		}
+	}
 	// Report this row's hover so the space can pop (after its rest delay) an art preview beside it: a
 	// drawable previews its own art mesh, a part the combined art of everything under it; deformers have no
 	// art. Unconditional call site (it branches inside) so the composition structure is stable across recompose.

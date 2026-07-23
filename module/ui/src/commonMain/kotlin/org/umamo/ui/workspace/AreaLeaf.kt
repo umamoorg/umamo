@@ -31,7 +31,9 @@ import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.theme.umamoPointerIcon
 
 /** The square hit size of each corner drag handle (matches Blender's small corner widget). */
 private val CORNER_HANDLE_SIZE_HEIGHT = 20.dp
@@ -175,7 +177,7 @@ private fun BoxScope.AreaCornerHandle(
 				.align(corner.toAlignment())
 				.size(width = CORNER_HANDLE_SIZE_WIDTH, height = CORNER_HANDLE_SIZE_HEIGHT)
 				.onGloballyPositioned { handleCoords = it }
-				.pointerHoverIcon(areaMovePointerIcon())
+				.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.nsewScroll))
 				.pointerInput(areaId) {
 					detectDragGestures(
 						onDragStart = { startOffset ->

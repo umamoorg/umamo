@@ -50,6 +50,16 @@ data class PartComposite(
 	 * drawables at authoring time. (CMO3 clipGuidList; MOC3 offscreen mask prefix.)
 	 */
 	val maskedBy: List<DrawableId> = emptyList(),
+	/**
+	 * Parts whose descendant drawables also clip the composite - an Umamo extension over the Cubism data
+	 * model, which stores only drawable ids.  Keeping the part reference (rather than expanding it at
+	 * authoring time, as Cubism does) means the mask follows the part as its children change.  The render
+	 * tree sees the expansion, never these ids: [PuppetModel.deriveRenderRoot] resolves each part to its
+	 * descendant drawables and merges them into [maskedBy] for the [RenderGroup] it builds, so the stored
+	 * value keeps the grouping for the UI while the renderer stays drawable-only.  A CMO3 export flattens
+	 * this away (that format has nowhere to put it); UMA will carry it.
+	 */
+	val maskedByParts: List<PartId> = emptyList(),
 	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */
 	val invertMask: Boolean = false,
 	/** Static composite opacity (0..1) when the part has no keyform grid. (CMO3 CPartForm.opacity; MOC3 s161.) */

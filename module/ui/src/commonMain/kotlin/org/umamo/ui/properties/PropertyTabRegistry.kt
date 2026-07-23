@@ -66,9 +66,11 @@ fun matchesQuery(haystack: List<String>, query: String): Boolean {
 }
 
 /**
- * Whether a section is shown for a query, and which of its rows to draw.  A blank query shows the whole
- * section; a query that matches the section [title] also shows every row (the whole section is relevant);
- * otherwise only the rows whose terms match are shown, and the section is hidden entirely when none do.
+ * Whether a section is shown for a query, and which of its rows to draw.  A section that built no rows for
+ * the current context is never shown - it has nothing to say about the active item, and a header-only card
+ * is noise.  Otherwise: a blank query shows the whole section; a query that matches the section [title]
+ * also shows every row (the whole section is relevant); otherwise only the rows whose terms match are
+ * shown, and the section is hidden entirely when none do.
  *
  * @property Boolean shown Whether the section appears at all.
  * @property List visibleRowIndices The indices (into the section's row list) to draw, in order.
@@ -86,6 +88,12 @@ class SectionVisibility(val shown: Boolean, val visibleRowIndices: List<Int>)
  * @return SectionVisibility Whether the section shows and which rows to draw.
  */
 fun sectionVisibility(title: String, rowTerms: List<List<String>>, query: String): SectionVisibility {
+	// A section whose rows() returned nothing for this context has no content to show - and a title match
+	// must not resurrect it, or searching would surface an empty card.  This is how a section opts out for
+	// an item it does not apply to (Transform against a Part or a warp deformer).
+	if (rowTerms.isEmpty()) {
+		return SectionVisibility(false, emptyList())
+	}
 	val trimmed = query.trim()
 	val allRows = rowTerms.indices.toList()
 	if (trimmed.isEmpty() || matchesQuery(listOf(title), trimmed)) {

@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -64,6 +65,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
+import org.umamo.ui.theme.hiddenPointerIcon
 
 /**
  * The whole editor shell: workspace tabs over a recursive, switchable, splittable area tree, with the
@@ -130,6 +132,9 @@ fun EditorShell(
 	// branch would swallow it.  One pointer means at most one in-flight drag anywhere, so one slot serves
 	// every panel.
 	val rowDragCancel = remember { RowDragCancelController() }
+	// The one in-flight relation pick (a Properties field's eyedropper), resolved by whichever surface the
+	// user clicks next - the viewport pick overlay or an outliner row - and cancelled by Escape.
+	val relationPick = remember { RelationPickController() }
 	// The last-touched editor surface (area id + space kind), stamped by the viewport and UV-editor
 	// pointer loops and read by command handlers at dispatch time - the space-aware generalization of
 	// the camera controller's activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
@@ -238,6 +243,7 @@ fun EditorShell(
 				LocalMenuBarController provides menuBarController,
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
+				LocalRelationPick provides relationPick,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
 				LocalAreaCameraHub provides areaCameras,
 			) {
@@ -247,6 +253,16 @@ fun EditorShell(
 							.fillMaxSize()
 							.focusRequester(focusRequester)
 							.focusable()
+							// While a relation pick is armed the whole window hides the OS cursor and the shell
+							// draws the eyedropper instead (ShellRelationPickOverlay), so the affordance appears
+							// the instant the pick is armed rather than only once the pointer enters a viewport.
+							.then(
+								if (relationPick.request != null) {
+									Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
+								} else {
+									Modifier
+								},
+							)
 							// The window-space pointer tracker for the shell cursor overlays.  On the root
 							// surface, whose content Box shares this coordinate space, so the observer and
 							// the overlays agree on positions.
@@ -266,6 +282,7 @@ fun EditorShell(
 									selection = selection,
 									dragController = dragController,
 									rowDragCancel = rowDragCancel,
+									relationPick = relationPick,
 									commandRegistry = commandRegistry,
 									keymap = keymap,
 								)
@@ -329,6 +346,7 @@ fun EditorShell(
 					// escaping viewport bounds - and BELOW the modal dialogs that follow.
 					ShellNearCursorNotice(pointerPosition = shellPointerPosition)
 					ShellPieMenuHost(pointerPosition = shellPointerPosition)
+					ShellRelationPickOverlay(pointerPosition = shellPointerPosition)
 					// Modal overlays are siblings of the Column (Surface stacks its content in a Box), so their
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
