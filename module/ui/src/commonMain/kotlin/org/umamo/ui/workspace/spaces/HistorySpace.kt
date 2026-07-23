@@ -210,6 +210,8 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.drawable.invertMask" -> stringResource(Res.string.history_drawable_invert_mask)
 		"change.drawable.parentDeformer" -> stringResource(Res.string.history_drawable_parent_deformer)
 		"change.drawable.maskedBy" -> stringResource(Res.string.history_drawable_masked_by)
+		"change.drawable.multiplyColor" -> stringResource(Res.string.history_drawable_multiply_color)
+		"change.drawable.screenColor" -> stringResource(Res.string.history_drawable_screen_color)
 		"change.deformer.part" -> stringResource(Res.string.history_deformer_part)
 		"change.deformer.baseAngle" -> stringResource(Res.string.history_deformer_base_angle)
 		"change.deformer.quadTransform" -> stringResource(Res.string.history_deformer_quad_transform)

@@ -13,6 +13,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // The MultiplyScreenColors sample's authored colors: multiply #677CD1, screen #95C068 (editor hex,
@@ -167,5 +168,44 @@ class CompositeImportTest {
 				part.activeComposite != null && (part.formGrid?.cells?.map { it.form.opacity }?.distinct()?.size ?: 0) > 1
 			}
 		assertTrue(hasKeyformedOpacity, "an offscreen part has keyformed opacity")
+	}
+
+	@Test
+	fun pre53PartOpacityDefaultsToOpaque() {
+		// Erica Tamamo is a pre-5.3 model whose parts never author the float CPartForm.opacity, so the
+		// @DontSerializeIfDefault field parses as 0f = "unset -> fully opaque" (Cubism's semantic default),
+		// NOT 0%.  Without the ingest remap the part-opacity cascade renders the whole part subtree invisible
+		// (every drawable under a part goes to opacity 0); only the two root-level drawables stayed visible.
+		val file = probeFiles()["EricaTamamo.cmo3"] ?: return println("EricaTamamo.cmo3 not present; skipping")
+		val model = importCmo3(file)
+		assertTrue(model.parts.isNotEmpty(), "EricaTamamo carries parts")
+		assertTrue(model.parts.none { it.composite.opacity == 0f }, "no pre-5.3 part is spuriously transparent")
+		assertTrue(
+			model.parts.none { part -> part.formGrid?.cells?.any { it.form.opacity == 0f } == true },
+			"no pre-5.3 part keyform cell is spuriously transparent",
+		)
+	}
+
+	@Test
+	fun staticCmo3PartCarriesNoKeyformGrid() {
+		// A CMO3 part with no parameter binding must NOT keep a single-cell grid: the eval samples the grid
+		// OVER the static PartComposite, so a grid would shadow an edited composite opacity/color and an
+		// isolated static part's edit would never render (Moc3Import already returns a null grid for an
+		// unbound part - this keeps CMO3 consistent).  A part with real animation keeps its grid (below).
+		probeFiles()["EricaTamamo.cmo3"]?.let { file ->
+			val model = importCmo3(file)
+			val frontHair = model.parts.firstOrNull { it.name.equals("Front hair", ignoreCase = true) }
+			assertNotNull(frontHair, "EricaTamamo has a Front hair part")
+			assertNull(frontHair.formGrid, "a static (unbound) part carries no keyform grid")
+		} ?: println("EricaTamamo.cmo3 not present; skipping")
+
+		// An animated part - keyformed part draw order / opacity - keeps its grid (non-empty axes).
+		probeFiles()["modelA.cmo3"]?.let { file ->
+			val model = importCmo3(file)
+			assertTrue(
+				model.parts.any { part -> part.formGrid?.axes?.isNotEmpty() == true },
+				"a parameter-bound CMO3 part keeps its keyform grid",
+			)
+		} ?: println("modelA.cmo3 not present; skipping")
 	}
 }

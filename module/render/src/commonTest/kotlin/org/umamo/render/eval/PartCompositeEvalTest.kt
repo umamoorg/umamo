@@ -1,9 +1,14 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -125,5 +130,108 @@ class PartCompositeEvalTest {
 				.let { source -> source.copy(parts = source.parts.map { it.copy(groupMode = PartGroupMode.Grouped) }) }
 				.withDerivedRenderRoot()
 		assertTrue(preparePose(plain, emptyMap()).partCompositeStates.isEmpty())
+	}
+
+	private fun drawable(id: String, ownOpacity: Float): Drawable {
+		val positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+		return Drawable(
+			id = DrawableId(id),
+			name = id,
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
+			keyforms =
+				KeyformGrid(
+					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+					listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = ownOpacity))),
+				),
+		)
+	}
+
+	/** A part with a static (grid-less) opacity, so the cascade reads it off PartComposite. */
+	private fun partWith(id: String, mode: PartGroupMode, opacity: Float, children: List<OrgChild>): Part =
+		Part(id = PartId(id), name = id, children = children, groupMode = mode, composite = PartComposite(opacity = opacity))
+
+	private fun cascadeModel(parts: List<Part>, drawables: List<Drawable>, rootChildren: List<OrgChild>): PuppetModel =
+		PuppetModel(
+			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
+			parts = parts,
+			deformers = emptyList(),
+			drawables = drawables,
+			rootChildren = rootChildren,
+			rootPartId = null,
+			canvasWidth = 0f,
+			canvasHeight = 0f,
+			worldOriginX = 0f,
+			worldOriginY = 0f,
+		).withDerivedRenderRoot()
+
+	/** The pose-resolved opacity of drawable [id] in [model] at the default pose. */
+	private fun drawableOpacity(model: PuppetModel, id: String): Float =
+		preparePose(model, emptyMap()).drawables.first { it.drawableId == DrawableId(id) }.opacity
+
+	@Test
+	fun nonIsolatedPartOpacityCascadesToItsDrawables() {
+		val part = partWith("grp", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
+		val model = cascadeModel(listOf(part), listOf(drawable("d", ownOpacity = 0.8f)), listOf(OrgChild.Part(PartId("grp"))))
+		assertEquals(0.4f, drawableOpacity(model, "d"), 1e-6f, "own 0.8 x part 0.5")
+	}
+
+	@Test
+	fun isolatedPartOpacityDoesNotCascadeToDrawables() {
+		// An isolated part applies its opacity at the composite pass, so its drawable keeps its own opacity
+		// (the part's 0.5 shows up in partCompositeStates instead - covered above).
+		val part = partWith("fx", PartGroupMode.Isolated, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
+		val model = cascadeModel(listOf(part), listOf(drawable("d", ownOpacity = 0.8f)), listOf(OrgChild.Part(PartId("fx"))))
+		assertEquals(0.8f, drawableOpacity(model, "d"), 1e-6f, "isolated part opacity rides its composite, not the drawable")
+	}
+
+	@Test
+	fun nestedNonIsolatedPartOpacitiesMultiply() {
+		val inner = partWith("inner", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
+		val outer = partWith("outer", PartGroupMode.PassThrough, opacity = 0.5f, children = listOf(OrgChild.Part(PartId("inner"))))
+		val model = cascadeModel(listOf(outer, inner), listOf(drawable("d", ownOpacity = 1f)), listOf(OrgChild.Part(PartId("outer"))))
+		assertEquals(0.25f, drawableOpacity(model, "d"), 1e-6f, "outer 0.5 x inner 0.5")
+	}
+
+	@Test
+	fun drawableKeyformColorResolvesInPreparePose() {
+		// The 5.3 per-art-mesh multiply/screen color rides the drawable's keyform grid; preparePose must
+		// blend it onto DrawableDeformInputs so the renderer can tint (GL-independent proof of the resolve).
+		val positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+		val drawable =
+			Drawable(
+				id = DrawableId("d"),
+				name = "d",
+				parentDeformerId = null,
+				blendMode = BlendMode.Normal,
+				maskedBy = emptyList(),
+				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
+				keyforms =
+					KeyformGrid(
+						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+						listOf(
+							KeyformCell(
+								intArrayOf(0),
+								MeshForm(FloatArray(positions.size), multiplyColor = ColorRgb(1f, 0f, 0f), screenColor = ColorRgb(0f, 0f, 0.5f)),
+							),
+						),
+					),
+			)
+		val model = cascadeModel(emptyList(), listOf(drawable), listOf(OrgChild.Drawable(DrawableId("d"))))
+		val resolved = preparePose(model, emptyMap()).drawables.first { it.drawableId == DrawableId("d") }
+		assertEquals(ColorRgb(1f, 0f, 0f), resolved.multiplyColor)
+		assertEquals(ColorRgb(0f, 0f, 0.5f), resolved.screenColor)
+	}
+
+	@Test
+	fun nonIsolatedAncestorCascadesThroughAnIsolatedChild() {
+		// A non-isolated outer part cascades onto every descendant drawable, including one under an isolated
+		// child; the isolated child's own opacity still rides its composite, not the drawable.
+		val inner = partWith("fx", PartGroupMode.Isolated, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
+		val outer = partWith("outer", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Part(PartId("fx"))))
+		val model = cascadeModel(listOf(outer, inner), listOf(drawable("d", ownOpacity = 1f)), listOf(OrgChild.Part(PartId("outer"))))
+		assertEquals(0.5f, drawableOpacity(model, "d"), 1e-6f, "outer 0.5 cascades; inner isolated 0.5 does not")
 	}
 }

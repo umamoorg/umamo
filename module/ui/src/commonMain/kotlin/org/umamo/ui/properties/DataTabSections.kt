@@ -12,6 +12,8 @@ import org.umamo.edit.setDrawableAlphaBlendMode
 import org.umamo.edit.setDrawableBlendMode
 import org.umamo.edit.setDrawableCulling
 import org.umamo.edit.setDrawableInvertMask
+import org.umamo.edit.setDrawableMultiplyColor
+import org.umamo.edit.setDrawableScreenColor
 import org.umamo.edit.setPartComposite
 import org.umamo.edit.setPartDrawOrder
 import org.umamo.edit.setPartGroupMode
@@ -20,6 +22,8 @@ import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.displayMultiplyColor
+import org.umamo.runtime.model.displayScreenColor
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.toColorRgb
@@ -111,6 +115,34 @@ internal val BlendSection =
 									onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
 								)
 							}
+						}
+					},
+					// The 5.3 per-art-mesh multiply/screen color.  It is a keyformed channel, so the picker
+					// sets it uniformly across the drawable's whole keyform grid (see setDrawableMultiplyColor).
+					PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_multiply_color)) {
+							HexColorField(
+								value = formatHexColor(drawable.displayMultiplyColor().toComposeColor()),
+								onValueChange = { hex ->
+									parseHexColor(hex)?.let { picked ->
+										session?.setDrawableMultiplyColor(drawable.id, picked.toColorRgb())
+									}
+								},
+								modifier = Modifier.fillMaxWidth(),
+							)
+						}
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
+						PropertyFieldRow(stringResource(Res.string.properties_field_screen_color)) {
+							HexColorField(
+								value = formatHexColor(drawable.displayScreenColor().toComposeColor()),
+								onValueChange = { hex ->
+									parseHexColor(hex)?.let { picked ->
+										session?.setDrawableScreenColor(drawable.id, picked.toColorRgb())
+									}
+								},
+								modifier = Modifier.fillMaxWidth(),
+							)
 						}
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_culling)) { _ ->

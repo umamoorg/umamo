@@ -3,9 +3,12 @@ package org.umamo.render.eval
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.blendScalarsFromCorners
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.GluePair
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
@@ -25,7 +28,8 @@ internal class DrawableDeformInputs(
 	val isParented: Boolean,
 	val drawOrder: Float,
 	val opacity: Float,
-	/** The drawable's resolved blend-shape state at this pose; null when it has no bindings. */
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 	val blend: MeshBlendState? = null,
 )
 
@@ -70,6 +74,10 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
 	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
 	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue)
+	// A non-isolated part's opacity has no other home in the render pipeline (an isolated part applies
+	// its own at the composite pass), so cascade the product of each drawable's non-isolated ancestor
+	// part opacities into its drawable opacity below - the general Cubism part-opacity behavior.
+	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
 		val grid = drawable.keyforms ?: continue
@@ -93,6 +101,9 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 			}
 			opacity = opacity.coerceIn(0f, 1f)
 		}
+		// Cascade non-isolated ancestor part opacity onto the drawable's own (both already in [0,1], so
+		// the product stays in range) - applied after the blend-shape clamp, like the editor preview.
+		partOpacityByDrawable[drawable.id]?.let { partOpacity -> opacity *= partOpacity }
 		drawables.add(
 			DrawableDeformInputs(
 				drawableId = drawable.id,
@@ -101,6 +112,8 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				isParented = parentDeformerId != null,
 				drawOrder = drawOrder,
 				opacity = opacity,
+				multiplyColor = scalars?.multiplyColor ?: ColorRgb.MultiplyIdentity,
+				screenColor = scalars?.screenColor ?: ColorRgb.ScreenIdentity,
 				blend = blend,
 			),
 		)
@@ -142,6 +155,45 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 	}
 	blendGroupStates(model.renderRoot)
 	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
+}
+
+/**
+ * Folds each drawable's NON-ISOLATED ancestor part opacities into one factor, walking the org tree and
+ * carrying a running product.  An isolated part is skipped - it applies its own opacity at the composite
+ * pass, so cascading it here would apply it twice; a non-isolated part's opacity has no other home, so it
+ * multiplies onto its whole subtree.  A drawable under only identity-opacity parts (the common case) is
+ * absent from the map, so the caller multiplies by 1 for free.
+ *
+ * @param PuppetModel model      The rig.
+ * @param Function    paramValue Current value for a given parameter id.
+ * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
+ */
+private fun foldNonIsolatedPartOpacity(model: PuppetModel, paramValue: (ParameterId) -> Float): Map<DrawableId, Float> {
+	val partById = model.parts.associateBy { it.id }
+	val result = HashMap<DrawableId, Float>()
+
+	// A part's pose-blended opacity: the keyformed grid when it has one, else the static PartComposite
+	// value (populated from the neutral keyform on ingest, so it holds the authored opacity either way).
+	fun partOpacity(part: Part): Float = part.formGrid?.let { samplePartOpacity(it, paramValue) } ?: part.composite.opacity
+
+	fun walk(children: List<OrgChild>, inheritedOpacity: Float) {
+		for (child in children) {
+			when (child) {
+				is OrgChild.Drawable ->
+					if (inheritedOpacity != 1f) {
+						result[child.id] = inheritedOpacity
+					}
+
+				is OrgChild.Part -> {
+					val part = partById[child.id] ?: continue
+					val childOpacity = if (part.isIsolated) inheritedOpacity else inheritedOpacity * partOpacity(part)
+					walk(part.children, childOpacity)
+				}
+			}
+		}
+	}
+	walk(model.rootChildren, 1f)
+	return result
 }
 
 /**

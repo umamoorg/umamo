@@ -118,6 +118,26 @@ internal fun samplePartDrawOrder(grid: KeyformGrid<PartForm>, paramValue: (Param
 }
 
 /**
+ * Blends a part's opacity over its keyform grid at the current parameters - the general part opacity,
+ * shared by an isolated part (applied at its composite) and a non-isolated part (cascaded into its
+ * subtree's drawables).  Returns null when the controlling axis is out of range, so the caller falls
+ * back to the static opacity on the part's PartComposite.
+ *
+ * @param KeyformGrid grid       The part's keyform grid.
+ * @param Function    paramValue Current value for a given parameter id.
+ * @return Float? The blended part opacity, or null when out of range.
+ */
+internal fun samplePartOpacity(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): Float? {
+	val corners = gridCorners(grid, paramValue) ?: return null
+	val cells = cellsByLinearIndex(grid)
+	var opacity = 0f
+	for (corner in corners) {
+		opacity += corner.weight * (cells[corner.linearIndex]?.form?.opacity ?: 0f)
+	}
+	return opacity
+}
+
+/**
  * An isolated part's pose-blended composite channels - what the renderer applies when it
  * composites the part's subtree layer back into the scene.
  *

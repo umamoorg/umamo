@@ -243,6 +243,8 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 			GL20.glUniform4f(locations.drawColor, fragment.colorRed, fragment.colorGreen, fragment.colorBlue, fragment.colorAlpha)
 		}
 		GL20.glUniform1f(locations.opacity, fragment.opacity)
+		GL20.glUniform3f(locations.multiplyColor, fragment.multiplyRed, fragment.multiplyGreen, fragment.multiplyBlue)
+		GL20.glUniform3f(locations.screenColor, fragment.screenRed, fragment.screenGreen, fragment.screenBlue)
 		GL20.glUniform1f(locations.highlight, fragment.highlight)
 		GL20.glUniform3f(locations.highlightColor, fragment.highlightRed, fragment.highlightGreen, fragment.highlightBlue)
 		GL20.glUniform1i(locations.useMask, if (fragment.useMask) 1 else 0)

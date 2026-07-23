@@ -1,5 +1,6 @@
 package org.umamo.runtime.eval
 
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -37,8 +38,17 @@ public data class AxisBracket(val index: Int, val fraction: Float)
  */
 public data class WeightedCell(val linearIndex: Int, val weight: Float)
 
-/** The per-pose scalar attributes blended from an art-mesh keyform grid: render order + opacity. */
-public data class MeshScalars(val drawOrder: Float, val opacity: Float)
+/**
+ * The per-pose scalar attributes blended from an art-mesh keyform grid: render order, opacity, and the
+ * 5.3 per-art-mesh multiply/screen tint.  Colors default to their identities so geometry-only callers and
+ * pre-5.3 forms need not set them.
+ */
+public data class MeshScalars(
+	val drawOrder: Float,
+	val opacity: Float,
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+)
 
 /**
  * Brackets [value] against an axis's sorted [keys].  Returns null when the value is out of range
@@ -158,12 +168,29 @@ public fun blendScalarsFromCorners(grid: KeyformGrid<MeshForm>, corners: List<We
 	val cells = cellsByLinearIndex(grid)
 	var drawOrder = 0f
 	var opacity = 0f
+	var multiplyRed = 0f
+	var multiplyGreen = 0f
+	var multiplyBlue = 0f
+	var screenRed = 0f
+	var screenGreen = 0f
+	var screenBlue = 0f
 	for (corner in corners) {
 		val form = cells[corner.linearIndex]?.form ?: continue
 		drawOrder += corner.weight * form.drawOrder
 		opacity += corner.weight * form.opacity
+		multiplyRed += corner.weight * form.multiplyColor.red
+		multiplyGreen += corner.weight * form.multiplyColor.green
+		multiplyBlue += corner.weight * form.multiplyColor.blue
+		screenRed += corner.weight * form.screenColor.red
+		screenGreen += corner.weight * form.screenColor.green
+		screenBlue += corner.weight * form.screenColor.blue
 	}
-	return MeshScalars(drawOrder, opacity)
+	return MeshScalars(
+		drawOrder,
+		opacity,
+		ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
+		ColorRgb(screenRed, screenGreen, screenBlue),
+	)
 }
 
 /**

@@ -229,6 +229,22 @@ object Cmo3Import {
 		fun partStaticDrawOrder(part: CPartSource): Int =
 			elementsOf(part.keyforms).filterIsInstance<CPartForm>().firstOrNull()?.drawOrder ?: part.defaultOrder_forEditor
 
+		// A 5.3-authored part is marked by a present colorComposition (the offscreen probe pins this on every
+		// corpus file); a pre-5.3 part has it null.
+		fun isPre53Part(part: CPartSource): Boolean = part.colorComposition == null
+
+		// CMO3: CPartForm.opacity is @DontSerializeIfDefault with a 0f default, and pre-5.3 parts never author
+		// the float, so it parses as 0f meaning "unset -> fully opaque" (Cubism's semantic default is 100%),
+		// NOT 0%.  A 5.3 part authors opacity explicitly, so a genuine 0 there (e.g. a draw-order crossfade
+		// keyform) is a real value and is left alone - only pre-5.3's unset 0f is remapped to opaque.  Without
+		// this a pre-5.3 model's whole part subtree renders invisible under the part-opacity cascade.
+		fun resolvedPartOpacity(rawOpacity: Float, isPre53: Boolean): Float =
+			if (isPre53 && rawOpacity == 0f) {
+				1f
+			} else {
+				rawOpacity
+			}
+
 		fun partFormGridOf(part: CPartSource): KeyformGrid<PartForm>? =
 			buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
 				// CMO3: CPartForm carries the part's keyformed channels - drawOrder always, and (5.3)
@@ -236,12 +252,19 @@ object Cmo3Import {
 				(form as? CPartForm)?.let {
 					PartForm(
 						drawOrder = it.drawOrder.toFloat(),
-						opacity = it.opacity,
+						opacity = resolvedPartOpacity(it.opacity, isPre53Part(part)),
 						multiplyColor = colorRgbOf(it.multiplyColor) ?: ColorRgb.MultiplyIdentity,
 						screenColor = colorRgbOf(it.screenColor) ?: ColorRgb.ScreenIdentity,
 					)
 				}
 			}
+				// A grid with no parameter axes is a single static cell - it carries nothing the eval reads
+				// beyond Part.drawOrder (kept separately) and the opacity/color channels, which then fall back
+				// to the part's PartComposite.  Dropping it means an isolated static part honors an edited
+				// composite opacity/color (the eval samples the grid over the static composite when a grid is
+				// present), and it matches Moc3Import, which returns a null grid for an unbound part.  A part
+				// with real animation keeps its grid (non-empty axes), where the keyformed channels still win.
+				?.takeIf { it.axes.isNotEmpty() }
 
 		// CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
 		// called for every part (not just offscreen ones) to capture the settings regardless of mode; the
@@ -258,7 +281,8 @@ object Cmo3Import {
 				maskedBy = resolveGuids(source.clipGuidList, drawableIdByUuid),
 				// CMO3: CPartSource.invertClippingMask - show outside the mask instead of inside.
 				invertMask = source.invertClippingMask,
-				opacity = firstForm?.opacity ?: 1f,
+				// No form at all is already opaque; a pre-5.3 form's unset 0f is remapped to opaque too.
+				opacity = firstForm?.let { resolvedPartOpacity(it.opacity, isPre53Part(source)) } ?: 1f,
 				multiplyColor = colorRgbOf(firstForm?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
 				screenColor = colorRgbOf(firstForm?.screenColor) ?: ColorRgb.ScreenIdentity,
 			)
@@ -897,8 +921,15 @@ object Cmo3Import {
 	private fun meshForm(form: Any, base: FloatArray?): MeshForm? {
 		val artForm = form as? CArtMeshForm ?: return null
 		val positions = artForm.positions as? FloatArray ?: return null
-		// CMO3: ACDrawableForm.drawOrder (Cubism default 500) + opacity (0..1) ride on the art-mesh keyform.
-		return MeshForm(deltaVsBase(base, positions), artForm.drawOrder.toFloat(), artForm.opacity)
+		// CMO3: ACDrawableForm.drawOrder (Cubism default 500) + opacity (0..1) + the 5.3 per-art-mesh
+		// multiply/screen color ride on the art-mesh keyform (pre-5.3 forms carry no color -> identity).
+		return MeshForm(
+			deltaVsBase(base, positions),
+			artForm.drawOrder.toFloat(),
+			artForm.opacity,
+			multiplyColor = colorRgbOf(artForm.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+			screenColor = colorRgbOf(artForm.screenColor) ?: ColorRgb.ScreenIdentity,
+		)
 	}
 
 	/**
