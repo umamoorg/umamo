@@ -45,9 +45,6 @@ import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.edit.selectableOf
 import org.umamo.edit.withMeshPositions
 import org.umamo.render.ViewportCamera
-import org.umamo.render.eval.DrawableSpaceMapping
-import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.pick.drawablesInBox
 import org.umamo.render.pick.drawablesInCircle
@@ -55,6 +52,8 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.captureDrawableWorld
 import kotlin.math.max
 import kotlin.math.min
 
@@ -69,15 +68,14 @@ import kotlin.math.min
  * Origins); [anchor] is the world-space point the pointer math measures factors and angles against.
  */
 private class ObjectGestureCapture(
-	val drawableIds: List<DrawableId>,
-	val mappings: List<DrawableSpaceMapping>,
-	val displayed: List<FloatArray>,
-	val world: List<FloatArray>,
-	val base: List<FloatArray>,
+	val geometries: List<DrawableWorldGeometry>,
 	val indices: List<Set<Int>>,
 	val groups: List<List<TransformPivotGroup>>,
 	val anchor: Pair<Float, Float>,
 ) {
+	/** The captured drawables, in capture order (the key every per-index list is aligned to). */
+	val drawableIds: List<DrawableId> get() = geometries.map { geometry -> geometry.drawableId }
+
 	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
 	val rotationTracker = RotationAngleTracker()
 }
@@ -315,13 +313,14 @@ fun ObjectGizmoOverlay(
 		val captured = capture ?: return false
 		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.
 		val frame = TransformGestureFrame(captured.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
-		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.drawableIds.size)
+		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(captured.geometries.size)
 		var folded = session.model.value
-		for (drawableIndex in captured.drawableIds.indices) {
+		for (drawableIndex in captured.geometries.indices) {
+			val geometry = captured.geometries[drawableIndex]
 			val transformedWorld =
 				applyOperator(
 					operator,
-					captured.world[drawableIndex],
+					geometry.world,
 					captured.groups[drawableIndex],
 					frame,
 					// Proportional editing is an Edit-mode feature: object mode moves whole
@@ -329,12 +328,9 @@ fun ObjectGizmoOverlay(
 					emptyMap(),
 					captured.rotationTracker,
 				)
-			val transformedLocal =
-				captured.mappings[drawableIndex].worldToLocalLinearized(transformedWorld, captured.displayed[drawableIndex], captured.world[drawableIndex], captured.indices[drawableIndex])
-			val newBase = movementToBase(captured.base[drawableIndex], transformedLocal, captured.displayed[drawableIndex])
-			val drawableId = captured.drawableIds[drawableIndex]
-			newBaseByDrawable[drawableId] = newBase
-			folded = folded.withMeshPositions(drawableId, newBase)
+			val newBase = geometry.worldToBase(transformedWorld, captured.indices[drawableIndex])
+			newBaseByDrawable[geometry.drawableId] = newBase
+			folded = folded.withMeshPositions(geometry.drawableId, newBase)
 		}
 		preview = newBaseByDrawable
 		service.setModel(folded)
@@ -372,28 +368,12 @@ fun ObjectGizmoOverlay(
 			val model = session.model.value
 			val pose = session.pose.value
 			val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
-			val ids = ArrayList<DrawableId>()
-			val mappings = ArrayList<DrawableSpaceMapping>()
-			val displayedList = ArrayList<FloatArray>()
-			val worldList = ArrayList<FloatArray>()
-			val baseList = ArrayList<FloatArray>()
-			val indicesList = ArrayList<Set<Int>>()
-			if (eligibleIds != null) {
-				for (drawableId in eligibleIds) {
-					// A drawable with a hidden ancestor has no world mapping - skip it rather than abort the whole
-					// gesture (the others still transform).
-					val mapping = drawableSpaceMapping(model, pose, drawableId) ?: continue
-					val base = model.drawables.firstOrNull { it.id == drawableId }?.mesh?.positions ?: continue
-					val displayed = drawableLocalPosed(model, pose, drawableId) ?: base
-					val world = mapping.localToWorld(displayed)
-					ids.add(drawableId)
-					mappings.add(mapping)
-					displayedList.add(displayed)
-					worldList.add(world)
-					baseList.add(base.copyOf())
-					indicesList.add((0 until world.size / 2).toSet())
-				}
-			}
+			// A drawable with a hidden ancestor has no world mapping and captures as null - skip it rather than
+			// abort the whole gesture (the others still transform).
+			val geometries = eligibleIds.orEmpty().mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+			val ids = geometries.map { geometry -> geometry.drawableId }
+			val worldList = geometries.map { geometry -> geometry.world }
+			val indicesList = geometries.map { geometry -> geometry.allIndices }
 			if (ids.isEmpty()) {
 				// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 				session.clearObjectOperator()
@@ -428,7 +408,7 @@ fun ObjectGizmoOverlay(
 							TransformPivots.sharedGroup(indicesList[drawableIndex], anchor.first, anchor.second)
 						}
 					}
-				capture = ObjectGestureCapture(ids, mappings, displayedList, worldList, baseList, indicesList, groups, anchor)
+				capture = ObjectGestureCapture(geometries, indicesList, groups, anchor)
 				gestureStart = lastPointer
 				preview = null
 				cursorWrap.reset()

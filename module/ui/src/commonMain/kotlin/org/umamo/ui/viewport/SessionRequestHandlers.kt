@@ -19,10 +19,10 @@ import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.selectableOf
 import org.umamo.edit.snapToGrid
 import org.umamo.render.ViewportCamera
-import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
+import org.umamo.ui.transform.captureDrawableWorld
+import org.umamo.ui.transform.movementToBase
 import kotlin.math.roundToInt
 
 /*
@@ -297,22 +297,13 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 	val pose = session.pose.value
 	val eligibleIds = org.umamo.edit.eligibleTransformDrawables(session.selection.value, model) ?: return
 	// Per-drawable posed geometry, the same capture a transform freezes.
-	val ids = ArrayList<DrawableId>()
-	val displayedList = ArrayList<FloatArray>()
-	val worldList = ArrayList<FloatArray>()
-	val mappingsList = ArrayList<org.umamo.render.eval.DrawableSpaceMapping>()
-	for (drawableId in eligibleIds) {
-		val mapping = drawableSpaceMapping(model, pose, drawableId) ?: continue
-		val base = model.drawables.firstOrNull { it.id == drawableId }?.mesh?.positions ?: continue
-		val displayed = drawableLocalPosed(model, pose, drawableId) ?: base
-		ids.add(drawableId)
-		mappingsList.add(mapping)
-		displayedList.add(displayed)
-		worldList.add(mapping.localToWorld(displayed))
-	}
-	if (ids.isEmpty()) {
+	// A drawable with a hidden ancestor captures as null - skip it, the rest still snap.
+	val geometries = eligibleIds.mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+	if (geometries.isEmpty()) {
 		return
 	}
+	val ids = geometries.map { geometry -> geometry.drawableId }
+	val worldList = geometries.map { geometry -> geometry.world }
 	val combined = MeshTransforms.combinedCentroid(worldList)
 	val activeId = (session.selection.value.active as? SelectionTarget.Drawable)?.id
 	val activeIndex = activeId?.let { candidate -> ids.indexOf(candidate) } ?: -1
@@ -332,9 +323,9 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 				return
 			}
 			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(ids.size)
-			for (drawableIndex in ids.indices) {
-				val world = worldList[drawableIndex]
-				val allIndices = (0 until world.size / 2).toSet()
+			for (geometry in geometries) {
+				val world = geometry.world
+				val allIndices = geometry.allIndices
 				val ownCentroid = MeshTransforms.medianPivot(world, allIndices)
 				val (deltaX, deltaY) =
 					when (kind) {
@@ -357,10 +348,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 					continue
 				}
 				val transformedWorld = MeshTransforms.translateVertices(world, allIndices, deltaX, deltaY)
-				val transformedDisplayed =
-					mappingsList[drawableIndex].worldToLocalLinearized(transformedWorld, displayedList[drawableIndex], world, allIndices)
-				val base = model.drawables.first { it.id == ids[drawableIndex] }.mesh!!.positions
-				newPositionsByDrawable[ids[drawableIndex]] = movementToBase(base, transformedDisplayed, displayedList[drawableIndex])
+				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, allIndices)
 			}
 			if (newPositionsByDrawable.isNotEmpty()) {
 				session.commitObjectPositions(MeshChange.MoveDrawables(newPositionsByDrawable.keys.toList()), newPositionsByDrawable)
