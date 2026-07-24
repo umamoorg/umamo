@@ -154,10 +154,10 @@ internal fun compositeFragmentShader(dialect: GlslDialect): String =
 			layer *= layerScale;
 			float as = layer.a;
 			float ab = dest.a;
-			vec3 Cs = (as > 0.0) ? layer.rgb / as : vec3(0.0);
+			vec3 Cs = (as > 0.0) ? clamp(layer.rgb / as, 0.0, 1.0) : vec3(0.0);
 			Cs = Cs * multiplyColor;
 			Cs = Cs + screenColor - Cs * screenColor;
-			vec3 Cb = (ab > 0.0) ? dest.rgb / ab : vec3(0.0);
+			vec3 Cb = (ab > 0.0) ? clamp(dest.rgb / ab, 0.0, 1.0) : vec3(0.0);
 			vec4 outColor;
 			if (colorMode == 1 || colorMode == 2 || (alphaMode == 0 && colorMode == 0)) {
 				vec3 srcPremul = Cs * as;
@@ -169,15 +169,23 @@ internal fun compositeFragmentShader(dialect: GlslDialect): String =
 					outColor = vec4(srcPremul * dest.rgb + dest.rgb * (1.0 - as), ab);
 				}
 			} else {
-				vec3 mixed = (1.0 - ab) * Cs + ab * blendColor3(Cb, Cs);
+				float p0 = as * ab; // Uncorrelated (OVER/ATOP)
+				if (alphaMode == 3) { // CONJOINT
+					p0 = min(as, ab);
+				} else if (alphaMode == 4) { // DISJOINT
+					p0 = max(as + ab - 1.0, 0.0);
+				}
+				float w = (as > 0.0) ? p0 / as : 0.0;
+				vec3 mixed = (1.0 - w) * Cs + w * blendColor3(Cb, Cs);
+				// vec3 mixed = (1.0 - ab) * Cs + ab * blendColor3(Cb, Cs);
 				float Fa;
 				float Fb;
 				if (alphaMode == 1) {
 					Fa = ab;
 					Fb = 1.0 - as;
 				} else if (alphaMode == 2) {
-					Fa = 1.0 - ab;
-					Fb = 0.0;
+					Fa = 0.0;
+					Fb = 1.0 - as;
 				} else if (alphaMode == 3) {
 					Fa = 1.0;
 					Fb = (ab <= 0.0 || as >= ab) ? 0.0 : 1.0 - as / ab;
