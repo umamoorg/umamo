@@ -81,14 +81,19 @@ class HologramDumpTest {
 	}
 
 	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) return 0L
+		if (!GLFW.glfwInit()) {
+			return 0L
+		}
 		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
 		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
 		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
 		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
 		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
 		val window = GLFW.glfwCreateWindow(1, 1, "umamo-holo-dump", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) { GLFW.glfwTerminate(); return 0L }
+		if (window == MemoryUtil.NULL) {
+			GLFW.glfwTerminate()
+			return 0L
+		}
 		GLFW.glfwMakeContextCurrent(window)
 		GL.createCapabilities()
 		return window
