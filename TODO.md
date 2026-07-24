@@ -273,37 +273,6 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
-## Android GLES renderer backend (deferred 2026-06-21; rewritten 2026-07-24)
-
-**Where this stands.** The re-architecture worry in the original note is dead: `PuppetRenderer` is
-backend-neutral commonMain and makes zero GL calls, all shader source is commonMain under `:render/glsl/`
-emitted per dialect by `GlslDialect`, and `:render/androidMain` already carries a `GlesRenderDevice` stub.
-So what is left is genuinely "fill in one `RenderDevice` implementation + bridge it into the Android app",
-against an API that has already been proven by a shipping backend.  Two pieces:
-
-1. **`GlesRenderDevice`** — a near-transliteration of `GlRenderDevice` (542 lines, jvmMain/LWJGL) in the
-	GLES binding style (`android.opengl.GLES30`).  Same calls, different binding surface.
-2. **The Compose-image bridge + a GLES `PuppetViewportService`**, the Android peer of `OffscreenPuppetService`.
-	`MainActivity` passes `viewportServiceFactory = null` today, which is why viewport areas render placeholders.
-	`SupersampledSurface` and the device's `resolve` + ticket-based async readback are already commonMain, so
-	the offscreen/readback stack is reusable rather than rewritten.
-
-**The one real divergence — glue's texture buffer.** The glue pass needs a random-access partner lookup.
-Texture buffer objects are **core only in GLES 3.2**, not 3.0/3.1.  Options: (a) `EXT_texture_buffer` if
-present; (b) repack the shared position buffer as a regular **2D texture** and index it by
-`(globalIndex % width, globalIndex / width)` via `texelFetch` (works on ES 3.0); (c) fall back to CPU glue
-on Android.  Option (b) is the cleanest portable route and would also simplify the desktop path.  This is now
-hidden behind `DeformedPositionStore` / `createDeformedPositionStore`, so whichever option is taken, the
-renderer is untouched.
-
-**Shader portability (GLSL → GLSL ES 3.0).** Mostly handled by `GlslDialect` already: `#version 300 es`,
-explicit precision (`precision highp float;` + `precision highp int;`, `highp` samplers), `in/out` (already
-300-style).  `texelFetch` + RG32F sampling for the delta/control-point textures are fine in ES 3.0.
-
-**Validation.** The GPU-vs-CPU transform-feedback tests (`GpuDeformValidationTest`, `GpuGlueValidationTest`)
-are desktop-only (GLFW), but they diff `RenderDevice` output against `applyCpuDeform`, which is backend-neutral —
-an on-device or emulator render-diff is the Android analogue and needs no new oracle.
-
 ## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
 Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.
 
@@ -334,25 +303,10 @@ is still ahead.
 	CMO3 — `extractPuppetTextures`). Pack layer tiles into page(s), emit UVs pointing at the tiles; hold the
 	vertex→art-pixel binding invariant across every repack. Foundation built: the trimmed pack rects come from
 	`analyzeAlpha` (Phase B).
-4. UV editor. BUILT (2026-07) — `UvEditorSpace` + `UvEdits`, editing existing UVs over an existing atlas
-	page in texel space (v=0 is the atlas TOP row).  The half of decoupling that was missing is now
-	authorable.  Remaining gaps are listed under § UV Editor, and none of them block the pipeline: what the
-	editor still cannot do is author a mapping over an atlas Umamo BUILT, because there is no packer yet
-	(step 3).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
 6. Rigging. Parameters, deformers, keyforms on top of the rest mesh — the actual deformation authoring.
-	CORRECTED 2026-07-24: this was previously logged as "largely built for CMO3-imported models", which
-	conflated evaluating an imported rig with authoring one.  What is built is the READ half — import,
-	multilinear keyform blend, deformer cascade, GPU deform, oracle-gated against the official core — plus
-	parameter CRUD (create/rename/delete/range/link/group/reorder) and structural moves (re-parent a
-	deformer, re-home a drawable).  What does NOT exist anywhere in the tree: creating a deformer, binding an
-	object to a parameter (adding a keyform axis), and inserting/moving/deleting a keyform.  There is no
-	`param.addKeyform` command — CLAUDE.md names one as an example, not as shipped code — and `:edit` has no
-	keyform-authoring op at all.  A model can be posed, inspected, and its mesh edited at rest; it cannot yet
-	be RIGGED.  This is the largest single gap between Umamo and the thesis, and both candidate next steps
-	(deformer gizmos, dope sheet) are attempts to close different halves of it.
 7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher / SourceBinding. Identity-keyed
 	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
