@@ -108,7 +108,7 @@ class PartMaskResolveTest {
 		val rendered = renderedComposite(model(authored))
 
 		assertTrue(rendered?.maskedByParts?.isEmpty() == true, "the renderer must not receive part ids")
-		assertEquals(listOf(maskLeafId, maskNestedId), rendered?.maskedBy)
+		assertEquals(listOf(maskLeafId, maskNestedId), rendered.maskedBy)
 	}
 
 	@Test
