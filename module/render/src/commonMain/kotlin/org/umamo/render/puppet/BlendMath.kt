@@ -10,13 +10,17 @@ import kotlin.math.sqrt
  * The layer-composite reference math - the single spec the composite fragment shader
  * (glsl/CompositeShaders.kt) and the analytic GL tests both follow.  Sources are the PUBLIC
  * standard formulas only: W3C Compositing and Blending Level 1 for the separable and
- * non-separable (Hue/Color) blend functions, Porter-Duff for Over/Atop/Out, and the X Render
- * extension's conjoint/disjoint over variants.  Cubism's own `_TSL`/`_R2` math is NOT derived
+ * non-separable (Hue/Color) blend functions, Porter-Duff for Over/Atop and a DST-flavored Out
+ * (the source erases the destination and contributes no color), the X Render extension's
+ * conjoint/disjoint over variants, and KHR_blend_equation_advanced's p0 overlap weights for how
+ * much of the source takes the blended color.  Cubism's own `_TSL`/`_R2` math is NOT derived
  * from the official SDK - the standard-formula reading has been checked against the official
  * editor's rendering of Model A's authored combinations (NORMAL / MULTIPLY_R2 composites; HSL_COLOR /
- * ADD_R2 (Glow) / HARDLIGHT / MULTIPLY_R2 drawable blends; OVER / ATOP / OUT / DISJOINT alphas) and
- * matches visually.  Combinations the corpus does not yet exercise with real art (the remaining
- * `_TSL` variants, Conjoint) are unconfirmed against the editor.
+ * ADD_R2 (Glow) / HARDLIGHT / MULTIPLY_R2 drawable blends; OVER / ATOP / OUT / DISJOINT alphas).
+ * OUT in particular was confirmed DST-flavored: the SRC-out reading rendered Model A's hologram
+ * cutouts as destination-erasing silhouettes instead of cutting the effect to the body shape.
+ * Combinations the corpus does not yet exercise with real art (the remaining `_TSL` variants,
+ * Conjoint) are unconfirmed against the editor.
  *
  * Everything operates on PREMULTIPLIED RGBA (the renderer's framebuffer convention).  The fixed-function
  * premultiplied path replicates the equations of GlFrameEncoder.applyBlend EXACTLY (pinned by a
@@ -123,15 +127,25 @@ public fun compositeReference(
 		return FloatArray(4) { channelIndex -> out[channelIndex].coerceIn(0f, 1f) }
 	}
 
-	// Generic path: unpremultiply, blend, weight by backdrop alpha (W3C: the blended color applies
-	// only where the backdrop exists), then the alpha mode's Porter-Duff factors on premultiplied
-	// terms: co = as*Fa*Cm + ab*Fb*Cb, ao = as*Fa + ab*Fb.
+	// Generic path: unpremultiply, blend, then weight the blended color by the overlap fraction
+	// w = p0/as, where p0 is the KHR advanced-blend overlap weight for the alpha mode's coverage
+	// model: as*ab uncorrelated (Over/Atop/Out), min(as, ab) conjoint (maximal overlap), and
+	// max(as + ab - 1, 0) disjoint (minimal overlap).  The uncorrelated case reduces to the W3C
+	// backdrop-alpha weighting (w = ab).  Then the alpha mode's Porter-Duff factors on
+	// premultiplied terms: co = as*Fa*Cm + ab*Fb*Cb, ao = as*Fa + ab*Fb.
 	val sourceColor = unpremultiply(srcPremul)
 	val destinationColor = unpremultiply(dstPremul)
 	val blended = blendColor(blendMode, destinationColor, sourceColor)
+	val overlap =
+		when (alphaBlendMode) {
+			AlphaBlendMode.Conjoint -> min(sourceAlpha, destinationAlpha)
+			AlphaBlendMode.Disjoint -> max(sourceAlpha + destinationAlpha - 1f, 0f)
+			else -> sourceAlpha * destinationAlpha
+		}
+	val blendWeight = if (sourceAlpha > 0f) overlap / sourceAlpha else 0f
 	val mixed =
 		FloatArray(3) { channelIndex ->
-			(1f - destinationAlpha) * sourceColor[channelIndex] + destinationAlpha * blended[channelIndex]
+			(1f - blendWeight) * sourceColor[channelIndex] + blendWeight * blended[channelIndex]
 		}
 	val sourceFactor: Float
 	val destinationFactor: Float
@@ -144,9 +158,11 @@ public fun compositeReference(
 			sourceFactor = destinationAlpha
 			destinationFactor = 1f - sourceAlpha
 		}
+		// DST-out: the source erases the destination where it covers (ao = ab*(1-as)); Fa = 0 so
+		// the source contributes no color of its own.
 		AlphaBlendMode.Out -> {
-			sourceFactor = 1f - destinationAlpha
-			destinationFactor = 0f
+			sourceFactor = 0f
+			destinationFactor = 1f - sourceAlpha
 		}
 		// X Render conjoint over: maximal overlap - the destination shows only where it exceeds
 		// the source (ao = max(as, ab)).
@@ -170,13 +186,17 @@ public fun compositeReference(
 	)
 }
 
-/** The straight-alpha color of a premultiplied pixel (0 where the alpha is 0). */
+/** The straight-alpha color of a premultiplied pixel, clamped to [0,1] (0 where the alpha is 0). */
 private fun unpremultiply(premul: FloatArray): FloatArray {
 	val alpha = premul[3]
 	if (alpha <= 0f) {
 		return floatArrayOf(0f, 0f, 0f)
 	}
-	return floatArrayOf(premul[0] / alpha, premul[1] / alpha, premul[2] / alpha)
+	return floatArrayOf(
+		(premul[0] / alpha).coerceIn(0f, 1f),
+		(premul[1] / alpha).coerceIn(0f, 1f),
+		(premul[2] / alpha).coerceIn(0f, 1f),
+	)
 }
 
 /**

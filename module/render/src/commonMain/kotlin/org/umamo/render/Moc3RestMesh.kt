@@ -96,7 +96,17 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 								FloatArray(oldDeltas.size) { coordIndex ->
 									(mesh.positions[coordIndex] + oldDeltas[coordIndex]) - canvasBase[coordIndex]
 								}
-							KeyformCell(cell.coordinate, MeshForm(rebasedDeltas, cell.form.drawOrder, cell.form.opacity))
+							// Only the geometry rebases; every non-positional channel rides along unchanged.
+							KeyformCell(
+								cell.coordinate,
+								MeshForm(
+									rebasedDeltas,
+									cell.form.drawOrder,
+									cell.form.opacity,
+									cell.form.multiplyColor,
+									cell.form.screenColor,
+								),
+							)
 						},
 					)
 				}
@@ -112,6 +122,8 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 										},
 										meshForm.drawOrder,
 										meshForm.opacity,
+										meshForm.multiplyColor,
+										meshForm.screenColor,
 									)
 								}
 							},
