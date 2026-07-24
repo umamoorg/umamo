@@ -6,6 +6,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.ingest.Moc3Import
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PuppetModel
@@ -116,6 +117,81 @@ class CompositeImportParityTest {
 			assertEquals(cmo3Drawable.blendMode, moc3Drawable.blendMode, "$drawableLabel color blend")
 			assertEquals(cmo3Drawable.alphaBlendMode, moc3Drawable.alphaBlendMode, "$drawableLabel alpha blend")
 			assertEquals(cmo3Drawable.culling, moc3Drawable.culling, "$drawableLabel culling")
+		}
+	}
+
+	/**
+	 * The DISTINCT non-identity deformer render channel values in [puppet], sorted and rounded.
+	 *
+	 * A value set rather than a per-deformer join because the two import paths do not share deformer
+	 * ids - MOC3 synthesizes `Deformer<n>` from file order while CMO3 carries the authored id - so
+	 * there is nothing to join on.
+	 *
+	 * DISTINCT rather than a multiset because the two files legitimately store different keyform
+	 * COUNTS for the same rig: baking resamples the grid (one corpus model carries 191 warp keyforms
+	 * in its .cmo3 and 436 in its .moc3). Multiplicity is therefore not a parity claim; the set of
+	 * authored values is. That still catches what matters - a path that drops the channels yields an
+	 * empty set, and one that mis-scales a value yields a different member.
+	 *
+	 * @param PuppetModel puppet The imported rig.
+	 * @return List<String> Sorted distinct "opacity|multiply|screen" rows.
+	 */
+	private fun deformerChannelMultiset(puppet: PuppetModel): List<String> {
+		fun row(opacity: Float, multiplyColor: ColorRgb, screenColor: ColorRgb): String? {
+			if (opacity == 1f && multiplyColor == ColorRgb.MultiplyIdentity && screenColor == ColorRgb.ScreenIdentity) {
+				return null
+			}
+
+			// Rounded: the two paths reach the same values through different float arithmetic (CMO3
+			// parses decimal text, MOC3 reads stored f32), so exact equality is the wrong bar.
+			fun round(value: Float): String = ((value * 10000f).toInt() / 10000f).toString()
+			return "op=${round(opacity)} " +
+				"mul=${round(multiplyColor.red)},${round(multiplyColor.green)},${round(multiplyColor.blue)} " +
+				"scr=${round(screenColor.red)},${round(screenColor.green)},${round(screenColor.blue)}"
+		}
+		return puppet.deformers
+			.flatMap { deformer ->
+				when (deformer) {
+					is Deformer.Warp ->
+						deformer.keyforms?.cells.orEmpty().mapNotNull { row(it.form.opacity, it.form.multiplyColor, it.form.screenColor) }
+
+					is Deformer.Rotation ->
+						deformer.keyforms?.cells.orEmpty().mapNotNull { row(it.form.opacity, it.form.multiplyColor, it.form.screenColor) }
+				}
+			}
+			.distinct()
+			.sorted()
+	}
+
+	@Test
+	fun deformerRenderChannelsAgreeAcrossImports() {
+		val cmo3Files = cmo3ByBasename()
+		val moc3Files = moc3ByBasename()
+		var comparedPairs = 0
+		var totalChannelledKeyforms = 0
+		// The corpus models that actually author a deformer channel and have both halves of a pair.
+		for (pairName in listOf("modelA", "modelC", "modelE")) {
+			val cmo3File = cmo3Files[pairName] ?: continue
+			val moc3File = moc3Files[pairName] ?: continue
+			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$pairName: root is not a CModelSource")
+			val cmo3Channels = deformerChannelMultiset(Cmo3Import.fromModelSource(cmo3Root))
+			val moc3Channels = deformerChannelMultiset(Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null))
+			assertEquals(cmo3Channels, moc3Channels, "$pairName: deformer render channels")
+			assertTrue(cmo3Channels.isNotEmpty(), "$pairName: authors at least one non-identity deformer channel")
+			// The anchor that matters: a deformer opacity of exactly 0 is the subtree show/hide switch
+			// riggers use, and dropping it renders whole effect subtrees permanently visible.
+			assertTrue(
+				cmo3Channels.any { it.startsWith("op=0.0 ") },
+				"$pairName: a deformer keys opacity to 0 (the subtree hide switch)",
+			)
+			totalChannelledKeyforms += cmo3Channels.size
+			comparedPairs++
+			println("[Umamo][deformer-channel-parity] $pairName: ${cmo3Channels.size} distinct non-identity channel values agree")
+		}
+		if (comparedPairs == 0) {
+			println("no deformer-channel cmo3/moc3 pairs present; skipping")
+		} else {
+			assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
 		}
 	}
 
