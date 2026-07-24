@@ -10,8 +10,22 @@ import kotlin.math.abs
  * note), so the shared pieces live here for the posed tests instead of being extracted from it.
  */
 
-/** One dumped drawable: its vertex count and the oracle's position/uv rolling hashes. */
-internal data class OracleEntry(val vtx: Int, val vposH: Double, val vuvH: Double)
+/**
+ * One dumped drawable: its vertex count, the oracle's position/uv rolling hashes, and the
+ * post-update scalar channels ([opacity] and the multiply/screen RGBA the `--channels` flag adds).
+ *
+ * The channels are the cascade result, not the drawable's own keyform value - the oracle folds its
+ * parent deformer chain and its ancestor parts in before exposing them - which is exactly what makes
+ * them a usable gate on our own cascade.
+ */
+internal data class OracleEntry(
+	val vtx: Int,
+	val vposH: Double,
+	val vuvH: Double,
+	val opacity: Float,
+	val multiplyRgba: List<Float>,
+	val screenRgba: List<Float>,
+)
 
 /**
  * One dumped offscreen (an `O` line): the static moc fields plus the post-update interpolated
@@ -52,6 +66,9 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	command.add(coreLib.absolutePath)
 	command.add(moc3.absolutePath)
 	command.add("--update")
+	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
+	// alternative is two dump invocations for tests that want geometry AND colour.
+	command.add("--channels")
 	for ((parameterId, value) in pose) {
 		command.add("--param")
 		command.add("$parameterId=$value")
@@ -67,6 +84,11 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val vtxRegex = Regex("""vtx=(\d+)""")
 	val vposRegex = Regex("""vpos_h=(\S+)""")
 	val vuvRegex = Regex("""vuv_h=(\S+)""")
+	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
+	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
+	val opacityRegex = Regex(""" op=(\S+)""")
+	val multiplyRegex = Regex(""" mul=(\S+)""")
+	val screenRegex = Regex(""" scr=(\S+)""")
 	// O <i> owner=<d> blend=<d> cflag=0x<hex> masks=<n>:<i0>,<i1>,… op=<g> mul=<r>,<g>,<b>,<a> scr=<r>,<g>,<b>,<a>
 	val offscreenRegex =
 		Regex("""O \d+ owner=(-?\d+) blend=(-?\d+) cflag=0x([0-9a-fA-F]+) masks=\d+:(\S*) op=(\S+) mul=(\S+) scr=(\S+)""")
@@ -95,7 +117,10 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		val vtx = vtxRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: continue
 		val vposH = vposRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
 		val vuvH = vuvRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-		entries[id] = OracleEntry(vtx, vposH, vuvH)
+		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
+		val multiplyRgba = multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
+		val screenRgba = screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
+		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba)
 	}
 	return OracleDump(
 		pixelsPerUnit = canvas.groupValues[5].toFloat(),

@@ -933,24 +933,35 @@ object Cmo3Import {
 	}
 
 	/**
-	 * Warp cell payload: the form's absolute FFD control-point positions.
+	 * Warp cell payload: the form's absolute FFD control-point positions plus its render channels.
+	 *
+	 * The channels live on the shared `ACDeformerForm` base, so warp and rotation read them the same
+	 * way. They cascade onto every drawable under the deformer - see `DeformerCascade`.
 	 *
 	 * @param Any form The form object (expected CWarpDeformerForm).
 	 * @return WarpForm? The control points, or null if absent.
 	 */
 	private fun warpForm(form: Any): WarpForm? {
-		val positions = (form as? CWarpDeformerForm)?.positions as? FloatArray ?: return null
-		return WarpForm(positions)
+		val warp = form as? CWarpDeformerForm ?: return null
+		val positions = warp.positions as? FloatArray ?: return null
+		// CMO3: ACDeformerForm opacity / multiplyColor / screenColor.
+		return WarpForm(
+			positions,
+			opacity = warp.opacity,
+			multiplyColor = colorRgbOf(warp.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+			screenColor = colorRgbOf(warp.screenColor) ?: ColorRgb.ScreenIdentity,
+		)
 	}
 
 	/**
-	 * Rotation cell payload: the form's absolute pivot transform.
+	 * Rotation cell payload: the form's absolute pivot transform plus its render channels.
 	 *
 	 * @param Any form The form object (expected CRotationDeformerForm).
 	 * @return RotationForm? The transform, or null if absent.
 	 */
 	private fun rotationForm(form: Any): RotationForm? {
 		val rotation = form as? CRotationDeformerForm ?: return null
+		// CMO3: ACDeformerForm opacity / multiplyColor / screenColor.
 		return RotationForm(
 			rotation.originX,
 			rotation.originY,
@@ -958,6 +969,9 @@ object Cmo3Import {
 			rotation.scale,
 			rotation.isReflectX,
 			rotation.isReflectY,
+			opacity = rotation.opacity,
+			multiplyColor = colorRgbOf(rotation.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+			screenColor = colorRgbOf(rotation.screenColor) ?: ColorRgb.ScreenIdentity,
 		)
 	}
 
