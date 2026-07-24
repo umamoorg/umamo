@@ -71,10 +71,24 @@ class PartForm(
  * A warp-deformer keyform: the absolute FFD control-point positions (interleaved x,y). Warp
  * sources carry no separate rest lattice, so the forms are kept absolute; the evaluator interpolates
  * them directly.
+ *
+ * [opacity] / [multiplyColor] / [screenColor] are the deformer's own render channels, which CASCADE
+ * down the deformer chain onto every drawable underneath (see `DeformerCascade`). Riggers use the
+ * opacity as a parameter-driven subtree show/hide switch, so dropping it renders whole effect
+ * subtrees permanently visible. (CMO3 `ACDeformerForm.opacity`/`multiplyColor`/`screenColor`;
+ * MOC3 `WarpKeyform`.) A deformer has no draw order - that is a drawable/part concept.
  */
-class WarpForm(val controlPoints: FloatArray)
+class WarpForm(
+	val controlPoints: FloatArray,
+	val opacity: Float = 1f,
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+)
 
-/** A rotation-deformer keyform: the absolute pivot transform captured at this grid cell. */
+/**
+ * A rotation-deformer keyform: the absolute pivot transform captured at this grid cell, plus the
+ * same cascading render channels a [WarpForm] carries.
+ */
 class RotationForm(
 	val originX: Float,
 	val originY: Float,
@@ -83,4 +97,7 @@ class RotationForm(
 	/** Reflection flags (the Umamo C++ Runtime snaps these per grid cell into the affine's flipX/flipY). */
 	val flipX: Boolean,
 	val flipY: Boolean,
+	val opacity: Float = 1f,
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 )

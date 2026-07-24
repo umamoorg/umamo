@@ -427,7 +427,10 @@ object Moc3Import {
 		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
 		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
 		 * the grid keyforms; flips are not blendable, so the reference's flags fill the form.  The
-		 * rotation opacity delta rows have no runtime channel and are dropped at ingest.
+		 * blend-shape rows for the deformer's own opacity/color channels are NOT applied: the form's
+		 * channels stay at their identity defaults here, and only the keyform grid drives them (see
+		 * `DeformerCascade`).  Blending deformer channels through blend shapes is a v5+ feature of
+		 * its own and would need the same reference-subtraction the control points get.
 		 *
 		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
 		 * @param PointSpace          space       The rotation's stored point space.
@@ -491,7 +494,13 @@ object Moc3Import {
 								keyforms =
 									gridOf(binding) { gridIndex ->
 										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-											WarpForm(convertPoints(keyformSpace, keyform.controlPoints))
+											// The render channels cascade onto every drawable under this deformer.
+											WarpForm(
+												convertPoints(keyformSpace, keyform.controlPoints),
+												opacity = keyform.opacity,
+												multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+												screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
+											)
 										}
 									},
 							)
@@ -516,6 +525,7 @@ object Moc3Import {
 									gridOf(binding) { gridIndex ->
 										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
 											val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
+											// The render channels cascade onto every drawable under this deformer.
 											RotationForm(
 												originX = origin[0],
 												originY = origin[1],
@@ -523,6 +533,9 @@ object Moc3Import {
 												scale = keyform.scale * scaleFactor,
 												flipX = keyform.reflectX,
 												flipY = keyform.reflectY,
+												opacity = keyform.opacity,
+												multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+												screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
 											)
 										}
 									},

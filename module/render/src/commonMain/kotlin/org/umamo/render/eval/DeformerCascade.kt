@@ -3,6 +3,7 @@ package org.umamo.render.eval
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
@@ -14,9 +15,24 @@ import kotlin.math.atan2
  * A deformer's baked world transform - a warp lattice or a rotation affine - through which child
  * deformers and bound meshes transform their points. [accY] is the Y-scale accumulator passed to
  * child rotation deformers (warps pass the parent's through; rotations contribute their world scale).
+ *
+ * The three `accumulated*` channels are the deformer's own render channels composed with every
+ * ancestor's, and they apply to every DRAWABLE under this deformer (see [DeformerChannels] for the
+ * composition rules and [preparePose] for where they land). Riggers key a deformer's opacity to
+ * show and hide a whole subtree, so these are not a decorative extra - ignoring them renders effect
+ * subtrees permanently visible.
  */
 internal sealed interface DeformerWorld {
 	val accY: Float
+
+	/** This deformer's opacity times every ancestor's; multiplies each descendant drawable's own. */
+	val accumulatedOpacity: Float
+
+	/** This deformer's multiply color composed with every ancestor's (componentwise product). */
+	val accumulatedMultiplyColor: ColorRgb
+
+	/** This deformer's screen color composed with every ancestor's (`a + b - a*b` per channel). */
+	val accumulatedScreenColor: ColorRgb
 
 	/**
 	 * Transforms point `(x, y)` through this deformer, writing to `out[outIndex]`,`out[outIndex+1]`.
@@ -30,6 +46,67 @@ internal sealed interface DeformerWorld {
 }
 
 /**
+ * A deformer's render channels at one point in the cascade - either its own blended local values or
+ * those composed with its ancestors'.
+ *
+ * @property Float    opacity       Opacity in [0,1].
+ * @property ColorRgb multiplyColor Multiply tint (identity = white).
+ * @property ColorRgb screenColor   Screen tint (identity = black).
+ */
+internal class DeformerChannels(
+	val opacity: Float,
+	val multiplyColor: ColorRgb,
+	val screenColor: ColorRgb,
+) {
+	companion object {
+		/** The no-op channels a root deformer composes against. */
+		val Identity: DeformerChannels =
+			DeformerChannels(1f, ColorRgb.MultiplyIdentity, ColorRgb.ScreenIdentity)
+	}
+}
+
+/**
+ * Composes a deformer's local channels onto its parent's accumulated ones.
+ *
+ * Opacity and multiply color compose by product; screen color composes by the screen operator
+ * `a + b - a*b`. The identities are chosen so a ROOT deformer needs no special case: multiplying by
+ * white and screening with black both return the local value unchanged.
+ *
+ * @param DeformerChannels local  This deformer's own blended channels.
+ * @param DeformerWorld?   parent The parent's world transform, or null at the root.
+ * @return DeformerChannels The accumulated channels to hand to children and descendant drawables.
+ */
+internal fun cascadeDeformerChannels(local: DeformerChannels, parent: DeformerWorld?): DeformerChannels {
+	val parentOpacity = parent?.accumulatedOpacity ?: 1f
+	val parentMultiply = parent?.accumulatedMultiplyColor ?: ColorRgb.MultiplyIdentity
+	val parentScreen = parent?.accumulatedScreenColor ?: ColorRgb.ScreenIdentity
+	return DeformerChannels(
+		opacity = local.opacity * parentOpacity,
+		multiplyColor =
+			ColorRgb(
+				local.multiplyColor.red * parentMultiply.red,
+				local.multiplyColor.green * parentMultiply.green,
+				local.multiplyColor.blue * parentMultiply.blue,
+			),
+		screenColor =
+			ColorRgb(
+				screenCompose(local.screenColor.red, parentScreen.red),
+				screenCompose(local.screenColor.green, parentScreen.green),
+				screenCompose(local.screenColor.blue, parentScreen.blue),
+			),
+	)
+}
+
+/**
+ * The screen operator on one channel: `a + b - a*b`.
+ *
+ * @param Float a One operand.
+ * @param Float b The other.
+ * @return Float The screened channel.
+ */
+internal fun screenCompose(a: Float, b: Float): Float = a + b - a * b
+
+/**
  * A warp deformer's world transform: its baked world control points + lattice mode. The control-point
  * fields are `internal` (not `private`) so the GPU renderer in this module can upload them as the
  * shader's lattice uniforms - the same baked data the CPU `apply` walks via [warpApply].
@@ -40,6 +117,9 @@ internal class WarpWorld(
 	internal val rows: Int,
 	internal val bilinear: Boolean,
 	override val accY: Float,
+	override val accumulatedOpacity: Float = 1f,
+	override val accumulatedMultiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	override val accumulatedScreenColor: ColorRgb = ColorRgb.ScreenIdentity,
 ) : DeformerWorld {
 	/**
 	 * Warp-transforms `(x, y)` through the baked lattice.
@@ -59,6 +139,9 @@ internal class WarpWorld(
 internal class RotationWorld(
 	internal val xform: RotationXform,
 	override val accY: Float,
+	override val accumulatedOpacity: Float = 1f,
+	override val accumulatedMultiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	override val accumulatedScreenColor: ColorRgb = ColorRgb.ScreenIdentity,
 ) : DeformerWorld {
 	/**
 	 * Applies the rotation affine to `(x, y)`.
@@ -173,13 +256,50 @@ private fun buildWarpWorld(
 			cp[coordIndex] += deltas[coordIndex]
 		}
 	}
+	// The render channels ride the SAME corner weights as the control points - blended, never snapped
+	// to the nearest key, or they step instead of fading at mid-parameter values.
+	var localOpacity = 0f
+	var localMultiplyRed = 0f
+	var localMultiplyGreen = 0f
+	var localMultiplyBlue = 0f
+	var localScreenRed = 0f
+	var localScreenGreen = 0f
+	var localScreenBlue = 0f
+	for (corner in corners) {
+		val form = cells[corner.linearIndex]?.form ?: continue
+		localOpacity += corner.weight * form.opacity
+		localMultiplyRed += corner.weight * form.multiplyColor.red
+		localMultiplyGreen += corner.weight * form.multiplyColor.green
+		localMultiplyBlue += corner.weight * form.multiplyColor.blue
+		localScreenRed += corner.weight * form.screenColor.red
+		localScreenGreen += corner.weight * form.screenColor.green
+		localScreenBlue += corner.weight * form.screenColor.blue
+	}
+	val channels =
+		cascadeDeformerChannels(
+			DeformerChannels(
+				localOpacity,
+				ColorRgb(localMultiplyRed, localMultiplyGreen, localMultiplyBlue),
+				ColorRgb(localScreenRed, localScreenGreen, localScreenBlue),
+			),
+			parentWorld,
+		)
 	val parentAccY = parentWorld?.accY ?: 1f
 	if (parentWorld != null) {
 		for (pointIndex in 0 until pointCount) {
 			parentWorld.apply(cp[pointIndex * 2], cp[pointIndex * 2 + 1], cp, pointIndex * 2)
 		}
 	}
-	return WarpWorld(cp, warp.columns, warp.rows, warp.isQuadTransform, parentAccY)
+	return WarpWorld(
+		cp,
+		warp.columns,
+		warp.rows,
+		warp.isQuadTransform,
+		parentAccY,
+		channels.opacity,
+		channels.multiplyColor,
+		channels.screenColor,
+	)
 }
 
 /**
@@ -205,13 +325,38 @@ private fun buildRotationWorld(
 	var originY = 0f
 	var scaleAccum = 0f
 	var angleAccum = 0f
+	// The render channels ride the SAME corner weights as the transform - blended, never snapped to
+	// the nearest key (unlike the flip flags below, which are not interpolable).
+	var localOpacity = 0f
+	var localMultiplyRed = 0f
+	var localMultiplyGreen = 0f
+	var localMultiplyBlue = 0f
+	var localScreenRed = 0f
+	var localScreenGreen = 0f
+	var localScreenBlue = 0f
 	for (corner in corners) {
 		val form = cells[corner.linearIndex]?.form ?: continue
 		originX += corner.weight * form.originX
 		originY += corner.weight * form.originY
 		scaleAccum += corner.weight * form.scale
 		angleAccum += corner.weight * form.angle
+		localOpacity += corner.weight * form.opacity
+		localMultiplyRed += corner.weight * form.multiplyColor.red
+		localMultiplyGreen += corner.weight * form.multiplyColor.green
+		localMultiplyBlue += corner.weight * form.multiplyColor.blue
+		localScreenRed += corner.weight * form.screenColor.red
+		localScreenGreen += corner.weight * form.screenColor.green
+		localScreenBlue += corner.weight * form.screenColor.blue
 	}
+	val channels =
+		cascadeDeformerChannels(
+			DeformerChannels(
+				localOpacity,
+				ColorRgb(localMultiplyRed, localMultiplyGreen, localMultiplyBlue),
+				ColorRgb(localScreenRed, localScreenGreen, localScreenBlue),
+			),
+			parentWorld,
+		)
 	// Blend shapes: additive origin/scale/angle deltas on top of the grid blend (flip stays grid-only).
 	rotationBlendDeltas(rotation, paramValue, defaultValue)?.let { deltas ->
 		originX += deltas.originX
@@ -271,7 +416,13 @@ private fun buildRotationWorld(
 		worldOriginY = worldPosY
 		worldAngle = angleDegrees - inherited * 180f / PI_F
 	}
-	return RotationWorld(rotationXform(worldAngle, scale, flipX, flipY, worldOriginX, worldOriginY), scale)
+	return RotationWorld(
+		rotationXform(worldAngle, scale, flipX, flipY, worldOriginX, worldOriginY),
+		scale,
+		channels.opacity,
+		channels.multiplyColor,
+		channels.screenColor,
+	)
 }
 
 /**

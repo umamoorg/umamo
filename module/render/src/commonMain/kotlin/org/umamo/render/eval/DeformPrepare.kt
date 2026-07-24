@@ -101,8 +101,31 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 			}
 			opacity = opacity.coerceIn(0f, 1f)
 		}
-		// Cascade non-isolated ancestor part opacity onto the drawable's own (both already in [0,1], so
-		// the product stays in range) - applied after the blend-shape clamp, like the editor preview.
+		var multiplyColor = scalars?.multiplyColor ?: ColorRgb.MultiplyIdentity
+		var screenColor = scalars?.screenColor ?: ColorRgb.ScreenIdentity
+		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
+		// multiply color multiplies, its screen color screens - each already folded over every ancestor
+		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
+		// because a blended color can leave [0,1] at the ends of a keyed range.
+		parentWorld?.let { world ->
+			opacity *= world.accumulatedOpacity
+			multiplyColor =
+				ColorRgb(
+					(multiplyColor.red * world.accumulatedMultiplyColor.red).coerceIn(0f, 1f),
+					(multiplyColor.green * world.accumulatedMultiplyColor.green).coerceIn(0f, 1f),
+					(multiplyColor.blue * world.accumulatedMultiplyColor.blue).coerceIn(0f, 1f),
+				)
+			screenColor =
+				ColorRgb(
+					screenCompose(screenColor.red, world.accumulatedScreenColor.red).coerceIn(0f, 1f),
+					screenCompose(screenColor.green, world.accumulatedScreenColor.green).coerceIn(0f, 1f),
+					screenCompose(screenColor.blue, world.accumulatedScreenColor.blue).coerceIn(0f, 1f),
+				)
+		}
+		// Finally the non-isolated ancestor part opacity (both already in [0,1], so the product stays in
+		// range). Last on purpose: this one is a Umamo fold with no counterpart in the runtime core,
+		// which applies part opacity in the renderer rather than on the drawable - so keeping it at the
+		// end leaves everything before it directly comparable against the oracle.
 		partOpacityByDrawable[drawable.id]?.let { partOpacity -> opacity *= partOpacity }
 		drawables.add(
 			DrawableDeformInputs(
@@ -112,8 +135,8 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				isParented = parentDeformerId != null,
 				drawOrder = drawOrder,
 				opacity = opacity,
-				multiplyColor = scalars?.multiplyColor ?: ColorRgb.MultiplyIdentity,
-				screenColor = scalars?.screenColor ?: ColorRgb.ScreenIdentity,
+				multiplyColor = multiplyColor,
+				screenColor = screenColor,
 				blend = blend,
 			),
 		)
@@ -168,7 +191,7 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
  * @param Function    paramValue Current value for a given parameter id.
  * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
  */
-private fun foldNonIsolatedPartOpacity(model: PuppetModel, paramValue: (ParameterId) -> Float): Map<DrawableId, Float> {
+internal fun foldNonIsolatedPartOpacity(model: PuppetModel, paramValue: (ParameterId) -> Float): Map<DrawableId, Float> {
 	val partById = model.parts.associateBy { it.id }
 	val result = HashMap<DrawableId, Float>()
 

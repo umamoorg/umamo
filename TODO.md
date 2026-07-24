@@ -32,7 +32,6 @@ LimeBirb has some non-byte exactness to investigate.
 A mega area panel of sorts with left side icon tab strip and each tab having collapsible sections.  This panel will have a lot of data and controls so it is important to make sure we get the data design right ahead of time.
 
 * The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
-* DONE: Composite `multiplyColor` / `screenColor` are editable via a color picker (the swatch on the shared `HexColorField` now opens an RGB-slider popover, so the Settings color rows get it too), and `maskedBy` has an add/remove relation-list editor (`PartMaskEditor`) in the Isolated-part composite block. Both write through the existing `setPartComposite` (one undo step). Remaining: editing a `Drawable`'s own `maskedBy` (the read-only mask count in Relations) once a drawable mask-list edit op exists; per-key (keyform-grid) tint-color editing (this edits the static fallback only).
 * Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
@@ -53,7 +52,7 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
 
 ## Read/Write Filing Handling
-app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/EditorApp.kt
+module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
 The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
@@ -61,7 +60,6 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 * Drag and drop file opening.
 
 ## Puppet Model, CMO3, MOC3
-* Handle opacity inheritance from parts.  Double check deformers as well.  (The Model A "Effects" layer bug: runtime Part has no opacity field yet, so a part-level opacity cascade is not applied.)
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
 
@@ -106,6 +104,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * UI Improvements (For me to test and visually check.)
 	* Drop zone indicator needs a slight adjustment to not be hidden by the elevation.
 
+**Finding (2026-07-24): the runtime data model ALREADY works this way — nothing has to change to allow it.**  `Parameter` carries only `id/name/min/max/default/kind`; it holds NO key positions.  Every keyable item owns its own `KeyformGrid`, whose `KeyformAxis(parameterId, keys: FloatArray)` stores that item's own key positions on that parameter.  Two drawables keyed on `ParamAngleX` at `[-30, 0, 30]` and `[-30, -10, 0, 30]` are already representable and already evaluate correctly (the multilinear blend reads each item's own axis).  Cubism enforces shared key positions in its EDITOR; the CMO3/MOC3 file formats store per-item grids, so Umamo inherited the freedom for free by importing them faithfully.  What that leaves is not a data-model decision but two pieces of work: the AUTHORING ops (bind an item to a parameter = add an axis; insert/move/delete a key = resize that axis and rebuild the cell product) and the EXPORT decomposition (union-resample at CMO3/MOC3 write time).  The design note below stands as written — read it as a plan for the UI and the exporter, not for the model.
+
 I'm considering an Umamo design decision that would operate a bit differently than how Cubism does for displaying and editing parameters.  Right now Cubism has a parameter slider and any item can be keyed on to it, but all items have to share the same key positions.  In Umamo, I would prefer to be able to have one parameter, key any item on to with arbritrary key positions bounded by the minimum and maximum.  I would like your feedback, if you would do this, and any notes for improvements.
 * Parameters area (Scrubbing, basic editing, which exists right now.)
 * Parameter Action Editor/Dope Sheet/Whatever area it will be called.
@@ -123,6 +123,33 @@ I'm considering an Umamo design decision that would operate a bit differently th
 - Verify against a real file: keyform-axis interpolation is *linear*, not smoothed (bezier/smoothing should live on the deferred animation timeline, not the modeling blend). Resample losslessness depends on this.
 - Bonus affordance: dope sheet flags the default-value column / items missing a neutral key → makes "reset to 0 doesn't return to rest" visible.
 ```
+
+## Keyform Insertion (the authoring model)
+
+DECIDED: Blender-style manual insertion.  Scrub the parameter(s) to the target position, manipulate the deformer, press `I` to insert the keyform from the current selection.  No auto-key by default.
+
+Order matters and differs from the first sketch: it is scrub → manipulate → `I`, not manipulate → scrub → `I`.  Scrubbing re-evaluates the rig, so a manipulation made before the scrub has to either be discarded or carried, and both are surprising.  Blender discards; matching that is the least surprising answer for anyone who has used Blender, and the "carry" behavior has no coherent meaning for a warp lattice anyway.
+
+Open decisions, in rough order of how much they shape the implementation:
+
+* **The first `I` on an unbound item must SEED an axis, not create a single key.**  One key on an axis makes the item constant over the whole parameter — including at neutral — so a naive first insert would silently move the rest pose.  Cubism seeds min/default/max holding the current form.  Recommend the same: bind creates the axis with a small seeded key set all holding the CURRENT form, then writes the manipulated form into the cell at the scrub position.  Decide the seed set: {min, default, max}, or {default, scrubPosition}.
+* **`I` on a multi-bound item inserts a grid SLICE, not a cell.**  An item on two axes has a 2D cell product; inserting a new key on axis X means adding a whole COLUMN (one new cell per existing Y key), and only the cell at the current (x, y) is known from the manipulation.  The rest of the column must be filled by interpolating the neighboring columns — union-resample applied locally.  This is the main implementation subtlety, and it is the same operation the CMO3/MOC3 exporter needs, so build it once as a shared grid op.
+* **PER-CHANNEL TRACKS — a second, deeper deviation from Cubism, and the one that needs deciding FIRST.**  Cubism's keyform cell is all-or-nothing: `CArtMeshForm` carries positions + drawOrder + opacity + multiply/screen color together, and Umamo currently mirrors that (`MeshForm`, `PartForm`).  The goal is for each channel to be an INDEPENDENT track with its own axes and its own key positions — scrub a parameter, right-click Opacity in the properties panel, Insert Keyframe, and a new opacity track appears in the dope sheet bound to that parameter, with no geometry key created and no geometry axis touched.
+	* This is a DATA-MODEL change, not just UI: `MeshForm` has to shed its scalars, and each owner carries several grids instead of one.  Suggested shape, grouped by value type because the generic needs it: `geometry: KeyformGrid<TGeometry>?` (mesh deltas / warp control points / rotation pivot), `scalars: Map<ScalarChannel, KeyformGrid<Float>>` (opacity, drawOrder), `colors: Map<ColorChannel, KeyformGrid<ColorRgb>>` (multiply, screen).  Adding a channel later is an enum constant, not a new field.
+	* **Do it BEFORE the authoring ops, not after.**  Nothing in the tree authors a keyform yet, so this is the cheapest it will ever be.  Every insert/move/delete/bind op written against the bundled shape would have to be rewritten against the split one.
+	* Blast radius is smaller than it looks: `KeyformGridEval` already samples per channel (`samplePartDrawOrder`, `samplePartOpacity`, the combined drawable sampler), so those functions take a channel grid instead of reaching into a shared cell.  The rest is both importers, `DeformPrepare`, and the oracle tests.
+	* `I` stays unambiguous WITHOUT a Blender-style keying set, because the invocation site names the channel: viewport `I` keys geometry (the thing just manipulated), a properties-row context menu keys that row's channel, dope-sheet `I` on a track keys that track.  No menu to design.
+	* **Export bake is LOSSLESS.**  Union-refining a multilinear grid is exact — a multilinear function restricted to a sub-cell is still multilinear, and multilinear interpolation of that sub-cell's corners reproduces the unique multilinear function through them.  So both refining an axis and adding a whole axis along which a channel is constant preserve every value exactly.  This rests entirely on the interpolation being multilinear with NO smoothing; verify that against a real file before relying on it (already flagged in the design note above).
+	* **Export cost is a cell-count PRODUCT, but it is not a penalty versus Cubism.**  Geometry on 2 keys of AngleX plus opacity on 5 keys of ParamFade bakes to a 2x5 = 10-cell grid, every cell carrying a full copy of the position deltas.  That looks alarming until you notice a Cubism user authoring the same rig needs both axes on the item too and lands on the same 10 cells.  Umamo is not paying more; it just is not making the rigger type it.  The cost is the format's, and it appears only at export.
+	* **Import needs a SPLIT, and optionally a compaction.**  CMO3/MOC3 arrive as one unified grid, so import must fan it out into per-channel tracks.  The naive split (every channel inherits the full grid) is correct but saves nothing.  Compaction — drop keys that are exactly interpolable from their neighbours, drop axes along which a channel is constant — turns an imported Cubism rig into a sparse Umamo rig automatically.  Use EXACT-only compaction (bit-equal, or a tight ULP bound), never an epsilon: an epsilon would silently alter someone's rig, which the fidelity contract does not allow.  Testable invariant worth pinning: import-compact then export-union reproduces the ORIGINAL grid.
+* **Auto-key is a Cubism-migration friction point, not just a preference.**  Cubism auto-keys: any edit at a parameter value creates or updates a keyform with no explicit gesture.  A Cubism migrant will lose work silently under manual keying until the habit changes.  Recommend manual as the default with auto-key as a setting the Cubism keymap preset turns on, plus a visible "unkeyed edit pending" indicator in the viewport so a scrub never discards work invisibly.
+* **The per-form write path differs by deformer type.**  `WarpForm` stores ABSOLUTE control points, `RotationForm` an ABSOLUTE pivot transform, `MeshForm` deltas off the mesh base.  Only the mesh case needs a base subtraction on write.
+* **`Alt+I` to remove a key.**  Removing the last key on an axis = unbind, which is exactly `withAxisCollapsed` (already implemented in ParameterCrudEdits.kt for parameter deletion, currently `internal`).  Reuse it rather than writing a second collapse.
+
+Two prerequisites this plan needs that do not exist yet:
+
+* **There is no "selected/active parameter" concept.**  `ParametersViewState` tracks open range editors, expanded groups, and filters — nothing marks a parameter as the insertion target.  "Select the parameter(s)" needs building before `I` has anywhere to write.
+* **Posed authoring is currently REFUSED, and the reason is real math, not a stray guard.**  `EditorSession.beginObjectOperator` refuses while any parameter is off its default, because the deformer-chain world→local inverse (`worldToLocalLinearized`) is exact only at neutral.  That constraint does not disappear when keyform authoring lands: dragging a TOP-LEVEL deformer's control points under a pose needs no chain inverse and can be unblocked cheaply, but dragging a NESTED deformer's, or a drawable's vertices, under a pose inherits the same inexactness the guard exists to prevent.  Decide what posed editing is permitted per target type — do not just remove the guard.
 
 # Button UI
 * Needs a click action, either a background color change or movement.
@@ -149,10 +176,6 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
-* The backend seam is now `RenderDevice` (`:render/commonMain/.../device/`), NOT the old `Renderer` interface (deleted). `PuppetRenderer` (commonMain, zero GL calls) drives everything through it; `GlRenderDevice` is the desktop GL 3.3 impl. A backend is one `RenderDevice` impl.
-* Android GLES renderer backend = a second `RenderDevice` impl (`GlesRenderDevice`), a near-transliteration of `GlRenderDevice` (same calls, GLES binding style). The one real divergence: GLES 3.0 has no texture buffer, so the glue store (`createDeformedPositionStore`) repacks as a 2D texture (TODO Claude Note § option (b)) — hidden behind `DeformedPositionStore`, so the renderer is untouched. See Claude Notes § Android GLES renderer backend.
-* MacOS: a JVM threading/context fix (keeps the whole GL device); iPadOS: a Metal `RenderDevice` impl + MSL shaders. Split, not one line — see docs/plan/portability.md.
-	* app/desktop/src/jvmMain/kotlin/org/umamo/editor/desktop/viewport/CglOffscreenGlContext.kt
 
 ## Outliner
 * Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
@@ -250,30 +273,6 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
-## Android GLES renderer backend (deferred 2026-06-21)
-
-**What.** (2026-07-16: superseded by the RenderDevice seam — see § Render.  The renderer is now the backend-neutral `PuppetRenderer` in commonMain; only `GlRenderDevice` is desktop GL.)  Original note: The shipped renderer was the **desktop GL 3.3 core** impl (LWJGL), in
-`:render/jvmMain`. It implements the backend-agnostic `Renderer` interface (`:render/commonMain`). Android
-needs a **second `Renderer` impl** in `:render/androidMain` using **GLES 3.0** (`android.opengl.GLES30`)
-hosted in a `GLSurfaceView` (vs desktop's `AWTGLCanvas`). Everything backend-neutral — the eval,
-`preparePose`, `PoseDeformInputs`, the `Renderer` interface — is already shared in `commonMain`, so this is
-"write the GLES impl + wire it into the Android app", **not** a re-architecture.
-
-**Shader portability (GLSL → GLSL ES 3.0).** `DEFORM_GLSL` / the vertex shaders need: `#version 300 es`;
-explicit precision (`precision highp float;` + `precision highp int;`, `highp` samplers); `in/out` (already
-300-style). `texelFetch` + RG32F sampling for the delta/control-point textures are fine in ES 3.0.
-
-**The one real blocker — glue's texture buffer.** The glue pass uses a **`samplerBuffer` / texture buffer
-object** for the random-access partner lookup. TBOs are **core only in GLES 3.2**, not 3.0/3.1. On GLES,
-options: (a) `EXT_texture_buffer` if present; (b) repack the shared position buffer as a regular **2D
-texture** and index it by `(globalIndex % width, globalIndex / width)` via `texelFetch` (works on ES 3.0);
-(c) fall back to CPU glue on Android (the hybrid path). Option (b) is the cleanest portable route and would
-also simplify the desktop path.
-
-**Validation.** The GPU-vs-CPU transform-feedback test is desktop-only (GLFW), but the same
-`Renderer`-output-vs-`applyCpuDeform` approach applies; an on-device or emulator render-diff is the Android
-analogue.
-
 ## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
 Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.
 
@@ -304,14 +303,10 @@ is still ahead.
 	CMO3 — `extractPuppetTextures`). Pack layer tiles into page(s), emit UVs pointing at the tiles; hold the
 	vertex→art-pixel binding invariant across every repack. Foundation built: the trimmed pack rects come from
 	`analyzeAlpha` (Phase B).
-4. UV editor. Pending — see § UV Editor / § UV Editing. This is the missing half of decoupling: geometry is
-	editable today, UVs are read-only/inherited. Needed to author the mapping, including duplicated/flipped
-	regions (eyes, etc.).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
 6. Rigging. Parameters, deformers, keyforms on top of the rest mesh — the actual deformation authoring.
-	Largely built for CMO3-imported models.
 7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher / SourceBinding. Identity-keyed
 	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
