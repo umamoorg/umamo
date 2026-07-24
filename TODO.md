@@ -52,8 +52,8 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
 
 ## Read/Write Filing Handling
-module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt (the shared shell — the old app/desktop path is gone)
-The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.  See docs/plan/art-sourcing-pipeline.md § Phase H for the export writer and the default-form decision it is gated on, and docs/plan/portability.md § Phase G for why that decision is cheaper to make BEFORE the writer is built than after.
+module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
+The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 		* Open/Import should ask to save before doing if the new document is dirty.
