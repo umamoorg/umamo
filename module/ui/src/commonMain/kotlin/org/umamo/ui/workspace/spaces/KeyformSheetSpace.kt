@@ -4,16 +4,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
+import org.umamo.edit.moveChannelKey
+import org.umamo.edit.removeChannelKeys
 import org.umamo.runtime.model.FormChannel
+import org.umamo.ui.action.Command
+import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
@@ -73,13 +80,48 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 		EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
 		return
 	}
-	val rows =
+	val projection =
 		remember(puppet, activeParameter.id, labels.geometry, labels.blendShape) {
 			keyformSheetRows(puppet, activeParameter.id, labels)
+		}
+	// Which keys are selected, so Delete has something to act on. Cleared when the projection changes,
+	// because a row key can outlive the key it pointed at (a removal renumbers nothing, but a rebind can
+	// replace the whole track) and a stale selection would delete the wrong thing.
+	var selectedKeys by remember(projection) { mutableStateOf(emptySet<TrackKeyRef>()) }
+	val rows =
+		remember(projection, selectedKeys) {
+			projection.rows.map { row ->
+				row.copy(
+					marks =
+						row.marks.map { mark ->
+							mark.copy(selected = TrackKeyRef(row.key, mark.position) in selectedKeys)
+						},
+				)
+			}
 		}
 	if (rows.isEmpty()) {
 		EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
 		return
+	}
+	// Delete removes every selected key as ONE undo step. Registered as a command rather than wired to a
+	// key handler here so the keymap owns the binding, per the action-registry rule; the sheet only
+	// supplies what "the current selection" means while it is on screen.
+	val commands = LocalCommands.current
+	DisposableEffect(commands, session, projection, selectedKeys, activeParameter.id) {
+		val deleteCommand =
+			Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys) {
+				val removals =
+					selectedKeys.mapNotNull { keyRef ->
+						projection.targetsByRowKey[keyRef.rowKey]?.let { target ->
+							Triple(target, activeParameter, keyRef.position)
+						}
+					}
+				if (session != null && removals.isNotEmpty()) {
+					session.removeChannelKeys(removals)
+				}
+			}
+		commands.register(deleteCommand)
+		onDispose { commands.unregister(deleteCommand.id) }
 	}
 	val (domainStart, domainEnd) = parameterDomain(activeParameter)
 	TrackSheet(
@@ -89,11 +131,24 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 		// than a static list beside it.
 		playhead = liveParams?.values?.get(activeParameter.id) ?: activeParameter.default,
 		modifier = Modifier.fillMaxSize(),
-		// Clicking a mark scrubs to it - the read-only half of the interaction, and how you get the pose
-		// exactly onto a key without hunting with the slider.
-		onMarkClick = { _, mark ->
+		// Clicking a mark selects it AND scrubs to it: selection is what Delete acts on, and scrubbing is
+		// how you land the pose exactly on a key without hunting with the slider. The two never conflict,
+		// so doing both is strictly more useful than choosing.
+		onMarkClick = { row, mark ->
+			selectedKeys = setOf(TrackKeyRef(row.key, mark.position))
 			liveParams?.preview(activeParameter.id, mark.position)
 			liveParams?.commit(setOf(activeParameter.id))
+		},
+		// Clicking empty track drops the selection, matching every other list in the editor.
+		onTrackClick = { _, _ -> selectedKeys = emptySet() },
+		onMarkDragEnd = { row, mark, releasedAt ->
+			val target = projection.targetsByRowKey[row.key]
+			if (session != null && target != null) {
+				session.moveChannelKey(target, activeParameter, mark.position, releasedAt)
+				// Follow the key to where it landed - the grid clamps at the neighbours, so the released
+				// position and the stored one can differ, and the selection must track the STORED one.
+				selectedKeys = emptySet()
+			}
 		},
 	)
 }

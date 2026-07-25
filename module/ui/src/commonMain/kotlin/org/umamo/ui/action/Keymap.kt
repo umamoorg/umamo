@@ -193,6 +193,9 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// primary modifier so both can coexist. The target is the property under the pointer.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
+		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
+		// on screen, so the binding is inert elsewhere rather than ambiguous.
+		"Delete" to "keyform.deleteSelectedKeys",
 		// Box (B) and Circle (C) select tools; Zoom Region on Shift+B; numpad +/- resize the circle brush.
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
@@ -235,6 +238,9 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// that setting lands.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
+		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
+		// on screen, so the binding is inert elsewhere rather than ambiguous.
+		"Delete" to "keyform.deleteSelectedKeys",
 	)
 
 /**
@@ -300,6 +306,9 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		// primary modifier so both can coexist. The target is the property under the pointer.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
+		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
+		// on screen, so the binding is inert elsewhere rather than ambiguous.
+		"Delete" to "keyform.deleteSelectedKeys",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",

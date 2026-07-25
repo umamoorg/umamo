@@ -2,6 +2,7 @@ package org.umamo.ui.tracks
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -64,6 +69,7 @@ private val MARK_RADIUS: Dp = 4.dp
  * @param Function formatTick Renders a ruler tick value; defaults to a trimmed decimal.
  * @param Function? onMarkClick Invoked with the row and the mark nearest a click, when one is in range.
  * @param Function? onTrackClick Invoked with the row and the clicked domain value when no mark is in range.
+ * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  */
 @Composable
 fun TrackSheet(
@@ -74,6 +80,7 @@ fun TrackSheet(
 	formatTick: (Float) -> String = ::defaultTickLabel,
 	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)? = null,
 	onTrackClick: ((TrackRow, Float) -> Unit)? = null,
+	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	Column(modifier = modifier.fillMaxSize()) {
@@ -109,6 +116,7 @@ fun TrackSheet(
 						modifier = Modifier.weight(1f).fillMaxWidth(),
 						onMarkClick = onMarkClick,
 						onTrackClick = onTrackClick,
+						onMarkDragEnd = onMarkDragEnd,
 					)
 				}
 			}
@@ -168,11 +176,41 @@ private fun TrackLane(
 	modifier: Modifier = Modifier,
 	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)?,
 	onTrackClick: ((TrackRow, Float) -> Unit)?,
+	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 ) {
 	val colors = LocalUmamoColors.current
+	// The in-flight drag position, so the mark follows the pointer before the model is touched. The move is
+	// committed on release: a per-frame commit would push an undo step for every pixel of the drag.
+	var draggingMark by remember(row.key) { mutableStateOf<TrackKeyMark?>(null) }
+	var dragDomainValue by remember(row.key) { mutableStateOf(0f) }
 	Canvas(
 		modifier =
 			modifier
+				.pointerInput(row.key, axis, onMarkDragEnd) {
+					if (onMarkDragEnd == null) {
+						return@pointerInput
+					}
+					detectDragGestures(
+						onDragStart = { offset ->
+							val fraction = if (size.width == 0) 0f else offset.x / size.width
+							val domainValue = axis.valueAt(fraction)
+							val tolerance =
+								if (size.width == 0) 0f else abs(axis.span) * (MARK_RADIUS.toPx() * 1.5f / size.width)
+							draggingMark = nearestMark(row.marks, domainValue, tolerance)
+							dragDomainValue = domainValue
+						},
+						onDrag = { change, _ ->
+							change.consume()
+							val fraction = if (size.width == 0) 0f else change.position.x / size.width
+							dragDomainValue = axis.valueAt(fraction)
+						},
+						onDragEnd = {
+							draggingMark?.let { mark -> onMarkDragEnd(row, mark, dragDomainValue) }
+							draggingMark = null
+						},
+						onDragCancel = { draggingMark = null },
+					)
+				}
 				.pointerInput(row.key, axis, onMarkClick, onTrackClick) {
 					if (onMarkClick == null && onTrackClick == null) {
 						return@pointerInput
@@ -203,7 +241,10 @@ private fun TrackLane(
 		playhead?.let { value -> drawPlayhead(value, axis, colors.accent) }
 		val radius = MARK_RADIUS.toPx()
 		for (mark in row.marks) {
-			val x = axis.fractionOf(mark.position) * size.width
+			// A mark being dragged draws at the pointer, not at its stored position, so the gesture reads as
+			// direct manipulation rather than as a jump on release.
+			val drawnPosition = if (mark == draggingMark) dragDomainValue else mark.position
+			val x = axis.fractionOf(drawnPosition) * size.width
 			val fill = if (mark.selected) colors.accent else colors.controlGlyph
 			drawMark(mark.shape, Offset(x, size.height * 0.5f), radius, fill, colors.panelBackground)
 		}

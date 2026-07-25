@@ -9,6 +9,7 @@ import org.umamo.runtime.keyform.axisIndexOf
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.keyform.withAxisSeeded
 import org.umamo.runtime.keyform.withFormCaptured
+import org.umamo.runtime.keyform.withKeyMoved
 import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -267,6 +268,38 @@ fun PuppetModel.channelValueAt(target: KeyableTarget, pose: Pose): ChannelValue?
 }
 
 /**
+ * This model with the key at [fromValue] on [target]'s channel moved to [toValue].
+ *
+ * The sheet's drag gesture: the key keeps whatever it holds and only changes where on the parameter it
+ * applies.  Identified by its CURRENT position rather than an index, because a drag is expressed in the
+ * same units the sheet draws in and an index would have to survive a re-sort the move itself can cause.
+ *
+ * @param KeyableTarget target The entity and channel.
+ * @param Parameter parameter The parameter whose axis the key sits on.
+ * @param Float fromValue The key's current position.
+ * @param Float toValue The requested new position.
+ * @return PuppetModel The model with the key moved, or this on a refusal.
+ */
+fun PuppetModel.withChannelKeyMoved(
+	target: KeyableTarget,
+	parameter: Parameter,
+	fromValue: Float,
+	toValue: Float,
+): PuppetModel {
+	val grids = channelGridsOf(target.owner) ?: return this
+	val track = grids[target.channel] ?: return this
+	val keyIndex = track.keyIndexAt(parameter.id, fromValue)
+	if (keyIndex < 0) {
+		return this
+	}
+	val moved = track.withKeyMoved(parameter.id, keyIndex, toValue)
+	if (moved === track) {
+		return this
+	}
+	return withChannelGrids(target.owner, ChannelGrids(grids.gridsByChannel + (target.channel to moved)))
+}
+
+/**
  * Whether [target]'s channel is keyed on [parameter] at all - what the properties panel's keyed indicator
  * and the `I` / `Alt+I` availability read.
  *
@@ -311,3 +344,39 @@ internal fun FormChannel.neutralValue(): ChannelValue =
 		ChannelValueKind.COLOR -> ChannelValue.Color(org.umamo.runtime.model.ColorRgb(0f, 0f, 0f))
 		ChannelValueKind.FLAG -> ChannelValue.Flag(false)
 	}
+
+/**
+ * Moves the key at [fromValue] on [target]'s channel to [toValue], as one undo step.
+ *
+ * @param KeyableTarget target The entity and channel.
+ * @param Parameter parameter The parameter whose axis the key sits on.
+ * @param Float fromValue The key's current position.
+ * @param Float toValue The new position.
+ */
+fun EditorSession.moveChannelKey(target: KeyableTarget, parameter: Parameter, fromValue: Float, toValue: Float) {
+	mutate(KeyformChange.MoveKey(target.channel)) { model ->
+		model.withChannelKeyMoved(target, parameter, fromValue, toValue)
+	}
+}
+
+/**
+ * Removes several keys as ONE undo step - the sheet's Delete over a multi-key selection.
+ *
+ * One step rather than one per key because the user made one gesture; a per-key step would make undoing a
+ * five-key delete take five presses.  Applied in DESCENDING position order so each removal cannot disturb
+ * the positions the later ones still have to find.
+ *
+ * @param List keys The (target, parameter, key position) triples to remove.
+ */
+fun EditorSession.removeChannelKeys(keys: List<Triple<KeyableTarget, Parameter, Float>>) {
+	if (keys.isEmpty()) {
+		return
+	}
+	mutate(KeyformChange.RemoveKey(keys.first().first.channel)) { model ->
+		keys
+			.sortedByDescending { (_, _, position) -> position }
+			.fold(model) { current, (target, parameter, position) ->
+				current.withChannelKeyRemoved(target, parameter, mapOf(parameter.id to position))
+			}
+	}
+}

@@ -215,6 +215,58 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 }
 
 /**
+ * This grid with key [keyIndex] on [parameterId]'s axis moved to [newValue], carrying its cells with it.
+ *
+ * A move changes only WHERE a key sits, never what it holds - which is what makes it a distinct operation
+ * rather than a remove plus an insert.  Re-inserting would rebuild the moved slice by interpolating its
+ * neighbours, silently discarding whatever the rigger authored there.
+ *
+ * The new value is CLAMPED between the neighbouring keys rather than allowed to cross them.  Dragging one
+ * key past another would have to either reorder the cells or swap two keys' contents, and both are
+ * surprising mid-drag; clamping makes the neighbours read as walls, which is what a rigger expects.  An
+ * endpoint has a wall on one side only, so it can still widen or narrow the axis - that is real authoring
+ * (an axis's span decides where the channel falls back to its static, and for geometry where the entity
+ * hides), not something to prevent.
+ *
+ * Returns the receiver unchanged when the axis is absent, the index is out of range, the grid is sparse, or
+ * the clamped destination is where the key already sits.
+ *
+ * @param ParameterId parameterId The axis the key sits on.
+ * @param Int keyIndex The key to move.
+ * @param Float newValue The requested new position.
+ * @return KeyformGrid The grid with the key moved, or the receiver when nothing moved.
+ */
+fun <TForm> KeyformGrid<TForm>.withKeyMoved(parameterId: ParameterId, keyIndex: Int, newValue: Float): KeyformGrid<TForm> {
+	val axisIndex = axisIndexOf(parameterId)
+	if (axisIndex < 0 || !isDense) {
+		return this
+	}
+	val keys = axes[axisIndex].keys
+	if (keyIndex < 0 || keyIndex >= keys.size) {
+		return this
+	}
+	// EPS_SPAN off each neighbour, so a clamped key never lands close enough to make a span the evaluator
+	// resolves as a step rather than a blend.
+	val lowerWall = if (keyIndex > 0) keys[keyIndex - 1] + EPS_SPAN else Float.NEGATIVE_INFINITY
+	val upperWall = if (keyIndex < keys.size - 1) keys[keyIndex + 1] - EPS_SPAN else Float.POSITIVE_INFINITY
+	if (lowerWall > upperWall) {
+		// The neighbours are already closer together than two spans; there is nowhere legal to put it.
+		return this
+	}
+	val clamped = newValue.coerceIn(lowerWall, upperWall)
+	if (clamped == keys[keyIndex]) {
+		return this
+	}
+	val newKeys = keys.copyOf()
+	newKeys[keyIndex] = clamped
+	val newAxes = axes.toMutableList()
+	newAxes[axisIndex] = KeyformAxis(parameterId, newKeys)
+	// The cells are untouched: only the axis's key positions changed, and every coordinate still addresses
+	// the same cell it did before.
+	return KeyformGrid(newAxes.toList(), cells)
+}
+
+/**
  * This grid with key [keyIndex] removed from [parameterId]'s axis, or the axis collapsed entirely when
  * too few keys would remain.
  *

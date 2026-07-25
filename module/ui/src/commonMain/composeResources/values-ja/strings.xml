@@ -139,6 +139,7 @@
 	<string name="history_deformer_selectable">デフォーマの選択可否を切り替え</string>
 	<string name="history_deformer_move">デフォーマを移動</string>
 	<string name="history_keyform_insert">キーフレーム挿入</string>
+	<string name="history_keyform_move">キーフレーム移動</string>
 	<string name="history_keyform_remove">キーフレーム削除</string>
 	<string name="history_parameter_select">パラメータ選択</string>
 	<string name="history_parameter_value">パラメータを調整</string>
@@ -487,6 +488,7 @@
 	<string name="channel_flip_y">Y反転</string>
 	<string name="channel_glue_intensity">グルー強度</string>
 	<string name="cmd_keyform_insert">キーフレーム挿入</string>
+	<string name="cmd_keyform_delete_keys">選択したキーを削除</string>
 	<string name="cmd_keyform_remove">キーフレーム削除</string>
 	<string name="notice_keyform_no_target">キー可能なプロパティを指してください</string>
 	<string name="notice_keyform_no_parameter">キーを打つパラメータを選択してください</string>

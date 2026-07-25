@@ -205,4 +205,44 @@ class KeyformGridAlgebraTest {
 		assertSame(sparse, sparse.withKeyRemoved(angleX, keyIndex = 1))
 		assertSame(sparse, sparse.withFormCaptured({ 2f }, scalar(1f), ChannelValueInterpolator))
 	}
+
+	/** Moving a key changes only WHERE it applies; the value it holds rides along. */
+	@Test
+	fun movingAKeyCarriesItsValue() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		val after = before.withKeyMoved(angleX, keyIndex = 1, newValue = 8f)
+		assertEquals(listOf(0f, 8f, 10f), after.axes.single().keys.toList())
+		assertEquals(42f, assertNotNull(sample(after, 8f)), "the moved key still holds what it held")
+	}
+
+	/**
+	 * A key clamps at its neighbours instead of crossing them.
+	 *
+	 * Crossing would have to reorder cells or swap two keys' contents, and both are surprising mid-drag;
+	 * walls are what a rigger expects from a neighbouring key.
+	 */
+	@Test
+	fun movingClampsAtTheNeighbours() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		val pastUpper = before.withKeyMoved(angleX, keyIndex = 1, newValue = 99f)
+		val keys = pastUpper.axes.single().keys.toList()
+		assertTrue(keys[1] < keys[2], "the moved key stays below its upper neighbour")
+		assertTrue(keys[1] > keys[0], "and above its lower one")
+	}
+
+	/** An endpoint has one wall only, so a move can still widen the axis - that is real authoring. */
+	@Test
+	fun movingAnEndpointResizesTheSpan() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		val widened = before.withKeyMoved(angleX, keyIndex = 2, newValue = 30f)
+		assertEquals(listOf(0f, 5f, 30f), widened.axes.single().keys.toList())
+	}
+
+	/** A move to where the key already sits, or on a missing axis, records nothing. */
+	@Test
+	fun aPointlessMoveIsARefusal() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		assertSame(before, before.withKeyMoved(angleX, keyIndex = 1, newValue = 5f))
+		assertSame(before, before.withKeyMoved(angleY, keyIndex = 0, newValue = 1f))
+	}
 }

@@ -4,7 +4,9 @@ import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
@@ -43,6 +45,35 @@ class KeyformTrackLabels(
 )
 
 /**
+ * One selected key: the row it belongs to and where on the parameter it sits.
+ *
+ * Identified by POSITION rather than index because that is what a drag speaks in and what survives a
+ * neighbouring key being removed - an index would silently shift onto a different key.
+ *
+ * @property String rowKey The owning row's stable key.
+ * @property Float position The key's parameter value.
+ */
+data class TrackKeyRef(
+	val rowKey: String,
+	val position: Float,
+)
+
+/**
+ * The sheet's projection of a rig: rows to draw, and what each row edits.
+ *
+ * The targets ride alongside rather than inside [TrackRow] because a row is a domain-agnostic widget input
+ * - org.umamo.ui.tracks must never learn what a keyform channel is - so the mapping back to the model stays
+ * on this side of the boundary, keyed by the row's own identity.
+ *
+ * @property List rows The rows to draw.
+ * @property Map targetsByRowKey What each row edits; a blend-shape row has no entry (not yet authorable).
+ */
+class KeyformSheetProjection(
+	val rows: List<TrackRow>,
+	val targetsByRowKey: Map<String, KeyableTarget>,
+)
+
+/**
  * The per-(item, channel) tracks keyed on [parameterId], in outliner order.
  *
  * One row per channel rather than one per item, because that is what the split made possible: an item can
@@ -56,7 +87,7 @@ class KeyformTrackLabels(
  * @param KeyformTrackLabels labels The localized chrome labels.
  * @return List<TrackRow> The rows, empty when nothing keys on the parameter.
  */
-fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: KeyformTrackLabels): List<TrackRow> {
+fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: KeyformTrackLabels): KeyformSheetProjection {
 	val rows = ArrayList<TrackRow>()
 	for (part in puppet.parts) {
 		rows.addAll(part.trackRows(parameterId, labels))
@@ -77,7 +108,51 @@ fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: Keyf
 			),
 		)
 	}
-	return rows
+	// Channel rows are addressable; a geometry or blend-shape row is not yet authorable, so it simply has no
+	// entry and the sheet leaves it read-only rather than offering an edit that would fail.
+	val targets = HashMap<String, KeyableTarget>()
+	for (part in puppet.parts) {
+		part.channelGrids.collectTargets("part:${'$'}{part.id.raw}", KeyformOwner.Part(part.id), parameterId, targets)
+	}
+	for (deformer in puppet.deformers) {
+		deformer.channelGrids.collectTargets(
+			"deformer:${'$'}{deformer.id.raw}",
+			KeyformOwner.Deformer(deformer.id),
+			parameterId,
+			targets,
+		)
+	}
+	for (drawable in puppet.drawables) {
+		drawable.channelGrids.collectTargets(
+			"drawable:${'$'}{drawable.id.raw}",
+			KeyformOwner.Drawable(drawable.id),
+			parameterId,
+			targets,
+		)
+	}
+	for ((glueIndex, glue) in puppet.glues.withIndex()) {
+		glue.channelGrids.collectTargets(
+			"glue${'$'}glueIndex",
+			KeyformOwner.Glue(glue.meshA, glue.meshB),
+			parameterId,
+			targets,
+		)
+	}
+	return KeyformSheetProjection(rows, targets)
+}
+
+/** Records the [KeyableTarget] behind each of this owner's channel rows that keys on [parameterId]. */
+private fun ChannelGrids.collectTargets(
+	ownerKey: String,
+	owner: KeyformOwner,
+	parameterId: ParameterId,
+	into: MutableMap<String, KeyableTarget>,
+) {
+	for ((channel, track) in gridsByChannel) {
+		if (track.axes.any { axis -> axis.parameterId == parameterId }) {
+			into["${'$'}ownerKey/${'$'}{channel.name}"] = KeyableTarget(owner, channel)
+		}
+	}
 }
 
 /**

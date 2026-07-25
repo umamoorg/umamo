@@ -584,6 +584,16 @@ sealed interface KeyformChange : Change {
 	}
 
 	/**
+	 * A key dragged to a new position on its parameter, carrying its stored value with it.
+	 *
+	 * @property FormChannel channel The channel the key belongs to.
+	 */
+	data class MoveKey(override val channel: FormChannel) : KeyformChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.keyform.move"
+	}
+
+	/**
 	 * A key removed - which also UNBINDS the channel when it was the last one holding the axis up, since
 	 * removal collapses an axis rather than leaving a single key behind.
 	 *
