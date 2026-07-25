@@ -160,6 +160,8 @@
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>
+	<string name="history_keyform_insert">Insert Keyframe</string>
+	<string name="history_keyform_remove">Remove Keyframe</string>
 	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
@@ -527,4 +529,8 @@
 	<string name="channel_flip_x">Flip X</string>
 	<string name="channel_flip_y">Flip Y</string>
 	<string name="channel_glue_intensity">Glue Intensity</string>
+	<string name="cmd_keyform_insert">Insert Keyframe</string>
+	<string name="cmd_keyform_remove">Remove Keyframe</string>
+	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe</string>
+	<string name="notice_keyform_no_parameter">Select a parameter to key on</string>
 </resources>

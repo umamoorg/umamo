@@ -5,6 +5,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartComposite
@@ -535,6 +536,7 @@ sealed interface ParameterChange : Change {
 }
 
 /** Changes to document-wide properties that live on the model root rather than on any one entity. */
+
 sealed interface DocumentChange : Change {
 	/**
 	 * Sets the document canvas size in world units. Document content, so it marks the document dirty.
@@ -557,6 +559,39 @@ sealed interface DocumentChange : Change {
 	data class SetWorldOrigin(val x: Float, val y: Float) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.worldOrigin"
+	}
+}
+
+/**
+ * A keyform authoring edit: binding a channel to a parameter, capturing a key, or removing one.
+ *
+ * Carries the CHANNEL rather than the whole target because that is what the history label needs to read
+ * usefully ("Insert Opacity Key"); the entity is already obvious from what the user was pointing at.
+ */
+sealed interface KeyformChange : Change {
+	/** The channel the edit was made on. */
+	val channel: FormChannel
+
+	/**
+	 * A key captured at the current pose - which also BINDS the channel to the parameter when it was not
+	 * keyed on it before, since a capture with nowhere to land seeds its own axis.
+	 *
+	 * @property FormChannel channel The channel keyed.
+	 */
+	data class InsertKey(override val channel: FormChannel) : KeyformChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.keyform.insert"
+	}
+
+	/**
+	 * A key removed - which also UNBINDS the channel when it was the last one holding the axis up, since
+	 * removal collapses an axis rather than leaving a single key behind.
+	 *
+	 * @property FormChannel channel The channel the key came off.
+	 */
+	data class RemoveKey(override val channel: FormChannel) : KeyformChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.keyform.remove"
 	}
 }
 

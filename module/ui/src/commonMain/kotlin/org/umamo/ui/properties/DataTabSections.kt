@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.KeyableTarget
+import org.umamo.edit.KeyformOwner
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setDeformerBaseAngle
 import org.umamo.edit.setDeformerQuadTransform
@@ -21,6 +23,7 @@ import org.umamo.edit.setPartSketch
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.displayMultiplyColor
 import org.umamo.runtime.model.displayScreenColor
@@ -31,6 +34,7 @@ import org.umamo.ui.graphics.toComposeColor
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SelectField
+import org.umamo.ui.model.keyableTarget
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.UmamoIcon
@@ -117,10 +121,16 @@ internal val BlendSection =
 							}
 						}
 					},
-					// The 5.3 per-art-mesh multiply/screen color.  It is a keyformed channel, so the picker
-					// sets it uniformly across the drawable's whole keyform grid (see setDrawableMultiplyColor).
+					// The 5.3 per-art-mesh multiply/screen color: a channel with its own static and its own
+					// optional keyform track, so the picker writes the static and `I` over the row keys it.
 					PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_multiply_color)) {
+						PropertyFieldRow(
+							stringResource(Res.string.properties_field_multiply_color),
+							modifier =
+								Modifier.keyableTarget(
+									KeyableTarget(KeyformOwner.Drawable(drawable.id), FormChannel.MULTIPLY_COLOR),
+								),
+						) {
 							HexColorField(
 								value = formatHexColor(drawable.displayMultiplyColor().toComposeColor()),
 								onValueChange = { hex ->
@@ -133,7 +143,13 @@ internal val BlendSection =
 						}
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_screen_color)) {
+						PropertyFieldRow(
+							stringResource(Res.string.properties_field_screen_color),
+							modifier =
+								Modifier.keyableTarget(
+									KeyableTarget(KeyformOwner.Drawable(drawable.id), FormChannel.SCREEN_COLOR),
+								),
+						) {
 							HexColorField(
 								value = formatHexColor(drawable.displayScreenColor().toComposeColor()),
 								onValueChange = { hex ->

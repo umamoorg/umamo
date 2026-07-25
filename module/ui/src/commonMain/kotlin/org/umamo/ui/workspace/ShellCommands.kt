@@ -6,10 +6,12 @@ import org.umamo.edit.Cursor2d
 import org.umamo.edit.DrawableChange
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.KeyableTarget
 import org.umamo.edit.MergeTarget
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.PartChange
 import org.umamo.edit.PieMenuKind
 import org.umamo.edit.ProportionalFalloff
@@ -20,9 +22,13 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
+import org.umamo.edit.captureChannelKey
+import org.umamo.edit.channelValueAt
+import org.umamo.edit.removeChannelKey
 import org.umamo.edit.snapToGrid
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
+import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -246,6 +252,7 @@ internal fun shellSessionCommands(
 	selection: SelectionHandle?,
 	activeViewportArea: () -> String?,
 	hoveredSurface: () -> HoveredSurface?,
+	hoveredKeyable: () -> KeyableTarget?,
 ): List<Command> {
 	// The availability tiers of the document-scoped commands: most need only an open document; the
 	// Edit-mode element commands hide in Object mode; the circle radius pair needs a live brush.
@@ -397,6 +404,15 @@ internal fun shellSessionCommands(
 		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = hasDocument) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursor)
 			editorSession?.closePieMenu()
+		},
+		// Keyform authoring. The target is the HOVERED keyable property, resolved when the command fires
+		// rather than latched at registration - the same dispatch-time rule the viewport commands follow,
+		// and what lets `I` work with no prior selection: point at Opacity and press it.
+		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = hasDocument) {
+			editorSession?.let { session -> session.keyformInsert(hoveredKeyable()) }
+		},
+		Command("keyform.remove", title = Res.string.cmd_keyform_remove, availability = hasDocument) {
+			editorSession?.let { session -> session.keyformRemove(hoveredKeyable()) }
 		},
 		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = hasDocument) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset)
@@ -594,4 +610,57 @@ private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, area
 	} else {
 		session.beginObjectOperator(kind, areaId)
 	}
+}
+
+/**
+ * Captures a key on [target] at the current pose, keyed on the targeted parameter.
+ *
+ * The value captured is the channel's CURRENT evaluated value, so an insert with nothing edited pins what
+ * is already on screen - Blender's behaviour, and the useful one: it is how a rigger anchors a pose before
+ * moving on.  (Once the pending-unkeyed-edit buffer lands, an edit in flight is captured instead.)
+ *
+ * Refuses with a notice rather than silently doing nothing, because both failure modes are things the user
+ * can fix: nothing hovered, or no parameter targeted.
+ *
+ * @param KeyableTarget? target The hovered keyable property, or null when the pointer is over nothing.
+ */
+private fun EditorSession.keyformInsert(target: KeyableTarget?) {
+	if (target == null) {
+		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+		return
+	}
+	val parameter = targetedParameter() ?: return
+	val value = model.value.channelValueAt(target, pose.value) ?: return
+	captureChannelKey(target, parameter, value)
+}
+
+/**
+ * Removes the key at the current pose from [target]'s channel.
+ *
+ * @param KeyableTarget? target The hovered keyable property, or null.
+ */
+private fun EditorSession.keyformRemove(target: KeyableTarget?) {
+	if (target == null) {
+		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+		return
+	}
+	val parameter = targetedParameter() ?: return
+	removeChannelKey(target, parameter)
+}
+
+/**
+ * The parameter a keyform edit would write on - the active member of the session's parameter selection.
+ *
+ * Emits a notice and returns null when nothing is targeted, since an insert with no axis to write on has
+ * no sensible default: guessing a parameter would key the rig somewhere the user never looked.
+ *
+ * @return Parameter? The targeted parameter, or null.
+ */
+private fun EditorSession.targetedParameter(): Parameter? {
+	val activeId = parameterSelection.value.active
+	if (activeId == null) {
+		emitNotice("notice.keyform.noParameter", NoticePlacement.NearCursor)
+		return null
+	}
+	return model.value.parameters.firstOrNull { parameter -> parameter.id == activeId }
 }

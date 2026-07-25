@@ -18,6 +18,8 @@ fun noticeText(messageKey: String): String =
 	when (messageKey) {
 		"notice.transform.onlyDrawables" -> stringResource(Res.string.notice_transform_only_drawables)
 		"notice.transform.deformed" -> stringResource(Res.string.notice_transform_deformed)
+		"notice.keyform.noTarget" -> stringResource(Res.string.notice_keyform_no_target)
+		"notice.keyform.noParameter" -> stringResource(Res.string.notice_keyform_no_parameter)
 		"notice.merge.needsVertices" -> stringResource(Res.string.notice_merge_needs_vertices)
 		"notice.connect.needsTwoVertices" -> stringResource(Res.string.notice_connect_needs_two_vertices)
 		"notice.connect.refused" -> stringResource(Res.string.notice_connect_refused)

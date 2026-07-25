@@ -189,6 +189,10 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// reserved for the inset operation, so Invert takes the primary modifier.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
+		// Keyform authoring (Blender I / Alt+I). Bare I was reserved for this; select.invert takes the
+		// primary modifier so both can coexist. The target is the property under the pointer.
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.remove",
 		// Box (B) and Circle (C) select tools; Zoom Region on Shift+B; numpad +/- resize the circle brush.
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
@@ -225,6 +229,12 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+shift+Equals" to "view.zoomInCoarse",
 		"primary+Minus" to "view.zoomOut",
 		"primary+shift+Minus" to "view.zoomOutCoarse",
+		// Keyform authoring. Cubism itself AUTO-KEYS rather than having an insert shortcut, so there is no
+		// muscle memory to match here - the binding mirrors the other presets so a Cubism-preset user is
+		// never left without a way to key, and it becomes the natural home for the auto-key toggle when
+		// that setting lands.
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.remove",
 	)
 
 /**
@@ -286,6 +296,10 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		// (Shift+B), and numpad +/- for the circle brush radius.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
+		// Keyform authoring (Blender I / Alt+I). Bare I was reserved for this; select.invert takes the
+		// primary modifier so both can coexist. The target is the property under the pointer.
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.remove",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",

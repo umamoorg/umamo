@@ -1,5 +1,6 @@
 package org.umamo.runtime.keyform
 
+import org.umamo.runtime.eval.EPS_KEY
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.FormChannel
@@ -174,6 +175,25 @@ fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepK
 			.filter { cell -> cell.coordinate[axisIndex] == keepIndex }
 			.map { cell -> KeyformCell(cell.coordinate.withElementRemoved(axisIndex), cell.form) }
 	return KeyformGrid(newAxes, newCells)
+}
+
+/**
+ * The index of the key on [parameterId]'s axis that [value] sits exactly on, or -1.
+ *
+ * "Exactly" means within the evaluator's own EPS_KEY snap tolerance, so this agrees with what is actually
+ * being rendered: if the pose resolves to a key, this finds it.  Authoring ops use it to decide whether an
+ * insert lands on an existing key (overwrite) or between two (reshape).
+ *
+ * @param ParameterId parameterId The axis to look on.
+ * @param Float value The pose value.
+ * @return Int The key index, or -1 when the axis is absent or no key is in range.
+ */
+fun KeyformGrid<*>.keyIndexAt(parameterId: ParameterId, value: Float): Int {
+	val axisIndex = axisIndexOf(parameterId)
+	if (axisIndex < 0) {
+		return -1
+	}
+	return axes[axisIndex].keys.indexOfFirst { key -> abs(key - value) < EPS_KEY }
 }
 
 /**

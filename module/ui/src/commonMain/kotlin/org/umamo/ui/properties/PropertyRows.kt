@@ -75,8 +75,13 @@ internal val ASPECT_LOCK_GUTTER = 24.dp
  * @param Function control The editable control (a fillMaxWidth NumberField, SelectField, etc.).
  */
 @Composable
-internal fun PropertyFieldRow(label: String, trailingGutter: Dp = 0.dp, control: @Composable () -> Unit) {
-	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+internal fun PropertyFieldRow(
+	label: String,
+	trailingGutter: Dp = 0.dp,
+	modifier: Modifier = Modifier,
+	control: @Composable () -> Unit,
+) {
+	Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		Text(
 			text = label,
 			style = LocalUmamoTypography.current.bodySmall,

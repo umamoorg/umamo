@@ -173,9 +173,9 @@ private fun Part.withChannelsCompacted(): Part {
 		return this
 	}
 	val liftedDrawOrder = compacted.constants[FormChannel.DRAW_ORDER] as? ChannelValue.Scalar
-	val drawOrderIsIntegral = liftedDrawOrder != null && liftedDrawOrder.value == liftedDrawOrder.value.toInt().toFloat()
+	val integralDrawOrder = liftedDrawOrder?.takeIf { lifted -> lifted.value == lifted.value.toInt().toFloat() }
 	val keptGrids =
-		if (liftedDrawOrder != null && !drawOrderIsIntegral) {
+		if (liftedDrawOrder != null && integralDrawOrder == null) {
 			// Put the fractional draw-order track back rather than rounding it into the Int static.
 			ChannelGrids(compacted.channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to (channelGrids[FormChannel.DRAW_ORDER]!!)))
 		} else {
@@ -183,7 +183,7 @@ private fun Part.withChannelsCompacted(): Part {
 		}
 	return copy(
 		channelGrids = keptGrids,
-		drawOrder = if (drawOrderIsIntegral) liftedDrawOrder!!.value.toInt() else drawOrder,
+		drawOrder = integralDrawOrder?.value?.toInt() ?: drawOrder,
 		composite =
 			composite.copy(
 				opacity = compacted.constants.scalarOr(FormChannel.OPACITY, composite.opacity),
@@ -203,15 +203,15 @@ private fun Part.withChannelsCompacted(): Part {
 private fun RenderGroup.withChannelsCompacted(): RenderGroup {
 	val compacted = channelGrids.compactedTracks()
 	val liftedDrawOrder = compacted.constants[FormChannel.DRAW_ORDER] as? ChannelValue.Scalar
-	val drawOrderIsIntegral = liftedDrawOrder != null && liftedDrawOrder.value == liftedDrawOrder.value.toInt().toFloat()
+	val integralDrawOrder = liftedDrawOrder?.takeIf { lifted -> lifted.value == lifted.value.toInt().toFloat() }
 	val keptGrids =
-		if (liftedDrawOrder != null && !drawOrderIsIntegral) {
+		if (liftedDrawOrder != null && integralDrawOrder == null) {
 			ChannelGrids(compacted.channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to (channelGrids[FormChannel.DRAW_ORDER]!!)))
 		} else {
 			compacted.channelGrids
 		}
 	return copy(
-		drawOrder = if (drawOrderIsIntegral) liftedDrawOrder!!.value.toInt() else drawOrder,
+		drawOrder = integralDrawOrder?.value?.toInt() ?: drawOrder,
 		children = children.map { child -> if (child is RenderGroup) child.withChannelsCompacted() else child },
 		channelGrids = keptGrids,
 		composite =
