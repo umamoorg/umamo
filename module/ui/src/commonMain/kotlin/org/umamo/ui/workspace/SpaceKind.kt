@@ -35,6 +35,14 @@ enum class SpaceKind(val key: String) {
 	/** The parameter cockpit: sliders and (later) the multi-key 2D pad. */
 	Parameters("parameters"),
 
+	/**
+	 * The keyform sheet: per-(item, channel) tracks over the targeted parameter's range.
+	 *
+	 * Named for what it shows rather than "dope sheet", which is left free for the time-based animation
+	 * editor - both will exist, and a serialized key cannot be renamed without resetting saved layouts.
+	 */
+	KeyformSheet("keyformsheet"),
+
 	/** A tabbed mega-panel (Document / Object / Data) of the document and the selected item. */
 	Properties("properties"),
 

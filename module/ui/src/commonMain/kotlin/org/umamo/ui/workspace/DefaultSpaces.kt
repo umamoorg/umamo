@@ -16,6 +16,7 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.ViewportSpaceCamera
 import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
+import org.umamo.ui.workspace.spaces.KeyformSheetSpace
 import org.umamo.ui.workspace.spaces.LogsHeaderControls
 import org.umamo.ui.workspace.spaces.LogsSpace
 import org.umamo.ui.workspace.spaces.OutlinerHeaderControls
@@ -74,6 +75,12 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					LocalUmamoIcons.spaceParameters,
 					headerContent = { scope -> ParametersHeaderControls(scope) },
 				) { scope -> ParametersSpace(scope) },
+			SpaceKind.KeyformSheet to
+				SpaceDescriptor(
+					SpaceKind.KeyformSheet,
+					Res.string.space_keyformsheet,
+					LocalUmamoIcons.spaceParameters,
+				) { scope -> KeyformSheetSpace(scope) },
 			SpaceKind.Properties to
 				SpaceDescriptor(
 					SpaceKind.Properties,

@@ -472,4 +472,16 @@
 	<string name="pick_hover_drawable">メッシュ: %1$s</string>
 	<string name="pick_hover_part">パーツ: %1$s</string>
 	<string name="pick_hover_deformer">デフォーマ: %1$s</string>
+	<string name="space_keyformsheet">キーフォームシート</string>
+	<string name="keyform_sheet_no_parameter">パラメータを選択するとトラックが表示されます</string>
+	<string name="keyform_sheet_no_tracks">このパラメータにはまだ何もキーされていません</string>
+	<string name="track_geometry">ジオメトリ</string>
+	<string name="track_blend_shape">ブレンドシェイプ</string>
+	<string name="channel_draw_order">描画順</string>
+	<string name="channel_opacity">不透明度</string>
+	<string name="channel_multiply_color">乗算</string>
+	<string name="channel_screen_color">スクリーン</string>
+	<string name="channel_flip_x">X反転</string>
+	<string name="channel_flip_y">Y反転</string>
+	<string name="channel_glue_intensity">グルー強度</string>
 </resources>

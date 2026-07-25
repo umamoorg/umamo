@@ -515,4 +515,16 @@
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
 	<string name="pick_hover_deformer">Deformer: %1$s</string>
+	<string name="space_keyformsheet">Keyform Sheet</string>
+	<string name="keyform_sheet_no_parameter">Select a parameter to see its tracks.</string>
+	<string name="keyform_sheet_no_tracks">Nothing is keyed on this parameter yet.</string>
+	<string name="track_geometry">Geometry</string>
+	<string name="track_blend_shape">Blend Shape</string>
+	<string name="channel_draw_order">Draw Order</string>
+	<string name="channel_opacity">Opacity</string>
+	<string name="channel_multiply_color">Multiply</string>
+	<string name="channel_screen_color">Screen</string>
+	<string name="channel_flip_x">Flip X</string>
+	<string name="channel_flip_y">Flip Y</string>
+	<string name="channel_glue_intensity">Glue Intensity</string>
 </resources>
