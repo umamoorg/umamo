@@ -1,0 +1,129 @@
+package org.umamo.runtime.eval
+
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.ParameterId
+
+/*
+ * Pose sampling for the per-channel keyform tracks, over the same multilinear corner selection the
+ * geometry blend uses.
+ *
+ * Each channel resolves its OWN corners from its OWN grid rather than borrowing geometry's.  That is not
+ * an optimization left on the table - after import compaction a channel track keeps only the axes it
+ * actually varies along, so its cell linear indices no longer line up with geometry's and a borrowed
+ * corner set would read the wrong cells.  Before compaction the two share axes, so the corners come out
+ * identical in identical order and the sums are bit-for-bit what the bundled blend produced.
+ *
+ * The static fallback applies when the owner has NO track for a channel, or when the track's pose is out
+ * of range.  Out of range NEVER hides: hiding is the geometry grid's decision alone, so keying opacity on
+ * a narrow parameter cannot make the art vanish at the ends of an unrelated slider.
+ *
+ * チャンネル別トラックの姿勢サンプリング。各チャンネルは自分の格子から自分のコーナーを求める。
+ * 範囲外や未キーの場合はオーナーの静的値へフォールバックし、実体を隠すことはない。
+ */
+
+/**
+ * The blended value of a SCALAR channel at the given pose, or [staticValue] when it is untracked or the
+ * pose falls outside the track's key range.
+ *
+ * A cell missing from a sparse track contributes nothing rather than falling back, matching how the
+ * bundled blend has always treated an unresolvable cell.
+ *
+ * @param FormChannel channel     The scalar channel to sample.
+ * @param Float       staticValue The owner's static value for this channel.
+ * @param Function    paramValue  Current value for a given parameter id.
+ * @return Float The blended value, or [staticValue].
+ */
+fun ChannelGrids.scalarAt(channel: FormChannel, staticValue: Float, paramValue: (ParameterId) -> Float): Float {
+	val grid = this[channel] ?: return staticValue
+	val corners = gridCorners(grid, paramValue) ?: return staticValue
+	val cells = cellsByLinearIndex(grid)
+	var total = 0f
+	for (corner in corners) {
+		val value = (cells[corner.linearIndex]?.form as? ChannelValue.Scalar)?.value ?: continue
+		total += corner.weight * value
+	}
+	return total
+}
+
+/**
+ * The blended value of a COLOR channel at the given pose, or [staticValue] when untracked or out of range.
+ *
+ * @param FormChannel channel     The color channel to sample.
+ * @param ColorRgb    staticValue The owner's static color for this channel.
+ * @param Function    paramValue  Current value for a given parameter id.
+ * @return ColorRgb The blended color, or [staticValue].
+ */
+fun ChannelGrids.colorAt(channel: FormChannel, staticValue: ColorRgb, paramValue: (ParameterId) -> Float): ColorRgb {
+	val grid = this[channel] ?: return staticValue
+	val corners = gridCorners(grid, paramValue) ?: return staticValue
+	val cells = cellsByLinearIndex(grid)
+	var red = 0f
+	var green = 0f
+	var blue = 0f
+	for (corner in corners) {
+		val color = (cells[corner.linearIndex]?.form as? ChannelValue.Color)?.color ?: continue
+		red += corner.weight * color.red
+		green += corner.weight * color.green
+		blue += corner.weight * color.blue
+	}
+	return ColorRgb(red, green, blue)
+}
+
+/**
+ * The value of a FLAG channel at the given pose, or [staticValue] when untracked or out of range.
+ *
+ * A flag snaps to the FLOOR cell instead of blending - [gridCorners] builds its first corner by taking the
+ * lower key on every axis, so corner 0 is the floor cell, which is the same cell the bundled rotation
+ * blend has always read its reflection flags from.
+ *
+ * @param FormChannel channel     The flag channel to sample.
+ * @param Boolean     staticValue The owner's static flag for this channel.
+ * @param Function    paramValue  Current value for a given parameter id.
+ * @return Boolean The floor cell's flag, or [staticValue].
+ */
+fun ChannelGrids.flagAt(channel: FormChannel, staticValue: Boolean, paramValue: (ParameterId) -> Float): Boolean {
+	val grid = this[channel] ?: return staticValue
+	val corners = gridCorners(grid, paramValue) ?: return staticValue
+	val floorCorner = corners.firstOrNull() ?: return staticValue
+	val cells = cellsByLinearIndex(grid)
+	return (cells[floorCorner.linearIndex]?.form as? ChannelValue.Flag)?.flag ?: staticValue
+}
+
+/**
+ * The blended value of a SCALAR channel, or null when the owner does not track it or the pose is out of
+ * the track's range.
+ *
+ * The distinction from [scalarAt] matters where absence is itself information - the per-pose part
+ * draw-order map is sparse on purpose, so a part with no animated order stays out of it and the renderer
+ * keeps its static slot rather than being handed a value that merely equals the static.
+ *
+ * @param FormChannel channel    The scalar channel to sample.
+ * @param Function    paramValue Current value for a given parameter id.
+ * @return Float? The blended value, or null when untracked or out of range.
+ */
+fun ChannelGrids.scalarOrNull(channel: FormChannel, paramValue: (ParameterId) -> Float): Float? {
+	val grid = this[channel] ?: return null
+	val corners = gridCorners(grid, paramValue) ?: return null
+	val cells = cellsByLinearIndex(grid)
+	var total = 0f
+	for (corner in corners) {
+		val value = (cells[corner.linearIndex]?.form as? ChannelValue.Scalar)?.value ?: continue
+		total += corner.weight * value
+	}
+	return total
+}
+
+/**
+ * Whether any of this owner's channel tracks keys on [parameterId].
+ *
+ * Used by the panel's effective-parameter walk, which must union geometry's axes with every channel's or
+ * an opacity-only track becomes invisible to the parameter list.
+ *
+ * @param ParameterId parameterId The parameter to look for.
+ * @return Boolean True when some track keys on it.
+ */
+fun ChannelGrids.keysOn(parameterId: ParameterId): Boolean =
+	gridsByChannel.values.any { grid -> grid.axes.any { axis -> axis.parameterId == parameterId } }

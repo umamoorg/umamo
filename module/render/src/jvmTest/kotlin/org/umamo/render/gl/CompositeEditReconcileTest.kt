@@ -17,7 +17,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -51,10 +51,10 @@ class CompositeEditReconcileTest {
 	// The left half of the viewport, as a clip-mask source.
 	private val leftHalfQuad = floatArrayOf(-32f, -32f, 0f, -32f, -32f, 32f, 0f, 32f)
 
-	private fun restGrid(positions: FloatArray): KeyformGrid<MeshForm> =
+	private fun restGrid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 		)
 
 	private fun drawable(
@@ -71,7 +71,7 @@ class CompositeEditReconcileTest {
 			blendMode = blendMode,
 			maskedBy = maskedBy,
 			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
-			keyforms = restGrid(positions),
+			geometryGrid = restGrid(positions),
 			isVisible = isVisible,
 		)
 

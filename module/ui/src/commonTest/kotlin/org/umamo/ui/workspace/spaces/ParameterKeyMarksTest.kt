@@ -9,6 +9,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -36,10 +37,10 @@ class ParameterKeyMarksTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms =
+			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramId, keys)),
-					keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshForm(floatArrayOf(0f, 0f))) },
+					keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(floatArrayOf(0f, 0f))) },
 				),
 		)
 
@@ -52,7 +53,7 @@ class ParameterKeyMarksTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 		).copy(blendShapes = bindings)
 
 	/** A warp deformer carrying [bindings] as its blend shapes (no grid). */
@@ -65,7 +66,7 @@ class ParameterKeyMarksTest {
 			rows = 1,
 			columns = 1,
 			isQuadTransform = true,
-			keyforms = null,
+			geometryGrid = null,
 		).copy(blendShapes = bindings)
 
 	private fun meshBinding(parameterId: ParameterId, keys: FloatArray, neutralIndex: Int): BlendShapeBinding<MeshForm> =

@@ -6,6 +6,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -45,9 +46,12 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 	// Second chance for drawables absent from the raw default pose: clamp every involved parameter
 	// into its axes' key ranges and evaluate once more.  Only the still-missing drawables read from
 	// this pose, so in-range drawables keep their true default geometry.
+	// No keyforms != null gate: an unkeyed drawable now evaluates at its rest mesh rather than being
+	// skipped, so if one is still absent from the default pose it is genuinely hidden (a hidden ancestor
+	// deformer) and deserves the same clamped second chance as any other.
 	val hiddenAtDefault =
 		model.drawables.filter { drawable ->
-			drawable.mesh != null && drawable.keyforms != null && defaultPose.worldPositions[drawable.id] == null
+			drawable.mesh != null && defaultPose.worldPositions[drawable.id] == null
 		}.map { drawable -> drawable.id }
 	val clampedPose =
 		if (hiddenAtDefault.isEmpty()) {
@@ -74,7 +78,7 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 			// same way - leaving them on the old base while the grid moves would shift every blend
 			// contribution by exactly (new base - old base).
 			val anyCellMismatches =
-				(drawable.keyforms?.cells?.any { cell -> cell.form.positionDeltas.size != mesh.positions.size } ?: false) ||
+				(drawable.geometryGrid?.cells?.any { cell -> cell.form.positionDeltas.size != mesh.positions.size } ?: false) ||
 					drawable.blendShapes.any { binding ->
 						binding.forms.any { form -> form != null && form.positionDeltas.size != mesh.positions.size }
 					}
@@ -86,25 +90,20 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 				FloatArray(worldPositions.size) { coordIndex ->
 					if (coordIndex % 2 == 1) -worldPositions[coordIndex] else worldPositions[coordIndex]
 				}
-			val rebasedKeyforms =
-				drawable.keyforms?.let { grid ->
+			// Only the geometry rebases - and since the split that is structural rather than something the
+			// copy has to remember: the channel tracks are a separate field and are simply not touched.
+			val rebasedGeometry =
+				drawable.geometryGrid?.let { grid ->
 					KeyformGrid(
 						grid.axes,
 						grid.cells.map { cell ->
 							val oldDeltas = cell.form.positionDeltas
-							val rebasedDeltas =
-								FloatArray(oldDeltas.size) { coordIndex ->
-									(mesh.positions[coordIndex] + oldDeltas[coordIndex]) - canvasBase[coordIndex]
-								}
-							// Only the geometry rebases; every non-positional channel rides along unchanged.
 							KeyformCell(
 								cell.coordinate,
-								MeshForm(
-									rebasedDeltas,
-									cell.form.drawOrder,
-									cell.form.opacity,
-									cell.form.multiplyColor,
-									cell.form.screenColor,
+								MeshDeltaForm(
+									FloatArray(oldDeltas.size) { coordIndex ->
+										(mesh.positions[coordIndex] + oldDeltas[coordIndex]) - canvasBase[coordIndex]
+									},
 								),
 							)
 						},
@@ -131,7 +130,7 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 				}
 			drawable.copy(
 				mesh = DrawableMesh(canvasBase, mesh.uvs, mesh.indices),
-				keyforms = rebasedKeyforms,
+				geometryGrid = rebasedGeometry,
 				blendShapes = rebasedBlendShapes,
 			)
 		}
@@ -169,15 +168,18 @@ private fun clampedDefaultsFor(model: PuppetModel, hiddenIds: List<DrawableId>):
 
 	for (drawableId in hiddenIds) {
 		val drawable = drawableById[drawableId] ?: continue
-		addAxes(drawable.keyforms)
+		addAxes(drawable.geometryGrid)
 		var parentId = drawable.parentDeformerId
 		var chainSteps = 0
 		while (parentId != null && chainSteps <= model.deformers.size) {
 			val deformer = deformerById[parentId] ?: break
+			// Geometry AND channel tracks: a deformer keyed only on, say, opacity still constrains which
+			// parameters have to be clamped for the second-chance default-pose evaluation.
 			when (deformer) {
-				is Deformer.Warp -> addAxes(deformer.keyforms)
-				is Deformer.Rotation -> addAxes(deformer.keyforms)
+				is Deformer.Warp -> addAxes(deformer.geometryGrid)
+				is Deformer.Rotation -> addAxes(deformer.geometryGrid)
 			}
+			deformer.channelGrids.gridsByChannel.values.forEach { track: KeyformGrid<*> -> addAxes(track) }
 			parentId = deformer.parent
 			chainSteps++
 		}

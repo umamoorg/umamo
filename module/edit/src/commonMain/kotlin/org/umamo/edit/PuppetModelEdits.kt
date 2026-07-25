@@ -7,9 +7,6 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.runtime.model.KeyformCell
-import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
@@ -293,60 +290,45 @@ fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetMod
 }
 
 /**
- * Rewrites every keyform cell of drawable [id] through [recolor], sharing every other entity.  A no-op id
- * (missing / unkeyed drawable) or a grid where [alreadyApplied] holds for every cell returns the same
- * instance.  The per-art-mesh color is a KEYFORMED channel, so the properties panel edits it uniformly
- * across the whole grid - a single picker sets "the drawable's color".
+ * Returns a copy of [this] with drawable [id]'s static [FormChannel.MULTIPLY_COLOR] set to [color].
+ * A no-op (missing drawable, or the color already set) returns the same instance.
  *
- * FOLLOW-UP: this replaces the keyform grid, so [org.umamo.render.puppet.diffModel] re-uploads the
- * drawable's geometry (colors are not in the delta texture, so the upload is wasted work), and setting the
- * whole grid flattens any authored per-keyform color animation.  A color-only reconcile tier and a
- * keyform-aware color editor are follow-up work for when the keyform/parameter editing workflow lands.
- */
-private fun PuppetModel.withRecoloredDrawable(
-	id: DrawableId,
-	alreadyApplied: (MeshForm) -> Boolean,
-	recolor: (MeshForm) -> MeshForm,
-): PuppetModel {
-	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
-	if (index < 0) {
-		return this
-	}
-	val grid = drawables[index].keyforms ?: return this
-	if (grid.cells.all { cell -> alreadyApplied(cell.form) }) {
-		return this
-	}
-	val recolored = KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, recolor(cell.form)) })
-	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(keyforms = recolored)
-	return copy(drawables = updated)
-}
-
-/**
- * Returns a copy of [this] with drawable [id]'s 5.3 multiply color set to [color] on every keyform cell.
- * A no-op (missing / unkeyed drawable, or the color already uniform) returns the same instance.
+ * A single-field copy since the channel split: the tint is its own track with its own static, so this no
+ * longer rewrites every keyform cell.  That removes two long-standing problems the previous FOLLOW-UP note
+ * described - it flattened any authored per-keyform color animation, and replacing the grid tripped
+ * diffModel's identity check into re-uploading the drawable's geometry for a colour change.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new multiply color.
  * @return PuppetModel The model with that drawable's multiply color updated, or [this] if nothing changed.
  */
-fun PuppetModel.withDrawableMultiplyColor(id: DrawableId, color: ColorRgb): PuppetModel =
-	withRecoloredDrawable(id, { form -> form.multiplyColor == color }) { form ->
-		MeshForm(form.positionDeltas, form.drawOrder, form.opacity, color, form.screenColor)
+fun PuppetModel.withDrawableMultiplyColor(id: DrawableId, color: ColorRgb): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].multiplyColor == color) {
+		return this
 	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(multiplyColor = color)
+	return copy(drawables = updated)
+}
 
 /**
- * Returns a copy of [this] with drawable [id]'s 5.3 screen color set to [color] on every keyform cell.
- * A no-op (missing / unkeyed drawable, or the color already uniform) returns the same instance.
+ * Returns a copy of [this] with drawable [id]'s static [FormChannel.SCREEN_COLOR] set to [color]; see
+ * [withDrawableMultiplyColor].
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new screen color.
  * @return PuppetModel The model with that drawable's screen color updated, or [this] if nothing changed.
  */
-fun PuppetModel.withDrawableScreenColor(id: DrawableId, color: ColorRgb): PuppetModel =
-	withRecoloredDrawable(id, { form -> form.screenColor == color }) { form ->
-		MeshForm(form.positionDeltas, form.drawOrder, form.opacity, form.multiplyColor, color)
+fun PuppetModel.withDrawableScreenColor(id: DrawableId, color: ColorRgb): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].screenColor == color) {
+		return this
 	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(screenColor = color)
+	return copy(drawables = updated)
+}
 
 /**
  * Returns a copy of [this] with the drawable [id]'s mask-inversion flag set to [invert], sharing every

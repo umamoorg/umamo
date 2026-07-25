@@ -1,12 +1,16 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
@@ -62,7 +66,7 @@ class ParameterCrudEditsTest {
 			buildList {
 				for (xIndex in 0..2) {
 					for (yIndex in 0..1) {
-						add(KeyformCell(intArrayOf(xIndex, yIndex), MeshForm(floatArrayOf(xIndex * 10f + yIndex))))
+						add(KeyformCell(intArrayOf(xIndex, yIndex), MeshDeltaForm(floatArrayOf(xIndex * 10f + yIndex))))
 					}
 				}
 			}
@@ -73,7 +77,7 @@ class ParameterCrudEditsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = KeyformGrid(axes, cells),
+			geometryGrid = KeyformGrid(axes, cells),
 		)
 	}
 
@@ -155,7 +159,7 @@ class ParameterCrudEditsTest {
 		val session = EditorSession(model(listOf(parameter(angleX, default = 0f), parameter(angleY)), drawables = listOf(keyedDrawable())))
 		session.deleteParameter(angleX)
 
-		val grid = session.model.value.drawables.single().keyforms!!
+		val grid = session.model.value.drawables.single().geometryGrid!!
 		assertEquals(listOf(angleY), grid.axes.map { it.parameterId }, "only angleY remains")
 		assertEquals(2, grid.cells.size, "the 3x2 grid collapsed to the 2 cells of the kept slice")
 		// The surviving forms are the angleX-index-1 slice: xIndex*10 + yIndex = 10 and 11.
@@ -169,19 +173,19 @@ class ParameterCrudEditsTest {
 	fun deleteSoleAxisGridBecomesNull() {
 		val singleAxis =
 			keyedDrawable().copy(
-				keyforms =
+				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f))),
 						listOf(
-							KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(0f))),
-							KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(1f))),
-							KeyformCell(intArrayOf(2), MeshForm(floatArrayOf(2f))),
+							KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f))),
+							KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f))),
+							KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(2f))),
 						),
 					),
 			)
 		val session = EditorSession(model(listOf(parameter(angleX)), drawables = listOf(singleAxis)))
 		session.deleteParameter(angleX)
-		assertNull(session.model.value.drawables.single().keyforms, "the last-axis grid becomes null")
+		assertNull(session.model.value.drawables.single().geometryGrid, "the last-axis grid becomes null")
 	}
 
 	/** Deleting a parameter not present in a grid leaves that grid's entity untouched by identity. */
@@ -192,7 +196,7 @@ class ParameterCrudEditsTest {
 		val angleZ = ParameterId("ParamAngleZ")
 		val start = model(listOf(parameter(angleX), parameter(angleY), parameter(angleZ)), drawables = listOf(drawable))
 		val after = start.withParameterDeleted(angleZ)
-		assertSame(drawable.keyforms, after.drawables.single().keyforms, "an untouched grid keeps its instance")
+		assertSame(drawable.geometryGrid, after.drawables.single().geometryGrid, "an untouched grid keeps its instance")
 	}
 
 	/** Deleting an unknown parameter is a no-op (same instance, no undo step). */
@@ -202,28 +206,35 @@ class ParameterCrudEditsTest {
 		assertSame(start, start.withParameterDeleted(ParameterId("ParamNope")))
 	}
 
-	/** withAxisCollapsed drops the named axis and re-projects each surviving cell's coordinate. */
+	/**
+	 * A glue's intensity TRACK is scrubbed too, so a deleted parameter leaves no dangling axis behind.
+	 * Glue was the one owner the original scrub walk missed entirely.
+	 */
 	@Test
-	fun withAxisCollapsedReprojectsCoordinates() {
-		val axes = listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f)), KeyformAxis(angleY, floatArrayOf(0f, 1f)))
-		val cells =
-			listOf(
-				KeyformCell(intArrayOf(0, 0), MeshForm(floatArrayOf(0f))),
-				KeyformCell(intArrayOf(0, 1), MeshForm(floatArrayOf(1f))),
-				KeyformCell(intArrayOf(1, 0), MeshForm(floatArrayOf(2f))),
-				KeyformCell(intArrayOf(1, 1), MeshForm(floatArrayOf(3f))),
+	fun deleteScrubsGlueIntensityTrack() {
+		val intensityTrack =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f)), KeyformAxis(angleY, floatArrayOf(0f, 1f))),
+				buildList {
+					for (xIndex in 0..2) {
+						for (yIndex in 0..1) {
+							add(KeyformCell<ChannelValue>(intArrayOf(xIndex, yIndex), ChannelValue.Scalar(xIndex * 10f + yIndex)))
+						}
+					}
+				},
 			)
-		// Collapse angleX keeping the value-0 slice (key index 0): surviving cells are (0,0) and (0,1).
-		val collapsed = KeyformGrid(axes, cells).withAxisCollapsed(angleX, keepKeyValue = 0f)!!
-		assertEquals(listOf(angleY), collapsed.axes.map { it.parameterId })
-		assertEquals(listOf(intArrayOf(0).toList(), intArrayOf(1).toList()), collapsed.cells.map { it.coordinate.toList() })
-		assertEquals(listOf(0f, 1f), collapsed.cells.map { it.form.positionDeltas.single() })
-	}
-
-	/** withAxisCollapsed returns the same instance when the grid has no such axis. */
-	@Test
-	fun withAxisCollapsedAbsentAxisReturnsSame() {
-		val grid = KeyformGrid(listOf(KeyformAxis(angleY, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(0f)))))
-		assertSame(grid, grid.withAxisCollapsed(angleX, keepKeyValue = 0f))
+		val glue =
+			Glue(
+				meshA = DrawableId("a"),
+				meshB = DrawableId("b"),
+				pairs = emptyList(),
+				channelGrids = ChannelGrids(mapOf(FormChannel.GLUE_INTENSITY to intensityTrack)),
+			)
+		val start = model(listOf(parameter(angleX), parameter(angleY))).copy(glues = listOf(glue))
+		val after = start.withParameterDeleted(angleX)
+		val collapsed = after.glues.single().channelGrids[FormChannel.GLUE_INTENSITY]!!
+		assertEquals(listOf(angleY), collapsed.axes.map { axis -> axis.parameterId }, "the deleted axis is gone")
+		// angleX's default is 0, whose nearest key is index 1 - so the surviving intensities are 10 and 11.
+		assertEquals(listOf(10f, 11f), collapsed.cells.map { cell -> (cell.form as ChannelValue.Scalar).value })
 	}
 }

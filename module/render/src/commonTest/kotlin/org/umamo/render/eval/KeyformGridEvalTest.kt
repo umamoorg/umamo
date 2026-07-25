@@ -4,7 +4,7 @@ import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,7 +25,7 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun snapsToTheNearestKey() {
-		val grid = KeyformGrid<MeshForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
+		val grid = KeyformGrid<MeshDeltaForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
 		val corners = gridCorners(grid, values(paramA to 0f))!!
 		assertEquals(1, corners.size)
 		assertEquals(1, corners[0].linearIndex) // the middle key
@@ -34,7 +34,7 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun interpolatesBetweenTwoKeys() {
-		val grid = KeyformGrid<MeshForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
+		val grid = KeyformGrid<MeshDeltaForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
 		val corners = gridCorners(grid, values(paramA to 0.5f))!!.sortedBy { it.linearIndex }
 		assertEquals(2, corners.size)
 		assertEquals(1, corners[0].linearIndex)
@@ -46,7 +46,7 @@ class KeyformGridEvalTest {
 	@Test
 	fun foldsTwoAxesIntoFourWeightedCorners() {
 		val axes = listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f)), KeyformAxis(paramB, floatArrayOf(-1f, 0f, 1f)))
-		val grid = KeyformGrid<MeshForm>(axes, emptyList())
+		val grid = KeyformGrid<MeshDeltaForm>(axes, emptyList())
 		val corners = gridCorners(grid, values(paramA to 0.5f, paramB to 0.5f))!!
 		assertEquals(4, corners.size)
 		corners.forEach { assertEquals(0.25f, it.weight) }
@@ -57,15 +57,15 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun hidesWhenAParameterIsOutOfRange() {
-		val grid = KeyformGrid<MeshForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
+		val grid = KeyformGrid<MeshDeltaForm>(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), emptyList())
 		assertNull(gridCorners(grid, values(paramA to -2f)))
 	}
 
 	@Test
 	fun reproducesAndInterpolatesCellForms() {
-		val cell0 = KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(10f, 0f)))
-		val cell1 = KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(20f, 0f)))
-		val cell2 = KeyformCell(intArrayOf(2), MeshForm(floatArrayOf(30f, 0f)))
+		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 0f)))
+		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 0f)))
+		val cell2 = KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(30f, 0f)))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), listOf(cell0, cell1, cell2))
 		val base = floatArrayOf(0f, 0f)
 		// At an exact key the output equals that cell's absolute form (base + delta).
@@ -77,8 +77,8 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun directMeshBlendsThenNegatesY() {
-		val cell0 = KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(10f, 5f)))
-		val cell1 = KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(20f, 7f)))
+		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f)))
+		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 7f)))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 1f))), listOf(cell0, cell1))
 		val base = floatArrayOf(0f, 0f)
 		// At a key: world = (formX, -formY) - only Y flips.
@@ -89,7 +89,7 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun directMeshHiddenWhenOutOfRange() {
-		val cell = KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(10f, 5f)))
+		val cell = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f)))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 1f))), listOf(cell))
 		assertNull(evalDirectMeshWorld(grid, floatArrayOf(0f, 0f), values(paramA to 5f)))
 	}

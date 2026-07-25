@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.keyform.asGeometryGrid
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
@@ -11,9 +12,11 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -124,8 +127,8 @@ class BlendShapeEvalTest {
 			KeyformGrid(
 				listOf(KeyformAxis(axis, floatArrayOf(0f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(5f, 0f))),
-					KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(9f, 0f))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(5f, 0f))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(9f, 0f))),
 				),
 			)
 		val meshBinding =
@@ -143,7 +146,7 @@ class BlendShapeEvalTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
 				mesh = null,
-				keyforms = grid,
+				geometryGrid = grid,
 				blendShapes = listOf(meshBinding),
 			)
 		val state = meshBlendState(drawable, values(shrink to -1f), values())
@@ -176,7 +179,7 @@ class BlendShapeEvalTest {
 				rows = 1,
 				columns = 1,
 				isQuadTransform = true,
-				keyforms = grid,
+				geometryGrid = grid.asGeometryGrid { form -> WarpLatticeForm(form.controlPoints) },
 				blendShapes =
 					listOf(
 						BlendShapeBinding(
@@ -205,7 +208,7 @@ class BlendShapeEvalTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
 				mesh = null,
-				keyforms = null,
+				geometryGrid = null,
 			)
 		assertEquals(null, meshBlendState(bare, values(), values()))
 	}

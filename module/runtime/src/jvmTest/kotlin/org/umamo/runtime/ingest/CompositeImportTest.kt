@@ -5,7 +5,10 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PuppetModel
 import java.io.File
@@ -13,7 +16,6 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // The MultiplyScreenColors sample's authored colors: multiply #677CD1, screen #95C068 (editor hex,
@@ -165,7 +167,7 @@ class CompositeImportTest {
 		// varies across cells (the ParamHologram crossfade).
 		val hasKeyformedOpacity =
 			puppet.parts.any { part ->
-				part.activeComposite != null && (part.formGrid?.cells?.map { it.form.opacity }?.distinct()?.size ?: 0) > 1
+				part.activeComposite != null && (opacityValues(part.channelGrids).distinct().size) > 1
 			}
 		assertTrue(hasKeyformedOpacity, "an offscreen part has keyformed opacity")
 	}
@@ -181,7 +183,7 @@ class CompositeImportTest {
 		assertTrue(model.parts.isNotEmpty(), "EricaTamamo carries parts")
 		assertTrue(model.parts.none { it.composite.opacity == 0f }, "no pre-5.3 part is spuriously transparent")
 		assertTrue(
-			model.parts.none { part -> part.formGrid?.cells?.any { it.form.opacity == 0f } == true },
+			model.parts.none { part -> opacityValues(part.channelGrids).any { opacity -> opacity == 0f } },
 			"no pre-5.3 part keyform cell is spuriously transparent",
 		)
 	}
@@ -196,16 +198,25 @@ class CompositeImportTest {
 			val model = importCmo3(file)
 			val frontHair = model.parts.firstOrNull { it.name.equals("Front hair", ignoreCase = true) }
 			assertNotNull(frontHair, "EricaTamamo has a Front hair part")
-			assertNull(frontHair.formGrid, "a static (unbound) part carries no keyform grid")
+			assertTrue(frontHair.channelGrids.isEmpty, "a static (unbound) part carries no keyform tracks")
 		} ?: println("EricaTamamo.cmo3 not present; skipping")
 
-		// An animated part - keyformed part draw order / opacity - keeps its grid (non-empty axes).
+		// An animated part - keyformed part draw order / opacity - keeps its tracks (non-empty axes).
 		probeFiles()["modelA.cmo3"]?.let { file ->
 			val model = importCmo3(file)
 			assertTrue(
-				model.parts.any { part -> part.formGrid?.axes?.isNotEmpty() == true },
-				"a parameter-bound CMO3 part keeps its keyform grid",
+				model.parts.any { part -> part.channelGrids.gridsByChannel.values.any { track -> track.axes.isNotEmpty() } },
+				"a parameter-bound CMO3 part keeps its keyform tracks",
 			)
 		} ?: println("modelA.cmo3 not present; skipping")
 	}
+
+	/**
+	 * Every opacity value stored across a part's opacity track (empty when it has none).
+	 *
+	 * @param ChannelGrids channels The part's per-channel tracks.
+	 * @return List<Float> The stored opacities, in cell order.
+	 */
+	private fun opacityValues(channels: ChannelGrids): List<Float> =
+		channels[FormChannel.OPACITY]?.cells?.mapNotNull { cell -> (cell.form as? ChannelValue.Scalar)?.value } ?: emptyList()
 }

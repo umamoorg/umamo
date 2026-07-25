@@ -415,6 +415,7 @@
 	<string name="parameter_menu_add_blendshape">ブレンドシェイプパラメータを追加</string>
 	<string name="parameter_menu_delete">パラメータを削除</string>
 	<string name="parameter_default_name">新規パラメータ</string>
+	<string name="parameter_filters">フィルター</string>
 	<string name="parameter_filter_selected">選択オブジェクトのパラメータのみ</string>
 	<string name="parameter_range_min">最小</string>
 	<string name="parameter_range_default">既定</string>

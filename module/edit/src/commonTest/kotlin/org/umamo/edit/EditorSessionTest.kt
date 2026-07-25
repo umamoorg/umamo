@@ -40,7 +40,7 @@ class EditorSessionTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private val warp =
@@ -52,7 +52,7 @@ class EditorSessionTest {
 			rows = 2,
 			columns = 2,
 			isQuadTransform = true,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private fun model(): PuppetModel =
@@ -80,9 +80,9 @@ class EditorSessionTest {
 		val partA = Part(PartId("A"), "A", children = listOf(OrgChild.Part(PartId("B")), OrgChild.Drawable(DrawableId("d1"))))
 		val partR = Part(PartId("R"), "R", children = listOf(OrgChild.Part(PartId("A"))))
 		val partT = Part(PartId("T"), "T", children = listOf(OrgChild.Drawable(DrawableId("d3"))))
-		val warpW = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)
+		val warpW = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)
 		val warpW2 =
-			Deformer.Warp(DeformerId("w2"), "W2", parent = DeformerId("w"), partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)
+			Deformer.Warp(DeformerId("w2"), "W2", parent = DeformerId("w"), partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)
 
 		fun mesh(rawId: String, deformer: DeformerId?, masks: List<DrawableId>): Drawable =
 			Drawable(
@@ -92,7 +92,7 @@ class EditorSessionTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = masks,
 				mesh = null,
-				keyforms = null,
+				geometryGrid = null,
 			)
 		return PuppetModel(
 			parameters = emptyList(),
@@ -106,7 +106,7 @@ class EditorSessionTest {
 				),
 			rootChildren = listOf(OrgChild.Part(PartId("R")), OrgChild.Part(PartId("T"))),
 			rootPartId = PartId("R"),
-			glues = listOf(Glue(DrawableId("d1"), DrawableId("d2"), emptyList(), null)),
+			glues = listOf(Glue(DrawableId("d1"), DrawableId("d2"), emptyList())),
 		).withDerivedRenderRoot()
 	}
 
@@ -548,7 +548,7 @@ class EditorSessionTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
 				mesh = null,
-				keyforms = null,
+				geometryGrid = null,
 			)
 		val layered =
 			PuppetModel(
@@ -630,7 +630,7 @@ class EditorSessionTest {
 				rows = 2,
 				columns = 2,
 				isQuadTransform = true,
-				keyforms = null,
+				geometryGrid = null,
 			)
 		val nested =
 			PuppetModel(

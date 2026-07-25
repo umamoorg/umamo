@@ -55,7 +55,7 @@ class OutlinerTreeEditsTest {
 	 * @return Deformer The deformer.
 	 */
 	private fun rotation(id: DeformerId, parent: DeformerId?): Deformer =
-		Deformer.Rotation(id, id.raw, parent = parent, partId = null, baseAngle = 0f, keyforms = null)
+		Deformer.Rotation(id, id.raw, parent = parent, partId = null, baseAngle = 0f, geometryGrid = null)
 
 	@Test
 	fun bandRefusesCrossDomainDrops() {

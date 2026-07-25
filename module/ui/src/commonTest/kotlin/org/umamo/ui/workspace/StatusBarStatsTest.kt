@@ -44,7 +44,7 @@ class StatusBarStatsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = mesh,
-			keyforms = null,
+			geometryGrid = null,
 		)
 	}
 

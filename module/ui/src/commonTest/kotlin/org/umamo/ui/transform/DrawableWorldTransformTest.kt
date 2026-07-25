@@ -9,7 +9,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -62,14 +62,14 @@ class DrawableWorldTransformTest {
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
 						mesh = DrawableMesh(basePositions.copyOf(), FloatArray(basePositions.size), intArrayOf(0, 1, 2)),
-						keyforms =
+						geometryGrid =
 							KeyformGrid(
 								axes = listOf(KeyformAxis(parameterId, floatArrayOf(-1f, 0f, 1f))),
 								cells =
 									listOf(
-										KeyformCell(intArrayOf(0), MeshForm(neutralDeltas.copyOf())),
-										KeyformCell(intArrayOf(1), MeshForm(neutralDeltas.copyOf())),
-										KeyformCell(intArrayOf(2), MeshForm(neutralDeltas.copyOf())),
+										KeyformCell(intArrayOf(0), MeshDeltaForm(neutralDeltas.copyOf())),
+										KeyformCell(intArrayOf(1), MeshDeltaForm(neutralDeltas.copyOf())),
+										KeyformCell(intArrayOf(2), MeshDeltaForm(neutralDeltas.copyOf())),
 									),
 							),
 					),

@@ -35,7 +35,7 @@ class ObjectTransformsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = if (withMesh) mesh() else null,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	// A model with two mesh-carrying drawables, one mesh-less drawable, a part, and a deformer.
@@ -43,7 +43,7 @@ class ObjectTransformsTest {
 		PuppetModel(
 			parameters = emptyList(),
 			parts = listOf(Part(PartId("p"), "P", children = emptyList())),
-			deformers = listOf(Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)),
+			deformers = listOf(Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)),
 			drawables = listOf(drawable("a", withMesh = true), drawable("b", withMesh = true), drawable("empty", withMesh = false)),
 			rootChildren = emptyList(),
 			rootPartId = null,

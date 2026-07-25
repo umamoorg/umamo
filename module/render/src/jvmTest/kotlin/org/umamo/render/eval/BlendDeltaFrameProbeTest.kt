@@ -78,7 +78,7 @@ class BlendDeltaFrameProbeTest {
 
 			// The grid form at the DEFAULT pose, multilinearly interpolated (null when ungridded).
 			val gridAtDefault =
-				drawable.keyforms?.let { grid ->
+				drawable.geometryGrid?.let { grid ->
 					gridCorners(grid) { queried -> defaultByParameter[queried] ?: 0f }
 						?.let { corners -> blendLocalFromCorners(grid, base, corners) }
 				}

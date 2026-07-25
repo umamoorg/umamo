@@ -13,10 +13,12 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -41,7 +43,7 @@ class ParameterObjectBindingTest {
 			rows = 1,
 			columns = 1,
 			isQuadTransform = true,
-			keyforms = KeyformGrid(listOf(KeyformAxis(paramId, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), WarpForm(floatArrayOf(0f, 0f))))),
+			geometryGrid = KeyformGrid(listOf(KeyformAxis(paramId, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(floatArrayOf(0f, 0f))))),
 		)
 
 	/** A drawable under [parentDeformerId], keyed on [ownParamId] when non-null. */
@@ -53,9 +55,9 @@ class ParameterObjectBindingTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms =
+			geometryGrid =
 				ownParamId?.let {
-					KeyformGrid(listOf(KeyformAxis(it, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(0f, 0f)))))
+					KeyformGrid(listOf(KeyformAxis(it, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f)))))
 				},
 		)
 

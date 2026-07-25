@@ -58,7 +58,9 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 	// A drawable's effective set: its own mesh keyform axes and blend-shape drivers plus its whole
 	// parent deformer chain's axes.
 	fun addDrawableEffective(drawable: Drawable) {
-		drawable.keyforms?.axes?.forEach { axis -> result.add(axis.parameterId) }
+		// Geometry AND channel tracks, so an opacity-only track still reports the parameter driving it.
+		drawable.geometryGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
+		drawable.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> result.add(axis.parameterId) } }
 		drawable.blendShapes.forEach { binding -> result.add(binding.parameterId) }
 		addDeformerChainAxes(drawable.parentDeformerId)
 	}
@@ -70,7 +72,7 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 			is SelectionTarget.Deformer -> addDeformerChainAxes(target.id)
 			is SelectionTarget.Part ->
 				partById[target.id]?.let { part ->
-					part.formGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
+					part.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> result.add(axis.parameterId) } }
 					collectPartDrawables(part, partById).forEach { drawableId ->
 						drawableById[drawableId]?.let { drawable -> addDrawableEffective(drawable) }
 					}
@@ -117,7 +119,10 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 	}
 
 	for (drawable in drawables) {
-		drawable.keyforms?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+		drawable.geometryGrid?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+		drawable.channelGrids.gridsByChannel.values.forEach { track ->
+			track.axes.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+		}
 		drawable.blendShapes.forEach { binding -> addBlendKeys(binding.parameterId, binding.keys) }
 	}
 	for (deformer in deformers) {
@@ -125,7 +130,7 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 		deformer.blendShapeBindingKeys().forEach { (parameterId, keys) -> addBlendKeys(parameterId, keys) }
 	}
 	for (part in parts) {
-		part.formGrid?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+		part.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) } }
 	}
 
 	val keyedParameters = gridKeysByParameter.keys + blendKeysByParameter.keys
@@ -137,12 +142,21 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 	}
 }
 
-/** This deformer's keyform axes (empty when it is unkeyed), regardless of kind. */
-private fun Deformer.keyformAxes(): List<KeyformAxis> =
-	when (this) {
-		is Deformer.Warp -> keyforms?.axes ?: emptyList()
-		is Deformer.Rotation -> keyforms?.axes ?: emptyList()
-	}
+/**
+ * This deformer's keyform axes (empty when it is unkeyed), regardless of kind.
+ *
+ * Unions the geometry grid's axes with every channel track's, so a deformer keyed only on opacity still
+ * reports the parameter that drives it - otherwise an opacity-only track would be invisible to the
+ * parameter panel and the keyform sheet.
+ */
+private fun Deformer.keyformAxes(): List<KeyformAxis> {
+	val geometryAxes =
+		when (this) {
+			is Deformer.Warp -> geometryGrid?.axes ?: emptyList()
+			is Deformer.Rotation -> geometryGrid?.axes ?: emptyList()
+		}
+	return geometryAxes + channelGrids.gridsByChannel.values.flatMap { track -> track.axes }
+}
 
 /** This deformer's blend-shape bindings as (driving parameter, key values) pairs (empty when none). */
 private fun Deformer.blendShapeBindingKeys(): List<Pair<ParameterId, FloatArray>> =

@@ -56,7 +56,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyformCell
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -227,7 +227,7 @@ class PuppetRenderer(
 		 */
 		var boundsBase: FloatArray,
 		/** Grid cells by linear index for the bounds walk; a keyform edit re-uploads whole (Reupload). */
-		val boundsCells: Map<Int, KeyformCell<MeshForm>>,
+		val boundsCells: Map<Int, KeyformCell<MeshDeltaForm>>,
 	) {
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
@@ -354,7 +354,10 @@ class PuppetRenderer(
 		warpDeformerIds: Set<DeformerId>,
 	): GpuDrawable? {
 		val mesh = drawable.mesh ?: return null
-		val grid = drawable.keyforms ?: return null
+		// A null grid is an UNKEYED drawable, which uploads a single all-zero delta column and renders at
+		// its rest mesh. Refusing to upload it would leave a freshly created (or freshly unbound) drawable
+		// invisible - the one state where the rigger most needs to see it.
+		val grid = drawable.geometryGrid
 		if (mesh.positions.isEmpty()) {
 			return null
 		}
@@ -364,8 +367,9 @@ class PuppetRenderer(
 		}
 		val cellCount = keyformCellCount(grid)
 		val vertexCount = mesh.positions.size / 2
-		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it.
-		val cells = cellsByLinearIndex(grid)
+		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it. An
+		// unkeyed drawable has no cells, so every lookup misses and contributes a zero offset.
+		val cells = if (grid != null) cellsByLinearIndex(grid) else emptyMap()
 		// Blend-shape delta columns append after the grid cells; the zero-blend layout is empty and
 		// the texture build reduces to the plain grid texels.
 		val blendLayout = blendColumnLayout(drawable, cellCount)

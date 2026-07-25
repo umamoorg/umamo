@@ -18,7 +18,10 @@ import org.umamo.edit.createParameter
 import org.umamo.edit.createParameterGroup
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.ui.kit.BelowAnchorPositionProvider
+import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.DropdownChip
+import org.umamo.ui.kit.FilterPopupChip
+import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.button.IconButton
@@ -32,18 +35,19 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.workspace.AreaScope
 
 /**
- * The parameters panel's area-header controls (mounted via SpaceDescriptor.headerContent): a leading
- * New Group button, then a flexible gap, then the Reset All button at the header's end - so the panel
- * body keeps its full height for the parameter list. Renders nothing without an open document, matching
- * the other header controls.
+ * The parameters panel's area-header controls (mounted via SpaceDescriptor.headerContent): the leading
+ * Add Parameter dropdown and New Group button, then a flexible gap, then Reset All and the filter chip
+ * at the header's end - so the panel body keeps its full height for the parameter list. Renders nothing
+ * without an open document, matching the other header controls.
  *
- * Both stay inline handlers rather than registry commands on purpose - creating a group and resetting
- * the pose are direct manipulation like the sliders themselves; a command becomes warranted only when a
- * shortcut or menu needs to reach it. Creating a group opens it for inline rename immediately, so the
- * new group id is parked on the shared [scope] view state (the header and body are sibling subtrees).
+ * These stay inline handlers rather than registry commands on purpose - adding a parameter, creating a
+ * group, and resetting the pose are direct manipulation like the sliders themselves; a command becomes
+ * warranted only when a shortcut or menu needs to reach it. Creating either opens it for inline rename
+ * immediately, so the new id is parked on the shared [scope] view state (the header and body are
+ * sibling subtrees).
  *
- * パラメータパネルのエリアヘッダ内容。左に「新規グループ」、右に「すべて既定値に」。ドキュメント未オープン
- * 時は何も描画しない。
+ * パラメータパネルのエリアヘッダ内容。左に「パラメータ追加」と「新規グループ」、右に「すべて既定値に」と
+ * 絞り込み。ドキュメント未オープン時は何も描画しない。
  *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  */
@@ -123,13 +127,19 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 		appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 	)
 	Spacer(modifier = Modifier.width(4.dp))
-	// A toggle that restricts the list to the selected object's effective parameters; lit (accent) when on.
-	IconButton(
+	// The same stay-open filter panel the outliner uses, rather than a bare toggle button: this panel
+	// grows more view toggles as the keyform tracks land, and a shared chip keeps the two headers from
+	// drifting apart. The funnel glyph still reports the filtered / unfiltered state at a glance.
+	FilterPopupChip(
+		contentDescription = stringResource(Res.string.parameter_filters),
 		icon = if (viewState.showOnlySelected) LocalUmamoIcons.filterFiltered else LocalUmamoIcons.filterUnfiltered,
-		onClick = { viewState.showOnlySelected = !viewState.showOnlySelected },
-		contentDescription = stringResource(Res.string.parameter_filter_selected),
-		active = viewState.showOnlySelected,
-		appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-	)
+	) {
+		FilterSectionLabel(stringResource(Res.string.parameter_filters))
+		Checkbox(
+			checked = viewState.showOnlySelected,
+			onCheckedChange = { checked -> viewState.showOnlySelected = checked },
+			label = stringResource(Res.string.parameter_filter_selected),
+		)
+	}
 	Spacer(modifier = Modifier.width(4.dp))
 }

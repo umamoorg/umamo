@@ -7,12 +7,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.KeyformAxis
-import org.umamo.runtime.model.KeyformCell
-import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
-import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
@@ -48,11 +43,11 @@ class PropertyScalarEditsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private val rotation =
-		Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 0f, keyforms = null)
+		Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 0f, geometryGrid = null)
 
 	private val warp =
 		Deformer.Warp(
@@ -63,7 +58,7 @@ class PropertyScalarEditsTest {
 			rows = 2,
 			columns = 2,
 			isQuadTransform = false,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private val part = Part(partId, "p", children = emptyList())
@@ -203,32 +198,31 @@ class PropertyScalarEditsTest {
 		assertEquals(null, groupFor(base.withPartGroupMode(partId, PartGroupMode.PassThrough), partId))
 	}
 
+	/**
+	 * The 5.3 per-art-mesh tint is now a STATIC channel value, so the builders write one field instead of
+	 * rewriting every keyform cell.
+	 *
+	 * That is the point of the split: the old builder flattened any authored per-keyform colour animation
+	 * and, by replacing the grid, tripped the renderer's identity check into re-uploading geometry for a
+	 * colour change.  Neither is possible now - the colour never touches the geometry grid.
+	 */
 	@Test
-	fun drawableColorBuildersRewriteEveryKeyformCellAndNoOp() {
-		// The per-art-mesh color is keyformed, so the builder retints every cell uniformly.
-		val keyed =
-			drawable.copy(
-				keyforms =
-					KeyformGrid(
-						listOf(KeyformAxis(ParameterId("A"), floatArrayOf(0f, 1f))),
-						listOf(
-							KeyformCell(intArrayOf(0), MeshForm(FloatArray(6))),
-							KeyformCell(intArrayOf(1), MeshForm(FloatArray(6))),
-						),
-					),
-			)
-		val base = model().copy(drawables = listOf(keyed))
+	fun drawableColorBuildersWriteTheStaticAndNoOp() {
+		val base = model().copy(drawables = listOf(drawable))
 		val red = ColorRgb(1f, 0f, 0f)
 
 		val tinted = base.withDrawableMultiplyColor(drawableId, red)
-		assertTrue(tinted.drawables.first().keyforms!!.cells.all { it.form.multiplyColor == red }, "every cell recolored")
+		assertEquals(red, tinted.drawables.first().multiplyColor, "the static multiply colour is set")
+		assertSame(
+			base.drawables.first().geometryGrid,
+			tinted.drawables.first().geometryGrid,
+			"a colour edit leaves the geometry grid untouched by identity, so no re-upload is triggered",
+		)
 
-		// Already-uniform, missing id, and unkeyed drawable are all no-ops (same instance).
+		// Already-set and missing-id are no-ops (same instance).
 		assertSame(tinted, tinted.withDrawableMultiplyColor(drawableId, red))
 		assertSame(base, base.withDrawableMultiplyColor(drawableId, ColorRgb.MultiplyIdentity))
 		assertSame(base, base.withDrawableScreenColor(DrawableId("missing"), ColorRgb.ScreenIdentity))
-		val unkeyed = model() // the shared `drawable` has keyforms = null
-		assertSame(unkeyed, unkeyed.withDrawableMultiplyColor(drawableId, red))
 	}
 
 	@Test

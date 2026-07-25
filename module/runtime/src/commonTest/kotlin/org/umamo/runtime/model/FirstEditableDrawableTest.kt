@@ -21,7 +21,7 @@ class FirstEditableDrawableTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = if (hasMesh) mesh() else null,
-			keyforms = null,
+			geometryGrid = null,
 			isVisible = isVisible,
 		)
 

@@ -34,11 +34,11 @@ class RelationEditsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private val rotation =
-		Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 0f, keyforms = null)
+		Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 0f, geometryGrid = null)
 
 	private val warp =
 		Deformer.Warp(
@@ -49,7 +49,7 @@ class RelationEditsTest {
 			rows = 2,
 			columns = 2,
 			isQuadTransform = false,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private fun model(): PuppetModel =

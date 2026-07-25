@@ -19,7 +19,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -51,10 +51,10 @@ class MaskCoverageBlendTest {
 	// A full-viewport quad in the fixed 1:1 camera (world x,y in [-32, 32]).
 	private val fullQuad = floatArrayOf(-32f, -32f, 32f, -32f, -32f, 32f, 32f, 32f)
 
-	private fun restGrid(positions: FloatArray): KeyformGrid<MeshForm> =
+	private fun restGrid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 		)
 
 	private fun drawable(id: DrawableId, blendMode: BlendMode, maskedBy: List<DrawableId>): Drawable =
@@ -65,7 +65,7 @@ class MaskCoverageBlendTest {
 			blendMode = blendMode,
 			maskedBy = maskedBy,
 			mesh = DrawableMesh(fullQuad, FloatArray(fullQuad.size), intArrayOf(0, 1, 2, 1, 3, 2)),
-			keyforms = restGrid(fullQuad),
+			geometryGrid = restGrid(fullQuad),
 		)
 
 	/** A model whose mask SOURCE has the given blend mode, clipping a full-viewport masked quad. */

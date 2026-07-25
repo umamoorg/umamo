@@ -128,11 +128,11 @@ class SelectionOpsTest {
 			parts = listOf(Part(PartId("a"), "A", children = emptyList())),
 			deformers =
 				listOf(
-					Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null),
+					Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null),
 				),
 			drawables =
 				listOf(
-					Drawable(DrawableId("b"), "B", parentDeformerId = null, blendMode = BlendMode.Normal, maskedBy = emptyList(), mesh = null, keyforms = null),
+					Drawable(DrawableId("b"), "B", parentDeformerId = null, blendMode = BlendMode.Normal, maskedBy = emptyList(), mesh = null, geometryGrid = null),
 					Drawable(
 						DrawableId("c"),
 						"C",
@@ -140,7 +140,7 @@ class SelectionOpsTest {
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
 						mesh = null,
-						keyforms = null,
+						geometryGrid = null,
 						isSelectable = false,
 					),
 				),

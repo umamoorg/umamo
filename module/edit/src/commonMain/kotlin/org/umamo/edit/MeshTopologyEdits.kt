@@ -6,6 +6,7 @@ import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
 
@@ -86,14 +87,35 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 		return this
 	}
 
-	// Rebuild each keyform cell's deltas at the new stride, deriving per vertex from the old deltas.
-	val newKeyforms =
-		drawable.keyforms?.let { grid ->
+	// Rebuild each geometry cell's deltas at the new stride, deriving per vertex from the old deltas.
+	// The channel tracks carry nothing per-vertex, so they are untouched - before the split this had to
+	// copy the scalars across by hand, and quietly dropped the multiply / screen tints doing it.
+	val newGeometry =
+		drawable.geometryGrid?.let { grid ->
 			KeyformGrid(
 				axes = grid.axes,
 				cells =
 					grid.cells.map { cell ->
-						KeyformCell(cell.coordinate, remapMeshForm(cell.form, edit.vertexSources, oldMesh.vertexCount))
+						KeyformCell(cell.coordinate, remapMeshDeltas(cell.form, edit.vertexSources, oldMesh.vertexCount))
+					},
+			)
+		}
+	// Blend-shape forms are per-vertex too, and were being left at the OLD vertex count - a mismatch that
+	// silently zeroed every blend contribution after a topology edit.
+	val newBlendShapes =
+		drawable.blendShapes.map { binding ->
+			binding.copy(
+				forms =
+					binding.forms.map { form ->
+						form?.let {
+							MeshForm(
+								remapMeshDeltas(MeshDeltaForm(it.positionDeltas), edit.vertexSources, oldMesh.vertexCount).positionDeltas,
+								it.drawOrder,
+								it.opacity,
+								it.multiplyColor,
+								it.screenColor,
+							)
+						}
 					},
 			)
 		}
@@ -125,7 +147,7 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 	val newDrawables =
 		drawables.map { candidate ->
 			if (candidate.id == id) {
-				candidate.copy(mesh = edit.newMesh, keyforms = newKeyforms)
+				candidate.copy(mesh = edit.newMesh, geometryGrid = newGeometry, blendShapes = newBlendShapes)
 			} else {
 				candidate
 			}
@@ -146,7 +168,7 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 							GluePair(newIndexA, newIndexB, pair.weightA, pair.weightB)
 						}
 					}
-				Glue(glue.meshA, glue.meshB, remappedPairs, glue.intensity)
+				Glue(glue.meshA, glue.meshB, remappedPairs, glue.channelGrids, glue.intensity)
 			}
 		}
 	return copy(drawables = newDrawables, glues = newGlues)
@@ -162,7 +184,7 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
  * @param Int oldVertexCount The old mesh's vertex count (bounds the old delta reads).
  * @return MeshForm The rebuilt form (deltas at the new stride; drawOrder / opacity carried).
  */
-private fun remapMeshForm(form: MeshForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshForm {
+private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshDeltaForm {
 	val oldDeltas = form.positionDeltas
 
 	fun oldDeltaX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < oldDeltas.size) oldDeltas[oldIndex * 2] else 0f
@@ -195,5 +217,5 @@ private fun remapMeshForm(form: MeshForm, vertexSources: List<VertexSource>, old
 			}
 		}
 	}
-	return MeshForm(newDeltas, form.drawOrder, form.opacity)
+	return MeshDeltaForm(newDeltas)
 }

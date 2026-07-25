@@ -20,12 +20,12 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.RotationForm
+import org.umamo.runtime.model.RotationPivotForm
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.test.Test
@@ -68,7 +68,7 @@ class GeometryReuploadTest {
 			mesh = DrawableMesh(quadPositions.copyOf(), quadUvs, quadIndices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
 			// renderer); the base mesh alone drives its shape.
-			keyforms = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(quadPositions.size))))),
+			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size))))),
 		)
 
 	private fun model(deformers: List<Deformer>, drawable: Drawable): PuppetModel =
@@ -109,7 +109,7 @@ class GeometryReuploadTest {
 				parent = null,
 				partId = null,
 				baseAngle = 0f,
-				keyforms = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), RotationForm(0f, 0f, 0f, 1f, flipX = false, flipY = false)))),
+				geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), RotationPivotForm(0f, 0f, 0f, 1f)))),
 			)
 		runMotionCase(model(listOf(rotation), quadDrawable(deformerId)), "rotation")
 	}

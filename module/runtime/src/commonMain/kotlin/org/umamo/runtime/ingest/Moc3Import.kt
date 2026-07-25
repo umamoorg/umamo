@@ -10,22 +10,29 @@ import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
-import org.umamo.runtime.eval.blendScalarsFromCorners
-import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
+import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
+import org.umamo.runtime.keyform.asChannelTrack
+import org.umamo.runtime.keyform.channelGridsOf
+import org.umamo.runtime.keyform.fanOutMesh
+import org.umamo.runtime.keyform.fanOutRotation
+import org.umamo.runtime.keyform.fanOutWarp
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
 import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GlueForm
 import org.umamo.runtime.model.GluePair
@@ -50,6 +57,7 @@ import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
 import org.umamo.runtime.model.RotationForm
+import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
 import kotlin.math.abs
@@ -377,14 +385,12 @@ object Moc3Import {
 		 */
 		fun meshBlendShapesOf(drawable: Drawable, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<MeshForm>> {
 			val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
-			val referenceScalars =
-				drawable.keyforms?.let { grid ->
-					gridCorners(grid, defaultValue)?.let { corners -> blendScalarsFromCorners(grid, corners) }
-				}
-			// Fallbacks mirror meshBlendState's (CUBISM_DEFAULT_DRAW_ORDER / full opacity) so the
-			// evaluator's subtraction cancels exactly even for an ungridded drawable.
-			val referenceDrawOrder = referenceScalars?.drawOrder ?: 500f
-			val referenceOpacity = referenceScalars?.opacity ?: 1f
+			// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
+			// out-of-range channel falls back to the drawable's static, which for an imported drawable is
+			// Cubism's 500 / full opacity - the same fallback meshBlendState uses, so the evaluator's
+			// subtraction cancels exactly even for an ungridded drawable.
+			val referenceDrawOrder = drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
+			val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null }
 				if (payloads.size != record.keyPositions.size) {
@@ -411,7 +417,7 @@ object Moc3Import {
 		 * @return List<BlendShapeBinding<WarpForm>> The runtime bindings.
 		 */
 		fun warpBlendShapesOf(warp: Deformer.Warp, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<WarpForm>> {
-			val reference = warpControlPointsAt(warp.keyforms, defaultValue) ?: FloatArray(0)
+			val reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(0)
 			return records.mapNotNull { record ->
 				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null }
 				if (payloads.size != record.keyPositions.size) {
@@ -447,8 +453,8 @@ object Moc3Import {
 			// The fallback mirrors rotationBlendDeltas' (identity transform, scale 1) so the
 			// evaluator's subtraction cancels exactly even for an unkeyed rotation.
 			val reference =
-				rotationFormAt(rotation.keyforms, defaultValue)
-					?: RotationForm(0f, 0f, 0f, 1f, flipX = false, flipY = false)
+				rotationFormAt(rotation.geometryGrid, defaultValue)
+					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			return records.mapNotNull { record ->
 				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null }
 				if (payloads.size != record.keyPositions.size) {
@@ -461,8 +467,10 @@ object Moc3Import {
 						originY = reference.originY + originDelta[1],
 						angle = reference.angle + payloads[keyIndex].angle,
 						scale = reference.scale + payloads[keyIndex].scale * scaleFactor,
-						flipX = reference.flipX,
-						flipY = reference.flipY,
+						// The reference pivot carries no flips - reflections are FLAG channels on the deformer,
+						// and a blend shape never varies them (MOC3 stores no flip delta rows).
+						flipX = rotation.channelGrids[FormChannel.FLIP_X] != null && rotation.flipX,
+						flipY = rotation.channelGrids[FormChannel.FLIP_Y] != null && rotation.flipY,
 					)
 				}
 			}
@@ -479,6 +487,19 @@ object Moc3Import {
 				when (source) {
 					is WarpDeformer -> {
 						warpOrdinal++
+						// One bundled grid, then split into lattice geometry and the render tracks that cascade
+						// down onto every drawable under this deformer.
+						val fannedWarp =
+							gridOf(binding) { gridIndex ->
+								source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+									WarpForm(
+										convertPoints(keyformSpace, keyform.controlPoints),
+										opacity = keyform.opacity,
+										multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+										screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
+									)
+								}
+							}?.fanOutWarp()
 						val warp =
 							Deformer.Warp(
 								id = id,
@@ -491,18 +512,8 @@ object Moc3Import {
 								columns = source.columns,
 								// MOC3 §5.6 warp mode: 0 = triangle split, non-zero = bilinear (quad).
 								isQuadTransform = source.mode != 0,
-								keyforms =
-									gridOf(binding) { gridIndex ->
-										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-											// The render channels cascade onto every drawable under this deformer.
-											WarpForm(
-												convertPoints(keyformSpace, keyform.controlPoints),
-												opacity = keyform.opacity,
-												multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
-												screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
-											)
-										}
-									},
+								geometryGrid = fannedWarp?.geometry,
+								channelGrids = fannedWarp?.channels ?: ChannelGrids.Empty,
 							)
 						val warpRecords = blendRecordsByTarget[BlendShapeTarget.WARP to deformerIndex].orEmpty()
 						if (warpRecords.isEmpty()) {
@@ -514,6 +525,25 @@ object Moc3Import {
 					is RotationDeformer -> {
 						rotationOrdinal++
 						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
+						// One bundled grid, then split into the pivot geometry, the render tracks that cascade
+						// down onto every drawable under this deformer, and the two reflection flags.
+						val fannedRotation =
+							gridOf(binding) { gridIndex ->
+								source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+									val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
+									RotationForm(
+										originX = origin[0],
+										originY = origin[1],
+										angle = keyform.angle,
+										scale = keyform.scale * scaleFactor,
+										flipX = keyform.reflectX,
+										flipY = keyform.reflectY,
+										opacity = keyform.opacity,
+										multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+										screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
+									)
+								}
+							}?.fanOutRotation()
 						val rotation =
 							Deformer.Rotation(
 								id = id,
@@ -521,24 +551,8 @@ object Moc3Import {
 								parent = parent,
 								partId = null,
 								baseAngle = source.baseAngle,
-								keyforms =
-									gridOf(binding) { gridIndex ->
-										source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-											val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
-											// The render channels cascade onto every drawable under this deformer.
-											RotationForm(
-												originX = origin[0],
-												originY = origin[1],
-												angle = keyform.angle,
-												scale = keyform.scale * scaleFactor,
-												flipX = keyform.reflectX,
-												flipY = keyform.reflectY,
-												opacity = keyform.opacity,
-												multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
-												screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
-											)
-										}
-									},
+								geometryGrid = fannedRotation?.geometry,
+								channelGrids = fannedRotation?.channels ?: ChannelGrids.Empty,
 							)
 						val rotationRecords = blendRecordsByTarget[BlendShapeTarget.ROTATION to deformerIndex].orEmpty()
 						if (rotationRecords.isEmpty()) {
@@ -570,6 +584,21 @@ object Moc3Import {
 							indices = IntArray(source.triangleIndices.size) { indexIndex -> source.triangleIndices[indexIndex].toInt() and 0xFFFF },
 						)
 					}
+				// One bundled grid, then split into per-vertex deltas and the render channels.
+				val fannedMesh =
+					gridOf(binding) { gridIndex ->
+						source.keyforms.getOrNull(gridIndex)?.let { keyform ->
+							MeshForm(
+								positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
+								drawOrder = keyform.drawOrder,
+								opacity = keyform.opacity,
+								// MOC3 color-table rows 108-113: the 5.3 per-art-mesh multiply/screen color; null
+								// (pre-5.3, no color table) falls back to the tint identities.
+								multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+								screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
+							)
+						}
+					}?.fanOutMesh()
 				val drawable =
 					Drawable(
 						id = DrawableId(source.id),
@@ -594,20 +623,8 @@ object Moc3Import {
 						isVisible = true,
 						isSelectable = true,
 						mesh = mesh,
-						keyforms =
-							gridOf(binding) { gridIndex ->
-								source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-									MeshForm(
-										positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
-										drawOrder = keyform.drawOrder,
-										opacity = keyform.opacity,
-										// MOC3 color-table rows 108-113: the 5.3 per-art-mesh multiply/screen color; null
-										// (pre-5.3, no color table) falls back to the tint identities.
-										multiplyColor = colorRgbOf(keyform.multiplyColor) ?: ColorRgb.MultiplyIdentity,
-										screenColor = colorRgbOf(keyform.screenColor) ?: ColorRgb.ScreenIdentity,
-									)
-								}
-							},
+						geometryGrid = fannedMesh?.geometry,
+						channelGrids = fannedMesh?.channels ?: ChannelGrids.Empty,
 					)
 				val meshRecords = blendRecordsByTarget[BlendShapeTarget.ART_MESH to drawableIndex].orEmpty()
 				if (meshRecords.isEmpty()) {
@@ -636,11 +653,12 @@ object Moc3Import {
 							null
 						}
 					}
-				val intensity =
+				val intensityTrack =
 					gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
 						GlueForm(source.intensityKeyforms.getOrElse(gridIndex) { source.intensityKeyforms.lastOrNull() ?: 1f })
-					}
-				Glue(meshA, meshB, pairs, intensity)
+					}?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
+				// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
+				Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
 			}
 
 		// The draw-order tree: moc3 stores it explicitly (MOC3 §5.6 render-order groups, group 0 = root),
@@ -710,24 +728,33 @@ object Moc3Import {
 		 * channels merge in, riding the same grid cells (MOC3 §5.6: Σ owner grid == CountInfo 36).
 		 *
 		 * @param MocPart source The moc part.
-		 * @return KeyformGrid<PartForm>? The grid, or null.
+		 * @return ChannelGrids The part's per-channel tracks, empty when it is unbound.
 		 */
-		fun partFormGridOf(source: MocPart): KeyformGrid<PartForm>? {
+		fun partChannelsOf(source: MocPart): ChannelGrids {
 			if (source.keyformBindingIndex <= 0) {
-				return null
+				return ChannelGrids.Empty
 			}
 			val offscreenKeyforms = offscreenByPartId[source.id]?.keyforms
-			return gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
-				source.drawOrderKeyforms.getOrNull(gridIndex)?.let { drawOrder ->
-					val offscreenKeyform = offscreenKeyforms?.getOrNull(gridIndex)
-					PartForm(
-						drawOrder = drawOrder,
-						opacity = offscreenKeyform?.opacity ?: 1f,
-						multiplyColor = colorRgbOf(offscreenKeyform?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
-						screenColor = colorRgbOf(offscreenKeyform?.screenColor) ?: ColorRgb.ScreenIdentity,
-					)
-				}
-			}
+			val bundled =
+				gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
+					source.drawOrderKeyforms.getOrNull(gridIndex)?.let { drawOrder ->
+						val offscreenKeyform = offscreenKeyforms?.getOrNull(gridIndex)
+						PartForm(
+							drawOrder = drawOrder,
+							opacity = offscreenKeyform?.opacity ?: 1f,
+							multiplyColor = colorRgbOf(offscreenKeyform?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+							screenColor = colorRgbOf(offscreenKeyform?.screenColor) ?: ColorRgb.ScreenIdentity,
+						)
+					}
+				} ?: return ChannelGrids.Empty
+			// Fan the one bundled grid out into per-channel tracks sharing its axes: a pure re-shape, so the
+			// blended values are bit-identical to what the bundled cell produced.
+			return channelGridsOf(
+				FormChannel.DRAW_ORDER to bundled.asChannelTrack { form -> ChannelValue.Scalar(form.drawOrder) },
+				FormChannel.OPACITY to bundled.asChannelTrack { form -> ChannelValue.Scalar(form.opacity) },
+				FormChannel.MULTIPLY_COLOR to bundled.asChannelTrack { form -> ChannelValue.Color(form.multiplyColor) },
+				FormChannel.SCREEN_COLOR to bundled.asChannelTrack { form -> ChannelValue.Color(form.screenColor) },
+			)
 		}
 
 		val renderRoot =
@@ -736,7 +763,7 @@ object Moc3Import {
 				drawableIdsByFileIndex,
 				partIds,
 				::partStaticDrawOrder,
-				::partFormGridOf,
+				::partChannelsOf,
 				::partCompositeOf,
 			)
 
@@ -765,7 +792,7 @@ object Moc3Import {
 				panelIndexByDrawable,
 				drawOrderGroupPartIndices,
 				::partStaticDrawOrder,
-				::partFormGridOf,
+				::partChannelsOf,
 				::partCompositeOf,
 			)
 
@@ -823,7 +850,7 @@ object Moc3Import {
 	 * @param List        drawableIdsByFileIndex Drawable file index → runtime id.
 	 * @param List        partIds                Part file index → runtime id.
 	 * @param Function    partStaticDrawOrder    Static draw order of a moc part.
-	 * @param Function    partFormGridOf         Keyform grid of a moc part (null when static).
+	 * @param Function    partChannelsOf         Per-channel keyform tracks of a moc part.
 	 * @param Function    partCompositeOf        Compositing settings of a moc part (null when not isolated).
 	 * @return RenderGroup? The render root, or null when the moc has no render-order groups.
 	 */
@@ -832,7 +859,7 @@ object Moc3Import {
 		drawableIdsByFileIndex: List<DrawableId>,
 		partIds: List<PartId>,
 		partStaticDrawOrder: (MocPart) -> Int,
-		partFormGridOf: (MocPart) -> KeyformGrid<PartForm>?,
+		partChannelsOf: (MocPart) -> ChannelGrids,
 		partCompositeOf: (MocPart) -> PartComposite?,
 	): RenderGroup? {
 		if (mocDocument.renderOrderGroups.isEmpty()) {
@@ -857,7 +884,7 @@ object Moc3Import {
 							partId = partId,
 							drawOrder = partStaticDrawOrder(part),
 							children = childrenOf(child.groupIndex),
-							formGrid = partFormGridOf(part),
+							channelGrids = partChannelsOf(part),
 							composite = partCompositeOf(part),
 						)
 					}
@@ -911,7 +938,7 @@ object Moc3Import {
 	 * @param Map         panelIndexByDrawable      Reconstructed panel index per drawable.
 	 * @param Set         drawOrderGroupPartIndices Part file indices referenced as render-order groups.
 	 * @param Function    partStaticDrawOrder       Static draw order of a moc part.
-	 * @param Function    partFormGridOf            Keyform grid of a moc part (null when static).
+	 * @param Function    partChannelsOf            Per-channel keyform tracks of a moc part.
 	 * @param Function    partCompositeOf           Compositing settings of a moc part (null when not isolated).
 	 * @return Pair<List<Part>, List<OrgChild>> The runtime parts (file order) and the root children.
 	 */
@@ -923,7 +950,7 @@ object Moc3Import {
 		panelIndexByDrawable: Map<DrawableId, Int>,
 		drawOrderGroupPartIndices: Set<Int>,
 		partStaticDrawOrder: (MocPart) -> Int,
-		partFormGridOf: (MocPart) -> KeyformGrid<PartForm>?,
+		partChannelsOf: (MocPart) -> ChannelGrids,
 		partCompositeOf: (MocPart) -> PartComposite?,
 	): Pair<List<Part>, List<OrgChild>> {
 		val partCount = mocDocument.parts.size
@@ -1032,7 +1059,7 @@ object Moc3Import {
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
-					formGrid = partFormGridOf(source),
+					channelGrids = partChannelsOf(source),
 					composite = offscreenComposite ?: PartComposite(),
 				)
 			}

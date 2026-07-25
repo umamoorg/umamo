@@ -1,13 +1,11 @@
 package org.umamo.runtime.eval
 
-import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.RotationForm
-import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.RotationPivotForm
+import org.umamo.runtime.model.WarpLatticeForm
 
 /*
  * Pure keyform-grid sampling: the multilinear corner selection and the pose-sampling helpers that
@@ -19,8 +17,11 @@ import org.umamo.runtime.model.WarpForm
 
 // Bracket tolerances match the Umamo C++ Runtime, needed for ULP-parity with the differential-oracle test.
 // EN: a value within EPS_KEY of a key snaps to it; a key span below EPS_SPAN contributes no fraction.
-private const val EPS_KEY = 0.001f
-private const val EPS_SPAN = 0.0015f
+// Internal rather than private so runtime.keyform's grid algebra shares them: authoring a key closer than
+// EPS_KEY to an existing one, or a span below EPS_SPAN, produces a grid this evaluator cannot resolve, so
+// the algebra refuses both - and it must refuse against these exact values, not a second copy of them.
+internal const val EPS_KEY = 0.001f
+internal const val EPS_SPAN = 0.0015f
 
 // The Umamo C++ Runtime caps the multilinear corner set at 16 (kbCorners `maxc`); past that an axis snaps to its
 // lower key instead of splitting. Replicated for fidelity (matters only for >4 fractional axes).
@@ -37,18 +38,6 @@ public data class AxisBracket(val index: Int, val fraction: Float)
  * its multilinear [weight].
  */
 public data class WeightedCell(val linearIndex: Int, val weight: Float)
-
-/**
- * The per-pose scalar attributes blended from an art-mesh keyform grid: render order, opacity, and the
- * 5.3 per-art-mesh multiply/screen tint.  Colors default to their identities so geometry-only callers and
- * pre-5.3 forms need not set them.
- */
-public data class MeshScalars(
-	val drawOrder: Float,
-	val opacity: Float,
-	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
-	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
-)
 
 /**
  * Brackets [value] against an axis's sorted [keys].  Returns null when the value is out of range
@@ -157,43 +146,6 @@ public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, Keyfor
 }
 
 /**
- * Blends an art mesh's scalar attributes (draw order, opacity) from precomputed corners, so callers
- * can reuse the geometry's corner set (the scalars then track the geometry).
- *
- * @param KeyformGrid        grid    The mesh's keyform grid.
- * @param List<WeightedCell> corners The active keyform corners + weights.
- * @return MeshScalars The blended draw order + opacity.
- */
-public fun blendScalarsFromCorners(grid: KeyformGrid<MeshForm>, corners: List<WeightedCell>): MeshScalars {
-	val cells = cellsByLinearIndex(grid)
-	var drawOrder = 0f
-	var opacity = 0f
-	var multiplyRed = 0f
-	var multiplyGreen = 0f
-	var multiplyBlue = 0f
-	var screenRed = 0f
-	var screenGreen = 0f
-	var screenBlue = 0f
-	for (corner in corners) {
-		val form = cells[corner.linearIndex]?.form ?: continue
-		drawOrder += corner.weight * form.drawOrder
-		opacity += corner.weight * form.opacity
-		multiplyRed += corner.weight * form.multiplyColor.red
-		multiplyGreen += corner.weight * form.multiplyColor.green
-		multiplyBlue += corner.weight * form.multiplyColor.blue
-		screenRed += corner.weight * form.screenColor.red
-		screenGreen += corner.weight * form.screenColor.green
-		screenBlue += corner.weight * form.screenColor.blue
-	}
-	return MeshScalars(
-		drawOrder,
-		opacity,
-		ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
-		ColorRgb(screenRed, screenGreen, screenBlue),
-	)
-}
-
-/**
  * The drawable's grid form at the DEFAULT pose as position deltas vs the rest mesh - the shared
  * blend-shape delta reference (E5). Null when the drawable is ungridded or the default pose is out
  * of the grid's range (the reference is then zero). Static per drawable: the CPU pose prep, the
@@ -204,7 +156,7 @@ public fun blendScalarsFromCorners(grid: KeyformGrid<MeshForm>, corners: List<We
  * @return FloatArray? The interleaved reference deltas, or null.
  */
 public fun meshGridDefaultDeltas(drawable: Drawable, defaultValue: (ParameterId) -> Float): FloatArray? {
-	val grid = drawable.keyforms ?: return null
+	val grid = drawable.geometryGrid ?: return null
 	val defaultCorners = gridCorners(grid, defaultValue) ?: return null
 	val deltas = FloatArray(grid.cells.firstOrNull()?.form?.positionDeltas?.size ?: 0)
 	val byLinearIndex = cellsByLinearIndex(grid)
@@ -225,7 +177,7 @@ public fun meshGridDefaultDeltas(drawable: Drawable, defaultValue: (ParameterId)
  * @param Function     paramValue Value per parameter id defining the pose.
  * @return FloatArray? The interleaved blended control points, or null.
  */
-public fun warpControlPointsAt(grid: KeyformGrid<WarpForm>?, paramValue: (ParameterId) -> Float): FloatArray? {
+public fun warpControlPointsAt(grid: KeyformGrid<WarpLatticeForm>?, paramValue: (ParameterId) -> Float): FloatArray? {
 	if (grid == null) {
 		return null
 	}
@@ -243,14 +195,16 @@ public fun warpControlPointsAt(grid: KeyformGrid<WarpForm>?, paramValue: (Parame
 }
 
 /**
- * The rotation transform grid-blended at the given pose, or null when unkeyed or out of range.
- * The flip flags snap to the first corner, mirroring the base eval.
+ * The rotation pivot transform grid-blended at the given pose, or null when unkeyed or out of range.
  *
- * @param KeyformGrid? grid       The rotation's keyform grid.
+ * The reflection flags are NOT here: they snap to the floor cell rather than blending, so they live as
+ * FLAG channels on the deformer's ChannelGrids and are read through flagAt.
+ *
+ * @param KeyformGrid? grid       The rotation's geometry grid.
  * @param Function     paramValue Value per parameter id defining the pose.
- * @return RotationForm? The blended transform, or null.
+ * @return RotationPivotForm? The blended transform, or null.
  */
-public fun rotationFormAt(grid: KeyformGrid<RotationForm>?, paramValue: (ParameterId) -> Float): RotationForm? {
+public fun rotationFormAt(grid: KeyformGrid<RotationPivotForm>?, paramValue: (ParameterId) -> Float): RotationPivotForm? {
 	if (grid == null) {
 		return null
 	}
@@ -260,17 +214,17 @@ public fun rotationFormAt(grid: KeyformGrid<RotationForm>?, paramValue: (Paramet
 	var originY = 0f
 	var angle = 0f
 	var scale = 0f
-	var first: RotationForm? = null
+	var resolvedAnyCell = false
 	for (corner in corners) {
 		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
-		if (first == null) {
-			first = form
-		}
+		resolvedAnyCell = true
 		originX += corner.weight * form.originX
 		originY += corner.weight * form.originY
 		angle += corner.weight * form.angle
 		scale += corner.weight * form.scale
 	}
-	val flipSource = first ?: return null
-	return RotationForm(originX, originY, angle, scale, flipSource.flipX, flipSource.flipY)
+	if (!resolvedAnyCell) {
+		return null
+	}
+	return RotationPivotForm(originX, originY, angle, scale)
 }

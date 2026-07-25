@@ -1,10 +1,17 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.eval.colorAt
+import org.umamo.runtime.eval.scalarAt
+import org.umamo.runtime.eval.scalarOrNull
+import org.umamo.runtime.keyform.fanOutMesh
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -14,7 +21,6 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
-import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -26,9 +32,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the isolated part channel eval on synthetic grids: [samplePartRenderState]'s multilinear
- * blend per channel, the out-of-range null, and [preparePose]'s aggregation into
- * [PoseDeformInputs.partCompositeStates] with the static-fallback rule.
+ * Pins the isolated part channel eval on synthetic tracks: the per-channel multilinear blend, the
+ * out-of-range fallback to the owner's statics, and [preparePose]'s aggregation into
+ * [PoseDeformInputs.partCompositeStates].
  */
 class PartCompositeEvalTest {
 	private val paramA = ParameterId("A")
@@ -38,50 +44,94 @@ class PartCompositeEvalTest {
 		return { map[it] ?: 0f }
 	}
 
-	private fun channelGrid(): KeyformGrid<PartForm> =
+	/** A two-key scalar track on paramA. */
+	private fun scalarTrack(low: Float, high: Float): KeyformGrid<ChannelValue> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
 			listOf(
-				KeyformCell(intArrayOf(0), PartForm(500f, opacity = 1f, multiplyColor = ColorRgb(1f, 1f, 1f), screenColor = ColorRgb(0f, 0f, 0f))),
-				KeyformCell(intArrayOf(1), PartForm(500f, opacity = 0.5f, multiplyColor = ColorRgb(0f, 0.5f, 1f), screenColor = ColorRgb(1f, 0.5f, 0f))),
+				KeyformCell<ChannelValue>(intArrayOf(0), ChannelValue.Scalar(low)),
+				KeyformCell<ChannelValue>(intArrayOf(1), ChannelValue.Scalar(high)),
 			),
+		)
+
+	/** A two-key color track on paramA. */
+	private fun colorTrack(low: ColorRgb, high: ColorRgb): KeyformGrid<ChannelValue> =
+		KeyformGrid(
+			listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
+			listOf(
+				KeyformCell<ChannelValue>(intArrayOf(0), ChannelValue.Color(low)),
+				KeyformCell<ChannelValue>(intArrayOf(1), ChannelValue.Color(high)),
+			),
+		)
+
+	/** The composite channels as independent tracks - what one bundled part grid fans out into. */
+	private fun compositeChannels(): ChannelGrids =
+		ChannelGrids(
+			mapOf(
+				FormChannel.DRAW_ORDER to scalarTrack(500f, 500f),
+				FormChannel.OPACITY to scalarTrack(1f, 0.5f),
+				FormChannel.MULTIPLY_COLOR to colorTrack(ColorRgb(1f, 1f, 1f), ColorRgb(0f, 0.5f, 1f)),
+				FormChannel.SCREEN_COLOR to colorTrack(ColorRgb(0f, 0f, 0f), ColorRgb(1f, 0.5f, 0f)),
+			),
+		)
+
+	private val staticComposite =
+		PartComposite(
+			opacity = 0.3f,
+			multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
+			screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
 		)
 
 	@Test
 	fun blendsEveryChannelWithTheGridWeights() {
-		val state = assertNotNull(samplePartRenderState(channelGrid(), values(paramA to 0.5f)))
-		assertEquals(0.75f, state.opacity, "opacity midpoint")
-		assertEquals(ColorRgb(0.5f, 0.75f, 1f), state.multiplyColor, "multiply midpoint")
-		assertEquals(ColorRgb(0.5f, 0.25f, 0f), state.screenColor, "screen midpoint")
+		val channels = compositeChannels()
+		val pose = values(paramA to 0.5f)
+		assertEquals(0.75f, channels.scalarAt(FormChannel.OPACITY, staticComposite.opacity, pose), "opacity midpoint")
+		assertEquals(
+			ColorRgb(0.5f, 0.75f, 1f),
+			channels.colorAt(FormChannel.MULTIPLY_COLOR, staticComposite.multiplyColor, pose),
+			"multiply midpoint",
+		)
+		assertEquals(
+			ColorRgb(0.5f, 0.25f, 0f),
+			channels.colorAt(FormChannel.SCREEN_COLOR, staticComposite.screenColor, pose),
+			"screen midpoint",
+		)
 	}
 
 	@Test
 	fun snapsToAKeyExactly() {
-		val state = assertNotNull(samplePartRenderState(channelGrid(), values(paramA to 1f)))
-		assertEquals(0.5f, state.opacity)
-		assertEquals(ColorRgb(0f, 0.5f, 1f), state.multiplyColor)
-		assertEquals(ColorRgb(1f, 0.5f, 0f), state.screenColor)
+		val channels = compositeChannels()
+		val pose = values(paramA to 1f)
+		assertEquals(0.5f, channels.scalarAt(FormChannel.OPACITY, staticComposite.opacity, pose))
+		assertEquals(ColorRgb(0f, 0.5f, 1f), channels.colorAt(FormChannel.MULTIPLY_COLOR, staticComposite.multiplyColor, pose))
+		assertEquals(ColorRgb(1f, 0.5f, 0f), channels.colorAt(FormChannel.SCREEN_COLOR, staticComposite.screenColor, pose))
 	}
 
+	/**
+	 * Out of range a channel falls back to its owner's static value and NEVER hides.  Hiding is the
+	 * geometry grid's decision alone - a part has no geometry, and making a keyed opacity able to hide art
+	 * would turn keying opacity on a narrow parameter into a disappearing act at the slider's ends.
+	 */
 	@Test
-	fun hidesWhenTheAxisIsOutOfRange() {
-		assertNull(samplePartRenderState(channelGrid(), values(paramA to -1f)))
+	fun outOfRangeChannelsFallBackToTheirStatics() {
+		val channels = compositeChannels()
+		val pose = values(paramA to -1f)
+		assertEquals(staticComposite.opacity, channels.scalarAt(FormChannel.OPACITY, staticComposite.opacity, pose))
+		assertEquals(staticComposite.multiplyColor, channels.colorAt(FormChannel.MULTIPLY_COLOR, staticComposite.multiplyColor, pose))
+		// The nullable read still reports absence, which is what keeps the part draw-order map sparse.
+		assertNull(channels.scalarOrNull(FormChannel.DRAW_ORDER, pose))
 	}
 
-	private fun modelWithIsolatedPart(formGrid: KeyformGrid<PartForm>?): PuppetModel {
+	private fun modelWithIsolatedPart(channelGrids: ChannelGrids): PuppetModel {
 		val part =
 			Part(
 				id = PartId("fx"),
 				name = "fx",
 				children = emptyList(),
 				groupMode = PartGroupMode.Isolated,
-				composite =
-					PartComposite(
-						opacity = 0.3f,
-						multiplyColor = ColorRgb(0.1f, 0.2f, 0.3f),
-						screenColor = ColorRgb(0.4f, 0.5f, 0.6f),
-					),
-				formGrid = formGrid,
+				composite = staticComposite,
+				channelGrids = channelGrids,
 			)
 		return PuppetModel(
 			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
@@ -99,7 +149,7 @@ class PartCompositeEvalTest {
 
 	@Test
 	fun preparePoseBlendsAGriddedIsolatedPart() {
-		val inputs = preparePose(modelWithIsolatedPart(channelGrid()), mapOf(paramA to 0.5f))
+		val inputs = preparePose(modelWithIsolatedPart(compositeChannels()), mapOf(paramA to 0.5f))
 		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")], "isolated part carries a state")
 		assertEquals(0.75f, state.opacity)
 		assertEquals(ColorRgb(0.5f, 0.75f, 1f), state.multiplyColor)
@@ -107,7 +157,7 @@ class PartCompositeEvalTest {
 
 	@Test
 	fun preparePoseFallsBackToStaticChannelsWithoutAGrid() {
-		val inputs = preparePose(modelWithIsolatedPart(formGrid = null), emptyMap())
+		val inputs = preparePose(modelWithIsolatedPart(ChannelGrids.Empty), emptyMap())
 		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")])
 		assertEquals(0.3f, state.opacity, "PartComposite static opacity")
 		assertEquals(ColorRgb(0.1f, 0.2f, 0.3f), state.multiplyColor)
@@ -118,7 +168,7 @@ class PartCompositeEvalTest {
 	fun preparePoseFallsBackToStaticChannelsOutOfRange() {
 		// The controlling axis sits below the grid's key range → the grid sample hides, and the
 		// composite falls back to the static channels (mirroring the part draw-order fallback).
-		val inputs = preparePose(modelWithIsolatedPart(channelGrid()), mapOf(paramA to -1f))
+		val inputs = preparePose(modelWithIsolatedPart(compositeChannels()), mapOf(paramA to -1f))
 		val state = assertNotNull(inputs.partCompositeStates[PartId("fx")])
 		assertEquals(0.3f, state.opacity)
 	}
@@ -126,7 +176,7 @@ class PartCompositeEvalTest {
 	@Test
 	fun preparePoseLeavesNonIsolatedPartsOutOfTheMap() {
 		val plain =
-			modelWithIsolatedPart(null)
+			modelWithIsolatedPart(ChannelGrids.Empty)
 				.let { source -> source.copy(parts = source.parts.map { it.copy(groupMode = PartGroupMode.Grouped) }) }
 				.withDerivedRenderRoot()
 		assertTrue(preparePose(plain, emptyMap()).partCompositeStates.isEmpty())
@@ -134,6 +184,11 @@ class PartCompositeEvalTest {
 
 	private fun drawable(id: String, ownOpacity: Float): Drawable {
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+		val fanned =
+			KeyformGrid(
+				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+				listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = ownOpacity))),
+			).fanOutMesh()
 		return Drawable(
 			id = DrawableId(id),
 			name = id,
@@ -141,11 +196,10 @@ class PartCompositeEvalTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
-			keyforms =
-				KeyformGrid(
-					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = ownOpacity))),
-				),
+			// Bundled then fanned, so the fixture matches importer output and the opacity lands on its
+			// own track rather than being hand-placed.
+			geometryGrid = fanned.geometry,
+			channelGrids = fanned.channels,
 		)
 	}
 
@@ -197,9 +251,19 @@ class PartCompositeEvalTest {
 
 	@Test
 	fun drawableKeyformColorResolvesInPreparePose() {
-		// The 5.3 per-art-mesh multiply/screen color rides the drawable's keyform grid; preparePose must
-		// blend it onto DrawableDeformInputs so the renderer can tint (GL-independent proof of the resolve).
+		// The 5.3 per-art-mesh multiply/screen colors ride their own channel tracks; preparePose must blend
+		// them onto DrawableDeformInputs so the renderer can tint (a GL-independent proof of the resolve).
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f)
+		val fanned =
+			KeyformGrid(
+				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+				listOf(
+					KeyformCell(
+						intArrayOf(0),
+						MeshForm(FloatArray(positions.size), multiplyColor = ColorRgb(1f, 0f, 0f), screenColor = ColorRgb(0f, 0f, 0.5f)),
+					),
+				),
+			).fanOutMesh()
 		val drawable =
 			Drawable(
 				id = DrawableId("d"),
@@ -208,16 +272,8 @@ class PartCompositeEvalTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
 				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
-				keyforms =
-					KeyformGrid(
-						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-						listOf(
-							KeyformCell(
-								intArrayOf(0),
-								MeshForm(FloatArray(positions.size), multiplyColor = ColorRgb(1f, 0f, 0f), screenColor = ColorRgb(0f, 0f, 0.5f)),
-							),
-						),
-					),
+				geometryGrid = fanned.geometry,
+				channelGrids = fanned.channels,
 			)
 		val model = cascadeModel(emptyList(), listOf(drawable), listOf(OrgChild.Drawable(DrawableId("d"))))
 		val resolved = preparePose(model, emptyMap()).drawables.first { it.drawableId == DrawableId("d") }

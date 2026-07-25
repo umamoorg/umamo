@@ -243,13 +243,14 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 }
 
 /**
- * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel: the tint on its
- * first keyform cell, or the identity when the drawable is unkeyed.  The panel edits the color uniformly
- * across the grid (see PuppetModelEdits.withDrawableMultiplyColor), so any cell is representative.
+ * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel.
  *
- * @return ColorRgb The drawable's multiply color, or [ColorRgb.MultiplyIdentity] when unkeyed.
+ * A plain static read now that the tint is its own channel: it used to have to reach into the first
+ * keyform cell, which was only representative because the editor wrote the color across every cell.
+ *
+ * @return ColorRgb The drawable's static multiply color.
  */
-fun Drawable.displayMultiplyColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.form?.multiplyColor ?: ColorRgb.MultiplyIdentity
+fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
 
 /**
  * The drawable's 5.3 per-art-mesh screen color for display in the Properties panel; see
@@ -257,4 +258,4 @@ fun Drawable.displayMultiplyColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.
  *
  * @return ColorRgb The drawable's screen color, or [ColorRgb.ScreenIdentity] when unkeyed.
  */
-fun Drawable.displayScreenColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.form?.screenColor ?: ColorRgb.ScreenIdentity
+fun Drawable.displayScreenColor(): ColorRgb = screenColor

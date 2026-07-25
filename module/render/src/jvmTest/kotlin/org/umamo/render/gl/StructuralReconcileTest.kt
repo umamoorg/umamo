@@ -18,7 +18,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -64,7 +64,7 @@ class StructuralReconcileTest {
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, quadUvs, indices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped).
-			keyforms = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size))))),
+			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			textureSourceId = textureSourceId,
 		)
 

@@ -29,7 +29,7 @@ import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import java.io.File
 import kotlin.math.abs
@@ -97,7 +97,7 @@ class GpuDeformValidationTest {
 						continue
 					}
 					val drawable = drawableById[drawableInputs.drawableId] ?: continue
-					val grid = drawable.keyforms ?: continue
+					val grid = drawable.geometryGrid ?: continue
 					val base = drawable.mesh?.positions ?: continue
 					if (drawable.mesh?.indices?.isEmpty() != false) {
 						continue // renderer skips index-less meshes (glue anchors)
@@ -170,7 +170,7 @@ class GpuDeformValidationTest {
 						continue
 					}
 					val drawable = drawableById[drawableInputs.drawableId] ?: continue
-					val grid = drawable.keyforms ?: continue
+					val grid = drawable.geometryGrid ?: continue
 					val base = drawable.mesh?.positions ?: continue
 					if (drawable.mesh?.indices?.isEmpty() != false) {
 						continue
@@ -201,7 +201,7 @@ class GpuDeformValidationTest {
 	private fun gpuDeform(
 		program: Int,
 		base: FloatArray,
-		grid: KeyformGrid<MeshForm>,
+		grid: KeyformGrid<MeshDeltaForm>,
 		corners: List<WeightedCell>,
 		parent: DeformerWorld?,
 		blendDrawable: Drawable? = null,
@@ -316,7 +316,7 @@ class GpuDeformValidationTest {
 
 	/** Uploads the per-keyform-cell vertex deltas as an RG32F texture (col = cell, row = vertex), matching
 	 *  [PuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
-	private fun uploadDeltaTexture(grid: KeyformGrid<MeshForm>, vertexCount: Int, cellCount: Int): Int {
+	private fun uploadDeltaTexture(grid: KeyformGrid<MeshDeltaForm>, vertexCount: Int, cellCount: Int): Int {
 		val cells = cellsByLinearIndex(grid)
 		val data = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)
 		for (vertexIndex in 0 until vertexCount) {

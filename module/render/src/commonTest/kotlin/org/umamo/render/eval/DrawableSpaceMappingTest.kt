@@ -9,12 +9,12 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.RotationForm
-import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.RotationPivotForm
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,7 +39,7 @@ class DrawableSpaceMappingTest {
 
 	private fun axis() = listOf(KeyformAxis(paramA, floatArrayOf(0f)))
 
-	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(coordCount)))))
+	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(coordCount)))))
 
 	private fun drawable(parent: DeformerId?, positions: FloatArray) =
 		Drawable(drawableId, "M", parent, BlendMode.Normal, emptyList(), DrawableMesh(positions, FloatArray(0), IntArray(0)), zeroMeshGrid(positions.size))
@@ -50,7 +50,7 @@ class DrawableSpaceMappingTest {
 	/** 2x4 world rectangle at (10,20): the same 1x1 quad lattice the evaluator's warp routing test uses. */
 	private fun warpDeformer(): Deformer.Warp {
 		val controlPoints = floatArrayOf(10f, 20f, 12f, 20f, 10f, 24f, 12f, 24f)
-		return Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpForm(controlPoints)))))
+		return Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(controlPoints)))))
 	}
 
 	/** Rotation about (5,5): 90 degrees, scale 2, no flips. */
@@ -61,7 +61,7 @@ class DrawableSpaceMappingTest {
 			null,
 			null,
 			0f,
-			KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), RotationForm(5f, 5f, 90f, scale, flipX = false, flipY = false)))),
+			KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), RotationPivotForm(5f, 5f, 90f, scale)))),
 		)
 
 	/** A direct (deformer-less) drawable maps by pure Y negation, and the inverse recovers it exactly. */
@@ -142,8 +142,8 @@ class DrawableSpaceMappingTest {
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 10f))),
 				cells =
 					listOf(
-						KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(0f, 0f))),
-						KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(4f, 0f))),
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(4f, 0f))),
 					),
 			)
 		val blendDrawable =
@@ -201,7 +201,7 @@ class DrawableSpaceMappingTest {
 	@Test
 	fun warpSweptGrabIsContinuousNoBoil() {
 		val controlPoints = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 14f, 12f)
-		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpForm(controlPoints)))))
+		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(controlPoints)))))
 		val local = floatArrayOf(0.5f, 0.5f)
 		val mapping = assertNotNull(drawableSpaceMapping(model(listOf(warp), drawable(DeformerId("W"), local)), emptyMap(), drawableId))
 		val worldRest = mapping.localToWorld(local)
@@ -274,7 +274,7 @@ class DrawableSpaceMappingTest {
 	fun warpGrabIsWorldRigid() {
 		// A non-parallelogram cage so the warp Jacobian genuinely varies across the lattice.
 		val controlPoints = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 14f, 12f)
-		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpForm(controlPoints)))))
+		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 1, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(controlPoints)))))
 		val local = floatArrayOf(0.3f, 0.3f, 0.7f, 0.6f)
 		val mapping = assertNotNull(drawableSpaceMapping(model(listOf(warp), drawable(DeformerId("W"), local)), emptyMap(), drawableId))
 		val worldRest = mapping.localToWorld(local)
@@ -303,7 +303,7 @@ class DrawableSpaceMappingTest {
 	fun warpCurvedCageGrabLandsCentroidOnTarget() {
 		// A 2x1 cage bowed upward in the middle column, so the local->world scale varies sharply across it.
 		val controlPoints = floatArrayOf(0f, 0f, 10f, -4f, 20f, 0f, 0f, 10f, 10f, 6f, 20f, 10f)
-		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 2, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpForm(controlPoints)))))
+		val warp = Deformer.Warp(DeformerId("W"), "W", null, null, 1, 2, true, KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(controlPoints)))))
 		val local = floatArrayOf(0.2f, 0.4f, 0.5f, 0.3f, 0.8f, 0.4f, 0.5f, 0.7f)
 		val indices = setOf(0, 1, 2, 3)
 		val mapping = assertNotNull(drawableSpaceMapping(model(listOf(warp), drawable(DeformerId("W"), local)), emptyMap(), drawableId))

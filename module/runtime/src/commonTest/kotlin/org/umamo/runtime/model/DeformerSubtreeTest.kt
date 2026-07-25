@@ -25,7 +25,7 @@ class DeformerSubtreeTest {
 			rows = 2,
 			columns = 2,
 			isQuadTransform = false,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	/** root > child > grandchild, with an unrelated sibling at the armature root. */

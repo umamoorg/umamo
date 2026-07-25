@@ -258,7 +258,9 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
 fun drawableLocalPosed(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): FloatArray? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
 	val mesh = drawable.mesh ?: return null
-	val grid = drawable.keyforms ?: return null
+	// An unkeyed drawable sits at its rest mesh, which is exactly the state a rigger needs the gizmo to
+	// show - returning null here would hide the vertices of the drawable they are about to key.
+	val grid = drawable.geometryGrid ?: return mesh.positions.copyOf()
 	val defaults = model.parameters.associate { it.id to it.default }
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
 	return sampleMeshLocal(grid, mesh.positions, paramValue)

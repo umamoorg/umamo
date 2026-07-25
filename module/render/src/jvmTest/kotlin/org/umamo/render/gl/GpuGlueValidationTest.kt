@@ -23,7 +23,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -74,10 +74,10 @@ class GpuGlueValidationTest {
 	private val weldedPositions = floatArrayOf(60f, -30f, 120f, -30f, 60f, 30f, 120f, 30f)
 
 	/** A single-cell keyform grid with zero deltas - the mesh sits at its rest positions. */
-	private fun restGrid(positions: FloatArray): KeyformGrid<MeshForm> =
+	private fun restGrid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 		)
 
 	private fun drawable(id: DrawableId, positions: FloatArray, indices: IntArray): Drawable =
@@ -88,7 +88,7 @@ class GpuGlueValidationTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
-			keyforms = restGrid(positions),
+			geometryGrid = restGrid(positions),
 		)
 
 	/**
@@ -107,8 +107,8 @@ class GpuGlueValidationTest {
 					Glue(
 						meshA = anchorId,
 						meshB = weldedId,
+						// No intensity track, so the static default of 1 (full weld) applies.
 						pairs = listOf(GluePair(1, 0, 0f, 1f), GluePair(3, 2, 0f, 1f)),
-						intensity = null, // no grid -> a constant intensity of 1
 					),
 				)
 			} else {

@@ -17,7 +17,7 @@ class VisibilityCascadeTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 			isVisible = isVisible,
 		)
 

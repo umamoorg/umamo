@@ -3,7 +3,7 @@ package org.umamo.render.puppet
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,7 +26,7 @@ class DeltaTexelsTest {
 	@Test
 	fun keyformCellCountIsTheProductOfAxisKeyCounts() {
 		val grid =
-			KeyformGrid<MeshForm>(
+			KeyformGrid<MeshDeltaForm>(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f)), KeyformAxis(paramB, floatArrayOf(0f, 1f))),
 				cells = emptyList(),
 			)
@@ -35,7 +35,7 @@ class DeltaTexelsTest {
 
 	@Test
 	fun keyformCellCountFloorsAtOneForAnAxislessGrid() {
-		val grid = KeyformGrid<MeshForm>(axes = emptyList(), cells = emptyList())
+		val grid = KeyformGrid<MeshDeltaForm>(axes = emptyList(), cells = emptyList())
 		assertEquals(1, keyformCellCount(grid), "an axis-less grid still has its single rest cell")
 	}
 
@@ -48,8 +48,8 @@ class DeltaTexelsTest {
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
 				cells =
 					listOf(
-						KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(0f, 0f, 5f, 6f))),
-						KeyformCell(intArrayOf(1), MeshForm(floatArrayOf(7f, 8f, 0f, 0f))),
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f, 5f, 6f))),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(7f, 8f, 0f, 0f))),
 					),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 2, cellCount = 2)
@@ -67,7 +67,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f)), KeyformAxis(paramB, floatArrayOf(0f, 1f))),
-				cells = listOf(KeyformCell(intArrayOf(0, 1), MeshForm(floatArrayOf(9f, 9f)))),
+				cells = listOf(KeyformCell(intArrayOf(0, 1), MeshDeltaForm(floatArrayOf(9f, 9f)))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 1, cellCount = 4)
 		assertEquals(9f to 9f, texelAt(texels, 4, vertexIndex = 0, cellIndex = 2), "coordinate (0,1) lands in column 2")
@@ -80,7 +80,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
-				cells = listOf(KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(3f, 4f)))),
+				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(3f, 4f)))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 1, cellCount = 2)
 		assertEquals(3f to 4f, texelAt(texels, 2, 0, 0))
@@ -94,7 +94,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-				cells = listOf(KeyformCell(intArrayOf(0), MeshForm(floatArrayOf(1f, 2f)))),
+				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(1f, 2f)))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 3, cellCount = 1)
 		assertEquals(1f to 2f, texelAt(texels, 1, vertexIndex = 0, cellIndex = 0))

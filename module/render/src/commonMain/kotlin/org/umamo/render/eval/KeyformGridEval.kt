@@ -1,21 +1,17 @@
 package org.umamo.render.eval
 
-import org.umamo.runtime.eval.MeshScalars
 import org.umamo.runtime.eval.WeightedCell
-import org.umamo.runtime.eval.blendScalarsFromCorners
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.model.ColorRgb
-import org.umamo.runtime.model.GlueForm
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.PartForm
 
 /*
  * Grid sampling over the runtime's shared multilinear corner selection. The corner selection,
  * bracket, and pose-sampling primitives (bindBracket / gridCorners / cellsByLinearIndex /
- * blendScalarsFromCorners, plus the blend-shape default-pose reference helpers) live in
+ * plus the blend-shape default-pose reference helpers) live in
  * org.umamo.runtime.eval (KeyformGridSampling.kt) so Moc3Import shares them - see the note there.
  * This file keeps the render-side blends built on top of them.
  */
@@ -32,7 +28,7 @@ import org.umamo.runtime.model.PartForm
  * @return FloatArray? The local vertex positions, or null when hidden.
  */
 internal fun sampleMeshLocal(
-	grid: KeyformGrid<MeshForm>,
+	grid: KeyformGrid<MeshDeltaForm>,
 	base: FloatArray,
 	paramValue: (ParameterId) -> Float,
 ): FloatArray? {
@@ -45,13 +41,17 @@ internal fun sampleMeshLocal(
  * out of [sampleMeshLocal] lets `preparePose` compute the weights once - backend-neutrally - and feed both
  * the CPU apply path and (later) the GPU shader the same corner set.
  *
- * @param KeyformGrid        grid    The mesh's keyform grid (source of the cells' deltas).
+ * A null [grid] is an UNKEYED drawable, not an error: it contributes no deltas, so the result is the rest
+ * mesh.  An unkeyed drawable is a normal state - a freshly created one, or one whose last keyform axis was
+ * just removed - and it has to render, or the rigger cannot see the thing they are about to key.
+ *
+ * @param KeyformGrid?       grid    The mesh's keyform grid, or null when the drawable is unkeyed.
  * @param FloatArray         base    The mesh's rest-pose positions (interleaved x,y).
  * @param List<WeightedCell> corners The active keyform corners + weights (from [gridCorners]).
  * @return FloatArray The blended local positions (interleaved x,y).
  */
-internal fun blendLocalFromCorners(grid: KeyformGrid<MeshForm>, base: FloatArray, corners: List<WeightedCell>): FloatArray {
-	val cells = cellsByLinearIndex(grid)
+internal fun blendLocalFromCorners(grid: KeyformGrid<MeshDeltaForm>?, base: FloatArray, corners: List<WeightedCell>): FloatArray {
+	val cells = if (grid != null) cellsByLinearIndex(grid) else emptyMap()
 	val out = base.copyOf()
 	for (corner in corners) {
 		val delta = cells[corner.linearIndex]?.form?.positionDeltas ?: continue
@@ -61,80 +61,6 @@ internal fun blendLocalFromCorners(grid: KeyformGrid<MeshForm>, base: FloatArray
 		}
 	}
 	return out
-}
-
-/**
- * Blends an art-mesh keyform grid's scalar attributes (draw order, opacity) at the current parameters,
- * reusing the same multilinear corner weights as [sampleMeshLocal] (so the scalars track the geometry).
- * Returns null when the mesh is hidden - the same out-of-range condition that hides the geometry.
- *
- * @param KeyformGrid grid       The mesh's keyform grid.
- * @param Function    paramValue Current value for a given parameter id.
- * @return MeshScalars? The blended draw order + opacity, or null when hidden.
- */
-internal fun sampleMeshScalars(
-	grid: KeyformGrid<MeshForm>,
-	paramValue: (ParameterId) -> Float,
-): MeshScalars? {
-	val corners = gridCorners(grid, paramValue) ?: return null
-	return blendScalarsFromCorners(grid, corners)
-}
-
-/**
- * Blends a glue's weld intensity over its keyform grid at the current parameters. Returns 1 (full weld)
- * when the controlling axis is out of range - constant single-key glues always blend to their cell value.
- *
- * @param KeyformGrid grid       The glue's intensity keyform grid.
- * @param Function    paramValue Current value for a given parameter id.
- * @return Float The blended weld intensity.
- */
-internal fun sampleGlueIntensity(grid: KeyformGrid<GlueForm>, paramValue: (ParameterId) -> Float): Float {
-	val corners = gridCorners(grid, paramValue) ?: return 1f
-	val cells = cellsByLinearIndex(grid)
-	var intensity = 0f
-	for (corner in corners) {
-		intensity += corner.weight * (cells[corner.linearIndex]?.form?.intensity ?: 0f)
-	}
-	return intensity
-}
-
-/**
- * Blends a draw-order group part's draw order over its keyform grid at the current parameters - the
- * animated part draw order for a parameter-driven group part. Returns null when the
- * controlling axis is out of range, so the caller falls back to the part's static draw order.
- *
- * @param KeyformGrid grid       The group part's keyform grid.
- * @param Function    paramValue Current value for a given parameter id.
- * @return Float? The blended part draw order, or null when out of range.
- */
-internal fun samplePartDrawOrder(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): Float? {
-	val corners = gridCorners(grid, paramValue) ?: return null
-	val cells = cellsByLinearIndex(grid)
-	var drawOrder = 0f
-	for (corner in corners) {
-		drawOrder += corner.weight * (cells[corner.linearIndex]?.form?.drawOrder ?: 0f)
-	}
-	return drawOrder
-}
-
-/**
- * Blends a part's opacity over its keyform grid at the current parameters - the general part opacity,
- * shared by an isolated part (applied at its composite) and a non-isolated part (cascaded into its
- * subtree's drawables).  Returns null when the controlling axis is out of range, so the caller falls
- * back to the static opacity on the part's PartComposite.
- *
- * @param KeyformGrid grid       The part's keyform grid.
- * @param Function    paramValue Current value for a given parameter id.
- * @return Float? The blended part opacity, or null when out of range.
- */
-internal fun samplePartOpacity(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): Float? {
-	val corners = gridCorners(grid, paramValue) ?: return null
-	val cells = cellsByLinearIndex(grid)
-	var opacity = 0f
-	for (corner in corners) {
-		opacity += corner.weight * (cells[corner.linearIndex]?.form?.opacity ?: 0f)
-	}
-	return opacity
 }
 
 /**
@@ -152,43 +78,6 @@ internal class PartRenderState(
 )
 
 /**
- * Blends an isolated part's composite channels (opacity, multiply/screen colors) over its keyform
- * grid at the current parameters - the same multilinear weights as [samplePartDrawOrder], applied
- * per channel.  Returns null when the controlling axis is out of range, so the caller falls back
- * to the static channels on the part's PartComposite.
- *
- * @param KeyformGrid grid       The part's keyform grid.
- * @param Function    paramValue Current value for a given parameter id.
- * @return PartRenderState? The blended channels, or null when out of range.
- */
-internal fun samplePartRenderState(grid: KeyformGrid<PartForm>, paramValue: (ParameterId) -> Float): PartRenderState? {
-	val corners = gridCorners(grid, paramValue) ?: return null
-	val cells = cellsByLinearIndex(grid)
-	var opacity = 0f
-	var multiplyRed = 0f
-	var multiplyGreen = 0f
-	var multiplyBlue = 0f
-	var screenRed = 0f
-	var screenGreen = 0f
-	var screenBlue = 0f
-	for (corner in corners) {
-		val form = cells[corner.linearIndex]?.form ?: continue
-		opacity += corner.weight * form.opacity
-		multiplyRed += corner.weight * form.multiplyColor.red
-		multiplyGreen += corner.weight * form.multiplyColor.green
-		multiplyBlue += corner.weight * form.multiplyColor.blue
-		screenRed += corner.weight * form.screenColor.red
-		screenGreen += corner.weight * form.screenColor.green
-		screenBlue += corner.weight * form.screenColor.blue
-	}
-	return PartRenderState(
-		opacity = opacity,
-		multiplyColor = ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
-		screenColor = ColorRgb(screenRed, screenGreen, screenBlue),
-	)
-}
-
-/**
  * Evaluates a direct (deformer-less) art mesh into world positions: the keyform-blended local
  * vertices with the Y component negated (`vp = (x, −y)`; only Y flips). This matches the CMO3/MOC3
  * world-space convention, which is Y-down relative to the local mesh space Umamo blends in - required for
@@ -202,7 +91,7 @@ internal fun samplePartRenderState(grid: KeyformGrid<PartForm>, paramValue: (Par
  * @return FloatArray? World positions (interleaved x,y), or null when hidden.
  */
 internal fun evalDirectMeshWorld(
-	grid: KeyformGrid<MeshForm>,
+	grid: KeyformGrid<MeshDeltaForm>,
 	base: FloatArray,
 	paramValue: (ParameterId) -> Float,
 ): FloatArray? {

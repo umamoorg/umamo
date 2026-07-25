@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -1198,12 +1198,17 @@ private fun ParameterGripHandle(
  * Draws the before / after insertion line for a drop-target row. Into is drawn by the group header's own
  * fill, so this only handles the reorder bands; a null band or an Into draws nothing.
  *
+ * Drawn OVER the row's content, not behind it: the line sits on the row's top / bottom edge, and the
+ * ParameterIsland inside fills that same edge with an opaque elevation color, so a drawBehind line is
+ * completely hidden by its own child.
+ *
  * @param RowDropBand band The row's current drop band, or null when it is not the target.
  * @param Color accentColor The insertion-line color.
- * @return Modifier The modifier drawing the line behind the row.
+ * @return Modifier The modifier drawing the line over the row.
  */
 private fun Modifier.parameterDropLine(band: RowDropBand?, accentColor: Color): Modifier =
-	this.drawBehind {
+	this.drawWithContent {
+		drawContent()
 		if (band == RowDropBand.Before || band == RowDropBand.After) {
 			val strokeWidth = 2.5.dp.toPx()
 			val lineY =

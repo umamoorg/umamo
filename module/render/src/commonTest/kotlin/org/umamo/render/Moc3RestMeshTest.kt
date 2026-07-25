@@ -1,11 +1,14 @@
 package org.umamo.render
 
+import org.umamo.runtime.keyform.fanOutMesh
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -30,6 +33,15 @@ class Moc3RestMeshTest {
 	private val warmScreen = ColorRgb(0.2f, 0.1f, 0f)
 
 	private fun modelWithChannelledKeyforms(): PuppetModel {
+		// Built bundled and fanned out, so the fixture matches what an importer actually produces.
+		val fanned =
+			KeyformGrid(
+				listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshForm(FloatArray(6), drawOrder = 400f, opacity = 0.25f, multiplyColor = blueMultiply, screenColor = warmScreen)),
+					KeyformCell(intArrayOf(1), MeshForm(FloatArray(6) { 2f }, drawOrder = 600f, opacity = 0.75f, multiplyColor = blueMultiply, screenColor = warmScreen)),
+				),
+			).fanOutMesh()
 		val drawable =
 			Drawable(
 				id = DrawableId("quad"),
@@ -38,14 +50,8 @@ class Moc3RestMeshTest {
 				blendMode = BlendMode.HardLight,
 				maskedBy = emptyList(),
 				mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
-				keyforms =
-					KeyformGrid(
-						listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
-						listOf(
-							KeyformCell(intArrayOf(0), MeshForm(FloatArray(6), drawOrder = 400f, opacity = 0.25f, multiplyColor = blueMultiply, screenColor = warmScreen)),
-							KeyformCell(intArrayOf(1), MeshForm(FloatArray(6) { 2f }, drawOrder = 600f, opacity = 0.75f, multiplyColor = blueMultiply, screenColor = warmScreen)),
-						),
-					),
+				geometryGrid = fanned.geometry,
+				channelGrids = fanned.channels,
 				blendShapes =
 					listOf(
 						BlendShapeBinding(
@@ -66,20 +72,29 @@ class Moc3RestMeshTest {
 		)
 	}
 
+	/**
+	 * The rebase moves geometry only; every channel track must come through untouched.
+	 *
+	 * Since the channel split this is structural - the tracks are a separate field the rebase never
+	 * writes - but it is asserted anyway, because the property is what the rebase is allowed to do, not
+	 * an artefact of how it happens to be written today.
+	 */
 	@Test
 	fun rebasePreservesEveryNonPositionalKeyformChannel() {
 		val rebased = restMeshesToCanvasSpace(modelWithChannelledKeyforms())
 		val drawable = rebased.drawables.single()
-		val cells = drawable.keyforms!!.cells
-		assertEquals(2, cells.size)
-		assertEquals(400f, cells[0].form.drawOrder)
-		assertEquals(0.25f, cells[0].form.opacity)
-		assertEquals(600f, cells[1].form.drawOrder)
-		assertEquals(0.75f, cells[1].form.opacity)
-		for (cell in cells) {
-			assertEquals(blueMultiply, cell.form.multiplyColor, "keyform multiply colour must survive the rebase")
-			assertEquals(warmScreen, cell.form.screenColor, "keyform screen colour must survive the rebase")
-		}
+		assertEquals(2, drawable.geometryGrid!!.cells.size)
+		val channels = drawable.channelGrids
+
+		fun scalars(channel: FormChannel): List<Float> =
+			channels[channel]!!.cells.map { cell -> (cell.form as ChannelValue.Scalar).value }
+
+		fun colors(channel: FormChannel): List<ColorRgb> =
+			channels[channel]!!.cells.map { cell -> (cell.form as ChannelValue.Color).color }
+		assertEquals(listOf(400f, 600f), scalars(FormChannel.DRAW_ORDER))
+		assertEquals(listOf(0.25f, 0.75f), scalars(FormChannel.OPACITY))
+		assertEquals(listOf(blueMultiply, blueMultiply), colors(FormChannel.MULTIPLY_COLOR), "keyform multiply colour must survive the rebase")
+		assertEquals(listOf(warmScreen, warmScreen), colors(FormChannel.SCREEN_COLOR), "keyform screen colour must survive the rebase")
 		val blendForm = drawable.blendShapes.single().forms[1]!!
 		assertEquals(500f, blendForm.drawOrder)
 		assertEquals(0.5f, blendForm.opacity)
@@ -96,8 +111,8 @@ class Moc3RestMeshTest {
 		// base + delta must reconstruct the same absolute positions per cell, whatever base the
 		// rebase chose - that invariance is the whole contract of the rewrite.
 		for (cellIndex in 0 until 2) {
-			val originalForm = originalDrawable.keyforms!!.cells[cellIndex].form
-			val rebasedForm = rebasedDrawable.keyforms!!.cells[cellIndex].form
+			val originalForm = originalDrawable.geometryGrid!!.cells[cellIndex].form
+			val rebasedForm = rebasedDrawable.geometryGrid!!.cells[cellIndex].form
 			for (coordIndex in 0 until 6) {
 				assertEquals(
 					originalDrawable.mesh!!.positions[coordIndex] + originalForm.positionDeltas[coordIndex],

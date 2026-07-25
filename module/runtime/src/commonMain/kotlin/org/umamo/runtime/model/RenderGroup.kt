@@ -23,10 +23,11 @@ data class RenderDrawable(val id: DrawableId) : RenderNode
  * @param PartId?          partId    The owning part, or null for the implicit root.
  * @param Int              drawOrder The part's default-pose draw order - the static fallback sort key.
  * @param List<RenderNode> children  The group's members, in parts-panel (authoring) order.
- * @param KeyformGrid?     formGrid  The part's keyform grid when it is parameter-driven; null for
- *                                   a static part order, in which case [drawOrder] is used.
- *                                   Blended per pose into the sort key (and, for an isolated
- *                                   part, into the composite's opacity/color channels).
+ * @param ChannelGrids     channelGrids The owning part's per-channel keyform tracks, copied from the
+ *                                   part onto the derived render tree.  DRAW_ORDER blends per pose
+ *                                   into the sort key; OPACITY and the color channels feed an
+ *                                   isolated part's composite.  A channel with no track falls back
+ *                                   to [drawOrder] / [composite].
  * @param PartComposite?   composite The owning part's compositing settings, or null when the part
  *                                   is not isolated - carried on the render tree so the renderer
  *                                   can composite the group's subtree as one layer.
@@ -35,6 +36,6 @@ data class RenderGroup(
 	val partId: PartId?,
 	val drawOrder: Int,
 	val children: List<RenderNode>,
-	val formGrid: KeyformGrid<PartForm>? = null,
+	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	val composite: PartComposite? = null,
 ) : RenderNode

@@ -46,7 +46,7 @@ class ObjectBoundsEditsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = positions?.let { DrawableMesh(it, FloatArray(it.size), intArrayOf(0, 1, 2)) },
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	private fun model(positions: FloatArray? = quadPositions.copyOf()): PuppetModel =

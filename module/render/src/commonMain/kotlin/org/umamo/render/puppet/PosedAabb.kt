@@ -4,7 +4,7 @@ import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.model.KeyformCell
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import kotlin.math.max
 import kotlin.math.min
 
@@ -40,7 +40,7 @@ internal class PosedAabb(
  * rendered geometry.  Returns null when the mesh is empty.
  *
  * @param FloatArray                     base    The mesh's rest positions, interleaved x,y.
- * @param Map<Int, KeyformCell<MeshForm>> cells  The grid's cells by linear index (precomputed once).
+ * @param Map<Int, KeyformCell<MeshDeltaForm>> cells  The grid's cells by linear index (precomputed once).
  * @param List<WeightedCell>             corners The pose's active keyform corners and weights.
  * @param DeformerWorld?                 parentWorld The baked parent transform, or null for a direct mesh.
  * @param MeshBlendState?                blend   The pose's resolved blend-shape state, or null.
@@ -49,7 +49,7 @@ internal class PosedAabb(
  */
 internal fun deformedWorldBounds(
 	base: FloatArray,
-	cells: Map<Int, KeyformCell<MeshForm>>,
+	cells: Map<Int, KeyformCell<MeshDeltaForm>>,
 	corners: List<WeightedCell>,
 	parentWorld: DeformerWorld?,
 	blend: MeshBlendState?,
