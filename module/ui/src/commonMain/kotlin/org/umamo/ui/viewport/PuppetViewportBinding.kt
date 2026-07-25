@@ -169,6 +169,15 @@ fun rememberPuppetViewportHost(
 			if (mode == EditorMode.Edit) emptyMap() else pose
 		}.collect { effectivePose -> liveParams.values = effectivePose }
 	}
+	// Pending unkeyed channel edits mirror the same way, and are suppressed in Edit mode for the same
+	// reason the pose is: Edit mode shows the neutral base, so an in-flight channel edit must not tint it.
+	// Publishing them into the same volatile hand-off is what makes a typed-but-unkeyed value show in the
+	// viewport at all - it is session state, so it can never reach the renderer inside the model.
+	LaunchedEffect(service, session) {
+		combine(session.pendingChannelEdits, session.mode) { pending, mode ->
+			if (mode == EditorMode.Edit) emptyMap() else pending
+		}.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
+	}
 	// Feed the zoom-increment settings into the service and keep them live as settings change; the keys,
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.
 	val settings = LocalSettings.current

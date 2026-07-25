@@ -50,11 +50,13 @@ import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
@@ -428,9 +430,9 @@ class PuppetRenderer(
 		gpuDrawable.cpTexture?.let { device.destroyTexture(it) }
 	}
 
-	fun setPose(parameters: Map<ParameterId, Float>) {
+	fun setPose(parameters: Map<ParameterId, Float>, channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap()) {
 		// currentModel (not the construction-time model) so a deformer reparent / reorder re-evaluates here.
-		val inputs = preparePose(currentModel, parameters)
+		val inputs = preparePose(currentModel, parameters, channelOverrides)
 		lastPoseInputs = inputs // publish for on-demand picking (CPU deform re-run at click time)
 		glueBufferDirty = true // the pose moved: pass 1 must re-deform the shared store next render
 		// Resolve first, in backend-neutral terms; then apply onto the resident drawables and upload.

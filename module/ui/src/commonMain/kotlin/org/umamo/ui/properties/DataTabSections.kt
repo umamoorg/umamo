@@ -5,8 +5,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.KeyableTarget
-import org.umamo.edit.KeyformOwner
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setDeformerBaseAngle
 import org.umamo.edit.setDeformerQuadTransform
@@ -24,6 +22,8 @@ import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.displayMultiplyColor
 import org.umamo.runtime.model.displayScreenColor

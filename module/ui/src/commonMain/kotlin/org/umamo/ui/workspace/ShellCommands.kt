@@ -6,7 +6,6 @@ import org.umamo.edit.Cursor2d
 import org.umamo.edit.DrawableChange
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.KeyableTarget
 import org.umamo.edit.MergeTarget
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
@@ -28,6 +27,7 @@ import org.umamo.edit.removeChannelKey
 import org.umamo.edit.snapToGrid
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
@@ -615,9 +615,9 @@ private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, area
 /**
  * Captures a key on [target] at the current pose, keyed on the targeted parameter.
  *
- * The value captured is the channel's CURRENT evaluated value, so an insert with nothing edited pins what
- * is already on screen - Blender's behaviour, and the useful one: it is how a rigger anchors a pose before
- * moving on.  (Once the pending-unkeyed-edit buffer lands, an edit in flight is captured instead.)
+ * Captures the PENDING unkeyed edit when there is one, else the channel's current evaluated value - so an
+ * insert after typing stores what was typed, and an insert with nothing edited pins what is already on
+ * screen (Blender's behaviour, and how a rigger anchors a pose before moving on).
  *
  * Refuses with a notice rather than silently doing nothing, because both failure modes are things the user
  * can fix: nothing hovered, or no parameter targeted.
@@ -630,8 +630,12 @@ private fun EditorSession.keyformInsert(target: KeyableTarget?) {
 		return
 	}
 	val parameter = targetedParameter() ?: return
-	val value = model.value.channelValueAt(target, pose.value) ?: return
+	// A pending unkeyed edit wins: the whole point of `I` after typing a value is to capture what was just
+	// typed, not what is still stored.  With nothing pending, the channel's current evaluated value is
+	// captured instead, which pins the pose already on screen (Blender's behaviour).
+	val value = pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, pose.value) ?: return
 	captureChannelKey(target, parameter, value)
+	clearPendingChannelEdits()
 }
 
 /**

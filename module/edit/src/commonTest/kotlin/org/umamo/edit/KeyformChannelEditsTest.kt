@@ -7,6 +7,8 @@ import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -58,9 +60,11 @@ class KeyformChannelEditsTest {
 	/** The opacity a model's drawable evaluates to at [value] on [parameterId]. */
 	private fun opacityAt(puppet: PuppetModel, parameterId: ParameterId, value: Float): Float {
 		val drawable = puppet.drawables.single()
-		return drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity) { id ->
-			if (id == parameterId) value else 0f
-		}
+		return drawable.channelGrids.scalarAt(
+			FormChannel.OPACITY,
+			drawable.opacity,
+			paramValue = { id -> if (id == parameterId) value else 0f },
+		)
 	}
 
 	/**

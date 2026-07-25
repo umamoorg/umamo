@@ -35,7 +35,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.KeyableTarget
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap

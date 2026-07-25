@@ -2,6 +2,8 @@ package org.umamo.ui.viewport
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
+import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.LiveParamsHandle
@@ -16,6 +18,13 @@ import kotlin.concurrent.Volatile
  */
 class LiveParams(
 	@Volatile var values: Map<ParameterId, Float>,
+	/**
+	 * Pending unkeyed channel edits, published the same way as [values].
+	 *
+	 * These are session state rather than document state, so they cannot ride the model to the renderer -
+	 * they travel beside the pose, exactly as the pose itself travels beside the model.
+	 */
+	@Volatile var channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
 )
 
 /**

@@ -20,6 +20,10 @@ import org.umamo.runtime.model.ParameterId
  * of range.  Out of range NEVER hides: hiding is the geometry grid's decision alone, so keying opacity on
  * a narrow parameter cannot make the art vanish at the ends of an unrelated slider.
  *
+ * Every read takes an optional OVERRIDE, which wins over both the track and the static.  That is how a
+ * value the user has typed but not yet keyed reaches the viewport: the pending edit is not in the document
+ * (it is transient session state), so it arrives beside the pose rather than inside the model.
+ *
  * チャンネル別トラックの姿勢サンプリング。各チャンネルは自分の格子から自分のコーナーを求める。
  * 範囲外や未キーの場合はオーナーの静的値へフォールバックし、実体を隠すことはない。
  */
@@ -36,7 +40,13 @@ import org.umamo.runtime.model.ParameterId
  * @param Function    paramValue  Current value for a given parameter id.
  * @return Float The blended value, or [staticValue].
  */
-fun ChannelGrids.scalarAt(channel: FormChannel, staticValue: Float, paramValue: (ParameterId) -> Float): Float {
+fun ChannelGrids.scalarAt(
+	channel: FormChannel,
+	staticValue: Float,
+	paramValue: (ParameterId) -> Float,
+	override: ChannelValue? = null,
+): Float {
+	(override as? ChannelValue.Scalar)?.let { pending -> return pending.value }
 	val grid = this[channel] ?: return staticValue
 	val corners = gridCorners(grid, paramValue) ?: return staticValue
 	val cells = cellsByLinearIndex(grid)
@@ -56,7 +66,13 @@ fun ChannelGrids.scalarAt(channel: FormChannel, staticValue: Float, paramValue: 
  * @param Function    paramValue  Current value for a given parameter id.
  * @return ColorRgb The blended color, or [staticValue].
  */
-fun ChannelGrids.colorAt(channel: FormChannel, staticValue: ColorRgb, paramValue: (ParameterId) -> Float): ColorRgb {
+fun ChannelGrids.colorAt(
+	channel: FormChannel,
+	staticValue: ColorRgb,
+	paramValue: (ParameterId) -> Float,
+	override: ChannelValue? = null,
+): ColorRgb {
+	(override as? ChannelValue.Color)?.let { pending -> return pending.color }
 	val grid = this[channel] ?: return staticValue
 	val corners = gridCorners(grid, paramValue) ?: return staticValue
 	val cells = cellsByLinearIndex(grid)
@@ -84,7 +100,13 @@ fun ChannelGrids.colorAt(channel: FormChannel, staticValue: ColorRgb, paramValue
  * @param Function    paramValue  Current value for a given parameter id.
  * @return Boolean The floor cell's flag, or [staticValue].
  */
-fun ChannelGrids.flagAt(channel: FormChannel, staticValue: Boolean, paramValue: (ParameterId) -> Float): Boolean {
+fun ChannelGrids.flagAt(
+	channel: FormChannel,
+	staticValue: Boolean,
+	paramValue: (ParameterId) -> Float,
+	override: ChannelValue? = null,
+): Boolean {
+	(override as? ChannelValue.Flag)?.let { pending -> return pending.flag }
 	val grid = this[channel] ?: return staticValue
 	val corners = gridCorners(grid, paramValue) ?: return staticValue
 	val floorCorner = corners.firstOrNull() ?: return staticValue
@@ -102,9 +124,15 @@ fun ChannelGrids.flagAt(channel: FormChannel, staticValue: Boolean, paramValue: 
  *
  * @param FormChannel channel    The scalar channel to sample.
  * @param Function    paramValue Current value for a given parameter id.
+ * @param ChannelValue? override A pending unkeyed edit that wins over the track and the static.
  * @return Float? The blended value, or null when untracked or out of range.
  */
-fun ChannelGrids.scalarOrNull(channel: FormChannel, paramValue: (ParameterId) -> Float): Float? {
+fun ChannelGrids.scalarOrNull(
+	channel: FormChannel,
+	paramValue: (ParameterId) -> Float,
+	override: ChannelValue? = null,
+): Float? {
+	(override as? ChannelValue.Scalar)?.let { pending -> return pending.value }
 	val grid = this[channel] ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)

@@ -5,10 +5,13 @@ import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.scalarOrNull
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
+import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
@@ -79,17 +82,23 @@ internal class PoseDeformInputs(
  *
  * @param PuppetModel model      The rig.
  * @param Map         parameters Parameter id → value (partial; the rest default).
+ * @param Map         channelOverrides Pending unkeyed channel edits, which win over the stored value - how
+ *   a value the user typed but has not keyed shows in the viewport without entering the document.
  * @return PoseDeformInputs The backend-neutral per-pose inputs.
  */
-internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>): PoseDeformInputs {
+internal fun preparePose(
+	model: PuppetModel,
+	parameters: Map<ParameterId, Float>,
+	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+): PoseDeformInputs {
 	val defaults = model.parameters.associate { it.id to it.default }
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
 	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
-	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue)
+	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
 	// A non-isolated part's opacity has no other home in the render pipeline (an isolated part applies
 	// its own at the composite pass), so cascade the product of each drawable's non-isolated ancestor
 	// part opacities into its drawable opacity below - the general Cubism part-opacity behavior.
-	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue)
+	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue, channelOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
 		if (drawable.mesh?.positions == null) {
@@ -106,8 +115,21 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 		val blend = meshBlendState(drawable, paramValue, defaultValue)
 		// Each channel resolves against its own track and falls back to the drawable's static; a channel
 		// out of range never hides, which is the geometry grid's decision alone (corners == null above).
-		var drawOrder = drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, paramValue)
-		var opacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, paramValue)
+		val drawableOwner = KeyformOwner.Drawable(drawable.id)
+		var drawOrder =
+			drawable.channelGrids.scalarAt(
+				FormChannel.DRAW_ORDER,
+				drawable.drawOrder,
+				paramValue,
+				channelOverrides[KeyableTarget(drawableOwner, FormChannel.DRAW_ORDER)],
+			)
+		var opacity =
+			drawable.channelGrids.scalarAt(
+				FormChannel.OPACITY,
+				drawable.opacity,
+				paramValue,
+				channelOverrides[KeyableTarget(drawableOwner, FormChannel.OPACITY)],
+			)
 		// Blend shapes: additive scalar deltas (opacity clamps to [0,1] AFTER summing; the Umamo C++
 		// Runtime rounds draw order (int)(0.001+v) at sort time - Umamo sorts floats, recorded in
 		// MOC3.md §5.6).
@@ -118,8 +140,20 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 			}
 			opacity = opacity.coerceIn(0f, 1f)
 		}
-		var multiplyColor = drawable.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, paramValue)
-		var screenColor = drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, paramValue)
+		var multiplyColor =
+			drawable.channelGrids.colorAt(
+				FormChannel.MULTIPLY_COLOR,
+				drawable.multiplyColor,
+				paramValue,
+				channelOverrides[KeyableTarget(drawableOwner, FormChannel.MULTIPLY_COLOR)],
+			)
+		var screenColor =
+			drawable.channelGrids.colorAt(
+				FormChannel.SCREEN_COLOR,
+				drawable.screenColor,
+				paramValue,
+				channelOverrides[KeyableTarget(drawableOwner, FormChannel.SCREEN_COLOR)],
+			)
 		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
 		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
@@ -164,7 +198,13 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				meshA = glue.meshA,
 				meshB = glue.meshB,
 				pairs = glue.pairs,
-				intensity = glue.channelGrids.scalarAt(FormChannel.GLUE_INTENSITY, glue.intensity, paramValue),
+				intensity =
+					glue.channelGrids.scalarAt(
+						FormChannel.GLUE_INTENSITY,
+						glue.intensity,
+						paramValue,
+						channelOverrides[KeyableTarget(KeyformOwner.Glue(glue.meshA, glue.meshB), FormChannel.GLUE_INTENSITY)],
+					),
 			)
 		}
 	// Blend each group's (animated) part draw order, so the renderer can position whole groups per
@@ -178,10 +218,16 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
 		val channels = group.channelGrids
-		if (partId != null) {
+		val partOwner = partId?.let { KeyformOwner.Part(it) }
+		if (partId != null && partOwner != null) {
 			// Left ABSENT when the part has no draw-order track or the pose is out of its range, so the
 			// renderer keeps the part's static slot - the map's sparseness is the signal.
-			channels.scalarOrNull(FormChannel.DRAW_ORDER, paramValue)?.let { partDrawOrders[partId] = it }
+			channels
+				.scalarOrNull(
+					FormChannel.DRAW_ORDER,
+					paramValue,
+					channelOverrides[KeyableTarget(partOwner, FormChannel.DRAW_ORDER)],
+				)?.let { partDrawOrders[partId] = it }
 		}
 		val composite = group.composite
 		if (partId != null && composite != null) {
@@ -189,9 +235,24 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 			// can key opacity alone without dragging its tints onto the same axes.
 			partCompositeStates[partId] =
 				PartRenderState(
-					channels.scalarAt(FormChannel.OPACITY, composite.opacity, paramValue),
-					channels.colorAt(FormChannel.MULTIPLY_COLOR, composite.multiplyColor, paramValue),
-					channels.colorAt(FormChannel.SCREEN_COLOR, composite.screenColor, paramValue),
+					channels.scalarAt(
+						FormChannel.OPACITY,
+						composite.opacity,
+						paramValue,
+						partOwner?.let { channelOverrides[KeyableTarget(it, FormChannel.OPACITY)] },
+					),
+					channels.colorAt(
+						FormChannel.MULTIPLY_COLOR,
+						composite.multiplyColor,
+						paramValue,
+						partOwner?.let { channelOverrides[KeyableTarget(it, FormChannel.MULTIPLY_COLOR)] },
+					),
+					channels.colorAt(
+						FormChannel.SCREEN_COLOR,
+						composite.screenColor,
+						paramValue,
+						partOwner?.let { channelOverrides[KeyableTarget(it, FormChannel.SCREEN_COLOR)] },
+					),
 				)
 		}
 		for (child in group.children) {
@@ -215,13 +276,23 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
  * @param Function    paramValue Current value for a given parameter id.
  * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
  */
-internal fun foldNonIsolatedPartOpacity(model: PuppetModel, paramValue: (ParameterId) -> Float): Map<DrawableId, Float> {
+internal fun foldNonIsolatedPartOpacity(
+	model: PuppetModel,
+	paramValue: (ParameterId) -> Float,
+	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+): Map<DrawableId, Float> {
 	val partById = model.parts.associateBy { it.id }
 	val result = HashMap<DrawableId, Float>()
 
 	// A part's pose-blended opacity: its opacity track when it has one, else the static PartComposite
 	// value (populated from the neutral keyform on ingest, so it holds the authored opacity either way).
-	fun partOpacity(part: Part): Float = part.channelGrids.scalarAt(FormChannel.OPACITY, part.composite.opacity, paramValue)
+	fun partOpacity(part: Part): Float =
+		part.channelGrids.scalarAt(
+			FormChannel.OPACITY,
+			part.composite.opacity,
+			paramValue,
+			channelOverrides[KeyableTarget(KeyformOwner.Part(part.id), FormChannel.OPACITY)],
+		)
 
 	fun walk(children: List<OrgChild>, inheritedOpacity: Float) {
 		for (child in children) {

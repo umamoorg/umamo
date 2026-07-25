@@ -11,7 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import org.umamo.edit.KeyableTarget
+import org.umamo.runtime.model.KeyableTarget
 
 /**
  * The keyable property the pointer is currently over - what a keyform insert aims at.

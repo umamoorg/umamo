@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
@@ -90,6 +92,22 @@ class EditorSession(
 	 * Independent of [selection]: the object selection says WHAT to key, this says on WHICH AXIS.
 	 */
 	val parameterSelection: StateFlow<ParameterSelection> = mutableParameterSelection.asStateFlow()
+
+	private val mutablePendingChannelEdits = MutableStateFlow<Map<KeyableTarget, ChannelValue>>(emptyMap())
+
+	/**
+	 * Channel values edited but NOT yet keyed - Blender's model, where changing a keyed property off a key
+	 * takes effect now but is lost unless you key it.
+	 *
+	 * Deliberately NOT in the document and NOT in the undo history: a pending edit is a value in flight, and
+	 * recording every keystroke of one as an undo step would bury the real edits.  It is cleared whenever
+	 * the pose moves or history jumps, because both make the value meaningless - it was a value FOR a pose,
+	 * and that pose is gone.
+	 *
+	 * The keyed-field tint reads this to show the edited-but-unkeyed state, and a keyform insert consumes
+	 * it: the whole point is that `I` captures what you just typed rather than what is still stored.
+	 */
+	val pendingChannelEdits: StateFlow<Map<KeyableTarget, ChannelValue>> = mutablePendingChannelEdits.asStateFlow()
 
 	private val mutablePose = MutableStateFlow(initialPose)
 
@@ -273,6 +291,10 @@ class EditorSession(
 		if (model === mutableModel.value && pose == mutablePose.value) {
 			return
 		}
+		// A pose move invalidates every pending edit: the value was chosen for the pose being left.
+		if (pose != mutablePose.value) {
+			clearPendingChannelEdits()
+		}
 		history.push(EditorSnapshot(model, mutableSelection.value, pose, mutableMeshSelection.value, mutableMode.value), change)
 		mutableModel.value = model
 		mutablePose.value = pose
@@ -291,6 +313,31 @@ class EditorSession(
 	 */
 	fun commitPose(change: Change, pose: Pose) {
 		commit(change, mutableModel.value, pose)
+	}
+
+	/**
+	 * Records [value] as an unkeyed edit of [target] - a value the user typed that is not stored anywhere yet.
+	 *
+	 * Transient by construction: no history step, no model change.  The next pose move discards it, which is
+	 * the behaviour rather than a limitation - the value was chosen FOR this pose, so carrying it to another
+	 * would be applying an edit somewhere it was never meant.
+	 *
+	 * @param KeyableTarget target The property edited.
+	 * @param ChannelValue value The value typed.
+	 */
+	fun setPendingChannelEdit(target: KeyableTarget, value: ChannelValue) {
+		mutablePendingChannelEdits.value = mutablePendingChannelEdits.value + (target to value)
+	}
+
+	/**
+	 * Discards every pending unkeyed edit.
+	 *
+	 * Called on any pose move and on any history jump, and directly after a keyform insert consumes one.
+	 */
+	fun clearPendingChannelEdits() {
+		if (mutablePendingChannelEdits.value.isNotEmpty()) {
+			mutablePendingChannelEdits.value = emptyMap()
+		}
 	}
 
 	/**
@@ -1513,6 +1560,8 @@ class EditorSession(
 		mutablePose.value = snapshot.pose
 		mutableMeshSelection.value = snapshot.meshSelection
 		mutableParameterSelection.value = snapshot.parameterSelection
+		// A history jump lands on a pose the pending values were never chosen for.
+		clearPendingChannelEdits()
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
 		// into a snapshot of the other and drive the wrong overlay.
