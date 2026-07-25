@@ -19,6 +19,7 @@ import org.umamo.runtime.keyform.channelGridsOf
 import org.umamo.runtime.keyform.fanOutMesh
 import org.umamo.runtime.keyform.fanOutRotation
 import org.umamo.runtime.keyform.fanOutWarp
+import org.umamo.runtime.keyform.withChannelsCompacted
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
@@ -112,9 +113,11 @@ object Moc3Import {
 	 * @param MocDocument mocDocument The decoded semantic model.
 	 * @param Cdi3Json?   displayInfo The sibling cdi3.json (display names, parameter groups, combined
 	 *                                parameters), or null to fall back to raw format ids everywhere.
+	 * @param Boolean compactChannels Whether to run the post-import channel compaction (on by default);
+	 *   see Cmo3Import.fromModelSource.
 	 * @return PuppetModel The concrete runtime puppet.
 	 */
-	fun fromMocDocument(mocDocument: MocDocument, displayInfo: Cdi3Json?): PuppetModel {
+	fun fromMocDocument(mocDocument: MocDocument, displayInfo: Cdi3Json?, compactChannels: Boolean = true): PuppetModel {
 		// MOC3 §5.3 CanvasInfo: pixelsPerUnit + origin place stored model space onto the canvas as a plain
 		// affine, same Y-down orientation: canvasX = originX + ppu·modelX, canvasY = originY + ppu·modelY
 		// (corpus-verified against the CMO3 twin; the Umamo C++ runtime's Y-up presentation happens at eval
@@ -819,11 +822,13 @@ object Moc3Import {
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
 			)
-		return if (renderRoot != null) {
-			model.copy(renderRoot = renderRoot)
-		} else {
-			model.copy(renderRoot = model.deriveRenderRoot())
-		}
+		val withRenderRoot =
+			if (renderRoot != null) {
+				model.copy(renderRoot = renderRoot)
+			} else {
+				model.copy(renderRoot = model.deriveRenderRoot())
+			}
+		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
 
 	/** The coordinate space a moc object's positions are stored in, selected by its parent deformer. */

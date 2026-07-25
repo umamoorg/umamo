@@ -48,6 +48,7 @@ import org.umamo.runtime.keyform.channelGridsOf
 import org.umamo.runtime.keyform.fanOutMesh
 import org.umamo.runtime.keyform.fanOutRotation
 import org.umamo.runtime.keyform.fanOutWarp
+import org.umamo.runtime.keyform.withChannelsCompacted
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
@@ -102,9 +103,12 @@ object Cmo3Import {
 	 * Builds a [PuppetModel] from a CMO3 `CModelSource` root (e.g. from `Cmo3.read(file).root`).
 	 *
 	 * @param CModelSource modelSource The parsed model root.
+	 * @param Boolean compactChannels Whether to run the post-import channel compaction (on by default).
+	 *   Off imports the fanned-out tracks verbatim, which is the reference an equivalence test diffs
+	 *   against and the switch to flip when bisecting a suspected compaction fault.
 	 * @return PuppetModel The concrete runtime puppet.
 	 */
-	fun fromModelSource(modelSource: CModelSource): PuppetModel {
+	fun fromModelSource(modelSource: CModelSource, compactChannels: Boolean = true): PuppetModel {
 		val parameterSources =
 			elementsOf((modelSource.parameterSourceSet as? CParameterSourceSet)?._sources)
 				.filterIsInstance<CParameterSource>()
@@ -496,7 +500,8 @@ object Cmo3Import {
 				worldOriginX = originCanvasX,
 				worldOriginY = -originCanvasY,
 			)
-		return model.copy(renderRoot = model.deriveRenderRoot())
+		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
+		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
 
 	/**
