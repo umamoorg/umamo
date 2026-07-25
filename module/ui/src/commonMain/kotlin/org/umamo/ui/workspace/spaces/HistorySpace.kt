@@ -156,6 +156,7 @@ private fun historyStepLabel(labelKey: String?): String =
 	when (labelKey) {
 		null -> stringResource(Res.string.history_open)
 		"change.selection" -> stringResource(Res.string.history_selection)
+		"change.parameter.select" -> stringResource(Res.string.history_parameter_select)
 		"change.mode" -> stringResource(Res.string.history_mode)
 		"change.part.visibility" -> stringResource(Res.string.history_part_visibility)
 		"change.part.rename" -> stringResource(Res.string.history_part_rename)

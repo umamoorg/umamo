@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
@@ -51,6 +52,70 @@ data class Selection(
 	 * @return Boolean True when [target] is selected.
 	 */
 	operator fun contains(target: SelectionTarget): Boolean = target in targets
+}
+
+/**
+ * The parameters currently targeted for keyform authoring: the selected set plus the active (primary) one.
+ *
+ * Separate from [Selection] because it addresses a different axis of the document - you pick WHICH OBJECT
+ * to key from the object selection, and WHICH PARAMETER to key it on from here, and the two move
+ * independently.  Held on the session rather than a panel's view state because it is shared: a keyform
+ * sheet in one area follows the parameter chosen in a parameters panel in another.
+ *
+ * キーフォーム編集の対象パラメータ。オブジェクト選択とは独立し、エリア間で共有される。
+ */
+data class ParameterSelection(
+	/** The selected parameters, empty when none is targeted. */
+	val ids: Set<ParameterId> = emptySet(),
+	/** The primary parameter (last added), or null when [ids] is empty. */
+	val active: ParameterId? = null,
+) {
+	/** True when no parameter is targeted. */
+	val isEmpty: Boolean get() = ids.isEmpty()
+
+	/**
+	 * Reports whether the given parameter is selected.
+	 *
+	 * @param ParameterId id The parameter to test.
+	 * @return Boolean True when [id] is selected.
+	 */
+	operator fun contains(id: ParameterId): Boolean = id in ids
+
+	companion object {
+		/**
+		 * A selection of just [id], the plain-click result.
+		 *
+		 * @param ParameterId id The sole parameter to select.
+		 * @return ParameterSelection A selection holding only [id], with it active.
+		 */
+		fun of(id: ParameterId): ParameterSelection = ParameterSelection(setOf(id), id)
+	}
+
+	/**
+	 * This selection with [id] toggled (a Shift or primary-modifier click, matching [SelectionOps.toggle]).
+	 *
+	 * @param ParameterId id The parameter to toggle.
+	 * @return ParameterSelection The resulting selection.
+	 */
+	fun toggled(id: ParameterId): ParameterSelection =
+		if (id in ids) {
+			val remaining = ids - id
+			ParameterSelection(remaining, remaining.lastOrNull())
+		} else {
+			ParameterSelection(ids + id, id)
+		}
+
+	/**
+	 * This selection with every parameter not in [surviving] dropped - applied after a parameter is
+	 * deleted, so the target can never dangle on an id the model no longer has.
+	 *
+	 * @param Set<ParameterId> surviving The parameter ids still present in the model.
+	 * @return ParameterSelection The pruned selection, or this when nothing was dropped.
+	 */
+	fun prunedTo(surviving: Set<ParameterId>): ParameterSelection {
+		val kept = ids intersect surviving
+		return if (kept.size == ids.size) this else ParameterSelection(kept, active?.takeIf { it in kept } ?: kept.lastOrNull())
+	}
 }
 
 /**

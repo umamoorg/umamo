@@ -82,6 +82,15 @@ class EditorSession(
 	/** The live object-mode selection. */
 	val selection: StateFlow<Selection> = mutableSelection.asStateFlow()
 
+	private val mutableParameterSelection = MutableStateFlow(ParameterSelection())
+
+	/**
+	 * The parameters targeted for keyform authoring - which parameter an insert would write a key on.
+	 *
+	 * Independent of [selection]: the object selection says WHAT to key, this says on WHICH AXIS.
+	 */
+	val parameterSelection: StateFlow<ParameterSelection> = mutableParameterSelection.asStateFlow()
+
 	private val mutablePose = MutableStateFlow(initialPose)
 
 	/** The live pose (parameter scrub values); the render host mirrors it so undo / redo re-poses. */
@@ -349,6 +358,9 @@ class EditorSession(
 			return
 		}
 		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
+		// The target must never dangle on a parameter the model no longer has.
+		mutableParameterSelection.value =
+			mutableParameterSelection.value.prunedTo(mutableModel.value.parameters.mapTo(HashSet()) { parameter -> parameter.id })
 	}
 
 	/**
@@ -358,6 +370,7 @@ class EditorSession(
 	 *
 	 * @param Selection selection The new selection.
 	 */
+
 	fun setSelection(selection: Selection) {
 		if (selection == mutableSelection.value) {
 			return
@@ -372,6 +385,36 @@ class EditorSession(
 		mutableSelection.value = selection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.SelectionChanged)
+	}
+
+	/**
+	 * Sets the parameters targeted for keyform authoring as its own undo step.
+	 *
+	 * Pushes its own snapshot rather than going through [mutate] / [commit], exactly like [setSelection]:
+	 * neither the model nor the pose changes, so the commit choke point would short-circuit and record
+	 * nothing.  Shared session state rather than a panel's view state, so every area agrees on which
+	 * parameter an insert would write to.
+	 *
+	 * @param ParameterSelection parameterSelection The new target set.
+	 */
+	fun setParameterSelection(parameterSelection: ParameterSelection) {
+		if (parameterSelection == mutableParameterSelection.value) {
+			return
+		}
+		history.push(
+			EditorSnapshot(
+				mutableModel.value,
+				mutableSelection.value,
+				mutablePose.value,
+				mutableMeshSelection.value,
+				mutableMode.value,
+				parameterSelection,
+			),
+			EditorStateChange.ParameterSelectionChanged,
+		)
+		mutableParameterSelection.value = parameterSelection
+		refreshFlags()
+		mutableChanges.tryEmit(EditorStateChange.ParameterSelectionChanged)
 	}
 
 	/**
@@ -1469,6 +1512,7 @@ class EditorSession(
 		mutableSelection.value = snapshot.selection
 		mutablePose.value = snapshot.pose
 		mutableMeshSelection.value = snapshot.meshSelection
+		mutableParameterSelection.value = snapshot.parameterSelection
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
 		// into a snapshot of the other and drive the wrong overlay.

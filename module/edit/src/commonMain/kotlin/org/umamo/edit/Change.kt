@@ -684,6 +684,15 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
+	 * A parameter-target gesture (clicking a parameter row). Its own undo step, like the object and mesh
+	 * selection gestures, so undoing back across a keyform edit restores the parameter it was made on.
+	 */
+	object ParameterSelectionChanged : EditorStateChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.parameter.select"
+	}
+
+	/**
 	 * An Edit-mode element-selection gesture (click, box, deselect). Its own undo step, like its
 	 * object-mode counterpart [SelectionChanged], so a misclick that loses a selection is recoverable.
 	 */

@@ -52,6 +52,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterMoveSubject
+import org.umamo.edit.ParameterSelection
 import org.umamo.edit.RowDropBand
 import org.umamo.edit.Selection
 import org.umamo.edit.createParameter
@@ -212,6 +213,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// to the parameters that drive the selection (effective, through the deformer chain). Inert with no
 	// selection, so the panel is never mysteriously blank. Recomputed only on a puppet / selection / flag change.
 	val selection = LocalSelection.current?.selection ?: Selection()
+	// The keyform-authoring target, shared across areas via the session - a keyform sheet in another area
+	// follows whatever is picked here.
+	val parameterSelection by remember(session) { session?.parameterSelection ?: MutableStateFlow(ParameterSelection()) }.collectAsState()
 	val visibleParamIds =
 		remember(puppet, selection, viewState.showOnlySelected) {
 			if (viewState.showOnlySelected && !selection.isEmpty) {
@@ -465,7 +469,11 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 											) + createMenuItems,
 										modifier = Modifier.weight(1f),
 									) {
-										ParameterIsland(modifier = Modifier.fillMaxWidth()) {
+										ParameterIsland(
+											modifier = Modifier.fillMaxWidth(),
+											selected = parameter.id in parameterSelection,
+											onSelect = { session?.setParameterSelection(ParameterSelection.of(parameter.id)) },
+										) {
 											ParameterSlider(
 												parameter = parameter,
 												keyMarks = keyMarksByParameter[parameter.id],
@@ -570,7 +578,16 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 											) + createMenuItems,
 										modifier = Modifier.weight(1f),
 									) {
-										ParameterIsland(modifier = Modifier.fillMaxWidth()) {
+										ParameterIsland(
+											modifier = Modifier.fillMaxWidth(),
+											selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
+											// A pad targets BOTH its axes: keying on a linked pair means keying on the pair.
+											onSelect = {
+												session?.setParameterSelection(
+													ParameterSelection(setOf(row.horizontal.id, row.vertical.id), row.horizontal.id),
+												)
+											},
+										) {
 											ParameterPad2D(
 												horizontal = row.horizontal,
 												vertical = row.vertical,
@@ -658,17 +675,28 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
  * @param Function content The island's rows.
  */
 @Composable
-private fun ParameterIsland(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun ParameterIsland(
+	modifier: Modifier = Modifier,
+	selected: Boolean = false,
+	onSelect: (() -> Unit)? = null,
+	content: @Composable ColumnScope.() -> Unit,
+) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	Column(
 		modifier =
 			modifier
 				.clip(shapes.medium)
+				.let { base ->
+					// The slider, pad, and name each consume their own pointer input first, so this only fires on
+					// the island's own surface. Scrubbing therefore does NOT retarget: a scrub is a pose gesture,
+					// and making it push a selection undo step would bury the history under drag noise.
+					if (onSelect != null) base.clickable(indication = null, interactionSource = null, onClick = onSelect) else base
+				}
 				.background(colors.headerBackground, shape = shapes.medium)
 				.border(
-					width = 1.dp,
-					color = colors.panelBorder,
+					width = if (selected) 2.dp else 1.dp,
+					color = if (selected) colors.accent else colors.panelBorder,
 					shape = shapes.medium,
 				)
 				.padding(horizontal = 6.dp, vertical = 6.dp),

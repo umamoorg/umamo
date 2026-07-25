@@ -38,6 +38,11 @@ data class EditorSnapshot(
 	val pose: Pose,
 	val meshSelection: MeshSelection = MeshSelection(),
 	val mode: EditorMode = EditorMode.Object,
+	/**
+	 * The parameters targeted for keyform authoring.  Restored like the other selections, so undoing back
+	 * across a parameter click returns the target the edit was made against.
+	 */
+	val parameterSelection: ParameterSelection = ParameterSelection(),
 )
 
 /**

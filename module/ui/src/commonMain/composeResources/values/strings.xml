@@ -160,6 +160,7 @@
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>
+	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
 	<string name="history_parameter_link">Link Parameters</string>
