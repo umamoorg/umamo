@@ -11,7 +11,9 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.gl.GlRenderDevice
 import org.umamo.render.puppet.PuppetRenderer
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
@@ -309,6 +311,7 @@ internal class OffscreenRenderEngine(
 		renderer.initGl()
 		try {
 			var lastParams: Map<ParameterId, Float>? = null
+			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
 			var lastModel: PuppetModel? = null
 			var paramsVersion = 0L
@@ -321,7 +324,10 @@ internal class OffscreenRenderEngine(
 				// the render order - when the pose, the visibility cascade, OR the render order changes. A
 				// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
 				// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
-				if (params !== lastParams || shown !== lastShown || orderModel !== lastModel) {
+				// The override map is compared by identity like the params map: both are swapped wholesale on
+				// the UI thread, so a reference change is exactly "something moved".
+				val overrides = liveParams.channelOverrides
+				if (params !== lastParams || overrides !== lastOverrides || shown !== lastShown || orderModel !== lastModel) {
 					renderer.setShownDrawables(shown)
 					if (orderModel !== lastModel) {
 						// Re-point the renderer at the edited model so the next setPose re-derives the draw order
@@ -329,8 +335,9 @@ internal class OffscreenRenderEngine(
 						renderer.updateModel(orderModel)
 						lastModel = orderModel
 					}
-					renderer.setPose(params)
+					renderer.setPose(params, overrides)
 					lastParams = params
+					lastOverrides = overrides
 					lastShown = shown
 					paramsVersion++
 				}

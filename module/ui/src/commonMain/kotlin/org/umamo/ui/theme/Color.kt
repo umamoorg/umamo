@@ -110,6 +110,17 @@ data class UmamoColors(
 	val controlBackground: Color,
 	val controlBackgroundHover: Color,
 	val controlGlyph: Color,
+	/**
+	 * The pose sits exactly ON a key of this field's channel.  Blender's #d1b727.
+	 *
+	 * The three keyed-field colors are borrowed rather than derived: a rigger coming from Blender reads
+	 * them without being told, and inventing a scheme-matched palette would trade that away for tidiness.
+	 */
+	val keyedOnKey: Color,
+	/** The channel is keyed but the pose is BETWEEN keys - editing here will be lost unless keyed. */
+	val keyedBetween: Color,
+	/** An edit has been made but not keyed; it shows in the viewport and dies on the next scrub. */
+	val keyedModified: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
@@ -190,6 +201,11 @@ val umamoDarkColors =
 		controlBackground = Color(0xFF545454),
 		controlBackgroundHover = Color(0xFF696969), // The NumberField hover fill (a step lighter than the control fill).
 		controlGlyph = Color(0xFFFFFFFF),
+		// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
+		// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.
+		keyedOnKey = Color(0xFFD1B727),
+		keyedBetween = Color(0xFF5FC729),
+		keyedModified = Color(0xFFDF8431),
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
@@ -246,6 +262,9 @@ val umamoLightColors =
 		controlBackground = Color(0xFFDFDFDF),
 		controlBackgroundHover = Color(0xFFCECECE), // The NumberField hover fill; a subtle darken keeps dark text legible in the light theme.
 		controlGlyph = Color(0xFF2E2E2E),
+		keyedOnKey = Color(0xFFD1B727),
+		keyedBetween = Color(0xFF5FC729),
+		keyedModified = Color(0xFFDF8431),
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),

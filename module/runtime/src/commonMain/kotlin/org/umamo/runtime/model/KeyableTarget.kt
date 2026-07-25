@@ -44,3 +44,20 @@ data class KeyableTarget(
 	val owner: KeyformOwner,
 	val channel: FormChannel,
 )
+
+/**
+ * This model's channel tracks for [owner], or null when it has no such entity.
+ *
+ * Public and here rather than private in an editing file because both the edit ops and the UI's keyed-field
+ * tinting need it, and two copies of an owner dispatch is exactly how the two drift.
+ *
+ * @param KeyformOwner owner The entity to look up.
+ * @return ChannelGrids? Its tracks, or null when the entity is absent.
+ */
+fun PuppetModel.channelGridsOf(owner: KeyformOwner): ChannelGrids? =
+	when (owner) {
+		is KeyformOwner.Drawable -> drawables.firstOrNull { it.id == owner.id }?.channelGrids
+		is KeyformOwner.Part -> parts.firstOrNull { it.id == owner.id }?.channelGrids
+		is KeyformOwner.Deformer -> deformers.firstOrNull { it.id == owner.id }?.channelGrids
+		is KeyformOwner.Glue -> glues.firstOrNull { it.meshA == owner.meshA && it.meshB == owner.meshB }?.channelGrids
+	}

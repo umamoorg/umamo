@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
+import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -64,8 +66,16 @@ import kotlin.math.roundToInt
  * @param Modifier modifier      Layout modifier (the caller supplies the width).
  */
 @Composable
-fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+fun HexColorField(
+	value: String,
+	onValueChange: (String) -> Unit,
+	modifier: Modifier = Modifier,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+) {
 	val colors = LocalUmamoColors.current
+	// The keyed tint replaces the ordinary border rather than sitting beside it, so the state reads at a
+	// glance across a column of fields instead of needing a second mark to notice.
+	val borderColor = keyState.tint(colors) ?: colors.controlBorder
 	val shapes = LocalUmamoShapes.current
 	val controller = LocalInlineEditController.current
 	val focusManager = LocalFocusManager.current
@@ -101,7 +111,7 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 						.size(18.dp)
 						.clip(shapes.small)
 						.background(swatchColor)
-						.border(1.dp, colors.controlBorder, shapes.small)
+						.border(1.dp, borderColor, shapes.small)
 						// Opens only.  It must NOT toggle: an outside-click dismiss fires first and closes the
 						// popover, and this click would then immediately reopen it, so the swatch could never
 						// be used to close.  Closing is the popup's own job (click-away or Escape).
@@ -144,7 +154,7 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 					.weight(1f)
 					.clip(shapes.small)
 					.background(colors.controlBackground)
-					.border(1.dp, colors.controlBorder, shapes.small)
+					.border(1.dp, borderColor, shapes.small)
 					.padding(horizontal = 6.dp, vertical = 4.dp)
 					.onFocusChanged { focusState ->
 						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only

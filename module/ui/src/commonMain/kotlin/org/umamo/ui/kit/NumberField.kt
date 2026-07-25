@@ -51,6 +51,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -110,9 +112,11 @@ fun NumberField(
 	plain: Boolean = false,
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
+		keyState = keyState,
 		value = value,
 		range = range,
 		step = step,
@@ -213,6 +217,7 @@ private fun NumberFieldCore(
 	plain: Boolean,
 	enabled: Boolean,
 	stackPosition: StackPosition,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
@@ -227,7 +232,15 @@ private fun NumberFieldCore(
 		if (enabled) {
 			NumberEntryField(display = format(value), shape = shape, modifier = modifier, commit = commitTyped)
 		} else {
-			NumberFieldDisplay(text = format(value), unitSuffix = unitSuffix, fillFraction = null, shape = shape, modifier = modifier, enabled = false)
+			NumberFieldDisplay(
+				text = format(value),
+				unitSuffix = unitSuffix,
+				fillFraction = null,
+				shape = shape,
+				modifier = modifier,
+				enabled = false,
+				keyState = keyState,
+			)
 		}
 		return
 	}
@@ -308,6 +321,7 @@ private fun NumberFieldDisplay(
 	onScrub: (Float) -> Unit = {},
 	onScrubEnd: () -> Unit = {},
 	onStep: (Int) -> Unit = {},
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
@@ -324,7 +338,9 @@ private fun NumberFieldDisplay(
 				.height(NUMBER_FIELD_HEIGHT)
 				.clip(shape)
 				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
-				.border(1.dp, Color.Transparent, shape)
+				// The resting border is transparent by default, so the keyed tint is the whole signal rather
+				// than a recolour of something already there - an unkeyed field looks exactly as it did.
+				.border(1.dp, keyState.tint(colors) ?: Color.Transparent, shape)
 				.then(
 					if (!enabled) {
 						// A disabled field attaches no gesture or cursor affordance at all, so it cannot be

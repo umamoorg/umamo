@@ -22,6 +22,7 @@ import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.channelGridsOf
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
@@ -38,15 +39,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  *
  * スカラー／カラーチャンネルのキーフォーム編集。幾何のキー打ちは逆変換が必要なため別途。
  */
-
-/** This owner's channel tracks, or null when the model has no such entity. */
-private fun PuppetModel.channelGridsOf(owner: KeyformOwner): ChannelGrids? =
-	when (owner) {
-		is KeyformOwner.Drawable -> drawables.firstOrNull { it.id == owner.id }?.channelGrids
-		is KeyformOwner.Part -> parts.firstOrNull { it.id == owner.id }?.channelGrids
-		is KeyformOwner.Deformer -> deformers.firstOrNull { it.id == owner.id }?.channelGrids
-		is KeyformOwner.Glue -> glues.firstOrNull { it.meshA == owner.meshA && it.meshB == owner.meshB }?.channelGrids
-	}
 
 /**
  * This owner's STATIC value for [channel] - what the channel reads when it has no track.

@@ -19,12 +19,14 @@ import org.umamo.edit.setPartDrawOrder
 import org.umamo.edit.setPartGroupMode
 import org.umamo.edit.setPartSketch
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.channelGridsOf
 import org.umamo.runtime.model.displayMultiplyColor
 import org.umamo.runtime.model.displayScreenColor
 import org.umamo.ui.graphics.formatHexColor
@@ -132,10 +134,20 @@ internal val BlendSection =
 								),
 						) {
 							HexColorField(
+								keyState = keyedFieldStateOf(drawable, FormChannel.MULTIPLY_COLOR),
 								value = formatHexColor(drawable.displayMultiplyColor().toComposeColor()),
 								onValueChange = { hex ->
 									parseHexColor(hex)?.let { picked ->
-										session?.setDrawableMultiplyColor(drawable.id, picked.toColorRgb())
+										// A KEYED channel takes the edit as a pending unkeyed value: writing the static
+										// would be shadowed by the track, so the edit would appear to do nothing. It
+										// previews in the viewport and waits for `I`. An unkeyed channel has no track to
+										// shadow it, so the static is the real store and the edit lands there directly.
+										val target = KeyableTarget(KeyformOwner.Drawable(drawable.id), FormChannel.MULTIPLY_COLOR)
+										if (session != null && session.model.value.channelGridsOf(target.owner)?.get(target.channel) != null) {
+											session.setPendingChannelEdit(target, ChannelValue.Color(picked.toColorRgb()))
+										} else {
+											session?.setDrawableMultiplyColor(drawable.id, picked.toColorRgb())
+										}
 									}
 								},
 								modifier = Modifier.fillMaxWidth(),
@@ -151,10 +163,20 @@ internal val BlendSection =
 								),
 						) {
 							HexColorField(
+								keyState = keyedFieldStateOf(drawable, FormChannel.SCREEN_COLOR),
 								value = formatHexColor(drawable.displayScreenColor().toComposeColor()),
 								onValueChange = { hex ->
 									parseHexColor(hex)?.let { picked ->
-										session?.setDrawableScreenColor(drawable.id, picked.toColorRgb())
+										// A KEYED channel takes the edit as a pending unkeyed value: writing the static
+										// would be shadowed by the track, so the edit would appear to do nothing. It
+										// previews in the viewport and waits for `I`. An unkeyed channel has no track to
+										// shadow it, so the static is the real store and the edit lands there directly.
+										val target = KeyableTarget(KeyformOwner.Drawable(drawable.id), FormChannel.SCREEN_COLOR)
+										if (session != null && session.model.value.channelGridsOf(target.owner)?.get(target.channel) != null) {
+											session.setPendingChannelEdit(target, ChannelValue.Color(picked.toColorRgb()))
+										} else {
+											session?.setDrawableScreenColor(drawable.id, picked.toColorRgb())
+										}
 									}
 								},
 								modifier = Modifier.fillMaxWidth(),
