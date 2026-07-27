@@ -370,33 +370,29 @@ jobs:
           cat > "${notes}" <<'NOTES'
           ## Downloads
 
-          | File | For |
-          | --- | --- |
-          | `umamo-<version>-<target>.zip` / `.tar.gz` | Self-contained app image. Bundles a Java runtime — unpack and run. |
-          | `umamo-<version>-<target>.jar` | Runnable uber jar. Needs a JDK/JRE 21 already installed: `java -jar umamo-….jar` |
+          | File                                       | For                                                                               |
+          | ------------------------------------------ | --------------------------------------------------------------------------------- |
+          | `umamo-<version>-<target>.zip` / `.tar.gz` | Self-contained app image. Bundles a Java runtime — unpack and run.                |
+          | `umamo-<version>-<target>.jar`             | Runnable uber jar.  Needs a JDK/JRE 21 already installed: `java -jar umamo-….jar` |
 
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
 
-          **macOS ships as the jar only for now.** A jpackage bug rejects any app version starting
-          with `0`, and the fix is not in any released JDK yet, so there is no macOS app image until
-          JDK 27 arrives. Install a JDK 21 or newer and run `java -jar umamo-….jar`.
+          **MacOS ships as the jar only for now.** A jpackage bug rejects any app version starting with `0`, and the fix is not in any released JDK yet, so there is no macOS app image until JDK 27 arrives.  Install a JDK 21 or newer and run `java -jar umamo-….jar`.
 
           ## These builds are not signed
 
           Code signing and notarization arrive at alpha. Until then:
 
-          - Windows — SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
-          - macOS — the jar is unaffected by Gatekeeper quarantine, so nothing extra is needed while
-            macOS ships as a jar.
-          - Linux — no equivalent prompt. `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
+          - Windows: SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
+          - MacOS: The JAR is unaffected by Gatekeeper quarantine, so nothing extra is needed while MacOS ships as a JAR.
+          - Linux: No equivalent prompt. Extract `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
 
-          There are no installers yet and no auto-update: to upgrade, delete the old folder and
-          unpack the new one.
+          There are no installers yet and no auto-update: to upgrade, delete the old folder and unpack the new one.
 
           ## Status
 
-          Umamo is early alpha. Keep backups of your project files, and work on copies.
+          Umamo is early alpha.  Keep backups of your project files and work on copies.
           NOTES
 
           assets=(dist/*)
