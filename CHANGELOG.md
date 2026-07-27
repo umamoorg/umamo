@@ -6,7 +6,7 @@ Umamo is early alpha.  Entries are grouped under the version they ship in; secti
 
 ## [Unreleased]
 
-## [0.1.0-dev] - 2026-07-27
+## 0.1.0-dev - 2026-07-27
 
 ### Added
 
@@ -23,11 +23,11 @@ Umamo is early alpha.  Entries are grouped under the version they ship in; secti
 ### Fixed
 
 * Deformer opacity and multiply/screen color keyforms are now applied and cascade down the deformer hierarchy, so keying a deformer's opacity to show/hide a subtree, or its tint color to color a group animates correctly instead of being ignored.
-* CMO3 artwork that wasn't packed into a texture atlas rendered enlarged with its outer margin clipped because its UVs weren't remapped through the image's logical-frame transform.
+* CMO3 artwork that wasn't packed into a texture atlas rendered enlarged with its outer margin clipped because its UVs weren't remapped through the image's logical frame transform.
 * The legacy "Add"/"Multiply" blend modes rendered with incorrect, non-premultiplied math whenever Alpha Blend was set to anything other than "Over".
 * The "Out" alpha blend mode cut a hole in the wrong layer(source instead of destination) inverting the intended silhouette effect.
 * Extended blend modes(Multiply, Screen, Overlay, etc.) mis-blended under Conjoint/Disjoint alpha blending because the blend mix weight ignored the selected alpha mode; unpremultiplied colors are now also clamped to avoid out of range artifacts.
-* MOC3-imported drawables' multiply/screen tint keyforms were silently dropped when rest-mesh geometry was rebased to canvas space.
+* MOC3-imported drawables' multiply/screen tint keyforms were silently dropped when rest mesh geometry was rebased to canvas space.
 
 ## 2026-07-14 – 2026-07-20
 
