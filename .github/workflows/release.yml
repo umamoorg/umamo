@@ -279,15 +279,26 @@ jobs:
 
       # 7z, not Compress-Archive: the app image is ~230 MB spread over several thousand files, a
       # shape Compress-Archive takes minutes on. 7z ships on the windows runner image.
+      #
+      # Push-Location into the app-image directory first and archive the bare "umamo" name — 7z's
+      # default is to preserve whatever relative path you hand it inside the archive, so pointing it
+      # at the full build path bakes app\desktop\build\compose\binaries\main\app\umamo\ into every
+      # entry, which is what a user then has to click through after unzipping. cd'ing there first
+      # keeps the archive root flat, matching the Linux (`tar -C`) and macOS (`ditto --keepParent`)
+      # legs, which already avoid this.
       - name: Archive the app image (Windows)
         if: matrix.appImage && runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          7z a -tzip -mx=5 `
-            "dist\umamo-$env:UMAMO_VERSION-$env:UMAMO_TARGET.zip" `
-            "app\desktop\build\compose\binaries\main\app\umamo" | Out-Null
+          $distPath = (Resolve-Path dist).Path
+          Push-Location "app\desktop\build\compose\binaries\main\app"
+          try {
+            7z a -tzip -mx=5 "$distPath\umamo-$env:UMAMO_VERSION-$env:UMAMO_TARGET.zip" umamo | Out-Null
+          } finally {
+            Pop-Location
+          }
 
       # An exact path, not a glob: the name is pinned by :desktop's archiveFileName override, so if
       # that convention ever changes this fails here instead of shipping a release with a hole in it.
