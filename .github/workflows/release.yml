@@ -136,19 +136,28 @@ jobs:
       # One platform failing should not hide whether the other four work — on a release run that is
       # the difference between one fix-and-retag and four.
       fail-fast: false
+      # appImage gates createDistributable and the archive/assert steps that depend on it. It is
+      # false on macOS ONLY because of a jpackage bug, not anything about the app:
+      # jdk.jpackage.internal.CFBundleVersion rejects a CFBundleVersion whose first component is
+      # zero, so any 0.x version fails createDistributable on macOS alone. JDK-8380634 deleted that
+      # check on 2026-03-30, but it landed after JDK 26 forked — 21, 25 (LTS) and 26 (latest GA) all
+      # still carry it, so there is no released JDK to move to. Rather than mangle the version or
+      # ship an early-access runtime, the macOS legs publish the uber jar only until JDK 27 is GA
+      # (~September 2026). TO RESTORE: set these two back to true. Nothing else needs to change.
       matrix:
         include:
-          - { target: linux-x64, runner: ubuntu-latest }
-          - { target: linux-arm64, runner: ubuntu-24.04-arm }
-          - { target: windows-x64, runner: windows-latest }
-          - { target: macos-arm64, runner: macos-latest }
+          - { target: linux-x64, runner: ubuntu-latest, appImage: true }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm, appImage: true }
+          - { target: windows-x64, runner: windows-latest, appImage: true }
+          - { target: macos-arm64, runner: macos-latest, appImage: false }
           # macos-15-intel is the last x86-64 macOS image GitHub will offer; it retires in August
           # 2027, after which this leg has to go and Intel Mac users fall back to the uber jar under
           # an x64 JDK. (The older macos-13 label was retired in December 2025 — do not resurrect it.)
-          - { target: macos-x64, runner: macos-15-intel }
+          - { target: macos-x64, runner: macos-15-intel, appImage: false }
     env:
       UMAMO_VERSION: ${{ needs.verify.outputs.version }}
       UMAMO_TARGET: ${{ matrix.target }}
+      UMAMO_APP_IMAGE: ${{ matrix.appImage }}
     steps:
       - uses: actions/checkout@v7
 
@@ -195,13 +204,20 @@ jobs:
       - name: Build the app image and the uber jar
         shell: bash
         run: |
+          set -euo pipefail
+          tasks=":desktop:packageUberJarForCurrentOS"
+          if [ "${UMAMO_APP_IMAGE}" = "true" ]; then
+            tasks=":desktop:createDistributable ${tasks}"
+          else
+            echo "::notice::${UMAMO_TARGET}: app image skipped, publishing the uber jar only (see the matrix comment in this workflow)"
+          fi
+          # shellcheck disable=SC2086  # tasks is a deliberate word-split list of Gradle task paths.
           ./gradlew --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8" \
             -Pkotlin.daemon.jvmargs=-Xmx2g \
             -Pumamo.target="${UMAMO_TARGET}" \
             -Pumamo.requireTargetIsHost=true \
-            :desktop:createDistributable \
-            :desktop:packageUberJarForCurrentOS
+            ${tasks}
 
       # jlink writes a `release` descriptor listing MODULES into every runtime image and jpackage
       # copies it into the app image verbatim, so this is a launch-free check that :desktop's
@@ -210,6 +226,7 @@ jobs:
       # packaged binary. The descriptor's depth differs per OS (macOS nests the runtime inside the
       # .app bundle), so find it rather than hard-coding a path.
       - name: Assert the bundled runtime carries the modules the app needs
+        if: matrix.appImage
         shell: bash
         run: |
           set -euo pipefail
@@ -236,7 +253,7 @@ jobs:
       # execute bit on bin/umamo and the runtime's helper binaries. -C so the archive root is
       # `umamo/` rather than the whole build path.
       - name: Archive the app image (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.appImage && runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
@@ -244,11 +261,14 @@ jobs:
           tar -C "app/desktop/build/compose/binaries/main/app" \
               -czf "dist/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.tar.gz" umamo
 
+      # Currently inert — matrix.appImage is false on both macOS legs (see the matrix comment). Kept
+      # rather than deleted so restoring macOS app images at JDK 27 GA is only a matrix flip.
+      #
       # ditto, not zip: a .app is a bundle of symlinks, execute bits and extended attributes, and
       # /usr/bin/zip flattens enough of that to produce something Finder refuses to open.
       # `-c -k --keepParent` is Apple's own recipe and keeps `umamo.app` as the archive root.
       - name: Archive the app image (macOS)
-        if: runner.os == 'macOS'
+        if: matrix.appImage && runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -260,7 +280,7 @@ jobs:
       # 7z, not Compress-Archive: the app image is ~230 MB spread over several thousand files, a
       # shape Compress-Archive takes minutes on. 7z ships on the windows runner image.
       - name: Archive the app image (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.appImage && runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -358,16 +378,17 @@ jobs:
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
 
+          **macOS ships as the jar only for now.** A jpackage bug rejects any app version starting
+          with `0`, and the fix is not in any released JDK yet, so there is no macOS app image until
+          JDK 27 arrives. Install a JDK 21 or newer and run `java -jar umamo-….jar`.
+
           ## These builds are not signed
 
           Code signing and notarization arrive at alpha. Until then:
 
-          - macOS — Gatekeeper quarantines the app and reports it as *damaged*, which reads like a
-            corrupt download but is not. After unzipping:
-            ```
-            xattr -dr com.apple.quarantine /path/to/umamo.app
-            ```
           - Windows — SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
+          - macOS — the jar is unaffected by Gatekeeper quarantine, so nothing extra is needed while
+            macOS ships as a jar.
           - Linux — no equivalent prompt. `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
 
           There are no installers yet and no auto-update: to upgrade, delete the old folder and
