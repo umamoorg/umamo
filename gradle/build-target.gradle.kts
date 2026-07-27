@@ -1,26 +1,24 @@
-// EN: Shared build-target resolution. Applied via `apply(from = …)` by every module that bundles
-//     platform-specific LWJGL natives — :desktop and :render today. It works out the "<os>-<arch>"
-//     token the build is targeting (defaulting to the host), honoring -Pumamo.target to cross-resolve
-//     so a Windows-native artifact can be produced from, say, WSL2 Linux:
+// Shared build-target resolution. Applied via `apply(from = …)` by every module that bundles
+// platform-specific LWJGL natives — :desktop and :render today. It works out the "<os>-<arch>"
+// token the build is targeting (defaulting to the host), honoring -Pumamo.target to cross-resolve
+// so a Windows-native artifact can be produced from, say, WSL2 Linux:
 //
-//         ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
+//     ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
 //
-//     then launched from the Windows side. This only swaps which prebuilt natives get bundled — JVM
-//     bytecode is platform-independent, so there is no real cross-compiler involved. (jpackage
-//     installers like .msi/.dmg must still be produced ON the target OS; only a runnable uber-jar is
-//     portable this way.)
+// then launched from the Windows side. This only swaps which prebuilt natives get bundled — JVM
+// bytecode is platform-independent, so there is no real cross-compiler involved. (jpackage
+// installers like .msi/.dmg must still be produced ON the target OS; only a runnable uber-jar is
+// portable this way.)
 //
-//     The result is handed back to the applying module through two extra properties:
-//       umamoBuildTarget  — the resolved "<os>-<arch>" string (e.g. "windows-x64")
-//       umamoLwjglNatives — the matching LWJGL natives classifier (e.g. "natives-windows")
+// The result is handed back to the applying module through two extra properties:
+//   umamoBuildTarget  — the resolved "<os>-<arch>" string (e.g. "windows-x64")
+//   umamoLwjglNatives — the matching LWJGL natives classifier (e.g. "natives-windows")
 //
-//     Why centralize: both :desktop and :render bundle LWJGL natives, and host-detection logic living in
-//     only one place means the two can never drift apart — otherwise a Windows build could bundle one
-//     module's Linux natives and silently fail to launch. The Compose/Skiko side stays in :desktop alone,
-//     because the `compose.desktop.<target>` accessors only resolve inside a `dependencies {}` block —
-//     :desktop reads umamoBuildTarget from here and maps it there.
-// JA: 共有のビルド対象解決スクリプト。LWJGL ネイティブを同梱する各モジュールが apply(from=) で取り込む。
-//     -Pumamo.target=windows-x64 等で他プラットフォーム向けに解決でき、WSL2 から Windows 用 jar を作れる。
+// Why centralize: both :desktop and :render bundle LWJGL natives, and host-detection logic living in
+// only one place means the two can never drift apart — otherwise a Windows build could bundle one
+// module's Linux natives and silently fail to launch. The Compose/Skiko side stays in :desktop alone,
+// because the `compose.desktop.<target>` accessors only resolve inside a `dependencies {}` block —
+// :desktop reads umamoBuildTarget from here and maps it there.
 
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
@@ -54,6 +52,20 @@ require(resolvedTarget in recognizedTargets) {
 }
 if (requestedTarget != null) {
 	logger.lifecycle("[${project.path}] resolving natives for $resolvedTarget (build host is $hostTarget)")
+}
+
+// Release packaging must never cross-resolve. Unlike the uber jar, a jpackage app image jlinks
+// the HOST JDK into itself, so a mismatched -Pumamo.target bundles one platform's Skiko/LWJGL
+// natives inside another platform's runtime — an artifact that runs nowhere, and one nothing
+// downstream can detect. The release workflow passes -Pumamo.target explicitly (so artifact
+// names are a function of the matrix rather than of what the runner reported) AND this flag, so
+// an unexpected runner os.arch fails the build instead of shipping a broken download. Same
+// shape as -Dumamo.requireGl in the GL tests: opt-in, and only CI opts in.
+val requireTargetIsHost = (findProperty("umamo.requireTargetIsHost") as String?).toBoolean()
+require(!requireTargetIsHost || resolvedTarget == hostTarget) {
+	"-Pumamo.requireTargetIsHost=true, but -Pumamo.target='$resolvedTarget' is not the build host " +
+		"'$hostTarget'. An app image jlinks the host JDK, so cross-resolving natives here produces " +
+		"an artifact that runs nowhere."
 }
 
 // EN: LWJGL publishes its per-platform natives under these classifiers (org.lwjgl:lwjgl::natives-windows, …).

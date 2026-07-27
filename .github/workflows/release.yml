@@ -1,0 +1,405 @@
+# Release: pushing a semver tag verifies the version, runs the full test suite, and publishes
+# self-contained app images plus runnable uber jars for all five supported desktop targets.
+#
+# Deliberately out of scope until alpha: code signing, notarization, native installers
+# (.msi/.dmg/.deb/.rpm) and auto-update. What ships here is an unzip-and-run app image with a
+# bundled JRE, plus a jar for people who already have a JVM. See RELEASING.md.
+name: Release
+
+on:
+  push:
+    # These are GitHub filter patterns, not regex: `+` means "one or more of the preceding
+    # character", so `[0-9]+` is one-or-more digits and `.` is a literal dot. Two patterns rather
+    # than one trailing `*` so it is obvious that prerelease tags are supported ON PURPOSE —
+    # ProjectInfo.kt declares 0.1.0-dev today, so `v0.1.0-dev` has to be a legal release tag, and
+    # gradle/project-version.gradle.kts already strips the suffix for jpackage. The verify job
+    # re-checks the tag against a strict semver regex, so these globs are only a coarse filter.
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  # Dry run. Builds and tests everything and uploads all five targets as workflow artifacts, but
+  # publishes nothing — so the whole pipeline can be exercised from a branch before any tag exists.
+  workflow_dispatch:
+
+# Least privilege at the workflow level; only the `release` job widens it, and only to contents:write.
+permissions:
+  contents: read
+
+# Serialise per ref, but NEVER cancel in progress: unlike CI, a cancelled run here can leave a
+# half-uploaded release behind. A superseded release run is cheap; a torn one is not.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # -----------------------------------------------------------------------------------------------
+  # 1. The version gate. ProjectInfo.kt IS the version (its docblock forbids a second definition),
+  #    so this workflow VERIFIES the tag against it and never injects a version. Runs first and
+  #    alone: a mismatch should cost ~30 seconds, not a five-way packaging matrix.
+  # -----------------------------------------------------------------------------------------------
+  verify:
+    name: Verify version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      publish: ${{ steps.resolve.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve and cross-check the version
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          project_info="module/ui/src/commonMain/kotlin/org/umamo/ui/help/ProjectInfo.kt"
+
+          # The same constant gradle/project-version.gradle.kts parses. POSIX sed with a
+          # bracket-expression for whitespace, so this needs nothing installed and behaves the same
+          # on every runner image.
+          declared="$(sed -n 's/.*VERSION[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${project_info}" | head -n1)"
+          if [ -z "${declared}" ]; then
+            echo "::error file=${project_info}::VERSION constant not found — the build derives its version from it"
+            exit 1
+          fi
+          echo "ProjectInfo.VERSION = ${declared}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+            publish=true
+          else
+            # workflow_dispatch: no tag exists. Synthesise the one this commit WOULD ship under, so a
+            # dry run produces identically-named artifacts, and publish nothing.
+            tag="v${declared}"
+            publish=false
+          fi
+          echo "tag = ${tag}  (publish=${publish})"
+
+          case "${tag}" in
+            v*) version="${tag#v}" ;;
+            *)  echo "::error::tag '${tag}' must start with 'v'"; exit 1 ;;
+          esac
+
+          # Strict semver. The push filter above is a glob and would happily accept 'v1.2.3nonsense'.
+          if ! printf '%s' "${version}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "::error::tag '${tag}' is not a semantic version"
+            exit 1
+          fi
+
+          # THE gate. Fail loudly and say exactly what to do, because the fix is never "re-run".
+          if [ "${version}" != "${declared}" ]; then
+            echo "::error file=${project_info}::tag '${tag}' does not match ProjectInfo.VERSION '${declared}'. Bump the constant (and CHANGELOG.md), commit, delete the tag, and re-tag. This workflow never injects a version."
+            exit 1
+          fi
+
+          # A semver prerelease is anything with a '-' after MAJOR.MINOR.PATCH. 0.1.0-dev qualifies,
+          # which is correct: everything before alpha should be marked as such on the release page.
+          case "${version}" in
+            *-*) prerelease=true ;;
+            *)   prerelease=false ;;
+          esac
+
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "prerelease=${prerelease}"
+            echo "publish=${publish}"
+          } >> "${GITHUB_OUTPUT}"
+
+  # -----------------------------------------------------------------------------------------------
+  # 2. The quality gate — literally the same suite every push and PR runs, called as a reusable
+  #    workflow so the two cannot drift. Nothing is packaged until this is green.
+  # -----------------------------------------------------------------------------------------------
+  test:
+    name: Verification suite
+    needs: verify
+    uses: ./.github/workflows/verification.yml
+    permissions:
+      contents: read
+
+  # -----------------------------------------------------------------------------------------------
+  # 3. Packaging, one leg per shipped target. Each leg produces exactly two files:
+  #      umamo-<version>-<target>.{tar.gz|zip}  — self-contained app image (bundled JRE)
+  #      umamo-<version>-<target>.jar           — uber jar, needs a JDK/JRE 21 on the machine
+  #    Every leg builds ON its own OS/arch: an app image jlinks the HOST JDK into itself, so unlike
+  #    the uber jar it genuinely cannot be cross-produced.
+  # -----------------------------------------------------------------------------------------------
+  package:
+    name: Package ${{ matrix.target }}
+    needs: [verify, test]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      # One platform failing should not hide whether the other four work — on a release run that is
+      # the difference between one fix-and-retag and four.
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-latest }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: windows-x64, runner: windows-latest }
+          - { target: macos-arm64, runner: macos-latest }
+          # macos-15-intel is the last x86-64 macOS image GitHub will offer; it retires in August
+          # 2027, after which this leg has to go and Intel Mac users fall back to the uber jar under
+          # an x64 JDK. (The older macos-13 label was retired in December 2025 — do not resurrect it.)
+          - { target: macos-x64, runner: macos-15-intel }
+    env:
+      UMAMO_VERSION: ${{ needs.verify.outputs.version }}
+      UMAMO_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # jlink and jpackage come from the JVM the Gradle DAEMON runs on, not from jvmToolchain(21) —
+      # the Compose plugin defaults its javaHome to the `java.home` system property, and
+      # gradle/gradle-daemon-jvm.properties pins the daemon to 21. Temurin specifically: the plugin's
+      # checkRuntime task hard-errors on a Homebrew JDK, which is what a bare `brew install` leaves
+      # on PATH.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # No Android SDK step here, unlike the verification suite. Every KMP library module applies
+      # AGP's com.android.kotlin.multiplatform.library and Gradle configures all projects even for a
+      # :desktop-only task graph, so this looked like it would be required — but it measurably is
+      # not: `env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :desktop:createDistributable
+      # --dry-run --no-configuration-cache` configures all seven android targets and resolves the
+      # task graph cleanly. Skipping it saves ~40 s per leg and avoids the arm64-Linux problem that
+      # Google ships only x86-64 build-tools binaries.
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          # A tag build is read-only by default (it is not the default branch), but say so
+          # explicitly: five legs racing to write one cache is pure waste, and a release must never
+          # be the run that poisons the cache every PR then reads.
+          cache-read-only: true
+
+      # -Pumamo.target is passed EXPLICITLY rather than left to host detection, for two reasons:
+      #   * the uber jar's name embeds it (see :desktop's archiveFileName override), so artifact
+      #     names become a function of the matrix instead of a function of what the runner reported;
+      #   * paired with -Pumamo.requireTargetIsHost it turns a runner-image surprise — an unexpected
+      #     os.arch — into a build failure rather than a jar full of the wrong natives.
+      #
+      # Do NOT add `check` or `build` to this job. `check` pulls compileKotlinIosArm64 in :format,
+      # :runtime, and :render, and ubuntu-24.04-arm is not a supported Kotlin/Native host. The
+      # verification suite above is where testing happens.
+      #
+      # The heap overrides are not cosmetic: gradle.properties asks for a 4 GB Gradle daemon and the
+      # Kotlin daemon mirrors it, which is ~8 GB against the arm64 macOS runner's ~7 GB. 2 GB each
+      # fits every runner in the matrix and is ample for a :desktop-only task graph.
+      - name: Build the app image and the uber jar
+        shell: bash
+        run: |
+          ./gradlew --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8" \
+            -Pkotlin.daemon.jvmargs=-Xmx2g \
+            -Pumamo.target="${UMAMO_TARGET}" \
+            -Pumamo.requireTargetIsHost=true \
+            :desktop:createDistributable \
+            :desktop:packageUberJarForCurrentOS
+
+      # jlink writes a `release` descriptor listing MODULES into every runtime image and jpackage
+      # copies it into the app image verbatim, so this is a launch-free check that :desktop's
+      # modules(...) list still covers what the app actually uses. Without it a missing module is
+      # invisible until a user hits NoClassDefFoundError, because nothing in CI ever starts the
+      # packaged binary. The descriptor's depth differs per OS (macOS nests the runtime inside the
+      # .app bundle), so find it rather than hard-coding a path.
+      - name: Assert the bundled runtime carries the modules the app needs
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="app/desktop/build/compose/binaries/main/app"
+          release_file="$(find "${root}" -maxdepth 8 -type f -name release | head -n1)"
+          if [ -z "${release_file}" ]; then
+            echo "::error::no jlink release descriptor under ${root} — did createDistributable actually run?"
+            exit 1
+          fi
+          echo "runtime descriptor: ${release_file}"
+          modules_line="$(grep '^MODULES=' "${release_file}")"
+          echo "${modules_line}"
+          for module in java.base java.desktop java.instrument java.logging java.sql java.xml jdk.security.auth jdk.unsupported; do
+            case "${modules_line}" in
+              *"${module}"*) ;;
+              *)
+                echo "::error::bundled runtime is missing ${module} — add it to nativeDistributions.modules in app/desktop/build.gradle.kts"
+                exit 1
+                ;;
+            esac
+          done
+
+      # tar, not zip, on Linux: it is the only one of the three archivers here that preserves the
+      # execute bit on bin/umamo and the runtime's helper binaries. -C so the archive root is
+      # `umamo/` rather than the whole build path.
+      - name: Archive the app image (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -C "app/desktop/build/compose/binaries/main/app" \
+              -czf "dist/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.tar.gz" umamo
+
+      # ditto, not zip: a .app is a bundle of symlinks, execute bits and extended attributes, and
+      # /usr/bin/zip flattens enough of that to produce something Finder refuses to open.
+      # `-c -k --keepParent` is Apple's own recipe and keeps `umamo.app` as the archive root.
+      - name: Archive the app image (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ditto -c -k --keepParent \
+            "app/desktop/build/compose/binaries/main/app/umamo.app" \
+            "dist/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.zip"
+
+      # 7z, not Compress-Archive: the app image is ~230 MB spread over several thousand files, a
+      # shape Compress-Archive takes minutes on. 7z ships on the windows runner image.
+      - name: Archive the app image (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          7z a -tzip -mx=5 `
+            "dist\umamo-$env:UMAMO_VERSION-$env:UMAMO_TARGET.zip" `
+            "app\desktop\build\compose\binaries\main\app\umamo" | Out-Null
+
+      # An exact path, not a glob: the name is pinned by :desktop's archiveFileName override, so if
+      # that convention ever changes this fails here instead of shipping a release with a hole in it.
+      - name: Collect the uber jar
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "app/desktop/build/compose/jars/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.jar" dist/
+          ls -lh dist/
+
+      - name: Upload this target's artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          # Must be unique per matrix leg — the action errors rather than merging same-named uploads.
+          # The release job re-merges them with `pattern` + `merge-multiple`.
+          name: umamo-${{ matrix.target }}
+          path: dist/*
+          # A leg that produced nothing must fail here, not quietly ship a four-asset release.
+          if-no-files-found: error
+          # Everything in dist/ is already a compressed archive or a jar (itself a zip); re-deflating
+          # incompressible bytes would cost minutes per leg and save nothing.
+          compression-level: 0
+          # These are intermediates — the release page is the durable copy. Long enough to debug a
+          # failed publish, short enough not to hoard ~1.4 GB per run.
+          retention-days: 7
+
+  # -----------------------------------------------------------------------------------------------
+  # 4. Publish. Uses the gh CLI rather than a marketplace action on purpose: gh is preinstalled on
+  #    every GitHub-hosted runner, so this — the only job holding contents:write — hands that token
+  #    to no third-party code. It is also one less action version to pin and audit, and the
+  #    behaviour on a re-run is ours to define rather than something to discover.
+  # -----------------------------------------------------------------------------------------------
+  release:
+    name: Publish GitHub release
+    needs: [verify, package]
+    # Dry runs stop after `package`: the artifacts are on the run page, nothing is published, and
+    # there is nothing to clean up afterwards.
+    if: needs.verify.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # The only elevated permission anywhere in this workflow, scoped to the one job that needs it.
+      # Creating a release and uploading its assets is all contents:write buys; nothing here wants
+      # packages:, id-token: or actions:.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download every target's artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: umamo-*
+          merge-multiple: true
+          path: dist
+
+      # Computed here, once, on one machine, in one format — rather than five per-OS variants of
+      # sha256sum/shasum/Get-FileHash that would then have to agree on output shape. The explicit
+      # `umamo-*` prefix keeps the checksum file from ever hashing itself.
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum umamo-* | tee SHA256SUMS.txt
+          ls -lh
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify.outputs.tag }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          # The unsigned-build warnings are not boilerplate: without them the first thing most users
+          # meet is an OS refusing to run the download. Unsigned is a deliberate pre-alpha choice, so
+          # the consequence belongs at the point of download.
+          notes="$(mktemp)"
+          cat > "${notes}" <<'NOTES'
+          ## Downloads
+
+          | File | For |
+          | --- | --- |
+          | `umamo-<version>-<target>.zip` / `.tar.gz` | Self-contained app image. Bundles a Java runtime — unpack and run. |
+          | `umamo-<version>-<target>.jar` | Runnable uber jar. Needs a JDK/JRE 21 already installed: `java -jar umamo-….jar` |
+
+          Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
+          Verify your download against `SHA256SUMS.txt`.
+
+          ## These builds are not signed
+
+          Code signing and notarization arrive at alpha. Until then:
+
+          - macOS — Gatekeeper quarantines the app and reports it as *damaged*, which reads like a
+            corrupt download but is not. After unzipping:
+            ```
+            xattr -dr com.apple.quarantine /path/to/umamo.app
+            ```
+          - Windows — SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
+          - Linux — no equivalent prompt. `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
+
+          There are no installers yet and no auto-update: to upgrade, delete the old folder and
+          unpack the new one.
+
+          ## Status
+
+          Umamo is early alpha. Keep backups of your project files, and work on copies.
+          NOTES
+
+          assets=(dist/*)
+
+          # A re-run of a failed publish must converge, not collide.
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release ${TAG} already exists — replacing its assets"
+            gh release upload "${TAG}" "${assets[@]}" --clobber
+          else
+            args=(
+              --title "Umamo ${VERSION}"
+              --notes-file "${notes}"
+              # Appends the auto-generated commit/PR list after the hand-written notes above.
+              --generate-notes
+              # DRAFT on purpose. A draft is invisible to non-collaborators, notifies nobody, stays
+              # out of the releases Atom feed, and is never "latest" — so a bad build can be deleted
+              # as though it had never existed. Publishing is one click, or:
+              #   gh release edit <tag> --draft=false
+              --draft
+            )
+            if [ "${PRERELEASE}" = "true" ]; then
+              args+=(--prerelease)
+            fi
+            gh release create "${TAG}" "${args[@]}" "${assets[@]}"
+          fi
+
+          gh release view "${TAG}"

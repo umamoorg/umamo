@@ -229,7 +229,7 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 
 # Build and Distribute
-* We need to setup packageDistributionForCurrentOS and associated Github Actions.
+* Eventually get installers, signing, and automatic updates setup.
 
 ## Input
 

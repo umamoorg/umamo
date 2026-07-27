@@ -2,7 +2,17 @@
 
 All notable changes to Umamo will be documented in this file.
 
-Umamo is early alpha and has no versioned releases yet, so entries are grouped by date range rather than version number.
+Umamo is early alpha.  Entries are grouped under the version they ship in; sections predating the first tagged release are still grouped by date range.
+
+## [Unreleased]
+
+### Added
+
+* Tagged releases: pushing a `vX.Y.Z` tag builds, tests, and publishes desktop artifacts for `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, and `macos-x64` which are self contained application images with a bundled JRE plus a runnable uber jar per target.  Unsigned, no installer, no auto-update yet.  See [RELEASING.md](RELEASING.md).
+
+### Fixed
+
+* The packaged desktop application no longer bakes the build machine's absolute path to the developer corpus file into its launcher configuration.
 
 ## 2026-07-14 – 2026-07-20
 
