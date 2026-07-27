@@ -381,10 +381,10 @@ jobs:
           cat > "${notes}" <<'NOTES'
           ## Downloads
 
-          | File                                       | For                                                                               |
-          | ------------------------------------------ | --------------------------------------------------------------------------------- |
-          | `umamo-<version>-<target>.zip` / `.tar.gz` | Self-contained app image. Bundles a Java runtime — unpack and run.                |
-          | `umamo-<version>-<target>.jar`             | Runnable uber jar.  Needs a JDK/JRE 21 already installed: `java -jar umamo-….jar` |
+          | File                                       | Note                                                                                                                                     |
+          | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+          | `umamo-<version>-<target>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                             |
+          | `umamo-<version>-<target>.jar`             | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
 
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
