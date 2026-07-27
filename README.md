@@ -2,7 +2,7 @@
 
 An open-source cross-platform modelling editor for 2D puppet animation, with first class pen and touch support, designed to interoperate with the Live2D Cubism source format (`.cmo3`).  Runs on Windows, macOS, Linux, and Android tablets with pen/touch input.  Supports importing and exporting both CMO3 and MOC3 formats.
 
-> **Status:** Early development.  There are no distribution(installer) builds yet.  APIs, formats, and scope are in flux.
+> **Status:** Early development.  Prebuilt downloads are on the [Releases page](https://github.com/umamoorg/umamo/releases).  Note, releases are not currently signed so Windows and MacOS will complain about it.  APIs, formats, and scope are in flux.
 
 ![Screenshot showing the main Umamo window with 2D puppet posed and smiling in a centered viewport.  The left side shows an adjustable parameter panel while the right shows an object outliner, information, and history panel.](docs/screenshots/readme20260717.png)
 
@@ -30,6 +30,23 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 **A:** Currently Umamo is alpha level software available for testing.  Please make sure to **make regular backups** of your files.  In fact, make second copies of your files explicitly for playing around with.  Do not use the original copies.
 
+## Downloads
+
+Every tagged version publishes desktop builds on the [Releases page](https://github.com/umamoorg/umamo/releases).  There are two different releases per platform:
+
+| File                                      | Note                                                                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-<version>-<target>.zip`/`.tar.gz`  | Java SDK not required, just run it directly.                                                                                             |
+| `umamo-<version>-<target>.jar`            | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+
+Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.
+
+**These builds are not signed.**  Code signing and notarization cost a lot of money so I will be waiting to do that until getting to a release candidate stage.  Until then Windows and MacOS will complain about the applications being unsigned.
+
+- **MacOS:** Gatekeeper will quarantine the application and report it as *damaged*.  It is not damaged.  After unzipping run this in the Terminal, `xattr -dr com.apple.quarantine /path/to/umamo.app`, or allow the application through the settings.
+- **Windows:** SmartScreen shows "Windows protected your PC".  Choose *More info* -> *Run anyway*.
+- **Linux:** Just run the application: `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.  Linux doesn't restrict you from running any application that you wish to run on your computer.
+
 ## Building & Development
 
 Umamo is a Kotlin Multiplatform project (Gradle, Kotlin DSL) targeting desktop and Android from one shared codebase.
@@ -44,7 +61,7 @@ Umamo is a Kotlin Multiplatform project (Gradle, Kotlin DSL) targeting desktop a
 
 ### Prerequisites
 
-- **JDK 21** (LTS). The build is pinned to a 21 toolchain.  Point `JAVA_HOME` at a JDK 21 — e.g. `export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`. (Newer JDKs run Gradle fine, but are ahead of the Android toolchain.)
+- **JDK 21** (LTS). The build is pinned to a 21 toolchain.  Point `JAVA_HOME` at a JDK 21 — e.g. `export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64`. (Newer JDKs run Gradle fine, but are ahead of the Android toolchain.)  Use a distribution JDK, not Homebrew's: `:desktop:createDistributable` runs Compose's `checkRuntime`, which hard-errors on a Homebrew JDK unless you pass `-Pcompose.desktop.packaging.checkJdkVendor=false`.
 - **Android SDK** with `platforms;android-36` and `build-tools;36.0.0`. Set `ANDROID_HOME` (or create `local.properties` with `sdk.dir=…`). Only needed for the Android target.
 
 The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle install required.
@@ -60,7 +77,12 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 # Cross-target the desktop build (default: host). -Pumamo.target swaps the bundled Skiko + LWJGL
 # natives: linux-x64 | linux-arm64 | windows-x64 | macos-x64 | macos-arm64.
 ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
+# Self-contained app image with a bundled JRE (what the release workflow ships).
+# → app/desktop/build/compose/binaries/main/app/
+./gradlew :desktop:createDistributable
 ```
+
+`-Pumamo.target` is meaningless for `createDistributable` and must not be combined with it: an app image jlinks the *host* JDK into itself, so cross-resolving the natives would bundle one platform's Skiko/LWJGL inside another platform's runtime.  Only the uber jar is portable that way.  Pass `-Pumamo.requireTargetIsHost=true` (as CI does) to turn a mismatch into a build failure.
 
 ### Running on WSL2 (WSLg)
 
