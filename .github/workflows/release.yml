@@ -395,9 +395,9 @@ jobs:
 
           Code signing and notarization arrive at alpha. Until then:
 
-          - Windows: SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
-          - MacOS: The JAR is unaffected by Gatekeeper quarantine, so nothing extra is needed while MacOS ships as a JAR.
-          - Linux: No equivalent prompt. Extract `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
+          * Windows: SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
+          * MacOS: The JAR is unaffected by Gatekeeper quarantine, so nothing extra is needed while MacOS ships as a JAR.
+          * Linux: No equivalent prompt. Extract `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
 
           There are no installers yet and no auto-update: to upgrade, delete the old folder and unpack the new one.
 
