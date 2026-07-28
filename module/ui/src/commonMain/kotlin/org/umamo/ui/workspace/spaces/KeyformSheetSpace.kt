@@ -23,10 +23,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
-import org.umamo.edit.insertChannelKeyAt
-import org.umamo.edit.moveChannelKey
-import org.umamo.edit.removeChannelKeyAt
-import org.umamo.edit.removeChannelKeys
+import org.umamo.edit.insertTrackKeyAt
+import org.umamo.edit.moveTrackKey
+import org.umamo.edit.removeTrackKeys
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -64,6 +63,16 @@ private class KeyformSheetViewState {
 
 	/** The group rows whose tracks are shown. */
 	var expandedKeys: Set<String> by mutableStateOf(emptySet())
+
+	/**
+	 * The selected keys, which is what Delete acts on.
+	 *
+	 * On the view state rather than remembered against the projection: the projection is rebuilt on every
+	 * model change, so keying the selection to it discarded the selection on the user's own edit - and a
+	 * click both selects AND scrubs, so even selecting could not survive its own gesture.  Refs that no
+	 * longer resolve are pruned at use, which is cheaper and less surprising than clearing wholesale.
+	 */
+	var selectedKeys: Set<TrackKeyRef> by mutableStateOf(emptySet())
 
 	/**
 	 * Whether [expandedKeys] has been seeded yet.
@@ -149,10 +158,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			viewState.seeded = true
 			viewState.expandedKeys = projections.flatMap { (_, projection) -> projection.groupRowKeys }.toSet()
 		}
-		// Which keys are selected, so Delete has something to act on. Cleared when the projections change,
-		// because a row key can outlive the key it pointed at (a removal renumbers nothing, but a rebind can
-		// replace the whole track) and a stale selection would delete the wrong thing.
-		var selectedKeys by remember(projections) { mutableStateOf(emptySet<TrackKeyRef>()) }
 		if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
 			EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
 			return@Box
@@ -161,18 +166,26 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 		// key handler here so the keymap owns the binding, per the action-registry rule; the sheet only
 		// supplies what "the current selection" means while it is on screen.
 		val commands = LocalCommands.current
-		DisposableEffect(commands, session, projections, selectedKeys) {
+		DisposableEffect(commands, session, projections, viewState.selectedKeys) {
 			val deleteCommand =
 				Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys) {
 					val removals =
-						selectedKeys.mapNotNull { keyRef ->
+						viewState.selectedKeys.mapNotNull { keyRef ->
 							val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
-							entry?.second?.targetsByRowKey?.get(keyRef.rowKey)?.let { target ->
-								Triple(target, entry.first, keyRef.position)
+							entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+								Triple(track, entry.first, keyRef.position)
 							}
 						}
 					if (session != null && removals.isNotEmpty()) {
-						session.removeChannelKeys(removals)
+						session.removeTrackKeys(removals)
+						// The removals renumber nothing, but every removed key's ref is now stale; dropping
+						// exactly those keeps a multi-select of which only some were removable coherent.
+						viewState.selectedKeys =
+							viewState.selectedKeys.filterNot { keyRef ->
+								removals.any { (_, parameter, position) ->
+									parameter.id == keyRef.parameterId && position == keyRef.position
+								}
+							}.toSet()
 					}
 				}
 			commands.register(deleteCommand)
@@ -207,7 +220,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 						KeyformSheetSection(
 							parameter = parameter,
 							projection = projection,
-							selectedKeys = selectedKeys,
+							selectedKeys = viewState.selectedKeys,
 							playhead = liveParams?.observedValues?.get(parameter.id) ?: parameter.default,
 							labelColumnWidth = viewState.labelColumnWidth,
 							onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
@@ -220,7 +233,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 										viewState.expandedKeys + row.key
 									}
 							},
-							onSelectedKeysChange = { keys -> selectedKeys = keys },
+							onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
 						)
 					}
 				}
@@ -303,27 +316,28 @@ private fun KeyformSheetSection(
 		// Clicking empty track drops the selection, matching every other list in the editor.
 		onTrackClick = { _, _ -> onSelectedKeysChange(emptySet()) },
 		onMarkDragEnd = { row, mark, releasedAt ->
-			val target = projection.targetsByRowKey[row.key]
-			if (session != null && target != null) {
-				session.moveChannelKey(target, parameter, mark.position, releasedAt)
+			val track = projection.tracksByRowKey[row.key]
+			if (session != null && track != null) {
+				session.moveTrackKey(track, parameter, mark.position, releasedAt)
 				// The grid clamps at the neighbours, so the released position and the stored one can
-				// differ; dropping the selection is honest about not knowing where the key landed.
-				onSelectedKeysChange(emptySet())
+				// differ; dropping this key's selection is honest about not knowing where it landed.
+				onSelectedKeysChange(selectedKeys - TrackKeyRef(parameter.id, row.key, mark.position))
 			}
 		},
 		laneMenuItems = { hit ->
-			// A group row has no target of its own (it is the owner, not a channel), and a geometry or
-			// blend-shape row is not authorable yet - so both get an empty menu rather than actions that
-			// would silently do nothing.
-			val target = projection.targetsByRowKey[hit.row.key]
+			// A group row names the owner rather than a track, and a blend-shape row is not a keyform grid -
+			// neither has a track ref, so both get an empty menu rather than actions that silently do nothing.
+			val track = projection.tracksByRowKey[hit.row.key]
 			val hitMark = hit.mark
 			when {
-				session == null || target == null -> emptyList()
+				session == null || track == null -> emptyList()
 				hitMark != null ->
 					listOf(
 						MenuItem.Action(
 							label = removeLabel,
-							onSelect = { session.removeChannelKeyAt(target, parameter, hitMark.position) },
+							onSelect = {
+								session.removeTrackKeys(listOf(Triple(track, parameter, hitMark.position)))
+							},
 						),
 					)
 
@@ -331,7 +345,7 @@ private fun KeyformSheetSection(
 					listOf(
 						MenuItem.Action(
 							label = insertLabel,
-							onSelect = { session.insertChannelKeyAt(target, parameter, hit.value) },
+							onSelect = { session.insertTrackKeyAt(track, parameter, hit.value) },
 						),
 					)
 			}

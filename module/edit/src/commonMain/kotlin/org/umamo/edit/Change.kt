@@ -569,16 +569,22 @@ sealed interface DocumentChange : Change {
  * usefully ("Insert Opacity Key"); the entity is already obvious from what the user was pointing at.
  */
 sealed interface KeyformChange : Change {
-	/** The channel the edit was made on. */
-	val channel: FormChannel
+	/**
+	 * The channel the edit was made on, or null for a GEOMETRY track.
+	 *
+	 * Nullable rather than a fourth "geometry" FormChannel constant: geometry is a separate typed field on
+	 * every owner precisely so a scalar track can never reach the delta-texture builder, and giving it a
+	 * FormChannel would undo that at the type level for the sake of a history label.
+	 */
+	val channel: FormChannel?
 
 	/**
 	 * A key captured at the current pose - which also BINDS the channel to the parameter when it was not
 	 * keyed on it before, since a capture with nowhere to land seeds its own axis.
 	 *
-	 * @property FormChannel channel The channel keyed.
+	 * @property FormChannel? channel The channel keyed, or null for geometry.
 	 */
-	data class InsertKey(override val channel: FormChannel) : KeyformChange {
+	data class InsertKey(override val channel: FormChannel?) : KeyformChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.keyform.insert"
 	}
@@ -586,9 +592,9 @@ sealed interface KeyformChange : Change {
 	/**
 	 * A key dragged to a new position on its parameter, carrying its stored value with it.
 	 *
-	 * @property FormChannel channel The channel the key belongs to.
+	 * @property FormChannel? channel The channel the key belongs to, or null for geometry.
 	 */
-	data class MoveKey(override val channel: FormChannel) : KeyformChange {
+	data class MoveKey(override val channel: FormChannel?) : KeyformChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.keyform.move"
 	}
@@ -597,9 +603,9 @@ sealed interface KeyformChange : Change {
 	 * A key removed - which also UNBINDS the channel when it was the last one holding the axis up, since
 	 * removal collapses an axis rather than leaving a single key behind.
 	 *
-	 * @property FormChannel channel The channel the key came off.
+	 * @property FormChannel? channel The channel the key came off, or null for geometry.
 	 */
-	data class RemoveKey(override val channel: FormChannel) : KeyformChange {
+	data class RemoveKey(override val channel: FormChannel?) : KeyformChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.keyform.remove"
 	}

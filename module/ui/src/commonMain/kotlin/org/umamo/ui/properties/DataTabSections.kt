@@ -135,7 +135,16 @@ internal val BlendSection =
 						) {
 							HexColorField(
 								keyState = keyedFieldStateOf(drawable, FormChannel.MULTIPLY_COLOR),
-								value = formatHexColor(drawable.displayMultiplyColor().toComposeColor()),
+								// What is APPLIED, not what is stored: on a keyed channel the static is shadowed by
+								// the track, and a pending unkeyed edit lives outside the model altogether.
+								value =
+									formatHexColor(
+										displayedChannelColor(
+											KeyformOwner.Drawable(drawable.id),
+											FormChannel.MULTIPLY_COLOR,
+											drawable.displayMultiplyColor(),
+										).toComposeColor(),
+									),
 								onValueChange = { hex ->
 									parseHexColor(hex)?.let { picked ->
 										// A KEYED channel takes the edit as a pending unkeyed value: writing the static
@@ -164,7 +173,16 @@ internal val BlendSection =
 						) {
 							HexColorField(
 								keyState = keyedFieldStateOf(drawable, FormChannel.SCREEN_COLOR),
-								value = formatHexColor(drawable.displayScreenColor().toComposeColor()),
+								// What is APPLIED, not what is stored: on a keyed channel the static is shadowed by
+								// the track, and a pending unkeyed edit lives outside the model altogether.
+								value =
+									formatHexColor(
+										displayedChannelColor(
+											KeyformOwner.Drawable(drawable.id),
+											FormChannel.SCREEN_COLOR,
+											drawable.displayScreenColor(),
+										).toComposeColor(),
+									),
 								onValueChange = { hex ->
 									parseHexColor(hex)?.let { picked ->
 										// A KEYED channel takes the edit as a pending unkeyed value: writing the static

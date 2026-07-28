@@ -87,8 +87,14 @@ val TRACK_RULER_HEIGHT: Dp = 20.dp
 /** Indent per nesting level in the label column. */
 private val INDENT_PER_DEPTH: Dp = 12.dp
 
-/** Half-extent of a drawn mark, in dp. */
-private val MARK_RADIUS: Dp = 4.dp
+/**
+ * Half-extent of a drawn mark, in dp - the default for [TrackSheet]'s markRadius.
+ *
+ * It is also the amount the track region is inset at both ends, so a key at either end of the domain draws
+ * fully inside the lane instead of half outside it.  Every axis has a key at each end, so without the
+ * inset every track loses two marks to the panel edge.
+ */
+val TRACK_MARK_RADIUS: Dp = 10.dp
 
 /** The chevron / icon slots in the label column. */
 private val SLOT_WIDTH: Dp = 16.dp
@@ -144,6 +150,7 @@ data class TrackLaneHit(
  * @param Function? onTrackClick Invoked with the row and the clicked domain value when no mark is in range.
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
+ * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
 fun TrackSheet(
@@ -161,6 +168,7 @@ fun TrackSheet(
 	onTrackClick: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
+	markRadius: Dp = TRACK_MARK_RADIUS,
 ) {
 	val lines = remember(rows, expandedKeys) { flattenTrackRows(rows, expandedKeys) }
 	Column(modifier = modifier.fillMaxWidth()) {
@@ -170,6 +178,7 @@ fun TrackSheet(
 			labelColumnWidth = labelColumnWidth,
 			onLabelColumnWidthChange = onLabelColumnWidthChange,
 			formatTick = formatTick,
+			markRadius = markRadius,
 		)
 		for (line in lines) {
 			key(line.row.key) {
@@ -184,6 +193,7 @@ fun TrackSheet(
 					onTrackClick = onTrackClick,
 					onMarkDragEnd = onMarkDragEnd,
 					laneMenuItems = laneMenuItems,
+					markRadius = markRadius,
 				)
 			}
 		}
@@ -223,6 +233,7 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Function? onTrackClick Invoked when a click lands on empty track.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
+ * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
 private fun TrackSheetRow(
@@ -236,6 +247,7 @@ private fun TrackSheetRow(
 	onTrackClick: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
+	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val toneBackground = toneBackgroundOf(line.row.tone)
@@ -262,6 +274,7 @@ private fun TrackSheetRow(
 			onTrackClick = onTrackClick,
 			onMarkDragEnd = onMarkDragEnd,
 			laneMenuItems = laneMenuItems,
+			markRadius = markRadius,
 		)
 	}
 }
@@ -379,6 +392,7 @@ private fun ExpandChevron(expanded: Boolean, onClick: () -> Unit) {
  * @param Dp labelColumnWidth The label column's width.
  * @param Function? onLabelColumnWidthChange Receives a new width as the separator is dragged.
  * @param Function formatTick Renders a tick value.
+ * @param Dp markRadius The track region's end inset, so ticks line up with the marks below.
  */
 @Composable
 private fun TrackRuler(
@@ -387,6 +401,7 @@ private fun TrackRuler(
 	labelColumnWidth: Dp,
 	onLabelColumnWidthChange: ((Dp) -> Unit)?,
 	formatTick: (Float) -> String,
+	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
@@ -395,7 +410,7 @@ private fun TrackRuler(
 		ColumnSeparator(labelColumnWidth = labelColumnWidth, onLabelColumnWidthChange = onLabelColumnWidthChange)
 		Box(modifier = Modifier.weight(1f).fillMaxSize()) {
 			Canvas(modifier = Modifier.fillMaxSize()) {
-				val inset = MARK_RADIUS.toPx()
+				val inset = markRadius.toPx()
 				for (tick in axis.ticks()) {
 					val x = laneX(axis.fractionOf(tick), size.width, inset)
 					drawLine(colors.panelBorder, Offset(x, size.height * 0.5f), Offset(x, size.height), strokeWidth = 1f)
@@ -473,6 +488,7 @@ private fun ColumnSeparator(labelColumnWidth: Dp, onLabelColumnWidthChange: ((Dp
  * @param Function? onTrackClick Invoked when a click lands on empty track.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
+ * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
 private fun TrackLane(
@@ -486,6 +502,7 @@ private fun TrackLane(
 	onTrackClick: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
+	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val density = LocalDensity.current
@@ -502,7 +519,7 @@ private fun TrackLane(
 	// (the context-menu gesture reports a raw offset and has neither).
 	var laneWidth by remember(row.key) { mutableStateOf(0) }
 	val touchSlop = LocalViewConfiguration.current.touchSlop
-	val markRadius = with(density) { MARK_RADIUS.toPx() }
+	val markRadiusPx = with(density) { markRadius.toPx() }
 	Box(modifier = modifier.fillMaxHeight().background(background)) {
 		Canvas(
 			modifier =
@@ -515,8 +532,8 @@ private fun TrackLane(
 						} else {
 							Modifier.contextMenuGesture { localOffset ->
 								menuAnchor = localOffset
-								val value = domainAt(localOffset.x.toFloat(), axis, laneWidth, markRadius)
-								val tolerance = pickTolerance(axis, laneWidth, markRadius)
+								val value = domainAt(localOffset.x.toFloat(), axis, laneWidth, markRadiusPx)
+								val tolerance = pickTolerance(axis, laneWidth, markRadiusPx)
 								menuHit = TrackLaneHit(row, value, nearestMark(marks, value, tolerance))
 							}
 						},
@@ -525,7 +542,7 @@ private fun TrackLane(
 					// detector consumed the down before the tap detector saw it, so clicking a mark did nothing
 					// and neither selection nor dragging worked. Deciding between them from a single stream is
 					// the only way they cannot fight.
-					.pointerInput(row.key, marks, axis, onMarkClick, onTrackClick, onMarkDragEnd) {
+					.pointerInput(row.key, marks, axis, markRadiusPx, onMarkClick, onTrackClick, onMarkDragEnd) {
 						if (onMarkClick == null && onTrackClick == null && onMarkDragEnd == null) {
 							return@pointerInput
 						}
@@ -537,8 +554,8 @@ private fun TrackLane(
 							if (currentEvent.buttons.isSecondaryPressed) {
 								return@awaitEachGesture
 							}
-							val pressedValue = domainAt(down.position.x, axis, size.width, markRadius)
-							val hitMark = nearestMark(marks, pressedValue, pickTolerance(axis, size.width, markRadius))
+							val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
+							val hitMark = nearestMark(marks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
 							var dragging = false
 							var releaseValue = pressedValue
 							while (true) {
@@ -553,7 +570,7 @@ private fun TrackLane(
 										draggingMark = hitMark
 									}
 									if (dragging) {
-										releaseValue = domainAt(change.position.x, axis, size.width, markRadius)
+										releaseValue = domainAt(change.position.x, axis, size.width, markRadiusPx)
 										dragDomainValue = releaseValue
 										change.consume()
 									}
@@ -568,7 +585,6 @@ private fun TrackLane(
 						}
 					},
 		) {
-			val inset = MARK_RADIUS.toPx()
 			// A hairline baseline makes an empty track legible as a track rather than as blank panel.
 			drawLine(
 				colors.panelBorder,
@@ -576,14 +592,14 @@ private fun TrackLane(
 				Offset(size.width, size.height * 0.5f),
 				strokeWidth = 1f,
 			)
-			playhead?.let { value -> drawPlayhead(value, axis, colors.accent, inset) }
+			playhead?.let { value -> drawPlayhead(value, axis, colors.accent, markRadiusPx) }
 			for (mark in marks) {
 				// A mark being dragged draws at the pointer, not at its stored position, so the gesture reads as
 				// direct manipulation rather than as a jump on release.
 				val drawnPosition = if (mark == draggingMark) dragDomainValue else mark.position
-				val x = laneX(axis.fractionOf(drawnPosition), size.width, inset)
+				val x = laneX(axis.fractionOf(drawnPosition), size.width, markRadiusPx)
 				val fill = if (mark.selected) colors.accent else colors.controlGlyph
-				drawMark(mark.shape, Offset(x, size.height * 0.5f), inset, fill, colors.panelBackground)
+				drawMark(mark.shape, Offset(x, size.height * 0.5f), markRadiusPx, fill, colors.panelBackground)
 			}
 		}
 		val hit = menuHit

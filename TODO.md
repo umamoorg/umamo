@@ -100,6 +100,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Marks can be dragged now, but they snap back to their original position.  They don't clamp at their neighbors and can be dragged off the end of the track.
 	* Marks can't be deleted.  I guess I can only do this if I can select them.
 	* Can't add a key frame when a key frame already exists for that property.  For example: Attempting to change or set a new multiply color on a drawable, the color picker changes color, but the commit never visually updates in the text field.  It looks like it is being blocked.
+	* MARK_RADIUS does not seem to actually change the size of the drawn marks.
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)

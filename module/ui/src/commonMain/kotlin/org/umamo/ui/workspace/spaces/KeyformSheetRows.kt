@@ -7,6 +7,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
@@ -84,13 +85,15 @@ data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val pos
  * mapping back to the model stays on this side of the boundary, keyed by the row's own identity.
  *
  * @property List rows The group rows, each carrying its tracks as children.
- * @property Map targetsByRowKey What each track row edits; a geometry or blend-shape row has no entry.
+ * @property Map tracksByRowKey What each track row edits.  A GROUP row has no entry (it names the owner,
+ *   not a track) and neither does a blend-shape row (a blend binding is not a keyform grid, so the sheet's
+ *   grid ops cannot touch it) - so a null lookup is the sheet's "this row is read-only" signal.
  * @property Map ownerKindByRowKey The owner kind behind each GROUP row, for its icon.
  * @property Set groupRowKeys Every group row's key, so a caller can seed "expand all".
  */
 class KeyformSheetProjection(
 	val rows: List<TrackRow>,
-	val targetsByRowKey: Map<String, KeyableTarget>,
+	val tracksByRowKey: Map<String, KeyformTrackRef>,
 	val ownerKindByRowKey: Map<String, KeyformOwnerKind>,
 	val groupRowKeys: Set<String>,
 )
@@ -190,7 +193,7 @@ fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: Keyf
  */
 private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 	private val rows = ArrayList<TrackRow>()
-	private val targets = HashMap<String, KeyableTarget>()
+	private val tracks = HashMap<String, KeyformTrackRef>()
 	private val ownerKinds = HashMap<String, KeyformOwnerKind>()
 
 	/**
@@ -217,14 +220,19 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 	) {
 		val children = ArrayList<TrackRow>()
 		if (geometryMarks != null) {
+			val rowKey = "$ownerKey/geometry"
 			children.add(
 				TrackRow(
-					key = "$ownerKey/geometry",
+					key = rowKey,
 					label = labels.geometry,
 					tone = TrackRowTone.Primary,
 					marks = geometryMarks,
 				),
 			)
+			// A geometry row is editable: its key POSITIONS are ordinary grid algebra even though authoring
+			// the forms themselves is deferred.  Leaving it unaddressable made the sheet silently swallow
+			// every gesture on what is, after compaction, nearly every row a corpus rig shows.
+			tracks[rowKey] = KeyformTrackRef.Geometry(owner)
 		}
 		for ((channel, track) in channelGrids.gridsByChannel) {
 			val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: continue
@@ -237,10 +245,10 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 					marks = marks,
 				),
 			)
-			// Channel rows are addressable; a geometry or blend-shape row is not yet authorable, so it simply
-			// has no entry and the sheet leaves it read-only rather than offering an edit that would fail.
-			targets[rowKey] = KeyableTarget(owner, channel)
+			tracks[rowKey] = KeyformTrackRef.Channel(KeyableTarget(owner, channel))
 		}
+		// A blend-shape binding is not a keyform grid, so it gets a row but no track ref: the sheet's ops
+		// would have nothing to apply, and offering a drag that reverts is worse than offering none.
 		for ((bindingIndex, marks) in blendShapeMarks.withIndex()) {
 			children.add(
 				TrackRow(
@@ -270,7 +278,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 	fun build(): KeyformSheetProjection =
 		KeyformSheetProjection(
 			rows = rows,
-			targetsByRowKey = targets,
+			tracksByRowKey = tracks,
 			ownerKindByRowKey = ownerKinds,
 			groupRowKeys = rows.map { row -> row.key }.toSet(),
 		)

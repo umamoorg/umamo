@@ -83,10 +83,18 @@ fun HexColorField(
 	var text by remember { mutableStateOf(value) }
 	var pickerOpen by remember { mutableStateOf(false) }
 
-	// While not editing, mirror the external value (another control or a re-read may change it); on focus
-	// loss this re-seeds the field from the last persisted value, discarding any invalid leftover text.
+	// Mirror the external value - and do it EVEN WHILE FOCUSED, because this field is not the only writer
+	// of what it shows.  The swatch's own picker, a parameter scrub moving a keyed channel, and undo all
+	// change the value underneath it; skipping the mirror while focused pinned the field to whatever it
+	// last held, and since nothing takes focus back off it, a keyed color stayed frozen on its first key
+	// forever while the viewport went on blending.
+	//
+	// The compare is on the PARSED color, not the text, and that is what keeps this from fighting the
+	// typist: the user's own keystroke round-trips out through onValueChange and comes back equal, so it
+	// re-seeds nothing.  Half-typed text that does not parse is left alone for the same reason.
 	LaunchedEffect(value, focused) {
-		if (!focused) {
+		val typed = parseHexColor(text)
+		if (!focused || (typed != null && typed != parseHexColor(value))) {
 			text = value
 		}
 	}

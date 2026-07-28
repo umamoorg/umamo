@@ -1,0 +1,160 @@
+package org.umamo.ui.tracks
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performMouseInput
+import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * The lane's tap-versus-drag resolution, driven with real pointer input against a real composition.
+ *
+ * These paths are not reachable from a pure-function test: the lane decides between a click and a drag by
+ * reading one raw pointer stream, and every interaction bug reported against the keyform sheet so far has
+ * been in that decision or in the state it writes to - never in the pure projection the unit tests cover.
+ */
+class TrackLaneInteractionTest {
+	/** A sheet 400px wide over a -30..30 domain with marks at both ends and the middle. */
+	private val axis = TrackAxis(-30f, 30f)
+
+	private val rows =
+		listOf(
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				tone = TrackRowTone.Group,
+				children =
+					listOf(
+						TrackRow(
+							key = "owner/opacity",
+							label = "Opacity",
+							marks = listOf(TrackKeyMark(-30f), TrackKeyMark(0f), TrackKeyMark(30f)),
+						),
+					),
+			),
+		)
+
+	/** A press-and-release on a mark reports it as a CLICK, not as a zero-length drag. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun pressingAMarkReportsAClick() =
+		runComposeUiTest {
+			var clicked: TrackKeyMark? = null
+			var trackClicked = false
+			var dragEnded: Float? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, mark -> clicked = mark },
+						onTrackClick = { _, _ -> trackClicked = true },
+						onMarkDragEnd = { _, _, released -> dragEnded = released },
+					)
+				}
+			}
+			// The child row sits under the ruler and the group row; click the middle mark on it.
+			onNodeWithTag("sheet").performMouseInput {
+				val laneCenterX = (width + labelColumnEdge()) / 2f
+				moveTo(Offset(laneCenterX, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertNotNull(clicked, "a press on a mark must report a mark click")
+			assertEquals(0f, assertNotNull(clicked).position)
+			assertTrue(!trackClicked, "a mark click must not also read as an empty-track click")
+			assertNull(dragEnded, "a click is not a drag")
+		}
+
+	/** A press on empty track reports an empty-track click carrying the domain value under the pointer. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun pressingEmptyTrackReportsTheDomainValue() =
+		runComposeUiTest {
+			var clicked: TrackKeyMark? = null
+			var trackValue: Float? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, mark -> clicked = mark },
+						onTrackClick = { _, value -> trackValue = value },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				// A quarter of the way along the lane: nowhere near a mark at -30 / 0 / 30.
+				val laneStart = labelColumnEdge()
+				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertNull(clicked, "a click away from every mark must not report a mark")
+			assertNotNull(trackValue, "an empty-track click must report where it landed")
+		}
+
+	/** Dragging a mark reports the release position, so the caller can commit the move. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun draggingAMarkReportsItsReleasePosition() =
+		runComposeUiTest {
+			var draggedMark: TrackKeyMark? = null
+			var releasedAt: Float? = null
+			var clicked: TrackKeyMark? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, mark -> clicked = mark },
+						onMarkDragEnd = { _, mark, released ->
+							draggedMark = mark
+							releasedAt = released
+						},
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneCenterX = (width + labelColumnEdge()) / 2f
+				val rowY = childRowCenterY()
+				moveTo(Offset(laneCenterX, rowY))
+				press()
+				moveTo(Offset(laneCenterX + 60f, rowY))
+				moveTo(Offset(laneCenterX + 120f, rowY))
+				release()
+			}
+			waitForIdle()
+			assertEquals(0f, assertNotNull(draggedMark).position, "the mark under the press is the one dragged")
+			assertNull(clicked, "a drag must not also report a click")
+			assertTrue(assertNotNull(releasedAt) > 0f, "releasing to the right must report a larger domain value")
+		}
+}
+
+/** The x just right of the label column and its separator, in pixels. */
+private fun androidx.compose.ui.test.MouseInjectionScope.labelColumnEdge(): Float = 190f
+
+/** The y at the middle of the single child row: ruler, then the group row, then half a row. */
+private fun androidx.compose.ui.test.MouseInjectionScope.childRowCenterY(): Float = 20f + 32f + 16f

@@ -46,6 +46,27 @@ data class KeyableTarget(
 )
 
 /**
+ * One keyform TRACK: an entity's geometry, or one of its channels.
+ *
+ * The sheet edits both with the same three gestures (drag a key, insert one, remove one), so it addresses
+ * them through one type rather than branching per gesture.  They stay distinct cases rather than folding
+ * geometry into [FormChannel] because geometry is a separate typed field on every owner precisely so a
+ * scalar track can never reach the delta-texture builder - a GEOMETRY channel constant would undo that.
+ */
+sealed interface KeyformTrackRef {
+	/** The entity the track belongs to. */
+	val owner: KeyformOwner
+
+	/** A channel track, holding [ChannelValue] cells. */
+	data class Channel(val target: KeyableTarget) : KeyformTrackRef {
+		override val owner: KeyformOwner get() = target.owner
+	}
+
+	/** The owner's geometry track, holding whichever form type that owner deforms with. */
+	data class Geometry(override val owner: KeyformOwner) : KeyformTrackRef
+}
+
+/**
  * This model's channel tracks for [owner], or null when it has no such entity.
  *
  * Public and here rather than private in an editing file because both the edit ops and the UI's keyed-field
