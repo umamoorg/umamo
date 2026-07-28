@@ -3,7 +3,8 @@
   日本語の UI 文字列カタログ。英語（既定）は values/strings.xml にある。
   書式レベルの識別子（ParamAngleX 等）は翻訳しない。
 
-  Japanese UI string catalog; English default is in values/strings.xml. Format-level identifiers stay verbatim.
+  Japanese UI string catalog; English default is in values/strings.xml. Format-level identifiers stay
+verbatim.
 -->
 <resources>
 	<string name="app_name">Umamo</string>
@@ -67,8 +68,10 @@
 	<string name="open_failed_unrecognized">%1$s は Umamo が認識できるファイル形式ではありません。</string>
 	<string name="open_failed_not_openable">%1$s はまだエディタで開けないファイル形式です。</string>
 	<string name="open_failed_parse">%1$s を開けませんでした。ファイルが破損している可能性があります。</string>
-	<string name="open_failed_missing_manifest">%1$s をインポートできませんでした。model3.json マニフェストが同じフォルダに見つかりません。</string>
-	<string name="open_failed_missing_texture">%1$s をインポートできませんでした。model3.json が参照するテクスチャが見つからないか読み込めません。</string>
+	<string name="open_failed_missing_manifest">%1$s をインポートできませんでした。model3.json
+		マニフェストが同じフォルダに見つかりません。</string>
+	<string name="open_failed_missing_texture">%1$s をインポートできませんでした。model3.json
+		が参照するテクスチャが見つからないか読み込めません。</string>
 
 	<string name="menu_help">ヘルプ</string>
 	<string name="menu_source_code">ソースコード…</string>
@@ -493,8 +496,11 @@
 	<string name="channel_flip_y">Y反転</string>
 	<string name="channel_glue_intensity">グルー強度</string>
 	<string name="cmd_keyform_insert">キーフレーム挿入</string>
+	<string name="cmd_keyform_frame_all">すべてのキーを表示</string>
+	<string name="cmd_keyform_nudge_left">キーフレームを左へ微調整</string>
+	<string name="cmd_keyform_nudge_right">キーフレームを右へ微調整</string>
 	<string name="cmd_keyform_delete_keys">選択したキーを削除</string>
-	<string name="cmd_keyform_remove">キーフレーム削除</string>
+	<string name="cmd_keyform_delete">キーフレーム削除</string>
 	<string name="notice_keyform_no_target">キー可能なプロパティを指してください</string>
 	<string name="notice_keyform_no_parameter">キーを打つパラメータを選択してください</string>
 </resources>

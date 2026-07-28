@@ -64,18 +64,18 @@ class KeyformTrackLabels(
 )
 
 /**
- * One selected key: the parameter section and row it belongs to, and where on that parameter it sits.
+ * One selected key: the parameter section, the row, and WHICH key on that row.
  *
- * Identified by POSITION rather than index because that is what a drag speaks in and what survives a
- * neighbouring key being removed - an index would silently shift onto a different key.  The parameter is
- * part of the identity because a linked pair renders two sections at once and one item's row key is the
- * same string in both.
+ * By ordinal rather than by parameter value.  Two keys a hair apart are legal and useful, and resolving a
+ * value back to a key then picks whichever happens to be nearer - which is how dragging one of a pair of
+ * near-coincident marks moved the other.  The parameter is part of the identity because a linked pair
+ * renders two sections at once and one item's row key is the same string in both.
  *
  * @property ParameterId parameterId The parameter whose section the key sits in.
  * @property String rowKey The owning row's stable key.
- * @property Float position The key's parameter value.
+ * @property Int keyIndex The key's ordinal on that row's track.
  */
-data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val position: Float)
+data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val keyIndex: Int)
 
 /**
  * The sheet's projection of a rig: rows to draw, and what each row edits.
@@ -294,7 +294,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
  */
 private fun marksOf(grid: KeyformGrid<*>?, parameterId: ParameterId, shape: TrackKeyShape): List<TrackKeyMark>? {
 	val axis = grid?.axes?.firstOrNull { axis -> axis.parameterId == parameterId } ?: return null
-	return axis.keys.map { keyValue -> TrackKeyMark(keyValue, shape) }
+	return axis.keys.mapIndexed { keyIndex, keyValue -> TrackKeyMark(keyIndex, keyValue, shape) }
 }
 
 /**
@@ -313,7 +313,7 @@ private fun blendShapeMarksOf(
 ): List<List<TrackKeyMark>> =
 	bindings
 		.filter { (bindingParameter, _) -> bindingParameter == parameterId }
-		.map { (_, keys) -> keys.map { keyValue -> TrackKeyMark(keyValue, TrackKeyShape.Square) } }
+		.map { (_, keys) -> keys.mapIndexed { keyIndex, keyValue -> TrackKeyMark(keyIndex, keyValue, TrackKeyShape.Square) } }
 
 /**
  * The axis domain for [parameter] - its authored range, which is what the sheet rules against.

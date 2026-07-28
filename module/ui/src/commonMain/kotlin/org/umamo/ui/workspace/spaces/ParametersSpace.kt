@@ -4,7 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,6 +46,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpSize
@@ -144,8 +148,16 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	}
 	val viewState = scope.spaceState(PARAMETERS_VIEW_STATE_KEY) { ParametersViewState() }
 	// Local control state seeded from the live values (or defaults); writes publish to the renderer.
+	//
+	// Keyed on WHICH parameters exist, not on the model instance.  Every document edit publishes a new
+	// PuppetModel - moving a keyform key, recolouring a drawable - and keying this map to that threw it
+	// away and rebuilt it on each one.  That is churn by itself, and worse: the effects below capture the
+	// map, so a replacement silently orphaned their writes and the sliders stopped following a live scrub
+	// until something else forced them to re-run.  The set of parameters is what this map is actually
+	// about, and it survives an ordinary edit.
+	val parameterIds = remember(puppet) { puppet.parameters.map { parameter -> parameter.id } }
 	val values =
-		remember(puppet) {
+		remember(parameterIds) {
 			mutableStateMapOf<ParameterId, Float>().apply {
 				puppet.parameters.forEach { parameter ->
 					put(parameter.id, liveParams?.values?.get(parameter.id) ?: parameter.default)
@@ -158,10 +170,27 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// unchanged entries so a commit (pose == values already) triggers no writes. An empty fallback flow
 	// keeps the collect unconditional when no session is present.
 	val pose by remember(session) { session?.pose ?: MutableStateFlow(emptyMap<ParameterId, Float>()) }.collectAsState()
-	LaunchedEffect(pose) {
+	LaunchedEffect(pose, values) {
 		pose.forEach { (id, value) ->
 			if (values[id] != value) {
 				values[id] = value
+			}
+		}
+	}
+	// And follow PREVIEWS made from elsewhere - the keyform sheet scrubs the same pose by dragging its
+	// track region. A preview deliberately never touches session.pose (that is what keeps a whole drag to
+	// one undo step), so the effect above only caught up on release and the sliders sat still meanwhile.
+	//
+	// Through snapshotFlow rather than a composition read: the scrub path writes on every pointer move, and
+	// reading it in composition would recompose this whole panel per frame instead of only the sliders
+	// whose value actually moved. Edit mode publishes an EMPTY pose, which writes nothing and so cannot
+	// disturb the locked panel's displayed values.
+	LaunchedEffect(liveParams, values) {
+		snapshotFlow { liveParams?.observedValues.orEmpty() }.collect { livePose ->
+			livePose.forEach { (id, value) ->
+				if (values[id] != value) {
+					values[id] = value
+				}
 			}
 		}
 	}
@@ -382,6 +411,16 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 								onDrop = {
 									performParameterDrop(dragController, rows, puppet, session) { groupId ->
 										expandedGroups[groupId] = true
+									}
+								},
+								// Clicking the handle targets the row's parameters. The island itself is
+								// crowded - slider, pad, name, numeric field, reset glyph all consume their
+								// own pointer input - so the handle is the one reliably empty place to click,
+								// and it already means "this row" for the drag.  A group header selects
+								// nothing: it owns no parameter to key on.
+								onSelect = {
+									parameterSelectionOf(row)?.let { selection ->
+										session?.setParameterSelection(selection)
 									}
 								},
 							)
@@ -1182,6 +1221,7 @@ private class GripCoordinatesHolder {
  * @param String rowKey The row's stable key (the drag / drop identity).
  * @param RowDragController<ParameterMoveSubject> dragController The shared drag state.
  * @param Function onDrop Invoked on release to apply the move.
+ * @param Function onSelect Invoked when the handle is clicked rather than dragged.
  */
 @Composable
 private fun ParameterGripHandle(
@@ -1190,9 +1230,16 @@ private fun ParameterGripHandle(
 	rowKey: String,
 	dragController: RowDragController<ParameterMoveSubject>,
 	onDrop: () -> Unit,
+	onSelect: () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
 	val gripCoordinates = remember { GripCoordinatesHolder() }
+	val touchSlop = LocalViewConfiguration.current.touchSlop
+	// Read at gesture time, not keyed into pointerInput: the callbacks are rebuilt on every recomposition
+	// of the panel, and keying the gesture to them would cancel an in-flight drag the moment anything
+	// upstream recomposed - which a drag, by moving the drop indicator, does constantly.
+	val latestSelect by rememberUpdatedState(onSelect)
+	val latestDrop by rememberUpdatedState(onDrop)
 	Box(
 		modifier =
 			Modifier
@@ -1200,28 +1247,39 @@ private fun ParameterGripHandle(
 				// A hand cursor on hover signals the row is grabbable here (desktop only; touch has no hover).
 				.pointerHoverIcon(PointerIcon.Hand)
 				.onGloballyPositioned { coordinates -> gripCoordinates.coordinates = coordinates }
+				// ONE handler resolving tap versus drag off a single stream.  A separate tap detector beside
+				// detectDragGestures loses the race - the drag detector consumes the press first - which is
+				// the same trap the keyform sheet's lanes fell into.
 				.pointerInput(rowKey) {
-					detectDragGestures(
-						onDragStart = { offset ->
-							val origin = gripCoordinates.coordinates?.boundsInWindow()
-							dragController.start(
-								rowKey,
-								subject,
-								(origin?.left ?: 0f) + offset.x,
-								(origin?.top ?: 0f) + offset.y,
-							)
-						},
-						onDrag = { change, _ ->
-							change.consume()
-							val origin = gripCoordinates.coordinates?.boundsInWindow()
-							dragController.drag(
-								(origin?.left ?: 0f) + change.position.x,
-								(origin?.top ?: 0f) + change.position.y,
-							)
-						},
-						onDragEnd = { onDrop() },
-						onDragCancel = { dragController.end() },
-					)
+					awaitEachGesture {
+						val down = awaitFirstDown(requireUnconsumed = false)
+						val origin = gripCoordinates.coordinates?.boundsInWindow()
+						var dragging = false
+						while (true) {
+							val event = awaitPointerEvent()
+							val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+							if (!change.pressed) {
+								break
+							}
+							if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
+								dragging = true
+								dragController.start(
+									rowKey,
+									subject,
+									(origin?.left ?: 0f) + down.position.x,
+									(origin?.top ?: 0f) + down.position.y,
+								)
+							}
+							if (dragging) {
+								dragController.drag(
+									(origin?.left ?: 0f) + change.position.x,
+									(origin?.top ?: 0f) + change.position.y,
+								)
+								change.consume()
+							}
+						}
+						if (dragging) latestDrop() else latestSelect()
+					}
 				}
 				.semantics { contentDescription = gripLabel },
 		contentAlignment = Alignment.Center,
@@ -1231,6 +1289,24 @@ private fun ParameterGripHandle(
 		}
 	}
 }
+
+/**
+ * What clicking [row]'s grab handle should target, or null when the row owns no parameter.
+ *
+ * A pad selects BOTH its axes with the horizontal one active, matching what clicking the pad itself does -
+ * the keyform sheet then shows a section per axis, which is the point of targeting a pad at all.
+ *
+ * @param ParameterRow row The row whose handle was clicked.
+ * @return ParameterSelection? The selection to apply, or null for a group header.
+ */
+private fun parameterSelectionOf(row: ParameterRow): ParameterSelection? =
+	when (row) {
+		is ParameterRow.Single -> ParameterSelection.of(row.parameter.id)
+		is ParameterRow.Pair2D ->
+			ParameterSelection(setOf(row.horizontal.id, row.vertical.id), row.horizontal.id)
+
+		is ParameterRow.GroupHeader -> null
+	}
 
 /**
  * Draws the before / after insertion line for a drop-target row. Into is drawn by the group header's own

@@ -271,32 +271,55 @@ fun PuppetModel.channelValueAt(target: KeyableTarget, pose: Pose): ChannelValue?
  * This model with the key at [fromValue] on [target]'s channel moved to [toValue].
  *
  * The sheet's drag gesture: the key keeps whatever it holds and only changes where on the parameter it
- * applies.  Identified by its CURRENT position rather than an index, because a drag is expressed in the
- * same units the sheet draws in and an index would have to survive a re-sort the move itself can cause.
+ * applies.  Identified by ORDINAL, not by its current value - keys a hair apart are legal, and resolving a
+ * value back to a key picks whichever is nearer, which silently moves the wrong one.
  *
  * @param KeyableTarget target The entity and channel.
  * @param Parameter parameter The parameter whose axis the key sits on.
- * @param Float fromValue The key's current position.
+ * @param Int keyIndex The key's ordinal on that axis.
  * @param Float toValue The requested new position.
  * @return PuppetModel The model with the key moved, or this on a refusal.
  */
 fun PuppetModel.withChannelKeyMoved(
 	target: KeyableTarget,
 	parameter: Parameter,
-	fromValue: Float,
+	keyIndex: Int,
 	toValue: Float,
 ): PuppetModel {
 	val grids = channelGridsOf(target.owner) ?: return this
 	val track = grids[target.channel] ?: return this
-	val keyIndex = track.keyIndexAt(parameter.id, fromValue)
-	if (keyIndex < 0) {
-		return this
-	}
 	val moved = track.withKeyMoved(parameter.id, keyIndex, toValue)
 	if (moved === track) {
 		return this
 	}
 	return withChannelGrids(target.owner, ChannelGrids(grids.gridsByChannel + (target.channel to moved)))
+}
+
+/**
+ * This model with key [keyIndex] removed from [target]'s channel on [parameter]'s axis.
+ *
+ * By ordinal, for the same reason [withChannelKeyMoved] is: the sheet knows exactly which mark was
+ * clicked and must not re-derive it from a value two keys could answer to.
+ *
+ * @param KeyableTarget target The entity and channel.
+ * @param Parameter parameter The parameter whose axis to remove from.
+ * @param Int keyIndex The key's ordinal on that axis.
+ * @return PuppetModel The model with the key removed, or this on a refusal.
+ */
+fun PuppetModel.withChannelKeyRemovedAt(target: KeyableTarget, parameter: Parameter, keyIndex: Int): PuppetModel {
+	val grids = channelGridsOf(target.owner) ?: return this
+	val track = grids[target.channel] ?: return this
+	val reduced = track.withKeyRemoved(parameter.id, keyIndex)
+	if (reduced === track) {
+		return this
+	}
+	val remaining =
+		if (reduced == null) {
+			grids.gridsByChannel - target.channel
+		} else {
+			grids.gridsByChannel + (target.channel to reduced)
+		}
+	return withChannelGrids(target.owner, ChannelGrids(remaining))
 }
 
 /**
@@ -344,17 +367,3 @@ internal fun FormChannel.neutralValue(): ChannelValue =
 		ChannelValueKind.COLOR -> ChannelValue.Color(org.umamo.runtime.model.ColorRgb(0f, 0f, 0f))
 		ChannelValueKind.FLAG -> ChannelValue.Flag(false)
 	}
-
-/**
- * Moves the key at [fromValue] on [target]'s channel to [toValue], as one undo step.
- *
- * @param KeyableTarget target The entity and channel.
- * @param Parameter parameter The parameter whose axis the key sits on.
- * @param Float fromValue The key's current position.
- * @param Float toValue The new position.
- */
-fun EditorSession.moveChannelKey(target: KeyableTarget, parameter: Parameter, fromValue: Float, toValue: Float) {
-	mutate(KeyformChange.MoveKey(target.channel)) { model ->
-		model.withChannelKeyMoved(target, parameter, fromValue, toValue)
-	}
-}

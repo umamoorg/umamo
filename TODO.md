@@ -96,24 +96,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 # Parameters
 * Bugs
-	* "Clicking empty track clears the selection" - What selection?  I can't select anything in the keyform sheet.
-	* Marks can be dragged now, but they snap back to their original position.  They don't clamp at their neighbors and can be dragged off the end of the track.
-	* Marks can't be deleted.  I guess I can only do this if I can select them.
-	* Can't add a key frame when a key frame already exists for that property.  For example: Attempting to change or set a new multiply color on a drawable, the color picker changes color, but the commit never visually updates in the text field.  It looks like it is being blocked.
-	* MARK_RADIUS does not seem to actually change the size of the drawn marks.
+	* 
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
-	* Extend parameter selection to a single click on the grab handle.  Right now there is a lot of stuff in the way of cleanly clicking on the parameter row.
-	* Keyform Sheet
-		* Each row needs a color coded background per type.(See screenshots.)
-		* Right side of key tracks are cut off.(See screenshots.)
-		* Line separator between names and keys in the track.  This can be used to resize the two columns of the track and make it easier to read long keyform names.
-		* Add common existing icons at the left of the keyform name.(Deformer, drawable.)  Some just won't have icons like opacity.
-		* Context menu for insert/delete key along the track and on keys.\
-
-		* Make each parameter section collapsible in the keyform sheet.  This makes it easier to deal with heavily populated linked parameters.
-		* Clicking on a key scrubs to that spot.  It exposed an usability gap: Clicking and also dragging on an empty part of the track should scrub that parameter as well.
 	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
 	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
 

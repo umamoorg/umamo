@@ -62,7 +62,8 @@
 	<string name="menu_redo">Redo</string>
 	<string name="menu_preferences">Settings…</string>
 
-	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
+	<!-- Workspace menu (workspace management; the tab strip covers
+	create/duplicate/rename/reorder). -->
 	<string name="menu_workspace">Workspace</string>
 	<string name="menu_workspace_reset">Reset Workspace</string>
 	<string name="menu_workspace_export_this">Export This Workspace…</string>
@@ -79,9 +80,11 @@
 	<string name="open_failed_read">Could not read %1$s.</string>
 	<string name="open_failed_unrecognized">%1$s is not a file format Umamo recognizes.</string>
 	<string name="open_failed_not_openable">%1$s cannot be opened in the editor yet.</string>
-	<string name="open_failed_parse">Could not open %1$s.  The file may be damaged.</string>
-	<string name="open_failed_missing_manifest">Could not import %1$s.  Its model3.json manifest was not found next to the file.</string>
-	<string name="open_failed_missing_texture">Could not import %1$s.  A texture referenced by its model3.json is missing or unreadable.</string>
+	<string name="open_failed_parse">Could not open %1$s. The file may be damaged.</string>
+	<string name="open_failed_missing_manifest">Could not import %1$s. Its model3.json manifest was
+		not found next to the file.</string>
+	<string name="open_failed_missing_texture">Could not import %1$s. A texture referenced by its
+		model3.json is missing or unreadable.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
@@ -90,7 +93,8 @@
 	<string name="menu_documentation">Documentation…</string>
 	<string name="menu_credits">Credits…</string>
 	<string name="menu_about">About Umamo…</string>
-	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
+	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows
+	name/version/license/links). -->
 	<string name="about_title">About Umamo</string>
 	<!-- %1$s is the application version. -->
 	<string name="about_version">Version %1$s</string>
@@ -127,7 +131,8 @@
 	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
 	<string name="cmd_uv_mirror_v">Mirror UVs Vertically</string>
 
-	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
+	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the
+	verbose command titles. -->
 	<string name="menu_uv_mirror_x">Mirror X</string>
 	<string name="menu_uv_mirror_y">Mirror Y</string>
 
@@ -209,7 +214,8 @@
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
 
-	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature data naming. -->
+	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
+	data naming. -->
 	<string name="outliner_root">Puppet</string>
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parts</string>
@@ -255,8 +261,10 @@
 	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">Only drawables can be transformed - parts and deformers are not yet supported.</string>
-	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
+	<string name="notice_transform_only_drawables">Only drawables can be transformed - parts and
+		deformers are not yet supported.</string>
+	<string name="notice_transform_deformed">Can't transform while mesh is deformed. Reset all
+		parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 
 	<!-- Viewport HUD: the modal-operator status badge. -->
@@ -279,7 +287,8 @@
 	<string name="cmd_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
 	<string name="cmd_snap_selection_active">Selection to Active</string>
 
-	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps over texture coordinates. -->
+	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps
+	over texture coordinates. -->
 	<string name="cmd_uv_snap_selection_pixels">Selection to Pixels</string>
 	<string name="cmd_uv_snap_selection_cursor">Selection to Cursor</string>
 	<string name="cmd_uv_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
@@ -288,7 +297,8 @@
 	<string name="cmd_uv_snap_cursor_selected">Cursor to Selected</string>
 	<string name="cmd_uv_snap_cursor_grid">Cursor to Grid</string>
 
-	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select Hierarchy. -->
+	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select
+	Hierarchy. -->
 	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
 	<string name="cmd_mesh_select_linked">Select Linked</string>
 	<string name="cmd_view_frame_selected">Frame Selected</string>
@@ -310,9 +320,12 @@
 	<string name="history_mesh_rip">Rip</string>
 	<string name="history_mesh_connect">Connect Vertices</string>
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
-	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
-	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
-	<string name="notice_connect_refused">Can't connect - the cut crosses nothing, or the geometry is degenerate.</string>
+	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex
+		mode).</string>
+	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices
+		(vertex mode).</string>
+	<string name="notice_connect_refused">Can't connect - the cut crosses nothing, or the geometry
+		is degenerate.</string>
 	<string name="notice_rip_nothing">Nothing to rip here - the selection has no fan to split.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 
@@ -363,7 +376,8 @@
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
-	  icon strip), the section headings, and the read-only sample fields not already covered by the status bar strings.
+	  icon strip), the section headings, and the read-only sample fields not already covered by the
+	status bar strings.
 	-->
 	<string name="properties_no_matches">No matching properties.</string>
 	<string name="properties_tab_document">Document</string>
@@ -379,12 +393,14 @@
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
-	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
+	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data
+	model yet. -->
 	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
 
-	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum option
+	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
+	option
 	  names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
 	<string name="properties_field_canvas_width">Width</string>
 	<string name="properties_field_canvas_height">Height</string>
@@ -476,7 +492,8 @@
 	<string name="settings_category_viewport">Viewport</string>
 	<string name="settings_category_keybindings">Keybindings</string>
 	<string name="settings_category_pen">Pen</string>
-	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string resources. -->
+	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
+	resources. -->
 	<string name="settings_interface_theme">Theme</string>
 	<string name="settings_theme_dark">Dark</string>
 	<string name="settings_theme_light">Light</string>
@@ -492,7 +509,7 @@
 	<string name="settings_keybindings_unbound">Unbound</string>
 	<string name="settings_keybindings_clear">Clear shortcut</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
-	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
+	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”. Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
@@ -514,7 +531,8 @@
 	<string name="settings_colors_role_selected">Selected</string>
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
-	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
+	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would
+	bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
 	<string name="pick_hover_deformer">Deformer: %1$s</string>
@@ -536,8 +554,11 @@
 	<string name="channel_flip_y">Flip Y</string>
 	<string name="channel_glue_intensity">Glue Intensity</string>
 	<string name="cmd_keyform_insert">Insert Keyframe</string>
+	<string name="cmd_keyform_frame_all">Frame All Keys</string>
+	<string name="cmd_keyform_nudge_left">Nudge Keyframe Left</string>
+	<string name="cmd_keyform_nudge_right">Nudge Keyframe Right</string>
 	<string name="cmd_keyform_delete_keys">Delete Selected Keys</string>
-	<string name="cmd_keyform_remove">Remove Keyframe</string>
+	<string name="cmd_keyform_delete">Delete Keyframe</string>
 	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe</string>
 	<string name="notice_keyform_no_parameter">Select a parameter to key on</string>
 </resources>

@@ -196,6 +196,11 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
 		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
+		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
+		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
+		"ArrowLeft" to "keyform.nudgeKeyLeft",
+		"ArrowRight" to "keyform.nudgeKeyRight",
+		"Home" to "keyform.frameAll",
 		// Box (B) and Circle (C) select tools; Zoom Region on Shift+B; numpad +/- resize the circle brush.
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
@@ -241,6 +246,11 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
 		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
+		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
+		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
+		"ArrowLeft" to "keyform.nudgeKeyLeft",
+		"ArrowRight" to "keyform.nudgeKeyRight",
+		"Home" to "keyform.frameAll",
 	)
 
 /**
@@ -309,6 +319,11 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
 		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
+		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
+		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
+		"ArrowLeft" to "keyform.nudgeKeyLeft",
+		"ArrowRight" to "keyform.nudgeKeyRight",
+		"Home" to "keyform.frameAll",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",

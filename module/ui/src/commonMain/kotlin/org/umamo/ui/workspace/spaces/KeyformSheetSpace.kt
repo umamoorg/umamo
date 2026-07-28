@@ -1,11 +1,17 @@
 package org.umamo.ui.workspace.spaces
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -18,6 +24,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,8 +34,10 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.insertTrackKeyAt
 import org.umamo.edit.moveTrackKey
+import org.umamo.edit.nudgeTrackKeys
 import org.umamo.edit.removeTrackKeys
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.action.Command
@@ -38,18 +49,34 @@ import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.drawIcon
+import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
 import org.umamo.ui.tracks.TrackAxis
 import org.umamo.ui.tracks.TrackRow
 import org.umamo.ui.tracks.TrackRowDecor
 import org.umamo.ui.tracks.TrackSheet
 import org.umamo.ui.tracks.TrackSheetBackdrop
+import org.umamo.ui.tracks.TrackSheetSeparatorOverlay
+import org.umamo.ui.tracks.TrackWindow
+import org.umamo.ui.tracks.TrackWindowScrollbar
+import org.umamo.ui.tracks.trackWindowGestures
 import org.umamo.ui.workspace.AreaScope
 
 /** The key this space's view state is stored under on its hosting area. */
 private const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
+
+/**
+ * How far one arrow-key press moves a key, as a fraction of its parameter's range.
+ *
+ * Relative rather than absolute because ranges differ by orders of magnitude across a rig - an angle
+ * spans 60, an open/close spans 1 - so one absolute step would be invisible on the first and wild on the
+ * second.  A hundredth puts a full sweep at a hundred presses, which reads as fine adjustment.
+ */
+private const val NUDGE_FRACTION = 0.01f
 
 /**
  * The keyform sheet's per-area view state: the label column's width and which groups are open.
@@ -82,6 +109,24 @@ private class KeyformSheetViewState {
 	 * than whenever the set is empty.
 	 */
 	var seeded: Boolean = false
+
+	/**
+	 * The parameter sections folded away.
+	 *
+	 * COLLAPSED rather than expanded, so a section that appears later (targeting a second parameter) opens
+	 * rather than arriving invisible.  Sections matter for a linked pad, where one parameter's tracks can
+	 * bury the other's.
+	 */
+	var collapsedParameters: Set<ParameterId> by mutableStateOf(emptySet())
+
+	/**
+	 * The visible slice of every section's domain.
+	 *
+	 * ONE window for the whole area, normalized, so zooming works like a timeline's: every track and both
+	 * of a linked pad's sections move together.  Per-track zoom has no precedent in any editor with tracks
+	 * and would make comparing two rows - the reason the sheet exists - impossible.
+	 */
+	var window: TrackWindow by mutableStateOf(TrackWindow.Full)
 }
 
 /**
@@ -144,7 +189,31 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 		}
 	// The backdrop is drawn whatever the sheet has to show, so an empty sheet still reads as a track region
 	// beside a label column rather than as blank panel.
-	Box(modifier = Modifier.fillMaxSize().background(colors.panelBackground)) {
+	// Either horizontal drag - panning the tracks, or resizing the label column - holds the resize cursor
+	// for the whole gesture.  Tracked here rather than inside each gesture because the cursor has to be
+	// declared ONCE, on a node that exists the whole time: a pointerHoverIcon that only appears mid-drag
+	// is not re-resolved until the pointer next crosses a node boundary, which mid-drag it may never do.
+	var panningTracks by remember { mutableStateOf(false) }
+	var resizingColumn by remember { mutableStateOf(false) }
+	val horizontalDrag = panningTracks || resizingColumn
+	Box(
+		modifier =
+			Modifier
+				.fillMaxSize()
+				.background(colors.panelBackground)
+				.pointerHoverIcon(
+					icon = if (horizontalDrag) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
+					// Only while a drag is live: otherwise the label column's own hover cursors, and the
+					// separator band's, must keep winning over this.
+					overrideDescendants = horizontalDrag,
+				)
+				.trackWindowGestures(
+					window = viewState.window,
+					onWindowChange = { window -> viewState.window = window },
+					labelColumnWidth = viewState.labelColumnWidth,
+					onPanningChange = { panning -> panningTracks = panning },
+				),
+	) {
 		TrackSheetBackdrop(labelColumnWidth = viewState.labelColumnWidth)
 		if (puppet == null || targetedParameters.isEmpty()) {
 			EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
@@ -167,48 +236,63 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 		// supplies what "the current selection" means while it is on screen.
 		val commands = LocalCommands.current
 		DisposableEffect(commands, session, projections, viewState.selectedKeys) {
-			val deleteCommand =
-				Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys) {
-					val removals =
-						viewState.selectedKeys.mapNotNull { keyRef ->
-							val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
-							entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
-								Triple(track, entry.first, keyRef.position)
-							}
-						}
-					if (session != null && removals.isNotEmpty()) {
-						session.removeTrackKeys(removals)
-						// The removals renumber nothing, but every removed key's ref is now stale; dropping
-						// exactly those keeps a multi-select of which only some were removable coherent.
-						viewState.selectedKeys =
-							viewState.selectedKeys.filterNot { keyRef ->
-								removals.any { (_, parameter, position) ->
-									parameter.id == keyRef.parameterId && position == keyRef.position
-								}
-							}.toSet()
+			// What "the current selection" resolves to, shared by every command below.  A ref whose row is
+			// gone simply drops out, which is what makes a stale selection harmless rather than dangerous.
+			fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
+				viewState.selectedKeys.mapNotNull { keyRef ->
+					val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+					entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+						Triple(track, entry.first, keyRef.keyIndex)
 					}
 				}
-			commands.register(deleteCommand)
-			onDispose { commands.unregister(deleteCommand.id) }
+			val sheetCommands =
+				listOf(
+					Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys) {
+						val removals = selectedTracks()
+						if (session != null && removals.isNotEmpty()) {
+							session.removeTrackKeys(removals)
+							// A removal renumbers every later key on its track, so no surviving ref can be
+							// trusted; clearing is the honest outcome rather than pointing at a neighbour.
+							viewState.selectedKeys = emptySet()
+						}
+					},
+					Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left) {
+						session?.nudgeTrackKeys(selectedTracks(), -NUDGE_FRACTION)
+					},
+					Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right) {
+						session?.nudgeTrackKeys(selectedTracks(), NUDGE_FRACTION)
+					},
+					Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all) {
+						viewState.window = TrackWindow.Full
+					},
+				)
+			sheetCommands.forEach { command -> commands.register(command) }
+			onDispose { sheetCommands.forEach { command -> commands.unregister(command.id) } }
 		}
 		// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
 		// reason (a lazy list nested in a scroll fights it for the gesture).
 		Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
 			for ((parameter, projection) in projections) {
 				key(parameter.id) {
-					// The section header names which parameter the ruler below belongs to.  Shown even for a
-					// single section: without it the sheet is a set of numbers with no stated domain.
-					Text(
-						text = parameter.name,
-						style = LocalUmamoTypography.current.labelMedium,
-						color = colors.textMuted,
-						modifier =
-							Modifier
-								.fillMaxWidth()
-								.background(colors.tabBackground)
-								.padding(horizontal = 8.dp, vertical = 4.dp),
+					val collapsed = parameter.id in viewState.collapsedParameters
+					// The section header names which parameter the ruler below belongs to, and folds it
+					// away.  Shown even for a single section: without it the sheet is a set of numbers with
+					// no stated domain.
+					SectionHeader(
+						name = parameter.name,
+						collapsed = collapsed,
+						onToggle = {
+							viewState.collapsedParameters =
+								if (collapsed) {
+									viewState.collapsedParameters - parameter.id
+								} else {
+									viewState.collapsedParameters + parameter.id
+								}
+						},
 					)
-					if (projection.rows.isEmpty()) {
+					if (collapsed) {
+						// Folded: the header alone, so a linked pad's other axis is one click away.
+					} else if (projection.rows.isEmpty()) {
 						Box(modifier = Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
 							Text(
 								text = stringResource(Res.string.keyform_sheet_no_tracks),
@@ -222,8 +306,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							projection = projection,
 							selectedKeys = viewState.selectedKeys,
 							playhead = liveParams?.observedValues?.get(parameter.id) ?: parameter.default,
+							window = viewState.window,
 							labelColumnWidth = viewState.labelColumnWidth,
-							onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
 							expandedKeys = viewState.expandedKeys,
 							onToggleExpanded = { row ->
 								viewState.expandedKeys =
@@ -239,6 +323,50 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				}
 			}
 		}
+		TrackSheetSeparatorOverlay(
+			labelColumnWidth = viewState.labelColumnWidth,
+			onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
+			onDraggingChange = { dragging -> resizingColumn = dragging },
+		)
+		// The window indicator sits at the bottom edge, over the scroll, because it describes the
+		// horizontal view rather than the vertical one - and it hides itself when everything is framed.
+		Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+			TrackWindowScrollbar(
+				window = viewState.window,
+				onWindowChange = { window -> viewState.window = window },
+				labelColumnWidth = viewState.labelColumnWidth,
+			)
+		}
+	}
+}
+
+/**
+ * A parameter section's header: its name and the chevron that folds the section away.
+ *
+ * @param String name The parameter's display name (user data - never translated).
+ * @param Boolean collapsed Whether the section is folded.
+ * @param Function onToggle Invoked when the header is clicked.
+ */
+@Composable
+private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit) {
+	val colors = LocalUmamoColors.current
+	Row(
+		modifier =
+			Modifier
+				.fillMaxWidth()
+				.background(colors.tabBackground)
+				// NOT focusable: a clickable takes focus, and a row that can be disposed by the very edit
+				// beside it leaves Compose with no focus owner, which kills every keyboard shortcut.
+				.focusProperties { canFocus = false }
+				.clickable(onClick = onToggle)
+				.padding(horizontal = 6.dp, vertical = 4.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		Canvas(modifier = Modifier.size(14.dp)) {
+			drawIcon(if (collapsed) LocalUmamoIcons.chevronRight else LocalUmamoIcons.chevronDown, colors.textMuted)
+		}
+		Spacer(modifier = Modifier.width(4.dp))
+		Text(text = name, style = LocalUmamoTypography.current.labelMedium, color = colors.textMuted)
 	}
 }
 
@@ -252,8 +380,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
  * @param KeyformSheetProjection projection Its tracks and their owning targets.
  * @param Set<TrackKeyRef> selectedKeys The sheet-wide key selection (shared across sections).
  * @param Float playhead The live scrub value of this parameter.
+ * @param TrackWindow window The visible slice of the parameter's range, shared by every section.
  * @param Dp labelColumnWidth The label column's width, shared by every section.
- * @param Function onLabelColumnWidthChange Publishes a dragged column width.
  * @param Set<String> expandedKeys The open group rows, shared by every section.
  * @param Function onToggleExpanded Publishes a chevron click.
  * @param Function onSelectedKeysChange Publishes a new selection to the sheet.
@@ -264,8 +392,8 @@ private fun KeyformSheetSection(
 	projection: KeyformSheetProjection,
 	selectedKeys: Set<TrackKeyRef>,
 	playhead: Float,
+	window: TrackWindow,
 	labelColumnWidth: Dp,
-	onLabelColumnWidthChange: (Dp) -> Unit,
 	expandedKeys: Set<String>,
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
@@ -275,21 +403,23 @@ private fun KeyformSheetSection(
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	val insertLabel = stringResource(Res.string.cmd_keyform_insert)
-	val removeLabel = stringResource(Res.string.cmd_keyform_remove)
+	val deleteLabel = stringResource(Res.string.cmd_keyform_delete)
 	val rows =
 		remember(projection, selectedKeys, parameter.id) {
 			projection.rows.map { row -> row.withSelection(parameter.id, selectedKeys) }
 		}
 	val (domainStart, domainEnd) = parameterDomain(parameter)
+	// The section draws the VISIBLE slice of its parameter, which is what makes one normalized window
+	// drive two axes with unrelated ranges at the same screen positions.
+	val axis = window.axisOver(TrackAxis(domainStart, domainEnd))
 	TrackSheet(
 		rows = rows,
-		axis = TrackAxis(domainStart, domainEnd),
+		axis = axis,
 		// The playhead is the live scrub value, so the sheet reads as a view OF the current pose rather
 		// than a static list beside it.
 		playhead = playhead,
 		modifier = Modifier.fillMaxWidth(),
 		labelColumnWidth = labelColumnWidth,
-		onLabelColumnWidthChange = onLabelColumnWidthChange,
 		expandedKeys = expandedKeys,
 		onToggleExpanded = onToggleExpanded,
 		decorFor = { row ->
@@ -309,19 +439,25 @@ private fun KeyformSheetSection(
 		// how you land the pose exactly on a key without hunting with the slider. The two never conflict,
 		// so doing both is strictly more useful than choosing.
 		onMarkClick = { row, mark ->
-			onSelectedKeysChange(setOf(TrackKeyRef(parameter.id, row.key, mark.position)))
+			onSelectedKeysChange(setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex)))
 			liveParams?.preview(parameter.id, mark.position)
 			liveParams?.commit(setOf(parameter.id))
 		},
-		// Clicking empty track drops the selection, matching every other list in the editor.
-		onTrackClick = { _, _ -> onSelectedKeysChange(emptySet()) },
+		// Pressing or dragging empty track scrubs the parameter, so the whole track region works like the
+		// ruler of a timeline rather than only the marks being live.  The press also drops the key
+		// selection, matching every other list in the editor.
+		onTrackScrub = { _, value ->
+			onSelectedKeysChange(emptySet())
+			liveParams?.preview(parameter.id, value)
+		},
+		// One undo step per gesture, at its end - the same contract a slider drag has.
+		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
 		onMarkDragEnd = { row, mark, releasedAt ->
 			val track = projection.tracksByRowKey[row.key]
 			if (session != null && track != null) {
-				session.moveTrackKey(track, parameter, mark.position, releasedAt)
-				// The grid clamps at the neighbours, so the released position and the stored one can
-				// differ; dropping this key's selection is honest about not knowing where it landed.
-				onSelectedKeysChange(selectedKeys - TrackKeyRef(parameter.id, row.key, mark.position))
+				// The key keeps its ordinal, so the selection survives a move untouched - the whole point
+				// of addressing keys by ordinal rather than by the value that is being changed.
+				session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
 			}
 		},
 		laneMenuItems = { hit ->
@@ -334,9 +470,9 @@ private fun KeyformSheetSection(
 				hitMark != null ->
 					listOf(
 						MenuItem.Action(
-							label = removeLabel,
+							label = deleteLabel,
 							onSelect = {
-								session.removeTrackKeys(listOf(Triple(track, parameter, hitMark.position)))
+								session.removeTrackKeys(listOf(Triple(track, parameter, hitMark.keyIndex)))
 							},
 						),
 					)
@@ -365,7 +501,7 @@ private fun KeyformSheetSection(
  */
 private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<TrackKeyRef>): TrackRow =
 	copy(
-		marks = marks.map { mark -> mark.copy(selected = TrackKeyRef(parameterId, key, mark.position) in selectedKeys) },
+		marks = marks.map { mark -> mark.copy(selected = TrackKeyRef(parameterId, key, mark.keyIndex) in selectedKeys) },
 		children = children.map { child -> child.withSelection(parameterId, selectedKeys) },
 	)
 

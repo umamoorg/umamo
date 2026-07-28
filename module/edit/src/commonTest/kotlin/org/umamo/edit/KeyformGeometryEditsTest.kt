@@ -95,7 +95,7 @@ class KeyformGeometryEditsTest {
 	/** Moving a geometry key repositions it without touching the cells it addresses. */
 	@Test
 	fun movingAGeometryKeyRepositionsIt() {
-		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, 0f, 12f)
+		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 12f)
 		assertEquals(listOf(-30f, 12f, 30f), keysOf(moved))
 		assertEquals(
 			listOf(-1f, 0f, 1f),
@@ -110,7 +110,7 @@ class KeyformGeometryEditsTest {
 	/** A key dragged past its neighbour clamps rather than crossing it. */
 	@Test
 	fun movingAGeometryKeyClampsAtItsNeighbour() {
-		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, 0f, 999f)
+		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 999f)
 		val keys = keysOf(moved)
 		assertTrue(keys[1] < 30f, "the middle key must stop short of the one at 30 (got ${keys[1]})")
 		assertEquals(listOf(-30f, 30f), listOf(keys[0], keys[2]), "its neighbours do not move")
@@ -131,9 +131,9 @@ class KeyformGeometryEditsTest {
 	@Test
 	fun removingCollapsesADrawablesAxis() {
 		val owner = KeyformOwner.Drawable(drawableId)
-		val once = model().withGeometryKeyRemoved(owner, parameter, 0f)
+		val once = model().withGeometryKeyRemoved(owner, parameter, keyIndex = 1)
 		assertEquals(listOf(-30f, 30f), keysOf(once))
-		val twice = once.withGeometryKeyRemoved(owner, parameter, 30f)
+		val twice = once.withGeometryKeyRemoved(owner, parameter, keyIndex = 1)
 		assertNull(twice.drawables.single().geometryGrid, "below two keys the axis collapses entirely")
 	}
 
@@ -141,10 +141,10 @@ class KeyformGeometryEditsTest {
 	@Test
 	fun removingRefusesToUnkeyADeformer() {
 		val owner = KeyformOwner.Deformer(deformerId)
-		val once = model().withGeometryKeyRemoved(owner, parameter, 0f)
+		val once = model().withGeometryKeyRemoved(owner, parameter, keyIndex = 1)
 		val warp = once.deformers.single() as Deformer.Warp
 		assertEquals(listOf(-30f, 30f), assertNotNull(warp.geometryGrid).axes.single().keys.toList())
-		val refused = once.withGeometryKeyRemoved(owner, parameter, 30f)
+		val refused = once.withGeometryKeyRemoved(owner, parameter, keyIndex = 1)
 		assertSame(once, refused, "collapsing a deformer's last axis would hide it, so it is refused")
 	}
 
@@ -153,8 +153,27 @@ class KeyformGeometryEditsTest {
 	fun ownersWithoutGeometryAreLeftAlone() {
 		val puppet = model()
 		val owner = KeyformOwner.Glue(drawableId, drawableId)
-		assertSame(puppet, puppet.withGeometryKeyMoved(owner, parameter, 0f, 10f))
+		assertSame(puppet, puppet.withGeometryKeyMoved(owner, parameter, keyIndex = 0, toValue = 10f))
 		assertSame(puppet, puppet.withGeometryKeyInserted(owner, parameter, 10f))
-		assertSame(puppet, puppet.withGeometryKeyRemoved(owner, parameter, 0f))
+		assertSame(puppet, puppet.withGeometryKeyRemoved(owner, parameter, keyIndex = 0))
+	}
+
+	/**
+	 * Two keys close enough to draw on the same pixel are still individually addressable.
+	 *
+	 * The case that made dragging one of a near-coincident pair move the other: a value-based lookup
+	 * resolves to whichever key is nearer, and within EPS_KEY that is a coin toss.  Nothing forbids keys
+	 * this close - forbidding them would be the wrong cure - so the ordinal has to carry the identity.
+	 */
+	@Test
+	fun nearCoincidentKeysAreStillIndividuallyAddressable() {
+		val owner = KeyformOwner.Drawable(drawableId)
+		// Walk the middle key to within a hair of the last one, then move the LAST one and check the
+		// middle stayed put - a value-based lookup would have grabbed whichever it reached first.
+		val crowded = model().withGeometryKeyMoved(owner, parameter, keyIndex = 1, toValue = 30f)
+		val middle = keysOf(crowded)[1]
+		assertTrue(30f - middle < 0.01f, "the middle key should have clamped right up against the last (at $middle)")
+		val moved = crowded.withGeometryKeyMoved(owner, parameter, keyIndex = 2, toValue = 99f)
+		assertEquals(middle, keysOf(moved)[1], "moving the last key must not disturb the one beside it")
 	}
 }

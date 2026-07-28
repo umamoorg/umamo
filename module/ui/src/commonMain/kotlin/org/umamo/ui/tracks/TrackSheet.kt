@@ -27,13 +27,20 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -49,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.AtPointPositionProvider
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
+import org.umamo.ui.kit.SCROLLBAR_CORNER_RADIUS
+import org.umamo.ui.kit.SCROLLBAR_MIN_THUMB
+import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.contextMenuGesture
@@ -84,6 +94,14 @@ val TRACK_ROW_HEIGHT: Dp = 32.dp
 /** The ruler strip's height. */
 val TRACK_RULER_HEIGHT: Dp = 20.dp
 
+/**
+ * The gap left between rows, showing the track region through.
+ *
+ * Small on purpose: enough to break the tone bands apart so the eye can follow one band left to right
+ * across a dense sheet, not enough to read as spacing between unrelated things.
+ */
+val TRACK_ROW_GAP: Dp = 2.dp
+
 /** Indent per nesting level in the label column. */
 private val INDENT_PER_DEPTH: Dp = 12.dp
 
@@ -94,13 +112,19 @@ private val INDENT_PER_DEPTH: Dp = 12.dp
  * fully inside the lane instead of half outside it.  Every axis has a key at each end, so without the
  * inset every track loses two marks to the panel edge.
  */
-val TRACK_MARK_RADIUS: Dp = 10.dp
+val TRACK_MARK_RADIUS: Dp = 6.dp
 
 /** The chevron / icon slots in the label column. */
 private val SLOT_WIDTH: Dp = 16.dp
 
 /** The draggable width of the column separator; wider than the hairline it draws so it is easy to grab. */
 private val SEPARATOR_GRAB_WIDTH: Dp = 5.dp
+
+/** How much one wheel notch zooms; a fixed ratio, so a notch feels the same however far in you are. */
+private const val ZOOM_STEP: Float = 0.85f
+
+/** How far one wheel notch pans, as a fraction of the VISIBLE width. */
+private const val PAN_STEP: Float = 0.15f
 
 /**
  * Per-row presentation the sheet cannot derive from a [TrackRow] alone.
@@ -140,14 +164,14 @@ data class TrackLaneHit(
  * @param TrackAxis axis The horizontal domain the marks map onto.
  * @param Float? playhead The domain value to draw the playhead at, or null for none.
  * @param Modifier modifier The layout modifier.
- * @param Dp labelColumnWidth The label column's current width.
- * @param Function? onLabelColumnWidthChange Receives a new width as the separator is dragged; null pins it.
+ * @param Dp labelColumnWidth The label column's current width; TrackSheetSeparatorOverlay resizes it.
  * @param Set<String> expandedKeys The keys of the rows whose children are shown.
  * @param Function? onToggleExpanded Invoked with a row whose chevron was clicked; null pins the tree.
  * @param Function decorFor The per-row icon provider.
  * @param Function formatTick Renders a ruler tick value; defaults to a trimmed decimal.
  * @param Function? onMarkClick Invoked with the row and the mark nearest a click, when one is in range.
- * @param Function? onTrackClick Invoked with the row and the clicked domain value when no mark is in range.
+ * @param Function? onTrackScrub Invoked on press and on every move of a drag that missed every mark.
+ * @param Function? onTrackScrubEnd Invoked when such a drag is released, to commit the value it landed on.
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
@@ -159,13 +183,13 @@ fun TrackSheet(
 	playhead: Float?,
 	modifier: Modifier = Modifier,
 	labelColumnWidth: Dp = TRACK_LABEL_COLUMN_DEFAULT_WIDTH,
-	onLabelColumnWidthChange: ((Dp) -> Unit)? = null,
 	expandedKeys: Set<String> = emptySet(),
 	onToggleExpanded: ((TrackRow) -> Unit)? = null,
 	decorFor: (TrackRow) -> TrackRowDecor = { TrackRowDecor() },
 	formatTick: (Float) -> String = ::defaultTickLabel,
 	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)? = null,
-	onTrackClick: ((TrackRow, Float) -> Unit)? = null,
+	onTrackScrub: ((TrackRow, Float) -> Unit)? = null,
+	onTrackScrubEnd: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
@@ -176,7 +200,6 @@ fun TrackSheet(
 			axis = axis,
 			playhead = playhead,
 			labelColumnWidth = labelColumnWidth,
-			onLabelColumnWidthChange = onLabelColumnWidthChange,
 			formatTick = formatTick,
 			markRadius = markRadius,
 		)
@@ -190,10 +213,190 @@ fun TrackSheet(
 					decor = decorFor(line.row),
 					onToggleExpanded = onToggleExpanded,
 					onMarkClick = onMarkClick,
-					onTrackClick = onTrackClick,
+					onTrackScrub = onTrackScrub,
+					onTrackScrubEnd = onTrackScrubEnd,
 					onMarkDragEnd = onMarkDragEnd,
 					laneMenuItems = laneMenuItems,
 					markRadius = markRadius,
+				)
+			}
+		}
+	}
+}
+
+/**
+ * The zoom / pan gestures for a whole track sheet: Ctrl+wheel zooms about the pointer, Shift+wheel pans,
+ * and a tertiary (middle) drag pans.
+ *
+ * Attached by the sheet's owner across its whole scrolling region, not per lane, because the window is
+ * shared by every track and section - the zoom belongs to the view, not to a row.
+ *
+ * PLAIN wheel is deliberately left alone: the sheet scrolls vertically through hundreds of tracks, and
+ * taking the unmodified wheel for zoom would cost the more common gesture to serve the rarer one.  This
+ * matches every NLE that has real vertical overflow.
+ *
+ * @param TrackWindow window The current window.
+ * @param Function onWindowChange Receives the new window.
+ * @param Dp labelColumnWidth The label column's width, so a gesture over the labels is ignored.
+ * @param Function onPanningChange Reports whether a pan is in flight, so the caller can hold the cursor.
+ * @return Modifier The modifier carrying both gestures.
+ */
+@Composable
+fun Modifier.trackWindowGestures(
+	window: TrackWindow,
+	onWindowChange: (TrackWindow) -> Unit,
+	labelColumnWidth: Dp,
+	onPanningChange: (Boolean) -> Unit = {},
+): Modifier {
+	val density = LocalDensity.current
+	val latestWindow by rememberUpdatedState(window)
+	val latestCallback by rememberUpdatedState(onWindowChange)
+	val latestPanning by rememberUpdatedState(onPanningChange)
+	val labelWidthPx = with(density) { labelColumnWidth.toPx() }
+	return this
+		.pointerInput(labelWidthPx) {
+			awaitPointerEventScope {
+				while (true) {
+					// The INITIAL pass, deliberately: the Main pass runs child-first, so the vertical scroll
+					// container has already claimed the wheel by the time it reaches here - which is why
+					// Ctrl+wheel used to zoom and scroll at once.
+					val event = awaitPointerEvent(PointerEventPass.Initial)
+					if (event.type != PointerEventType.Scroll) {
+						continue
+					}
+					val change = event.changes.firstOrNull() ?: continue
+					val laneWidth = size.width - labelWidthPx
+					if (change.position.x < labelWidthPx || laneWidth <= 0f) {
+						continue
+					}
+					val horizontal = change.scrollDelta.x
+					if (horizontal != 0f) {
+						latestCallback(latestWindow.pannedBy(horizontal * latestWindow.span * PAN_STEP))
+						change.consume()
+						continue
+					}
+					val scroll = change.scrollDelta.y
+					if (scroll == 0f) {
+						continue
+					}
+					when {
+						event.keyboardModifiers.isCtrlPressed -> {
+							val focus = ((change.position.x - labelWidthPx) / laneWidth).coerceIn(0f, 1f)
+							// A notch is a fixed RATIO, so zooming feels the same however far in you are.
+							latestCallback(latestWindow.zoomedBy(if (scroll > 0f) 1f / ZOOM_STEP else ZOOM_STEP, focus))
+							change.consume()
+						}
+
+						event.keyboardModifiers.isShiftPressed -> {
+							latestCallback(latestWindow.pannedBy(scroll * latestWindow.span * PAN_STEP))
+							change.consume()
+						}
+
+						// Anything else is the vertical scroll, which belongs to the scroll container.
+						else -> Unit
+					}
+				}
+			}
+		}
+		.pointerInput(labelWidthPx) {
+			awaitPointerEventScope {
+				while (true) {
+					// The raw stream on the INITIAL pass, not awaitFirstDown.  Two reasons, both load-bearing:
+					// Initial is the only pass that beats the lanes and the scroll container, which are
+					// children and would otherwise claim a middle press first; and awaitFirstDown does not
+					// resolve a down on that pass at all - it waits forever - which is why this silently did
+					// nothing.  contextMenuGesture watches the raw stream for the same reason.
+					val press = awaitPointerEvent(PointerEventPass.Initial)
+					if (press.type != PointerEventType.Press || !press.buttons.isTertiaryPressed) {
+						continue
+					}
+					val down = press.changes.first()
+					if (down.position.x < labelWidthPx) {
+						continue
+					}
+					down.consume()
+					latestPanning(true)
+					val laneWidth = size.width - labelWidthPx
+					var lastX = down.position.x
+					while (true) {
+						val event = awaitPointerEvent(PointerEventPass.Initial)
+						val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+						if (!change.pressed) {
+							change.consume()
+							break
+						}
+						if (laneWidth > 0f && change.position.x != lastX) {
+							// Dragging right moves the CONTENT right, so the window moves left - the direct
+							// manipulation a hand tool has, not a scrollbar's inverted sense.
+							val moved = (change.position.x - lastX) / laneWidth
+							latestCallback(latestWindow.pannedBy(-moved * latestWindow.span))
+							lastX = change.position.x
+						}
+						change.consume()
+					}
+					latestPanning(false)
+				}
+			}
+		}
+}
+
+/**
+ * The horizontal window indicator under a track sheet: a thumb showing which slice of the domain is on
+ * screen, draggable to pan.
+ *
+ * Not a scrollbar over a scroll container - there is no scrolling content to attach to - so it reads the
+ * window directly and reports a new one.  Hidden when the whole domain is framed, since a full-width thumb
+ * says nothing.
+ *
+ * @param TrackWindow window The current window.
+ * @param Function onWindowChange Receives the new window as the thumb is dragged.
+ * @param Dp labelColumnWidth The label column's width, so the track starts under the tracks.
+ * @param Modifier modifier The layout modifier.
+ */
+@Composable
+fun TrackWindowScrollbar(
+	window: TrackWindow,
+	onWindowChange: (TrackWindow) -> Unit,
+	labelColumnWidth: Dp,
+	modifier: Modifier = Modifier,
+) {
+	val colors = LocalUmamoColors.current
+	if (window.span >= 1f) {
+		return
+	}
+	val latestWindow by rememberUpdatedState(window)
+	val latestCallback by rememberUpdatedState(onWindowChange)
+	var trackWidth by remember { mutableStateOf(0) }
+	val dragState =
+		remember {
+			DraggableState { deltaPx ->
+				if (trackWidth > 0) {
+					latestCallback(latestWindow.pannedBy(deltaPx / trackWidth))
+				}
+			}
+		}
+	val minimumThumbWidth = with(LocalDensity.current) { SCROLLBAR_MIN_THUMB.toPx() }
+	val cornerRadius = with(LocalDensity.current) { SCROLLBAR_CORNER_RADIUS.toPx() }
+	Row(modifier = modifier.fillMaxWidth().height(SCROLLBAR_THICKNESS)) {
+		Spacer(modifier = Modifier.width(labelColumnWidth + 1.dp))
+		Box(
+			modifier =
+				Modifier
+					.weight(1f)
+					.fillMaxHeight()
+					.onSizeChanged { measured -> trackWidth = measured.width }
+					.draggable(state = dragState, orientation = Orientation.Horizontal),
+		) {
+			Canvas(modifier = Modifier.fillMaxSize()) {
+				val thumbWidth = maxOf(size.width * latestWindow.span, minimumThumbWidth)
+				val thumbLeft = (size.width * latestWindow.start).coerceIn(0f, maxOf(0f, size.width - thumbWidth))
+				// Full thickness, matching the panel scrollbars: a bar is a pointer target first, and one
+				// inset thinner than its neighbours is harder to hit for no reason the user can see.
+				drawRoundRect(
+					color = colors.scrollbarThumb,
+					topLeft = Offset(thumbLeft, 0f),
+					size = Size(thumbWidth, size.height),
+					cornerRadius = CornerRadius(cornerRadius),
 				)
 			}
 		}
@@ -230,7 +433,8 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param TrackRowDecor decor The row's icon.
  * @param Function? onToggleExpanded Invoked when the chevron is clicked.
  * @param Function? onMarkClick Invoked when a click lands on a mark.
- * @param Function? onTrackClick Invoked when a click lands on empty track.
+ * @param Function? onTrackScrub Invoked as an empty-track drag moves.
+ * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
@@ -244,16 +448,23 @@ private fun TrackSheetRow(
 	decor: TrackRowDecor,
 	onToggleExpanded: ((TrackRow) -> Unit)?,
 	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)?,
-	onTrackClick: ((TrackRow, Float) -> Unit)?,
+	onTrackScrub: ((TrackRow, Float) -> Unit)?,
+	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val toneBackground = toneBackgroundOf(line.row.tone)
-	// A collapsed group summarizes its whole subtree, so folding a rig away still shows WHERE its keys
-	// are.  Expanded, it shows only its own marks - the children are on screen carrying theirs.
-	val marks = remember(line.row, line.expanded) { if (line.expanded) line.row.marks else summarizedMarks(line.row) }
+	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
+	// Expanded, it shows only its own marks - the children are on screen carrying theirs.  A leaf is
+	// neither: it shows its own marks, which stay editable.  (Routing leaves through the summary too was
+	// harmless while the summary only deduplicated; it stopped being harmless once a summary mark started
+	// declaring itself inert.)
+	val marks =
+		remember(line.row, line.expandable, line.expanded) {
+			if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
+		}
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_ROW_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
 		TrackRowLabel(
 			line = line,
@@ -271,12 +482,14 @@ private fun TrackSheetRow(
 			background = toneBackground,
 			modifier = Modifier.weight(1f),
 			onMarkClick = onMarkClick,
-			onTrackClick = onTrackClick,
+			onTrackScrub = onTrackScrub,
+			onTrackScrubEnd = onTrackScrubEnd,
 			onMarkDragEnd = onMarkDragEnd,
 			laneMenuItems = laneMenuItems,
 			markRadius = markRadius,
 		)
 	}
+	Spacer(modifier = Modifier.fillMaxWidth().height(TRACK_ROW_GAP))
 }
 
 /**
@@ -390,7 +603,6 @@ private fun ExpandChevron(expanded: Boolean, onClick: () -> Unit) {
  * @param TrackAxis axis The domain.
  * @param Float? playhead The playhead's domain value, or null.
  * @param Dp labelColumnWidth The label column's width.
- * @param Function? onLabelColumnWidthChange Receives a new width as the separator is dragged.
  * @param Function formatTick Renders a tick value.
  * @param Dp markRadius The track region's end inset, so ticks line up with the marks below.
  */
@@ -399,7 +611,6 @@ private fun TrackRuler(
 	axis: TrackAxis,
 	playhead: Float?,
 	labelColumnWidth: Dp,
-	onLabelColumnWidthChange: ((Dp) -> Unit)?,
 	formatTick: (Float) -> String,
 	markRadius: Dp,
 ) {
@@ -407,8 +618,8 @@ private fun TrackRuler(
 	val typography = LocalUmamoTypography.current
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_RULER_HEIGHT).background(colors.headerBackground)) {
 		Box(modifier = Modifier.width(labelColumnWidth))
-		ColumnSeparator(labelColumnWidth = labelColumnWidth, onLabelColumnWidthChange = onLabelColumnWidthChange)
-		Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
+		Box(modifier = Modifier.weight(1f).fillMaxSize().clipToBounds()) {
 			Canvas(modifier = Modifier.fillMaxSize()) {
 				val inset = markRadius.toPx()
 				for (tick in axis.ticks()) {
@@ -432,21 +643,28 @@ private fun TrackRuler(
 }
 
 /**
- * The hairline between the label column and the track region, draggable to resize the two.
+ * The draggable column separator, as a full-height overlay over a whole scrolling sheet.
  *
- * The same affordance the area splitters use, at panel scale: a wider invisible grab band around a thin
- * drawn line, with the horizontal-resize cursor on hover.
+ * An overlay rather than a per-row divider because the grab band has to run the WHOLE panel: a separator
+ * you can only catch in the 20dp ruler is a target the user has to hunt for, and with several sections
+ * stacked there is no single row that spans them anyway.  Callers stack this in FRONT of their scroll
+ * container, at the same [labelColumnWidth] the sheets are drawn with.
+ *
+ * The rows still draw their own hairline at the same x, so the line is continuous where the overlay is
+ * merely transparent.
  *
  * @param Dp labelColumnWidth The current width, which the drag is applied to.
- * @param Function? onLabelColumnWidthChange Receives the new width; null draws a plain, fixed hairline.
+ * @param Function onLabelColumnWidthChange Receives the new width, clamped to the sheet's bounds.
+ * @param Modifier modifier The layout modifier.
+ * @param Function onDraggingChange Reports whether a resize is in flight, so the caller can hold the cursor.
  */
 @Composable
-private fun ColumnSeparator(labelColumnWidth: Dp, onLabelColumnWidthChange: ((Dp) -> Unit)?) {
-	val colors = LocalUmamoColors.current
-	if (onLabelColumnWidthChange == null) {
-		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
-		return
-	}
+fun TrackSheetSeparatorOverlay(
+	labelColumnWidth: Dp,
+	onLabelColumnWidthChange: (Dp) -> Unit,
+	modifier: Modifier = Modifier,
+	onDraggingChange: (Boolean) -> Unit = {},
+) {
 	val density = LocalDensity.current
 	// The callback and the width are read at DRAG time, not captured at construction: the drag state
 	// outlives a recomposition, and a captured width would make every delta apply to a stale base.
@@ -462,16 +680,24 @@ private fun ColumnSeparator(labelColumnWidth: Dp, onLabelColumnWidthChange: ((Dp
 			}
 		}
 	val resizeCursor = umamoPointerIcon(LocalUmamoCursors.ewScroll)
-	Box(
-		modifier =
-			Modifier
-				.width(SEPARATOR_GRAB_WIDTH)
-				.fillMaxHeight()
-				.pointerHoverIcon(resizeCursor)
-				.draggable(state = dragState, orientation = Orientation.Horizontal),
-		contentAlignment = Alignment.Center,
-	) {
-		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
+	val latestDragging by rememberUpdatedState(onDraggingChange)
+	Row(modifier = modifier.fillMaxSize()) {
+		// A transparent spacer positions the grab band; it must not intercept anything, so the band is
+		// offset back by half its width to straddle the hairline the rows draw.
+		Spacer(modifier = Modifier.width(labelColumnWidth + 1.dp - SEPARATOR_GRAB_WIDTH / 2))
+		Box(
+			modifier =
+				Modifier
+					.width(SEPARATOR_GRAB_WIDTH)
+					.fillMaxHeight()
+					.pointerHoverIcon(resizeCursor)
+					.draggable(
+						state = dragState,
+						orientation = Orientation.Horizontal,
+						onDragStarted = { latestDragging(true) },
+						onDragStopped = { latestDragging(false) },
+					),
+		)
 	}
 }
 
@@ -485,7 +711,8 @@ private fun ColumnSeparator(labelColumnWidth: Dp, onLabelColumnWidthChange: ((Dp
  * @param Color background The row's tone fill.
  * @param Modifier modifier The layout modifier.
  * @param Function? onMarkClick Invoked when a click lands on a mark.
- * @param Function? onTrackClick Invoked when a click lands on empty track.
+ * @param Function? onTrackScrub Invoked as an empty-track drag moves.
+ * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
@@ -499,7 +726,8 @@ private fun TrackLane(
 	background: Color,
 	modifier: Modifier = Modifier,
 	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)?,
-	onTrackClick: ((TrackRow, Float) -> Unit)?,
+	onTrackScrub: ((TrackRow, Float) -> Unit)?,
+	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	markRadius: Dp,
@@ -510,17 +738,21 @@ private fun TrackLane(
 	// committed on release: a per-frame commit would push an undo step for every pixel of the drag.
 	var draggingMark by remember(row.key) { mutableStateOf<TrackKeyMark?>(null) }
 	var dragDomainValue by remember(row.key) { mutableStateOf(0f) }
-	// The context menu's items depend on WHERE it was opened (over a key, or over empty track), so the hit
-	// is resolved at request time and the items are built from it - a fixed ContextMenuArea, whose items
-	// are chosen at composition, cannot express that.
-	var menuHit by remember(row.key) { mutableStateOf<TrackLaneHit?>(null) }
+	// The window the in-flight drag may move within - its neighbours, inside the axis.  Latched when the
+	// drag starts so a mark cannot escape by being dragged past a neighbour it has already reached.
+	var dragBounds by remember(row.key) { mutableStateOf(0f..0f) }
+	// The context menu's items depend on WHERE it was opened (over a key, or over empty track), so the
+	// gesture records only the anchor and the hit is resolved below, at composition time.  Resolving it
+	// inside the gesture lambda would read whatever `marks` and `axis` were when that lambda was created -
+	// contextMenuGesture keys its pointerInput on Unit, so the first lambda is the one that runs forever.
+	var menuOpen by remember(row.key) { mutableStateOf(false) }
 	var menuAnchor by remember(row.key) { mutableStateOf(IntOffset.Zero) }
 	// The lane's measured width, so the pixel->domain mapping is available OUTSIDE a draw or pointer scope
 	// (the context-menu gesture reports a raw offset and has neither).
 	var laneWidth by remember(row.key) { mutableStateOf(0) }
 	val touchSlop = LocalViewConfiguration.current.touchSlop
 	val markRadiusPx = with(density) { markRadius.toPx() }
-	Box(modifier = modifier.fillMaxHeight().background(background)) {
+	Box(modifier = modifier.fillMaxHeight().background(background).clipToBounds()) {
 		Canvas(
 			modifier =
 				Modifier
@@ -532,9 +764,7 @@ private fun TrackLane(
 						} else {
 							Modifier.contextMenuGesture { localOffset ->
 								menuAnchor = localOffset
-								val value = domainAt(localOffset.x.toFloat(), axis, laneWidth, markRadiusPx)
-								val tolerance = pickTolerance(axis, laneWidth, markRadiusPx)
-								menuHit = TrackLaneHit(row, value, nearestMark(marks, value, tolerance))
+								menuOpen = true
 							}
 						},
 					)
@@ -542,8 +772,8 @@ private fun TrackLane(
 					// detector consumed the down before the tap detector saw it, so clicking a mark did nothing
 					// and neither selection nor dragging worked. Deciding between them from a single stream is
 					// the only way they cannot fight.
-					.pointerInput(row.key, marks, axis, markRadiusPx, onMarkClick, onTrackClick, onMarkDragEnd) {
-						if (onMarkClick == null && onTrackClick == null && onMarkDragEnd == null) {
+					.pointerInput(row.key, marks, axis, markRadiusPx, onMarkClick, onTrackScrub, onMarkDragEnd) {
+						if (onMarkClick == null && onTrackScrub == null && onMarkDragEnd == null) {
 							return@pointerInput
 						}
 						awaitEachGesture {
@@ -551,13 +781,28 @@ private fun TrackLane(
 							// A secondary (right) press belongs to the context menu.  Without this it would
 							// also run the tap path, so opening the menu over empty track would clear the
 							// selection and opening it over a key would scrub the pose onto it.
-							if (currentEvent.buttons.isSecondaryPressed) {
+							// A secondary press belongs to the context menu and a tertiary one to the sheet's
+							// pan; either falling through here would scrub or select on the way past.
+							if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
 								return@awaitEachGesture
 							}
 							val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
-							val hitMark = nearestMark(marks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
+							// Summary marks are drawn but not addressable, so a press on one falls through
+							// to the scrub path rather than starting a drag that could only guess.
+							val hitMark =
+								nearestMark(
+									marks.filter { mark -> mark.editable },
+									pressedValue,
+									pickTolerance(axis, size.width, markRadiusPx),
+								)
 							var dragging = false
 							var releaseValue = pressedValue
+							// A press on empty track scrubs immediately, so the playhead lands under the
+							// pointer on the way down rather than only on release - the affordance a
+							// timeline ruler has, applied across the whole track region.
+							if (hitMark == null) {
+								onTrackScrub?.invoke(row, pressedValue)
+							}
 							while (true) {
 								val event = awaitPointerEvent()
 								val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
@@ -565,21 +810,34 @@ private fun TrackLane(
 									break
 								}
 								if (change.positionChange().x != 0f || change.positionChange().y != 0f) {
-									if (!dragging && abs(change.position.x - down.position.x) > touchSlop && hitMark != null) {
+									if (!dragging && abs(change.position.x - down.position.x) > touchSlop) {
 										dragging = true
-										draggingMark = hitMark
+										if (hitMark != null) {
+											draggingMark = hitMark
+											dragBounds = dragBoundsOf(marks, hitMark.keyIndex, axis)
+										}
 									}
 									if (dragging) {
-										releaseValue = domainAt(change.position.x, axis, size.width, markRadiusPx)
-										dragDomainValue = releaseValue
+										val pointerValue = domainAt(change.position.x, axis, size.width, markRadiusPx)
+										// A MARK drag is clamped as it moves rather than on release: one that
+										// follows the pointer past its neighbour and then snaps back reads as a
+										// rejected edit, where stopping at the wall reads as the wall being
+										// there.  An empty-track scrub has no walls - it is a pose gesture.
+										releaseValue =
+											if (hitMark == null) pointerValue else pointerValue.coerceIn(dragBounds)
+										if (hitMark == null) {
+											onTrackScrub?.invoke(row, releaseValue)
+										} else {
+											dragDomainValue = releaseValue
+										}
 										change.consume()
 									}
 								}
 							}
 							when {
-								dragging && hitMark != null -> onMarkDragEnd?.invoke(row, hitMark, releaseValue)
+								hitMark != null && dragging -> onMarkDragEnd?.invoke(row, hitMark, releaseValue)
 								hitMark != null -> onMarkClick?.invoke(row, hitMark)
-								else -> onTrackClick?.invoke(row, pressedValue)
+								else -> onTrackScrubEnd?.invoke(row, releaseValue)
 							}
 							draggingMark = null
 						}
@@ -587,7 +845,7 @@ private fun TrackLane(
 		) {
 			// A hairline baseline makes an empty track legible as a track rather than as blank panel.
 			drawLine(
-				colors.panelBorder,
+				colors.panelBorderHover,
 				Offset(0f, size.height * 0.5f),
 				Offset(size.width, size.height * 0.5f),
 				strokeWidth = 1f,
@@ -596,17 +854,23 @@ private fun TrackLane(
 			for (mark in marks) {
 				// A mark being dragged draws at the pointer, not at its stored position, so the gesture reads as
 				// direct manipulation rather than as a jump on release.
-				val drawnPosition = if (mark == draggingMark) dragDomainValue else mark.position
+				val drawnPosition = if (mark.keyIndex == draggingMark?.keyIndex) dragDomainValue else mark.position
 				val x = laneX(axis.fractionOf(drawnPosition), size.width, markRadiusPx)
-				val fill = if (mark.selected) colors.accent else colors.controlGlyph
+				val fill =
+					when {
+						!mark.editable -> colors.textDisabled
+						mark.selected -> colors.accent
+						else -> colors.controlGlyph
+					}
 				drawMark(mark.shape, Offset(x, size.height * 0.5f), markRadiusPx, fill, colors.panelBackground)
 			}
 		}
-		val hit = menuHit
-		if (laneMenuItems != null && hit != null) {
+		if (laneMenuItems != null && menuOpen && laneWidth > 0) {
+			val menuValue = domainAt(menuAnchor.x.toFloat(), axis, laneWidth, markRadiusPx)
+			val menuMark = nearestMark(marks, menuValue, pickTolerance(axis, laneWidth, markRadiusPx))
 			Menu(
-				items = laneMenuItems(hit),
-				onDismissRequest = { menuHit = null },
+				items = laneMenuItems(TrackLaneHit(row, menuValue, menuMark)),
+				onDismissRequest = { menuOpen = false },
 				positionProvider = AtPointPositionProvider(menuAnchor),
 				focusable = true,
 			)

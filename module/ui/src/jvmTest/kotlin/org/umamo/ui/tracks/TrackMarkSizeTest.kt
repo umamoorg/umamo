@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
 class TrackMarkSizeTest {
 	/** A single track with one mark in the middle of its domain. */
 	private val rows =
-		listOf(TrackRow(key = "track", label = "Track", marks = listOf(TrackKeyMark(0f))))
+		listOf(TrackRow(key = "track", label = "Track", marks = listOf(TrackKeyMark(0, 0f))))
 
 	/** Doubling the radius makes the drawn mark cover materially more pixels. */
 	@OptIn(ExperimentalTestApi::class)

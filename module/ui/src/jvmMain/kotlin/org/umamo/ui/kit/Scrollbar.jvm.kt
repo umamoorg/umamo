@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 
 /**
@@ -26,9 +25,9 @@ import org.umamo.ui.theme.LocalUmamoColors
 private fun umamoScrollbarStyle(): ScrollbarStyle {
 	val colors = LocalUmamoColors.current
 	return ScrollbarStyle(
-		minimalHeight = 24.dp,
-		thickness = 8.dp,
-		shape = RoundedCornerShape(4.dp),
+		minimalHeight = SCROLLBAR_MIN_THUMB,
+		thickness = SCROLLBAR_THICKNESS,
+		shape = RoundedCornerShape(SCROLLBAR_CORNER_RADIUS),
 		hoverDurationMillis = 300,
 		unhoverColor = colors.scrollbarThumb,
 		hoverColor = colors.scrollbarThumbHover,

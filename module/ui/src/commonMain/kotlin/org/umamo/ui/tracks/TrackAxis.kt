@@ -98,6 +98,79 @@ data class TrackAxis(
 }
 
 /**
+ * The visible slice of a domain, as fractions of it - the zoom / pan state of a track sheet.
+ *
+ * NORMALIZED rather than in domain units so one window drives several domains at once.  A keyform sheet
+ * showing a linked pad has two parameters with unrelated ranges (an angle over -30..30 beside an open /
+ * close over 0..1); a shared absolute window would overshoot the narrower one entirely, while a shared
+ * fraction keeps both rulers at the same screen positions and the pad's two axes reading in step.
+ *
+ * @property Float start The visible range's start, as a fraction of the full domain.
+ * @property Float end Its end, likewise.
+ */
+data class TrackWindow(
+	val start: Float = 0f,
+	val end: Float = 1f,
+) {
+	/** The visible fraction of the whole domain; 1 when framed to everything. */
+	val span: Float get() = end - start
+
+	/**
+	 * This window as an axis over [full], which is what the sheet actually draws against.
+	 *
+	 * @param TrackAxis full The whole domain.
+	 * @return TrackAxis The visible slice of it.
+	 */
+	fun axisOver(full: TrackAxis): TrackAxis =
+		TrackAxis(full.start + full.span * start, full.start + full.span * end)
+
+	/**
+	 * This window zoomed by [factor] about [focus], a fraction of the VISIBLE width.
+	 *
+	 * Anchored on the pointer rather than the centre, so zooming in on a cluster of keys keeps that
+	 * cluster under the cursor instead of sliding it away.  Clamped so the window can never invert, shrink
+	 * past [MIN_SPAN] (which would divide by nothing at the pixel mapping), or grow past the full domain.
+	 *
+	 * @param Float factor Multiplier on the visible span; below 1 zooms in.
+	 * @param Float focus The zoom anchor, 0..1 across the visible width.
+	 * @return TrackWindow The new window.
+	 */
+	fun zoomedBy(factor: Float, focus: Float): TrackWindow {
+		val anchor = start + span * focus.coerceIn(0f, 1f)
+		val newSpan = (span * factor).coerceIn(MIN_SPAN, 1f)
+		// Hold the anchor at the same fraction of the visible width, then push the result back inside the
+		// domain - zooming out near an end walks the window inward rather than off the edge.
+		val newStart = (anchor - (anchor - start) * (newSpan / span)).coerceIn(0f, 1f - newSpan)
+		return TrackWindow(newStart, newStart + newSpan)
+	}
+
+	/**
+	 * This window panned by [fraction] of the FULL domain, stopping at either end.
+	 *
+	 * @param Float fraction The signed distance to move, as a fraction of the whole domain.
+	 * @return TrackWindow The new window.
+	 */
+	fun pannedBy(fraction: Float): TrackWindow {
+		val newStart = (start + fraction).coerceIn(0f, 1f - span)
+		return TrackWindow(newStart, newStart + span)
+	}
+
+	companion object {
+		/** The whole domain - what "frame all" resets to. */
+		val Full: TrackWindow = TrackWindow()
+
+		/**
+		 * The tightest the window may zoom, as a fraction of the domain.
+		 *
+		 * A thousandth of a -30..30 axis is 0.06 units across the whole panel, which separates keys the
+		 * evaluator itself treats as distinct (EPS_KEY is 0.001) by hundreds of pixels.  Tighter than that
+		 * buys nothing and starts losing float precision in the pixel mapping.
+		 */
+		const val MIN_SPAN: Float = 0.001f
+	}
+}
+
+/**
  * The shape a mark is drawn with, which is how a row distinguishes kinds of key at a glance.
  *
  * The keyform sheet uses [Circle] for a keyform-grid key and [Square] for a blend-shape key, matching the
@@ -113,15 +186,63 @@ enum class TrackKeyShape {
 /**
  * One mark on a track.
  *
+ * [keyIndex] is the mark's IDENTITY and [position] is only where it is drawn.  Two marks may sit at the
+ * same pixel - nothing forbids keys a hair apart, and forbidding it would be the wrong cure - so anything
+ * that edits a key has to say which one by ordinal.  Resolving "the key at this value" instead is
+ * ambiguous exactly when it matters, and picks the wrong key silently.
+ *
+ * A summary mark (drawn on a collapsed group) carries the index it had in whichever child it came from,
+ * which is meaningless across the group as a whole.  Those marks are flagged NOT [editable] for exactly
+ * that reason: the group's row says keys exist at these values, it cannot say which channel owns them, and
+ * an edit that has to guess is worse than no edit.
+ *
+ * @property Int keyIndex The mark's ordinal within its row's track.
  * @property Float position The mark's domain value (a parameter value, a frame, …).
  * @property TrackKeyShape shape How to draw it.
  * @property Boolean selected Whether it is part of the current key selection.
+ * @property Boolean editable Whether it may be selected, dragged, or removed; a summary mark may not.
  */
 data class TrackKeyMark(
+	val keyIndex: Int,
 	val position: Float,
 	val shape: TrackKeyShape = TrackKeyShape.Circle,
 	val selected: Boolean = false,
+	val editable: Boolean = true,
 )
+
+/**
+ * The domain window a mark at [keyIndex] may be dragged within: up to its neighbours, inside the axis.
+ *
+ * Returned so a drag can be clamped WHILE IT IS HAPPENING rather than only on release.  A mark that
+ * follows the pointer out past its neighbour and then snaps back on release reads as a rejected edit; one
+ * that stops at the wall reads as the wall being there, which is what it is.
+ *
+ * @param List<TrackKeyMark> marks The row's marks, in any order.
+ * @param Int keyIndex The mark being dragged.
+ * @param TrackAxis axis The domain, whose ends are the outer walls.
+ * @return ClosedFloatingPointRange<Float> The legal range, ascending.
+ */
+fun dragBoundsOf(marks: List<TrackKeyMark>, keyIndex: Int, axis: TrackAxis): ClosedFloatingPointRange<Float> {
+	val domainLow = minOf(axis.start, axis.end)
+	val domainHigh = maxOf(axis.start, axis.end)
+	val dragged = marks.firstOrNull { mark -> mark.keyIndex == keyIndex } ?: return domainLow..domainHigh
+	var lowerWall = domainLow
+	var upperWall = domainHigh
+	for (mark in marks) {
+		if (mark.keyIndex == keyIndex) {
+			continue
+		}
+		if (mark.position <= dragged.position) {
+			lowerWall = maxOf(lowerWall, mark.position)
+		}
+		if (mark.position >= dragged.position) {
+			upperWall = minOf(upperWall, mark.position)
+		}
+	}
+	// Coincident neighbours can invert the walls; collapsing to the mark's own position is the honest
+	// outcome (there is nowhere legal to go) rather than an empty range that coerceIn would throw on.
+	return if (lowerWall > upperWall) dragged.position..dragged.position else lowerWall..upperWall
+}
 
 /**
  * A row's color band, which is how a sheet makes kinds of track separable at a glance.
@@ -225,7 +346,9 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 
 	fun visit(current: TrackRow) {
 		for (mark in current.marks) {
-			byPosition.getOrPut(mark.position) { mark }
+			// NOT editable: one summary mark can stand for several channels' keys at that value, so there
+			// is no single key a drag or a delete could mean.  Expanding the group is how you reach them.
+			byPosition.getOrPut(mark.position) { mark.copy(editable = false) }
 		}
 		current.children.forEach(::visit)
 	}

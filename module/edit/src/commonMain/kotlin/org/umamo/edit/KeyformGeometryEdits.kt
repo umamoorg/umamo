@@ -5,11 +5,11 @@ import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
 import org.umamo.runtime.keyform.axisIndexOf
-import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.keyform.withKeyInserted
 import org.umamo.runtime.keyform.withKeyMoved
 import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
@@ -56,6 +56,29 @@ fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId)
 }
 
 /**
+ * [owner]'s geometry axis for [parameterId], or null when it has no geometry or does not key on it.
+ *
+ * @param KeyformOwner owner The entity.
+ * @param ParameterId parameterId The parameter to look for.
+ * @return KeyformAxis? The axis, or null.
+ */
+fun PuppetModel.geometryAxisOf(owner: KeyformOwner, parameterId: ParameterId): KeyformAxis? {
+	val grid =
+		when (owner) {
+			is KeyformOwner.Drawable -> drawableGeometry(owner)
+			is KeyformOwner.Deformer ->
+				when (val deformer = deformers.firstOrNull { candidate -> candidate.id == owner.id }) {
+					is Deformer.Warp -> deformer.geometryGrid
+					is Deformer.Rotation -> deformer.geometryGrid
+					null -> null
+				}
+			// A part is organisational and a glue welds two meshes; neither carries geometry of its own.
+			is KeyformOwner.Part, is KeyformOwner.Glue -> null
+		} ?: return null
+	return grid.axes.firstOrNull { axis -> axis.parameterId == parameterId }
+}
+
+/**
  * This model with [owner]'s geometry key at [fromValue] moved to [toValue] on [parameter]'s axis.
  *
  * Moving a key changes only WHERE on the parameter its form applies - the cells are untouched - so it is
@@ -64,20 +87,16 @@ fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId)
  *
  * @param KeyformOwner owner The entity whose geometry track to edit.
  * @param Parameter parameter The parameter whose axis the key sits on.
- * @param Float fromValue The key's current position.
+ * @param Int keyIndex The key's ordinal on that axis.
  * @param Float toValue The requested new position.
  * @return PuppetModel The model with the key moved, or this on a refusal.
  */
 fun PuppetModel.withGeometryKeyMoved(
 	owner: KeyformOwner,
 	parameter: Parameter,
-	fromValue: Float,
+	keyIndex: Int,
 	toValue: Float,
-): PuppetModel =
-	rewriteGeometry(owner) { grid ->
-		val keyIndex = grid.keyIndexAt(parameter.id, fromValue)
-		if (keyIndex < 0) grid else grid.withKeyMoved(parameter.id, keyIndex, toValue)
-	}
+): PuppetModel = rewriteGeometry(owner) { grid -> grid.withKeyMoved(parameter.id, keyIndex, toValue) }
 
 /**
  * This model with a key inserted at [position] on [owner]'s geometry track, holding the interpolated form.
@@ -103,15 +122,11 @@ fun PuppetModel.withGeometryKeyInserted(owner: KeyformOwner, parameter: Paramete
  *
  * @param KeyformOwner owner The entity whose geometry track to edit.
  * @param Parameter parameter The parameter whose axis to remove from.
- * @param Float position The key's parameter value.
+ * @param Int keyIndex The key's ordinal on that axis.
  * @return PuppetModel The model with the key removed, or this on a refusal.
  */
-fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter, position: Float): PuppetModel =
+fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter, keyIndex: Int): PuppetModel =
 	rewriteGeometryNullable(owner) { grid ->
-		val keyIndex = grid.keyIndexAt(parameter.id, position)
-		if (keyIndex < 0) {
-			return@rewriteGeometryNullable grid
-		}
 		val reduced = grid.withKeyRemoved(parameter.id, keyIndex)
 		if (reduced == null && owner is KeyformOwner.Deformer) grid else reduced
 	}
@@ -290,11 +305,11 @@ private fun <TForm> FormInterpolator<TForm>.asNothing(): FormInterpolator<Nothin
  *
  * @param KeyformOwner owner The entity.
  * @param Parameter parameter The parameter whose axis the key sits on.
- * @param Float fromValue The key's current position.
+ * @param Int keyIndex The key's ordinal on that axis.
  * @param Float toValue The new position.
  */
-fun EditorSession.moveGeometryKey(owner: KeyformOwner, parameter: Parameter, fromValue: Float, toValue: Float) {
-	mutate(KeyformChange.MoveKey(null)) { model -> model.withGeometryKeyMoved(owner, parameter, fromValue, toValue) }
+fun EditorSession.moveGeometryKey(owner: KeyformOwner, parameter: Parameter, keyIndex: Int, toValue: Float) {
+	mutate(KeyformChange.MoveKey(null)) { model -> model.withGeometryKeyMoved(owner, parameter, keyIndex, toValue) }
 }
 
 /**
@@ -313,8 +328,8 @@ fun EditorSession.insertGeometryKeyAt(owner: KeyformOwner, parameter: Parameter,
  *
  * @param KeyformOwner owner The entity.
  * @param Parameter parameter The parameter whose axis to remove from.
- * @param Float position The key's parameter value.
+ * @param Int keyIndex The key's ordinal on that axis.
  */
-fun EditorSession.removeGeometryKeyAt(owner: KeyformOwner, parameter: Parameter, position: Float) {
-	mutate(KeyformChange.RemoveKey(null)) { model -> model.withGeometryKeyRemoved(owner, parameter, position) }
+fun EditorSession.removeGeometryKeyAt(owner: KeyformOwner, parameter: Parameter, keyIndex: Int) {
+	mutate(KeyformChange.RemoveKey(null)) { model -> model.withGeometryKeyRemoved(owner, parameter, keyIndex) }
 }

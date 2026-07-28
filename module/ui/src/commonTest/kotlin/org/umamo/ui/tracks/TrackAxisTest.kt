@@ -60,7 +60,7 @@ class TrackAxisTest {
 	/** The nearest mark within tolerance wins; nothing outside it is picked. */
 	@Test
 	fun picksTheNearestMarkInRange() {
-		val marks = listOf(TrackKeyMark(0f), TrackKeyMark(10f), TrackKeyMark(20f))
+		val marks = listOf(TrackKeyMark(0, 0f), TrackKeyMark(1, 10f), TrackKeyMark(2, 20f))
 		assertEquals(10f, assertNotNull(nearestMark(marks, 11f, tolerance = 2f)).position)
 		assertNull(nearestMark(marks, 15f, tolerance = 2f), "a click between marks picks nothing")
 		assertEquals(20f, assertNotNull(nearestMark(marks, 100f, tolerance = 1000f)).position, "a wide tolerance still picks the nearest")
@@ -114,14 +114,31 @@ class TrackAxisTest {
 			TrackRow(
 				key = "owner",
 				label = "Owner",
-				marks = listOf(TrackKeyMark(30f)),
+				marks = listOf(TrackKeyMark(0, 30f)),
 				children =
 					listOf(
-						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0f), TrackKeyMark(30f))),
-						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(-30f), TrackKeyMark(0f))),
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f), TrackKeyMark(1, 30f))),
+						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(0, -30f), TrackKeyMark(1, 0f))),
 					),
 			)
 		assertEquals(listOf(-30f, 0f, 30f), summarizedMarks(row).map { mark -> mark.position })
+	}
+
+	/** Summary marks are flagged inert: a collapsed group cannot say which channel owns a key. */
+	@Test
+	fun summaryMarksAreNotEditable() {
+		val row =
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				children =
+					listOf(
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f))),
+						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(0, 30f))),
+					),
+			)
+		assertTrue(summarizedMarks(row).none { mark -> mark.editable }, "a summary stands for several keys")
+		assertTrue(row.children.first().marks.single().editable, "the child's own mark stays editable")
 	}
 
 	/** A mark's shape survives the summary, so a blend-shape key still reads as a square when folded. */
@@ -131,8 +148,113 @@ class TrackAxisTest {
 			TrackRow(
 				key = "owner",
 				label = "Owner",
-				children = listOf(TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0f, TrackKeyShape.Square)))),
+				children = listOf(TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f, TrackKeyShape.Square)))),
 			)
 		assertEquals(TrackKeyShape.Square, summarizedMarks(row).single().shape)
+	}
+
+	/** A mark's drag window stops at its neighbours, and at the axis ends when it has none on that side. */
+	@Test
+	fun dragBoundsStopAtNeighboursAndAtTheAxisEnds() {
+		val axis = TrackAxis(-30f, 30f)
+		val marks = listOf(TrackKeyMark(0, -30f), TrackKeyMark(1, 0f), TrackKeyMark(2, 30f))
+		assertEquals(-30f..30f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
+		assertEquals(-30f..0f, dragBoundsOf(marks, keyIndex = 0, axis = axis), "an endpoint stops at the axis")
+		assertEquals(0f..30f, dragBoundsOf(marks, keyIndex = 2, axis = axis))
+	}
+
+	/** With coincident neighbours the window collapses onto the mark rather than inverting. */
+	@Test
+	fun dragBoundsCollapseRatherThanInvert() {
+		val axis = TrackAxis(-30f, 30f)
+		val marks = listOf(TrackKeyMark(0, 5f), TrackKeyMark(1, 5f), TrackKeyMark(2, 5f))
+		assertEquals(5f..5f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
+	}
+
+	/** An unknown index falls back to the whole axis instead of throwing. */
+	@Test
+	fun dragBoundsOfAnUnknownMarkSpanTheAxis() {
+		assertEquals(-30f..30f, dragBoundsOf(listOf(TrackKeyMark(0, 0f)), keyIndex = 9, axis = TrackAxis(-30f, 30f)))
+	}
+
+	/** A window maps onto a domain as a proportional slice of it. */
+	@Test
+	fun aWindowSlicesItsDomainProportionally() {
+		val full = TrackAxis(-30f, 30f)
+		assertEquals(TrackAxis(-30f, 30f), TrackWindow.Full.axisOver(full))
+		assertEquals(TrackAxis(-15f, 15f), TrackWindow(0.25f, 0.75f).axisOver(full))
+	}
+
+	/**
+	 * The same window over two unrelated ranges lands at the same SCREEN positions.
+	 *
+	 * The reason the window is normalized: a linked pad shows two parameters at once, and a shared
+	 * absolute window would overshoot the narrower one entirely.
+	 */
+	@Test
+	fun oneWindowKeepsTwoDomainsInStep() {
+		val window = TrackWindow(0.25f, 0.75f)
+		val wide = window.axisOver(TrackAxis(-30f, 30f))
+		val narrow = window.axisOver(TrackAxis(0f, 1f))
+		assertEquals(-15f, wide.start)
+		assertEquals(0.25f, narrow.start)
+		assertEquals(wide.fractionOf(0f), narrow.fractionOf(0.5f), 1e-5f, "both sit at the same screen x")
+	}
+
+	/** Zooming holds the anchor under the pointer rather than drifting toward the centre. */
+	@Test
+	fun zoomingHoldsItsAnchor() {
+		val zoomed = TrackWindow.Full.zoomedBy(0.5f, focus = 0.25f)
+		assertEquals(0.5f, zoomed.span, 1e-5f)
+		assertEquals(0.25f, zoomed.start + zoomed.span * 0.25f, 1e-5f, "the anchored domain point stays put")
+	}
+
+	/** Zooming out near an end walks the window inward instead of running off the domain. */
+	@Test
+	fun zoomingOutStaysInsideTheDomain() {
+		val atEnd = TrackWindow(0.9f, 1f)
+		val zoomedOut = atEnd.zoomedBy(4f, focus = 1f)
+		assertTrue(zoomedOut.start >= 0f && zoomedOut.end <= 1f, "got $zoomedOut")
+		assertEquals(0.4f, zoomedOut.span, 1e-5f)
+	}
+
+	/** Zoom is bounded at both ends: never past the whole domain, never below the pixel-mapping floor. */
+	@Test
+	fun zoomIsBoundedBothWays() {
+		assertEquals(1f, TrackWindow.Full.zoomedBy(10f, focus = 0.5f).span, 1e-5f)
+		assertEquals(TrackWindow.MIN_SPAN, TrackWindow.Full.zoomedBy(1e-9f, focus = 0.5f).span, 1e-6f)
+	}
+
+	/**
+	 * Panning keeps the span and stops at either end of the domain.
+	 *
+	 * Compared with a tolerance rather than by value: the window is carried as two floats, so re-anchoring
+	 * it lands an ULP off by construction.  Asserting equality here would be asserting that float addition
+	 * is exact, which is a different (and false) claim than the one this test is about.
+	 */
+	@Test
+	fun panningKeepsTheSpanAndStopsAtTheEnds() {
+		val window = TrackWindow(0.4f, 0.6f)
+		assertWindow(expectedStart = 0.5f, expectedEnd = 0.7f, actual = window.pannedBy(0.1f))
+		assertWindow(0f, 0.2f, window.pannedBy(-9f), "panning past the start stops at it")
+		assertWindow(0.8f, 1f, window.pannedBy(9f), "panning past the end stops at it")
+	}
+
+	/**
+	 * Asserts a window's bounds within float tolerance.
+	 *
+	 * @param Float expectedStart The expected visible start.
+	 * @param Float expectedEnd The expected visible end.
+	 * @param TrackWindow actual The window to check.
+	 * @param String message A label for the failure.
+	 */
+	private fun assertWindow(
+		expectedStart: Float,
+		expectedEnd: Float,
+		actual: TrackWindow,
+		message: String = "window",
+	) {
+		assertEquals(expectedStart, actual.start, 1e-5f, "$message: start")
+		assertEquals(expectedEnd, actual.end, 1e-5f, "$message: end")
 	}
 }

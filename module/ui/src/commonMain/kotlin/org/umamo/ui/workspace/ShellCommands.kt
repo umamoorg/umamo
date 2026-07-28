@@ -411,7 +411,7 @@ internal fun shellSessionCommands(
 		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = hasDocument) {
 			editorSession?.let { session -> session.keyformInsert(hoveredKeyable()) }
 		},
-		Command("keyform.remove", title = Res.string.cmd_keyform_remove, availability = hasDocument) {
+		Command("keyform.remove", title = Res.string.cmd_keyform_delete, availability = hasDocument) {
 			editorSession?.let { session -> session.keyformRemove(hoveredKeyable()) }
 		},
 		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = hasDocument) {
