@@ -1,4 +1,6 @@
-# Continuous integration: lint + build + test every push/PR on JDK 21.
+# Continuous integration: runs the shared verification suite on every push/PR.
+# The suite itself lives in verification.yml so release.yml can run the identical thing — see the
+# comment at the top of that file for why it is factored out rather than inlined here.
 name: CI
 
 on:
@@ -18,49 +20,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify:
     # Skip draft PRs to avoid burning runner minutes on WIP; ready_for_review re-triggers it.
+    # This guard lives here rather than in verification.yml because the release workflow calls the
+    # same suite with no pull-request context at all.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      # Provides ANDROID_HOME + sdkmanager; needed for the :android app + android targets.
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
-      - name: Set up Gradle (with caching)
-        uses: gradle/actions/setup-gradle@v6
-
-      # :render's GL tests drive a real GLFW / OpenGL 3.3 core context and assert on read-back pixels,
-      # so without a display they cover exactly nothing. Xvfb + Mesa's llvmpipe give the runner a real
-      # context. libgl1-mesa-dri is the load-bearing one — it carries swrast/llvmpipe, and Mesa cannot
-      # do software GL without it. The GLFW X11 libs are listed explicitly rather than trusted to the
-      # runner image, so an image change fails here instead of silently degrading the suite.
-      - name: Install headless OpenGL (Xvfb + Mesa software GL)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            xvfb libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 \
-            libxrandr2 libxinerama1 libxcursor1 libxi6 libxext6
-
-      # umamo.requireGl turns the GL tests' missing-context skip into a hard failure (HeadlessGlGate),
-      # so if this Xvfb setup ever stops yielding a context, CI says so instead of going green on a
-      # suite that ran nothing. That is the whole point of the step above — without this flag a broken
-      # Xvfb is indistinguishable from a pass. LIBGL_ALWAYS_SOFTWARE pins Mesa to llvmpipe, since the
-      # runner has no GPU.
-      - name: Build, test, and lint
-        env:
-          LIBGL_ALWAYS_SOFTWARE: "1"
-        run: >
-          xvfb-run -a --server-args="-screen 0 1280x1024x24"
-          ./gradlew build --stacktrace -Dumamo.requireGl=true
+    uses: ./.github/workflows/verification.yml
+    permissions:
+      contents: read
