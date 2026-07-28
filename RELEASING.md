@@ -8,8 +8,8 @@ Two files per target, ten in total, plus a `SHA256SUMS.txt`:
 
 | File                                       | For                                                                                      |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `umamo-<version>-<target>.zip` / `.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.       |
-| `umamo-<version>-<target>.jar`             | Uber jar (`:desktop:packageUberJarForCurrentOS`).  Needs a JDK/JRE 21 on the machine.    |
+| `umamo-<target>-<version>.zip` / `.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.       |
+| `umamo-<target>-<version>.jar`             | Uber jar (`:desktop:packageUberJarForCurrentOS`).  Needs a JDK/JRE 21 on the machine.    |
 
 Targets and the runner each is built on:
 
