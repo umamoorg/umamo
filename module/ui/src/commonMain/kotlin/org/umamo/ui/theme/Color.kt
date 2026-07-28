@@ -78,6 +78,11 @@ import androidx.compose.ui.graphics.Color
  * @property Color viewportGridBackground The flat canvas fill behind the GL viewport's world-aligned grid.
  * @property Color viewportGridLineMajor The major (whole-scale) grid line color.
  * @property Color viewportGridLineMinor The minor (subdivision) grid line color.
+ * @property Color trackRegionBackground The keyform / dope sheet's track region, behind and below the rows.
+ * @property Color trackRowGroup      Band behind a track sheet's grouping rows.
+ * @property Color trackRowPrimary    Band behind a track sheet's primary tracks.
+ * @property Color trackRowSecondary  Band behind a track sheet's secondary tracks.
+ * @property Color trackRowAlternate  Band behind a track sheet's layered-source tracks.
  * @property Color outlinerObjectTint  Signature tint for puppet-root / part / art-mesh outliner icons.
  * @property Color outlinerDeformTint  Signature tint for armature / deformer outliner icons.
  * @property Color outlinerObjectTintDimmed Dimmed variant of the object tint for muted rows.
@@ -141,6 +146,11 @@ data class UmamoColors(
 	val viewportGridBackground: Color,
 	val viewportGridLineMajor: Color,
 	val viewportGridLineMinor: Color,
+	val trackRegionBackground: Color,
+	val trackRowGroup: Color,
+	val trackRowPrimary: Color,
+	val trackRowSecondary: Color,
+	val trackRowAlternate: Color,
 	val outlinerObjectTint: Color,
 	val outlinerDeformTint: Color,
 	val outlinerObjectTintDimmed: Color,
@@ -227,6 +237,11 @@ val umamoDarkColors =
 		viewportGridBackground = Color(0xFF343434),
 		viewportGridLineMajor = Color(0xFF515151),
 		viewportGridLineMinor = Color(0xFF454545),
+		trackRegionBackground = Color(0xFF1F1F1F),
+		trackRowGroup = Color(0xFF2C4640),
+		trackRowPrimary = Color(0xFF39442C),
+		trackRowSecondary = Color(0xFF313640),
+		trackRowAlternate = Color(0xFF413043),
 		outlinerObjectTint = outlinerTanDark,
 		outlinerDeformTint = outlinerTealDark,
 		outlinerObjectTintDimmed = outlinerTanDark.copy(alpha = 0.2f),
@@ -290,6 +305,11 @@ val umamoLightColors =
 		viewportGridBackground = Color(0xFFCFCFCF),
 		viewportGridLineMajor = Color(0xFFA8A8A8),
 		viewportGridLineMinor = Color(0xFFBEBEBE),
+		trackRegionBackground = Color(0xFFE8E8E8),
+		trackRowGroup = Color(0xFFCFE3DC),
+		trackRowPrimary = Color(0xFFDCE6CB),
+		trackRowSecondary = Color(0xFFDCE0E8),
+		trackRowAlternate = Color(0xFFE9D9EB),
 		outlinerObjectTint = outlinerTanLight,
 		outlinerDeformTint = outlinerTealLight,
 		outlinerObjectTintDimmed = outlinerTanLight.copy(alpha = 0.2f),

@@ -287,6 +287,7 @@ class EditorSession(
 	 * @param PuppetModel model The new document model (same instance as now for a pose-only commit).
 	 * @param Pose pose The new live pose (same value as now for a model-only commit).
 	 */
+
 	private fun commit(change: Change, model: PuppetModel, pose: Pose) {
 		if (model === mutableModel.value && pose == mutablePose.value) {
 			return
@@ -295,12 +296,30 @@ class EditorSession(
 		if (pose != mutablePose.value) {
 			clearPendingChannelEdits()
 		}
-		history.push(EditorSnapshot(model, mutableSelection.value, pose, mutableMeshSelection.value, mutableMode.value), change)
+		history.push(snapshot(model = model, pose = pose), change)
 		mutableModel.value = model
 		mutablePose.value = pose
 		refreshFlags()
 		mutableChanges.tryEmit(change)
 	}
+
+	/**
+	 * A snapshot of the session's current state, with any field overridden.
+	 *
+	 * Every history push goes through this rather than calling [EditorSnapshot] directly.  The constructor's
+	 * own defaults are dangerous here: a field added later defaults to its EMPTY value at every existing call
+	 * site, which compiles cleanly and then silently records the wrong state - exactly how the parameter
+	 * target came to be cleared by undoing an unrelated edit.  Defaulting to live state instead makes the
+	 * omission harmless.
+	 */
+	private fun snapshot(
+		model: PuppetModel = mutableModel.value,
+		selection: Selection = mutableSelection.value,
+		pose: Pose = mutablePose.value,
+		meshSelection: MeshSelection = mutableMeshSelection.value,
+		mode: EditorMode = mutableMode.value,
+		parameterSelection: ParameterSelection = mutableParameterSelection.value,
+	): EditorSnapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection)
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
@@ -388,6 +407,15 @@ class EditorSession(
 		mutate(ParameterChange.SetLink(horizontal, vertical, linked)) { model ->
 			model.withParameterLink(horizontal, vertical, linked)
 		}
+		if (!linked) {
+			// A pad targets BOTH its axes; once they are two separate sliders that reads as a multi-selection
+			// the panel cannot otherwise produce, so the target narrows to the one that was active.
+			val target = mutableParameterSelection.value
+			if (target.ids.size > 1) {
+				mutableParameterSelection.value =
+					target.active?.let { ParameterSelection.of(it) } ?: ParameterSelection()
+			}
+		}
 	}
 
 	/**
@@ -426,7 +454,7 @@ class EditorSession(
 			elementMemory.lastActiveDrawableId = activeDrawable.id
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, selection, mutablePose.value, mutableMeshSelection.value, mutableMode.value),
+			snapshot(selection = selection),
 			EditorStateChange.SelectionChanged,
 		)
 		mutableSelection.value = selection
@@ -448,17 +476,7 @@ class EditorSession(
 		if (parameterSelection == mutableParameterSelection.value) {
 			return
 		}
-		history.push(
-			EditorSnapshot(
-				mutableModel.value,
-				mutableSelection.value,
-				mutablePose.value,
-				mutableMeshSelection.value,
-				mutableMode.value,
-				parameterSelection,
-			),
-			EditorStateChange.ParameterSelectionChanged,
-		)
+		history.push(snapshot(parameterSelection = parameterSelection), EditorStateChange.ParameterSelectionChanged)
 		mutableParameterSelection.value = parameterSelection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.ParameterSelectionChanged)
@@ -536,7 +554,7 @@ class EditorSession(
 				}
 			}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, newMeshSelection, mode),
+			snapshot(meshSelection = newMeshSelection, mode = mode),
 			EditorStateChange.ModeChanged(mode),
 		)
 		mutableMode.value = mode
@@ -558,7 +576,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, meshSelection, mutableMode.value),
+			snapshot(meshSelection = meshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
 		mutableMeshSelection.value = meshSelection
@@ -778,7 +796,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, converted, mutableMode.value),
+			snapshot(meshSelection = converted),
 			EditorStateChange.MeshSelectModeChanged(selectMode),
 		)
 		mutableMeshSelection.value = converted
@@ -1293,7 +1311,7 @@ class EditorSession(
 			)
 		val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
 		val change = MeshChange.TopologyEdit(drawableId, labelKey)
-		history.push(EditorSnapshot(newModel, mutableSelection.value, mutablePose.value, newSelection, mutableMode.value), change)
+		history.push(snapshot(model = newModel, meshSelection = newSelection), change)
 		mutableModel.value = newModel
 		mutableMeshSelection.value = newSelection
 		refreshFlags()
@@ -1438,7 +1456,7 @@ class EditorSession(
 				SelectionTarget.Drawable(copies.last()),
 			)
 		val change = DrawableChange.Duplicate(copies)
-		history.push(EditorSnapshot(newModel, newSelection, mutablePose.value, mutableMeshSelection.value, mutableMode.value), change)
+		history.push(snapshot(model = newModel, selection = newSelection), change)
 		mutableModel.value = newModel
 		mutableSelection.value = newSelection
 		refreshFlags()
@@ -1477,7 +1495,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(model, newObjectSelection, mutablePose.value, newMeshSelection, mutableMode.value),
+			snapshot(model = model, selection = newObjectSelection, meshSelection = newMeshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
 		mutableSelection.value = newObjectSelection

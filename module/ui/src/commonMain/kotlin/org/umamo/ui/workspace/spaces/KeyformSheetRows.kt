@@ -14,6 +14,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.tracks.TrackKeyMark
 import org.umamo.ui.tracks.TrackKeyShape
 import org.umamo.ui.tracks.TrackRow
+import org.umamo.ui.tracks.TrackRowTone
 
 /*
  * The PuppetModel -> track rows projection: everything the keyform sheet knows about the document.
@@ -28,6 +29,21 @@ import org.umamo.ui.tracks.TrackRow
  */
 
 /**
+ * The kinds of thing that can own keyform tracks, which is what decides a group row's icon and its type
+ * subtitle.
+ *
+ * Coarser than the model's own type hierarchy on purpose: the sheet only needs enough to pick an icon,
+ * and every one of these already has art in the icon set.
+ */
+enum class KeyformOwnerKind {
+	ArtMesh,
+	WarpDeformer,
+	RotationDeformer,
+	Part,
+	Glue,
+}
+
+/**
  * The labels the projection needs, resolved by the caller from string resources.
  *
  * Injected rather than looked up here so the projection stays Compose-free AND localized: these are Umamo
@@ -37,122 +53,227 @@ import org.umamo.ui.tracks.TrackRow
  * @property Function channelName A channel's short display label.
  * @property String geometry The label for a geometry track.
  * @property String blendShape The label for a blend-shape track.
+ * @property Function ownerKindName An owner kind's display label, shown as a group row's subtitle.
  */
 class KeyformTrackLabels(
 	val channelName: (FormChannel) -> String,
 	val geometry: String,
 	val blendShape: String,
+	val ownerKindName: (KeyformOwnerKind) -> String,
 )
 
 /**
- * One selected key: the row it belongs to and where on the parameter it sits.
+ * One selected key: the parameter section and row it belongs to, and where on that parameter it sits.
  *
  * Identified by POSITION rather than index because that is what a drag speaks in and what survives a
- * neighbouring key being removed - an index would silently shift onto a different key.
+ * neighbouring key being removed - an index would silently shift onto a different key.  The parameter is
+ * part of the identity because a linked pair renders two sections at once and one item's row key is the
+ * same string in both.
  *
+ * @property ParameterId parameterId The parameter whose section the key sits in.
  * @property String rowKey The owning row's stable key.
  * @property Float position The key's parameter value.
  */
-data class TrackKeyRef(
-	val rowKey: String,
-	val position: Float,
-)
+data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val position: Float)
 
 /**
  * The sheet's projection of a rig: rows to draw, and what each row edits.
  *
- * The targets ride alongside rather than inside [TrackRow] because a row is a domain-agnostic widget input
- * - org.umamo.ui.tracks must never learn what a keyform channel is - so the mapping back to the model stays
- * on this side of the boundary, keyed by the row's own identity.
+ * The targets and owner kinds ride alongside rather than inside [TrackRow] because a row is a
+ * domain-agnostic widget input - org.umamo.ui.tracks must never learn what a keyform channel is - so the
+ * mapping back to the model stays on this side of the boundary, keyed by the row's own identity.
  *
- * @property List rows The rows to draw.
- * @property Map targetsByRowKey What each row edits; a blend-shape row has no entry (not yet authorable).
+ * @property List rows The group rows, each carrying its tracks as children.
+ * @property Map targetsByRowKey What each track row edits; a geometry or blend-shape row has no entry.
+ * @property Map ownerKindByRowKey The owner kind behind each GROUP row, for its icon.
+ * @property Set groupRowKeys Every group row's key, so a caller can seed "expand all".
  */
 class KeyformSheetProjection(
 	val rows: List<TrackRow>,
 	val targetsByRowKey: Map<String, KeyableTarget>,
+	val ownerKindByRowKey: Map<String, KeyformOwnerKind>,
+	val groupRowKeys: Set<String>,
 )
 
 /**
- * The per-(item, channel) tracks keyed on [parameterId], in outliner order.
+ * The per-(item, channel) tracks keyed on [parameterId], in outliner order, grouped under their owner.
  *
  * One row per channel rather than one per item, because that is what the split made possible: an item can
  * key opacity on a parameter its geometry never touches, and collapsing those into one row would hide
- * exactly the thing the sheet exists to show.  An item contributes a GEOMETRY row when its geometry grid
- * keys on the parameter, one row per channel track that does, and one row per blend-shape binding driven
- * by it (drawn with square marks, matching the parameter slider's own key marks).
+ * exactly the thing the sheet exists to show.  An item contributes a GEOMETRY track when its geometry grid
+ * keys on the parameter, one track per channel grid that does, and one per blend-shape binding driven by
+ * it (drawn with square marks, matching the parameter slider's own key marks).
+ *
+ * Those tracks hang under a per-owner group row so a rig with hundreds of deformers can be folded down to
+ * the handful being worked on.  A collapsed group still shows its subtree's key positions - see
+ * `summarizedMarks` - so folding hides the detail, never the fact that keys are there.
  *
  * @param PuppetModel puppet The rig.
  * @param ParameterId parameterId The parameter whose tracks to list.
  * @param KeyformTrackLabels labels The localized chrome labels.
- * @return List<TrackRow> The rows, empty when nothing keys on the parameter.
+ * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it.
  */
 fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: KeyformTrackLabels): KeyformSheetProjection {
-	val rows = ArrayList<TrackRow>()
+	val builder = ProjectionBuilder(labels)
 	for (part in puppet.parts) {
-		rows.addAll(part.trackRows(parameterId, labels))
+		builder.addOwner(
+			ownerKey = "part:${part.id.raw}",
+			ownerName = part.name,
+			ownerKind = KeyformOwnerKind.Part,
+			owner = KeyformOwner.Part(part.id),
+			geometryMarks = null,
+			channelGrids = part.channelGrids,
+			blendShapeMarks = emptyList(),
+			parameterId = parameterId,
+		)
 	}
 	for (deformer in puppet.deformers) {
-		rows.addAll(deformer.trackRows(parameterId, labels))
-	}
-	for (drawable in puppet.drawables) {
-		rows.addAll(drawable.trackRows(parameterId, labels))
-	}
-	for ((glueIndex, glue) in puppet.glues.withIndex()) {
-		rows.addAll(
-			glue.channelGrids.channelRows(
-				ownerKey = "glue$glueIndex",
-				ownerLabel = "${glue.meshA.raw} ↔ ${glue.meshB.raw}",
-				parameterId = parameterId,
-				labels = labels,
-			),
-		)
-	}
-	// Channel rows are addressable; a geometry or blend-shape row is not yet authorable, so it simply has no
-	// entry and the sheet leaves it read-only rather than offering an edit that would fail.
-	val targets = HashMap<String, KeyableTarget>()
-	for (part in puppet.parts) {
-		part.channelGrids.collectTargets("part:${'$'}{part.id.raw}", KeyformOwner.Part(part.id), parameterId, targets)
-	}
-	for (deformer in puppet.deformers) {
-		deformer.channelGrids.collectTargets(
-			"deformer:${'$'}{deformer.id.raw}",
-			KeyformOwner.Deformer(deformer.id),
-			parameterId,
-			targets,
+		val geometry =
+			when (deformer) {
+				is Deformer.Warp -> deformer.geometryGrid
+				is Deformer.Rotation -> deformer.geometryGrid
+			}
+		val blendShapes =
+			when (deformer) {
+				is Deformer.Warp -> deformer.blendShapes
+				is Deformer.Rotation -> deformer.blendShapes
+			}
+		builder.addOwner(
+			ownerKey = "deformer:${deformer.id.raw}",
+			ownerName = deformer.name,
+			ownerKind =
+				when (deformer) {
+					is Deformer.Warp -> KeyformOwnerKind.WarpDeformer
+					is Deformer.Rotation -> KeyformOwnerKind.RotationDeformer
+				},
+			owner = KeyformOwner.Deformer(deformer.id),
+			geometryMarks = marksOf(geometry, parameterId, TrackKeyShape.Circle),
+			channelGrids = deformer.channelGrids,
+			blendShapeMarks = blendShapeMarksOf(blendShapes.map { it.parameterId to it.keys }, parameterId),
+			parameterId = parameterId,
 		)
 	}
 	for (drawable in puppet.drawables) {
-		drawable.channelGrids.collectTargets(
-			"drawable:${'$'}{drawable.id.raw}",
-			KeyformOwner.Drawable(drawable.id),
-			parameterId,
-			targets,
+		builder.addOwner(
+			ownerKey = "drawable:${drawable.id.raw}",
+			ownerName = drawable.name,
+			ownerKind = KeyformOwnerKind.ArtMesh,
+			owner = KeyformOwner.Drawable(drawable.id),
+			geometryMarks = marksOf(drawable.geometryGrid, parameterId, TrackKeyShape.Circle),
+			channelGrids = drawable.channelGrids,
+			blendShapeMarks = blendShapeMarksOf(drawable.blendShapes.map { it.parameterId to it.keys }, parameterId),
+			parameterId = parameterId,
 		)
 	}
 	for ((glueIndex, glue) in puppet.glues.withIndex()) {
-		glue.channelGrids.collectTargets(
-			"glue${'$'}glueIndex",
-			KeyformOwner.Glue(glue.meshA, glue.meshB),
-			parameterId,
-			targets,
+		builder.addOwner(
+			ownerKey = "glue$glueIndex",
+			ownerName = "${glue.meshA.raw} ↔ ${glue.meshB.raw}",
+			ownerKind = KeyformOwnerKind.Glue,
+			owner = KeyformOwner.Glue(glue.meshA, glue.meshB),
+			geometryMarks = null,
+			channelGrids = glue.channelGrids,
+			blendShapeMarks = emptyList(),
+			parameterId = parameterId,
 		)
 	}
-	return KeyformSheetProjection(rows, targets)
+	return builder.build()
 }
 
-/** Records the [KeyableTarget] behind each of this owner's channel rows that keys on [parameterId]. */
-private fun ChannelGrids.collectTargets(
-	ownerKey: String,
-	owner: KeyformOwner,
-	parameterId: ParameterId,
-	into: MutableMap<String, KeyableTarget>,
-) {
-	for ((channel, track) in gridsByChannel) {
-		if (track.axes.any { axis -> axis.parameterId == parameterId }) {
-			into["${'$'}ownerKey/${'$'}{channel.name}"] = KeyableTarget(owner, channel)
+/**
+ * Accumulates one owner at a time into the group rows, targets, and kind map that make up a projection.
+ *
+ * A builder rather than three separate passes because the row key is the join between all three maps, and
+ * deriving it twice in two places is exactly how they drifted apart before.
+ *
+ * @property KeyformTrackLabels labels The localized chrome labels.
+ */
+private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
+	private val rows = ArrayList<TrackRow>()
+	private val targets = HashMap<String, KeyableTarget>()
+	private val ownerKinds = HashMap<String, KeyformOwnerKind>()
+
+	/**
+	 * Adds one owner's group row and its tracks, or nothing at all when it keys nothing on the parameter.
+	 *
+	 * @param String ownerKey The owner's stable row-key prefix.
+	 * @param String ownerName The owner's display name (user data - never translated).
+	 * @param KeyformOwnerKind ownerKind What the owner is, for its icon and subtitle.
+	 * @param KeyformOwner owner The model reference the tracks edit.
+	 * @param List<TrackKeyMark>? geometryMarks Its geometry track's marks, or null when it has none.
+	 * @param ChannelGrids channelGrids Its channel tracks.
+	 * @param List blendShapeMarks Its blend-shape tracks' marks, one list per binding.
+	 * @param ParameterId parameterId The parameter being listed.
+	 */
+	fun addOwner(
+		ownerKey: String,
+		ownerName: String,
+		ownerKind: KeyformOwnerKind,
+		owner: KeyformOwner,
+		geometryMarks: List<TrackKeyMark>?,
+		channelGrids: ChannelGrids,
+		blendShapeMarks: List<List<TrackKeyMark>>,
+		parameterId: ParameterId,
+	) {
+		val children = ArrayList<TrackRow>()
+		if (geometryMarks != null) {
+			children.add(
+				TrackRow(
+					key = "$ownerKey/geometry",
+					label = labels.geometry,
+					tone = TrackRowTone.Primary,
+					marks = geometryMarks,
+				),
+			)
 		}
+		for ((channel, track) in channelGrids.gridsByChannel) {
+			val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: continue
+			val rowKey = "$ownerKey/${channel.name}"
+			children.add(
+				TrackRow(
+					key = rowKey,
+					label = labels.channelName(channel),
+					tone = TrackRowTone.Secondary,
+					marks = marks,
+				),
+			)
+			// Channel rows are addressable; a geometry or blend-shape row is not yet authorable, so it simply
+			// has no entry and the sheet leaves it read-only rather than offering an edit that would fail.
+			targets[rowKey] = KeyableTarget(owner, channel)
+		}
+		for ((bindingIndex, marks) in blendShapeMarks.withIndex()) {
+			children.add(
+				TrackRow(
+					key = "$ownerKey/blend$bindingIndex",
+					label = labels.blendShape,
+					tone = TrackRowTone.Alternate,
+					marks = marks,
+				),
+			)
+		}
+		if (children.isEmpty()) {
+			return
+		}
+		rows.add(
+			TrackRow(
+				key = ownerKey,
+				label = ownerName,
+				detail = labels.ownerKindName(ownerKind),
+				tone = TrackRowTone.Group,
+				children = children,
+			),
+		)
+		ownerKinds[ownerKey] = ownerKind
 	}
+
+	/** The accumulated projection. */
+	fun build(): KeyformSheetProjection =
+		KeyformSheetProjection(
+			rows = rows,
+			targetsByRowKey = targets,
+			ownerKindByRowKey = ownerKinds,
+			groupRowKeys = rows.map { row -> row.key }.toSet(),
+		)
 }
 
 /**
@@ -169,92 +290,22 @@ private fun marksOf(grid: KeyformGrid<*>?, parameterId: ParameterId, shape: Trac
 }
 
 /**
- * One row per channel track of this owner that keys on [parameterId].
+ * The marks for each blend-shape binding driven by [parameterId], drawn as squares.
  *
- * @param String ownerKey A stable per-owner key prefix, so row identity survives list changes.
- * @param String ownerLabel The owner's display name.
- * @param ParameterId parameterId The parameter to filter by.
- * @param KeyformTrackLabels labels The localized chrome labels.
- * @return List<TrackRow> The channel rows.
+ * Squares rather than circles because a blend-shape key is not a keyform-grid key and cannot be moved or
+ * removed by the sheet's ops - the shape is the affordance saying so, and matches the parameter slider.
+ *
+ * @param List bindings Each binding's driving parameter and its key positions.
+ * @param ParameterId parameterId The parameter being listed.
+ * @return List The marks per matching binding, in binding order.
  */
-private fun ChannelGrids.channelRows(
-	ownerKey: String,
-	ownerLabel: String,
+private fun blendShapeMarksOf(
+	bindings: List<Pair<ParameterId, FloatArray>>,
 	parameterId: ParameterId,
-	labels: KeyformTrackLabels,
-): List<TrackRow> =
-	gridsByChannel.entries.mapNotNull { (channel, track) ->
-		val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: return@mapNotNull null
-		TrackRow(
-			key = "$ownerKey/${channel.name}",
-			label = ownerLabel,
-			detail = labels.channelName(channel),
-			depth = 1,
-			marks = marks,
-		)
-	}
-
-/** This drawable's geometry, channel, and blend-shape rows for [parameterId]. */
-private fun Drawable.trackRows(parameterId: ParameterId, labels: KeyformTrackLabels): List<TrackRow> {
-	val rows = ArrayList<TrackRow>()
-	marksOf(geometryGrid, parameterId, TrackKeyShape.Circle)?.let { marks ->
-		rows.add(TrackRow(key = "drawable:${id.raw}/geometry", label = name, detail = labels.geometry, marks = marks))
-	}
-	rows.addAll(channelGrids.channelRows("drawable:${id.raw}", name, parameterId, labels))
-	for ((bindingIndex, binding) in blendShapes.withIndex()) {
-		if (binding.parameterId != parameterId) {
-			continue
-		}
-		rows.add(
-			TrackRow(
-				key = "drawable:${id.raw}/blend$bindingIndex",
-				label = name,
-				detail = labels.blendShape,
-				depth = 1,
-				marks = binding.keys.map { keyValue -> TrackKeyMark(keyValue, TrackKeyShape.Square) },
-			),
-		)
-	}
-	return rows
-}
-
-/** This deformer's geometry and channel rows for [parameterId]. */
-private fun Deformer.trackRows(parameterId: ParameterId, labels: KeyformTrackLabels): List<TrackRow> {
-	val rows = ArrayList<TrackRow>()
-	val geometry =
-		when (this) {
-			is Deformer.Warp -> geometryGrid
-			is Deformer.Rotation -> geometryGrid
-		}
-	marksOf(geometry, parameterId, TrackKeyShape.Circle)?.let { marks ->
-		rows.add(TrackRow(key = "deformer:${id.raw}/geometry", label = name, detail = labels.geometry, marks = marks))
-	}
-	rows.addAll(channelGrids.channelRows("deformer:${id.raw}", name, parameterId, labels))
-	val blendKeys =
-		when (this) {
-			is Deformer.Warp -> blendShapes
-			is Deformer.Rotation -> blendShapes
-		}
-	for ((bindingIndex, binding) in blendKeys.withIndex()) {
-		if (binding.parameterId != parameterId) {
-			continue
-		}
-		rows.add(
-			TrackRow(
-				key = "deformer:${id.raw}/blend$bindingIndex",
-				label = name,
-				detail = labels.blendShape,
-				depth = 1,
-				marks = binding.keys.map { keyValue -> TrackKeyMark(keyValue, TrackKeyShape.Square) },
-			),
-		)
-	}
-	return rows
-}
-
-/** This part's channel rows for [parameterId] (a part carries no geometry). */
-private fun Part.trackRows(parameterId: ParameterId, labels: KeyformTrackLabels): List<TrackRow> =
-	channelGrids.channelRows("part:${id.raw}", name, parameterId, labels)
+): List<List<TrackKeyMark>> =
+	bindings
+		.filter { (bindingParameter, _) -> bindingParameter == parameterId }
+		.map { (_, keys) -> keys.map { keyValue -> TrackKeyMark(keyValue, TrackKeyShape.Square) } }
 
 /**
  * The axis domain for [parameter] - its authored range, which is what the sheet rules against.

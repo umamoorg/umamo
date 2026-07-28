@@ -521,6 +521,11 @@
 	<string name="space_keyformsheet">Keyform Sheet</string>
 	<string name="keyform_sheet_no_parameter">Select a parameter to see its tracks.</string>
 	<string name="keyform_sheet_no_tracks">Nothing is keyed on this parameter yet.</string>
+	<string name="owner_kind_art_mesh">Art Mesh</string>
+	<string name="owner_kind_warp_deformer">Warp Deformer</string>
+	<string name="owner_kind_rotation_deformer">Rotation Deformer</string>
+	<string name="owner_kind_part">Part</string>
+	<string name="owner_kind_glue">Glue</string>
 	<string name="track_geometry">Geometry</string>
 	<string name="track_blend_shape">Blend Shape</string>
 	<string name="channel_draw_order">Draw Order</string>

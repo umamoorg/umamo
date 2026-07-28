@@ -65,4 +65,74 @@ class TrackAxisTest {
 		assertNull(nearestMark(marks, 15f, tolerance = 2f), "a click between marks picks nothing")
 		assertEquals(20f, assertNotNull(nearestMark(marks, 100f, tolerance = 1000f)).position, "a wide tolerance still picks the nearest")
 	}
+
+	/** A collapsed subtree is not walked; expanding one parent reveals only its own children. */
+	@Test
+	fun flatteningDescendsOnlyIntoExpandedRows() {
+		val tree =
+			listOf(
+				TrackRow(
+					key = "owner",
+					label = "Owner",
+					children =
+						listOf(
+							TrackRow(key = "owner/a", label = "A"),
+							TrackRow(key = "owner/b", label = "B", children = listOf(TrackRow(key = "owner/b/1", label = "B1"))),
+						),
+				),
+				TrackRow(key = "other", label = "Other"),
+			)
+		assertEquals(listOf("owner", "other"), flattenTrackRows(tree, emptySet()).map { line -> line.row.key })
+		assertEquals(
+			listOf("owner", "owner/a", "owner/b", "other"),
+			flattenTrackRows(tree, setOf("owner")).map { line -> line.row.key },
+			"expanding a parent must not expand its children too",
+		)
+		assertEquals(
+			listOf("owner", "owner/a", "owner/b", "owner/b/1", "other"),
+			flattenTrackRows(tree, setOf("owner", "owner/b")).map { line -> line.row.key },
+		)
+	}
+
+	/** Depth and the chevron flags come from the tree, not from the caller. */
+	@Test
+	fun flatteningReportsDepthAndExpandability() {
+		val tree = listOf(TrackRow(key = "owner", label = "Owner", children = listOf(TrackRow(key = "leaf", label = "Leaf"))))
+		val collapsed = flattenTrackRows(tree, emptySet()).single()
+		assertEquals(0, collapsed.depth)
+		assertTrue(collapsed.expandable, "a row with children is expandable")
+		assertTrue(!collapsed.expanded)
+		val expanded = flattenTrackRows(tree, setOf("owner"))
+		assertEquals(1, expanded[1].depth)
+		assertTrue(!expanded[1].expandable, "a leaf has no chevron")
+	}
+
+	/** A collapsed group still shows where its subtree's keys are, deduplicated and ordered. */
+	@Test
+	fun summaryUnionsTheSubtreeMarks() {
+		val row =
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				marks = listOf(TrackKeyMark(30f)),
+				children =
+					listOf(
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0f), TrackKeyMark(30f))),
+						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(-30f), TrackKeyMark(0f))),
+					),
+			)
+		assertEquals(listOf(-30f, 0f, 30f), summarizedMarks(row).map { mark -> mark.position })
+	}
+
+	/** A mark's shape survives the summary, so a blend-shape key still reads as a square when folded. */
+	@Test
+	fun summaryKeepsTheFirstMarkShape() {
+		val row =
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				children = listOf(TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0f, TrackKeyShape.Square)))),
+			)
+		assertEquals(TrackKeyShape.Square, summarizedMarks(row).single().shape)
+	}
 }

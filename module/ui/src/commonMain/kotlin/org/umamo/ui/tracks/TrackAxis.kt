@@ -124,21 +124,114 @@ data class TrackKeyMark(
 )
 
 /**
- * One row of a track sheet: a label and the marks along it.
+ * A row's color band, which is how a sheet makes kinds of track separable at a glance.
+ *
+ * Abstract slots rather than colors or domain names, for the same reason [TrackAxis] is abstract: the
+ * theme owns what each band actually looks like, and each sheet decides which of its own kinds map onto
+ * which slot.  The keyform sheet reads them as owner / geometry / channel / blend shape; a time-based
+ * sheet would read the same four as object / transform / custom property / layered action.
+ */
+enum class TrackRowTone {
+	/** A grouping row that owns the tracks nested beneath it. */
+	Group,
+
+	/** A track carrying the row's primary subject. */
+	Primary,
+
+	/** A track carrying a secondary property of the same subject. */
+	Secondary,
+
+	/** A track from a source layered on top of the primary one. */
+	Alternate,
+}
+
+/**
+ * One row of a track sheet: a label, the marks along it, and any rows nested beneath it.
+ *
+ * A row is a TREE node rather than a flat line with a depth number, because collapsing has to hide a
+ * whole subtree and a depth-tagged flat list cannot say where one ends.  [flattenTrackRows] turns the
+ * tree back into display lines once the expansion state is known.
  *
  * @property String key A stable identity for the row, so Compose keeps per-row state across list changes.
  * @property String label The row's primary text.
- * @property String? detail Optional secondary text, shown muted after the label.
- * @property Int depth Indent level, for rows that nest under an owner.
+ * @property String? detail Optional secondary text, shown under the label as a subtitle.
+ * @property TrackRowTone tone The row's color band.
  * @property List<TrackKeyMark> marks The row's marks, in any order.
+ * @property List<TrackRow> children Rows nested under this one, shown only while it is expanded.
  */
 data class TrackRow(
 	val key: String,
 	val label: String,
 	val detail: String? = null,
-	val depth: Int = 0,
+	val tone: TrackRowTone = TrackRowTone.Primary,
 	val marks: List<TrackKeyMark> = emptyList(),
+	val children: List<TrackRow> = emptyList(),
 )
+
+/**
+ * One row as it is actually displayed: the row itself plus what the tree position implies about it.
+ *
+ * @property TrackRow row The row.
+ * @property Int depth Its nesting level, for indentation.
+ * @property Boolean expandable Whether it has children at all (so a chevron is drawn).
+ * @property Boolean expanded Whether those children are currently shown.
+ */
+data class TrackRowLine(
+	val row: TrackRow,
+	val depth: Int,
+	val expandable: Boolean,
+	val expanded: Boolean,
+)
+
+/**
+ * Flattens a row tree into display lines, descending only into rows whose key is in [expandedKeys].
+ *
+ * Compose-free so the expansion rule is unit-testable and identical in every sheet on this package.
+ *
+ * @param List<TrackRow> rows The root rows, in display order.
+ * @param Set<String> expandedKeys The keys of the rows whose children are shown.
+ * @return List<TrackRowLine> The visible lines, in display order.
+ */
+fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<TrackRowLine> {
+	val lines = ArrayList<TrackRowLine>()
+
+	fun visit(row: TrackRow, depth: Int) {
+		val expandable = row.children.isNotEmpty()
+		val expanded = expandable && row.key in expandedKeys
+		lines.add(TrackRowLine(row, depth, expandable, expanded))
+		if (expanded) {
+			for (child in row.children) {
+				visit(child, depth + 1)
+			}
+		}
+	}
+	for (row in rows) {
+		visit(row, 0)
+	}
+	return lines
+}
+
+/**
+ * Every mark under [row] and its whole subtree, deduplicated by position and shape.
+ *
+ * What a collapsed group row draws, so folding a subtree away still shows WHERE its keys are rather than
+ * hiding them entirely - the summary behaviour Blender's dope sheet has at every level.
+ *
+ * @param TrackRow row The row to summarize.
+ * @return List<TrackKeyMark> The union of its own and its descendants' marks, ascending.
+ */
+fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
+	val byPosition = LinkedHashMap<Float, TrackKeyMark>()
+
+	fun visit(current: TrackRow) {
+		for (mark in current.marks) {
+			byPosition.getOrPut(mark.position) { mark }
+		}
+		current.children.forEach(::visit)
+	}
+	visit(row)
+	return byPosition.values.sortedBy { mark -> mark.position }
+}
 
 /**
  * The mark nearest [domainValue] within [tolerance], or null - the shared hit test for clicking a mark.

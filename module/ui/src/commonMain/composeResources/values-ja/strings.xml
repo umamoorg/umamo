@@ -478,6 +478,11 @@
 	<string name="space_keyformsheet">キーフォームシート</string>
 	<string name="keyform_sheet_no_parameter">パラメータを選択するとトラックが表示されます</string>
 	<string name="keyform_sheet_no_tracks">このパラメータにはまだ何もキーされていません</string>
+	<string name="owner_kind_art_mesh">アートメッシュ</string>
+	<string name="owner_kind_warp_deformer">ワープデフォーマ</string>
+	<string name="owner_kind_rotation_deformer">回転デフォーマ</string>
+	<string name="owner_kind_part">パーツ</string>
+	<string name="owner_kind_glue">グルー</string>
 	<string name="track_geometry">ジオメトリ</string>
 	<string name="track_blend_shape">ブレンドシェイプ</string>
 	<string name="channel_draw_order">描画順</string>

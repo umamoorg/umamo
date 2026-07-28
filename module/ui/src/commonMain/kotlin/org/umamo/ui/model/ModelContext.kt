@@ -142,6 +142,16 @@ interface LiveParamsHandle {
 	val values: Map<ParameterId, Float>
 
 	/**
+	 * The same values, read as Compose state so whatever reads them recomposes when the pose moves -
+	 * including mid-scrub, where [values] is a plain volatile read that no observer ever sees change.
+	 *
+	 * Deliberately a second property rather than making [values] observable.  The scrub path writes on
+	 * every pointer move, so a caller that only needs the pose once (seeding a control, constructing a
+	 * session) must be able to read it WITHOUT taking a per-frame recomposition dependency on it.
+	 */
+	val observedValues: Map<ParameterId, Float>
+
+	/**
 	 * Previews one parameter's live value toward the renderer without recording an undo step. Called every
 	 * frame of a scrub gesture; the matching [commit] records the single step on release.
 	 *

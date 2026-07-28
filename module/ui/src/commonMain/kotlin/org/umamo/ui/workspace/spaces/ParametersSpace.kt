@@ -691,7 +691,17 @@ private fun ParameterIsland(
 					// The slider, pad, and name each consume their own pointer input first, so this only fires on
 					// the island's own surface. Scrubbing therefore does NOT retarget: a scrub is a pose gesture,
 					// and making it push a selection undo step would bury the history under drag noise.
-					if (onSelect != null) base.clickable(indication = null, interactionSource = null, onClick = onSelect) else base
+					//
+					// NOT FOCUSABLE, and that is load-bearing: a clickable takes focus, and deleting the row that
+					// holds focus leaves Compose's focus null, which silently kills every keyboard shortcut until
+					// the next click. The range-editor chevron below guards itself the same way.
+					if (onSelect != null) {
+						base
+							.focusProperties { canFocus = false }
+							.clickable(indication = null, interactionSource = null, onClick = onSelect)
+					} else {
+						base
+					}
 				}
 				.background(colors.headerBackground, shape = shapes.medium)
 				.border(

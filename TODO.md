@@ -35,9 +35,8 @@ A mega area panel of sorts with left side icon tab strip and each tab having col
 * Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
-	* Follow-ups still open:
-		* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-
+	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+	* Live updating for parameter srubbing, but commit to history only when releasing.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
@@ -96,60 +95,26 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
 # Parameters
+* Bugs
+	* "Clicking empty track clears the selection" - What selection?  I can't select anything in the keyform sheet.
+	* Marks can be dragged now, but they snap back to their original position.  They don't clamp at their neighbors and can be dragged off the end of the track.
+	* Marks can't be deleted.  I guess I can only do this if I can select them.
+	* Can't add a key frame when a key frame already exists for that property.  For example: Attempting to change or set a new multiply color on a drawable, the color picker changes color, but the commit never visually updates in the text field.  It looks like it is being blocked.
 * Improvements
-	* The filter menu could have just been a copy past from the outliner, but instead it is a button.
-* New Features
-	* Blend Shapes and Keyforms - When blend shapes exist:
-		* Modifier key + click to add or remove ticks from track
-* UI Improvements (For me to test and visually check.)
-	* Drop zone indicator needs a slight adjustment to not be hidden by the elevation.
+	* New icon for keyform sheet.(I will find one and put it in.)
+	* Improve filter wording.(User story.)
+	* Extend parameter selection to a single click on the grab handle.  Right now there is a lot of stuff in the way of cleanly clicking on the parameter row.
+	* Keyform Sheet
+		* Each row needs a color coded background per type.(See screenshots.)
+		* Right side of key tracks are cut off.(See screenshots.)
+		* Line separator between names and keys in the track.  This can be used to resize the two columns of the track and make it easier to read long keyform names.
+		* Add common existing icons at the left of the keyform name.(Deformer, drawable.)  Some just won't have icons like opacity.
+		* Context menu for insert/delete key along the track and on keys.\
 
-**Finding (2026-07-24): the runtime data model ALREADY works this way — nothing has to change to allow it.**  `Parameter` carries only `id/name/min/max/default/kind`; it holds NO key positions.  Every keyable item owns its own `KeyformGrid`, whose `KeyformAxis(parameterId, keys: FloatArray)` stores that item's own key positions on that parameter.  Two drawables keyed on `ParamAngleX` at `[-30, 0, 30]` and `[-30, -10, 0, 30]` are already representable and already evaluate correctly (the multilinear blend reads each item's own axis).  Cubism enforces shared key positions in its EDITOR; the CMO3/MOC3 file formats store per-item grids, so Umamo inherited the freedom for free by importing them faithfully.  What that leaves is not a data-model decision but two pieces of work: the AUTHORING ops (bind an item to a parameter = add an axis; insert/move/delete a key = resize that axis and rebuild the cell product) and the EXPORT decomposition (union-resample at CMO3/MOC3 write time).  The design note below stands as written — read it as a plan for the UI and the exporter, not for the model.
-
-I'm considering an Umamo design decision that would operate a bit differently than how Cubism does for displaying and editing parameters.  Right now Cubism has a parameter slider and any item can be keyed on to it, but all items have to share the same key positions.  In Umamo, I would prefer to be able to have one parameter, key any item on to with arbritrary key positions bounded by the minimum and maximum.  I would like your feedback, if you would do this, and any notes for improvements.
-* Parameters area (Scrubbing, basic editing, which exists right now.)
-* Parameter Action Editor/Dope Sheet/Whatever area it will be called.
-	* When selecting a parameter, this area would populate tracks of each item keyed on to it.
-		* Blender style to insert a new key frame: I to insert from selection.
-* When exporting from the internal format to CMO3 and MOC3, it would decompose the tracks into a compatible format.  If all the items share the same key positions then they all get controlled by the same parameter.  If only a few do, then only those few share the same parameter while the rest get assigned to new parameters with numerically appended names.
-```
-**Decoupled per-item keyforms on a shared parameter**
-
-- One parameter, each item keyed at its own arbitrary positions within [min, max] — drop Cubism's shared-key constraint. Falls out of the blend-shape model (parameter = blend axis; each item blends its own keyforms independently).
-- UI: keep the Parameters area (scrub/edit). Add a per-parameter dope sheet — select a param → tracks for each keyed item; Blender-style `I` to insert key from selection.
-- Data model: store per-item, per-axis key positions → per-item N-D keyform grid. A dope-sheet track is a 1D projection of that grid; editing a key has grid implications for multi-bound items.
-- Export (CMO3/MOC3) default = **union-resample**: union the key positions across items, give every item a keyform at each union position (fill gaps with its own interpolated value). Exports as ONE parameter, lossless — linear blend means an inserted key lands on the existing segment. Preserves one-control semantics.
-- Splitting divergent items onto new appended-name params (`Body_Y_2`…) = **opt-in fallback only** (keyform-count optimization, or a genuinely independent control). Not the default: splitting silently turns one control into several that a host must co-drive.
-- Verify against a real file: keyform-axis interpolation is *linear*, not smoothed (bezier/smoothing should live on the deferred animation timeline, not the modeling blend). Resample losslessness depends on this.
-- Bonus affordance: dope sheet flags the default-value column / items missing a neutral key → makes "reset to 0 doesn't return to rest" visible.
-```
-
-## Keyform Insertion (the authoring model)
-
-DECIDED: Blender-style manual insertion.  Scrub the parameter(s) to the target position, manipulate the deformer, press `I` to insert the keyform from the current selection.  No auto-key by default.
-
-Order matters and differs from the first sketch: it is scrub → manipulate → `I`, not manipulate → scrub → `I`.  Scrubbing re-evaluates the rig, so a manipulation made before the scrub has to either be discarded or carried, and both are surprising.  Blender discards; matching that is the least surprising answer for anyone who has used Blender, and the "carry" behavior has no coherent meaning for a warp lattice anyway.
-
-Open decisions, in rough order of how much they shape the implementation:
-
-* **The first `I` on an unbound item must SEED an axis, not create a single key.**  One key on an axis makes the item constant over the whole parameter — including at neutral — so a naive first insert would silently move the rest pose.  Cubism seeds min/default/max holding the current form.  Recommend the same: bind creates the axis with a small seeded key set all holding the CURRENT form, then writes the manipulated form into the cell at the scrub position.  Decide the seed set: {min, default, max}, or {default, scrubPosition}.
-* **`I` on a multi-bound item inserts a grid SLICE, not a cell.**  An item on two axes has a 2D cell product; inserting a new key on axis X means adding a whole COLUMN (one new cell per existing Y key), and only the cell at the current (x, y) is known from the manipulation.  The rest of the column must be filled by interpolating the neighboring columns — union-resample applied locally.  This is the main implementation subtlety, and it is the same operation the CMO3/MOC3 exporter needs, so build it once as a shared grid op.
-* **PER-CHANNEL TRACKS — a second, deeper deviation from Cubism, and the one that needs deciding FIRST.**  Cubism's keyform cell is all-or-nothing: `CArtMeshForm` carries positions + drawOrder + opacity + multiply/screen color together, and Umamo currently mirrors that (`MeshForm`, `PartForm`).  The goal is for each channel to be an INDEPENDENT track with its own axes and its own key positions — scrub a parameter, right-click Opacity in the properties panel, Insert Keyframe, and a new opacity track appears in the dope sheet bound to that parameter, with no geometry key created and no geometry axis touched.
-	* This is a DATA-MODEL change, not just UI: `MeshForm` has to shed its scalars, and each owner carries several grids instead of one.  Suggested shape, grouped by value type because the generic needs it: `geometry: KeyformGrid<TGeometry>?` (mesh deltas / warp control points / rotation pivot), `scalars: Map<ScalarChannel, KeyformGrid<Float>>` (opacity, drawOrder), `colors: Map<ColorChannel, KeyformGrid<ColorRgb>>` (multiply, screen).  Adding a channel later is an enum constant, not a new field.
-	* **Do it BEFORE the authoring ops, not after.**  Nothing in the tree authors a keyform yet, so this is the cheapest it will ever be.  Every insert/move/delete/bind op written against the bundled shape would have to be rewritten against the split one.
-	* Blast radius is smaller than it looks: `KeyformGridEval` already samples per channel (`samplePartDrawOrder`, `samplePartOpacity`, the combined drawable sampler), so those functions take a channel grid instead of reaching into a shared cell.  The rest is both importers, `DeformPrepare`, and the oracle tests.
-	* `I` stays unambiguous WITHOUT a Blender-style keying set, because the invocation site names the channel: viewport `I` keys geometry (the thing just manipulated), a properties-row context menu keys that row's channel, dope-sheet `I` on a track keys that track.  No menu to design.
-	* **Export bake is LOSSLESS.**  Union-refining a multilinear grid is exact — a multilinear function restricted to a sub-cell is still multilinear, and multilinear interpolation of that sub-cell's corners reproduces the unique multilinear function through them.  So both refining an axis and adding a whole axis along which a channel is constant preserve every value exactly.  This rests entirely on the interpolation being multilinear with NO smoothing; verify that against a real file before relying on it (already flagged in the design note above).
-	* **Export cost is a cell-count PRODUCT, but it is not a penalty versus Cubism.**  Geometry on 2 keys of AngleX plus opacity on 5 keys of ParamFade bakes to a 2x5 = 10-cell grid, every cell carrying a full copy of the position deltas.  That looks alarming until you notice a Cubism user authoring the same rig needs both axes on the item too and lands on the same 10 cells.  Umamo is not paying more; it just is not making the rigger type it.  The cost is the format's, and it appears only at export.
-	* **Import needs a SPLIT, and optionally a compaction.**  CMO3/MOC3 arrive as one unified grid, so import must fan it out into per-channel tracks.  The naive split (every channel inherits the full grid) is correct but saves nothing.  Compaction — drop keys that are exactly interpolable from their neighbours, drop axes along which a channel is constant — turns an imported Cubism rig into a sparse Umamo rig automatically.  Use EXACT-only compaction (bit-equal, or a tight ULP bound), never an epsilon: an epsilon would silently alter someone's rig, which the fidelity contract does not allow.  Testable invariant worth pinning: import-compact then export-union reproduces the ORIGINAL grid.
-* **Auto-key is a Cubism-migration friction point, not just a preference.**  Cubism auto-keys: any edit at a parameter value creates or updates a keyform with no explicit gesture.  A Cubism migrant will lose work silently under manual keying until the habit changes.  Recommend manual as the default with auto-key as a setting the Cubism keymap preset turns on, plus a visible "unkeyed edit pending" indicator in the viewport so a scrub never discards work invisibly.
-* **The per-form write path differs by deformer type.**  `WarpForm` stores ABSOLUTE control points, `RotationForm` an ABSOLUTE pivot transform, `MeshForm` deltas off the mesh base.  Only the mesh case needs a base subtraction on write.
-* **`Alt+I` to remove a key.**  Removing the last key on an axis = unbind, which is exactly `withAxisCollapsed` (already implemented in ParameterCrudEdits.kt for parameter deletion, currently `internal`).  Reuse it rather than writing a second collapse.
-
-Two prerequisites this plan needs that do not exist yet:
-
-* **There is no "selected/active parameter" concept.**  `ParametersViewState` tracks open range editors, expanded groups, and filters — nothing marks a parameter as the insertion target.  "Select the parameter(s)" needs building before `I` has anywhere to write.
-* **Posed authoring is currently REFUSED, and the reason is real math, not a stray guard.**  `EditorSession.beginObjectOperator` refuses while any parameter is off its default, because the deformer-chain world→local inverse (`worldToLocalLinearized`) is exact only at neutral.  That constraint does not disappear when keyform authoring lands: dragging a TOP-LEVEL deformer's control points under a pose needs no chain inverse and can be unblocked cheaply, but dragging a NESTED deformer's, or a drawable's vertices, under a pose inherits the same inexactness the guard exists to prevent.  Decide what posed editing is permitted per target type — do not just remove the guard.
+		* Make each parameter section collapsible in the keyform sheet.  This makes it easier to deal with heavily populated linked parameters.
+		* Clicking on a key scrubs to that spot.  It exposed an usability gap: Clicking and also dragging on an empty part of the track should scrub that parameter as well.
+	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
+	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
 
 # Button UI
 * Needs a click action, either a background color change or movement.
