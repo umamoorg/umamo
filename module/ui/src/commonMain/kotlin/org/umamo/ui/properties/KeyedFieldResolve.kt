@@ -34,7 +34,18 @@ import org.umamo.ui.model.keyedFieldStateOf
  * @return KeyedFieldState The state to tint the field with.
  */
 @Composable
-internal fun keyedFieldStateOf(drawable: Drawable, channel: FormChannel): KeyedFieldState {
+internal fun keyedFieldStateOf(drawable: Drawable, channel: FormChannel): KeyedFieldState =
+	keyedFieldStateOf(KeyformOwner.Drawable(drawable.id), channel)
+
+/**
+ * The keyed state of [channel] on any [owner] against the currently targeted parameter.
+ *
+ * @param KeyformOwner owner The entity the row edits.
+ * @param FormChannel channel The channel the row edits.
+ * @return KeyedFieldState The state to tint the field with.
+ */
+@Composable
+internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): KeyedFieldState {
 	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
 	val session = LocalEditorSession.current ?: return KeyedFieldState.None
 	val parameterSelection by remember(session) { session.parameterSelection }.collectAsState()
@@ -42,7 +53,7 @@ internal fun keyedFieldStateOf(drawable: Drawable, channel: FormChannel): KeyedF
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	return keyedFieldStateOf(
 		puppet = puppet,
-		target = KeyableTarget(KeyformOwner.Drawable(drawable.id), channel),
+		target = KeyableTarget(owner, channel),
 		parameterId = parameterSelection.active,
 		pose = pose,
 		pendingEdits = pendingEdits,
@@ -72,6 +83,18 @@ internal fun displayedChannelValue(owner: KeyformOwner, channel: FormChannel, st
 	val target = KeyableTarget(owner, channel)
 	return pendingEdits[target] ?: puppet.channelValueAt(target, pose) ?: stored
 }
+
+/**
+ * The [displayedChannelValue] of a scalar channel, unwrapped.
+ *
+ * @param KeyformOwner owner The entity the row edits.
+ * @param FormChannel channel The scalar channel the row edits.
+ * @param Float stored The owner's static value.
+ * @return Float The value to show.
+ */
+@Composable
+internal fun displayedChannelScalar(owner: KeyformOwner, channel: FormChannel, stored: Float): Float =
+	(displayedChannelValue(owner, channel, ChannelValue.Scalar(stored)) as? ChannelValue.Scalar)?.value ?: stored
 
 /**
  * The [displayedChannelValue] of a color channel, unwrapped.

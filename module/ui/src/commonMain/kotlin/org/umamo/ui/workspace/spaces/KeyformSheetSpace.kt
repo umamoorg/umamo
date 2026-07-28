@@ -46,7 +46,9 @@ import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
+import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalKeyableHover
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.resources.*
@@ -402,6 +404,7 @@ private fun KeyformSheetSection(
 ) {
 	val session = LocalEditorSession.current
 	val liveParams = LocalLiveParams.current
+	val keyableHover = LocalKeyableHover.current
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	val keymap = LocalKeymap.current
@@ -464,6 +467,19 @@ private fun KeyformSheetSection(
 				// The key keeps its ordinal, so the selection survives a move untouched - the whole point
 				// of addressing keys by ordinal rather than by the value that is being changed.
 				session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+			}
+		},
+		// Publishing the hovered row is what lets `I` / `Alt+I` aim at a track the way they already aim at a
+		// Properties row: point at it and press.  The projection maps the row back to what it edits; a row
+		// with no track ref (a group header, a blend-shape binding) publishes nothing, so the shortcut
+		// falls through to its notice rather than acting on something it cannot address.
+		onLaneHover = { row, hit ->
+			projection.tracksByRowKey[row.key]?.let { track ->
+				if (hit == null) {
+					keyableHover?.exit(track)
+				} else {
+					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex))
+				}
 			}
 		},
 		laneMenuItems = { hit ->

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -174,6 +175,7 @@ data class TrackLaneHit(
  * @param Function? onTrackScrubEnd Invoked when such a drag is released, to commit the value it landed on.
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
+ * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit, for hover-aimed commands.
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
@@ -192,6 +194,7 @@ fun TrackSheet(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
+	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
 ) {
 	val lines = remember(rows, expandedKeys) { flattenTrackRows(rows, expandedKeys) }
@@ -217,6 +220,7 @@ fun TrackSheet(
 					onTrackScrubEnd = onTrackScrubEnd,
 					onMarkDragEnd = onMarkDragEnd,
 					laneMenuItems = laneMenuItems,
+					onLaneHover = onLaneHover,
 					markRadius = markRadius,
 				)
 			}
@@ -437,6 +441,7 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
+ * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -452,6 +457,7 @@ private fun TrackSheetRow(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
+	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
@@ -486,6 +492,7 @@ private fun TrackSheetRow(
 			onTrackScrubEnd = onTrackScrubEnd,
 			onMarkDragEnd = onMarkDragEnd,
 			laneMenuItems = laneMenuItems,
+			onLaneHover = onLaneHover,
 			markRadius = markRadius,
 		)
 	}
@@ -715,6 +722,7 @@ fun TrackSheetSeparatorOverlay(
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
+ * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -730,10 +738,20 @@ private fun TrackLane(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
+	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
 	val density = LocalDensity.current
+	// The hit is reported live as the pointer MOVES, not merely on enter, because where along the lane the
+	// pointer sits is the whole point: a keyframe op aimed at a lane means "here", and a row-level hover
+	// could only say "somewhere on this row".  The row rides along on the exit report too, so a receiver
+	// can ignore an exit for a row it is no longer holding - adjacent rows interleave, with the new row's
+	// enter arriving before the old row's exit.
+	val latestLaneHover by rememberUpdatedState(onLaneHover)
+	DisposableEffect(row.key) {
+		onDispose { latestLaneHover?.invoke(row, null) }
+	}
 	// The in-flight drag position, so the mark follows the pointer before the model is touched. The move is
 	// committed on release: a per-frame commit would push an undo step for every pixel of the drag.
 	var draggingMark by remember(row.key) { mutableStateOf<TrackKeyMark?>(null) }
@@ -758,6 +776,31 @@ private fun TrackLane(
 				Modifier
 					.fillMaxSize()
 					.onSizeChanged { measured -> laneWidth = measured.width }
+					// Hover reporting is its own handler and consumes nothing: it has to see the pointer
+					// wherever it is, including mid-drag, and must never take an event from the gestures.
+					.pointerInput(row.key, marks, axis, markRadiusPx) {
+						awaitPointerEventScope {
+							while (true) {
+								val event = awaitPointerEvent()
+								val change = event.changes.firstOrNull() ?: continue
+								when (event.type) {
+									PointerEventType.Exit -> latestLaneHover?.invoke(row, null)
+									PointerEventType.Enter, PointerEventType.Move -> {
+										val value = domainAt(change.position.x, axis, size.width, markRadiusPx)
+										val mark =
+											nearestMark(
+												marks.filter { candidate -> candidate.editable },
+												value,
+												pickTolerance(axis, size.width, markRadiusPx),
+											)
+										latestLaneHover?.invoke(row, TrackLaneHit(row, value, mark))
+									}
+
+									else -> Unit
+								}
+							}
+						}
+					}
 					.then(
 						if (laneMenuItems == null) {
 							Modifier

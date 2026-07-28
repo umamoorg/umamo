@@ -94,22 +94,25 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
-## Properties/NumberField
-* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
+## Properties
+* NumberField
+	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
+* Keyform Sheet Related
+	* Background highlight in property controls instead of the border highlight.
+	* The highlight should update in real time while scrubbing.
+* Missing draw order and opacity properties for drawables.
 
 # Parameters
 * Bugs
-	* There is no property row context menu for insert/delete keyframe.  It shows the area context menu.
 	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
+	* Keyform Sheet is missing a horizontal scrollbar.  We will need to add a bit of a margin on the right to accomodate that so that it does not interfere with key frame marks.
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
 	* Keyform Sheet
 		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
-		* I/Alt+I should insert/delete a keyframe on the track as well.
-	* Properties Panel
-		* Background highlight in property controls instead of the border highlight.
-		* The highlight should update in real time while scrubbing.
+		* I/Alt+I should insert/delete a keyframe on the track as well.  The track or key frame under the mouse pointer.
+	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
 	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
 	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
 

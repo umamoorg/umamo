@@ -418,6 +418,71 @@ class TrackLaneInteractionTest {
 			assertTrue(scrubbed.all { value -> value in -30f..30f }, "out of range: ${scrubbed.filter { it !in -30f..30f }}")
 			assertTrue(assertNotNull(committedAt) in -30f..30f, "the commit is in range too")
 		}
+
+	/**
+	 * Hover reports WHERE on the lane the pointer is, and which mark it is on, live as it moves.
+	 *
+	 * This is what `I` / `Alt+I` aim with over a track: pointing at a spot is a statement about which
+	 * spot, so a row-level "the pointer is somewhere on this row" would not be enough to act on.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun hoverReportsThePositionAndMarkUnderThePointer() =
+		runComposeUiTest {
+			val hits = mutableListOf<TrackLaneHit?>()
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onLaneHover = { _, hit -> hits.add(hit) },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneStart = labelColumnEdge()
+				val rowY = childRowCenterY()
+				// A quarter along - clear of every mark - then onto the middle mark at 0.
+				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, rowY))
+				moveTo(Offset((width + laneStart) / 2f, rowY))
+			}
+			waitForIdle()
+			val reported = hits.filterNotNull()
+			assertTrue(reported.size >= 2, "hover must report as the pointer moves, not once on enter")
+			assertNull(reported.first().mark, "a quarter along is clear of every mark")
+			assertEquals(0f, assertNotNull(reported.last().mark).position, "the middle mark is at 0")
+			assertTrue(reported.last().value > reported.first().value, "and the reported value follows the pointer")
+		}
+
+	/** Leaving the lane reports null, so a stale target cannot outlive the pointer. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun leavingTheLaneClearsTheHover() =
+		runComposeUiTest {
+			val hits = mutableListOf<TrackLaneHit?>()
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onLaneHover = { _, hit -> hits.add(hit) },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset((width + labelColumnEdge()) / 2f, childRowCenterY()))
+				// Up into the ruler, off every lane.
+				moveTo(Offset((width + labelColumnEdge()) / 2f, 4f))
+			}
+			waitForIdle()
+			assertNull(hits.last(), "leaving the lane must clear what it reported")
+		}
 }
 
 /** The x just right of the label column and its separator, in pixels. */

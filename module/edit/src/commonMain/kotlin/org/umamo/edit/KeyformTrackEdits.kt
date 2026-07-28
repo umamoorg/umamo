@@ -1,5 +1,7 @@
 package org.umamo.edit
 
+import org.umamo.runtime.keyform.keyIndexAt
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.PuppetModel
@@ -153,17 +155,35 @@ fun EditorSession.nudgeTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, I
  */
 fun PuppetModel.trackKeyValue(track: KeyformTrackRef, parameter: Parameter, keyIndex: Int): Float? {
 	val axis =
-		when (track) {
-			is KeyformTrackRef.Channel ->
-				channelGridsOf(track.owner)?.get(track.target.channel)?.axes?.firstOrNull { candidate ->
-					candidate.parameterId == parameter.id
-				}
-
-			is KeyformTrackRef.Geometry ->
-				geometryAxisOf(track.owner, parameter.id)
-		} ?: return null
+		trackGridOf(track)?.axes?.firstOrNull { candidate -> candidate.parameterId == parameter.id }
+			?: return null
 	return axis.keys.getOrNull(keyIndex)
 }
+
+/**
+ * The ordinal of [track]'s key at the current [pose] on [parameter]'s axis, or -1 when the pose is not on
+ * one.
+ *
+ * Within EPS_KEY, the same tolerance `bindBracket` snaps with - so "on a key" here means exactly what it
+ * means to the evaluator, and the field tint, the shortcut, and the rendered result cannot disagree about
+ * whether the pose is sitting on a key.
+ *
+ * @param KeyformTrackRef track The track to read.
+ * @param Parameter parameter The parameter whose axis to read.
+ * @param Pose pose The pose to resolve against.
+ * @return Int The key's ordinal, or -1.
+ */
+fun PuppetModel.trackKeyIndexAtPose(track: KeyformTrackRef, parameter: Parameter, pose: Pose): Int {
+	val grid = trackGridOf(track) ?: return -1
+	return grid.keyIndexAt(parameter.id, pose[parameter.id] ?: parameter.default)
+}
+
+/** The grid behind [track] - its owner's channel track or its geometry - or null when there is none. */
+private fun PuppetModel.trackGridOf(track: KeyformTrackRef): KeyformGrid<*>? =
+	when (track) {
+		is KeyformTrackRef.Channel -> channelGridsOf(track.owner)?.get(track.target.channel)
+		is KeyformTrackRef.Geometry -> geometryGridOf(track.owner)
+	}
 
 /**
  * Removes every key in [keys] as ONE undo step - the sheet's Delete over a multi-key selection.

@@ -23,17 +23,20 @@ import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.captureChannelKey
 import org.umamo.edit.channelValueAt
-import org.umamo.edit.removeChannelKey
+import org.umamo.edit.insertTrackKeyAt
+import org.umamo.edit.removeTrackKeys
 import org.umamo.edit.snapToGrid
+import org.umamo.edit.trackKeyIndexAtPose
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
-import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.EditorModeHandle
+import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.CameraController
@@ -252,7 +255,7 @@ internal fun shellSessionCommands(
 	selection: SelectionHandle?,
 	activeViewportArea: () -> String?,
 	hoveredSurface: () -> HoveredSurface?,
-	hoveredKeyable: () -> KeyableTarget?,
+	hoveredKeyable: () -> KeyformHover?,
 ): List<Command> {
 	// The availability tiers of the document-scoped commands: most need only an open document; the
 	// Edit-mode element commands hide in Object mode; the circle radius pair needs a live brush.
@@ -624,18 +627,38 @@ private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, area
  *
  * @param KeyableTarget? target The hovered keyable property, or null when the pointer is over nothing.
  */
-private fun EditorSession.keyformInsert(target: KeyableTarget?) {
-	if (target == null) {
+private fun EditorSession.keyformInsert(hover: KeyformHover?) {
+	if (hover == null) {
 		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
 		return
 	}
 	val parameter = targetedParameter() ?: return
-	// A pending unkeyed edit wins: the whole point of `I` after typing a value is to capture what was just
-	// typed, not what is still stored.  With nothing pending, the channel's current evaluated value is
-	// captured instead, which pins the pose already on screen (Blender's behaviour).
-	val value = pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, pose.value) ?: return
-	captureChannelKey(target, parameter, value)
-	clearPendingChannelEdits()
+	val position = hover.position
+	if (position != null) {
+		// Aimed at a spot on a track, so the key lands THERE rather than at the playhead - pointing at a
+		// place on a lane is a statement about which place, and keying the playhead instead would ignore
+		// what was aimed at.  It holds whatever the track already evaluates to there, which is the same
+		// shape-preserving insert the lane's own context menu performs.
+		insertTrackKeyAt(hover.track, parameter, position)
+		return
+	}
+	when (val track = hover.track) {
+		is KeyformTrackRef.Channel -> {
+			val target = track.target
+			// No position to aim at (a Properties row), so this keys the pose.  A pending unkeyed edit
+			// wins: the whole point of `I` after typing a value is to capture what was just typed, not what
+			// is still stored.  With nothing pending, the channel's current evaluated value is captured
+			// instead, pinning the pose already on screen (Blender's behaviour).
+			val value =
+				pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, pose.value) ?: return
+			captureChannelKey(target, parameter, value)
+			clearPendingChannelEdits()
+		}
+
+		// Geometry holds no value the user can have typed, so there is nothing to capture.
+		is KeyformTrackRef.Geometry ->
+			insertTrackKeyAt(track, parameter, pose.value[parameter.id] ?: parameter.default)
+	}
 }
 
 /**
@@ -643,13 +666,25 @@ private fun EditorSession.keyformInsert(target: KeyableTarget?) {
  *
  * @param KeyableTarget? target The hovered keyable property, or null.
  */
-private fun EditorSession.keyformRemove(target: KeyableTarget?) {
-	if (target == null) {
+private fun EditorSession.keyformRemove(hover: KeyformHover?) {
+	if (hover == null) {
 		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
 		return
 	}
 	val parameter = targetedParameter() ?: return
-	removeChannelKey(target, parameter)
+	// Whichever mark is under the pointer when there is one to point at, and otherwise the key the pose is
+	// standing on.  Either way it is an ORDINAL, and either way pointing at nothing removes nothing:
+	// picking "the nearest key" would be a guess at which the user meant, and a wrong guess silently
+	// destroys authored work.
+	val keyIndex =
+		if (hover.position != null) {
+			hover.keyIndex ?: -1
+		} else {
+			model.value.trackKeyIndexAtPose(hover.track, parameter, pose.value)
+		}
+	if (keyIndex >= 0) {
+		removeTrackKeys(listOf(Triple(hover.track, parameter, keyIndex)))
+	}
 }
 
 /**

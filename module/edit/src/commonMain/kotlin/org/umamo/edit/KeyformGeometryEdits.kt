@@ -9,7 +9,6 @@ import org.umamo.runtime.keyform.withKeyInserted
 import org.umamo.runtime.keyform.withKeyMoved
 import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
@@ -56,27 +55,26 @@ fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId)
 }
 
 /**
- * [owner]'s geometry axis for [parameterId], or null when it has no geometry or does not key on it.
+ * [owner]'s geometry grid, or null when that kind of entity carries none.
+ *
+ * The grid rather than one axis, so callers can use the grid's own tolerance-aware lookups instead of
+ * re-deriving the evaluator's epsilon beside them.
  *
  * @param KeyformOwner owner The entity.
- * @param ParameterId parameterId The parameter to look for.
- * @return KeyformAxis? The axis, or null.
+ * @return KeyformGrid? Its geometry grid, or null.
  */
-fun PuppetModel.geometryAxisOf(owner: KeyformOwner, parameterId: ParameterId): KeyformAxis? {
-	val grid =
-		when (owner) {
-			is KeyformOwner.Drawable -> drawableGeometry(owner)
-			is KeyformOwner.Deformer ->
-				when (val deformer = deformers.firstOrNull { candidate -> candidate.id == owner.id }) {
-					is Deformer.Warp -> deformer.geometryGrid
-					is Deformer.Rotation -> deformer.geometryGrid
-					null -> null
-				}
-			// A part is organisational and a glue welds two meshes; neither carries geometry of its own.
-			is KeyformOwner.Part, is KeyformOwner.Glue -> null
-		} ?: return null
-	return grid.axes.firstOrNull { axis -> axis.parameterId == parameterId }
-}
+fun PuppetModel.geometryGridOf(owner: KeyformOwner): KeyformGrid<*>? =
+	when (owner) {
+		is KeyformOwner.Drawable -> drawableGeometry(owner)
+		is KeyformOwner.Deformer ->
+			when (val deformer = deformers.firstOrNull { candidate -> candidate.id == owner.id }) {
+				is Deformer.Warp -> deformer.geometryGrid
+				is Deformer.Rotation -> deformer.geometryGrid
+				null -> null
+			}
+		// A part is organisational and a glue welds two meshes; neither carries geometry of its own.
+		is KeyformOwner.Part, is KeyformOwner.Glue -> null
+	}
 
 /**
  * This model with [owner]'s geometry key at [fromValue] moved to [toValue] on [parameter]'s axis.

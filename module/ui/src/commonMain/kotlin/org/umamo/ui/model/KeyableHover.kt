@@ -12,9 +12,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformTrackRef
 
 /**
- * The keyable property the pointer is currently over - what a keyform insert aims at.
+ * The keyform track the pointer is currently over - what a keyform insert aims at.
+ *
+ * A TRACK rather than a channel, so the keyform sheet's rows can publish here too: pointing at a
+ * Geometry row and pressing `I` has to mean something, and geometry is not addressable as a channel.
  *
  * Hover targeting is what lets `I` work with no prior selection: point at Opacity, press I, done.  It
  * mirrors the shell's existing hovered-surface seam, and like that one it is resolved at DISPATCH time,
@@ -26,32 +30,50 @@ import org.umamo.runtime.model.KeyableTarget
  *
  * ポインタ下のキー可能プロパティ。キーフレーム挿入の対象を、事前選択なしで決める。
  */
+data class KeyformHover(
+	/** The track under the pointer. */
+	val track: KeyformTrackRef,
+	/**
+	 * Where along the parameter the pointer sits, or null when the row has no position axis.
+	 *
+	 * A Properties row is a single value with nowhere to point AT, so it publishes null and a keyframe op
+	 * falls back to the pose.  A keyform-sheet lane spans the whole parameter, so pointing at a spot on it
+	 * is a statement about WHICH spot - and acting on the playhead instead would ignore what was aimed at.
+	 */
+	val position: Float? = null,
+	/** The ordinal of the key under the pointer, or null when the pointer is not on one. */
+	val keyIndex: Int? = null,
+)
+
 class KeyableHover {
-	/** The property under the pointer, or null when the pointer is over nothing keyable. */
-	var target: KeyableTarget? by mutableStateOf(null)
+	/** What the pointer is over, or null when it is over nothing keyable. */
+	var hovered: KeyformHover? by mutableStateOf(null)
 		private set
 
 	/**
-	 * Records that the pointer entered [hovered].
+	 * Records what the pointer is now over.
 	 *
-	 * @param KeyableTarget hovered The property now under the pointer.
+	 * Also called as the pointer MOVES along a lane, since the position is part of what is hovered - so
+	 * this is a plain assignment rather than an enter-once latch.
+	 *
+	 * @param KeyformHover hover The track, and where on it, now under the pointer.
 	 */
-	fun enter(hovered: KeyableTarget) {
-		target = hovered
+	fun enter(hover: KeyformHover) {
+		hovered = hover
 	}
 
 	/**
-	 * Records that the pointer left [hovered].
+	 * Records that the pointer left [track].
 	 *
-	 * Takes the target rather than clearing unconditionally, because enter / exit events for adjacent rows
+	 * Takes the track rather than clearing unconditionally, because enter / exit events for adjacent rows
 	 * can interleave - the new row's enter can arrive before the old row's exit, and a blind clear would
 	 * then wipe a target the pointer is actually over.
 	 *
-	 * @param KeyableTarget hovered The property the pointer left.
+	 * @param KeyformTrackRef track The track the pointer left.
 	 */
-	fun exit(hovered: KeyableTarget) {
-		if (target == hovered) {
-			target = null
+	fun exit(track: KeyformTrackRef) {
+		if (hovered?.track == track) {
+			hovered = null
 		}
 	}
 }
@@ -77,19 +99,31 @@ val LocalKeyableHover = staticCompositionLocalOf<KeyableHover?> { null }
  * @return Modifier The modifier publishing the hover.
  */
 @Composable
-fun Modifier.keyableTarget(target: KeyableTarget): Modifier {
+fun Modifier.keyableTarget(target: KeyableTarget): Modifier = keyableTrack(KeyformTrackRef.Channel(target))
+
+/**
+ * Publishes this composable as the keyform TRACK under the pointer while it is hovered.
+ *
+ * The general form of [keyableTarget], for callers that can point at a geometry track as well as a
+ * channel - the keyform sheet's rows.
+ *
+ * @param KeyformTrackRef track The track this row edits.
+ * @return Modifier The modifier publishing the hover.
+ */
+@Composable
+fun Modifier.keyableTrack(track: KeyformTrackRef): Modifier {
 	val hover = LocalKeyableHover.current ?: return this
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
-	DisposableEffect(hover, target, hovered) {
+	DisposableEffect(hover, track, hovered) {
 		if (hovered) {
-			hover.enter(target)
+			hover.enter(KeyformHover(track))
 		} else {
-			hover.exit(target)
+			hover.exit(track)
 		}
 		// Leaving composition mid-hover (the panel switching tabs under the pointer) must not strand the
 		// target, or the next I would key a row that is no longer on screen.
-		onDispose { hover.exit(target) }
+		onDispose { hover.exit(track) }
 	}
 	return this.hoverable(interaction)
 }

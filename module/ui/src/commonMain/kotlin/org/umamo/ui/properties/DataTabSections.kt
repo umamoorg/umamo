@@ -293,13 +293,18 @@ internal val PartSection =
 					)
 					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
-							PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
-								NumberField(
-									value = part.drawOrder,
-									onValueChange = { order -> session?.setPartDrawOrder(part.id, order) },
-									range = 0..1000,
-									modifier = Modifier.fillMaxWidth(),
-								)
+							KeyablePropertyRow(
+								target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
+							) {
+								PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
+									NumberField(
+										keyState = keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
+										value = part.drawOrder,
+										onValueChange = { order -> session?.setPartDrawOrder(part.id, order) },
+										range = 0..1000,
+										modifier = Modifier.fillMaxWidth(),
+									)
+								}
 							}
 						},
 					)
@@ -325,15 +330,28 @@ internal val PartSection =
 					if (composite != null) {
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
-									NumberField(
-										value = composite.opacity,
-										onValueChange = { opacity -> session?.setPartComposite(part.id, composite.copy(opacity = opacity)) },
-										modifier = Modifier.fillMaxWidth(),
-										range = 0f..1f,
-										decimals = 2,
-										step = 0.05f,
-									)
+								KeyablePropertyRow(
+									target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.OPACITY),
+								) {
+									PropertyFieldRow(stringResource(Res.string.properties_field_opacity)) {
+										NumberField(
+											keyState = keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.OPACITY),
+											// What is APPLIED: a keyed channel's track shadows the static.
+											value =
+												displayedChannelScalar(
+													KeyformOwner.Part(part.id),
+													FormChannel.OPACITY,
+													composite.opacity,
+												),
+											onValueChange = { opacity ->
+												session?.setPartComposite(part.id, composite.copy(opacity = opacity))
+											},
+											modifier = Modifier.fillMaxWidth(),
+											range = 0f..1f,
+											decimals = 2,
+											step = 0.05f,
+										)
+									}
 								}
 							},
 						)
@@ -369,31 +387,65 @@ internal val PartSection =
 						}
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_multiply_color)) {
-									HexColorField(
-										value = formatHexColor(composite.multiplyColor.toComposeColor()),
-										onValueChange = { hex ->
-											parseHexColor(hex)?.let { picked ->
-												session?.setPartComposite(part.id, composite.copy(multiplyColor = picked.toColorRgb()))
-											}
-										},
-										modifier = Modifier.fillMaxWidth(),
-									)
+								KeyablePropertyRow(
+									target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.MULTIPLY_COLOR),
+								) {
+									PropertyFieldRow(stringResource(Res.string.properties_field_multiply_color)) {
+										HexColorField(
+											keyState =
+												keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.MULTIPLY_COLOR),
+											// What is APPLIED: a keyed channel's track shadows the static.
+											value =
+												formatHexColor(
+													displayedChannelColor(
+														KeyformOwner.Part(part.id),
+														FormChannel.MULTIPLY_COLOR,
+														composite.multiplyColor,
+													).toComposeColor(),
+												),
+											onValueChange = { hex ->
+												parseHexColor(hex)?.let { picked ->
+													session?.setPartComposite(
+														part.id,
+														composite.copy(multiplyColor = picked.toColorRgb()),
+													)
+												}
+											},
+											modifier = Modifier.fillMaxWidth(),
+										)
+									}
 								}
 							},
 						)
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_screen_color)) {
-									HexColorField(
-										value = formatHexColor(composite.screenColor.toComposeColor()),
-										onValueChange = { hex ->
-											parseHexColor(hex)?.let { picked ->
-												session?.setPartComposite(part.id, composite.copy(screenColor = picked.toColorRgb()))
-											}
-										},
-										modifier = Modifier.fillMaxWidth(),
-									)
+								KeyablePropertyRow(
+									target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.SCREEN_COLOR),
+								) {
+									PropertyFieldRow(stringResource(Res.string.properties_field_screen_color)) {
+										HexColorField(
+											keyState =
+												keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.SCREEN_COLOR),
+											// What is APPLIED: a keyed channel's track shadows the static.
+											value =
+												formatHexColor(
+													displayedChannelColor(
+														KeyformOwner.Part(part.id),
+														FormChannel.SCREEN_COLOR,
+														composite.screenColor,
+													).toComposeColor(),
+												),
+											onValueChange = { hex ->
+												parseHexColor(hex)?.let { picked ->
+													session?.setPartComposite(
+														part.id,
+														composite.copy(screenColor = picked.toColorRgb()),
+													)
+												}
+											},
+											modifier = Modifier.fillMaxWidth(),
+										)
+									}
 								}
 							},
 						)

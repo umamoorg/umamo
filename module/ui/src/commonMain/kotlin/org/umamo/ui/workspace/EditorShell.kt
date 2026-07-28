@@ -35,7 +35,6 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.runtime.model.KeyableTarget
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -56,6 +55,7 @@ import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
 import org.umamo.ui.model.KeyableHover
+import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalKeyableHover
@@ -190,7 +190,7 @@ fun EditorShell(
 	DisposableEffect(commandRegistry, editorSession, selection, service) {
 		val activeViewportArea: () -> String? = { service?.activeAreaId }
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
-		val hoveredKeyable: () -> KeyableTarget? = { keyableHover.target }
+		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
 		val cleanup =
 			commandRegistry.registerAll(
 				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, hoveredKeyable),

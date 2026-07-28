@@ -150,6 +150,7 @@ fun NumberField(
  * @param Boolean plain When true, renders a bare type-in box only (the simple field).
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
+ * @param KeyedFieldState keyState The keyform state to tint the field's border with.
  */
 @Composable
 fun NumberField(
@@ -163,11 +164,13 @@ fun NumberField(
 	plain: Boolean = false,
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val floatRange = range.first.toFloat()..range.last.toFloat()
 	// A whole-domain endpoint means "unbounded", so a plain int clamp such as 0..Int.MAX_VALUE draws no fill.
 	val bounded = showFill && range.first > Int.MIN_VALUE && range.last < Int.MAX_VALUE
 	NumberFieldCore(
+		keyState = keyState,
 		value = value.toFloat(),
 		range = floatRange,
 		step = step.toFloat(),

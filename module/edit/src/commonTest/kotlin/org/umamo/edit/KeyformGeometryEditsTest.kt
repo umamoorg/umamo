@@ -9,6 +9,7 @@ import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -175,5 +176,27 @@ class KeyformGeometryEditsTest {
 		assertTrue(30f - middle < 0.01f, "the middle key should have clamped right up against the last (at $middle)")
 		val moved = crowded.withGeometryKeyMoved(owner, parameter, keyIndex = 2, toValue = 99f)
 		assertEquals(middle, keysOf(moved)[1], "moving the last key must not disturb the one beside it")
+	}
+
+	/**
+	 * A pose resolves to the ordinal of the key it is standing on, and to nothing between keys.
+	 *
+	 * What `Alt+I` acts on.  Removing "the nearest key" instead would guess at which one the user meant,
+	 * and a wrong guess silently destroys authored work.
+	 */
+	@Test
+	fun aPoseResolvesToTheKeyItStandsOn() {
+		val puppet = model()
+		val geometry = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		assertEquals(1, puppet.trackKeyIndexAtPose(geometry, parameter, mapOf(angleX to 0f)))
+		assertEquals(2, puppet.trackKeyIndexAtPose(geometry, parameter, mapOf(angleX to 30f)))
+		assertEquals(-1, puppet.trackKeyIndexAtPose(geometry, parameter, mapOf(angleX to 15f)), "between keys")
+	}
+
+	/** An owner with no geometry resolves to nothing rather than throwing. */
+	@Test
+	fun aTrackWithNoGridResolvesToNothing() {
+		val glue = KeyformTrackRef.Geometry(KeyformOwner.Glue(drawableId, drawableId))
+		assertEquals(-1, model().trackKeyIndexAtPose(glue, parameter, mapOf(angleX to 0f)))
 	}
 }
