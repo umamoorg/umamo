@@ -355,7 +355,7 @@ fun EditorSession.captureChannelKey(target: KeyableTarget, parameter: Parameter,
  * @param Parameter parameter The parameter whose axis to remove from.
  */
 fun EditorSession.removeChannelKey(target: KeyableTarget, parameter: Parameter) {
-	mutate(KeyformChange.RemoveKey(target.channel)) { model ->
+	mutate(KeyformChange.DeleteKey(target.channel)) { model ->
 		model.withChannelKeyRemoved(target, parameter, pose.value)
 	}
 }

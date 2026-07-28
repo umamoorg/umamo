@@ -94,16 +94,19 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
+## Properties/NumberField
+* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
+
 # Parameters
 * Bugs
-	* Keyform sheet scrub needs to clamped(code and visually) to minimum and maximum otherwise it overshoots causing model parts to disappear.
+	* There is no property row context menu for insert/delete keyframe.  It shows the area context menu.
 	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
-	* There is no property row context menu for insert/delete keyframe.  It shoulds the area context menu.
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
 	* Keyform Sheet
 		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
+		* I/Alt+I should insert/delete a keyframe on the track as well.
 	* Properties Panel
 		* Background highlight in property controls instead of the border highlight.
 		* The highlight should update in real time while scrubbing.

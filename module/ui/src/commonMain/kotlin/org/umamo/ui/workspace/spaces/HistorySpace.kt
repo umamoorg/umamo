@@ -164,7 +164,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.parameter.select" -> stringResource(Res.string.history_parameter_select)
 		"change.keyform.insert" -> stringResource(Res.string.history_keyform_insert)
 		"change.keyform.move" -> stringResource(Res.string.history_keyform_move)
-		"change.keyform.remove" -> stringResource(Res.string.history_keyform_remove)
+		"change.keyform.delete" -> stringResource(Res.string.history_keyform_remove)
 		"change.mode" -> stringResource(Res.string.history_mode)
 		"change.part.visibility" -> stringResource(Res.string.history_part_visibility)
 		"change.part.rename" -> stringResource(Res.string.history_part_rename)

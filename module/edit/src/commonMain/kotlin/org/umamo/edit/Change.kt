@@ -600,14 +600,14 @@ sealed interface KeyformChange : Change {
 	}
 
 	/**
-	 * A key removed - which also UNBINDS the channel when it was the last one holding the axis up, since
+	 * A key deleted, which also UNBINDS the channel when it was the last one holding the axis up, since
 	 * removal collapses an axis rather than leaving a single key behind.
 	 *
 	 * @property FormChannel? channel The channel the key came off, or null for geometry.
 	 */
-	data class RemoveKey(override val channel: FormChannel?) : KeyformChange {
+	data class DeleteKey(override val channel: FormChannel?) : KeyformChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.keyform.remove"
+		override val labelKey: String = "change.keyform.delete"
 	}
 }
 

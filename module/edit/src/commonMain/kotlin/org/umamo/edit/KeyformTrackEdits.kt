@@ -178,7 +178,7 @@ fun EditorSession.removeTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, 
 	if (keys.isEmpty()) {
 		return
 	}
-	mutate(KeyformChange.RemoveKey(channelOf(keys.first().first))) { model ->
+	mutate(KeyformChange.DeleteKey(channelOf(keys.first().first))) { model ->
 		keys
 			.sortedByDescending { (_, _, keyIndex) -> keyIndex }
 			.fold(model) { current, (track, parameter, keyIndex) ->

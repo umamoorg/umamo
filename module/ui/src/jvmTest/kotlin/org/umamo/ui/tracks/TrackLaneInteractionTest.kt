@@ -382,6 +382,42 @@ class TrackLaneInteractionTest {
 			assertNull(markClicked, "nor selected")
 			assertTrue(scrubbed.isNotEmpty(), "the gesture reads as a scrub of the track instead")
 		}
+
+	/** A scrub is clamped to the axis: dragging off the end of the track cannot push the pose out of range. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun anEmptyTrackScrubIsClampedToTheAxis() =
+		runComposeUiTest {
+			val scrubbed = mutableListOf<Float>()
+			var committedAt: Float? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onTrackScrub = { _, value -> scrubbed.add(value) },
+						onTrackScrubEnd = { _, value -> committedAt = value },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneStart = labelColumnEdge()
+				val rowY = childRowCenterY()
+				// A quarter along, clear of the marks at -30 / 0 / 30, so this reads as a scrub.
+				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, rowY))
+				press()
+				// Far past the right edge of the lane, and then far past the left.
+				moveTo(Offset(width + 400f, rowY))
+				moveTo(Offset(laneStart - 400f, rowY))
+				release()
+			}
+			waitForIdle()
+			assertTrue(scrubbed.all { value -> value in -30f..30f }, "out of range: ${scrubbed.filter { it !in -30f..30f }}")
+			assertTrue(assertNotNull(committedAt) in -30f..30f, "the commit is in range too")
+		}
 }
 
 /** The x just right of the label column and its separator, in pixels. */

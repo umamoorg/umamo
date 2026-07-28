@@ -42,6 +42,8 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.action.LocalKeymap
+import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalEditorSession
@@ -402,6 +404,7 @@ private fun KeyformSheetSection(
 	val liveParams = LocalLiveParams.current
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
+	val keymap = LocalKeymap.current
 	val insertLabel = stringResource(Res.string.cmd_keyform_insert)
 	val deleteLabel = stringResource(Res.string.cmd_keyform_delete)
 	val rows =
@@ -448,7 +451,10 @@ private fun KeyformSheetSection(
 		// selection, matching every other list in the editor.
 		onTrackScrub = { _, value ->
 			onSelectedKeysChange(emptySet())
-			liveParams?.preview(parameter.id, value)
+			// Clamped again at the model boundary, not only in the lane: the lane clamps to the VISIBLE
+			// window, which is a subrange, but this is the call that reaches the evaluator - and a pose
+			// outside the parameter's range brackets nothing, so every entity keyed on it disappears.
+			liveParams?.preview(parameter.id, value.coerceIn(parameter.min, parameter.max))
 		},
 		// One undo step per gesture, at its end - the same contract a slider drag has.
 		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
@@ -474,6 +480,7 @@ private fun KeyformSheetSection(
 							onSelect = {
 								session.removeTrackKeys(listOf(Triple(track, parameter, hitMark.keyIndex)))
 							},
+							shortcut = keymap.chordFor("keyform.delete")?.let { chord -> formatAccelerator(chord) },
 						),
 					)
 
@@ -482,6 +489,7 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = insertLabel,
 							onSelect = { session.insertTrackKeyAt(track, parameter, hit.value) },
+							shortcut = keymap.chordFor("keyform.insert")?.let { chord -> formatAccelerator(chord) },
 						),
 					)
 			}

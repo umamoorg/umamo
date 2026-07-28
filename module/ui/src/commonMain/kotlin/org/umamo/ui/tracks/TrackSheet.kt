@@ -800,8 +800,14 @@ private fun TrackLane(
 							// A press on empty track scrubs immediately, so the playhead lands under the
 							// pointer on the way down rather than only on release - the affordance a
 							// timeline ruler has, applied across the whole track region.
+							//
+							// CLAMPED to the axis, unlike a mark drag which clamps to its neighbours.  A pose
+							// outside the parameter's range is not merely odd: the evaluator brackets nothing
+							// there, so every entity keyed on it hides.  The clamp is the same one the
+							// pointer position is drawn with, so the playhead stops where the pointer stops.
+							val scrubBounds = minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
 							if (hitMark == null) {
-								onTrackScrub?.invoke(row, pressedValue)
+								onTrackScrub?.invoke(row, pressedValue.coerceIn(scrubBounds))
 							}
 							while (true) {
 								val event = awaitPointerEvent()
@@ -824,7 +830,11 @@ private fun TrackLane(
 										// rejected edit, where stopping at the wall reads as the wall being
 										// there.  An empty-track scrub has no walls - it is a pose gesture.
 										releaseValue =
-											if (hitMark == null) pointerValue else pointerValue.coerceIn(dragBounds)
+											if (hitMark == null) {
+												pointerValue.coerceIn(scrubBounds)
+											} else {
+												pointerValue.coerceIn(dragBounds)
+											}
 										if (hitMark == null) {
 											onTrackScrub?.invoke(row, releaseValue)
 										} else {

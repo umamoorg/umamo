@@ -331,5 +331,5 @@ fun EditorSession.insertGeometryKeyAt(owner: KeyformOwner, parameter: Parameter,
  * @param Int keyIndex The key's ordinal on that axis.
  */
 fun EditorSession.removeGeometryKeyAt(owner: KeyformOwner, parameter: Parameter, keyIndex: Int) {
-	mutate(KeyformChange.RemoveKey(null)) { model -> model.withGeometryKeyRemoved(owner, parameter, keyIndex) }
+	mutate(KeyformChange.DeleteKey(null)) { model -> model.withGeometryKeyRemoved(owner, parameter, keyIndex) }
 }
