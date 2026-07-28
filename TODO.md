@@ -105,16 +105,20 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 # Parameters
 * Bugs
 	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
-	* Keyform Sheet is missing a horizontal scrollbar.  We will need to add a bit of a margin on the right to accomodate that so that it does not interfere with key frame marks.
+	* Keyform Sheet is missing a vertical scrollbar.  We will need to add a bit of a margin on the right to accomodate that so that it does not interfere with key frame marks.
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
 	* Keyform Sheet
 		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
-		* I/Alt+I should insert/delete a keyframe on the track as well.  The track or key frame under the mouse pointer.
+		* Box Select Marks
+		* Dragging a mark on the summary axis track drags all sub-key frames in the same spot.  This gets rid of the disabled keys in the summary.
+		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
 	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
 	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
 	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
+* Future CMO3/MOC3 Work
+	* refinedToUnion to bake parameters.
 
 # Button UI
 * Needs a click action, either a background color change or movement.
