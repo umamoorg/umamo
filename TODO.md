@@ -96,10 +96,17 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 # Parameters
 * Bugs
-	* 
+	* Keyform sheet scrub needs to clamped(code and visually) to minimum and maximum otherwise it overshoots causing model parts to disappear.
+	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
+	* There is no property row context menu for insert/delete keyframe.  It shoulds the area context menu.
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
+	* Keyform Sheet
+		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
+	* Properties Panel
+		* Background highlight in property controls instead of the border highlight.
+		* The highlight should update in real time while scrubbing.
 	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
 	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
 

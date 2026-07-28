@@ -559,6 +559,6 @@
 	<string name="cmd_keyform_nudge_right">Nudge Keyframe Right</string>
 	<string name="cmd_keyform_delete_keys">Delete Selected Keys</string>
 	<string name="cmd_keyform_delete">Delete Keyframe</string>
-	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe</string>
-	<string name="notice_keyform_no_parameter">Select a parameter to key on</string>
+	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
+	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
 </resources>

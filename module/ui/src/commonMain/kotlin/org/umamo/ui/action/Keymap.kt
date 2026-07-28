@@ -163,91 +163,59 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 	mapOf(
 		"primary+KeyP" to "palette.toggle",
 		"Space" to "palette.toggle",
-		// Escape cancels the current transient interaction (today: an in-flight area corner drag).
 		"Escape" to "area.dragCancel",
-		// Tab toggles object/edit mode (Blender's convention; Edit mode is a stub in v1).
 		"Tab" to "mode.toggleEdit",
-		// Browser-style workspace navigation (Previous = Page Up, Next = Page Down).
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.saveAs",
-		// Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z); H toggles the selection's visibility (Blender's hide key).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
-		// Edit-mode modal mesh transforms (Blender G / S / R); each no-ops outside Edit mode with a
-		// selection. Unmodified, so no clash with primary+KeyS (saveAs).
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
 		"KeyR" to "mesh.rotate",
-		// Edit-mode select modes (Blender 1 / 2 / 3: vertex / edge / face); no-op outside Edit mode.
 		"Digit1" to "mesh.selectMode.vertex",
 		"Digit2" to "mesh.selectMode.edge",
 		"Digit3" to "mesh.selectMode.face",
-		// Selection operators (Blender A / Ctrl+I); mode-dispatched to mesh elements or whole objects. I is
-		// reserved for the inset operation, so Invert takes the primary modifier.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
-		// Keyform authoring (Blender I / Alt+I). Bare I was reserved for this; select.invert takes the
-		// primary modifier so both can coexist. The target is the property under the pointer.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
-		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
-		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
-		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
-		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
 		"Home" to "keyform.frameAll",
-		// Box (B) and Circle (C) select tools; Zoom Region on Shift+B; numpad +/- resize the circle brush.
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",
 		"NumpadAdd" to "mesh.circleSelect.grow",
 		"NumpadSubtract" to "mesh.circleSelect.shrink",
-		// The transform pivot pie (Blender's Period) and the snap pie (Blender's Shift+S).
 		"Period" to "transform.pivotPie",
 		"shift+KeyS" to "snap.pie",
-		// Select Linked (Blender's L under the cursor, Ctrl+L from the selection) and the Alt+Q
-		// edited-mesh switch; Frame Selected on the numpad period (Blender's framing key).
 		"KeyL" to "mesh.selectLinkedAtCursor",
 		"primary+KeyL" to "mesh.selectLinked",
 		"alt+KeyQ" to "edit.switchObjectUnderCursor",
 		"NumpadDecimal" to "view.frameSelected",
-		// The topology operators (Blender's Shift+D duplicate, M merge, V rip, J connect, Shift+V slide).
 		"shift+KeyD" to "mesh.duplicate",
 		"KeyM" to "mesh.merge",
 		"KeyV" to "mesh.rip",
 		"KeyJ" to "mesh.connect",
 		"shift+KeyV" to "mesh.vertexSlide",
-		// Proportional editing (Blender's O; Alt+O toggles Connected Only).
 		"KeyO" to "mesh.proportional.toggle",
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
-		// The viewport chrome toggles (Blender's T toolbar and N sidebar).
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
-		// The conventional Preferences shortcut (Ctrl+, / Cmd+,); opens the settings window.
 		"primary+Comma" to "edit.preferences",
-		// Photoshop / Cubism muscle memory for view navigation.
 		"primary+Digit0" to "view.fit",
 		"primary+Digit1" to "view.zoomActualSize",
 		"primary+Equals" to "view.zoomIn",
 		"primary+shift+Equals" to "view.zoomInCoarse",
 		"primary+Minus" to "view.zoomOut",
 		"primary+shift+Minus" to "view.zoomOutCoarse",
-		// Keyform authoring. Cubism itself AUTO-KEYS rather than having an insert shortcut, so there is no
-		// muscle memory to match here - the binding mirrors the other presets so a Cubism-preset user is
-		// never left without a way to key, and it becomes the natural home for the auto-key toggle when
-		// that setting lands.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
-		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
-		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
-		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
-		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
 		"Home" to "keyform.frameAll",
@@ -290,37 +258,25 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 	mapOf(
 		"F3" to "palette.toggle",
 		"Escape" to "area.dragCancel",
-		// Tab toggles object/edit mode (Blender's convention; Edit mode is a stub in v1).
 		"Tab" to "mode.toggleEdit",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.saveAs",
-		// Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z); H hides the selection (Blender's hide key) as a toggle.
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
-		// Blender's mesh transform operators (Grab / Scale / Rotate) in Edit mode.
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
 		"KeyR" to "mesh.rotate",
-		// Blender's Edit-mode select modes (1 / 2 / 3: vertex / edge / face); no-op outside Edit mode.
 		"Digit1" to "mesh.selectMode.vertex",
 		"Digit2" to "mesh.selectMode.edge",
 		"Digit3" to "mesh.selectMode.face",
-		// Blender's selection operators (A select all, Ctrl+I invert), Box (B) / Circle (C) select, Zoom Region
-		// (Shift+B), and numpad +/- for the circle brush radius.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
-		// Keyform authoring (Blender I / Alt+I). Bare I was reserved for this; select.invert takes the
-		// primary modifier so both can coexist. The target is the property under the pointer.
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.remove",
-		// Delete acts on the keyform sheet's key selection; the command only exists while that sheet is
-		// on screen, so the binding is inert elsewhere rather than ambiguous.
 		"Delete" to "keyform.deleteSelectedKeys",
-		// Arrow nudges are scoped the same way, and step by a FRACTION of the parameter's range so one
-		// binding reads sensibly whether the axis spans 60 degrees or 0..1.
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
 		"Home" to "keyform.frameAll",
@@ -329,28 +285,22 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"shift+KeyB" to "view.zoomRegion",
 		"NumpadAdd" to "mesh.circleSelect.grow",
 		"NumpadSubtract" to "mesh.circleSelect.shrink",
-		// Blender's pivot pie (Period) and snap pie (Shift+S).
 		"Period" to "transform.pivotPie",
 		"shift+KeyS" to "snap.pie",
-		// Blender's Select Linked (L / Ctrl+L), the Alt+Q object switch, and numpad-period framing.
 		"KeyL" to "mesh.selectLinkedAtCursor",
 		"primary+KeyL" to "mesh.selectLinked",
 		"alt+KeyQ" to "edit.switchObjectUnderCursor",
 		"NumpadDecimal" to "view.frameSelected",
-		// Blender's topology operators (Shift+D, M, V, J, Shift+V).
 		"shift+KeyD" to "mesh.duplicate",
 		"KeyM" to "mesh.merge",
 		"KeyV" to "mesh.rip",
 		"KeyJ" to "mesh.connect",
 		"shift+KeyV" to "mesh.vertexSlide",
-		// Blender's proportional editing (O; Alt+O toggles Connected Only).
 		"KeyO" to "mesh.proportional.toggle",
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
-		// Blender's chrome toggles (T toolbar, N sidebar).
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
 		"primary+Comma" to "edit.preferences",
-		// Blender frames all content with Home; the numpad . frames the selection (mapped to 1:1 here).
 		"Home" to "view.fit",
 		"primary+Digit1" to "view.zoomActualSize",
 		"Equals" to "view.zoomIn",
