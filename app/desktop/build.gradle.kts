@@ -176,9 +176,9 @@ tasks.withType<JavaExec>().matching { execTask -> execTask.name == "run" }
 // configureEach action, so part-level overrides lose; an explicit archiveFileName replaces the
 // derived-from-parts convention outright and wins regardless of assignment order.
 //
-// Version before target so every release asset reads umamo-<version>-<target>.<ext> and the jar
-// sorts next to its app-image archive on the releases page.
+// Target before version — umamo-<os>-<arch>-<version>.<ext>. Keep that order: it is what the
+// release assets are named and what downstream tooling matches on.
 tasks.withType<org.gradle.jvm.tasks.Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
 	.configureEach {
-		archiveFileName.set("umamo-$umamoVersion-$buildTarget.jar")
+		archiveFileName.set("umamo-$buildTarget-$umamoVersion.jar")
 	}

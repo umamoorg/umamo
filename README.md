@@ -36,8 +36,8 @@ Every tagged version publishes desktop builds on the [Releases page](https://git
 
 | File                                      | Note                                                                                                                                     |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `umamo-<version>-<target>.zip`/`.tar.gz`  | Java SDK not required, just run it directly.                                                                                             |
-| `umamo-<version>-<target>.jar`            | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+| `umamo-<target>-<version>.zip`/`.tar.gz`  | Java SDK not required, just run it directly.                                                                                             |
+| `umamo-<target>-<version>.jar`            | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
 
 Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.
 

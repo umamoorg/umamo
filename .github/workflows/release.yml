@@ -122,8 +122,8 @@ jobs:
 
   # -----------------------------------------------------------------------------------------------
   # 3. Packaging, one leg per shipped target. Each leg produces exactly two files:
-  #      umamo-<version>-<target>.{tar.gz|zip}  — self-contained app image (bundled JRE)
-  #      umamo-<version>-<target>.jar           — uber jar, needs a JDK/JRE 21 on the machine
+  #      umamo-<target>-<version>.{tar.gz|zip}  — self-contained app image (bundled JRE)
+  #      umamo-<target>-<version>.jar           — uber jar, needs a JDK/JRE 21 on the machine
   #    Every leg builds ON its own OS/arch: an app image jlinks the HOST JDK into itself, so unlike
   #    the uber jar it genuinely cannot be cross-produced.
   # -----------------------------------------------------------------------------------------------
@@ -259,7 +259,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           tar -C "app/desktop/build/compose/binaries/main/app" \
-              -czf "dist/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.tar.gz" umamo
+              -czf "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.tar.gz" umamo
 
       # Currently inert — matrix.appImage is false on both macOS legs (see the matrix comment). Kept
       # rather than deleted so restoring macOS app images at JDK 27 GA is only a matrix flip.
@@ -275,7 +275,7 @@ jobs:
           mkdir -p dist
           ditto -c -k --keepParent \
             "app/desktop/build/compose/binaries/main/app/umamo.app" \
-            "dist/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.zip"
+            "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.zip"
 
       # 7z, not Compress-Archive: the app image is ~230 MB spread over several thousand files, a
       # shape Compress-Archive takes minutes on. 7z ships on the windows runner image.
@@ -295,7 +295,7 @@ jobs:
           $distPath = (Resolve-Path dist).Path
           Push-Location "app\desktop\build\compose\binaries\main\app"
           try {
-            7z a -tzip -mx=5 "$distPath\umamo-$env:UMAMO_VERSION-$env:UMAMO_TARGET.zip" umamo | Out-Null
+            7z a -tzip -mx=5 "$distPath\umamo-$env:UMAMO_TARGET-$env:UMAMO_VERSION.zip" umamo | Out-Null
           } finally {
             Pop-Location
           }
@@ -307,7 +307,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp "app/desktop/build/compose/jars/umamo-${UMAMO_VERSION}-${UMAMO_TARGET}.jar" dist/
+          cp "app/desktop/build/compose/jars/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.jar" dist/
           ls -lh dist/
 
       - name: Upload this target's artifacts
@@ -383,8 +383,8 @@ jobs:
 
           | File                                       | Note                                                                                                                                     |
           | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-          | `umamo-<version>-<target>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                             |
-          | `umamo-<version>-<target>.jar`             | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+          | `umamo-<target>-<version>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                             |
+          | `umamo-<target>-<version>.jar`             | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
 
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
