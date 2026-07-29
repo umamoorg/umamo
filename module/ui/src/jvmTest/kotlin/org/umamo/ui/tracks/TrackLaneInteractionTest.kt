@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
@@ -486,6 +487,101 @@ class TrackLaneInteractionTest {
 			}
 			waitForIdle()
 			assertNull(hits.last(), "leaving the lane must clear what it reported")
+		}
+
+	/** An armed marquee reports the region it enclosed, in window coordinates, and then disarms. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun anArmedMarqueeReportsItsRegion() =
+		runComposeUiTest {
+			var region: Rect? = null
+			var additive: Boolean? = null
+			var dismissed = false
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheetMarqueeOverlay(
+						armed = true,
+						onSelect = { enclosed, wasAdditive ->
+							region = enclosed
+							additive = wasAdditive
+						},
+						onDismiss = { dismissed = true },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(100f, 40f))
+				press()
+				moveTo(Offset(300f, 120f))
+				release()
+			}
+			waitForIdle()
+			val enclosed = assertNotNull(region, "a drag must report its region")
+			assertEquals(200f, enclosed.width, "the region spans the drag horizontally")
+			assertEquals(80f, enclosed.height, "and vertically")
+			assertEquals(false, additive, "an unmodified drag replaces the selection")
+			assertTrue(dismissed, "and the marquee disarms itself afterwards")
+		}
+
+	/** A marquee dragged up-and-left still reports an ascending rectangle. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aMarqueeNormalizesItsRegion() =
+		runComposeUiTest {
+			var region: Rect? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheetMarqueeOverlay(
+						armed = true,
+						onSelect = { enclosed, _ -> region = enclosed },
+						onDismiss = {},
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(300f, 120f))
+				press()
+				moveTo(Offset(100f, 40f))
+				release()
+			}
+			waitForIdle()
+			val enclosed = assertNotNull(region)
+			assertTrue(enclosed.left < enclosed.right && enclosed.top < enclosed.bottom, "got $enclosed")
+		}
+
+	/** A disarmed marquee is not in the way at all - it composes nothing and takes no pointer input. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aDisarmedMarqueeTakesNoInput() =
+		runComposeUiTest {
+			var region: Rect? = null
+			var trackScrubbed = false
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onTrackScrub = { _, _ -> trackScrubbed = true },
+					)
+					TrackSheetMarqueeOverlay(
+						armed = false,
+						onSelect = { enclosed, _ -> region = enclosed },
+						onDismiss = {},
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneStart = labelColumnEdge()
+				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertNull(region, "a disarmed marquee reports nothing")
+			assertTrue(trackScrubbed, "and the lane underneath still gets its gesture")
 		}
 }
 

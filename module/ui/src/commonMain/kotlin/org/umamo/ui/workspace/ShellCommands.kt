@@ -247,6 +247,7 @@ internal fun shellSessionCommands(
 	selection: SelectionHandle?,
 	activeViewportArea: () -> String?,
 	hoveredSurface: () -> HoveredSurface?,
+	keyformSheets: KeyformSheetViews,
 ): List<Command> {
 	// The availability tiers of the document-scoped commands: most need only an open document; the
 	// Edit-mode element commands hide in Object mode; the circle radius pair needs a live brush.
@@ -317,8 +318,18 @@ internal fun shellSessionCommands(
 		// overlay drives the gesture (both modes in the viewport; Edit mode in the UV editor, whose
 		// overlay only composes there). The circle grow / shrink commands (numpad +/-) apply only
 		// while a Circle brush is live, so they hide from the palette otherwise.
+		// ONE Box Select that acts on whatever is under the pointer, rather than a second command fighting
+		// for the same chord: the keyform sheet arms its own marquee, every other surface arms the
+		// viewport's.  Resolved at dispatch time like every other hovered-surface command.
 		Command("mesh.boxSelect", title = Res.string.cmd_mesh_box_select, availability = hasDocument) {
-			selectToolArmingArea(editorSession, activeViewportArea, hoveredSurface)?.let { areaId -> editorSession?.beginBoxSelect(areaId) }
+			val hovered = hoveredSurface()
+			if (hovered?.kind == SpaceKind.KeyformSheet) {
+				keyformSheets.resolve(hovered.areaId)?.armBoxSelect?.invoke()
+			} else {
+				selectToolArmingArea(editorSession, activeViewportArea, hoveredSurface)?.let { areaId ->
+					editorSession?.beginBoxSelect(areaId)
+				}
+			}
 		},
 		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = hasDocument) {
 			selectToolArmingArea(editorSession, activeViewportArea, hoveredSurface)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }

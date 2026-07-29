@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -45,7 +46,9 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -71,6 +74,8 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.theme.umamoPointerIcon
+import org.umamo.ui.viewport.drawRubberBand
+import org.umamo.ui.viewport.selectionOverlayStyle
 import kotlin.math.abs
 
 /*
@@ -175,6 +180,7 @@ data class TrackLaneHit(
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit, for hover-aimed commands.
+ * @param Function? onLaneBounds Reports each lane's window bounds, so a region gesture can resolve rows.
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
  */
 @Composable
@@ -194,6 +200,7 @@ fun TrackSheet(
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
+	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
 ) {
 	val lines = remember(rows, expandedKeys) { flattenTrackRows(rows, expandedKeys) }
@@ -220,6 +227,7 @@ fun TrackSheet(
 					onMarkDragEnd = onMarkDragEnd,
 					laneMenuItems = laneMenuItems,
 					onLaneHover = onLaneHover,
+					onLaneBounds = onLaneBounds,
 					markRadius = markRadius,
 				)
 			}
@@ -441,6 +449,7 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
+ * @param Function? onLaneBounds Reports the lane's window bounds.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -457,6 +466,7 @@ private fun TrackSheetRow(
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
+	onLaneBounds: ((TrackRow, Rect) -> Unit)?,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
@@ -492,6 +502,7 @@ private fun TrackSheetRow(
 			onMarkDragEnd = onMarkDragEnd,
 			laneMenuItems = laneMenuItems,
 			onLaneHover = onLaneHover,
+			onLaneBounds = onLaneBounds,
 			markRadius = markRadius,
 		)
 	}
@@ -655,6 +666,81 @@ private fun TrackRuler(
 }
 
 /**
+ * The box-select marquee: a rubber band over a whole scrolling sheet, reporting the region it enclosed.
+ *
+ * ARMED rather than always-on, because an unmodified drag on a lane already means something (scrub a key,
+ * or scrub the parameter), and a marquee that pre-empted those would cost the common gesture to serve the
+ * rarer one.  Arming through a command means the same `B` and the same registry route the viewport's box
+ * select uses, so the muscle memory carries.
+ *
+ * Reports WINDOW coordinates - the same space the lanes report their bounds in - so the owner can resolve
+ * the region against rows that live inside a scroll it knows nothing about.
+ *
+ * @param Boolean armed Whether a marquee is awaiting its drag.
+ * @param Function onSelect Receives the enclosed region and whether the gesture was additive (Shift).
+ * @param Function onDismiss Called when the gesture ends or is abandoned, so the caller can disarm.
+ * @param Modifier modifier The layout modifier.
+ */
+@Composable
+fun TrackSheetMarqueeOverlay(
+	armed: Boolean,
+	onSelect: (Rect, Boolean) -> Unit,
+	onDismiss: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	if (!armed) {
+		return
+	}
+	val style = selectionOverlayStyle(LocalUmamoColors.current)
+	val latestSelect by rememberUpdatedState(onSelect)
+	val latestDismiss by rememberUpdatedState(onDismiss)
+	var origin by remember { mutableStateOf<Offset?>(null) }
+	var current by remember { mutableStateOf<Offset?>(null) }
+	var windowOffset by remember { mutableStateOf(Offset.Zero) }
+	Canvas(
+		modifier =
+			modifier
+				.fillMaxSize()
+				.onGloballyPositioned { coordinates -> windowOffset = coordinates.boundsInWindow().topLeft }
+				.pointerInput(Unit) {
+					awaitEachGesture {
+						val down = awaitFirstDown(requireUnconsumed = false)
+						down.consume()
+						val additive = currentEvent.keyboardModifiers.isShiftPressed
+						origin = down.position
+						current = down.position
+						while (true) {
+							val event = awaitPointerEvent()
+							val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+							if (!change.pressed) {
+								change.consume()
+								break
+							}
+							current = change.position
+							change.consume()
+						}
+						val start = origin
+						val end = current
+						if (start != null && end != null) {
+							latestSelect(
+								Rect(
+									topLeft = Offset(minOf(start.x, end.x), minOf(start.y, end.y)) + windowOffset,
+									bottomRight = Offset(maxOf(start.x, end.x), maxOf(start.y, end.y)) + windowOffset,
+								),
+								additive,
+							)
+						}
+						origin = null
+						current = null
+						latestDismiss()
+					}
+				},
+	) {
+		drawRubberBand(origin, current, style)
+	}
+}
+
+/**
  * The draggable column separator, as a full-height overlay over a whole scrolling sheet.
  *
  * An overlay rather than a per-row divider because the grab band has to run the WHOLE panel: a separator
@@ -728,6 +814,7 @@ fun TrackSheetSeparatorOverlay(
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
+ * @param Function? onLaneBounds Reports the lane's window bounds.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
  */
 @Composable
@@ -744,6 +831,7 @@ private fun TrackLane(
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
+	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
 	markRadius: Dp,
 ) {
 	val colors = LocalUmamoColors.current
@@ -775,7 +863,16 @@ private fun TrackLane(
 	var laneWidth by remember(row.key) { mutableStateOf(0) }
 	val touchSlop = LocalViewConfiguration.current.touchSlop
 	val markRadiusPx = with(density) { markRadius.toPx() }
-	Box(modifier = modifier.fillMaxHeight().background(background).clipToBounds()) {
+	Box(
+		modifier =
+			modifier
+				.fillMaxHeight()
+				.background(background)
+				.clipToBounds()
+				// Window coordinates, so a marquee drawn over the whole scrolling sheet and a lane inside it
+				// are comparable without either knowing the other's scroll offset.
+				.onGloballyPositioned { coordinates -> onLaneBounds?.invoke(row, coordinates.boundsInWindow()) },
+	) {
 		Canvas(
 			modifier =
 				Modifier
@@ -959,6 +1056,26 @@ private fun laneX(fraction: Float, laneWidth: Float, markRadius: Float): Float {
 private fun domainAt(x: Float, axis: TrackAxis, laneWidth: Int, markRadius: Float): Float {
 	val usable = laneWidth - markRadius * 2f
 	return if (usable <= 0f) axis.valueAt(0.5f) else axis.valueAt((x - markRadius) / usable)
+}
+
+/**
+ * The domain value at [offsetX] pixels across a lane [laneWidth] wide - the public inverse of the sheet's
+ * own pixel mapping.
+ *
+ * Exposed because anything resolving a region of the sheet back to keys (a marquee) has to use the SAME
+ * mapping the marks were drawn with, including the end inset.  Re-deriving it would drift by exactly the
+ * inset, which is the width of a mark.
+ *
+ * @param TrackAxis axis The visible domain.
+ * @param Float offsetX The pixel offset within the lane.
+ * @param Float laneWidth The lane's pixel width.
+ * @param Dp markRadius The sheet's mark radius, which is also its end inset.
+ * @return Float The domain value there.
+ */
+@Composable
+fun laneDomainAt(axis: TrackAxis, offsetX: Float, laneWidth: Float, markRadius: Dp = TRACK_MARK_RADIUS): Float {
+	val markRadiusPx = with(LocalDensity.current) { markRadius.toPx() }
+	return domainAt(offsetX, axis, laneWidth.toInt(), markRadiusPx)
 }
 
 /**

@@ -30,11 +30,13 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,11 +69,13 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
+import org.umamo.ui.tracks.TRACK_MARK_RADIUS
 import org.umamo.ui.tracks.TrackAxis
 import org.umamo.ui.tracks.TrackRow
 import org.umamo.ui.tracks.TrackRowDecor
 import org.umamo.ui.tracks.TrackSheet
 import org.umamo.ui.tracks.TrackSheetBackdrop
+import org.umamo.ui.tracks.TrackSheetMarqueeOverlay
 import org.umamo.ui.tracks.TrackSheetSeparatorOverlay
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.tracks.TrackWindowScrollbar
@@ -135,6 +139,18 @@ private class KeyformSheetViewState {
 	 * and would make comparing two rows - the reason the sheet exists - impossible.
 	 */
 	var window: TrackWindow by mutableStateOf(TrackWindow.Full)
+
+	/** Whether a box-select marquee is awaiting its drag. */
+	var boxSelectArmed: Boolean by mutableStateOf(false)
+
+	/**
+	 * Where each lane sits, in WINDOW coordinates, so a marquee drawn over the whole scrolling sheet can
+	 * say which rows it crossed without either side knowing the other's scroll offset.
+	 *
+	 * A plain map rather than snapshot state: it is written during layout and only ever read when a
+	 * marquee is released, so observing it would recompose the sheet on every scroll for nothing.
+	 */
+	val laneBounds: MutableMap<String, Rect> = mutableMapOf()
 }
 
 /**
@@ -209,6 +225,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	// bottom 8dp of the last row and - because it is draggable - swallowed the pointer there, so marks in
 	// that strip were unclickable whenever the sheet was zoomed.  As a sibling it cannot reach the rows.
 	val scrollState = rememberScrollState()
+	val markRadiusPx = with(LocalDensity.current) { TRACK_MARK_RADIUS.toPx() }
 	Column(
 		modifier =
 			Modifier
@@ -294,6 +311,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							hasSelection = { viewState.selectedKeys.isNotEmpty() },
 							clearSelection = { viewState.selectedKeys = emptySet() },
 							frameAll = { viewState.window = TrackWindow.Full },
+							armBoxSelect = { viewState.boxSelectArmed = true },
 						)
 					keyformSheetViews.register(scope.areaId, surface)
 					onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
@@ -353,6 +371,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 										}
 								},
 								onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
+								onLaneBounds = { row, bounds -> viewState.laneBounds[row.key] = bounds },
 							)
 						}
 					}
@@ -362,6 +381,15 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				labelColumnWidth = viewState.labelColumnWidth,
 				onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
 				onDraggingChange = { dragging -> resizingColumn = dragging },
+			)
+			// Above the separator, so while armed the marquee takes the drag rather than the column resize.
+			TrackSheetMarqueeOverlay(
+				armed = viewState.boxSelectArmed,
+				onSelect = { region, additive ->
+					val enclosed = keysWithin(region, projections, viewState.laneBounds, markRadiusPx)
+					viewState.selectedKeys = if (additive) viewState.selectedKeys + enclosed else enclosed
+				},
+				onDismiss = { viewState.boxSelectArmed = false },
 			)
 			VerticalScrollbarOverlay(scrollState)
 		}
@@ -420,6 +448,7 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
  * @param Set<String> expandedKeys The open group rows, shared by every section.
  * @param Function onToggleExpanded Publishes a chevron click.
  * @param Function onSelectedKeysChange Publishes a new selection to the sheet.
+ * @param Function onLaneBounds Reports each lane's window bounds, for the box-select marquee.
  */
 @Composable
 private fun KeyformSheetSection(
@@ -431,6 +460,7 @@ private fun KeyformSheetSection(
 	expandedKeys: Set<String>,
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
+	onLaneBounds: (TrackRow, Rect) -> Unit,
 ) {
 	val session = LocalEditorSession.current
 	val liveParams = LocalLiveParams.current
@@ -544,6 +574,7 @@ private fun KeyformSheetSection(
 		// with no track ref (a group header, a blend-shape binding) publishes nothing, so the shortcut
 		// falls through to its notice rather than acting on something it cannot address.  The hover carries
 		// THIS section's parameter - the selection's active member can be the other axis of a linked pad.
+		onLaneBounds = { row, bounds -> onLaneBounds(row, bounds) },
 		onLaneHover = { row, hit ->
 			projection.tracksByRowKey[row.key]?.let { track ->
 				if (hit == null) {
@@ -630,6 +661,71 @@ private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<T
 		marks = marks.map { mark -> mark.copy(selected = TrackKeyRef(parameterId, key, mark.keyIndex) in selectedKeys) },
 		children = children.map { child -> child.withSelection(parameterId, selectedKeys) },
 	)
+
+/**
+ * Every key the window-space [region] encloses, across every section.
+ *
+ * Resolved against the lanes' own reported bounds rather than computed from row heights: sections fold,
+ * groups collapse, and the sheet scrolls, so the only reliable answer to "where is this row" is the one
+ * the row gave during layout.  A mark counts when its lane overlaps the region vertically AND its drawn
+ * position falls inside it horizontally, using the same pixel mapping the marks were drawn with.
+ *
+ * @param Rect region The marquee, in window coordinates.
+ * @param List projections Each targeted parameter and its tracks.
+ * @param Map laneBounds Each row key's last reported window bounds.
+ * @param Float markRadiusPx The sheet's mark radius, which is also its lane end inset.
+ * @return Set<TrackKeyRef> The enclosed keys.
+ */
+private fun keysWithin(
+	region: Rect,
+	projections: List<Pair<Parameter, KeyformSheetProjection>>,
+	laneBounds: Map<String, Rect>,
+	markRadiusPx: Float,
+): Set<TrackKeyRef> {
+	val enclosed = mutableSetOf<TrackKeyRef>()
+	for ((parameter, projection) in projections) {
+		val (domainStart, domainEnd) = parameterDomain(parameter)
+		for (row in projection.rows) {
+			// Only rows with a track ref: a group header names an owner and a blend-shape row is not a
+			// keyform grid, so neither has keys a selection could act on.
+			collectRowsWithin(row, region, laneBounds, parameter, domainStart, domainEnd, markRadiusPx, projection, enclosed)
+		}
+	}
+	return enclosed
+}
+
+/** Walks [row] and its children, adding every enclosed key to [into]. */
+private fun collectRowsWithin(
+	row: TrackRow,
+	region: Rect,
+	laneBounds: Map<String, Rect>,
+	parameter: Parameter,
+	domainStart: Float,
+	domainEnd: Float,
+	markRadiusPx: Float,
+	projection: KeyformSheetProjection,
+	into: MutableSet<TrackKeyRef>,
+) {
+	val bounds = laneBounds[row.key]
+	if (bounds != null && projection.tracksByRowKey.containsKey(row.key) && bounds.overlapsVertically(region)) {
+		val usable = bounds.width - markRadiusPx * 2f
+		if (usable > 0f) {
+			val axis = TrackAxis(domainStart, domainEnd)
+			for (mark in row.marks) {
+				val drawnX = bounds.left + markRadiusPx + axis.fractionOf(mark.position) * usable
+				if (drawnX in region.left..region.right) {
+					into.add(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
+				}
+			}
+		}
+	}
+	for (child in row.children) {
+		collectRowsWithin(child, region, laneBounds, parameter, domainStart, domainEnd, markRadiusPx, projection, into)
+	}
+}
+
+/** Whether two rectangles share any vertical extent - the marquee's row test. */
+private fun Rect.overlapsVertically(other: Rect): Boolean = top < other.bottom && bottom > other.top
 
 /** The centered muted notice shown when the sheet has nothing to draw. */
 @Composable

@@ -15,12 +15,14 @@ import org.umamo.runtime.model.Parameter
  * @property Function hasSelection Whether the area has any selected keys.
  * @property Function clearSelection Drops the area's key selection.
  * @property Function frameAll Resets the area's zoom window to the whole domain.
+ * @property Function armBoxSelect Arms the area's marquee, so the next drag selects a region of keys.
  */
 internal class KeyformSheetSurface(
 	val selectedTracks: () -> List<Triple<KeyformTrackRef, Parameter, Int>>,
 	val hasSelection: () -> Boolean,
 	val clearSelection: () -> Unit,
 	val frameAll: () -> Unit,
+	val armBoxSelect: () -> Unit,
 )
 
 /**

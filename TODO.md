@@ -105,18 +105,20 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 # Parameters
 * Bugs
-	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
-	* Keyform Sheet is missing a vertical scrollbar.  We will need to add a bit of a margin on the right to accomodate that so that it does not interfere with key frame marks.
+	* 
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Improve filter wording.(User story.)
 	* Keyform Sheet
 		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
 		* Box Select Marks
-		* Dragging a mark on the summary axis track drags all sub-key frames in the same spot.  This gets rid of the disabled keys in the summary.
 		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
 		* Filter to display only certain types.
-		* Context menu on item to select it.
+		* 
+		* Context menu on item with "Select Drawable/Part/Deformer".
+		* We'll need the same full width/height crosshairs like the viewport.  Right now nothing shows on box arm resulting in confusion if the mode was even activated.
+			* Lets keep this DRY and not rebuild everything.  We can make helpers in the theme kit as needed.
+		* When multiple marks are selected moving one should move the rest of them.  Right now only nudging with the arrow keys works.
 	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.

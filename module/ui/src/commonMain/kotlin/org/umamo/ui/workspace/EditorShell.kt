@@ -207,7 +207,7 @@ fun EditorShell(
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
 		val cleanup =
 			commandRegistry.registerAll(
-				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface),
+				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, keyformSheetViews),
 			)
 		onDispose { cleanup() }
 	}

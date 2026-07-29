@@ -17,6 +17,7 @@ class KeyformSheetViewsTest {
 			hasSelection = { hasSelection },
 			clearSelection = {},
 			frameAll = {},
+			armBoxSelect = {},
 		)
 
 	/** The hovered sheet area always wins, regardless of how many are open. */
