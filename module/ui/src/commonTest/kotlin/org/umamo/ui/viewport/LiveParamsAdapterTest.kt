@@ -17,9 +17,9 @@ import kotlin.test.assertTrue
  * What a live parameter preview does to a pending unkeyed channel edit.
  *
  * A pending value is chosen FOR one pose, and the session already discards them when a pose COMMIT moves.
- * The preview path does not go through commit, so a scrub carried the pending value across every pose it
- * passed through: a half-typed opacity showed as a flat override over the whole range being scrubbed and
- * only snapped back to the track on release.
+ * The preview path does not go through commit, so without its own discard a scrub would carry the pending
+ * value across every pose it passes through: a half-typed opacity would show as a flat override over the
+ * whole range being scrubbed, snapping back to the track only on release.
  */
 class LiveParamsAdapterTest {
 	private val angleX = ParameterId("ParamAngleX")

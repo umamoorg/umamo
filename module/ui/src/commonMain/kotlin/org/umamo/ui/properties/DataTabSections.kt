@@ -103,7 +103,7 @@ internal val TextureSection =
 		},
 	)
 
-/** Data (drawable): blend mode, alpha composition, and back-face culling. */
+/** Data (drawable): draw order, opacity, blend mode, alpha composition, tint colors, back-face culling, and masking. */
 internal val BlendSection =
 	PropertySection(
 		id = "data.blend",
@@ -222,7 +222,7 @@ internal val BlendSection =
 		},
 	)
 
-/** Data (deformer): the warp lattice or the rotation base angle. */
+/** Data (deformer): opacity and tint colors, plus the warp lattice / quad-transform flag or the rotation base angle and flip flags. */
 internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
@@ -290,7 +290,7 @@ internal val DeformerSection =
 		},
 	)
 
-/** Data (part): child count, draw order, and the guide-image flag. */
+/** Data (part): the guide-image flag, draw order, group mode, and, while isolated, the composite's render channels and masks. */
 internal val PartSection =
 	PropertySection(
 		id = "data.part",
@@ -503,9 +503,10 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
  * One keyable COLOR channel's field row: the label, the hex field with its keyed tint, the
  * track-resolved display value, and the keyed-goes-pending edit routing.
  *
- * ONE composable for every color channel row - drawable or part, multiply or screen.  The routing rule
- * used to be hand-copied per row, and the part rows shipped without it: typing a color on a keyed part
- * channel wrote a static the track shadowed, so the edit appeared to be silently rejected.
+ * ONE composable for every color channel row - drawable or part, multiply or screen - rather than the
+ * routing rule hand-copied per row: a rule duplicated across every row is exactly the kind of thing that
+ * drifts, and a row missing it writes a static the track shadows, so the edit appears to be silently
+ * rejected.
  *
  * @param String label The row's field label.
  * @param KeyformOwner owner The entity the row edits.

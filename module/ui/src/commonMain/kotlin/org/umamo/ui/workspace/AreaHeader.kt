@@ -27,17 +27,18 @@ private val HEADER_HEIGHT = 28.dp
 
 /**
  * The top strip of every leaf area: the area-type dropdown on the left (the agnostic "switch this
- * area to any space" control), the current space's optional [SpaceDescriptor.headerContent] beside it,
- * and split/close actions on the right. All structural edits are emitted as [AreaCommand]s through
- * [onCommand], the single choke point the shell routes through the action registry - the header never
- * mutates the tree itself.  The space slot is resolved from the registry so the header itself stays
- * space-agnostic; when a slot exists it OWNS the flexible middle region (a weighted Row), so each
- * space arranges its own controls - start-packed by default, or centered / end-aligned via its own
- * weight spacers - without the header knowing.
+ * area to any space" control) and the current space's optional [SpaceDescriptor.headerContent] filling
+ * the rest of the width.  Split / close / join live in the area's right-click context menu and the
+ * corner-drag gesture instead (see [AreaLeaf]), not as buttons in this strip.  All structural edits
+ * emitted from here are [AreaCommand]s through [onCommand], the single choke point the shell routes
+ * through the action registry - the header never mutates the tree itself.  The space slot is resolved
+ * from the registry so the header itself stays space-agnostic; when a slot exists it OWNS the flexible
+ * middle region (a weighted Row), so each space arranges its own controls - start-packed by default, or
+ * centered / end-aligned via its own weight spacers - without the header knowing.
  *
  * @param LeafArea area The area this header belongs to.
  * @param AreaScope scope The area's stable scope, handed to the space's header content.
- * @param Function onCommand Sink for structural edits (split / close / switch space).
+ * @param Function onCommand Sink for structural edits; this composable itself only emits SwitchSpace.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
@@ -68,8 +69,9 @@ fun AreaHeader(area: LeafArea, scope: AreaScope, onCommand: (AreaCommand) -> Uni
  * The area-type selector, Blender-style: the button face is the current space's icon plus a chevron
  * that points right while the menu is closed and down while it is open. Clicking opens a menu of every
  * registered space, each row an icon plus its localized title. Choosing one emits a SwitchSpace command
- * (the area keeps its id, so a hosted GL surface survives the switch only if you switch back - switching
- * away is a genuine content change).  The chip anatomy is the shared kit [DropdownChip].
+ * (the area keeps its id, so per-area state such as camera position survives switching away and back;
+ * the rendered viewport frame itself is torn down and rebuilt fresh - switching away is a genuine
+ * content change).  The chip anatomy is the shared kit [DropdownChip].
  *
  * @param LeafArea area The area whose space is being chosen.
  * @param Function onCommand Sink for the SwitchSpace command.

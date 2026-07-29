@@ -190,10 +190,11 @@ class CompositeImportTest {
 
 	@Test
 	fun staticCmo3PartCarriesNoKeyformGrid() {
-		// A CMO3 part with no parameter binding must NOT keep a single-cell grid: the eval samples the grid
-		// OVER the static PartComposite, so a grid would shadow an edited composite opacity/color and an
-		// isolated static part's edit would never render (Moc3Import already returns a null grid for an
-		// unbound part - this keeps CMO3 consistent).  A part with real animation keeps its grid (below).
+		// A CMO3 part with no parameter binding must NOT keep a single-cell channel track: the eval samples
+		// the track OVER the static PartComposite, so a lingering track would shadow an edited composite
+		// opacity/color and an isolated static part's edit would never render (Moc3Import already yields
+		// empty channel grids for an unbound part - this keeps CMO3 consistent).  A part with real
+		// animation keeps its tracks (below).
 		probeFiles()["EricaTamamo.cmo3"]?.let { file ->
 			val model = importCmo3(file)
 			val frontHair = model.parts.firstOrNull { it.name.equals("Front hair", ignoreCase = true) }

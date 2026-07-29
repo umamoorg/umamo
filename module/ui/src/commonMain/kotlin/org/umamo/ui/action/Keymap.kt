@@ -296,8 +296,9 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
 		"primary+Comma" to "edit.preferences",
-		// Blender's Home is Frame All in WHICHEVER editor the pointer is over; one context-aware binding
-		// replaces the two colliding entries this map once held (mapOf kept the later one silently).
+		// Blender's Home is Frame All in WHICHEVER editor the pointer is over, so a single context-aware
+		// binding covers both cases; two separate Home entries would collide silently under mapOf's
+		// last-wins semantics.
 		"Home" to "frame.all",
 		"primary+Digit1" to "view.zoomActualSize",
 		"Equals" to "view.zoomIn",
@@ -309,10 +310,9 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 /**
  * Builds a preset's chord-spec table, refusing duplicate chords.
  *
- * mapOf keeps the LAST duplicate pair silently - which is how the Blender preset once shipped with two
- * Home bindings and one of them silently unbound, invisible even to the keybindings editor's conflict
- * detection (it sees only the already-collapsed map).  Failing at build time turns the mistake into a
- * test failure instead.
+ * mapOf would keep only the LAST of two same-chord pairs, silently dropping the other - invisible even to
+ * the keybindings editor's conflict detection, which only ever sees the already-collapsed map.  Failing at
+ * build time turns a duplicate chord into a test failure instead of a silent loss.
  *
  * @param Pair bindings The chord-spec to command-id pairs, in presentation order.
  * @return Map The bindings as a map.

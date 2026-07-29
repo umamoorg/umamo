@@ -67,6 +67,8 @@ import kotlin.math.roundToInt
  * @param String   value         The persisted color as canonical "#AARRGGBB" text.
  * @param Function onValueChange Called with the canonical hex of each parseable edit.
  * @param Modifier modifier      Layout modifier (the caller supplies the width).
+ * @param KeyedFieldState keyState The keyform state to tint the field with (outline on the swatch, background
+ *   fill on the text field).
  */
 @Composable
 fun HexColorField(

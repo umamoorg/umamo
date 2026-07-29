@@ -104,6 +104,7 @@ internal fun TextEditContextMenuArea(
  */
 @Composable
 private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit): List<MenuItem> {
+	@Suppress("DEPRECATION")
 	val clipboard = LocalClipboardManager.current
 	val hasSelection = !value.selection.collapsed
 	// One clipboard read for both the Paste entry's enablement and its action; the caller only builds this

@@ -16,9 +16,9 @@ import org.umamo.ui.theme.drawCrosshairGuides
 import org.umamo.ui.theme.drawCursor
 import org.umamo.ui.theme.drawSelectionCircle
 
-// The shared gizmo chrome: the draw helpers and constants both gizmo overlays (Edit and Object - and
-// later the UV editor's) render identically.  Everything here is geometry-source agnostic: it takes
-// screen-space points and the shared affordance style, never a session or a mesh.
+// The shared gizmo chrome: the draw helpers and constants all three gizmo overlays (Edit, Object, and
+// UV) render identically.  Everything here is geometry-source agnostic: it takes screen-space points
+// and the shared affordance style, never a session or a mesh.
 
 /** A primary drag shorter than this (px) is treated as a click, not a box select. */
 internal const val SELECT_DRAG_THRESHOLD_PX = 3f

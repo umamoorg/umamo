@@ -26,6 +26,9 @@ import androidx.compose.ui.graphics.Color
  * @property Color windowBackground   The outermost editor background and the native caption tint.
  * @property Color menuBackground     Menu and popup surface fill (menus, command palette, hover popups).
  * @property Color panelBackground    Default panel / surface / dialog fill; space-picker chip hover fill.
+ * @property Color panelThirdElevation       A third, raised-most surface above [panelBackground] for nested
+ *   cards within a panel (the Properties tab's Data-section blocks).
+ * @property Color panelThirdElevationBorder Hairline border paired with [panelThirdElevation].
  * @property Color tabBackground      Unselected tabs and the space-picker chip at rest.
  * @property Color headerBackground   Panel headers, the status bar, the selected workspace tab, and the
  *   tab rename editor.
@@ -50,7 +53,18 @@ import androidx.compose.ui.graphics.Color
  * @property Color selectionText      Text and marks on selection rows.
  * @property Color controlBackground  Neutral control fill (text fields, secondary buttons, segments, key
  *   chips).
+ * @property Color controlBackgroundHover Hover fill for a neutral control's background (the NumberField
+ *   hover state).
  * @property Color controlGlyph       Icon glyphs on neutral control and chip fills.
+ * @property Color keyedOnKey         Text/glyph tint for a field whose channel is keyed and the pose sits
+ *   exactly on one of its keys (Blender-style keyframe tinting; see [org.umamo.ui.model.KeyedFieldState]).
+ * @property Color keyedBetween       Text/glyph tint for a field whose channel is keyed but the pose is not
+ *   sitting on one of its keys - an edit here needs an explicit key to survive.
+ * @property Color keyedModified      Text/glyph tint for a field with an edit made and not yet keyed; it is
+ *   showing in the viewport and dies on the next scrub.
+ * @property Color keyedOnKeyBackground       Translucent background wash paired with [keyedOnKey].
+ * @property Color keyedBetweenBackground     Translucent background wash paired with [keyedBetween].
+ * @property Color keyedModifiedBackground    Translucent background wash paired with [keyedModified].
  * @property Color buttonHover        Hover fill for unselected ButtonGroup segments (stronger than
  *   rowHover in dark).
  * @property Color sliderTrack        Recessed slider track / pad groove (unfilled).

@@ -112,7 +112,8 @@ import org.umamo.ui.workspace.SpaceKind
  *
  * Clicking a mark scrubs the parameter onto it and selects it; dragging a mark moves the key (clamped at
  * its neighbours); Delete removes the selection as one undo step; right-clicking a lane inserts a key
- * there or removes the one under the pointer.  Box-select is not built yet.
+ * there or removes the one under the pointer; Box Select (B) arms a marquee that adds the keys it
+ * encloses to the selection.
  *
  * @param AreaScope scope The hosting area's scope.
  */
@@ -121,7 +122,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	val colors = LocalUmamoColors.current
 	val puppet = LocalPuppet.current
 	val session = LocalEditorSession.current
-	val liveParams = LocalLiveParams.current
 	val viewState = scope.spaceState(KEYFORM_SHEET_VIEW_STATE_KEY) { KeyformSheetViewState() }
 
 	val parameterSelection by remember(session) {
@@ -782,9 +782,9 @@ private fun KeyformSheetSection(
 							label = deleteLabel,
 							onSelect = {
 								// The row key rides the hover, so the removal reconciles the key selection itself -
-								// see EditorSession.removeKeyOnTrack.  Without it, deleting a SELECTED mark left its
-								// ref on the ordinal the removal freed, which is the neighbour: the mark to the
-								// right lit up as selected and the next Delete took it.
+								// see EditorSession.removeKeyOnTrack.  Without it, deleting a selected mark would leave
+								// its ref on the ordinal the removal freed, which is the neighbour: the mark to the
+								// right would light up as selected and the next Delete would take it.
 								keyableHover?.enter(
 									KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id, hit.row.key),
 								)
@@ -940,6 +940,10 @@ private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<T
  *     The full-range axis put every mark at the wrong x the moment the sheet was not framed to the whole
  *     domain.
  *
+ * Internal rather than private so the resolution can be tested without a composition: it is pure over plain
+ * data, and a wrong answer here - an un-windowed axis, or a walk that reaches collapsed rows - is a
+ * silently wrong selection, not a crash, so a direct test is the only way to catch it.
+ *
  * @param Rect region The marquee, in window coordinates.
  * @param List projections Each targeted parameter and its tracks.
  * @param Map laneBounds Each row key's last reported window bounds.
@@ -947,10 +951,6 @@ private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<T
  * @param TrackWindow window The visible slice of each parameter's range, shared by every section.
  * @param Set<String> expandedKeys The open group rows, which decide which lanes exist.
  * @param Set<ParameterId> collapsedParameters The folded sections, whose rows are not on screen at all.
- * Internal rather than private so the resolution can be tested without a composition - it is pure over
- * plain data, and both of its bugs (the un-windowed axis, the walk through collapsed rows) were invisible
- * from outside it and neither showed up as a crash.
- *
  * @return Set<TrackKeyRef> The enclosed keys.
  */
 internal fun keysWithin(

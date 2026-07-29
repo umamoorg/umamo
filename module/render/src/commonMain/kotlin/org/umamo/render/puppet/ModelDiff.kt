@@ -24,8 +24,10 @@ internal sealed interface DrawableAction {
 	}
 
 	/**
-	 * The topology changed (vertex count, indices, or the keyform grid), so every buffer and the delta
-	 * texture are stale. Free the resident and upload it whole against the new mesh.
+	 * The topology changed (vertex count, indices, the keyform grid, or the blend-shape bindings), or
+	 * the drawable was reparented across the warp boundary (gaining or losing a control-point texture),
+	 * so every buffer and the delta texture are stale. Free the resident and upload it whole against
+	 * the new mesh.
 	 */
 	class Reupload(val drawable: Drawable) : DrawableAction {
 		override val drawableId: DrawableId get() = drawable.id
@@ -64,8 +66,9 @@ internal class ModelDiff(
  *
  * A layer reorder or a reparent that does not change control-point ownership needs no buffer work at all
  * (every drawable is a no-op [Keep]); a base-mesh move re-uploads positions; a UV edit re-uploads UVs; and
- * a structural change - a drawable added, removed, remeshed, or reparented across the warp boundary (which
- * gains or loses its control-point texture) - frees and re-uploads whole.
+ * a structural change - a drawable added, removed, remeshed, its blend-shape bindings changed, or
+ * reparented across the warp boundary (which gains or loses its control-point texture) - frees and
+ * re-uploads whole.
  *
  * The diff is keyed by drawable id (so it is robust to a simultaneous reorder) and by ARRAY REFERENCE
  * identity: the edit path is copy-on-write, so an untouched drawable keeps its exact array instances and

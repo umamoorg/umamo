@@ -32,7 +32,7 @@ enum class SpaceKind(val key: String) {
 	/** The parts + deformer hierarchy (Blender's Outliner equivalent). */
 	Outliner("outliner"),
 
-	/** The parameter cockpit: sliders and (later) the multi-key 2D pad. */
+	/** The parameter cockpit: sliders and the multi-key 2D pad. */
 	Parameters("parameters"),
 
 	/**

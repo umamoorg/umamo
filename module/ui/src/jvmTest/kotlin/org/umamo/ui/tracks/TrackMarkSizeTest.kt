@@ -18,9 +18,9 @@ import kotlin.test.assertTrue
 /**
  * That the drawn marks actually track the sheet's mark radius.
  *
- * A pixel test rather than a logic one because the question it answers is exactly "does changing the
- * radius change what is on screen" - which was reported as not happening, and which no assertion over the
- * geometry helpers can settle.
+ * A pixel test rather than a logic one, because the question it answers is exactly "does changing the
+ * radius change what is on screen" - a rendering fact no assertion over the geometry helpers alone can
+ * settle.
  */
 class TrackMarkSizeTest {
 	/** A single track with one mark in the middle of its domain. */
@@ -44,9 +44,9 @@ class TrackMarkSizeTest {
 	 * The default render is exactly the [TRACK_MARK_RADIUS] render, and changing that constant changes it.
 	 *
 	 * Pins the whole chain the sheet actually uses - the constant, through TrackSheet's default argument
-	 * and the lane's markRadiusPx, into drawMark - rather than only the explicit-argument path.  Reported
-	 * twice as "changing TRACK_MARK_RADIUS does not change the drawn size", so it is worth an assertion
-	 * rather than an argument.
+	 * and the lane's markRadiusPx, into drawMark - rather than only the explicit-argument path: a break
+	 * anywhere in that chain would show only when the constant itself changes, not when a radius is passed
+	 * explicitly, so the default path needs its own assertion rather than riding on the explicit one.
 	 */
 	@Test
 	fun theDefaultIsTheConstant() {

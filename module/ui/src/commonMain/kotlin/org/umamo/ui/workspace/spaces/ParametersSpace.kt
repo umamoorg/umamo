@@ -716,6 +716,8 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
  * indent lives on the caller's row (beside the drag grip), so the island only carries [modifier].
  *
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
+ * @param Boolean selected Whether this island's parameter(s) are the current keyform-authoring target.
+ * @param Function? onSelect Called when the island's own surface is clicked, or null to disable selection.
  * @param Function content The island's rows.
  */
 @Composable
@@ -764,6 +766,7 @@ private fun ParameterIsland(
  * the field / reset commit one step each.
  *
  * @param Parameter parameter        The parameter to scrub.
+ * @param ParameterKeyMarks? keyMarks The parameter's grid / blend key marks to draw on the slider, or null.
  * @param Float     value            The current value.
  * @param String    resetLabel       The localized accessible label for the reset glyph.
  * @param String    rangeToggleLabel The localized accessible label for the range chevron.

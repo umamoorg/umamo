@@ -292,9 +292,9 @@ fun Modifier.trackWindowGestures(
 		.pointerInput(labelWidthPx) {
 			awaitPointerEventScope {
 				while (true) {
-					// The INITIAL pass, deliberately: the Main pass runs child-first, so the vertical scroll
-					// container has already claimed the wheel by the time it reaches here - which is why
-					// Ctrl+wheel used to zoom and scroll at once.
+					// The INITIAL pass, deliberately: the Main pass runs child-first, so a Main-pass handler here
+					// would see the wheel only after the vertical scroll container had already claimed it, and
+					// Ctrl+wheel would zoom and scroll at once.
 					val event = awaitPointerEvent(PointerEventPass.Initial)
 					if (event.type != PointerEventType.Scroll) {
 						continue
@@ -339,8 +339,8 @@ fun Modifier.trackWindowGestures(
 					// The raw stream on the INITIAL pass, not awaitFirstDown.  Two reasons, both load-bearing:
 					// Initial is the only pass that beats the lanes and the scroll container, which are
 					// children and would otherwise claim a middle press first; and awaitFirstDown does not
-					// resolve a down on that pass at all - it waits forever - which is why this silently did
-					// nothing.  contextMenuGesture watches the raw stream for the same reason.
+					// resolve a down on that pass at all - it waits forever, so calling it here would silently
+					// hang.  contextMenuGesture watches the raw stream for the same reason.
 					val press = awaitPointerEvent(PointerEventPass.Initial)
 					if (press.type != PointerEventType.Press || !press.buttons.isTertiaryPressed) {
 						continue
@@ -503,9 +503,9 @@ private fun TrackSheetRow(
 	val toneBackground = toneBackgroundOf(line.row.tone)
 	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
 	// Expanded, it shows only its own marks - the children are on screen carrying theirs.  A leaf is
-	// neither: it shows its own marks, which stay editable.  (Routing leaves through the summary too was
-	// harmless while the summary only deduplicated; it stopped being harmless once a summary mark started
-	// declaring itself inert.)
+	// neither: it shows its own marks, unfiltered and at their own ordinals.  (Routing a leaf through the
+	// summary too would drop any non-editable mark it carries and renumber the rest to a summary ordinal -
+	// wrong for a track that owns its keys directly rather than standing in for a whole subtree's.)
 	val marks =
 		remember(line.row, line.expandable, line.expanded) {
 			if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
@@ -703,9 +703,9 @@ private fun TrackRuler(
 				playhead?.let { value -> drawPlayhead(value, axis, colors.accent, inset) }
 			}
 			// Tick labels ride above the canvas so they are not clipped by the lane below.  Each is centered
-			// on the same inset laneX its tick line is drawn at - positioning by raw fraction drifted the
-			// labels up to a mark radius off their lines and pushed the domain-max label entirely past the
-			// clipped box's edge, so every ruler hid its max label.
+			// on the same inset laneX its tick line is drawn at - positioning by raw fraction instead would
+			// drift the labels up to a mark radius off their lines and push the domain-max label entirely
+			// past the clipped box's edge, hiding every ruler's max label.
 			for (tick in ticks) {
 				Text(
 					text = formatTick(tick),
@@ -959,10 +959,10 @@ private fun TrackLane(
 	val markRadiusPx = with(density) { markRadius.toPx() }
 	// The marks and the callbacks are read through latest-state holders rather than keying the gesture
 	// blocks below, and that is load-bearing rather than tidy: a pointerInput RESTARTS when a key changes,
-	// and both of these change identity the moment the SELECTION does - so an owner that cleared the
-	// selection on the press (which is exactly what pressing empty track does) tore its own gesture down
-	// mid-stroke.  The drag then froze at the press point and the release never arrived, so nothing
-	// committed.  Only the pixel-to-domain mapping still keys the blocks, because that genuinely
+	// and both of these change identity the moment the SELECTION does.  Keying on them would let an owner
+	// that clears the selection on the press (exactly what pressing empty track does) tear its own gesture
+	// down mid-stroke: the drag would freeze at the press point with no release ever arriving, so nothing
+	// would commit.  Only the pixel-to-domain mapping still keys the blocks, because that genuinely
 	// invalidates a stroke in progress.
 	val editableMarks = remember(marks) { marks.filter { candidate -> candidate.editable } }
 	val latestEditableMarks by rememberUpdatedState(editableMarks)
@@ -1017,18 +1017,17 @@ private fun TrackLane(
 							}
 						},
 					)
-					// ONE gesture handler for tap AND drag. Two separate pointerInput blocks raced: the drag
-					// detector consumed the down before the tap detector saw it, so clicking a mark did nothing
-					// and neither selection nor dragging worked. Deciding between them from a single stream is
-					// the only way they cannot fight.
+					// ONE gesture handler for tap AND drag. Two separate pointerInput blocks would race: a drag
+					// detector would consume the down before a tap detector saw it, so clicking a mark would do
+					// nothing and neither selection nor dragging would work. Deciding between them from a single
+					// stream is the only way they cannot fight.
 					.pointerInput(row.key, axis, markRadiusPx) {
 						awaitEachGesture {
 							val down = awaitFirstDown(requireUnconsumed = false)
-							// A secondary (right) press belongs to the context menu.  Without this it would
-							// also run the tap path, so opening the menu over empty track would clear the
-							// selection and opening it over a key would scrub the pose onto it.
-							// A secondary press belongs to the context menu and a tertiary one to the sheet's
-							// pan; either falling through here would scrub or select on the way past.
+							// A secondary (right) press belongs to the context menu and a tertiary (middle) one
+							// to the sheet's pan.  Without this guard either would also run the tap path on its
+							// way past: scrubbing the pose if the press missed every mark, or selecting the mark
+							// if it landed on one - instead of only reaching the gesture it actually means.
 							if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
 								return@awaitEachGesture
 							}
@@ -1304,8 +1303,8 @@ private fun Modifier.centeredAtTick(fraction: Float, markRadius: Dp): Modifier =
  * rather than 10.0 / 20.0.
  *
  * Through kit's roundToDecimals, which ROUNDS: the axis generates ticks by repeated float addition, so a
- * 0.2-step tick arrives as 0.59999996 - truncation labeled it "0.59" while its neighbours read 0.2 and
- * 0.4, and negative ticks truncated the other way.
+ * 0.2-step tick arrives as 0.59999996 - truncating it would label "0.59" beside neighbours reading 0.2 and
+ * 0.4, and would truncate negative ticks the other way, toward zero rather than away from it.
  *
  * @param Float value The tick value.
  * @return String The label.

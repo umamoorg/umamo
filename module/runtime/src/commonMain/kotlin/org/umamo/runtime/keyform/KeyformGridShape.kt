@@ -136,8 +136,9 @@ class CollapsedChannels(
  * kept slice's value of any track that drops entirely.
  *
  * The whole-owner counterpart of [withAxisCollapsed], so deleting a parameter scrubs every track in one
- * walk rather than needing a hand-written case per channel - which is exactly how a glue's intensity grid
- * was missed before.  A track left with no axes is dropped, and the value of its kept slice is returned
+ * walk rather than needing a hand-written case per channel - a hand-rolled enumeration is exactly the kind
+ * of list a channel like a glue's intensity grid could quietly be left off.  A track left with no axes is
+ * dropped, and the value of its kept slice is returned
  * in [CollapsedChannels.lifted] for the caller to write into the owner's static.  A sparse grid missing
  * its kept cell lifts nothing (the static keeps its current value).  Returns this same grids instance
  * (with an empty lifted map) when no track referenced the parameter.

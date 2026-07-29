@@ -77,7 +77,7 @@ fun KeyedFieldState.backgroundTint(colors: UmamoColors): Color? =
  * The TRACK gates everything: a channel with no track stores an edit in its owner's static, which is a
  * plain undoable write with nothing uncommitted about it, so such a field is never tinted.  It reads the
  * pending map on every channel while a field is being scrubbed (see previewChannelEdit), so testing that
- * map first painted the orange uncommitted warning across every ordinary drag.
+ * map before the track gate would paint the orange uncommitted warning across every ordinary drag.
  *
  * Past that gate ModifiedUnkeyed wins over the others: a pending edit is the most recent thing the user
  * did, and it is the state that carries a warning.
@@ -85,7 +85,7 @@ fun KeyedFieldState.backgroundTint(colors: UmamoColors): Color? =
  * On-key is resolved against the track's OWN axes rather than against whatever parameter is targeted, and
  * that distinction is the whole difference between the tint answering "is the value under this field
  * stored" and answering "is it stored on the axis you happen to have clicked".  Only the first is what a
- * rigger reads it as, and the second painted a keyed opacity as unstored whenever the target was the other
+ * rigger reads it as; the second would paint a keyed opacity as unstored whenever the target was the other
  * half of a linked pad - or nothing at all.  A multi-axis track is on-key only when the pose sits on a key
  * of EVERY axis, because that is exactly when a capture overwrites a cell instead of inserting one.  The
  * comparison uses the evaluator's own EPS_KEY snap tolerance rather than an exact compare, so the tint

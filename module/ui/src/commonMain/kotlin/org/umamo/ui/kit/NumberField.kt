@@ -220,6 +220,8 @@ fun NumberField(
  * @param Boolean plain Whether to render the bare type-in box only.
  * @param Boolean enabled Whether the field accepts edits at all.
  * @param StackPosition stackPosition The field's position in a vertical stack.
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  */
 @Composable
 private fun NumberFieldCore(
@@ -274,9 +276,9 @@ private fun NumberFieldCore(
 	// The live scrub value while a drag is in flight (null when idle); previews without committing per frame.
 	var dragValue by remember { mutableStateOf<Float?>(null) }
 	// The value the drag STARTED from.  scrubValue maps a TOTAL pointer delta onto a fixed base, so the base
-	// has to stay fixed: reading the live `value` instead compounds the movement, because onPreview feeds
-	// each frame's value straight back in through the pending buffer.  That made a scrub accelerate, and
-	// made reversing direction spend the first stretch merely unwinding the drift.
+	// has to stay fixed: reading the live `value` instead would compound the movement, because onPreview feeds
+	// each frame's value straight back in through the pending buffer, accelerating the scrub and forcing a
+	// reversed drag to spend its first stretch merely unwinding the drift.
 	var scrubStartValue by remember { mutableStateOf(0f) }
 
 	// Being disabled ENDS an in-flight edit rather than parking it: leaving `editing` set would re-open the
@@ -325,8 +327,8 @@ private fun NumberFieldCore(
 			},
 			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
 			// Forwarded on the RESTING face, the one every real field shows: this is the background tint that
-			// warns a typed value is unkeyed and dies on the next scrub, and it once reached only the
-			// disabled-plain branch - so no enabled numeric field ever showed it.
+			// warns a typed value is unkeyed and dies on the next scrub, so every enabled field must carry it,
+			// not only the disabled-plain display path.
 			keyState = keyState,
 		)
 	}
@@ -352,6 +354,7 @@ private fun NumberFieldCore(
  * @param Function onScrub Reports the total horizontal drag delta from the gesture start, in pixels.
  * @param Function onScrubEnd Ends the scrub (commit the previewed value).
  * @param Function onStep Steps the value by a chevron press (-1 or +1).
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  */
 @Composable
 private fun NumberFieldDisplay(

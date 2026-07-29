@@ -13,7 +13,6 @@ import org.umamo.runtime.model.Parameter
  *
  * @property Function selectedTracks The selection resolved against the area's current projection.
  * @property Function hasSelection Whether the area has any selected keys.
- * @property Function clearSelection Drops the area's key selection.
  * @property Function frameAll Resets the area's zoom window to the whole domain.
  * @property Function armBoxSelect Arms the area's marquee, so the next drag selects a region of keys.
  */
@@ -35,8 +34,9 @@ internal class KeyformSheetSurface(
 	 * and re-points the selection at where the keys landed.
 	 *
 	 * On the SURFACE rather than left to the command because a crossing renumbers the axis - the same
-	 * reason the mark drag routes through the sheet.  A nudge that moved a key past its neighbour used to
-	 * leave the selection naming whichever key took its place, so the next press moved the wrong one.
+	 * reason the mark drag routes through the sheet.  Left unhandled, a nudge that moves a key past its
+	 * neighbour would leave the selection naming whichever key took its place, so the next press would move
+	 * the wrong one.
 	 */
 	val nudgeSelection: (Float) -> Unit,
 )

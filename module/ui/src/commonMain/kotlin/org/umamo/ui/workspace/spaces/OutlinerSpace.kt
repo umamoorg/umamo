@@ -566,9 +566,9 @@ private fun OutlinerRowView(
 /**
  * Builds the context-menu entries for a real outliner row, by entity kind: parts and drawables get a
  * visibility toggle (deformers have none); every kind gets selectability, rename, and delete. A part's
- * "Delete" cascades (removes the subtree) and a second "Delete Group Only" ungroups (keeps the
- * contents); a drawable or deformer has the single delete. Selectability gates only viewport picking,
- * so every entry stays enabled on an unselectable row.
+ * "Delete" ungroups (keeps the contents, splicing them into its parent) and a second "Delete Hierarchy"
+ * cascades (removes the whole subtree); a drawable or deformer has the single delete. Selectability
+ * gates only viewport picking, so every entry stays enabled on an unselectable row.
  *
  * @param SelectionTarget target The row's entity.
  * @param Function onToggleVisibility Flips the entity's visibility.
@@ -901,7 +901,7 @@ private fun OutlinerRowBody(
 	) {
 		Spacer(modifier = Modifier.width(4.dp + INDENT_PER_DEPTH * row.depth))
 		ChevronSlot(visible = hasChildren, expanded = expanded, onToggle = onToggle, tint = colors.textMuted)
-		OutlinerIconSlot(icon = node.icon, dimmed = node.dimmed, baseTint = colors.textMuted)
+		OutlinerIconSlot(icon = node.icon, dimmed = node.dimmed)
 		Spacer(modifier = Modifier.width(4.dp))
 		val labelStyle =
 			if (node.target is SelectionTarget.Drawable) LocalUmamoTypography.current.labelSmall else LocalUmamoTypography.current.bodySmall
@@ -1000,18 +1000,17 @@ private fun ChevronSlot(visible: Boolean, expanded: Boolean, onToggle: () -> Uni
 }
 
 /**
- * The type-icon slot: a fixed-width box drawing a simple placeholder glyph per [OutlinerIcon], distinct
- * enough to tell the kinds apart at a glance. Each node family carries a signature palette tint
- * ([UmamoColors.outlinerObjectTint] / [UmamoColors.outlinerDeformTint], after Blender's armature object /
- * data colours). This is the swap-in seam for real icon art - only this function changes when art lands,
- * never the layout.
+ * The type-icon slot: a fixed-width box drawing the themed vector icon for [OutlinerIcon] (from the
+ * shared UmamoIcons set), distinct enough to tell the kinds apart at a glance. Each node family carries
+ * a signature palette tint ([UmamoColors.outlinerObjectTint] / [UmamoColors.outlinerDeformTint], after
+ * Blender's armature object / data colours) - only this function maps an [OutlinerIcon] to its art, so
+ * the row layout never changes when an icon does.
  *
  * @param OutlinerIcon icon The icon kind.
  * @param Boolean dimmed Whether the row is muted (the glyph fades to match).
- * @param Color baseTint The default glyph colour for non-signature icons.
  */
 @Composable
-private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean, baseTint: Color) {
+private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean) {
 	val colors = LocalUmamoColors.current
 	val tint =
 		when (icon) {

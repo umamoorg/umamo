@@ -785,7 +785,7 @@ object Moc3Import {
 		}
 
 		/**
-		 * The parameter-driven keyform grid of a moc part, or null when the part is static.  Carries
+		 * The parameter-driven per-channel tracks of a moc part, empty when the part is static.  Carries
 		 * the draw order always; for an isolated part the offscreen's keyformed opacity/color
 		 * channels merge in, riding the same grid cells (MOC3 §5.6: Σ owner grid == CountInfo 36).
 		 *

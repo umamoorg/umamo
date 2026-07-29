@@ -14,7 +14,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Verifies the UV write path (Slice A of the UV editor): the withMeshUvs copy-on-write op and its
+ * Verifies the UV write path: the withMeshUvs copy-on-write op and its
  * no-op guards, the commitMeshUvs undo integration, the activeUvOperator latch semantics (area
  * ownership, mutual exclusion, the Vertex Slide and mode refusals, the axis-constraint hookup), the
  * UV cursor, and the Mirror U / V command math.  The load-bearing invariant throughout is the mesh/UV

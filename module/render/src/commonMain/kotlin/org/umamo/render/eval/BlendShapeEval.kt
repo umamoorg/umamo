@@ -177,7 +177,7 @@ internal fun meshBlendState(
 	// The reference is the entity's state at the DEFAULT pose (E5): geometry deltas vs the rest mesh,
 	// plus each scalar channel's own value there. An untracked or out-of-range channel resolves to the
 	// drawable's static, which for an imported drawable is Cubism's 500 / full opacity - the same
-	// fallbacks this used before the split, so the evaluator's subtraction still cancels exactly.
+	// statics scalarAt falls back to everywhere else, so the evaluator's subtraction still cancels exactly.
 	return MeshBlendState(
 		contributions = contributions,
 		referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue),

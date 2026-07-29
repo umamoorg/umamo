@@ -45,7 +45,8 @@ fun ChannelGrids.scalarAt(
 	override: ChannelValue? = null,
 ): Float =
 	// One body with scalarOrNull, so the renderer's opacity read and the sparse draw-order read can never
-	// disagree about the blend arithmetic - the two were verbatim copies once, which is a drift hazard.
+	// disagree about the blend arithmetic - two separately maintained copies would drift as one gets
+	// tuned and the other forgotten.
 	scalarOrNull(channel, paramValue, override) ?: staticValue
 
 /**
@@ -138,8 +139,9 @@ fun ChannelGrids.scalarOrNull(
  * Every axis of every channel track, in channel order.
  *
  * The panel's effective-parameter walk and key-mark scan must union geometry's axes with every channel
- * track's, or an opacity-only track becomes invisible to the parameter list.  Each walk once inlined
- * this flatten for itself, which is exactly how glue tracks went invisible to all of them.
+ * track's, or an opacity-only track becomes invisible to the parameter list.  This is the one flatten
+ * every walk shares; a walk that inlined its own copy instead would silently drift out of sync the
+ * moment a channel-only axis (e.g. a glue intensity track) is added.
  *
  * @return List<KeyformAxis> The axes of every track.
  */

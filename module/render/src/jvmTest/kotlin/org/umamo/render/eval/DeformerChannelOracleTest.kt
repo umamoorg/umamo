@@ -28,8 +28,9 @@ import kotlin.test.assertTrue
  * re-authored; derived ones follow it.
  *
  * The format layer is also why the interesting-deformer search reads [MocDocument] rather than the
- * imported [org.umamo.runtime.model.PuppetModel]: this gate was written BEFORE the runtime model
- * carried the channels at all, and reading the source of truth keeps it honest either way.
+ * imported [org.umamo.runtime.model.PuppetModel]: searching through the app's own import would only
+ * prove the cascade agrees with itself, while reading the moc3 source of truth directly keeps the
+ * gate honest against an independent read of which deformers actually author a channel.
  *
  * Gated on `relive.dumpModel` + `relive.coreLib` + `moc3.samples`; skips when any is absent.
  */

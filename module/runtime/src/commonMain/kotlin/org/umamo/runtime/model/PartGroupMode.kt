@@ -33,7 +33,7 @@ sealed interface PartGroupMode {
  * when the part's group mode is [PartGroupMode.Isolated].  Stored on [Part.composite] independent of the
  * mode, so the settings survive the part leaving and re-entering Isolated (and the UMA native format can
  * track them).  The keyformed composite channels (opacity, multiply/screen colors) ride the part's
- * [Part.formGrid]; the static fallbacks here apply when that grid is absent, mirroring the
+ * [Part.channelGrids]; the static fallbacks here apply when that grid is absent, mirroring the
  * [Part.drawOrder] + grid pattern.  (Cubism 5.3 "offscreen drawing" - CMO3
  * `CPartSource.useOffscreen` and friends; MOC3 §5.6 sections 152-163.)
  */

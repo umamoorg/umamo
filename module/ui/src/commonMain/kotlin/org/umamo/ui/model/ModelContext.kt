@@ -14,7 +14,7 @@ import org.umamo.ui.viewport.PuppetViewportService
 
 /**
  * The open document's runtime [PuppetModel] for the composition, or null when nothing is open. Panels
- * (Outliner, Inspector, Parameters) read `LocalPuppet.current` to display parts/parameters; the host
+ * (Outliner, Properties, Parameters) read `LocalPuppet.current` to display parts/parameters; the host
  * app provides it. Kept in `:ui` commonMain (PuppetModel is in `:runtime`, a shared dependency) so the
  * panels stay common and Android-sharable while only the GL viewport is platform code.
  */
@@ -160,7 +160,7 @@ val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
 /**
  * A thin, platform-neutral handle for reading and writing the current object-mode [Selection] from
  * common UI, mirroring [LiveParamsHandle]. The Outliner and viewport write gestures through it; the
- * Inspector and the highlight bridge read it. The desktop implementation backs it with Compose state
+ * Properties panel and the highlight bridge read it. The desktop implementation backs it with Compose state
  * so panels recompose on change; Android will wrap its own.
  */
 interface SelectionHandle {
@@ -184,7 +184,7 @@ val LocalSelection = staticCompositionLocalOf<SelectionHandle?> { null }
 /**
  * A platform-neutral handle for reading and setting the current [EditorMode], mirroring
  * [SelectionHandle]. The mode-toggle command and, later, the radial menu write it; the viewport pick
- * router and the Inspector read it.
+ * router and the Properties panel read it.
  */
 interface EditorModeHandle {
 	/** The current editor mode. */

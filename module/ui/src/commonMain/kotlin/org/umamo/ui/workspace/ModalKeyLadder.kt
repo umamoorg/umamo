@@ -247,9 +247,6 @@ internal fun handleModalKeyLadder(
 			editorSession.clearSelectTool()
 			true
 		}
-		// An armed relation pick (a Properties field's eyedropper) owns Escape: cancel the pick before the
-		// clear-selection branch below, so abandoning a pick never also wipes the user's selection.  Like
-		// the zoom region this is mode-agnostic, and it resolves from the outliner as well as a viewport.
 		// An armed keyform-sheet marquee owns Escape, before the clear-selection branch below.  It hides
 		// the OS cursor while armed, so a mode with no way out leaves the pointer invisible over the
 		// sheet until the user happens to press and release somewhere.
@@ -257,6 +254,9 @@ internal fun handleModalKeyLadder(
 			keyformSheets.armedBoxSelect()?.disarmBoxSelect?.invoke()
 			true
 		}
+		// An armed relation pick (a Properties field's eyedropper) owns Escape: cancel the pick before the
+		// clear-selection branch below, so abandoning a pick never also wipes the user's selection.  Like
+		// the zoom region this is mode-agnostic, and it resolves from the outliner as well as a viewport.
 		isEscapeDown && relationPick.request != null -> {
 			relationPick.cancel()
 			true

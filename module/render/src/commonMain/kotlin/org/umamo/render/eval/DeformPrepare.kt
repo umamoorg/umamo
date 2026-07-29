@@ -276,8 +276,9 @@ internal fun preparePose(
  * multiplies onto its whole subtree.  A drawable under only identity-opacity parts (the common case) is
  * absent from the map, so the caller multiplies by 1 for free.
  *
- * @param PuppetModel model      The rig.
- * @param Function    paramValue Current value for a given parameter id.
+ * @param PuppetModel model            The rig.
+ * @param Function    paramValue       Current value for a given parameter id.
+ * @param Map         channelOverrides Pending unkeyed channel edits, which win over a part's stored opacity.
  * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
  */
 internal fun foldNonIsolatedPartOpacity(

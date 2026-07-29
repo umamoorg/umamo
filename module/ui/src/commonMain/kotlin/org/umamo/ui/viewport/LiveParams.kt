@@ -89,10 +89,10 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 	 *
 	 * Moving the pose RETIRES every pending unkeyed channel edit, on the first frame that actually moves
 	 * rather than at the gesture's end.  A pending value was chosen for one pose; carrying it across a scrub
-	 * applies it at every pose on the way, so a half-typed opacity showed as a flat override across the
-	 * whole range being scrubbed and only snapped back to the track on release.  The session's own commit
-	 * already clears them on a pose move - this is the same rule applied to the preview path, which does not
-	 * go through commit.
+	 * would apply it at every pose on the way, showing a half-typed opacity as a flat override across the
+	 * whole range being scrubbed until release finally snapped it back to the track.  The session's own
+	 * commit already clears them on a pose move - this is the same rule applied to the preview path, which
+	 * does not go through commit.
 	 *
 	 * @param ParameterId id The parameter to set.
 	 * @param Float value The new value.

@@ -6,9 +6,9 @@ import org.umamo.runtime.model.ParameterId
  * One selected keyform key: the parameter section, the row, and WHICH key on that row.
  *
  * By ordinal rather than by parameter value.  Two keys a hair apart are legal and useful, and resolving a
- * value back to a key then picks whichever happens to be nearer - which is how dragging one of a pair of
- * near-coincident marks moved the other.  The parameter is part of the identity because a linked pair
- * renders two sections at once and one item's row key is the same string in both.
+ * value back to a key would then pick whichever happens to be nearer - dragging one of a pair of
+ * near-coincident marks would silently move the other instead.  The parameter is part of the identity
+ * because a linked pair renders two sections at once and one item's row key is the same string in both.
  *
  * [rowKey] is an opaque string to this module, and deliberately so.  It is the keyform sheet's row identity,
  * built from the OWNER plus what the row edits (a channel, the geometry, a blend binding) - model identity

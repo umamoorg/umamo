@@ -88,8 +88,8 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 	}
 
 	// Rebuild each geometry cell's deltas at the new stride, deriving per vertex from the old deltas.
-	// The channel tracks carry nothing per-vertex, so they are untouched - before the split this had to
-	// copy the scalars across by hand, and quietly dropped the multiply / screen tints doing it.
+	// The channel tracks (multiply / screen tints, opacity, draw order, ...) carry no per-vertex data, so a
+	// topology edit leaves them untouched entirely - only the per-vertex geometry cells need this remap.
 	val newGeometry =
 		drawable.geometryGrid?.let { grid ->
 			KeyformGrid(
@@ -100,8 +100,8 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 					},
 			)
 		}
-	// Blend-shape forms are per-vertex too, and were being left at the OLD vertex count - a mismatch that
-	// silently zeroed every blend contribution after a topology edit.
+	// Blend-shape forms are per-vertex too, so they need the same remap to the new vertex count; leaving
+	// them at the old count would silently zero every blend contribution after a topology edit.
 	val newBlendShapes =
 		drawable.blendShapes.map { binding ->
 			binding.copy(

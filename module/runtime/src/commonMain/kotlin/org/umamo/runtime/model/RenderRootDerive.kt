@@ -13,7 +13,7 @@ fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveR
  * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organisational tree. The org tree
  * ([PuppetModel.rootChildren] / [Part.children]) is the single source of truth for hierarchy + panel
  * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.groupMode] /
- * [Part.drawOrder] / [Part.formGrid], and each drawable's keyformed draw order). This walks the org
+ * [Part.drawOrder] / [Part.channelGrids], and each drawable's keyformed draw order). This walks the org
  * tree to materialise the structure the renderer consumes, so any org-tree edit yields correct draw order
  * by recomputing it - there is no parallel render structure to drift out of sync.
  *
