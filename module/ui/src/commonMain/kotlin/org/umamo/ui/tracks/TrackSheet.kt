@@ -63,6 +63,7 @@ import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.contextMenuGesture
+import org.umamo.ui.kit.roundToDecimals
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -623,26 +624,32 @@ private fun TrackRuler(
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
+	// Computed once per axis and shared by the tick lines and the labels: the canvas lambda re-executes on
+	// every playhead frame during a scrub, and ticks() does log10/pow work plus a list build per call.
+	val ticks = remember(axis) { axis.ticks() }
 	Row(modifier = Modifier.fillMaxWidth().height(TRACK_RULER_HEIGHT).background(colors.headerBackground)) {
 		Box(modifier = Modifier.width(labelColumnWidth))
 		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
 		Box(modifier = Modifier.weight(1f).fillMaxSize().clipToBounds()) {
 			Canvas(modifier = Modifier.fillMaxSize()) {
 				val inset = markRadius.toPx()
-				for (tick in axis.ticks()) {
+				for (tick in ticks) {
 					val x = laneX(axis.fractionOf(tick), size.width, inset)
 					drawLine(colors.panelBorder, Offset(x, size.height * 0.5f), Offset(x, size.height), strokeWidth = 1f)
 				}
 				playhead?.let { value -> drawPlayhead(value, axis, colors.accent, inset) }
 			}
-			// Tick labels ride above the canvas so they are not clipped by the lane below.
-			for (tick in axis.ticks()) {
+			// Tick labels ride above the canvas so they are not clipped by the lane below.  Each is centered
+			// on the same inset laneX its tick line is drawn at - positioning by raw fraction drifted the
+			// labels up to a mark radius off their lines and pushed the domain-max label entirely past the
+			// clipped box's edge, so every ruler hid its max label.
+			for (tick in ticks) {
 				Text(
 					text = formatTick(tick),
 					style = typography.labelSmall,
 					color = colors.textMuted,
 					maxLines = 1,
-					modifier = Modifier.padding(start = 2.dp).offsetByFraction(axis.fractionOf(tick)),
+					modifier = Modifier.centeredAtTick(axis.fractionOf(tick), markRadius),
 				)
 			}
 		}
@@ -779,6 +786,9 @@ private fun TrackLane(
 					// Hover reporting is its own handler and consumes nothing: it has to see the pointer
 					// wherever it is, including mid-drag, and must never take an event from the gestures.
 					.pointerInput(row.key, marks, axis, markRadiusPx) {
+						// Hoisted out of the event loop: the block is keyed on marks, so the filtered list is
+						// stable for its whole lifetime - filtering per Enter/Move allocated per pointer event.
+						val editableMarks = marks.filter { candidate -> candidate.editable }
 						awaitPointerEventScope {
 							while (true) {
 								val event = awaitPointerEvent()
@@ -787,12 +797,7 @@ private fun TrackLane(
 									PointerEventType.Exit -> latestLaneHover?.invoke(row, null)
 									PointerEventType.Enter, PointerEventType.Move -> {
 										val value = domainAt(change.position.x, axis, size.width, markRadiusPx)
-										val mark =
-											nearestMark(
-												marks.filter { candidate -> candidate.editable },
-												value,
-												pickTolerance(axis, size.width, markRadiusPx),
-											)
+										val mark = nearestMark(editableMarks, value, pickTolerance(axis, size.width, markRadiusPx))
 										latestLaneHover?.invoke(row, TrackLaneHit(row, value, mark))
 									}
 
@@ -819,6 +824,8 @@ private fun TrackLane(
 						if (onMarkClick == null && onTrackScrub == null && onMarkDragEnd == null) {
 							return@pointerInput
 						}
+						// Hoisted like the hover handler's: stable for the keyed block's whole lifetime.
+						val editableMarks = marks.filter { mark -> mark.editable }
 						awaitEachGesture {
 							val down = awaitFirstDown(requireUnconsumed = false)
 							// A secondary (right) press belongs to the context menu.  Without this it would
@@ -832,12 +839,7 @@ private fun TrackLane(
 							val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
 							// Summary marks are drawn but not addressable, so a press on one falls through
 							// to the scrub path rather than starting a drag that could only guess.
-							val hitMark =
-								nearestMark(
-									marks.filter { mark -> mark.editable },
-									pressedValue,
-									pickTolerance(axis, size.width, markRadiusPx),
-								)
+							val hitMark = nearestMark(editableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
 							var dragging = false
 							var releaseValue = pressedValue
 							// A press on empty track scrubs immediately, so the playhead lands under the
@@ -1033,22 +1035,39 @@ private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Flo
 	}
 }
 
-/** Positions a composable at [fraction] across its parent's width. */
-private fun Modifier.offsetByFraction(fraction: Float): Modifier =
+/**
+ * Centers a composable on the ruler x of [fraction] - the same inset [laneX] mapping the tick lines use -
+ * clamped inward so the end labels stay fully visible inside the clipped ruler.
+ *
+ * @param Float fraction The 0..1 position across the domain.
+ * @param Dp markRadius The track region's end inset.
+ * @return Modifier The positioning modifier.
+ */
+private fun Modifier.centeredAtTick(fraction: Float, markRadius: Dp): Modifier =
 	this.layout { measurable, constraints ->
-		val placeable = measurable.measure(constraints)
+		val placeable = measurable.measure(constraints.copy(minWidth = 0))
+		val tickX = laneX(fraction, constraints.maxWidth.toFloat(), markRadius.toPx())
+		val labelX =
+			(tickX - placeable.width * 0.5f)
+				.toInt()
+				.coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0))
 		layout(placeable.width, placeable.height) {
-			placeable.placeRelative((constraints.maxWidth * fraction).toInt(), 0)
+			placeable.placeRelative(labelX, 0)
 		}
 	}
 
 /**
- * A tick label with a trailing ".0" trimmed, so an integral domain rules 10 / 20 rather than 10.0 / 20.0.
+ * A tick label rounded to two decimals with a trailing ".0" trimmed, so an integral domain rules 10 / 20
+ * rather than 10.0 / 20.0.
+ *
+ * Through kit's roundToDecimals, which ROUNDS: the axis generates ticks by repeated float addition, so a
+ * 0.2-step tick arrives as 0.59999996 - truncation labeled it "0.59" while its neighbours read 0.2 and
+ * 0.4, and negative ticks truncated the other way.
  *
  * @param Float value The tick value.
  * @return String The label.
  */
 fun defaultTickLabel(value: Float): String {
-	val rounded = (value * 100f).toInt() / 100f
+	val rounded = roundToDecimals(value, 2)
 	return if (rounded == rounded.toInt().toFloat()) rounded.toInt().toString() else rounded.toString()
 }

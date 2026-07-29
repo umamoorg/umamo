@@ -241,6 +241,19 @@ class TrackAxisTest {
 	}
 
 	/**
+	 * Tick labels ROUND to two decimals rather than truncate: the axis generates ticks by repeated float
+	 * addition, so a 0.2-step tick arrives as 0.59999996 - truncation labeled it "0.59" beside 0.2 and
+	 * 0.4, and negative ticks truncated the other way.
+	 */
+	@Test
+	fun tickLabelsRoundInsteadOfTruncating() {
+		assertEquals("0.6", defaultTickLabel(0.59999996f), "accumulated float error rounds up to the meant tick")
+		assertEquals("-0.2", defaultTickLabel(-0.19999998f), "negative ticks round away from zero, not toward it")
+		assertEquals("10", defaultTickLabel(10.0f), "an integral tick drops its .0")
+		assertEquals("0.25", defaultTickLabel(0.25f), "an exact fraction is untouched")
+	}
+
+	/**
 	 * Asserts a window's bounds within float tolerance.
 	 *
 	 * @param Float expectedStart The expected visible start.
