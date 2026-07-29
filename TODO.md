@@ -28,21 +28,6 @@ Investigate if dragging an area gutter is performance bound or if something stup
 ## MOC3 Lowering
 LimeBirb has some non-byte exactness to investigate.
 
-## Properties Panel
-A mega area panel of sorts with left side icon tab strip and each tab having collapsible sections.  This panel will have a lot of data and controls so it is important to make sure we get the data design right ahead of time.
-
-* The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
-* Opacity is not properly wired up yet from the properties panel, potentially in the renderer, and also keyed opacity.
-* UMA serialization of the latent composite (the format work this unblocks).
-* Improvements
-	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-	* Live updating for parameter srubbing, but commit to history only when releasing.
-* Single/multiple relation pickers.
-	* Improvements
-		* Persist list height.(Stored in UMA format, maybe?)
-		* Deformer pickAt().
-		* Context Menus
-
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
@@ -94,6 +79,19 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
+## Properties Panel
+* The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
+* UMA serialization of the latent composite (the format work this unblocks).
+* Improvements
+	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+	* Live updating for parameter srubbing, but commit to history only when releasing.
+* Single/multiple relation pickers.
+	* Improvements
+		* Persist list height.(Stored in UMA format, maybe?)
+		* Deformer pickAt().
+		* Context Menus
+* Create document of how channel compacting and tracks works along with keyform grids and axises.
+
 ## Properties
 * NumberField
 	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
@@ -116,8 +114,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
 		* Filter to display only certain types.
 	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
-	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
-	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 
@@ -130,6 +126,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 # DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
+* Refactor ShellCommands.kt to split it out.  See KeyformCommands.kt as an example.
 
 ## Format
 
