@@ -31,7 +31,61 @@ class KeyformCell<TForm>(
 class KeyformGrid<TForm>(
 	val axes: List<KeyformAxis>,
 	val cells: List<KeyformCell<TForm>>,
-)
+) {
+	/**
+	 * This grid's per-axis strides for folding a coordinate into a linear cell index.
+	 *
+	 * Axis 0 is the FASTEST varying (stride 1).  The resulting index is the shared contract between a
+	 * WeightedCell, a stored cell, and the GPU delta texture's column - defined HERE, on the type that
+	 * owns it, so the evaluator, the shape queries, and the grid algebra cannot drift apart.
+	 *
+	 * @return IntArray One stride per axis, in axis order.
+	 */
+	fun strides(): IntArray {
+		val strides = IntArray(axes.size)
+		var stride = 1
+		for (axisIndex in axes.indices) {
+			strides[axisIndex] = stride
+			stride *= axes[axisIndex].keys.size
+		}
+		return strides
+	}
+
+	/**
+	 * Folds a per-axis key-index [coordinate] into this grid's linear cell index.
+	 *
+	 * A coordinate shorter than the axis list contributes only the axes it covers, matching the
+	 * defensive handling of a malformed imported cell.
+	 *
+	 * @param IntArray coordinate The key index per axis, in axis order.
+	 * @return Int The stride-folded linear index.
+	 */
+	fun linearIndexOf(coordinate: IntArray): Int {
+		val strides = strides()
+		var linearIndex = 0
+		val axisCount = minOf(coordinate.size, strides.size)
+		for (axisIndex in 0 until axisCount) {
+			linearIndex += coordinate[axisIndex] * strides[axisIndex]
+		}
+		return linearIndex
+	}
+
+	/**
+	 * The cells indexed by their stride-folded linear index, built on first use and cached.
+	 *
+	 * Cached because the grid is immutable and the per-frame evaluator once rebuilt this map on every
+	 * channel sample of every entity - hundreds of transient HashMaps per scrub frame on a corpus rig.
+	 * PUBLICATION mode: a racing first read may compute twice but never blocks, and the render thread
+	 * must never take a lock.
+	 */
+	val cellsByLinearIndex: Map<Int, KeyformCell<TForm>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val byIndex = HashMap<Int, KeyformCell<TForm>>(cells.size)
+		for (cell in cells) {
+			byIndex[linearIndexOf(cell.coordinate)] = cell
+		}
+		byIndex
+	}
+}
 
 /**
  * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh base

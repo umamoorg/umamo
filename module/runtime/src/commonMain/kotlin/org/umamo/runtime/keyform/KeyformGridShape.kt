@@ -51,45 +51,6 @@ val KeyformGrid<*>.exceedsCornerBudget: Boolean
 	get() = axes.size > MAX_FRACTIONAL_AXES
 
 /**
- * This grid's per-axis strides for folding a coordinate into a linear cell index.
- *
- * Axis 0 is the FASTEST varying (stride 1).  This must stay identical to the folding in
- * KeyformGridSampling's cellsByLinearIndex and gridCorners, because the resulting index is the shared
- * contract between a WeightedCell, a stored cell, and the GPU delta texture's column - pinned by
- * KeyformGridShapeTest.
- *
- * @return IntArray One stride per axis, in axis order.
- */
-fun KeyformGrid<*>.strides(): IntArray {
-	val strides = IntArray(axes.size)
-	var stride = 1
-	for (axisIndex in axes.indices) {
-		strides[axisIndex] = stride
-		stride *= axes[axisIndex].keys.size
-	}
-	return strides
-}
-
-/**
- * Folds a per-axis key-index [coordinate] into this grid's linear cell index.
- *
- * A coordinate shorter than the axis list contributes only the axes it covers, matching
- * cellsByLinearIndex's defensive handling of a malformed imported cell.
- *
- * @param IntArray coordinate The key index per axis, in axis order.
- * @return Int The stride-folded linear index.
- */
-fun KeyformGrid<*>.linearIndexOf(coordinate: IntArray): Int {
-	val strides = strides()
-	var linearIndex = 0
-	val axisCount = minOf(coordinate.size, strides.size)
-	for (axisIndex in 0 until axisCount) {
-		linearIndex += coordinate[axisIndex] * strides[axisIndex]
-	}
-	return linearIndex
-}
-
-/**
  * Unfolds a [linearIndex] back into its per-axis key-index coordinate - the inverse of [linearIndexOf]
  * for any index inside [cellCount].
  *

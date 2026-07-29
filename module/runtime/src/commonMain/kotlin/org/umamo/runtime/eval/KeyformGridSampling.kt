@@ -123,27 +123,13 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
  * Indexes a grid's cells by their stride-folded linear index (axis `a`'s stride = Π key counts of the
  * earlier axes), so a [WeightedCell.linearIndex] from [gridCorners] resolves to the matching cell.
  *
+ * A delegate to the grid's own CACHED index: the grid is immutable, and building the map per call put
+ * hundreds of transient HashMaps on every scrub frame.
+ *
  * @param KeyformGrid grid The grid to index.
  * @return Map<Int, KeyformCell> linear index → cell.
  */
-public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, KeyformCell<TForm>> {
-	val strides = IntArray(grid.axes.size)
-	var stride = 1
-	for (axisIndex in grid.axes.indices) {
-		strides[axisIndex] = stride
-		stride *= grid.axes[axisIndex].keys.size
-	}
-	val byIndex = HashMap<Int, KeyformCell<TForm>>(grid.cells.size)
-	for (cell in grid.cells) {
-		var linearIndex = 0
-		val axisCount = minOf(cell.coordinate.size, strides.size)
-		for (axisIndex in 0 until axisCount) {
-			linearIndex += cell.coordinate[axisIndex] * strides[axisIndex]
-		}
-		byIndex[linearIndex] = cell
-	}
-	return byIndex
-}
+public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, KeyformCell<TForm>> = grid.cellsByLinearIndex
 
 /**
  * The drawable's grid form at the DEFAULT pose as position deltas vs the rest mesh - the shared

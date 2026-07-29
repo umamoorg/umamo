@@ -2,6 +2,7 @@ package org.umamo.render.puppet
 
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.meshGridDefaultDeltas
+import org.umamo.runtime.keyform.cellCount
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -22,8 +23,7 @@ import org.umamo.runtime.model.ParameterId
  * @param KeyformGrid? grid The mesh's keyform grid, or null when the drawable is unkeyed.
  * @return Int The cell count, floored at 1 so an axis-less or absent grid still gets its single rest cell.
  */
-internal fun keyformCellCount(grid: KeyformGrid<MeshDeltaForm>?): Int =
-	maxOf(1, grid?.axes?.fold(1) { count, axis -> count * axis.keys.size } ?: 1)
+internal fun keyformCellCount(grid: KeyformGrid<MeshDeltaForm>?): Int = maxOf(1, grid?.cellCount ?: 1)
 
 /**
  * Builds a mesh's per-keyform-cell vertex deltas as RG texels: row = vertex id, column = cell linear

@@ -269,9 +269,14 @@ private fun buildWarpWorld(
 	// The render channels are blended, never snapped to the nearest key, or they step instead of fading
 	// at mid-parameter values. Each track resolves its own corners; pre-compaction those are the same
 	// corners in the same order as the control points', so the sums are unchanged.
-	val warpOverride: (FormChannel) -> ChannelValue? = { channel ->
-		channelOverrides[KeyableTarget(KeyformOwner.Deformer(warp.id), channel)]
-	}
+	// A constant null in the steady state (no pending edit), so the per-channel lookups below allocate
+	// no KeyableTarget keys on the per-frame path.
+	val warpOverride: (FormChannel) -> ChannelValue? =
+		if (channelOverrides.isEmpty()) {
+			{ null }
+		} else {
+			{ channel -> channelOverrides[KeyableTarget(KeyformOwner.Deformer(warp.id), channel)] }
+		}
 	val channels =
 		cascadeDeformerChannels(
 			DeformerChannels(
@@ -337,9 +342,13 @@ private fun buildRotationWorld(
 	}
 	// The render channels blend, never snap to the nearest key (unlike the flip flags below, which are
 	// not interpolable and take the floor cell).
-	val rotationOverride: (FormChannel) -> ChannelValue? = { channel ->
-		channelOverrides[KeyableTarget(KeyformOwner.Deformer(rotation.id), channel)]
-	}
+	// A constant null in the steady state, so the lookups allocate nothing (see buildWarpWorld's note).
+	val rotationOverride: (FormChannel) -> ChannelValue? =
+		if (channelOverrides.isEmpty()) {
+			{ null }
+		} else {
+			{ channel -> channelOverrides[KeyableTarget(KeyformOwner.Deformer(rotation.id), channel)] }
+		}
 	val channels =
 		cascadeDeformerChannels(
 			DeformerChannels(

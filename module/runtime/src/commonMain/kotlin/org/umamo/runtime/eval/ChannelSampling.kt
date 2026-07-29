@@ -45,18 +45,10 @@ fun ChannelGrids.scalarAt(
 	staticValue: Float,
 	paramValue: (ParameterId) -> Float,
 	override: ChannelValue? = null,
-): Float {
-	(override as? ChannelValue.Scalar)?.let { pending -> return pending.value }
-	val grid = this[channel] ?: return staticValue
-	val corners = gridCorners(grid, paramValue) ?: return staticValue
-	val cells = cellsByLinearIndex(grid)
-	var total = 0f
-	for (corner in corners) {
-		val value = (cells[corner.linearIndex]?.form as? ChannelValue.Scalar)?.value ?: continue
-		total += corner.weight * value
-	}
-	return total
-}
+): Float =
+	// One body with scalarOrNull, so the renderer's opacity read and the sparse draw-order read can never
+	// disagree about the blend arithmetic - the two were verbatim copies once, which is a drift hazard.
+	scalarOrNull(channel, paramValue, override) ?: staticValue
 
 /**
  * The blended value of a COLOR channel at the given pose, or [staticValue] when untracked or out of range.
