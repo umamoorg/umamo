@@ -190,7 +190,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             the pointer/composition bookkeeping that feeds it plain data.  The ONE
                             exception is `org.umamo.ui.transform`, which needs :render's eval and so
                             cannot sit in :edit (see the :render note above).  Reference split:
-                            `KeyformCommands.kt` (:ui, resolves the hover) over `KeyformEdits.kt`
+                            `KeyformCommands.kt` (:ui, resolves the hover) over `KeyformAimEdits.kt`
                             (:edit, decides what the edit means).
                             → :render (api), :runtime, :edit, :settings, :storage, :format (jvmAndroid).
 :desktop      jvm         — thin desktop entrypoint over the shared EditorApp: the window, settings

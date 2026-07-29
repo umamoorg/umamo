@@ -34,7 +34,7 @@ import org.umamo.runtime.model.PuppetModel
  * deform eval (drawableLocalPosed below), and :edit and :render are SIBLINGS over :runtime - :edit cannot
  * see :render, so an edit expressed in world space cannot live there.  :ui depends on both, so it is the
  * lowest module that can hold this.  Do not read it as licence to put other session edits here: anything
- * that does not need :render belongs in :edit (see KeyformEdits.kt, which was moved out of :ui for exactly
+ * that does not need :render belongs in :edit (see KeyformAimEdits.kt, which was moved out of :ui for exactly
  * this reason).
  */
 

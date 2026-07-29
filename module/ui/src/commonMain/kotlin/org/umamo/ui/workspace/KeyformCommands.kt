@@ -17,7 +17,7 @@ import org.umamo.ui.resources.*
  *
  * What is here is POINTER bookkeeping, not authoring rules.  A command resolves what the pointer is over,
  * refuses when that is nothing, and hands the plain description of it - track, parameter, aim - to the
- * matching op in :edit (KeyformEdits.kt), which owns every decision about what the edit means.  Deciding
+ * matching op in :edit (KeyformAimEdits.kt), which owns every decision about what the edit means.  Deciding
  * here instead would put authoring rules where only a running composition could exercise them, and would
  * let the sheet, a panel row, and a lane menu drift into meaning different things by the same gesture.
  *
