@@ -14,9 +14,6 @@ import kotlin.math.pow
  * (keys along a frame range) share it instead of growing two of everything.  The constraint is easy to
  * erode one convenient import at a time, so it is worth checking: `grep -r Parameter\\|Keyform\\|Puppet`
  * over this package must come back empty.
- *
- * トラックシートの領域モデル。Compose にも Umamo の概念にも依存しない。パラメータ軸でも時間軸でも
- * 同じ UI を使えるようにするための境界。
  */
 
 /**

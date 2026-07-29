@@ -24,9 +24,6 @@ import org.umamo.runtime.model.ParameterId
  * Every read takes an optional OVERRIDE, which wins over both the track and the static.  That is how a
  * value the user has typed but not yet keyed reaches the viewport: the pending edit is not in the document
  * (it is transient session state), so it arrives beside the pose rather than inside the model.
- *
- * チャンネル別トラックの姿勢サンプリング。各チャンネルは自分の格子から自分のコーナーを求める。
- * 範囲外や未キーの場合はオーナーの静的値へフォールバックし、実体を隠すことはない。
  */
 
 /**

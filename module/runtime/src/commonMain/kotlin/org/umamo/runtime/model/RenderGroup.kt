@@ -6,8 +6,6 @@ package org.umamo.runtime.model
  * among its group siblings, and a "Group by Draw Order" part moves as a unit positioned by the part's
  * draw order. A model with no draw-order groups is one flat [RenderGroup] of all drawables - equivalent to a
  * global sort (what `paintOrder` does).
- *
- * 描画順グループ木。draw order は同じグループ内でのみ並び替え、グループ自体は親の中で「パートの draw order」で並ぶ。
  */
 sealed interface RenderNode
 

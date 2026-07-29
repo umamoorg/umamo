@@ -26,8 +26,6 @@ import org.umamo.ui.model.keyedFieldStateOf
  * Kept beside the panel rather than inside the field primitives: the kit knows how to PAINT a keyed state
  * and nothing about parameters, poses, or sessions, which is what lets the same fields serve rows that are
  * not keyable at all.
- *
- * プロパティ行のキー状態の解決。kit 側は描画のみを知り、モデルには触れない。
  */
 
 /**

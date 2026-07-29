@@ -13,8 +13,6 @@ import org.umamo.runtime.model.channelGridsOf
  * The sheet applies the same three gestures - drag a key, insert one, remove one - to every row it draws,
  * and which underlying op that becomes is not a decision the UI should be making twice per gesture.  It is
  * made once, here.
- *
- * トラック参照から実装（チャンネル／ジオメトリ）への唯一の振り分け。
  */
 
 /**

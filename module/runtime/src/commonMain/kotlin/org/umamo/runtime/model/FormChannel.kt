@@ -11,8 +11,6 @@ package org.umamo.runtime.model
  * generic walk over an entity's channels - the parameter-delete scrub, compaction, the export refine,
  * the dope-sheet track list - needs to iterate them uniformly, and a flag channel fits no scalar/color
  * split.
- *
- * チャンネル別キーフォーム：各プロパティが独自の軸・キー位置を持つ。Cubism の一体型セルでは表現できない。
  */
 
 /** The kind of value a [FormChannel] stores, and therefore how it interpolates between keys. */
@@ -92,8 +90,6 @@ sealed interface ChannelValue {
  * deep compare run on every frame's reconcile.  A channel with no entry falls back to the owner's
  * static field for that property, which after import compaction is the overwhelmingly common case;
  * [Empty] is shared so it allocates nothing.
- *
- * オーナーのチャンネル別トラック。エントリが無いチャンネルはオーナーの静的値にフォールバックする。
  */
 class ChannelGrids(val gridsByChannel: Map<FormChannel, KeyformGrid<ChannelValue>>) {
 	/** True when this owner has no channel tracks at all (every property reads its static value). */

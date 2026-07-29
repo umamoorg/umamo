@@ -84,10 +84,10 @@ sealed interface OrgChild {
 }
 
 /**
- * Cubism's default art-mesh draw order.  Mirrors :render's CUBISM_DEFAULT_DRAW_ORDER, which cannot be
+ * Default art-mesh draw order which is also Cubism's default.  Mirrors :render's DEFAULT_DRAW_ORDER, which cannot be
  * referenced here (:render depends on :runtime, not the other way round).
  */
-const val CUBISM_DEFAULT_DRAWABLE_DRAW_ORDER: Float = 500f
+const val DEFAULT_DRAWABLE_DRAW_ORDER: Float = 500f
 
 /** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
 data class Part(
@@ -177,7 +177,7 @@ data class Drawable(
 	 */
 	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	/** Static draw order (Cubism's 500) used when [channelGrids] has no draw-order track. */
-	val drawOrder: Float = CUBISM_DEFAULT_DRAWABLE_DRAW_ORDER,
+	val drawOrder: Float = DEFAULT_DRAWABLE_DRAW_ORDER,
 	/** Static opacity used when [channelGrids] has no opacity track. */
 	val opacity: Float = 1f,
 	/** Static multiply color used when [channelGrids] has no multiply track. */

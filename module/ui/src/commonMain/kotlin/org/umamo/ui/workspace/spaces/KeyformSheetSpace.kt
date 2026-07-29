@@ -149,9 +149,6 @@ private class KeyformSheetViewState {
  * its neighbours); Delete removes the selection as one undo step; right-clicking a lane inserts a key
  * there or removes the one under the pointer.  Box-select is not built yet.
  *
- * キーフォームシート。選択パラメータごとに、(オブジェクト, チャンネル)のトラックを所有者単位で
- * 折りたためる形で表示する。
- *
  * @param AreaScope scope The hosting area's scope.
  */
 @Composable

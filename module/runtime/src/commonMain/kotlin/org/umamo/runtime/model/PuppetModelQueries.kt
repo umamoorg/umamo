@@ -5,9 +5,6 @@ package org.umamo.runtime.model
  * (the desktop offscreen renderer today, the Android GLES service when it lands): the pickable
  * geometry sets picking iterates, and the display lookups the overlap picker labels rows with.
  * All derive from the model alone, so services recompute them on each model swap.
- *
- * PuppetModel に対する描画対象ごとの純粋な索引クエリ。各プラットフォームのビューポートサービス
- * が共有する（ピッキング対象の形状と、重なり選択の表示用ルックアップ）。
  */
 
 /**

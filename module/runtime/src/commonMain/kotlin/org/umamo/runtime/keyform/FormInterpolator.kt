@@ -14,8 +14,6 @@ import org.umamo.runtime.model.WarpLatticeForm
  *
  * Key insertion, export refinement, and compaction all reduce to this one operation, which is what makes
  * the losslessness argument one-dimensional and therefore checkable.
- *
- * 格子代数が使う唯一の補間：1軸上の隣接スライス間の1次元ブレンド。N次元ブレンドは評価器の担当。
  */
 
 /**

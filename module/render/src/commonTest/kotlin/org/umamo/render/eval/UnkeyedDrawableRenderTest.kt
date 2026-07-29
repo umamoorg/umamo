@@ -50,7 +50,8 @@ class UnkeyedDrawableRenderTest {
 	fun anUnkeyedDrawableRendersItsRestMesh() {
 		val drawable = Drawable(drawableId, "M", null, BlendMode.Normal, emptyList(), mesh(), geometryGrid = null)
 		val geometry = CpuDeformationEvaluator().evaluate(model(drawable), emptyMap())
-		val positions = assertNotNull(geometry.worldPositions[drawableId], "an unkeyed drawable must still produce geometry")
+		val positions =
+			assertNotNull(geometry.worldPositions[drawableId], "an unkeyed drawable must still produce geometry")
 		assertEquals(listOf(10f, -5f, 20f, -7f), positions.toList())
 	}
 
@@ -60,7 +61,7 @@ class UnkeyedDrawableRenderTest {
 		val drawable = Drawable(drawableId, "M", null, BlendMode.Normal, emptyList(), mesh(), geometryGrid = null)
 		val geometry = CpuDeformationEvaluator().evaluate(model(drawable), emptyMap())
 		assertEquals(1f, geometry.opacity[drawableId])
-		assertEquals(CUBISM_DEFAULT_DRAW_ORDER, geometry.drawOrder[drawableId])
+		assertEquals(DEFAULT_DRAW_ORDER, geometry.drawOrder[drawableId])
 	}
 
 	/**

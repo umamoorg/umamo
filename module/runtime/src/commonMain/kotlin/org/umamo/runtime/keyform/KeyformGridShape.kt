@@ -16,9 +16,6 @@ import kotlin.math.abs
  *
  * This lives in :runtime rather than :edit because the CMO3 / MOC3 importers need it and :runtime
  * cannot depend on :edit.
- *
- * キーフォーム格子の形状に関する純粋な問い合わせと編集（ストライド・線形インデックス・軸の削除）。
- * 補間や姿勢評価は行わない。
  */
 
 /**

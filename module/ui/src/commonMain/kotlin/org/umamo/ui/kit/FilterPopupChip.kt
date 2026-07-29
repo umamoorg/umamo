@@ -29,8 +29,6 @@ import org.umamo.ui.theme.UmamoIcon
  * dropdown a slot.  The open state is owned here, so a panel adds a filter menu by supplying only its
  * toggle rows.
  *
- * ヘッダの絞り込みドロップダウン。トグルを複数切り替えられるよう、クリックでは閉じない。
- *
  * @param String    contentDescription The accessible label for the chip (the face is icon-only).
  * @param Modifier  modifier           The layout modifier.
  * @param UmamoIcon icon               The chip's leading glyph; the funnel by default.

@@ -22,8 +22,6 @@ fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveR
  * and grid), a pass-through part is transparent (its children hoist into the enclosing group). A safety
  * net appends any drawable the org walk missed, so the render never silently drops a mesh.
  *
- * 組織ツリーから描画順グループツリー（renderRoot）を導出する純粋関数。組織ツリーが唯一の真実で、描画順はその関数。
- *
  * @return RenderGroup The derived render-order root.
  */
 fun PuppetModel.deriveRenderRoot(): RenderGroup {

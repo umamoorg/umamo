@@ -3,8 +3,6 @@ package org.umamo.runtime.model
 /**
  * One axis of a keyform grid: the parameter it keys on and the key values along it (the parameter
  * values where keyforms exist, e.g. `[-1, 0, 1]`).
- *
- * キーフォーム格子の 1 軸：対応パラメータとキー値（キーフォームが存在するパラメータ値）。
  */
 class KeyformAxis(
 	val parameterId: ParameterId,
@@ -25,8 +23,6 @@ class KeyformCell<TForm>(
  * and the keyed [cells]. `cells.size == Π(axis key counts)` - the "interpolation" count the editor
  * reports. Cells are tagged with their coordinate rather than stored row-major, so the evaluator
  * can build whatever lookup the deformation math needs.
- *
- * キーフォーム格子：軸（各 1 パラメータ）とセル群。セル数は各軸キー数の積。
  */
 class KeyformGrid<TForm>(
 	val axes: List<KeyformAxis>,

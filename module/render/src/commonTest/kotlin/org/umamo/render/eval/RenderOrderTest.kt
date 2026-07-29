@@ -44,7 +44,7 @@ class RenderOrderTest {
 	@Test
 	fun missingDrawOrderTreatedAsCubismDefault() {
 		val base = listOf(id("a"), id("b"))
-		// b has no entry → CUBISM_DEFAULT_DRAW_ORDER (500) < a's 600, so b stays behind a.
+		// b has no entry → DEFAULT_DRAW_ORDER (500) < a's 600, so b stays behind a.
 		val order = paintOrder(base, mapOf(id("a") to 600f))
 		assertEquals(listOf(id("b"), id("a")), order)
 	}
@@ -161,8 +161,15 @@ class RenderOrderTest {
 
 	@Test
 	fun nestedIsolatedGroupsNestInThePlan() {
-		val inner = RenderGroup(PartId("inner"), 500, listOf(RenderDrawable(id("leaf"))), ChannelGrids.Empty, PartComposite())
-		val outer = RenderGroup(PartId("outer"), 600, listOf(RenderDrawable(id("sibling")), inner), ChannelGrids.Empty, PartComposite())
+		val inner =
+			RenderGroup(PartId("inner"), 500, listOf(RenderDrawable(id("leaf"))), ChannelGrids.Empty, PartComposite())
+		val outer = RenderGroup(
+			PartId("outer"),
+			600,
+			listOf(RenderDrawable(id("sibling")), inner),
+			ChannelGrids.Empty,
+			PartComposite()
+		)
 		val root = RenderGroup(null, 500, listOf(RenderDrawable(id("back")), outer))
 		val plan = renderPlan(root, mapOf(id("back") to 100f, id("sibling") to 400f, id("leaf") to 500f))
 		val outerNode = assertIs<RenderPlanComposite>(plan[1])
@@ -183,7 +190,13 @@ class RenderOrderTest {
 				children =
 					listOf(
 						RenderDrawable(id("back")),
-						RenderGroup(PartId("fx"), 500, listOf(RenderDrawable(id("fxA"))), ChannelGrids.Empty, PartComposite()),
+						RenderGroup(
+							PartId("fx"),
+							500,
+							listOf(RenderDrawable(id("fxA"))),
+							ChannelGrids.Empty,
+							PartComposite()
+						),
 						RenderDrawable(id("front")),
 					),
 			)

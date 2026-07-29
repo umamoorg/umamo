@@ -25,8 +25,6 @@ import org.umamo.ui.tracks.TrackRowTone
  * "keyform grids on a parameter" to "rows of marks" has to live on this side of the boundary.
  *
  * Compose-free so the projection is unit-testable without a composition.
- *
- * PuppetModel からトラック行への射影。シート側が唯一モデルに触れる場所。
  */
 
 /**

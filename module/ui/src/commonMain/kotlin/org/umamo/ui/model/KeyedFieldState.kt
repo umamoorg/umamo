@@ -18,8 +18,6 @@ import org.umamo.ui.theme.UmamoColors
  * and ModifiedUnkeyed says "that is exactly what has happened".  Without them, manual keying silently
  * discards work on the next scrub, which is the single biggest friction a Cubism migrant hits (Cubism
  * auto-keys, so the situation never arises there).
- *
- * 編集フィールドのキー状態と、それを表す色（Blender 由来）。手動キー運用で作業が黙って失われるのを防ぐ。
  */
 
 /** The keyed state of a field, in the order a rigger encounters them. */

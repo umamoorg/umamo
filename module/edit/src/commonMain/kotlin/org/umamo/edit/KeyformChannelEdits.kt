@@ -37,8 +37,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * a newly bound axis SPANS the parameter's range (an axis that does not reach the ends leaves the channel
  * falling back to its static there), and removal COLLAPSES below two keys (a one-key axis resolves only
  * within EPS_KEY of that key).
- *
- * スカラー／カラーチャンネルのキーフォーム編集。幾何のキー打ちは逆変換が必要なため別途。
  */
 
 /**

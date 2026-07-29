@@ -46,9 +46,6 @@ import org.umamo.ui.workspace.AreaScope
  * immediately, so the new id is parked on the shared [scope] view state (the header and body are
  * sibling subtrees).
  *
- * パラメータパネルのエリアヘッダ内容。左に「パラメータ追加」と「新規グループ」、右に「すべて既定値に」と
- * 絞り込み。ドキュメント未オープン時は何も描画しない。
- *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  */
 @Composable

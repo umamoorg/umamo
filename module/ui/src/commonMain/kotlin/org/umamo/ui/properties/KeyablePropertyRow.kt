@@ -18,8 +18,6 @@ import org.umamo.ui.resources.*
  * Both affordances belong to the same rows and neither is useful without the other - the shortcut is the
  * fast path and the menu is how a user finds out the shortcut exists - so they are applied together
  * rather than left to be remembered separately at each call site.
- *
- * キー打ち可能なプロパティ行のラッパー。ホバー対象の公開と、キーフレーム挿入／削除のコンテキストメニュー。
  */
 
 /**

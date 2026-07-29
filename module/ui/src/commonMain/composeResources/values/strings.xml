@@ -62,8 +62,7 @@
 	<string name="menu_redo">Redo</string>
 	<string name="menu_preferences">Settings…</string>
 
-	<!-- Workspace menu (workspace management; the tab strip covers
-	create/duplicate/rename/reorder). -->
+	<!-- Workspace menu (workspace management; the tab strip covers create/duplicate/rename/reorder). -->
 	<string name="menu_workspace">Workspace</string>
 	<string name="menu_workspace_reset">Reset Workspace</string>
 	<string name="menu_workspace_export_this">Export This Workspace…</string>
@@ -80,9 +79,9 @@
 	<string name="open_failed_read">Could not read %1$s.</string>
 	<string name="open_failed_unrecognized">%1$s is not a file format Umamo recognizes.</string>
 	<string name="open_failed_not_openable">%1$s cannot be opened in the editor yet.</string>
-	<string name="open_failed_parse">Could not open %1$s. The file may be damaged.</string>
-	<string name="open_failed_missing_manifest">Could not import %1$s. Its model3.json manifest was not found next to the file.</string>
-	<string name="open_failed_missing_texture">Could not import %1$s. A texture referenced by its model3.json is missing or unreadable.</string>
+	<string name="open_failed_parse">Could not open %1$s.  The file may be damaged.</string>
+	<string name="open_failed_missing_manifest">Could not import %1$s.  Its model3.json manifest was not found next to the file.</string>
+	<string name="open_failed_missing_texture">Could not import %1$s.  A texture referenced by its model3.json is missing or unreadable.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
@@ -91,8 +90,7 @@
 	<string name="menu_documentation">Documentation…</string>
 	<string name="menu_credits">Credits…</string>
 	<string name="menu_about">About Umamo…</string>
-	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows
-	name/version/license/links). -->
+	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
 	<string name="about_title">About Umamo</string>
 	<!-- %1$s is the application version. -->
 	<string name="about_version">Version %1$s</string>
@@ -130,8 +128,7 @@
 	<string name="cmd_uv_mirror_u">Mirror UVs Horizontally</string>
 	<string name="cmd_uv_mirror_v">Mirror UVs Vertically</string>
 
-	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the
-	verbose command titles. -->
+	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
 	<string name="menu_uv_mirror_x">Mirror X</string>
 	<string name="menu_uv_mirror_y">Mirror Y</string>
 
@@ -260,10 +257,8 @@
 	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">Only drawables can be transformed - parts and
-		deformers are not yet supported.</string>
-	<string name="notice_transform_deformed">Can't transform while mesh is deformed. Reset all
-		parameters first.</string>
+	<string name="notice_transform_only_drawables">Only drawables can be transformed.  Parts and deformers are not yet supported.</string>
+	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 
 	<!-- Viewport HUD: the modal-operator status badge. -->
@@ -286,8 +281,7 @@
 	<string name="cmd_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
 	<string name="cmd_snap_selection_active">Selection to Active</string>
 
-	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps
-	over texture coordinates. -->
+	<!-- The UV editor's snap pie (Shift+S over the UV editor): pixel-corner, cursor, and grid snaps over texture coordinates. -->
 	<string name="cmd_uv_snap_selection_pixels">Selection to Pixels</string>
 	<string name="cmd_uv_snap_selection_cursor">Selection to Cursor</string>
 	<string name="cmd_uv_snap_selection_cursor_offset">Selection to Cursor (Keep Offset)</string>
@@ -296,8 +290,7 @@
 	<string name="cmd_uv_snap_cursor_selected">Cursor to Selected</string>
 	<string name="cmd_uv_snap_cursor_grid">Cursor to Grid</string>
 
-	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select
-	Hierarchy. -->
+	<!-- Selection / navigation tools: Select Linked, Frame Selected, the Alt+Q mesh switch, Select Hierarchy. -->
 	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
 	<string name="cmd_mesh_select_linked">Select Linked</string>
 	<string name="cmd_view_frame_selected">Frame Selected</string>
@@ -319,13 +312,10 @@
 	<string name="history_mesh_rip">Rip</string>
 	<string name="history_mesh_connect">Connect Vertices</string>
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
-	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex
-		mode).</string>
-	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices
-		(vertex mode).</string>
-	<string name="notice_connect_refused">Can't connect - the cut crosses nothing, or the geometry
-		is degenerate.</string>
-	<string name="notice_rip_nothing">Nothing to rip here - the selection has no fan to split.</string>
+	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
+	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
+	<string name="notice_connect_refused">Can't connect: The cut crosses nothing, or the geometry is degenerate.</string>
+	<string name="notice_rip_nothing">Nothing to rip here: The selection has no fan to split.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -375,8 +365,7 @@
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
-	  icon strip), the section headings, and the read-only sample fields not already covered by the
-	status bar strings.
+	  icon strip), the section headings, and the read-only sample fields not already covered by the	status bar strings.
 	-->
 	<string name="properties_no_matches">No matching properties.</string>
 	<string name="properties_tab_document">Document</string>
@@ -392,15 +381,13 @@
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
-	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data
-	model yet. -->
+	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
 	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
 
 	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
-	option
-	  names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
+	option names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
 	<string name="properties_field_canvas_width">Width</string>
 	<string name="properties_field_canvas_height">Height</string>
 	<string name="properties_field_origin_x">Origin X</string>
@@ -530,8 +517,7 @@
 	<string name="settings_colors_role_selected">Selected</string>
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
-	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would
-	bind. -->
+	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
 	<string name="pick_hover_deformer">Deformer: %1$s</string>

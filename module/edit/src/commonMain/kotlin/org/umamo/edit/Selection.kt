@@ -11,8 +11,6 @@ import org.umamo.runtime.model.PuppetModel
  * so a `when` over a selection is exhaustive; adding a fourth selectable kind becomes a compile error
  * until handled everywhere. This is object-mode selection — whole entities, not their interior mesh
  * vertices or deformer control points (those belong to Edit mode, see [EditorMode]).
- *
- * 選択可能なリグ要素。パーツ・描画オブジェクト・デフォーマの3種に限定した型付き参照。
  */
 sealed interface SelectionTarget {
 	/** An organisational tree part. */
@@ -30,8 +28,6 @@ sealed interface SelectionTarget {
  * last target the user added, which the Inspector features when several are selected and which anchors
  * future range operations. The active target is always a member of [targets], or null when the
  * selection is empty.
- *
- * オブジェクトモードの選択状態。選択集合とアクティブ（主）対象を保持する不変値。
  */
 data class Selection(
 	/** The selected targets, empty when nothing is selected. */
@@ -61,8 +57,6 @@ data class Selection(
  * to key from the object selection, and WHICH PARAMETER to key it on from here, and the two move
  * independently.  Held on the session rather than a panel's view state because it is shared: a keyform
  * sheet in one area follows the parameter chosen in a parameters panel in another.
- *
- * キーフォーム編集の対象パラメータ。オブジェクト選択とは独立し、エリア間で共有される。
  */
 data class ParameterSelection(
 	/** The selected parameters, empty when none is targeted. */
@@ -123,8 +117,6 @@ data class ParameterSelection(
  * [Selection] and never mutates its input, so they are trivially unit-testable without Compose or a
  * render context. The active target is maintained per the [Selection] invariant: it is always a member
  * of the result's targets, or null when the result is empty.
- *
- * 選択状態に対する純粋な変換。各ジェスチャに1つ。入力を変更せず新しい不変値を返す。
  */
 object SelectionOps {
 	/**

@@ -77,8 +77,6 @@ import kotlin.math.abs
  * The track sheet widget family: a label column beside a domain-mapped track region, with a ruler and a
  * playhead.  Domain-agnostic by construction - everything it knows about the horizontal axis arrives as a
  * TrackAxis, and everything it knows about content arrives as TrackRows.
- *
- * トラックシートのウィジェット群。ラベル列＋領域マップされたトラック領域、ルーラー、再生ヘッド。
  */
 
 /** The label column's default width; wide enough for an item name plus its type at the panel's type size. */

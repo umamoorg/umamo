@@ -28,8 +28,6 @@ import org.umamo.runtime.model.ParameterId
  *
  * Plain mutable state rather than a flow: it changes on every pointer enter / exit and nothing needs to
  * observe it reactively, only sample it when a command runs.
- *
- * ポインタ下のキー可能プロパティ。キーフレーム挿入の対象を、事前選択なしで決める。
  */
 data class KeyformHover(
 	/** The track under the pointer. */

@@ -29,8 +29,6 @@ import kotlin.math.abs
  *
  * Sparse grids - which Cmo3Import can produce when a cell's form guid does not resolve - are refused
  * rather than repaired: every op below returns its receiver unchanged instead of inventing cells.
- *
- * キーフォーム格子の編集代数。軸は必ずパラメータ範囲を張り、キーは2本以上を保ち、新軸は末尾に追加する。
  */
 
 /** How [withAxisSeeded] lays out the keys of a newly bound axis. */

@@ -40,8 +40,6 @@ import org.umamo.runtime.model.RenderGroup
  * keyform wins, and the compaction-on/off equivalence test cannot see the difference (both sides carry the
  * special case).  Only the corpus parity and C-core oracles would catch a mistake, so they should come out
  * one at a time under those gates rather than as a batch.
- *
- * 取り込み後の圧縮パス。変化しないトラックは静的値へ畳み込む。幾何格子は決して圧縮しない。
  */
 
 /**

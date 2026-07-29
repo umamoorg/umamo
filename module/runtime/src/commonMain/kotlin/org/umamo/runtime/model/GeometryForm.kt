@@ -8,8 +8,6 @@ package org.umamo.runtime.model
  *
  * These mirror the bundled MeshForm / WarpForm / RotationForm minus their scalar and color channels, which
  * moved to ChannelGrids.  The bundled classes stay as the import intermediate and the blend-shape payload.
- *
- * 分割キーフォームの幾何側。GPU が読む唯一のチャンネルであり、範囲外で実体を隠す唯一のチャンネル。
  */
 
 /**

@@ -6,8 +6,6 @@ package org.umamo.runtime.model
  * In :runtime rather than :edit because it is vocabulary about the model, not about editing - the renderer
  * needs it too, to accept per-channel overrides for a value the user has typed but not yet keyed, and
  * :render depends on :runtime but not on :edit.
- *
- * キーフォームチャンネルのアドレス指定（オブジェクト＋チャンネル）。編集層と描画層の双方が使う。
  */
 
 /**

@@ -28,9 +28,6 @@ import org.umamo.runtime.model.ParameterId
  * lifting the track to a constant that overwrites the static) would change what those poses render.  The
  * caller supplies the axis-spans-range predicate; a non-spanning axis is never dropped and a track whose
  * last axis is non-spanning is never lifted.
- *
- * 厳密一致のみの格子圧縮。近似値では絶対に削除しない（作者の指定値を書き換えることになるため）。
- * 範囲を張らない軸は静的値への降着を守るゲートなので、決して削除しない。
  */
 
 /**

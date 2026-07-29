@@ -29,8 +29,6 @@ class GlueForm(val intensity: Float)
  *
  * Weld strength is the [FormChannel.GLUE_INTENSITY] track when one is keyed, else the static
  * [intensity] - which is 1 (full weld) for a glue that was never animated.
- *
- * グルー：変形後に2メッシュの継ぎ目頂点を溶接する。なければ継ぎ目が分離して二重像になる。
  */
 class Glue(
 	val meshA: DrawableId,

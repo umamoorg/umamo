@@ -25,9 +25,6 @@ import org.umamo.runtime.model.WarpLatticeForm
  *
  * Compaction is deliberately NOT part of this - it runs as a separate model pass so the split can land
  * with the oracle green by construction and compaction can be turned on (and off) independently.
- *
- * 取り込み時のファンアウト：一体型の格子を幾何格子とチャンネル別トラックへ分割する。軸を共有するため
- * 評価結果はビット単位で同一。
  */
 
 /**

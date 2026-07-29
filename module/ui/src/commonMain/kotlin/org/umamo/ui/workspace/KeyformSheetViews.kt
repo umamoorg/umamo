@@ -30,9 +30,6 @@ internal class KeyformSheetSurface(
  * resolve the acting sheet through this at dispatch time.  Registering them per area looked simpler but
  * was wrong twice over: CommandRegistry is last-write-wins per id, so a second sheet area clobbered the
  * first's handlers, and disposing either area unregistered the shared ids out from under the survivor.
- *
- * 開いているキーフォームシートのエリア別レジストリ。コマンドはシェルで一度だけ登録し、
- * ディスパッチ時にどのシートが対象かをここで解決する。
  */
 internal class KeyformSheetViews {
 	private val surfacesByAreaId = LinkedHashMap<String, KeyformSheetSurface>()

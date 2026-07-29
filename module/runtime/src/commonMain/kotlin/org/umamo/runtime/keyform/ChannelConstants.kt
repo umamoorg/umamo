@@ -9,8 +9,6 @@ import org.umamo.runtime.model.FormChannel
  * to be written into their owner's static fields.  Shared by the post-import compaction pass
  * (ChannelCompaction) and the parameter-delete collapse (ParameterCrudEdits in :edit), so the two paths
  * that lift a track into a static cannot drift apart.
- *
- * 畳み込まれたチャンネル定数の読み出しヘルパー。圧縮パスとパラメータ削除の両方が共有する。
  */
 
 /**

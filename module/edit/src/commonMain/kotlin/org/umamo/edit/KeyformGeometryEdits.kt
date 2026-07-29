@@ -27,8 +27,6 @@ import org.umamo.runtime.model.PuppetModel
  * deformer-chain inverse and stays deferred - but key positions are ordinary grid algebra, and leaving
  * them uneditable made every geometry row in the keyform sheet silently swallow every gesture, which on a
  * corpus rig is nearly every row on screen.
- *
- * ジオメトリトラックのキー位置編集。フォーム自体（変形）のキー打ちは別途。
  */
 
 /**
