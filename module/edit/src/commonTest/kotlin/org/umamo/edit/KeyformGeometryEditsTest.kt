@@ -210,4 +210,41 @@ class KeyformGeometryEditsTest {
 		val glue = KeyformTrackRef.Geometry(KeyformOwner.Glue(drawableId, drawableId))
 		assertEquals(-1, model().trackKeyIndexAtPose(glue, parameter, mapOf(angleX to 0f)))
 	}
+
+	/**
+	 * Moving several keys to one destination is ONE undo step, and each lands on its own track.
+	 *
+	 * The summary-row drag: marks stacked at a value stay stacked, and one Ctrl+Z restores all of them.
+	 */
+	@Test
+	fun movingSeveralKeysToOneValueIsOneStep() {
+		val session = EditorSession(model())
+		val drawableTrack = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		val deformerTrack = KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId))
+		session.moveTrackKeys(
+			listOf(Triple(drawableTrack, parameter, 1), Triple(deformerTrack, parameter, 1)),
+			toValue = 12f,
+		)
+
+		assertEquals(listOf(-30f, 12f, 30f), keysOf(session.model.value), "the drawable's key moved")
+		val warp = session.model.value.deformers.single() as Deformer.Warp
+		assertEquals(
+			listOf(-30f, 12f, 30f),
+			assertNotNull(warp.geometryGrid).axes.single().keys.toList(),
+			"and so did the deformer's, to the same place",
+		)
+
+		session.undo()
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores both")
+		assertTrue(!session.canUndo.value, "because there was only ever one step")
+	}
+
+	/** Each member is clamped to its OWN parameter's range, so a mixed batch cannot push one out of range. */
+	@Test
+	fun aBatchMoveClampsPerParameter() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		session.moveTrackKeys(listOf(Triple(track, parameter, 1)), toValue = 9999f)
+		assertEquals(30f, keysOf(session.model.value).last(), "clamped to the parameter's maximum")
+	}
 }

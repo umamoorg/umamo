@@ -254,10 +254,39 @@ fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, ne
 	if (nearestDistance >= EPS_SPAN || nearestOther.isNaN()) {
 		return newValue
 	}
-	// Pushed to the side it was already approaching from, so the nudge never reverses the drag.  A dead-on
-	// collision resolves in the direction of travel.
-	val approachingFromBelow = if (newValue == nearestOther) newValue < keys[keyIndex] else newValue < nearestOther
+	// Pushed to the side it was already approaching from, so the nudge never reverses the drag.
+	//
+	// A dead-on collision has no approach side, and resolving it by direction of travel would push a key
+	// dropped onto the LAST key out past it - and therefore out of the parameter's range, where the
+	// evaluator brackets nothing and every entity keyed on it disappears.  So an exact tie nudges INWARD,
+	// toward the middle of the axis, which is always somewhere the axis already reaches.
+	val approachingFromBelow =
+		if (newValue == nearestOther) {
+			nearestOther >= axisMidpointExcluding(keys, keyIndex)
+		} else {
+			newValue < nearestOther
+		}
 	return if (approachingFromBelow) nearestOther - EPS_SPAN else nearestOther + EPS_SPAN
+}
+
+/**
+ * The midpoint of every key except [keyIndex] - which half of the axis a colliding destination is in.
+ *
+ * @param FloatArray keys The axis's keys.
+ * @param Int keyIndex The key being moved, excluded from the span.
+ * @return Float The midpoint, or the moved key's own value when it is the only one.
+ */
+private fun axisMidpointExcluding(keys: FloatArray, keyIndex: Int): Float {
+	var lowest = Float.MAX_VALUE
+	var highest = -Float.MAX_VALUE
+	for (index in keys.indices) {
+		if (index == keyIndex) {
+			continue
+		}
+		lowest = minOf(lowest, keys[index])
+		highest = maxOf(highest, keys[index])
+	}
+	return if (lowest > highest) keys[keyIndex] else (lowest + highest) / 2f
 }
 
 /**

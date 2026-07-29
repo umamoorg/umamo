@@ -124,21 +124,45 @@ class TrackAxisTest {
 		assertEquals(listOf(-30f, 0f, 30f), summarizedMarks(row).map { mark -> mark.position })
 	}
 
-	/** Summary marks are flagged inert: a collapsed group cannot say which channel owns a key. */
+	/**
+	 * Summary marks are renumbered to their ordinal within the summary.
+	 *
+	 * The winner's own ordinal is meaningless across the group - two channels keyed at one value can hold
+	 * different ordinals - whereas a summary ordinal is a stable name the owner maps back to the whole set
+	 * of keys the mark stands for.
+	 */
 	@Test
-	fun summaryMarksAreNotEditable() {
+	fun summaryMarksAreRenumberedByPosition() {
 		val row =
 			TrackRow(
 				key = "owner",
 				label = "Owner",
 				children =
 					listOf(
-						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f))),
-						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(0, 30f))),
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 30f), TrackKeyMark(1, 0f))),
+						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(5, 30f))),
 					),
 			)
-		assertTrue(summarizedMarks(row).none { mark -> mark.editable }, "a summary stands for several keys")
-		assertTrue(row.children.first().marks.single().editable, "the child's own mark stays editable")
+		val summary = summarizedMarks(row)
+		assertEquals(listOf(0f, 30f), summary.map { mark -> mark.position }, "ascending by position")
+		assertEquals(listOf(0, 1), summary.map { mark -> mark.keyIndex }, "and renumbered to that order")
+		assertTrue(summary.all { mark -> mark.editable }, "a summary is a handle on the keys beneath it")
+	}
+
+	/** A key nothing can move is left out of the summary, so a summary mark never half-moves. */
+	@Test
+	fun summarySkipsUneditableKeys() {
+		val row =
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				children =
+					listOf(
+						TrackRow(key = "blend", label = "Blend", marks = listOf(TrackKeyMark(0, 12f, editable = false))),
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 30f))),
+					),
+			)
+		assertEquals(listOf(30f), summarizedMarks(row).map { mark -> mark.position })
 	}
 
 	/** A mark's shape survives the summary, so a blend-shape key still reads as a square when folded. */

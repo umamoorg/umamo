@@ -16,7 +16,7 @@ import org.umamo.runtime.model.WarpLatticeForm
  */
 
 // Bracket tolerances match the Umamo C++ Runtime, needed for ULP-parity with the differential-oracle test.
-// EN: a value within EPS_KEY of a key snaps to it; a key span below EPS_SPAN contributes no fraction.
+// A value within EPS_KEY of a key snaps to it; a key span below EPS_SPAN contributes no fraction.
 // Internal rather than private so runtime.keyform's grid algebra shares them: authoring a key closer than
 // EPS_KEY to an existing one, or a span below EPS_SPAN, produces a grid this evaluator cannot resolve, so
 // the algebra refuses both - and it must refuse against these exact values, not a second copy of them.

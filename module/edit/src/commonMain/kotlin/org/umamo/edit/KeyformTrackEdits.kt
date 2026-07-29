@@ -145,6 +145,29 @@ fun EditorSession.insertTrackKeyAt(track: KeyformTrackRef, parameter: Parameter,
 }
 
 /**
+ * Moves every key in [keys] to [toValue] as ONE undo step - the summary-row drag.
+ *
+ * They go to the same place rather than by the same delta because that is what dragging a summary mark
+ * means: the marks were stacked at one value and stay stacked.  Each still lands through its own track's
+ * `withKeyMoved`, so a key that would collide with a neighbour on ITS track is nudged the sub-pixel
+ * distance that keeps the span resolvable - the group can drift apart by at most EPS_SPAN, which is far
+ * below anything the sheet can draw.
+ *
+ * @param List keys The (track, parameter, key ordinal) triples to move.
+ * @param Float toValue The destination, in the parameter's units.
+ */
+fun EditorSession.moveTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, toValue: Float) {
+	if (keys.isEmpty()) {
+		return
+	}
+	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { model ->
+		keys.fold(model) { current, (track, parameter, keyIndex) ->
+			current.withTrackKeyMoved(track, parameter, keyIndex, clampToParameterRange(toValue, parameter))
+		}
+	}
+}
+
+/**
  * Nudges every key in [keys] along its parameter by [fraction] of that parameter's range, as ONE undo step.
  *
  * Relative to each parameter's own range rather than an absolute step, because ranges differ by orders of

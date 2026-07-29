@@ -264,6 +264,24 @@ class KeyformGridAlgebraTest {
 		assertEquals(42f, assertNotNull(sample(landed, 5f)), "the key it landed beside is still reachable")
 	}
 
+	/**
+	 * A key dropped exactly onto the LAST key is nudged inward, never past it.
+	 *
+	 * Outward would put it beyond the axis's own span - and so beyond the parameter's range, where the
+	 * evaluator brackets nothing and every entity keyed on it disappears.  That is the difference between
+	 * a sub-pixel nudge and a vanishing rig.
+	 */
+	@Test
+	fun aCollisionAtAnEndpointNudgesInward() {
+		val before = track(floatArrayOf(-30f, 0f, 30f), floatArrayOf(0f, 42f, 100f))
+		val onTheLast = before.withKeyMoved(angleX, keyIndex = 1, newValue = 30f)
+		val highest = onTheLast.axes.single().keys.max()
+		assertEquals(30f, highest, "the axis did not grow past where it already reached")
+
+		val onTheFirst = before.withKeyMoved(angleX, keyIndex = 1, newValue = -30f)
+		assertEquals(-30f, onTheFirst.axes.single().keys.min(), "and not below it either")
+	}
+
 	/** The mover's new ordinal is reported, so whatever is holding that key can follow it. */
 	@Test
 	fun theNewOrdinalIsReported() {

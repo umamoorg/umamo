@@ -16,6 +16,7 @@ import org.umamo.ui.tracks.TrackKeyMark
 import org.umamo.ui.tracks.TrackKeyShape
 import org.umamo.ui.tracks.TrackRow
 import org.umamo.ui.tracks.TrackRowTone
+import org.umamo.ui.tracks.summarizedMarks
 
 /*
  * The PuppetModel -> track rows projection: everything the keyform sheet knows about the document.
@@ -88,13 +89,29 @@ data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val key
  *   grid ops cannot touch it) - so a null lookup is the sheet's "this row is read-only" signal.
  * @property Map ownerKindByRowKey The owner kind behind each GROUP row, for its icon.
  * @property Set groupRowKeys Every group row's key, so a caller can seed "expand all".
+ * @property Map summaryMembersByRowKey What each GROUP row's summary marks stand for, indexed by the
+ *   summary ordinal the collapsed row draws them under.
  */
 class KeyformSheetProjection(
 	val rows: List<TrackRow>,
 	val tracksByRowKey: Map<String, KeyformTrackRef>,
 	val ownerKindByRowKey: Map<String, KeyformOwnerKind>,
 	val groupRowKeys: Set<String>,
-)
+	val summaryMembersByRowKey: Map<String, List<List<TrackKeyRef>>>,
+) {
+	/**
+	 * The child keys a summary mark stands for, or null when the row is not a collapsed group's.
+	 *
+	 * Null is the caller's signal that the mark is an ordinary one addressing a single key, so a summary
+	 * and a plain mark never have to be told apart by anything but this lookup.
+	 *
+	 * @param String rowKey The row the mark was drawn on.
+	 * @param Int summaryIndex The mark's ordinal within that row's summary.
+	 * @return List<TrackKeyRef>? The keys it stands for, or null.
+	 */
+	fun summaryMembers(rowKey: String, summaryIndex: Int): List<TrackKeyRef>? =
+		summaryMembersByRowKey[rowKey]?.getOrNull(summaryIndex)
+}
 
 /**
  * The per-(item, channel) tracks keyed on [parameterId], in outliner order, grouped under their owner.
@@ -115,7 +132,7 @@ class KeyformSheetProjection(
  * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it.
  */
 fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: KeyformTrackLabels): KeyformSheetProjection {
-	val builder = ProjectionBuilder(labels)
+	val builder = ProjectionBuilder(labels, parameterId)
 	for (part in puppet.parts) {
 		builder.addOwner(
 			ownerKey = "part:${part.id.raw}",
@@ -192,8 +209,9 @@ fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: Keyf
  * deriving it twice in two places is exactly how they drifted apart before.
  *
  * @property KeyformTrackLabels labels The localized chrome labels.
+ * @property ParameterId parameterId The parameter being listed, which is part of a key ref's identity.
  */
-private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
+private class ProjectionBuilder(private val labels: KeyformTrackLabels, private val parameterId: ParameterId) {
 	private val rows = ArrayList<TrackRow>()
 	private val tracks = HashMap<String, KeyformTrackRef>()
 	private val ownerKinds = HashMap<String, KeyformOwnerKind>()
@@ -276,6 +294,26 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 		ownerKinds[ownerKey] = ownerKind
 	}
 
+	/**
+	 * The keys each group row's summary marks stand for.
+	 *
+	 * Built from the same `summarizedMarks` the collapsed row draws with, so the ordinals line up by
+	 * construction rather than by two implementations agreeing.  A child key with no track ref (a
+	 * blend-shape binding) is excluded at source - `summarizedMarks` only summarizes editable marks - so a
+	 * summary mark never promises to move something that cannot move.
+	 *
+	 * @param TrackRow groupRow The group row to resolve.
+	 * @return List The member keys per summary ordinal.
+	 */
+	private fun summaryMembersOf(groupRow: TrackRow): List<List<TrackKeyRef>> =
+		summarizedMarks(groupRow).map { summaryMark ->
+			groupRow.children.flatMap { child ->
+				child.marks
+					.filter { mark -> mark.editable && mark.position == summaryMark.position }
+					.map { mark -> TrackKeyRef(parameterId, child.key, mark.keyIndex) }
+			}
+		}
+
 	/** The accumulated projection. */
 	fun build(): KeyformSheetProjection =
 		KeyformSheetProjection(
@@ -283,6 +321,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels) {
 			tracksByRowKey = tracks,
 			ownerKindByRowKey = ownerKinds,
 			groupRowKeys = rows.map { row -> row.key }.toSet(),
+			summaryMembersByRowKey = rows.associate { row -> row.key to summaryMembersOf(row) },
 		)
 }
 

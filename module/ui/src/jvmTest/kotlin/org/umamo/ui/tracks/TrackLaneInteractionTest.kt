@@ -345,14 +345,18 @@ class TrackLaneInteractionTest {
 			assertEquals(scrubbed.last(), assertNotNull(committedAt), "the commit lands where the drag ended")
 		}
 
-	/** A press on a COLLAPSED group's summary mark scrubs rather than starting a drag it cannot resolve. */
+	/**
+	 * A COLLAPSED group's summary mark is draggable, and reports its SUMMARY ordinal.
+	 *
+	 * That ordinal is the name its owner maps back to every child key stacked at that value, so one drag
+	 * moves the whole stack instead of guessing at which channel was meant.
+	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun summaryMarksAreNotDraggable() =
+	fun summaryMarksAreDraggable() =
 		runComposeUiTest {
 			var draggedMark: TrackKeyMark? = null
-			var markClicked: TrackKeyMark? = null
-			val scrubbed = mutableListOf<Float>()
+			var releasedAt: Float? = null
 			setContent {
 				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
 					TrackSheet(
@@ -362,9 +366,10 @@ class TrackLaneInteractionTest {
 						modifier = Modifier.fillMaxSize(),
 						// COLLAPSED, so the group row draws its subtree's summary marks.
 						expandedKeys = emptySet(),
-						onMarkClick = { _, mark -> markClicked = mark },
-						onTrackScrub = { _, value -> scrubbed.add(value) },
-						onMarkDragEnd = { _, mark, _ -> draggedMark = mark },
+						onMarkDragEnd = { _, mark, released ->
+							draggedMark = mark
+							releasedAt = released
+						},
 					)
 				}
 			}
@@ -378,9 +383,8 @@ class TrackLaneInteractionTest {
 				release()
 			}
 			waitForIdle()
-			assertNull(draggedMark, "a summary mark stands for several keys, so it cannot be dragged")
-			assertNull(markClicked, "nor selected")
-			assertTrue(scrubbed.isNotEmpty(), "the gesture reads as a scrub of the track instead")
+			assertEquals(1, assertNotNull(draggedMark).keyIndex, "the middle of three summary marks")
+			assertTrue(assertNotNull(releasedAt) > 0f, "dragging right raises the destination")
 		}
 
 	/** A scrub is clamped to the axis: dragging off the end of the track cannot push the pose out of range. */

@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.moveTrackKey
+import org.umamo.edit.moveTrackKeys
+import org.umamo.edit.removeTrackKeys
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
@@ -488,7 +490,10 @@ private fun KeyformSheetSection(
 		// how you land the pose exactly on a key without hunting with the slider. The two never conflict,
 		// so doing both is strictly more useful than choosing.
 		onMarkClick = { row, mark ->
-			onSelectedKeysChange(setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex)))
+			// A summary mark stands for every child key stacked at that value, so clicking it selects all
+			// of them - which is what makes Delete and the arrow nudges work on a folded group too.
+			val members = projection.summaryMembers(row.key, mark.keyIndex)
+			onSelectedKeysChange(members?.toSet() ?: setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex)))
 			liveParams?.preview(parameter.id, mark.position)
 			liveParams?.commit(setOf(parameter.id))
 		},
@@ -507,8 +512,23 @@ private fun KeyformSheetSection(
 		// One undo step per gesture, at its end - the same contract a slider drag has.
 		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
 		onMarkDragEnd = { row, mark, releasedAt ->
+			val members = projection.summaryMembers(row.key, mark.keyIndex)
 			val track = projection.tracksByRowKey[row.key]
-			if (session != null && track != null) {
+			if (session != null && members != null) {
+				// Dragging a summary moves everything it stands for, to one destination, as one undo step -
+				// they were stacked at a value and stay stacked.
+				session.moveTrackKeys(
+					members.mapNotNull { member ->
+						projection.tracksByRowKey[member.rowKey]?.let { memberTrack ->
+							Triple(memberTrack, parameter, member.keyIndex)
+						}
+					},
+					releasedAt,
+				)
+				// Every member's ordinal may have changed on its own track, so the safe answer is to select
+				// the group mark's new membership rather than guess - it is recomputed from the new model.
+				onSelectedKeysChange(emptySet())
+			} else if (session != null && track != null) {
 				// A key may cross its neighbours, which renumbers the axis - so the move reports where the
 				// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
 				// would silently leave the selection on whichever key took its place.
@@ -542,7 +562,28 @@ private fun KeyformSheetSection(
 			// dispatch-time read and cleared right after.
 			val track = projection.tracksByRowKey[hit.row.key]
 			val hitMark = hit.mark
+			val summaryMembers = hitMark?.let { mark -> projection.summaryMembers(hit.row.key, mark.keyIndex) }
 			when {
+				// A summary mark stands for several keys, so its menu removes them all in one step.  There
+				// is no Insert counterpart: a folded group cannot say which of its tracks a new key belongs
+				// on, and picking one would be a guess.
+				session != null && summaryMembers != null ->
+					listOf(
+						MenuItem.Action(
+							label = deleteLabel,
+							onSelect = {
+								session.removeTrackKeys(
+									summaryMembers.mapNotNull { member ->
+										projection.tracksByRowKey[member.rowKey]?.let { memberTrack ->
+											Triple(memberTrack, parameter, member.keyIndex)
+										}
+									},
+								)
+								onSelectedKeysChange(emptySet())
+							},
+						),
+					)
+
 				session == null || track == null -> emptyList()
 				hitMark != null ->
 					listOf(

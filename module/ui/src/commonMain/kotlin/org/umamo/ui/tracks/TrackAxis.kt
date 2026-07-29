@@ -188,10 +188,9 @@ enum class TrackKeyShape {
  * that edits a key has to say which one by ordinal.  Resolving "the key at this value" instead is
  * ambiguous exactly when it matters, and picks the wrong key silently.
  *
- * A summary mark (drawn on a collapsed group) carries the index it had in whichever child it came from,
- * which is meaningless across the group as a whole.  Those marks are flagged NOT [editable] for exactly
- * that reason: the group's row says keys exist at these values, it cannot say which channel owns them, and
- * an edit that has to guess is worse than no edit.
+ * A summary mark (drawn on a collapsed group) is renumbered to its ordinal within the SUMMARY, which its
+ * owner maps back to the whole set of child keys it stands for - so acting on one acts on all of them at
+ * once rather than guessing at which channel was meant.
  *
  * @property Int keyIndex The mark's ordinal within its row's track.
  * @property Float position The mark's domain value (a parameter value, a frame, …).
@@ -322,14 +321,21 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 
 	fun visit(current: TrackRow) {
 		for (mark in current.marks) {
-			// NOT editable: one summary mark can stand for several channels' keys at that value, so there
-			// is no single key a drag or a delete could mean.  Expanding the group is how you reach them.
-			byPosition.getOrPut(mark.position) { mark.copy(editable = false) }
+			// Only an EDITABLE child key can be summarized: a summary mark is a handle on the keys beneath
+			// it, so one standing partly on keys nothing can move would move only some of what it shows.
+			if (mark.editable) {
+				byPosition.getOrPut(mark.position) { mark }
+			}
 		}
 		current.children.forEach(::visit)
 	}
 	visit(row)
-	return byPosition.values.sortedBy { mark -> mark.position }
+	// Renumbered to its position in the SUMMARY.  The winner's own ordinal is meaningless across the group
+	// (two channels keyed at one value can hold different ordinals), whereas a summary ordinal is a stable
+	// name the owner can map back to the whole set of keys it stands for.
+	return byPosition.values.sortedBy { mark -> mark.position }.mapIndexed { ordinal, mark ->
+		mark.copy(keyIndex = ordinal)
+	}
 }
 
 /**
