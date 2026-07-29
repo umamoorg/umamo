@@ -204,6 +204,13 @@
 	<string name="history_drawable_masked_by">Set Masks</string>
 	<string name="history_drawable_multiply_color">Set Multiply Color</string>
 	<string name="history_drawable_screen_color">Set Screen Color</string>
+	<string name="history_drawable_opacity">Set Opacity</string>
+	<string name="history_drawable_draw_order">Set Draw Order</string>
+	<string name="history_deformer_opacity">Set Deformer Opacity</string>
+	<string name="history_deformer_multiply_color">Set Deformer Multiply Color</string>
+	<string name="history_deformer_screen_color">Set Deformer Screen Color</string>
+	<string name="history_deformer_flip_x">Set Flip X</string>
+	<string name="history_deformer_flip_y">Set Flip Y</string>
 	<string name="history_deformer_part">Set Part</string>
 	<string name="history_deformer_base_angle">Set Base Angle</string>
 	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>
@@ -401,6 +408,8 @@
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Cull Back Faces</string>
 	<string name="properties_field_invert_mask">Invert Mask</string>
+	<string name="properties_field_flip_x">Flip X</string>
+	<string name="properties_field_flip_y">Flip Y</string>
 	<string name="properties_field_base_angle">Base Angle</string>
 	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
 	<string name="properties_field_sketch">Guide Image</string>

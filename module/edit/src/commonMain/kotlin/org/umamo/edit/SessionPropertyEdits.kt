@@ -60,6 +60,76 @@ fun EditorSession.setDrawableInvertMask(id: DrawableId, invert: Boolean) {
 }
 
 /**
+ * Sets drawable [id]'s static opacity as one undo step.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Float opacity The new opacity.
+ */
+fun EditorSession.setDrawableOpacity(id: DrawableId, opacity: Float) {
+	mutate(DrawableChange.SetOpacity(id, opacity)) { model -> model.withDrawableOpacity(id, opacity) }
+}
+
+/**
+ * Sets drawable [id]'s static draw order as one undo step.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Float drawOrder The new draw order.
+ */
+fun EditorSession.setDrawableDrawOrder(id: DrawableId, drawOrder: Float) {
+	mutate(DrawableChange.SetDrawOrder(id, drawOrder)) { model -> model.withDrawableDrawOrder(id, drawOrder) }
+}
+
+/**
+ * Sets deformer [id]'s static opacity as one undo step.  Cascades onto every drawable beneath it.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Float opacity The new opacity.
+ */
+fun EditorSession.setDeformerOpacity(id: DeformerId, opacity: Float) {
+	mutate(DeformerChange.SetOpacity(id, opacity)) { model -> model.withDeformerOpacity(id, opacity) }
+}
+
+/**
+ * Sets deformer [id]'s static multiply color as one undo step.  Cascades onto every drawable beneath it.
+ *
+ * @param DeformerId id The deformer to retint.
+ * @param ColorRgb color The new multiply color.
+ */
+fun EditorSession.setDeformerMultiplyColor(id: DeformerId, color: ColorRgb) {
+	mutate(DeformerChange.SetMultiplyColor(id, color)) { model -> model.withDeformerMultiplyColor(id, color) }
+}
+
+/**
+ * Sets deformer [id]'s static screen color as one undo step.  Cascades onto every drawable beneath it.
+ *
+ * @param DeformerId id The deformer to retint.
+ * @param ColorRgb color The new screen color.
+ */
+fun EditorSession.setDeformerScreenColor(id: DeformerId, color: ColorRgb) {
+	mutate(DeformerChange.SetScreenColor(id, color)) { model -> model.withDeformerScreenColor(id, color) }
+}
+
+/**
+ * Sets rotation deformer [id]'s static horizontal reflection as one undo step.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Boolean flip The new reflection state.
+ */
+fun EditorSession.setDeformerFlipX(id: DeformerId, flip: Boolean) {
+	mutate(DeformerChange.SetFlipX(id, flip)) { model -> model.withDeformerFlipX(id, flip) }
+}
+
+/**
+ * Sets rotation deformer [id]'s static vertical reflection as one undo step.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Boolean flip The new reflection state.
+ */
+fun EditorSession.setDeformerFlipY(id: DeformerId, flip: Boolean) {
+	mutate(DeformerChange.SetFlipY(id, flip)) { model -> model.withDeformerFlipY(id, flip) }
+}
+
+/**
  * Sets drawable [id]'s 5.3 multiply color (uniformly across its keyform grid) as one undo step.
  *
  * @param DrawableId id The drawable to retint.

@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -41,13 +43,21 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * @param Boolean  checked         Current state.
  * @param Function onCheckedChange Toggle callback.
  * @param String   label           The row label.
+ * @param KeyedFieldState keyState  The keyform state to tint the box's border with.
  */
 @Composable
-fun Checkbox(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
+fun Checkbox(
+	checked: Boolean,
+	onCheckedChange: (Boolean) -> Unit,
+	label: String,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+) {
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val boxFill = if (checked) colors.accent else colors.controlBackground
-	val boxBorder = colors.controlBorder
+	// The keyed tint replaces the box's ordinary border, the way HexColorField does it - a checkbox is
+	// small enough that a second mark beside it would be the louder signal, not the quieter one.
+	val boxBorder = keyState.tint(colors) ?: colors.controlBorder
 	val checkColor = colors.accentText
 	Row(
 		modifier =

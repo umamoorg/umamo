@@ -84,13 +84,16 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
 	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-	* Live updating for parameter srubbing, but commit to history only when releasing.
+	* Live updating for property srubbing, but commit to history only when releasing.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
 * Create document of how channel compacting and tracks works along with keyform grids and axises.
+* Bugs
+	* The property edited border should not show up on unkeyed properties while scrubbing.  For example, scrubbing opacity on an unkeyed part results it in showing the keyedModified border while scrubbing.
+	* Opacity is being rounded to two decimal places even on manual input.  We should expand it to three decimal places.
 
 ## Properties
 * NumberField
@@ -143,6 +146,9 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
+
+## Glue
+* Glue intensity is keyable but has no Properties home (glue is not selectable) — see Claude Notes § Glue intensity has no editable home.
 
 ## Outliner
 * Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
@@ -239,6 +245,35 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 	buffer) and loop the welds in the shader **in the CPU's pair order** so the sequential result matches.
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
+
+## Glue intensity has no editable home (deferred 2026-07-29)
+
+**What.** `Glue.intensity` is a real keyable channel — `FormChannel.GLUE_INTENSITY`, with a static on
+`Glue` and a track in `channelGrids` — and the keyform sheet already renders a row per glue and can move,
+insert and delete its keys. What it has nowhere is a **Properties** home: there is no `SelectionTarget.Glue`,
+no outliner entry, and no property section, so intensity cannot be typed, scrubbed, or keyed with `I` the
+way every other channel now can. `:edit` also has no `withGlueIntensity` / `setGlueIntensity`; the only
+writes are whole-object reconstructs inside the keyform and topology ops.
+
+**Why it's fine right now.** The channel is reachable where it matters most — the sheet — and intensity is
+the least-touched of the keyable channels (a weld is usually 1.0 and left alone). Nothing is silently
+broken: an unexposed channel simply cannot be edited, rather than being editable and wrong.
+
+**What giving it a home costs.** Four things, none of them local:
+1. A new `SelectionTarget.Glue`, which touches selection, the outliner, the relation-pick system, and every
+	exhaustive `when` over selection targets.
+2. A stable identity story. A glue has **no id** — `KeyformOwner.Glue` addresses it by the `(meshA, meshB)`
+	pair precisely because a list ordinal is not stable across edits (`KeyableTarget.kt`).
+3. `Glue` is a plain `class`, not a `data class`, so it has no `copy()`; every rewrite reconstructs the full
+	constructor. A `withGlueIntensity` must do the same.
+4. An outliner presence raises a design question that has never been answered: where does a glue *sit* in a
+	tree organised by parts and deformers, when it belongs to neither and welds two meshes that may be far
+	apart in it?
+
+**Fix sketch (when/if it bites).** The cheap half is `withGlueIntensity` / `setGlueIntensity` plus a
+`GlueChange`, following the standard three-file property-op pattern — that alone would let the sheet's
+context menu and `I` write the static. The expensive half is selectability, and is worth deferring until
+there is a second reason to want it.
 
 ## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
 Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.

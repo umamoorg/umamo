@@ -124,8 +124,27 @@ fun EditorSession.editKeyedChannel(target: KeyableTarget, value: ChannelValue, w
 	if (keyed) {
 		setPendingChannelEdit(target, value)
 	} else {
+		// A scrub previews through the pending buffer even on an unkeyed channel (see previewChannelEdit),
+		// so the static write has to retire that preview - otherwise the stale pending value keeps
+		// shadowing the very static just committed, and the field stays tinted as an uncommitted edit.
+		clearPendingChannelEdit(target)
 		writeStatic()
 	}
+}
+
+/**
+ * Previews [value] on [target] without committing anything - what a field reports while being scrubbed.
+ *
+ * Always the pending buffer, whether or not the channel is keyed.  For a keyed channel that is already
+ * where a committed edit lands, so preview and commit coincide; for an unkeyed one it is the difference
+ * between a live viewport and a history entry per pointer frame.  [editKeyedChannel] retires the preview
+ * when the gesture ends.
+ *
+ * @param KeyableTarget target The entity and channel being scrubbed.
+ * @param ChannelValue value The in-flight value.
+ */
+fun EditorSession.previewChannelEdit(target: KeyableTarget, value: ChannelValue) {
+	setPendingChannelEdit(target, value)
 }
 
 /**

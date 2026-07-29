@@ -91,4 +91,29 @@ class NumberFieldMathTest {
 		// The First and Last shapes genuinely differ from the standalone rounding.
 		assertTrue(stackedShape(group, StackPosition.First, StackAxis.Vertical) != group)
 	}
+
+	/**
+	 * A scrub maps the TOTAL pointer delta onto a FIXED base, so the caller must latch the value the drag
+	 * started from rather than re-reading the live one.
+	 *
+	 * This is the contract `NumberFieldCore` has to honour, and honouring it stopped being automatic once
+	 * fields gained a live preview: the property rows feed each previewed value straight back in, so the
+	 * live value moves during the drag.  Passing that moving value as the base compounds the movement -
+	 * the scrub accelerates, and reversing direction spends its first stretch unwinding the drift.
+	 */
+	@Test
+	fun scrubbingIsLinearInTheTotalDeltaFromAFixedBase() {
+		val range = 0f..1000f
+		val base = 100f
+		// Six pixels per step, so 60px of total travel is ten steps whatever route the pointer took.
+		assertEquals(110f, scrubValue(base, 60f, step = 1f, range = range), 1e-4f)
+		assertEquals(120f, scrubValue(base, 120f, step = 1f, range = range), 1e-4f)
+		// Returning the pointer to where it started returns the value to where it started.
+		assertEquals(base, scrubValue(base, 0f, step = 1f, range = range), 1e-4f)
+
+		// Feeding each result back in as the next base is what the bug did: the same 120px of travel,
+		// reported in two frames, lands somewhere else entirely.
+		val compounded = scrubValue(scrubValue(base, 60f, step = 1f, range = range), 120f, step = 1f, range = range)
+		assertEquals(130f, compounded, 1e-4f, "a drifting base overshoots - which is why the base is latched")
+	}
 }

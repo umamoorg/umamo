@@ -102,6 +102,18 @@ internal fun displayedChannelValue(owner: KeyformOwner, channel: FormChannel, st
 }
 
 /**
+ * The [displayedChannelValue] of a flag channel, unwrapped.
+ *
+ * @param KeyformOwner owner The entity the row edits.
+ * @param FormChannel channel The flag channel the row edits.
+ * @param Boolean stored The owner's static value.
+ * @return Boolean The value to show.
+ */
+@Composable
+internal fun displayedChannelFlag(owner: KeyformOwner, channel: FormChannel, stored: Boolean): Boolean =
+	(displayedChannelValue(owner, channel, ChannelValue.Flag(stored)) as? ChannelValue.Flag)?.flag ?: stored
+
+/**
  * The [displayedChannelValue] of a scalar channel, unwrapped.
  *
  * @param KeyformOwner owner The entity the row edits.

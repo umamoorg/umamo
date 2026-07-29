@@ -9,13 +9,21 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editKeyedChannel
+import org.umamo.edit.previewChannelEdit
 import org.umamo.edit.setDeformerBaseAngle
+import org.umamo.edit.setDeformerFlipX
+import org.umamo.edit.setDeformerFlipY
+import org.umamo.edit.setDeformerMultiplyColor
+import org.umamo.edit.setDeformerOpacity
 import org.umamo.edit.setDeformerQuadTransform
+import org.umamo.edit.setDeformerScreenColor
 import org.umamo.edit.setDrawableAlphaBlendMode
 import org.umamo.edit.setDrawableBlendMode
 import org.umamo.edit.setDrawableCulling
+import org.umamo.edit.setDrawableDrawOrder
 import org.umamo.edit.setDrawableInvertMask
 import org.umamo.edit.setDrawableMultiplyColor
+import org.umamo.edit.setDrawableOpacity
 import org.umamo.edit.setDrawableScreenColor
 import org.umamo.edit.setPartComposite
 import org.umamo.edit.setPartDrawOrder
@@ -126,6 +134,35 @@ internal val BlendSection =
 							}
 						}
 					},
+					// Opacity and draw order are keyable channels like the colours below, each with its own
+					// static and its own optional track.  Draw order is a FLOAT here, unlike a part's int:
+					// it blends per pose, so a fractional value between two keys is meaningful.
+					PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
+						KeyableScalarChannelRow(
+							label = stringResource(Res.string.properties_field_opacity),
+							owner = KeyformOwner.Drawable(drawable.id),
+							channel = FormChannel.OPACITY,
+							stored = drawable.opacity,
+							session = session,
+							range = 0f..1f,
+							decimals = 2,
+							step = 0.05f,
+							writeStatic = { opacity -> session?.setDrawableOpacity(drawable.id, opacity) },
+						)
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
+						KeyableScalarChannelRow(
+							label = stringResource(Res.string.properties_field_draw_order),
+							owner = KeyformOwner.Drawable(drawable.id),
+							channel = FormChannel.DRAW_ORDER,
+							stored = drawable.drawOrder,
+							session = session,
+							range = 0f..1000f,
+							decimals = 0,
+							step = 1f,
+							writeStatic = { order -> session?.setDrawableDrawOrder(drawable.id, order) },
+						)
+					},
 					// The 5.3 per-art-mesh multiply/screen color: a channel with its own static and its own
 					// optional keyform track, so the picker writes the static and `I` over the row keys it.
 					PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
@@ -183,35 +220,57 @@ internal val DeformerSection =
 			val session = context.session
 			when (val deformer = context.activeDeformer()) {
 				is Deformer.Warp ->
-					listOf(
-						PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
-							// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
-							PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
-						},
-						PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
-							PropertyCheckboxRow(
-								checked = deformer.isQuadTransform,
-								onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
-								label = stringResource(Res.string.properties_field_quad_transform),
-							)
-						},
-					)
+					deformerRenderChannelRows(deformer, session) +
+						listOf(
+							PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
+								// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
+								PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
+							},
+							PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
+								PropertyCheckboxRow(
+									checked = deformer.isQuadTransform,
+									onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+									label = stringResource(Res.string.properties_field_quad_transform),
+								)
+							},
+						)
 
 				is Deformer.Rotation ->
-					listOf(
-						PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-							PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
-								NumberField(
-									value = deformer.baseAngle,
-									onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-									modifier = Modifier.fillMaxWidth(),
-									range = UNBOUNDED_RANGE,
-									decimals = 1,
-									unitSuffix = stringResource(Res.string.unit_degrees),
+					deformerRenderChannelRows(deformer, session) +
+						listOf(
+							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
+								PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+									NumberField(
+										value = deformer.baseAngle,
+										onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
+										modifier = Modifier.fillMaxWidth(),
+										range = UNBOUNDED_RANGE,
+										decimals = 1,
+										unitSuffix = stringResource(Res.string.unit_degrees),
+									)
+								}
+							},
+							PropertyRow(terms = listOf(Res.string.properties_field_flip_x)) { _ ->
+								KeyableFlagChannelRow(
+									label = stringResource(Res.string.properties_field_flip_x),
+									owner = KeyformOwner.Deformer(deformer.id),
+									channel = FormChannel.FLIP_X,
+									stored = deformer.flipX,
+									session = session,
+									writeStatic = { flip -> session?.setDeformerFlipX(deformer.id, flip) },
 								)
-							}
-						},
-					)
+							},
+							PropertyRow(terms = listOf(Res.string.properties_field_flip_y)) { _ ->
+								KeyableFlagChannelRow(
+									label = stringResource(Res.string.properties_field_flip_y),
+									owner = KeyformOwner.Deformer(deformer.id),
+									channel = FormChannel.FLIP_Y,
+									stored = deformer.flipY,
+									session = session,
+									writeStatic = { flip -> session?.setDeformerFlipY(deformer.id, flip) },
+								)
+							},
+						)
 
 				null -> emptyList()
 			}
@@ -253,10 +312,13 @@ internal val PartSection =
 												FormChannel.DRAW_ORDER,
 												part.drawOrder.toFloat(),
 											).roundToInt(),
-										onValueChange = { order ->
+										onValueChange = { order: Int ->
 											session?.editKeyedChannel(target, ChannelValue.Scalar(order.toFloat())) {
 												session.setPartDrawOrder(part.id, order)
 											}
+										},
+										onPreview = { order: Int ->
+											session?.previewChannelEdit(target, ChannelValue.Scalar(order.toFloat()))
 										},
 										range = 0..1000,
 										modifier = Modifier.fillMaxWidth(),
@@ -463,6 +525,113 @@ private fun KeyableColorChannelRow(
 }
 
 /**
+ * One keyable FLAG channel's row: the scalar and colour rows' counterpart for a checkbox.
+ *
+ * A flag snaps to the floor cell rather than blending, which is why it is a channel at all rather than a
+ * field on the pivot form - but from the row's point of view it keys exactly like the others.
+ *
+ * @param String label The checkbox's label.
+ * @param KeyformOwner owner The entity the row edits.
+ * @param FormChannel channel The flag channel the row edits.
+ * @param Boolean stored The owner's static value.
+ * @param EditorSession? session The open document's session, or null.
+ * @param Function writeStatic Writes the owner's static value (the unkeyed path).
+ */
+@Composable
+private fun KeyableFlagChannelRow(
+	label: String,
+	owner: KeyformOwner,
+	channel: FormChannel,
+	stored: Boolean,
+	session: EditorSession?,
+	writeStatic: (Boolean) -> Unit,
+) {
+	val target = KeyableTarget(owner, channel)
+	KeyablePropertyRow(target = target) {
+		PropertyCheckboxRow(
+			keyState = keyedFieldStateOf(owner, channel),
+			// What is APPLIED: a keyed channel's track shadows the static.
+			checked = displayedChannelFlag(owner, channel, stored),
+			onCheckedChange = { flag ->
+				session?.editKeyedChannel(target, ChannelValue.Flag(flag)) { writeStatic(flag) }
+			},
+			label = label,
+		)
+	}
+}
+
+/**
+ * A deformer's three keyable render channels: opacity, multiply color, screen color.
+ *
+ * Shared by both subtypes because both carry them and both cascade them.  Listed FIRST in the section, so
+ * the channels a rigger keys sit above the structural fields (lattice dimensions, base angle) that are set
+ * once and left alone.
+ *
+ * @param Deformer deformer The deformer the rows edit.
+ * @param EditorSession? session The open document's session, or null.
+ * @return List<PropertyRow> The three rows.
+ */
+private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession?): List<PropertyRow> {
+	val owner = KeyformOwner.Deformer(deformer.id)
+	return listOf(
+		PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
+			KeyableScalarChannelRow(
+				label = stringResource(Res.string.properties_field_opacity),
+				owner = owner,
+				channel = FormChannel.OPACITY,
+				stored = deformerOpacityOf(deformer),
+				session = session,
+				range = 0f..1f,
+				decimals = 2,
+				step = 0.05f,
+				writeStatic = { opacity -> session?.setDeformerOpacity(deformer.id, opacity) },
+			)
+		},
+		PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
+			KeyableColorChannelRow(
+				label = stringResource(Res.string.properties_field_multiply_color),
+				owner = owner,
+				channel = FormChannel.MULTIPLY_COLOR,
+				stored = deformerMultiplyColorOf(deformer),
+				session = session,
+				writeStatic = { color -> session?.setDeformerMultiplyColor(deformer.id, color) },
+			)
+		},
+		PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
+			KeyableColorChannelRow(
+				label = stringResource(Res.string.properties_field_screen_color),
+				owner = owner,
+				channel = FormChannel.SCREEN_COLOR,
+				stored = deformerScreenColorOf(deformer),
+				session = session,
+				writeStatic = { color -> session?.setDeformerScreenColor(deformer.id, color) },
+			)
+		},
+	)
+}
+
+/** A deformer's static opacity, whichever subtype it is. */
+private fun deformerOpacityOf(deformer: Deformer): Float =
+	when (deformer) {
+		is Deformer.Warp -> deformer.opacity
+		is Deformer.Rotation -> deformer.opacity
+	}
+
+/** A deformer's static multiply color, whichever subtype it is. */
+private fun deformerMultiplyColorOf(deformer: Deformer): ColorRgb =
+	when (deformer) {
+		is Deformer.Warp -> deformer.multiplyColor
+		is Deformer.Rotation -> deformer.multiplyColor
+	}
+
+/** A deformer's static screen color, whichever subtype it is. */
+private fun deformerScreenColorOf(deformer: Deformer): ColorRgb =
+	when (deformer) {
+		is Deformer.Warp -> deformer.screenColor
+		is Deformer.Rotation -> deformer.screenColor
+	}
+
+/**
  * One keyable SCALAR channel's field row: [KeyableColorChannelRow]'s counterpart for a number field.
  *
  * @param String label The row's field label.
@@ -494,7 +663,7 @@ private fun KeyableScalarChannelRow(
 				keyState = keyedFieldStateOf(owner, channel),
 				// What is APPLIED: a keyed channel's track shadows the static.
 				value = displayedChannelScalar(owner, channel, stored),
-				onValueChange = { value ->
+				onValueChange = { value: Float ->
 					session?.editKeyedChannel(target, ChannelValue.Scalar(value)) {
 						writeStatic(value)
 					}
@@ -503,6 +672,11 @@ private fun KeyableScalarChannelRow(
 				range = range,
 				decimals = decimals,
 				step = step,
+				// A drag-scrub previews through the pending buffer so the viewport follows the pointer, and
+				// commits once on release - the same two-phase contract the parameter sliders have.
+				onPreview = { previewed: Float ->
+					session?.previewChannelEdit(target, ChannelValue.Scalar(previewed))
+				},
 			)
 		}
 	}

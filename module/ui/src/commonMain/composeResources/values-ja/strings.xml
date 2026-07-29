@@ -182,6 +182,13 @@
 	<string name="history_drawable_masked_by">マスクを設定</string>
 	<string name="history_drawable_multiply_color">乗算色を設定</string>
 	<string name="history_drawable_screen_color">スクリーン色を設定</string>
+	<string name="history_drawable_opacity">不透明度を設定</string>
+	<string name="history_drawable_draw_order">描画順を設定</string>
+	<string name="history_deformer_opacity">デフォーマの不透明度を設定</string>
+	<string name="history_deformer_multiply_color">デフォーマの乗算色を設定</string>
+	<string name="history_deformer_screen_color">デフォーマのスクリーン色を設定</string>
+	<string name="history_deformer_flip_x">左右反転を設定</string>
+	<string name="history_deformer_flip_y">上下反転を設定</string>
 	<string name="history_deformer_part">パーツを設定</string>
 	<string name="history_deformer_base_angle">基準角度を設定</string>
 	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>
@@ -360,6 +367,8 @@
 	<string name="properties_field_alpha_mode">アルファ</string>
 	<string name="properties_field_culling">裏面をカリング</string>
 	<string name="properties_field_invert_mask">マスクを反転</string>
+	<string name="properties_field_flip_x">左右反転</string>
+	<string name="properties_field_flip_y">上下反転</string>
 	<string name="properties_field_base_angle">基準角度</string>
 	<string name="properties_field_quad_transform">バイリニア（クアッド）</string>
 	<string name="properties_field_sketch">ガイド画像</string>

@@ -290,6 +290,50 @@ fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetMod
 }
 
 /**
+ * Returns a copy of [this] with the drawable [id]'s static opacity set to [opacity], sharing every other
+ * entity. A no-op id (no such drawable, or the value already matches) returns the same instance.
+ *
+ * Writes the STATIC only. When the drawable keys opacity, the track shadows this and the edit is invisible
+ * at any pose the track covers - which is why the Properties row routes a keyed channel's edit into the
+ * pending-edit buffer instead of here.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Float opacity The new opacity.
+ * @return PuppetModel The model with that drawable's opacity updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableOpacity(id: DrawableId, opacity: Float): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].opacity == opacity) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(opacity = opacity)
+	return copy(drawables = updated)
+}
+
+/**
+ * Returns a copy of [this] with the drawable [id]'s static draw order set to [drawOrder], sharing every
+ * other entity. A no-op id (no such drawable, or the value already matches) returns the same instance.
+ *
+ * Deliberately does NOT re-derive the render root, unlike [withPartDrawOrder]. A part's draw order is
+ * baked into the derived group tree; a drawable's is resolved per POSE at render time as its draw-order
+ * channel's static, so the tree is unaffected and re-deriving would be wasted work on every edit.
+ *
+ * @param DrawableId id The drawable to retarget.
+ * @param Float drawOrder The new draw order.
+ * @return PuppetModel The model with that drawable's draw order updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDrawableDrawOrder(id: DrawableId, drawOrder: Float): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0 || drawables[index].drawOrder == drawOrder) {
+		return this
+	}
+	val updated = drawables.toMutableList()
+	updated[index] = updated[index].copy(drawOrder = drawOrder)
+	return copy(drawables = updated)
+}
+
+/**
  * Returns a copy of [this] with drawable [id]'s static [FormChannel.MULTIPLY_COLOR] set to [color].
  * A no-op (missing drawable, or the color already set) returns the same instance.
  *
@@ -407,6 +451,131 @@ fun PuppetModel.withDeformerPart(id: DeformerId, partId: PartId?): PuppetModel {
 			is Deformer.Warp -> deformer.copy(partId = partId)
 			is Deformer.Rotation -> deformer.copy(partId = partId)
 		}
+	return copy(deformers = updated)
+}
+
+/**
+ * Returns a copy of [this] with the deformer [id]'s static opacity set to [opacity], sharing every other
+ * entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ *
+ * A deformer's render channels CASCADE onto every drawable beneath it - they compose by product at render
+ * time - so this is a different lever from setting each of those drawables' own opacity.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Float opacity The new opacity.
+ * @return PuppetModel The model with that deformer's opacity updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerOpacity(id: DeformerId, opacity: Float): PuppetModel =
+	withDeformerRewritten(id, { deformer -> deformerOpacityOf(deformer) == opacity }) { deformer ->
+		when (deformer) {
+			is Deformer.Warp -> deformer.copy(opacity = opacity)
+			is Deformer.Rotation -> deformer.copy(opacity = opacity)
+		}
+	}
+
+/**
+ * Returns a copy of [this] with the deformer [id]'s static multiply color set to [color], sharing every
+ * other entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param ColorRgb color The new multiply color.
+ * @return PuppetModel The model with that deformer's multiply color updated, or [this] if unchanged.
+ */
+fun PuppetModel.withDeformerMultiplyColor(id: DeformerId, color: ColorRgb): PuppetModel =
+	withDeformerRewritten(id, { deformer -> deformerMultiplyColorOf(deformer) == color }) { deformer ->
+		when (deformer) {
+			is Deformer.Warp -> deformer.copy(multiplyColor = color)
+			is Deformer.Rotation -> deformer.copy(multiplyColor = color)
+		}
+	}
+
+/**
+ * Returns a copy of [this] with the deformer [id]'s static screen color set to [color], sharing every
+ * other entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param ColorRgb color The new screen color.
+ * @return PuppetModel The model with that deformer's screen color updated, or [this] if unchanged.
+ */
+fun PuppetModel.withDeformerScreenColor(id: DeformerId, color: ColorRgb): PuppetModel =
+	withDeformerRewritten(id, { deformer -> deformerScreenColorOf(deformer) == color }) { deformer ->
+		when (deformer) {
+			is Deformer.Warp -> deformer.copy(screenColor = color)
+			is Deformer.Rotation -> deformer.copy(screenColor = color)
+		}
+	}
+
+/**
+ * Returns a copy of [this] with the ROTATION deformer [id]'s static horizontal reflection set to [flip].
+ *
+ * A no-op (no such deformer, a warp - which has no reflection - or the value already matches) returns the
+ * same instance.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Boolean flip The new reflection state.
+ * @return PuppetModel The model with that deformer's flip updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerFlipX(id: DeformerId, flip: Boolean): PuppetModel =
+	withDeformerRewritten(id, { deformer -> deformer !is Deformer.Rotation || deformer.flipX == flip }) { deformer ->
+		(deformer as Deformer.Rotation).copy(flipX = flip)
+	}
+
+/**
+ * Returns a copy of [this] with the ROTATION deformer [id]'s static vertical reflection set to [flip].
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Boolean flip The new reflection state.
+ * @return PuppetModel The model with that deformer's flip updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withDeformerFlipY(id: DeformerId, flip: Boolean): PuppetModel =
+	withDeformerRewritten(id, { deformer -> deformer !is Deformer.Rotation || deformer.flipY == flip }) { deformer ->
+		(deformer as Deformer.Rotation).copy(flipY = flip)
+	}
+
+/** A deformer's static opacity, whichever subtype it is. */
+private fun deformerOpacityOf(deformer: Deformer): Float =
+	when (deformer) {
+		is Deformer.Warp -> deformer.opacity
+		is Deformer.Rotation -> deformer.opacity
+	}
+
+/** A deformer's static multiply color, whichever subtype it is. */
+private fun deformerMultiplyColorOf(deformer: Deformer): ColorRgb =
+	when (deformer) {
+		is Deformer.Warp -> deformer.multiplyColor
+		is Deformer.Rotation -> deformer.multiplyColor
+	}
+
+/** A deformer's static screen color, whichever subtype it is. */
+private fun deformerScreenColorOf(deformer: Deformer): ColorRgb =
+	when (deformer) {
+		is Deformer.Warp -> deformer.screenColor
+		is Deformer.Rotation -> deformer.screenColor
+	}
+
+/**
+ * The shared deformer-rewrite skeleton: find, refuse a no-op, copy-on-write.
+ *
+ * Deformer is a sealed interface with no shared copy, so every static setter would otherwise repeat the
+ * same find / guard / toMutableList dance around a two-branch when.  Factored so adding a subtype is one
+ * compile error per op rather than a silently unhandled branch.
+ *
+ * @param DeformerId id The deformer to rewrite.
+ * @param Function isNoOp True when the edit would change nothing, or does not apply to this subtype.
+ * @param Function rewrite Produces the replacement deformer.
+ * @return PuppetModel The rewritten model, or [this] when the edit was a no-op.
+ */
+private inline fun PuppetModel.withDeformerRewritten(
+	id: DeformerId,
+	isNoOp: (Deformer) -> Boolean,
+	rewrite: (Deformer) -> Deformer,
+): PuppetModel {
+	val index = deformers.indexOfFirst { deformer -> deformer.id == id }
+	if (index < 0 || isNoOp(deformers[index])) {
+		return this
+	}
+	val updated = deformers.toMutableList()
+	updated[index] = rewrite(updated[index])
 	return copy(deformers = updated)
 }
 
