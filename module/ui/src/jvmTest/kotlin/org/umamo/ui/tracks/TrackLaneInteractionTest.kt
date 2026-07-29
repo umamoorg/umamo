@@ -9,10 +9,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -66,8 +68,8 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, mark, _ -> clicked = mark },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, released -> dragEnded = released },
 					)
 				}
@@ -86,6 +88,64 @@ class TrackLaneInteractionTest {
 			assertNull(dragEnded, "a click is not a drag")
 		}
 
+	/**
+	 * A click reports whether SHIFT was held, on a mark and on empty track alike.
+	 *
+	 * The lane decides nothing about what additive means - only the owner holds a selection - so all that
+	 * has to hold here is that the modifier survives the trip.  It is sampled at the PRESS, so a Shift
+	 * released before the button comes up still reads as an extend.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aClickReportsWhetherShiftWasHeld() =
+		runComposeUiTest {
+			val markAdditive = mutableListOf<Boolean>()
+			val trackAdditive = mutableListOf<Boolean>()
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, _, additive -> markAdditive.add(additive) },
+						onTrackScrub = { _, _, additive -> trackAdditive.add(additive) },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				// The middle mark, at domain 0 - the same target the plain-click test uses.
+				moveTo(Offset((width + labelColumnEdge()) / 2f, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertEquals(listOf(false), markAdditive, "a plain click is not additive")
+
+			onNodeWithTag("sheet").performKeyInput { keyDown(Key.ShiftLeft) }
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset((width + labelColumnEdge()) / 2f, childRowCenterY()))
+				press()
+				release()
+			}
+			onNodeWithTag("sheet").performKeyInput { keyUp(Key.ShiftLeft) }
+			waitForIdle()
+			assertEquals(listOf(false, true), markAdditive, "a Shift+click is")
+
+			// And the same on empty track, which is what lets a Shift+click that MISSES a mark decline to
+			// wipe the selection the user was building.
+			onNodeWithTag("sheet").performKeyInput { keyDown(Key.ShiftLeft) }
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(labelColumnEdge() + 20f, childRowCenterY()))
+				press()
+				release()
+			}
+			onNodeWithTag("sheet").performKeyInput { keyUp(Key.ShiftLeft) }
+			waitForIdle()
+			assertTrue(trackAdditive.isNotEmpty() && trackAdditive.all { additive -> additive }, "empty track too")
+		}
+
 	/** A press on empty track reports an empty-track click carrying the domain value under the pointer. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -101,7 +161,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
+						onMarkClick = { _, mark, _ -> clicked = mark },
 						onTrackScrubEnd = { _, value -> trackValue = value },
 					)
 				}
@@ -134,7 +194,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
+						onMarkClick = { _, mark, _ -> clicked = mark },
 						onMarkDragEnd = { _, mark, released ->
 							draggedMark = mark
 							releasedAt = released
@@ -181,8 +241,8 @@ class TrackLaneInteractionTest {
 						expandedKeys = setOf("owner"),
 						// The tap handlers are live, as they are in the sheet: two pointer-input modifiers on
 						// one node is exactly what a secondary press has to survive.
-						onMarkClick = { _, _ -> markClicked = true },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, _, _ -> markClicked = true },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, _ -> },
 						laneMenuItems = { laneHit ->
 							hit = laneHit
@@ -227,8 +287,8 @@ class TrackLaneInteractionTest {
 						expandedKeys = setOf("owner"),
 						// The tap handlers are live, as they are in the sheet: two pointer-input modifiers on
 						// one node is exactly what a secondary press has to survive.
-						onMarkClick = { _, _ -> markClicked = true },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, _, _ -> markClicked = true },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, _ -> },
 						laneMenuItems = { laneHit ->
 							hit = laneHit
@@ -324,7 +384,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, value -> scrubbed.add(value) },
+						onTrackScrub = { _, value, _ -> scrubbed.add(value) },
 						onTrackScrubEnd = { _, value -> committedAt = value },
 					)
 				}
@@ -403,7 +463,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, value -> scrubbed.add(value) },
+						onTrackScrub = { _, value, _ -> scrubbed.add(value) },
 						onTrackScrubEnd = { _, value -> committedAt = value },
 					)
 				}
@@ -564,7 +624,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, _ -> trackScrubbed = true },
+						onTrackScrub = { _, _, _ -> trackScrubbed = true },
 					)
 					TrackSheetMarqueeOverlay(
 						armed = false,

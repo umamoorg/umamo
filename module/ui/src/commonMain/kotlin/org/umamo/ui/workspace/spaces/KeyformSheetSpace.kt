@@ -563,19 +563,36 @@ private fun KeyformSheetSection(
 		// Clicking a mark selects it AND scrubs to it: selection is what Delete acts on, and scrubbing is
 		// how you land the pose exactly on a key without hunting with the slider. The two never conflict,
 		// so doing both is strictly more useful than choosing.
-		onMarkClick = { row, mark ->
+		//
+		// SHIFT+click is the exception on both counts: it TOGGLES rather than replaces (toggle, not
+		// add-only, because it is the only gesture that can take a single mark back OUT of a selection
+		// without starting over), and it does NOT scrub - building a multi-key selection is a selection
+		// act, and having the pose jump to each mark on the way would fight the very comparison the
+		// selection is being built for.  The marquee stays add-only, which is the convention for a
+		// region gesture; a click is where toggling belongs.
+		onMarkClick = { row, mark, additive ->
 			// A summary mark stands for every child key stacked at that value, so clicking it selects all
 			// of them - which is what makes Delete and the arrow nudges work on a folded group too.
-			val members = projection.summaryMembers(row.key, mark.keyIndex)
-			onSelectedKeysChange(members?.toSet() ?: setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex)))
-			liveParams?.preview(parameter.id, mark.position)
-			liveParams?.commit(setOf(parameter.id))
+			val clicked =
+				projection.summaryMembers(row.key, mark.keyIndex)?.toSet()
+					?: setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
+			if (additive) {
+				onSelectedKeysChange(selectionAfterAdditiveClick(selectedKeys, clicked))
+			} else {
+				onSelectedKeysChange(clicked)
+				liveParams?.preview(parameter.id, mark.position)
+				liveParams?.commit(setOf(parameter.id))
+			}
 		},
 		// Pressing or dragging empty track scrubs the parameter, so the whole track region works like the
 		// ruler of a timeline rather than only the marks being live.  The press also drops the key
 		// selection, matching every other list in the editor.
-		onTrackScrub = { _, value ->
-			onSelectedKeysChange(emptySet())
+		onTrackScrub = { _, value, additive ->
+			// A SHIFT press keeps the selection: shift-clicking is how a multi-key selection is built, and a
+			// near-miss on a mark should not wipe the work rather than merely failing to add to it.
+			if (!additive) {
+				onSelectedKeysChange(emptySet())
+			}
 			// Clamped again at the model boundary, not only in the lane: the lane clamps to the VISIBLE
 			// window, which is a subrange, but this is the call that reaches the evaluator - and a pose
 			// outside the parameter's range brackets nothing, so every entity keyed on it disappears.
@@ -767,6 +784,28 @@ private fun groupDragFraction(
 	val span = maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min)
 	return if (span > 0f) (at - mark.position) / span else null
 }
+
+/**
+ * [current] with [clicked] toggled in or out - what a Shift+click on a mark leaves behind.
+ *
+ * TOGGLE rather than add-only because a click is the only gesture that can take a single mark back OUT of
+ * a selection without starting over; the marquee stays add-only, which is the convention for a region
+ * gesture.
+ *
+ * A summary mark's whole membership toggles as ONE unit - all of them or none - so a folded group cannot
+ * end up half-selected by a gesture that showed the user a single mark.  Partly-selected therefore counts
+ * as "not selected" and the click completes it, which is the reading that lets a second click undo the
+ * first.
+ *
+ * Internal rather than private so the rule can be pinned without a composition: the UI test can only
+ * reach as far as "Shift arrived", and what the sheet then DOES with it is the part worth stating.
+ *
+ * @param Set current The selection before the click.
+ * @param Set clicked The keys the clicked mark stands for - one, or a summary's whole membership.
+ * @return Set The selection after it.
+ */
+internal fun selectionAfterAdditiveClick(current: Set<TrackKeyRef>, clicked: Set<TrackKeyRef>): Set<TrackKeyRef> =
+	if (clicked.isNotEmpty() && clicked.all { key -> key in current }) current - clicked else current + clicked
 
 /**
  * The selection target a keyform owner names, or null when it names nothing selectable.

@@ -177,8 +177,11 @@ data class TrackLaneHit(
  * @param Function? onToggleExpanded Invoked with a row whose chevron was clicked; null pins the tree.
  * @param Function decorFor The per-row icon provider.
  * @param Function formatTick Renders a ruler tick value; defaults to a trimmed decimal.
- * @param Function? onMarkClick Invoked with the row and the mark nearest a click, when one is in range.
- * @param Function? onTrackScrub Invoked on press and on every move of a drag that missed every mark.
+ * @param Function? onMarkClick Invoked with the row, the mark nearest a click, and whether the click was
+ *   ADDITIVE (Shift held) - the owner decides what additive means, since only it holds the selection.
+ * @param Function? onTrackScrub Invoked on press and on every move of a drag that missed every mark, with
+ *   whether Shift was held when the gesture began - so a Shift+click that MISSES a mark can decline to
+ *   clear the selection the user was building.
  * @param Function? onTrackScrubEnd Invoked when such a drag is released, to commit the value it landed on.
  * @param Function? onMarkDrag Invoked with the row, the dragged mark, and its live domain position on every
  *   move of a mark drag - what lets an owner preview a whole SELECTION following the one being dragged.
@@ -209,8 +212,8 @@ fun TrackSheet(
 	onToggleExpanded: ((TrackRow) -> Unit)? = null,
 	decorFor: (TrackRow) -> TrackRowDecor = { TrackRowDecor() },
 	formatTick: (Float) -> String = ::defaultTickLabel,
-	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)? = null,
-	onTrackScrub: ((TrackRow, Float) -> Unit)? = null,
+	onMarkClick: ((TrackRow, TrackKeyMark, Boolean) -> Unit)? = null,
+	onTrackScrub: ((TrackRow, Float, Boolean) -> Unit)? = null,
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
@@ -464,8 +467,8 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Dp labelColumnWidth The label column's width.
  * @param TrackRowDecor decor The row's icon.
  * @param Function? onToggleExpanded Invoked when the chevron is clicked.
- * @param Function? onMarkClick Invoked when a click lands on a mark.
- * @param Function? onTrackScrub Invoked as an empty-track drag moves.
+ * @param Function? onMarkClick Invoked when a click lands on a mark, with whether Shift was held.
+ * @param Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDrag Invoked on every move of a mark drag.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
@@ -484,8 +487,8 @@ private fun TrackSheetRow(
 	labelColumnWidth: Dp,
 	decor: TrackRowDecor,
 	onToggleExpanded: ((TrackRow) -> Unit)?,
-	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)?,
-	onTrackScrub: ((TrackRow, Float) -> Unit)?,
+	onMarkClick: ((TrackRow, TrackKeyMark, Boolean) -> Unit)?,
+	onTrackScrub: ((TrackRow, Float, Boolean) -> Unit)?,
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
@@ -895,8 +898,8 @@ fun TrackSheetSeparatorOverlay(
  * @param Float? playhead The playhead's domain value, or null.
  * @param Color background The row's tone fill.
  * @param Modifier modifier The layout modifier.
- * @param Function? onMarkClick Invoked when a click lands on a mark.
- * @param Function? onTrackScrub Invoked as an empty-track drag moves.
+ * @param Function? onMarkClick Invoked when a click lands on a mark, with whether Shift was held.
+ * @param Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDrag Invoked on every move of a mark drag.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
@@ -914,8 +917,8 @@ private fun TrackLane(
 	playhead: Float?,
 	background: Color,
 	modifier: Modifier = Modifier,
-	onMarkClick: ((TrackRow, TrackKeyMark) -> Unit)?,
-	onTrackScrub: ((TrackRow, Float) -> Unit)?,
+	onMarkClick: ((TrackRow, TrackKeyMark, Boolean) -> Unit)?,
+	onTrackScrub: ((TrackRow, Float, Boolean) -> Unit)?,
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
@@ -1022,6 +1025,10 @@ private fun TrackLane(
 							if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
 								return@awaitEachGesture
 							}
+							// Sampled at the PRESS, like the marquee's own Shift read: the modifier is part of what the
+							// gesture meant when it began, and a key released between press and release would otherwise
+							// silently change a extend-click into a replace-click.
+							val additive = currentEvent.keyboardModifiers.isShiftPressed
 							val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
 							// Summary marks ARE addressable (summarizedMarks keeps them editable and renumbers them to a
 							// summary ordinal), so a press on one starts a drag like any other; it is the owner that maps
@@ -1040,7 +1047,7 @@ private fun TrackLane(
 							// pointer position is drawn with, so the playhead stops where the pointer stops.
 							val scrubBounds = minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
 							if (hitMark == null) {
-								onTrackScrub?.invoke(row, pressedValue.coerceIn(scrubBounds))
+								onTrackScrub?.invoke(row, pressedValue.coerceIn(scrubBounds), additive)
 							}
 							while (true) {
 								val event = awaitPointerEvent()
@@ -1069,7 +1076,7 @@ private fun TrackLane(
 												pointerValue.coerceIn(dragBounds)
 											}
 										if (hitMark == null) {
-											onTrackScrub?.invoke(row, releaseValue)
+											onTrackScrub?.invoke(row, releaseValue, additive)
 										} else {
 											dragDomainValue = releaseValue
 											// Reported every move, not only on release: an owner previewing a group drag needs
@@ -1082,7 +1089,7 @@ private fun TrackLane(
 							}
 							when {
 								hitMark != null && dragging -> onMarkDragEnd?.invoke(row, hitMark, releaseValue)
-								hitMark != null -> onMarkClick?.invoke(row, hitMark)
+								hitMark != null -> onMarkClick?.invoke(row, hitMark, additive)
 								else -> onTrackScrubEnd?.invoke(row, releaseValue)
 							}
 							draggingMark = null

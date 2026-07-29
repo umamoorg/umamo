@@ -103,7 +103,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## Keyform Sheet
 * Improvements
-	* Shift+Click for multiple selecting keys.
+	* Select Keyframe should be a history action.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
