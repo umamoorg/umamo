@@ -2,6 +2,7 @@
 
 ## Documentation
 * Have a full model/ map made in docs/. (When everything is done.)
+* Keyform model, grids/axes, channel fan-out and compaction, and the authoring loop: docs/plan/keyform-authoring.md
 
 ## Deferred
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
@@ -90,7 +91,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
-* Create document of how channel compacting and tracks works along with keyform grids and axises.
+* Channel compaction, tracks, keyform grids and axes — DONE, see docs/plan/keyform-authoring.md.
 * Bugs
 	* The property edited border should not show up on unkeyed properties while scrubbing.  For example, scrubbing opacity on an unkeyed part results it in showing the keyedModified border while scrubbing.
 	* Opacity is being rounded to two decimal places even on manual input.  We should expand it to three decimal places.
@@ -100,26 +101,18 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
 * Keyform Sheet Related
 	* Background highlight in property controls instead of the border highlight.
-	* The highlight should update in real time while scrubbing.
-* Missing draw order and opacity properties for drawables.
 
 # Parameters
 * Bugs
 	* 
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
-	* Improve filter wording.(User story.)
 	* Keyform Sheet
-		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
-		* Box Select Marks
-		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
-		* Filter to display only certain types.
-		* 
 		* Context menu on item with "Select Drawable/Part/Deformer".
 		* We'll need the same full width/height crosshairs like the viewport.  Right now nothing shows on box arm resulting in confusion if the mode was even activated.
-			* Lets keep this DRY and not rebuild everything.  We can make helpers in the theme kit as needed.
+			* Lets keep this DRY and not rebuild everything.  We can make helpers in the theme kit as needed, but it looks like we are already importing some pieces.
 		* When multiple marks are selected moving one should move the rest of them.  Right now only nudging with the arrow keys works.
-	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
+		* When the filter is hiding visible tracks it should not show, "Nothing is keyed...", and instead say that "All tracks hidden by filters.".
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 

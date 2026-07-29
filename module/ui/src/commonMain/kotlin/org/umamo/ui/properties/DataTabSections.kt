@@ -106,6 +106,35 @@ internal val BlendSection =
 			if (drawable != null) {
 				val session = context.session
 				listOfNotNull(
+					// Opacity and draw order are keyable channels like the colours below, each with its own
+					// static and its own optional track.  Draw order is a FLOAT here, unlike a part's int:
+					// it blends per pose, so a fractional value between two keys is meaningful.
+					PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
+						KeyableScalarChannelRow(
+							label = stringResource(Res.string.properties_field_draw_order),
+							owner = KeyformOwner.Drawable(drawable.id),
+							channel = FormChannel.DRAW_ORDER,
+							stored = drawable.drawOrder,
+							session = session,
+							range = 0f..1000f,
+							decimals = 0,
+							step = 1f,
+							writeStatic = { order -> session?.setDrawableDrawOrder(drawable.id, order) },
+						)
+					},
+					PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
+						KeyableScalarChannelRow(
+							label = stringResource(Res.string.properties_field_opacity),
+							owner = KeyformOwner.Drawable(drawable.id),
+							channel = FormChannel.OPACITY,
+							stored = drawable.opacity,
+							session = session,
+							range = 0f..1f,
+							decimals = 2,
+							step = 0.05f,
+							writeStatic = { opacity -> session?.setDrawableOpacity(drawable.id, opacity) },
+						)
+					},
 					PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 						val blendLabels = blendModeLabels()
 						PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
@@ -133,35 +162,6 @@ internal val BlendSection =
 								)
 							}
 						}
-					},
-					// Opacity and draw order are keyable channels like the colours below, each with its own
-					// static and its own optional track.  Draw order is a FLOAT here, unlike a part's int:
-					// it blends per pose, so a fractional value between two keys is meaningful.
-					PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
-						KeyableScalarChannelRow(
-							label = stringResource(Res.string.properties_field_opacity),
-							owner = KeyformOwner.Drawable(drawable.id),
-							channel = FormChannel.OPACITY,
-							stored = drawable.opacity,
-							session = session,
-							range = 0f..1f,
-							decimals = 2,
-							step = 0.05f,
-							writeStatic = { opacity -> session?.setDrawableOpacity(drawable.id, opacity) },
-						)
-					},
-					PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
-						KeyableScalarChannelRow(
-							label = stringResource(Res.string.properties_field_draw_order),
-							owner = KeyformOwner.Drawable(drawable.id),
-							channel = FormChannel.DRAW_ORDER,
-							stored = drawable.drawOrder,
-							session = session,
-							range = 0f..1000f,
-							decimals = 0,
-							step = 1f,
-							writeStatic = { order -> session?.setDrawableDrawOrder(drawable.id, order) },
-						)
 					},
 					// The 5.3 per-art-mesh multiply/screen color: a channel with its own static and its own
 					// optional keyform track, so the picker writes the static and `I` over the row keys it.

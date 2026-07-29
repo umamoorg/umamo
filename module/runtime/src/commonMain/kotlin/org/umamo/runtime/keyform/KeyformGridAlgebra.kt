@@ -31,21 +31,6 @@ import kotlin.math.abs
  * rather than repaired: every op below returns its receiver unchanged instead of inventing cells.
  */
 
-/** How [withAxisSeeded] lays out the keys of a newly bound axis. */
-enum class AxisSeedPolicy {
-	/**
-	 * Keys at the parameter's minimum, default, and maximum (deduplicated) - what Cubism seeds, and the
-	 * only layout that both spans the range and puts a key at the neutral pose.
-	 */
-	MinDefaultMax,
-
-	/**
-	 * Keys at the parameter's minimum, default, maximum, AND the current scrub value, so the very next
-	 * capture writes a cell without reshaping the grid again.
-	 */
-	MinDefaultMaxAndScrub,
-}
-
 /** What [withKeyInserted] does with a key that falls outside the axis's existing key span. */
 enum class OutOfSpanKeyPolicy {
 	/**
@@ -72,32 +57,24 @@ enum class OutOfSpanKeyPolicy {
  * the receiver, so a caller's `?: return` refusal guard fires for a non-null receiver too - returning the
  * receiver here once let a capture proceed and write onto the channel's OTHER axes.
  *
+ * The seeded keys are the parameter's minimum, default, and maximum, deduplicated - what Cubism seeds, and
+ * the only layout that both spans the range and puts a key at the neutral pose.  A fourth key at the
+ * current scrub was tried and dropped: the capture that follows a bind lands at the scrub anyway, so the
+ * extra key changed nothing except to author one the rigger never asked for.
+ *
  * @param Parameter parameter The parameter to bind to; its min / default / max define the seeded keys.
  * @param TForm currentForm The form to hold at every seeded key (the entity's present look).
- * @param Float scrubValue The current pose value on this parameter, seeded as a key under
- *   [AxisSeedPolicy.MinDefaultMaxAndScrub].
- * @param AxisSeedPolicy policy Which keys to seed.
  * @return KeyformGrid The grid with the axis appended, the receiver when it already keys [parameter], or
  *   null when nothing could be seeded.
  */
-fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(
-	parameter: Parameter,
-	currentForm: TForm,
-	scrubValue: Float = parameter.default,
-	policy: AxisSeedPolicy = AxisSeedPolicy.MinDefaultMax,
-): KeyformGrid<TForm>? {
+fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(parameter: Parameter, currentForm: TForm): KeyformGrid<TForm>? {
 	if (this != null && axisIndexOf(parameter.id) >= 0) {
 		return this
 	}
 	if (this != null && !isDense) {
 		return null
 	}
-	val seedCandidates =
-		when (policy) {
-			AxisSeedPolicy.MinDefaultMax -> floatArrayOf(parameter.min, parameter.default, parameter.max)
-			AxisSeedPolicy.MinDefaultMaxAndScrub -> floatArrayOf(parameter.min, parameter.default, parameter.max, scrubValue)
-		}
-	val seedKeys = distinctSortedKeys(seedCandidates)
+	val seedKeys = distinctSortedKeys(floatArrayOf(parameter.min, parameter.default, parameter.max))
 	if (seedKeys.size < 2) {
 		return null
 	}

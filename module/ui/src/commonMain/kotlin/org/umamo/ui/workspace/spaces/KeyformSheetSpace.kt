@@ -68,7 +68,6 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.theme.umamoPointerIcon
-import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
 import org.umamo.ui.tracks.TRACK_MARK_RADIUS
 import org.umamo.ui.tracks.TrackAxis
 import org.umamo.ui.tracks.TrackRow
@@ -86,72 +85,6 @@ import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalKeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
-
-/** The key this space's view state is stored under on its hosting area. */
-private const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
-
-/**
- * The keyform sheet's per-area view state: the label column's width and which groups are open.
- *
- * On the AreaScope rather than the session because these are how one area is LOOKING at the rig, not what
- * the rig is - two sheets side by side may reasonably be folded differently, and neither belongs in undo.
- */
-private class KeyformSheetViewState {
-	/** The label column's width, dragged on the separator. */
-	var labelColumnWidth: Dp by mutableStateOf(TRACK_LABEL_COLUMN_DEFAULT_WIDTH)
-
-	/** The group rows whose tracks are shown. */
-	var expandedKeys: Set<String> by mutableStateOf(emptySet())
-
-	/**
-	 * The selected keys, which is what Delete acts on.
-	 *
-	 * On the view state rather than remembered against the projection: the projection is rebuilt on every
-	 * model change, so keying the selection to it discarded the selection on the user's own edit - and a
-	 * click both selects AND scrubs, so even selecting could not survive its own gesture.  Refs that no
-	 * longer resolve are pruned at use, which is cheaper and less surprising than clearing wholesale.
-	 */
-	var selectedKeys: Set<TrackKeyRef> by mutableStateOf(emptySet())
-
-	/**
-	 * Whether [expandedKeys] has been seeded yet.
-	 *
-	 * A fresh sheet opens with every group expanded (an all-collapsed sheet looks identical to one with
-	 * nothing keyed), but "collapse everything" has to stay reachable - so the seed happens ONCE rather
-	 * than whenever the set is empty.
-	 */
-	var seeded: Boolean = false
-
-	/**
-	 * The parameter sections folded away.
-	 *
-	 * COLLAPSED rather than expanded, so a section that appears later (targeting a second parameter) opens
-	 * rather than arriving invisible.  Sections matter for a linked pad, where one parameter's tracks can
-	 * bury the other's.
-	 */
-	var collapsedParameters: Set<ParameterId> by mutableStateOf(emptySet())
-
-	/**
-	 * The visible slice of every section's domain.
-	 *
-	 * ONE window for the whole area, normalized, so zooming works like a timeline's: every track and both
-	 * of a linked pad's sections move together.  Per-track zoom has no precedent in any editor with tracks
-	 * and would make comparing two rows - the reason the sheet exists - impossible.
-	 */
-	var window: TrackWindow by mutableStateOf(TrackWindow.Full)
-
-	/** Whether a box-select marquee is awaiting its drag. */
-	var boxSelectArmed: Boolean by mutableStateOf(false)
-
-	/**
-	 * Where each lane sits, in WINDOW coordinates, so a marquee drawn over the whole scrolling sheet can
-	 * say which rows it crossed without either side knowing the other's scroll offset.
-	 *
-	 * A plain map rather than snapshot state: it is written during layout and only ever read when a
-	 * marquee is released, so observing it would recompose the sheet on every scroll for nothing.
-	 */
-	val laneBounds: MutableMap<String, Rect> = mutableMapOf()
-}
 
 /**
  * The keyform sheet: for each parameter targeted in the Parameters panel, one track per (item, channel)
@@ -266,9 +199,18 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
 				return@Box
 			}
+			// The filter is a projection INPUT, not a draw-time skip: a filtered-out track has to be absent
+			// from the row tree so an owner left with nothing loses its group row too, and so a summary mark
+			// never stands for a key the sheet is not showing.
+			val filter =
+				remember(viewState.showGeometry, viewState.showChannels, viewState.showBlendShapes) {
+					KeyformTrackFilter(viewState.showGeometry, viewState.showChannels, viewState.showBlendShapes)
+				}
 			val projections =
-				remember(puppet, targetedParameters, labels) {
-					targetedParameters.map { parameter -> parameter to keyformSheetRows(puppet, parameter.id, labels) }
+				remember(puppet, targetedParameters, labels, filter) {
+					targetedParameters.map { parameter ->
+						parameter to keyformSheetRows(puppet, parameter.id, labels, filter)
+					}
 				}
 			if (!viewState.seeded) {
 				// In a SideEffect so it runs only for APPLIED compositions: an abandoned composition rolls back

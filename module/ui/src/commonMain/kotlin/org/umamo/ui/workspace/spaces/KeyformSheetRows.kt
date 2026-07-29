@@ -44,6 +44,28 @@ enum class KeyformOwnerKind {
 }
 
 /**
+ * Which kinds of track the sheet lists.
+ *
+ * Applied while BUILDING the projection rather than while drawing, so a filtered-out track is absent from
+ * the row tree entirely - an owner left with nothing loses its group row too, and a summary mark never
+ * stands for a key the user cannot see.
+ *
+ * @property Boolean geometry Whether geometry (deformation) tracks are listed.
+ * @property Boolean channels Whether channel (property) tracks are listed.
+ * @property Boolean blendShapes Whether blend-shape tracks are listed.
+ */
+class KeyformTrackFilter(
+	val geometry: Boolean = true,
+	val channels: Boolean = true,
+	val blendShapes: Boolean = true,
+) {
+	companion object {
+		/** Everything shown - the default, and what an unfiltered sheet uses. */
+		val All: KeyformTrackFilter = KeyformTrackFilter()
+	}
+}
+
+/**
  * The labels the projection needs, resolved by the caller from string resources.
  *
  * Injected rather than looked up here so the projection stays Compose-free AND localized: these are Umamo
@@ -129,10 +151,16 @@ class KeyformSheetProjection(
  * @param PuppetModel puppet The rig.
  * @param ParameterId parameterId The parameter whose tracks to list.
  * @param KeyformTrackLabels labels The localized chrome labels.
+ * @param KeyformTrackFilter filter Which kinds of track to list.
  * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it.
  */
-fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: KeyformTrackLabels): KeyformSheetProjection {
-	val builder = ProjectionBuilder(labels, parameterId)
+fun keyformSheetRows(
+	puppet: PuppetModel,
+	parameterId: ParameterId,
+	labels: KeyformTrackLabels,
+	filter: KeyformTrackFilter = KeyformTrackFilter.All,
+): KeyformSheetProjection {
+	val builder = ProjectionBuilder(labels, parameterId, filter)
 	for (part in puppet.parts) {
 		builder.addOwner(
 			ownerKey = "part:${part.id.raw}",
@@ -210,8 +238,13 @@ fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: Keyf
  *
  * @property KeyformTrackLabels labels The localized chrome labels.
  * @property ParameterId parameterId The parameter being listed, which is part of a key ref's identity.
+ * @property KeyformTrackFilter filter Which kinds of track to list.
  */
-private class ProjectionBuilder(private val labels: KeyformTrackLabels, private val parameterId: ParameterId) {
+private class ProjectionBuilder(
+	private val labels: KeyformTrackLabels,
+	private val parameterId: ParameterId,
+	private val filter: KeyformTrackFilter,
+) {
 	private val rows = ArrayList<TrackRow>()
 	private val tracks = HashMap<String, KeyformTrackRef>()
 	private val ownerKinds = HashMap<String, KeyformOwnerKind>()
@@ -239,7 +272,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels, private 
 		parameterId: ParameterId,
 	) {
 		val children = ArrayList<TrackRow>()
-		if (geometryMarks != null) {
+		if (geometryMarks != null && filter.geometry) {
 			val rowKey = "$ownerKey/geometry"
 			children.add(
 				TrackRow(
@@ -254,7 +287,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels, private 
 			// every gesture on what is, after compaction, nearly every row a corpus rig shows.
 			tracks[rowKey] = KeyformTrackRef.Geometry(owner)
 		}
-		for ((channel, track) in channelGrids.gridsByChannel) {
+		for ((channel, track) in if (filter.channels) channelGrids.gridsByChannel else emptyMap()) {
 			val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: continue
 			val rowKey = "$ownerKey/${channel.name}"
 			children.add(
@@ -269,7 +302,7 @@ private class ProjectionBuilder(private val labels: KeyformTrackLabels, private 
 		}
 		// A blend-shape binding is not a keyform grid, so it gets a row but no track ref: the sheet's ops
 		// would have nothing to apply, and offering a drag that reverts is worse than offering none.
-		for ((bindingIndex, marks) in blendShapeMarks.withIndex()) {
+		for ((bindingIndex, marks) in (if (filter.blendShapes) blendShapeMarks else emptyList()).withIndex()) {
 			children.add(
 				TrackRow(
 					key = "$ownerKey/blend$bindingIndex",

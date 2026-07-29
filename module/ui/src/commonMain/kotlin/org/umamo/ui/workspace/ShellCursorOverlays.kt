@@ -14,17 +14,25 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.KeyformAction
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.resolveParameterChoice
+import org.umamo.ui.kit.AtPointPositionProvider
+import org.umamo.ui.kit.Menu
+import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.PieMenuOverlay
 import org.umamo.ui.kit.TooltipCard
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.noticeText
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.keyform_choose_parameter_insert
+import org.umamo.ui.resources.keyform_choose_parameter_remove
 import org.umamo.ui.resources.pick_hover_deformer
 import org.umamo.ui.resources.pick_hover_drawable
 import org.umamo.ui.resources.pick_hover_part
@@ -135,6 +143,56 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
 		TooltipCard(
 			text = noticeText(current.messageKey),
 			modifier = Modifier.nearPointer(anchor, SHELL_POINTER_GAP),
+		)
+	}
+}
+
+/**
+ * The shell-level "which parameter?" prompt: lists the targeted parameters at the pointer when a keyform
+ * edit could not tell which axis the user meant, and replays the parked edit on the one picked.
+ *
+ * Only a LINKED PAD produces this - it targets both its axes but reports only the horizontal one as active,
+ * so an unaimed `I` would always write there and the vertical section would keep reading as unkeyed.  A
+ * sheet lane names its own parameter and never reaches here.
+ *
+ * Above the area tree for the same reason the pie menu is: the prompt answers a keypress made over a
+ * Properties row, and it must not be clipped to that panel's box.
+ *
+ * どのパラメータに書き込むか判別できないキーフォーム編集で、対象パラメータをポインタ位置に一覧表示する。
+ *
+ * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
+ *   pointer event (the prompt then opens at the window's centre).
+ * @param Modifier modifier The layout modifier (the shell passes a window fill).
+ */
+@Composable
+internal fun ShellParameterChoiceMenu(pointerPosition: Offset?, modifier: Modifier = Modifier) {
+	val session = LocalEditorSession.current ?: return
+	val puppet = LocalPuppet.current
+	val request by session.pendingParameterChoice.collectAsState()
+	val pending = request ?: return
+	val title =
+		stringResource(
+			when (pending.action) {
+				KeyformAction.Capture -> Res.string.keyform_choose_parameter_insert
+				KeyformAction.Remove -> Res.string.keyform_choose_parameter_remove
+			},
+		)
+	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+		val anchor = pointerPosition ?: Offset(constraints.maxWidth / 2f, constraints.maxHeight / 2f)
+		val items =
+			// A disabled row plus a rule is the kit's only header shape; the candidates below it carry the
+			// parameters' own display names, which are the user's data and so are never localized.
+			listOf<MenuItem>(MenuItem.Action(label = title, onSelect = {}, enabled = false), MenuItem.Separator) +
+				pending.candidates.map { candidateId ->
+					val name =
+						puppet?.parameters?.firstOrNull { parameter -> parameter.id == candidateId }
+							?.name?.ifBlank { candidateId.raw } ?: candidateId.raw
+					MenuItem.Action(label = name, onSelect = { session.resolveParameterChoice(candidateId) })
+				}
+		Menu(
+			items = items,
+			onDismissRequest = { session.cancelParameterChoice() },
+			positionProvider = AtPointPositionProvider(IntOffset(anchor.x.roundToInt(), anchor.y.roundToInt())),
 		)
 	}
 }

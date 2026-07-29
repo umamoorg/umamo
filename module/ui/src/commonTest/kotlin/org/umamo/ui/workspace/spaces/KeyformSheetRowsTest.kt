@@ -11,6 +11,7 @@ import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -18,6 +19,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.tracks.TrackRow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -101,6 +103,80 @@ class KeyformSheetRowsTest {
 
 		val glueGroupRow = allRows(projection.rows).first { row -> row.key == "glue:a:b" }
 		assertEquals("Eye L ↔ Eye R", glueGroupRow.label)
+	}
+
+	/** A drawable carrying all three track kinds at once, so a filter has something of each to drop. */
+	private fun drawableWithEveryTrackKind(): Drawable =
+		Drawable(
+			id = DrawableId("d"),
+			name = "d",
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh = null,
+			geometryGrid =
+				KeyformGrid(
+					listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
+					listOf(
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f))),
+					),
+				),
+			channelGrids = ChannelGrids(mapOf(FormChannel.OPACITY to intensityTrack())),
+			blendShapes =
+				listOf(
+					BlendShapeBinding(
+						parameterId = angleX,
+						keys = floatArrayOf(0f, 1f),
+						neutralIndex = 0,
+						forms = listOf(null, MeshForm(floatArrayOf(0f, 0f))),
+					),
+				),
+		)
+
+	/**
+	 * Each filter flag drops exactly its own kind of child row and leaves the other two alone.
+	 *
+	 * Gated while BUILDING the projection rather than while drawing, so a hidden track is absent from the
+	 * tree entirely - which is what keeps a summary mark from standing for a key the sheet is not showing.
+	 */
+	@Test
+	fun eachFilterFlagDropsOnlyItsOwnRows() {
+		val puppet = model(drawables = listOf(drawableWithEveryTrackKind()))
+		val unfiltered = allRows(keyformSheetRows(puppet, angleX, labels()).rows)
+		assertTrue(unfiltered.any { row -> row.key.endsWith("/geometry") }, "the unfiltered sheet lists geometry")
+		assertTrue(unfiltered.any { row -> row.key.endsWith("/OPACITY") }, "and the channel track")
+		assertTrue(unfiltered.any { row -> row.key.contains("/blend") }, "and the blend shape")
+
+		val withoutGeometry = allRows(keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(geometry = false)).rows)
+		assertFalse(withoutGeometry.any { row -> row.key.endsWith("/geometry") }, "the geometry row is gone")
+		assertTrue(withoutGeometry.any { row -> row.key.endsWith("/OPACITY") }, "the channel row is untouched")
+		assertTrue(withoutGeometry.any { row -> row.key.contains("/blend") }, "so is the blend row")
+
+		val withoutChannels = allRows(keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(channels = false)).rows)
+		assertFalse(withoutChannels.any { row -> row.key.endsWith("/OPACITY") }, "the channel row is gone")
+		assertTrue(withoutChannels.any { row -> row.key.endsWith("/geometry") }, "the geometry row is untouched")
+
+		val withoutBlends = allRows(keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(blendShapes = false)).rows)
+		assertFalse(withoutBlends.any { row -> row.key.contains("/blend") }, "the blend row is gone")
+		assertTrue(withoutBlends.any { row -> row.key.endsWith("/geometry") }, "the geometry row is untouched")
+	}
+
+	/**
+	 * An owner filtered down to nothing loses its group row too, rather than sitting there empty.
+	 *
+	 * The group row is a disclosure for its children; an expandable row that expands into nothing reads as
+	 * a bug, and its summary marks would stand for keys the sheet is deliberately not showing.
+	 */
+	@Test
+	fun anOwnerWithEveryTrackFilteredOutLosesItsGroupRow() {
+		val puppet = model(glues = listOf(glue("a", "b")))
+		assertTrue(
+			allRows(keyformSheetRows(puppet, angleX, labels()).rows).any { row -> row.key == "glue:a:b" },
+			"the glue's only tracks are channels, so unfiltered it has a group row",
+		)
+		val filtered = keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(channels = false))
+		assertTrue(filtered.rows.isEmpty(), "with channels hidden the glue has no children left, so no group row either")
 	}
 
 	/**

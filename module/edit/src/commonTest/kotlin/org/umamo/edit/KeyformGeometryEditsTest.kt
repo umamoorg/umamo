@@ -16,6 +16,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -31,6 +32,7 @@ import kotlin.test.assertTrue
  */
 class KeyformGeometryEditsTest {
 	private val angleX = ParameterId("ParamAngleX")
+	private val angleY = ParameterId("ParamAngleY")
 	private val drawableId = DrawableId("d")
 	private val deformerId = DeformerId("w")
 	private val parameter = Parameter(angleX, "ParamAngleX", min = -30f, max = 30f, default = 0f)
@@ -88,6 +90,22 @@ class KeyformGeometryEditsTest {
 			rootChildren = emptyList(),
 			rootPartId = null,
 		)
+
+	/**
+	 * A two-parameter model whose drawable keys on the VERTICAL axis only - the linked-pad shape.
+	 *
+	 * A pad targets both its axes but reports only the horizontal one as active, so this is the model where
+	 * "write on the active parameter" and "write on the one the rigger meant" give different answers.
+	 */
+	private fun padModel(): PuppetModel {
+		val vertical = Parameter(angleY, "ParamAngleY", min = -30f, max = 30f, default = 0f)
+		val onVertical = KeyformGrid(listOf(KeyformAxis(angleY, floatArrayOf(-30f, 0f, 30f))), meshGrid().cells)
+		val base = model()
+		return base.copy(
+			parameters = listOf(parameter, vertical),
+			drawables = listOf(base.drawables.single().copy(geometryGrid = onVertical)),
+		)
+	}
 
 	/** The drawable's geometry axis keys after an edit. */
 	private fun keysOf(puppet: PuppetModel): List<Float> =
@@ -237,6 +255,44 @@ class KeyformGeometryEditsTest {
 		session.undo()
 		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores both")
 		assertTrue(!session.canUndo.value, "because there was only ever one step")
+	}
+
+	/**
+	 * With two parameters targeted and no axis named, an unaimed key edit PARKS instead of guessing.
+	 *
+	 * The linked-pad case: a 2D pad targets both its axes but reports only the horizontal one as active, so
+	 * writing on the active one would silently always key the horizontal parameter and leave the vertical
+	 * section reading as unkeyed.  Answering the prompt replays the very same edit with the axis filled in.
+	 */
+	@Test
+	fun anAmbiguousTargetParksTheEditUntilAnAxisIsPicked() {
+		// The drawable keys on the VERTICAL axis only, while the pad reports the horizontal one as active -
+		// so writing on the active parameter would refuse outright and the pick has to be what decides.
+		val session = EditorSession(padModel())
+		session.setParameterSelection(ParameterSelection(setOf(angleX, angleY), active = angleX))
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+
+		session.captureKeyOnTrack(track, parameterId = null, aim = KeyformAim.Position(15f, keyIndex = null))
+		val parked = assertNotNull(session.pendingParameterChoice.value, "the edit parks rather than guessing")
+		assertEquals(KeyformAction.Capture, parked.action)
+		assertContentEquals(listOf(angleX, angleY), parked.candidates, "listed in model order")
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "and nothing was written yet")
+
+		session.resolveParameterChoice(angleY)
+		assertNull(session.pendingParameterChoice.value, "answering clears the prompt")
+		assertEquals(listOf(-30f, 0f, 15f, 30f), keysOf(session.model.value), "the key landed on the PICKED axis")
+	}
+
+	/** A caller that names its axis - every sheet lane does - never sees the prompt. */
+	@Test
+	fun aNamedAxisBypassesTheChoicePrompt() {
+		val session = EditorSession(padModel())
+		session.setParameterSelection(ParameterSelection(setOf(angleX, angleY), active = angleX))
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+
+		session.captureKeyOnTrack(track, parameterId = angleY, aim = KeyformAim.Position(15f, keyIndex = null))
+		assertNull(session.pendingParameterChoice.value, "a named axis is the answer, so nothing is asked")
+		assertEquals(listOf(-30f, 0f, 15f, 30f), keysOf(session.model.value))
 	}
 
 	/** Each member is clamped to its OWN parameter's range, so a mixed batch cannot push one out of range. */
