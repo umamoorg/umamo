@@ -268,7 +268,7 @@ fun EditorShell(
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
 				LocalKeyableHover provides keyableHover,
-			LocalKeyformSheetViews provides keyformSheetViews,
+				LocalKeyformSheetViews provides keyformSheetViews,
 				LocalRelationPick provides relationPick,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
 				LocalAreaCameraHub provides areaCameras,
