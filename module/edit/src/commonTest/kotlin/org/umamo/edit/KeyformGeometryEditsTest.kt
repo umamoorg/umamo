@@ -381,9 +381,9 @@ class KeyformGeometryEditsTest {
 	 * The landing QUERIES answer exactly what the edits they describe report.
 	 *
 	 * The sheet asks before the edit, because its key selection rides the edit's own snapshot and a selection
-	 * re-pointed afterwards reaches no history entry at all - redo then restored the pre-move ordinals onto
-	 * whichever keys had taken them.  A query that could disagree with its edit would just move the bug, so
-	 * both go through one planner and this is what holds them together.
+	 * re-pointed afterwards reaches no history entry at all.  A query computed independently of the edit
+	 * could disagree with what the edit actually produces, so both go through one planner: the landing a
+	 * caller previews is guaranteed to be the landing the edit lands on.
 	 */
 	@Test
 	fun theLandingQueriesAgreeWithTheEditsTheyDescribe() {

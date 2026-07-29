@@ -144,10 +144,10 @@ class KeyformAimEditsTest {
 	/**
 	 * An aimed edit keeps the sheet's key selection on the key it named, as ONE undo step.
 	 *
-	 * Both halves of the same defect.  An insert renumbers every key at or above it, so inserting to the LEFT
-	 * of a selected mark handed that mark's ordinal to the new key and the new key showed as selected; a
-	 * removal renumbers the same way in the other direction, so deleting a key left the selection on the
-	 * ordinal it freed - the neighbour, which the next Delete then took.
+	 * Both directions of the same renumbering rule.  An insert shifts every key at or above it up one
+	 * ordinal, so a selected mark to the right of the insertion point must shift with it to keep naming the
+	 * same key; a removal shifts every key above it down one ordinal, so a selected mark above a removed key
+	 * must shift the same way rather than staying on the ordinal the removal freed.
 	 */
 	@Test
 	fun anAimedEditCarriesTheKeySelectionWithIt() {

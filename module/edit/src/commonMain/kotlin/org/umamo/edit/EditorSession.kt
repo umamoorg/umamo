@@ -99,10 +99,13 @@ class EditorSession(
 	 * Channel values edited but NOT yet keyed - Blender's model, where changing a keyed property off a key
 	 * takes effect now but is lost unless you key it.
 	 *
-	 * Deliberately NOT in the document and NOT in the undo history: a pending edit is a value in flight, and
-	 * recording every keystroke of one as an undo step would bury the real edits.  It is cleared whenever
-	 * the pose moves or history jumps, because both make the value meaningless - it was a value FOR a pose,
-	 * and that pose is gone.
+	 * Deliberately NOT in the document: a pending edit never reaches [PuppetModel], so it costs nothing in
+	 * document terms and a keyform insert can consume it without that being a document edit either. It IS in
+	 * the undo history, one step per gesture end (see [commitPendingChannelEdit]) rather than per keystroke -
+	 * a per-frame preview ([setPendingChannelEdit]) records nothing on its own. Every pending value is
+	 * cleared whenever the pose moves, because a value chosen FOR one pose is meaningless at another; a
+	 * history jump does not clear them, since [restore] lands on the very pose they were chosen for and
+	 * restores them alongside it.
 	 *
 	 * The keyed-field tint reads this to show the edited-but-unkeyed state, and a keyform insert consumes
 	 * it: the whole point is that `I` captures what you just typed rather than what is still stored.
@@ -376,8 +379,9 @@ class EditorSession(
 	 *
 	 * What a keyable property field calls when its gesture ends, where [setPendingChannelEdit] is what it
 	 * calls per frame while the gesture is still running.  A pending edit is still transient - the next pose
-	 * move discards it - but discarding is not the same as never having happened, and an edit the user can
-	 * see in the viewport and cannot undo is the one thing this had wrong.
+	 * move discards it - but discarding is not the same as never having happened: it is a deliberate edit
+	 * the user can see take effect in the viewport, so it must be undoable independent of whether it ever
+	 * reaches the document.
 	 *
 	 * Pushes its own snapshot rather than going through [mutate] / [commit], for the same reason
 	 * [setSelection] and [setMeshSelection] do: neither the model nor the pose changes, so the commit choke
@@ -413,9 +417,12 @@ class EditorSession(
 	/**
 	 * Discards every pending unkeyed edit.
 	 *
-	 * Called on any pose move and on any history jump - the situations that invalidate ALL of them at once.
-	 * A keyform insert that consumed one target's value uses [clearPendingChannelEdit] instead, because the
-	 * other targets' values are still valid for the unchanged pose.
+	 * Called on any pose move - the situation that invalidates ALL of them at once, since every pending value
+	 * was chosen for the pose being left.  A history jump does NOT call this: [restore] restores the
+	 * snapshot's own [EditorSnapshot.pendingChannelEdits] instead, since the pose it lands on is exactly the
+	 * pose those values were chosen for.  A keyform insert that consumed one target's value uses
+	 * [clearPendingChannelEdit] instead, because the other targets' values are still valid for the unchanged
+	 * pose.
 	 */
 	fun clearPendingChannelEdits() {
 		if (mutablePendingChannelEdits.value.isNotEmpty()) {
@@ -1771,8 +1778,9 @@ class EditorSession(
 		mutablePose.value = snapshot.pose
 		mutableMeshSelection.value = snapshot.meshSelection
 		mutableParameterSelection.value = snapshot.parameterSelection
-		// Restored, not cleared: the snapshot carries the pose these values were chosen for, so the pair is
-		// coherent.  Clearing here used to make an undo land on the step's pose with the step's edits gone.
+		// Restored, not cleared: the snapshot carries the pose these values were chosen for, so restoring the
+		// pair together keeps them coherent - an undo must land on the step's pose WITH the step's pending
+		// edits, not on the pose alone.
 		mutablePendingChannelEdits.value = snapshot.pendingChannelEdits
 		mutableKeySelection.value = snapshot.keySelection
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select

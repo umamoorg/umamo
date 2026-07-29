@@ -100,7 +100,7 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param Boolean plain When true, renders a bare type-in box only (no scrub, chevrons, or fill) - the simple field.
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
- * @param KeyedFieldState keyState The keyform state to tint the field's border with.
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  */
 @Composable
@@ -159,7 +159,7 @@ fun NumberField(
  * @param Boolean plain When true, renders a bare type-in box only (the simple field).
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
- * @param KeyedFieldState keyState The keyform state to tint the field's border with.
+ * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  */
 @Composable
@@ -324,7 +324,7 @@ private fun NumberFieldCore(
 				dragValue = null
 			},
 			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
-			// Forwarded on the RESTING face, the one every real field shows: this is the border tint that
+			// Forwarded on the RESTING face, the one every real field shows: this is the background tint that
 			// warns a typed value is unkeyed and dies on the next scrub, and it once reached only the
 			// disabled-plain branch - so no enabled numeric field ever showed it.
 			keyState = keyState,
@@ -333,8 +333,8 @@ private fun NumberFieldCore(
 }
 
 /**
- * The idle display face of a [NumberField]: a bordered box showing [text] (plus an optional [unitSuffix])
- * over a left-to-right accent magnitude fill, with decrement / increment chevrons that fade in on hover.
+ * The idle display face of a [NumberField]: a box showing [text] (plus an optional [unitSuffix]) over a
+ * left-to-right accent magnitude fill, with decrement / increment chevrons that fade in on hover.
  * A quick tap enters type-in mode ([onTapToEdit]); a horizontal drag past the touch slop scrubs
  * ([onScrubStart] / [onScrub] with the total delta from the gesture start / [onScrubEnd]).  The two
  * pointer handlers are separate inputs like [Slider], and callbacks are read through

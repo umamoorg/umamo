@@ -155,9 +155,10 @@ data class UmamoColors(
 // to what the call sites historically computed inline.
 private val brandPurple = Color(0xFFBF86D7)
 
-// Blender's keyframe colors, and the alpha the field-background variants derive at.  Shared by both schemes
-// because the colors themselves are (see the dark scheme's note): a per-scheme alpha would drift them apart
-// again through the back door.
+// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
+// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.  Shared as
+// one constant, alpha included, so a per-scheme background tint could not drift them apart through the back
+// door.
 private val keyframeOnKey = Color(0xFFD1B727)
 private val keyframeBetween = Color(0xFF5FC729)
 private val keyframeModified = Color(0xFFDF8431)

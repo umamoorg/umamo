@@ -3,9 +3,9 @@ package org.umamo.edit
 /*
  * What a key REMOVAL does to the keyform sheet's key selection.
  *
- * Removing keys renumbers the ones above them, so a selection left untouched across a removal stops naming
- * what the user selected: the ref sits on the ordinal the removal freed, which is the next key along.  That
- * showed as the neighbouring mark lighting up as selected and the next Delete taking it.
+ * Removing keys renumbers the ones above them: a [TrackKeyRef] names a row and an ordinal on that row's
+ * track, so a selection left untouched across a removal stops naming the key the user selected and instead
+ * names whichever key slides down onto the freed ordinal.
  *
  * The rule lives in :edit rather than in the sheet because it is a statement about what an edit MEANS, and
  * three call sites need to agree on it - the aimed removal behind Alt+I and the lane menu, the selected-keys
@@ -18,8 +18,8 @@ package org.umamo.edit
  *
  * Only two kinds of ref are at risk from a removal: the removed keys themselves, and the LATER ordinals on
  * the same row, which slide down one place per key removed below them.  Everything else names exactly what
- * it named before - which is why deleting a mark the user had not selected must leave their selection alone,
- * rather than clearing it wholesale as the sheet used to.
+ * it named before, so a mark the user had not selected must leave their selection untouched rather than
+ * clearing it wholesale.
  *
  * Matched on the parameter as well as the row because a linked pair renders one row under two sections, and
  * a removal renumbers only the axis it happened on.
@@ -46,10 +46,9 @@ fun selectionAfterKeyRemoval(current: Set<TrackKeyRef>, removed: Set<TrackKeyRef
 /**
  * [current] with every ordinal at or above [inserted] shifted up to make room for it.
  *
- * The mirror of [selectionAfterKeyRemoval], and the reason inserting to the LEFT of a selected mark handed
- * that mark's ordinal to the new key: the selection then named the key that had just been created rather
- * than the one the user chose.  Inserting to the RIGHT never showed the bug, because nothing below an
- * insert renumbers.
+ * The mirror of [selectionAfterKeyRemoval]: an insert renumbers every key at or above where it lands, so a
+ * selection on one of those keys must shift up by one to keep naming the same key.  A key below the
+ * insertion point already names the right key and is left untouched.
  *
  * @param Set<TrackKeyRef> current The selection before the insert.
  * @param TrackKeyRef inserted The new key, at the ordinal it takes.

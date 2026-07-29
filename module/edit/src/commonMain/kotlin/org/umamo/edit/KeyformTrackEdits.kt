@@ -130,9 +130,9 @@ fun EditorSession.moveTrackKey(
  * The ordinal a key inserted at [position] on [track] would take, or -1 when the insert adds none.
  *
  * The insert counterpart of [trackKeyIndexAfterMove], and needed for the same reason: an insert renumbers
- * every key at or above it, so the keyform sheet has to correct its key selection - and it has to do so
- * before the insert records its step, since the selection rides that snapshot.  Left uncorrected, inserting
- * to the LEFT of a selected mark handed its ordinal to the new key, which then showed as the selected one.
+ * every key at or above it, so the keyform sheet has to correct its key selection to the ordinal the
+ * selected key lands on - and it has to do so before the insert records its step, since the selection rides
+ * that snapshot.
  *
  * Clamps [position] exactly as [insertTrackKeyAt] does, so the query cannot answer for a destination the
  * insert would never use.

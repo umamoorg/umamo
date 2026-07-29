@@ -7,11 +7,11 @@ import kotlin.test.assertEquals
 /**
  * What a removal does to the keyform sheet's key selection.
  *
- * The sheet used to drop the whole selection on any removal, which threw away a carefully built multi-key
- * selection for deleting one unrelated mark - and the AIMED removal behind Alt+I and the lane menu did the
- * opposite, leaving the refs untouched so a deleted key's ordinal came to name its neighbour: that mark lit
- * up as selected and the next Delete took it.  Both are the same missing rule, which is why it lives in one
- * place now.
+ * A removal renumbers every key above it, so the selection has to renumber the same way to keep naming what
+ * the user selected: dropping it wholesale loses a carefully built multi-key selection over one unrelated
+ * deletion, and leaving the refs untouched hands the freed ordinal to whichever key slides onto it.  Three
+ * call sites need to agree on this - the aimed removal behind Alt+I and the lane menu, the selected-keys
+ * removal behind Delete, and the summary-mark removal - which is why the rule lives in one place.
  */
 class KeyformKeySelectionTest {
 	private val angleX = ParameterId("ParamAngleX")
@@ -65,9 +65,9 @@ class KeyformKeySelectionTest {
 	/**
 	 * An insert shifts the selection up from where it lands, and leaves everything below it alone.
 	 *
-	 * The asymmetry is exactly what the bug looked like: inserting to the RIGHT of a selected mark behaved,
-	 * while inserting to the LEFT handed that mark's ordinal to the new key, so the new key showed as
-	 * selected instead.
+	 * The asymmetry follows from the renumbering rule itself: an insert to the RIGHT of a selected mark
+	 * renumbers nothing below it, so the selection already names the right key; an insert to the LEFT lands
+	 * at or above the selected ordinal, so the selection must shift up by one to keep naming it.
 	 */
 	@Test
 	fun anInsertShiftsOnlyTheKeysAboveIt() {

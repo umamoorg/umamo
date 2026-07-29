@@ -22,8 +22,9 @@ import kotlin.test.assertTrue
 /**
  * Pins the ONE keyable-row edit-routing rule: a KEYED channel's typed value goes pending (writing the
  * static would be shadowed by the track, so the edit would appear silently rejected), and an unkeyed
- * channel writes the static.  The rule used to be hand-copied per row, and the part rows shipped without
- * it entirely.
+ * channel writes the static.  Centralized here rather than hand-copied per row, since a rule duplicated
+ * across every row is exactly the kind of thing that drifts - some rows carry it correctly and others
+ * silently do not.
  */
 class EditKeyedChannelTest {
 	private val angleX = ParameterId("ParamAngleX")
