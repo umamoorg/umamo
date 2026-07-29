@@ -1,10 +1,12 @@
 package org.umamo.runtime.keyform
 
+import org.umamo.runtime.eval.EPS_KEY
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
+import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PuppetModel
@@ -56,16 +58,18 @@ private class CompactedChannels(
 /**
  * Compacts every track, separating the ones that collapsed to a constant from the ones that still vary.
  *
+ * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range - the
+ *   out-of-span gate compaction must preserve (see KeyformGridCompaction's file note).
  * @return CompactedChannels The surviving tracks plus the lifted constants.
  */
-private fun ChannelGrids.compactedTracks(): CompactedChannels {
+private fun ChannelGrids.compactedTracks(axisSpansRange: (KeyformAxis) -> Boolean): CompactedChannels {
 	if (isEmpty) {
 		return CompactedChannels(this, emptyMap())
 	}
 	val surviving = LinkedHashMap<FormChannel, KeyformGrid<ChannelValue>>(gridsByChannel.size)
 	val constants = LinkedHashMap<FormChannel, ChannelValue>()
 	for ((channel, grid) in gridsByChannel) {
-		when (val result = grid.compacted(ChannelValueInterpolator, channel.valueKind)) {
+		when (val result = grid.compacted(ChannelValueInterpolator, channel.valueKind, axisSpansRange)) {
 			is CompactionResult.Constant -> constants[channel] = result.form
 			is CompactionResult.Reduced -> surviving[channel] = result.grid
 		}
@@ -116,15 +120,30 @@ private fun liftedDrawOrder(
  *
  * Geometry grids are untouched (see the file note).  Evaluation is unchanged to within the tolerance the
  * fidelity contract already allows for geometry, and is EXACT wherever a track collapsed to a constant -
- * a field read cannot drift the way a weighted sum over corners can.
+ * a field read cannot drift the way a weighted sum over corners can.  An axis whose keys do not bracket
+ * its parameter's range is left alone entirely: out-of-span poses fall back to the owner's static, and a
+ * lift would overwrite exactly the static they fall back to.
  *
  * @return PuppetModel The compacted model.
  */
-fun PuppetModel.withChannelsCompacted(): PuppetModel =
-	copy(
+fun PuppetModel.withChannelsCompacted(): PuppetModel {
+	val rangeByParameterId =
+		parameters.associate { parameter ->
+			parameter.id to (minOf(parameter.min, parameter.max) to maxOf(parameter.min, parameter.max))
+		}
+	// EPS_KEY on both ends: a key the evaluator cannot tell apart from the range end brackets it.  An axis
+	// on a parameter the model does not list is never spanning - a dangling id must stay conservative.
+	val axisSpansRange: (KeyformAxis) -> Boolean = { axis ->
+		val range = rangeByParameterId[axis.parameterId]
+		range != null &&
+			axis.keys.isNotEmpty() &&
+			axis.keys.first() <= range.first + EPS_KEY &&
+			axis.keys.last() >= range.second - EPS_KEY
+	}
+	return copy(
 		drawables =
 			drawables.map { drawable ->
-				val compacted = drawable.channelGrids.compactedTracks()
+				val compacted = drawable.channelGrids.compactedTracks(axisSpansRange)
 				if (compacted.constants.isEmpty() && compacted.channelGrids === drawable.channelGrids) {
 					drawable
 				} else {
@@ -137,11 +156,11 @@ fun PuppetModel.withChannelsCompacted(): PuppetModel =
 					)
 				}
 			},
-		deformers = deformers.map { deformer -> deformer.withChannelsCompacted() },
-		parts = parts.map { part -> part.withChannelsCompacted() },
+		deformers = deformers.map { deformer -> deformer.withChannelsCompacted(axisSpansRange) },
+		parts = parts.map { part -> part.withChannelsCompacted(axisSpansRange) },
 		glues =
 			glues.map { glue ->
-				val compacted = glue.channelGrids.compactedTracks()
+				val compacted = glue.channelGrids.compactedTracks(axisSpansRange)
 				if (compacted.constants.isEmpty() && compacted.channelGrids === glue.channelGrids) {
 					glue
 				} else {
@@ -154,12 +173,13 @@ fun PuppetModel.withChannelsCompacted(): PuppetModel =
 					)
 				}
 			},
-		renderRoot = renderRoot.withChannelsCompacted(),
+		renderRoot = renderRoot.withChannelsCompacted(axisSpansRange),
 	)
+}
 
 /** This deformer with its channel tracks compacted and any constants lifted into its statics. */
-private fun Deformer.withChannelsCompacted(): Deformer {
-	val compacted = channelGrids.compactedTracks()
+private fun Deformer.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): Deformer {
+	val compacted = channelGrids.compactedTracks(axisSpansRange)
 	if (compacted.constants.isEmpty() && compacted.channelGrids === channelGrids) {
 		return this
 	}
@@ -191,8 +211,8 @@ private fun Deformer.withChannelsCompacted(): Deformer {
  * Int, so a fractional constant would have to round, and rounding could reorder two parts that the track
  * kept distinct.  Such a track keeps its (reduced) grid instead - correct, just not free.
  */
-private fun Part.withChannelsCompacted(): Part {
-	val compacted = channelGrids.compactedTracks()
+private fun Part.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): Part {
+	val compacted = channelGrids.compactedTracks(axisSpansRange)
 	if (compacted.constants.isEmpty() && compacted.channelGrids === channelGrids) {
 		return this
 	}
@@ -216,12 +236,12 @@ private fun Part.withChannelsCompacted(): Part {
  * authority rather than something derived from the parts - so it is compacted in place instead of being
  * re-derived, which would discard the baked order.
  */
-private fun RenderGroup.withChannelsCompacted(): RenderGroup {
-	val compacted = channelGrids.compactedTracks()
+private fun RenderGroup.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): RenderGroup {
+	val compacted = channelGrids.compactedTracks(axisSpansRange)
 	val lifted = liftedDrawOrder(compacted.constants, compacted.channelGrids, channelGrids)
 	return copy(
 		drawOrder = lifted.staticDrawOrder ?: drawOrder,
-		children = children.map { child -> if (child is RenderGroup) child.withChannelsCompacted() else child },
+		children = children.map { child -> if (child is RenderGroup) child.withChannelsCompacted(axisSpansRange) else child },
 		channelGrids = lifted.channelGrids,
 		composite =
 			composite?.copy(

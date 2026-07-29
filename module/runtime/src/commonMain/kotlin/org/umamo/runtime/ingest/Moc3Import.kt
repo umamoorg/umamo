@@ -10,6 +10,7 @@ import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.eval.scalarAt
@@ -435,11 +436,11 @@ object Moc3Import {
 		/**
 		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
 		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
-		 * the grid keyforms; flips are not blendable, so the reference's flags fill the form.  The
-		 * blend-shape rows for the deformer's own opacity/color channels are NOT applied: the form's
-		 * channels stay at their identity defaults here, and only the keyform grid drives them (see
-		 * `DeformerCascade`).  Blending deformer channels through blend shapes is a v5+ feature of
-		 * its own and would need the same reference-subtraction the control points get.
+		 * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
+		 * fills the form.  The blend-shape rows for the deformer's own opacity/color channels are NOT
+		 * applied: the form's channels stay at their identity defaults here, and only the keyform grid
+		 * drives them (see `DeformerCascade`).  Blending deformer channels through blend shapes is a
+		 * v5+ feature of its own and would need the same reference-subtraction the control points get.
 		 *
 		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
 		 * @param PointSpace          space       The rotation's stored point space.
@@ -471,9 +472,12 @@ object Moc3Import {
 						angle = reference.angle + payloads[keyIndex].angle,
 						scale = reference.scale + payloads[keyIndex].scale * scaleFactor,
 						// The reference pivot carries no flips - reflections are FLAG channels on the deformer,
-						// and a blend shape never varies them (MOC3 stores no flip delta rows).
-						flipX = rotation.channelGrids[FormChannel.FLIP_X] != null && rotation.flipX,
-						flipY = rotation.channelGrids[FormChannel.FLIP_Y] != null && rotation.flipY,
+						// and a blend shape never varies them (MOC3 stores no flip delta rows).  Sampled from
+						// the FLIP tracks at the default pose: at this point in the import the statics are still
+						// their constructor defaults (compaction lifts constant flip tracks only at the end),
+						// so reading rotation.flipX here would be constant false and drop the reflection.
+						flipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, defaultValue),
+						flipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, defaultValue),
 					)
 				}
 			}

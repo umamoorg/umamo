@@ -1,12 +1,18 @@
 package org.umamo.runtime.keyform
 
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ChannelValueKind
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -112,6 +118,120 @@ class KeyformCompactionTest {
 			)
 		val reduced = assertIs<CompactionResult.Reduced<ChannelValue>>(grid.compacted(ChannelValueInterpolator, ChannelValueKind.FLAG)).grid
 		assertEquals(listOf(0f, 5f, 10f), reduced.axes.single().keys.toList())
+	}
+
+	/**
+	 * Two ADJACENT interpolable keys are the trap the greedy pass falls into: the first key's drop is
+	 * justified against a neighbour that itself drops next, and refinement then rebuilds the first from
+	 * the surviving endpoints - a different IEEE-754 rounding sequence.  The values below are a concrete
+	 * float32 case where that direct rebuild differs by an ULP (found by exhaustive search), so this test
+	 * fails against an unverified greedy drop pass.
+	 */
+	@Test
+	fun adjacentInterpolableKeysStayMutualInverses() {
+		val v0 = scalar(0.102f)
+		val v3 = scalar(0.1014f)
+		// Constructed to make the greedy pass drop key 1 (against 0 and 3) and then key 3 (against 0 and 4).
+		val v2 = ChannelValueInterpolator.interpolate(v0, v3, 0.75f)
+		val v1 = ChannelValueInterpolator.interpolate(v0, v2, 1f / 3f)
+		val original =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f, 3f, 4f))),
+				listOf(v0, v1, v2, v3).mapIndexed { keyIndex, value -> KeyformCell(intArrayOf(keyIndex), value) },
+			)
+
+		val reduced = assertIs<CompactionResult.Reduced<ChannelValue>>(original.compacted(ChannelValueInterpolator)).grid
+		val restored =
+			reduced.refinedToUnion(
+				mapOf(angleX to original.axes.single().keys),
+				emptyMap(),
+				ChannelValueInterpolator,
+			)
+
+		assertEquals(listOf(0f, 1f, 3f, 4f), restored.axes.single().keys.toList())
+		assertEquals(valuesInIndexOrder(original), valuesInIndexOrder(restored), "every dropped key restores bit-for-bit")
+	}
+
+	/**
+	 * An axis whose keys do not bracket the parameter's range gates the track's out-of-span fallback to
+	 * the owner's static, so it is never dropped and its track is never lifted to a constant.
+	 */
+	@Test
+	fun aNonSpanningConstantAxisIsNeverDroppedOrLifted() {
+		val spans: (KeyformAxis) -> Boolean = { axis -> axis.keys.first() <= -1f && axis.keys.last() >= 1f }
+
+		// Constant along a NON-spanning sole axis: kept as-is, because poses below 0.5 read the static.
+		val gated = track(floatArrayOf(0.5f, 1f), floatArrayOf(0.4f, 0.4f))
+		val gatedResult = gated.compacted(ChannelValueInterpolator, axisSpansRange = spans)
+		assertSame(gated, assertIs<CompactionResult.Reduced<ChannelValue>>(gatedResult).grid)
+
+		// The same constant on a spanning axis lifts as before.
+		val spanning = track(floatArrayOf(-1f, 1f), floatArrayOf(0.4f, 0.4f))
+		val liftedResult = spanning.compacted(ChannelValueInterpolator, axisSpansRange = spans)
+		assertEquals(scalar(0.4f), assertIs<CompactionResult.Constant<ChannelValue>>(liftedResult).form)
+
+		// Mixed: the spanning constant axis drops, the non-spanning one survives as the gate.
+		val axes = listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f)), KeyformAxis(angleY, floatArrayOf(0.5f, 1f)))
+		val cells =
+			listOf(
+				KeyformCell(intArrayOf(0, 0), scalar(0.4f)),
+				KeyformCell(intArrayOf(1, 0), scalar(0.4f)),
+				KeyformCell(intArrayOf(0, 1), scalar(0.4f)),
+				KeyformCell(intArrayOf(1, 1), scalar(0.4f)),
+			)
+		val mixedResult = KeyformGrid(axes, cells).compacted(ChannelValueInterpolator, axisSpansRange = spans)
+		val mixedReduced = assertIs<CompactionResult.Reduced<ChannelValue>>(mixedResult).grid
+		assertEquals(listOf(angleY), mixedReduced.axes.map { axis -> axis.parameterId }, "only the gate axis survives")
+	}
+
+	/**
+	 * The model-level pass derives the spanning gate from the parameter table: a glue keyed constant 0.4
+	 * on keys [0.5, 1.0] of a -1..1 parameter welds at the 1.0 static fallback below 0.5, so lifting the
+	 * constant would change those poses.  The track must survive and the static must keep its value; the
+	 * same constant on a spanning axis lifts as before.
+	 */
+	@Test
+	fun modelCompactionKeepsTheOutOfSpanStaticFallback() {
+		val gatedTrack =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(0.5f, 1f))),
+				listOf<KeyformCell<ChannelValue>>(
+					KeyformCell(intArrayOf(0), scalar(0.4f)),
+					KeyformCell(intArrayOf(1), scalar(0.4f)),
+				),
+			)
+		val spanningTrack =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
+				listOf<KeyformCell<ChannelValue>>(
+					KeyformCell(intArrayOf(0), scalar(0.4f)),
+					KeyformCell(intArrayOf(1), scalar(0.4f)),
+				),
+			)
+		val model =
+			PuppetModel(
+				parameters = listOf(Parameter(angleX, angleX.raw, min = -1f, max = 1f, default = 0f)),
+				parts = emptyList(),
+				deformers = emptyList(),
+				drawables = emptyList(),
+				rootChildren = emptyList(),
+				rootPartId = null,
+				glues =
+					listOf(
+						Glue(DrawableId("a"), DrawableId("b"), emptyList(), ChannelGrids(mapOf(FormChannel.GLUE_INTENSITY to gatedTrack))),
+						Glue(DrawableId("c"), DrawableId("d"), emptyList(), ChannelGrids(mapOf(FormChannel.GLUE_INTENSITY to spanningTrack))),
+					),
+			)
+
+		val compacted = model.withChannelsCompacted()
+
+		val gated = compacted.glues.first { glue -> glue.meshA == DrawableId("a") }
+		assertSame(gatedTrack, gated.channelGrids[FormChannel.GLUE_INTENSITY], "the non-spanning track survives untouched")
+		assertEquals(1f, gated.intensity, "the full-weld fallback below the span keeps its static")
+
+		val lifted = compacted.glues.first { glue -> glue.meshA == DrawableId("c") }
+		assertEquals(null, lifted.channelGrids[FormChannel.GLUE_INTENSITY], "the spanning constant still lifts")
+		assertEquals(0.4f, lifted.intensity)
 	}
 
 	/** A sparse grid is passed straight through - its missing cells cannot be tested, so nothing is dropped. */
