@@ -761,8 +761,8 @@ private fun TrackLane(
 	// committed on release: a per-frame commit would push an undo step for every pixel of the drag.
 	var draggingMark by remember(row.key) { mutableStateOf<TrackKeyMark?>(null) }
 	var dragDomainValue by remember(row.key) { mutableStateOf(0f) }
-	// The window the in-flight drag may move within - its neighbours, inside the axis.  Latched when the
-	// drag starts so a mark cannot escape by being dragged past a neighbour it has already reached.
+	// The window the in-flight drag may move within: the axis, end to end.  Latched at drag start for the
+	// same reason the number field latches its scrub base - so the bound cannot drift under the gesture.
 	var dragBounds by remember(row.key) { mutableStateOf(0f..0f) }
 	// The context menu's items depend on WHERE it was opened (over a key, or over empty track), so the
 	// gesture records only the anchor and the hit is resolved below, at composition time.  Resolving it
@@ -863,7 +863,7 @@ private fun TrackLane(
 										dragging = true
 										if (hitMark != null) {
 											draggingMark = hitMark
-											dragBounds = dragBoundsOf(marks, hitMark.keyIndex, axis)
+											dragBounds = dragBoundsOf(axis)
 										}
 									}
 									if (dragging) {

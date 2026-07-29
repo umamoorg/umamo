@@ -49,7 +49,9 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.MenuItem
+import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalKeyableHover
@@ -201,7 +203,11 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	// shell-level commands (delete/nudge selected keys, frame all) resolve WHICH sheet at dispatch time
 	// from this.  Observed on the Initial pass so the lanes' own gestures keep every event.
 	val hoveredTracker = LocalHoveredSurfaceTracker.current
-	Box(
+	// A Column, not a Box with the window indicator layered on: as an overlay the indicator painted over the
+	// bottom 8dp of the last row and - because it is draggable - swallowed the pointer there, so marks in
+	// that strip were unclickable whenever the sheet was zoomed.  As a sibling it cannot reach the rows.
+	val scrollState = rememberScrollState()
+	Column(
 		modifier =
 			Modifier
 				.fillMaxSize()
@@ -229,128 +235,142 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					onPanningChange = { panning -> panningTracks = panning },
 				),
 	) {
-		TrackSheetBackdrop(labelColumnWidth = viewState.labelColumnWidth)
-		if (puppet == null || targetedParameters.isEmpty()) {
-			EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
-			return@Box
-		}
-		val projections =
-			remember(puppet, targetedParameters, labels) {
-				targetedParameters.map { parameter -> parameter to keyformSheetRows(puppet, parameter.id, labels) }
+		// The window indicator is composed AFTER this box, so it needs the weight; the box takes the rest.
+		Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+			// The track region stops short of the vertical bar, so a mark at the domain maximum is never
+			// underneath it.  The backdrop is inset to match, or the two columns would stop lining up.
+			TrackSheetBackdrop(
+				labelColumnWidth = viewState.labelColumnWidth,
+				modifier = Modifier.padding(end = SCROLLBAR_THICKNESS),
+			)
+			if (puppet == null || targetedParameters.isEmpty()) {
+				EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
+				return@Box
 			}
-		if (!viewState.seeded) {
-			// In a SideEffect so it runs only for APPLIED compositions: an abandoned composition rolls back
-			// the snapshot write to expandedKeys but not the plain seeded gate, which would strand the sheet
-			// all-collapsed forever - indistinguishable from a rig with nothing keyed.
-			val seedKeys = projections.flatMap { (_, projection) -> projection.groupRowKeys }.toSet()
-			SideEffect {
-				if (!viewState.seeded) {
-					viewState.seeded = true
-					viewState.expandedKeys = seedKeys
+			val projections =
+				remember(puppet, targetedParameters, labels) {
+					targetedParameters.map { parameter -> parameter to keyformSheetRows(puppet, parameter.id, labels) }
+				}
+			if (!viewState.seeded) {
+				// In a SideEffect so it runs only for APPLIED compositions: an abandoned composition rolls back
+				// the snapshot write to expandedKeys but not the plain seeded gate, which would strand the sheet
+				// all-collapsed forever - indistinguishable from a rig with nothing keyed.
+				val seedKeys = projections.flatMap { (_, projection) -> projection.groupRowKeys }.toSet()
+				SideEffect {
+					if (!viewState.seeded) {
+						viewState.seeded = true
+						viewState.expandedKeys = seedKeys
+					}
 				}
 			}
-		}
-		if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
-			EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
-			return@Box
-		}
-		// The sheet's commands (delete/nudge selected keys, frame all) live at SHELL level - per-area
-		// registration made two open sheets clobber each other in the last-write-wins registry.  The area
-		// only registers its command surface here; the lambdas read the live view state and the CURRENT
-		// projections at dispatch time, so the effect never needs to re-run on an edit or a selection
-		// change.  A ref whose row is gone simply drops out of selectedTracks, which is what makes a stale
-		// selection harmless rather than dangerous.
-		val keyformSheetViews = LocalKeyformSheetViews.current
-		val currentProjections = rememberUpdatedState(projections)
-		DisposableEffect(keyformSheetViews, scope.areaId) {
-			if (keyformSheetViews == null) {
-				onDispose {}
-			} else {
-				fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
-					viewState.selectedKeys.mapNotNull { keyRef ->
-						val entry = currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
-						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
-							Triple(track, entry.first, keyRef.keyIndex)
-						}
-					}
-				val surface =
-					KeyformSheetSurface(
-						selectedTracks = ::selectedTracks,
-						hasSelection = { viewState.selectedKeys.isNotEmpty() },
-						clearSelection = { viewState.selectedKeys = emptySet() },
-						frameAll = { viewState.window = TrackWindow.Full },
-					)
-				keyformSheetViews.register(scope.areaId, surface)
-				onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
+			if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
+				EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
+				return@Box
 			}
-		}
-		// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
-		// reason (a lazy list nested in a scroll fights it for the gesture).
-		Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-			for ((parameter, projection) in projections) {
-				key(parameter.id) {
-					val collapsed = parameter.id in viewState.collapsedParameters
-					// The section header names which parameter the ruler below belongs to, and folds it
-					// away.  Shown even for a single section: without it the sheet is a set of numbers with
-					// no stated domain.
-					SectionHeader(
-						name = parameter.name,
-						collapsed = collapsed,
-						onToggle = {
-							viewState.collapsedParameters =
-								if (collapsed) {
-									viewState.collapsedParameters - parameter.id
-								} else {
-									viewState.collapsedParameters + parameter.id
-								}
-						},
-					)
-					if (collapsed) {
-						// Folded: the header alone, so a linked pad's other axis is one click away.
-					} else if (projection.rows.isEmpty()) {
-						Box(modifier = Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
-							Text(
-								text = stringResource(Res.string.keyform_sheet_no_tracks),
-								style = LocalUmamoTypography.current.bodyMedium,
-								color = colors.textMuted,
-							)
+			// The sheet's commands (delete/nudge selected keys, frame all) live at SHELL level - per-area
+			// registration made two open sheets clobber each other in the last-write-wins registry.  The area
+			// only registers its command surface here; the lambdas read the live view state and the CURRENT
+			// projections at dispatch time, so the effect never needs to re-run on an edit or a selection
+			// change.  A ref whose row is gone simply drops out of selectedTracks, which is what makes a stale
+			// selection harmless rather than dangerous.
+			val keyformSheetViews = LocalKeyformSheetViews.current
+			val currentProjections = rememberUpdatedState(projections)
+			DisposableEffect(keyformSheetViews, scope.areaId) {
+				if (keyformSheetViews == null) {
+					onDispose {}
+				} else {
+					fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
+						viewState.selectedKeys.mapNotNull { keyRef ->
+							val entry = currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+							entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+								Triple(track, entry.first, keyRef.keyIndex)
+							}
 						}
-					} else {
-						KeyformSheetSection(
-							parameter = parameter,
-							projection = projection,
-							selectedKeys = viewState.selectedKeys,
-							window = viewState.window,
-							labelColumnWidth = viewState.labelColumnWidth,
-							expandedKeys = viewState.expandedKeys,
-							onToggleExpanded = { row ->
-								viewState.expandedKeys =
-									if (row.key in viewState.expandedKeys) {
-										viewState.expandedKeys - row.key
+					val surface =
+						KeyformSheetSurface(
+							selectedTracks = ::selectedTracks,
+							hasSelection = { viewState.selectedKeys.isNotEmpty() },
+							clearSelection = { viewState.selectedKeys = emptySet() },
+							frameAll = { viewState.window = TrackWindow.Full },
+						)
+					keyformSheetViews.register(scope.areaId, surface)
+					onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
+				}
+			}
+			// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
+			// reason (a lazy list nested in a scroll fights it for the gesture).
+			Column(
+				modifier =
+					Modifier
+						.fillMaxSize()
+						.padding(end = SCROLLBAR_THICKNESS)
+						.verticalScroll(scrollState),
+			) {
+				for ((parameter, projection) in projections) {
+					key(parameter.id) {
+						val collapsed = parameter.id in viewState.collapsedParameters
+						// The section header names which parameter the ruler below belongs to, and folds it
+						// away.  Shown even for a single section: without it the sheet is a set of numbers with
+						// no stated domain.
+						SectionHeader(
+							name = parameter.name,
+							collapsed = collapsed,
+							onToggle = {
+								viewState.collapsedParameters =
+									if (collapsed) {
+										viewState.collapsedParameters - parameter.id
 									} else {
-										viewState.expandedKeys + row.key
+										viewState.collapsedParameters + parameter.id
 									}
 							},
-							onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
 						)
+						if (collapsed) {
+							// Folded: the header alone, so a linked pad's other axis is one click away.
+						} else if (projection.rows.isEmpty()) {
+							Box(modifier = Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+								Text(
+									text = stringResource(Res.string.keyform_sheet_no_tracks),
+									style = LocalUmamoTypography.current.bodyMedium,
+									color = colors.textMuted,
+								)
+							}
+						} else {
+							KeyformSheetSection(
+								parameter = parameter,
+								projection = projection,
+								selectedKeys = viewState.selectedKeys,
+								window = viewState.window,
+								labelColumnWidth = viewState.labelColumnWidth,
+								expandedKeys = viewState.expandedKeys,
+								onToggleExpanded = { row ->
+									viewState.expandedKeys =
+										if (row.key in viewState.expandedKeys) {
+											viewState.expandedKeys - row.key
+										} else {
+											viewState.expandedKeys + row.key
+										}
+								},
+								onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
+							)
+						}
 					}
 				}
 			}
-		}
-		TrackSheetSeparatorOverlay(
-			labelColumnWidth = viewState.labelColumnWidth,
-			onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
-			onDraggingChange = { dragging -> resizingColumn = dragging },
-		)
-		// The window indicator sits at the bottom edge, over the scroll, because it describes the
-		// horizontal view rather than the vertical one - and it hides itself when everything is framed.
-		Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-			TrackWindowScrollbar(
-				window = viewState.window,
-				onWindowChange = { window -> viewState.window = window },
+			TrackSheetSeparatorOverlay(
 				labelColumnWidth = viewState.labelColumnWidth,
+				onLabelColumnWidthChange = { width -> viewState.labelColumnWidth = width },
+				onDraggingChange = { dragging -> resizingColumn = dragging },
 			)
+			VerticalScrollbarOverlay(scrollState)
 		}
+		// Beneath the scroll region rather than over it: it describes the HORIZONTAL view, and it hides
+		// itself entirely when the whole domain is framed.
+		TrackWindowScrollbar(
+			window = viewState.window,
+			onWindowChange = { window -> viewState.window = window },
+			labelColumnWidth = viewState.labelColumnWidth,
+			modifier = Modifier.padding(end = SCROLLBAR_THICKNESS),
+		)
 	}
 }
 
@@ -489,9 +509,14 @@ private fun KeyformSheetSection(
 		onMarkDragEnd = { row, mark, releasedAt ->
 			val track = projection.tracksByRowKey[row.key]
 			if (session != null && track != null) {
-				// The key keeps its ordinal, so the selection survives a move untouched - the whole point
-				// of addressing keys by ordinal rather than by the value that is being changed.
-				session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+				// A key may cross its neighbours, which renumbers the axis - so the move reports where the
+				// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
+				// would silently leave the selection on whichever key took its place.
+				val landedIndex = session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+				val moved = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
+				if (moved in selectedKeys) {
+					onSelectedKeysChange(selectedKeys - moved + TrackKeyRef(parameter.id, row.key, landedIndex))
+				}
 			}
 		},
 		// Publishing the hovered row is what lets `I` / `Alt+I` aim at a track the way they already aim at a

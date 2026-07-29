@@ -116,6 +116,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Dragging a mark on the summary axis track drags all sub-key frames in the same spot.  This gets rid of the disabled keys in the summary.
 		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
 		* Filter to display only certain types.
+		* Context menu on item to select it.
 	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.

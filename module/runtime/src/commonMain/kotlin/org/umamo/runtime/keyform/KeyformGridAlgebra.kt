@@ -216,21 +216,99 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 }
 
 /**
+ * The position key [keyIndex] would actually land on if moved toward [newValue] on [parameterId]'s axis.
+ *
+ * Almost always [newValue] itself.  It is nudged only to keep every span RESOLVABLE: two keys closer than
+ * EPS_SPAN make the evaluator read fraction 0 across the gap, so the nearer one becomes unreachable and
+ * the blend degenerates into a step.  That is a correctness floor, not a spacing preference - keys may sit
+ * as close as the evaluator can still tell apart, and no closer.
+ *
+ * Returns null when the axis is absent, the grid is sparse, or the index is out of range.
+ *
+ * @param ParameterId parameterId The axis the key sits on.
+ * @param Int keyIndex The key being moved.
+ * @param Float newValue The requested destination.
+ * @return Float? The destination it will take, or null when the move cannot apply.
+ */
+fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, newValue: Float): Float? {
+	val axisIndex = axisIndexOf(parameterId)
+	if (axisIndex < 0 || !isDense) {
+		return null
+	}
+	val keys = axes[axisIndex].keys
+	if (keyIndex < 0 || keyIndex >= keys.size) {
+		return null
+	}
+	var nearestOther = Float.NaN
+	var nearestDistance = Float.MAX_VALUE
+	for (index in keys.indices) {
+		if (index == keyIndex) {
+			continue
+		}
+		val distance = abs(keys[index] - newValue)
+		if (distance < nearestDistance) {
+			nearestDistance = distance
+			nearestOther = keys[index]
+		}
+	}
+	if (nearestDistance >= EPS_SPAN || nearestOther.isNaN()) {
+		return newValue
+	}
+	// Pushed to the side it was already approaching from, so the nudge never reverses the drag.  A dead-on
+	// collision resolves in the direction of travel.
+	val approachingFromBelow = if (newValue == nearestOther) newValue < keys[keyIndex] else newValue < nearestOther
+	return if (approachingFromBelow) nearestOther - EPS_SPAN else nearestOther + EPS_SPAN
+}
+
+/**
+ * The ordinal key [keyIndex] would hold after being moved toward [newValue] - its position in the re-sorted
+ * axis.
+ *
+ * A move can REORDER the axis, so the key a caller is holding changes ordinal underneath it.  Anything
+ * tracking that key (the sheet's selection) has to be told where it went.
+ *
+ * @param ParameterId parameterId The axis the key sits on.
+ * @param Int keyIndex The key being moved.
+ * @param Float newValue The requested destination.
+ * @return Int The ordinal after the move, or [keyIndex] when the move cannot apply.
+ */
+fun KeyformGrid<*>.keyIndexAfterMove(parameterId: ParameterId, keyIndex: Int, newValue: Float): Int {
+	val axisIndex = axisIndexOf(parameterId)
+	val destination = keyDestinationFor(parameterId, keyIndex, newValue) ?: return keyIndex
+	val keys = axes[axisIndex].keys
+	// Its ordinal is simply how many keys end up below it.  Ties break toward the mover's old side, which
+	// is what sortedBy's stability gives the rebuild in withKeyMoved.
+	var below = 0
+	for (index in keys.indices) {
+		if (index == keyIndex) {
+			continue
+		}
+		if (keys[index] < destination || (keys[index] == destination && index < keyIndex)) {
+			below++
+		}
+	}
+	return below
+}
+
+/**
  * This grid with key [keyIndex] on [parameterId]'s axis moved to [newValue], carrying its cells with it.
  *
  * A move changes only WHERE a key sits, never what it holds - which is what makes it a distinct operation
  * rather than a remove plus an insert.  Re-inserting would rebuild the moved slice by interpolating its
  * neighbours, silently discarding whatever the rigger authored there.
  *
- * The new value is CLAMPED between the neighbouring keys rather than allowed to cross them.  Dragging one
- * key past another would have to either reorder the cells or swap two keys' contents, and both are
- * surprising mid-drag; clamping makes the neighbours read as walls, which is what a rigger expects.  An
- * endpoint has a wall on one side only, so it can still widen or narrow the axis - that is real authoring
- * (an axis's span decides where the channel falls back to its static, and for geometry where the entity
- * hides), not something to prevent.
+ * A key MAY cross its neighbours, and doing so re-sorts the axis and PERMUTES the cells to match.  That
+ * permutation is the whole cost of allowing it: a cell's coordinate on an axis is a key ORDINAL, and the
+ * evaluator requires an axis to be ascending - `bindBracket` reads keys[0] / keys[last] as the span ends,
+ * scans monotonically, and assumes keys[hi] - keys[hi - 1] is positive, while `gridCorners` assumes ordinal
+ * i + 1 is the next key by VALUE.  Re-sorting the keys without moving the cells to match would satisfy
+ * `isDense` and corrupt silently: forms would apply at the wrong positions and poses inside the real span
+ * would resolve to nothing, which for a geometry grid hides its entity outright.
+ *
+ * The destination is nudged only to keep spans resolvable - see [keyDestinationFor].
  *
  * Returns the receiver unchanged when the axis is absent, the index is out of range, the grid is sparse, or
- * the clamped destination is where the key already sits.
+ * the destination is where the key already sits.
  *
  * @param ParameterId parameterId The axis the key sits on.
  * @param Int keyIndex The key to move.
@@ -239,32 +317,39 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
  */
 fun <TForm> KeyformGrid<TForm>.withKeyMoved(parameterId: ParameterId, keyIndex: Int, newValue: Float): KeyformGrid<TForm> {
 	val axisIndex = axisIndexOf(parameterId)
-	if (axisIndex < 0 || !isDense) {
-		return this
-	}
+	val destination = keyDestinationFor(parameterId, keyIndex, newValue) ?: return this
 	val keys = axes[axisIndex].keys
-	if (keyIndex < 0 || keyIndex >= keys.size) {
+	if (destination == keys[keyIndex]) {
 		return this
 	}
-	// EPS_SPAN off each neighbour, so a clamped key never lands close enough to make a span the evaluator
-	// resolves as a step rather than a blend.
-	val lowerWall = if (keyIndex > 0) keys[keyIndex - 1] + EPS_SPAN else Float.NEGATIVE_INFINITY
-	val upperWall = if (keyIndex < keys.size - 1) keys[keyIndex + 1] - EPS_SPAN else Float.POSITIVE_INFINITY
-	if (lowerWall > upperWall) {
-		// The neighbours are already closer together than two spans; there is nowhere legal to put it.
-		return this
+
+	// Re-sort by the value each ordinal ends up holding.  sortedBy is stable, so equal values keep their
+	// old relative order - which cannot happen anyway after the EPS_SPAN nudge, but keeps the mapping total.
+	val movedValues = FloatArray(keys.size) { index -> if (index == keyIndex) destination else keys[index] }
+	val oldOrdinalsInNewOrder = keys.indices.sortedBy { index -> movedValues[index] }
+	val newKeys = FloatArray(keys.size) { newIndex -> movedValues[oldOrdinalsInNewOrder[newIndex]] }
+
+	// The inverse mapping is what the cells travel through: a cell sitting at old ordinal o now sits at the
+	// position o ended up in.
+	val newOrdinalByOld = IntArray(keys.size)
+	for (newIndex in oldOrdinalsInNewOrder.indices) {
+		newOrdinalByOld[oldOrdinalsInNewOrder[newIndex]] = newIndex
 	}
-	val clamped = newValue.coerceIn(lowerWall, upperWall)
-	if (clamped == keys[keyIndex]) {
-		return this
-	}
-	val newKeys = keys.copyOf()
-	newKeys[keyIndex] = clamped
+
 	val newAxes = axes.toMutableList()
 	newAxes[axisIndex] = KeyformAxis(parameterId, newKeys)
-	// The cells are untouched: only the axis's key positions changed, and every coordinate still addresses
-	// the same cell it did before.
-	return KeyformGrid(newAxes.toList(), cells)
+	val reordered = oldOrdinalsInNewOrder.withIndex().any { (newIndex, oldIndex) -> newIndex != oldIndex }
+	if (!reordered) {
+		// Nothing crossed, so every coordinate still addresses the same cell and the cells can be shared.
+		return KeyformGrid(newAxes.toList(), cells)
+	}
+	val movedCells =
+		cells.map { cell ->
+			val coordinate = cell.coordinate.copyOf()
+			coordinate[axisIndex] = newOrdinalByOld[coordinate[axisIndex]]
+			KeyformCell(coordinate, cell.form)
+		}
+	return KeyformGrid(newAxes.toList(), movedCells)
 }
 
 /**

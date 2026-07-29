@@ -153,28 +153,22 @@ class TrackAxisTest {
 		assertEquals(TrackKeyShape.Square, summarizedMarks(row).single().shape)
 	}
 
-	/** A mark's drag window stops at its neighbours, and at the axis ends when it has none on that side. */
+	/**
+	 * A drag is bounded by the AXIS, not by neighbouring marks.
+	 *
+	 * Neighbours stopped being walls when keys gained the ability to cross: the grid re-sorts and permutes
+	 * its cells to match, so clamping here would refuse a gesture the model accepts.
+	 */
 	@Test
-	fun dragBoundsStopAtNeighboursAndAtTheAxisEnds() {
-		val axis = TrackAxis(-30f, 30f)
-		val marks = listOf(TrackKeyMark(0, -30f), TrackKeyMark(1, 0f), TrackKeyMark(2, 30f))
-		assertEquals(-30f..30f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
-		assertEquals(-30f..0f, dragBoundsOf(marks, keyIndex = 0, axis = axis), "an endpoint stops at the axis")
-		assertEquals(0f..30f, dragBoundsOf(marks, keyIndex = 2, axis = axis))
+	fun dragBoundsSpanTheAxis() {
+		assertEquals(-30f..30f, dragBoundsOf(TrackAxis(-30f, 30f)))
+		assertEquals(0f..1f, dragBoundsOf(TrackAxis(0f, 1f)))
 	}
 
-	/** With coincident neighbours the window collapses onto the mark rather than inverting. */
+	/** A reversed axis still yields an ascending range, so coerceIn cannot throw on it. */
 	@Test
-	fun dragBoundsCollapseRatherThanInvert() {
-		val axis = TrackAxis(-30f, 30f)
-		val marks = listOf(TrackKeyMark(0, 5f), TrackKeyMark(1, 5f), TrackKeyMark(2, 5f))
-		assertEquals(5f..5f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
-	}
-
-	/** An unknown index falls back to the whole axis instead of throwing. */
-	@Test
-	fun dragBoundsOfAnUnknownMarkSpanTheAxis() {
-		assertEquals(-30f..30f, dragBoundsOf(listOf(TrackKeyMark(0, 0f)), keyIndex = 9, axis = TrackAxis(-30f, 30f)))
+	fun dragBoundsAscendOnAReversedAxis() {
+		assertEquals(-30f..30f, dragBoundsOf(TrackAxis(30f, -30f)))
 	}
 
 	/** A window maps onto a domain as a proportional slice of it. */

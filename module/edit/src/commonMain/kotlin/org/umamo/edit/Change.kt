@@ -335,7 +335,6 @@ sealed interface DrawableChange : Change {
 	 * @property DrawableId id The drawable whose multiply color changed.
 	 * @property ColorRgb color The new multiply color.
 	 */
-
 	data class SetMultiplyColor(val id: DrawableId, val color: ColorRgb) : DrawableChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.drawable.multiplyColor"
@@ -458,7 +457,6 @@ sealed interface DeformerChange : Change {
 	 * @property DeformerId id The deformer being rebound.
 	 * @property PartId? partId The part that now owns it, or null to clear.
 	 */
-
 	data class SetPart(val id: DeformerId, val partId: PartId?) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.deformer.part"

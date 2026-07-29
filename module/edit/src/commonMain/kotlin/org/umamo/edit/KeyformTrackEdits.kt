@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.runtime.keyform.keyIndexAfterMove
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformTrackRef
@@ -102,14 +103,26 @@ private fun clampToParameterRange(value: Float, parameter: Parameter): Float =
  * @param Parameter parameter The parameter whose axis the key sits on.
  * @param Int keyIndex The key's ordinal on that axis.
  * @param Float toValue The new position.
+ * @return Int The ordinal the key holds AFTER the move, which a crossing changes.
  */
-fun EditorSession.moveTrackKey(track: KeyformTrackRef, parameter: Parameter, keyIndex: Int, toValue: Float) {
-	// The grid then clamps at the neighbours; between them, a key can never leave the range the sheet
-	// rules against.
+fun EditorSession.moveTrackKey(
+	track: KeyformTrackRef,
+	parameter: Parameter,
+	keyIndex: Int,
+	toValue: Float,
+): Int {
+	// Within the parameter's range a key may cross its neighbours freely; the grid re-sorts and permutes
+	// its cells to match.  Only the range itself is a wall - a key outside it can never be reached again.
 	val clamped = clampToParameterRange(toValue, parameter)
+	// Resolved BEFORE the mutate, against the grid this ordinal still refers to.  A crossing renumbers the
+	// axis, so afterwards the ordinal names a different key - which is exactly why the caller has to be
+	// told the new one rather than left holding the old.
+	val landedIndex =
+		trackGridOf(model.value, track)?.keyIndexAfterMove(parameter.id, keyIndex, clamped) ?: keyIndex
 	mutate(KeyformChange.MoveKey(channelOf(track))) { model ->
 		model.withTrackKeyMoved(track, parameter, keyIndex, clamped)
 	}
+	return landedIndex
 }
 
 /**
@@ -168,7 +181,7 @@ fun EditorSession.nudgeTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, I
  */
 fun PuppetModel.trackKeyValue(track: KeyformTrackRef, parameter: Parameter, keyIndex: Int): Float? {
 	val axis =
-		trackGridOf(track)?.axes?.firstOrNull { candidate -> candidate.parameterId == parameter.id }
+		trackGridOf(this, track)?.axes?.firstOrNull { candidate -> candidate.parameterId == parameter.id }
 			?: return null
 	return axis.keys.getOrNull(keyIndex)
 }
@@ -187,15 +200,15 @@ fun PuppetModel.trackKeyValue(track: KeyformTrackRef, parameter: Parameter, keyI
  * @return Int The key's ordinal, or -1.
  */
 fun PuppetModel.trackKeyIndexAtPose(track: KeyformTrackRef, parameter: Parameter, pose: Pose): Int {
-	val grid = trackGridOf(track) ?: return -1
+	val grid = trackGridOf(this, track) ?: return -1
 	return grid.keyIndexAt(parameter.id, pose[parameter.id] ?: parameter.default)
 }
 
 /** The grid behind [track] - its owner's channel track or its geometry - or null when there is none. */
-private fun PuppetModel.trackGridOf(track: KeyformTrackRef): KeyformGrid<*>? =
+private fun trackGridOf(puppet: PuppetModel, track: KeyformTrackRef): KeyformGrid<*>? =
 	when (track) {
-		is KeyformTrackRef.Channel -> channelGridsOf(track.owner)?.get(track.target.channel)
-		is KeyformTrackRef.Geometry -> geometryGridOf(track.owner)
+		is KeyformTrackRef.Channel -> puppet.channelGridsOf(track.owner)?.get(track.target.channel)
+		is KeyformTrackRef.Geometry -> puppet.geometryGridOf(track.owner)
 	}
 
 /**

@@ -108,13 +108,24 @@ class KeyformGeometryEditsTest {
 		)
 	}
 
-	/** A key dragged past its neighbour clamps rather than crossing it. */
+	/**
+	 * A key dragged past its neighbour CROSSES it, taking its own form along.
+	 *
+	 * The axis re-sorts and the cells permute to match, so the deformation the rigger authored stays with
+	 * the key they dragged rather than staying at the ordinal it vacated.
+	 */
 	@Test
-	fun movingAGeometryKeyClampsAtItsNeighbour() {
-		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 999f)
-		val keys = keysOf(moved)
-		assertTrue(keys[1] < 30f, "the middle key must stop short of the one at 30 (got ${keys[1]})")
-		assertEquals(listOf(-30f, 30f), listOf(keys[0], keys[2]), "its neighbours do not move")
+	fun movingAGeometryKeyCrossesItsNeighbour() {
+		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 99f)
+		assertEquals(listOf(-30f, 30f, 99f), keysOf(moved), "the axis re-sorts")
+		assertEquals(
+			listOf(-1f, 1f, 0f),
+			assertNotNull(moved.drawables.single().geometryGrid)
+				.cells
+				.sortedBy { cell -> cell.coordinate[0] }
+				.map { cell -> cell.form.positionDeltas[0] },
+			"the moved key's own form (0) travelled to the end; the key it passed (1) shifted down",
+		)
 	}
 
 	/** Inserting a geometry key holds the interpolated form, so the deformation through it is unchanged. */

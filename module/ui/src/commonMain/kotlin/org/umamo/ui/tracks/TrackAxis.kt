@@ -208,38 +208,17 @@ data class TrackKeyMark(
 )
 
 /**
- * The domain window a mark at [keyIndex] may be dragged within: up to its neighbours, inside the axis.
+ * The domain window a mark may be dragged within: the axis, end to end.
  *
- * Returned so a drag can be clamped WHILE IT IS HAPPENING rather than only on release.  A mark that
- * follows the pointer out past its neighbour and then snaps back on release reads as a rejected edit; one
- * that stops at the wall reads as the wall being there, which is what it is.
+ * Neighbours are NOT walls.  A key may be dragged past another - the sheet's owner re-sorts and permutes
+ * to match - so clamping at a neighbour here would stop a gesture the model is happy to accept.  The axis
+ * ends still bound it, because a key outside the domain is one the sheet cannot draw or reach again.
  *
- * @param List<TrackKeyMark> marks The row's marks, in any order.
- * @param Int keyIndex The mark being dragged.
- * @param TrackAxis axis The domain, whose ends are the outer walls.
+ * @param TrackAxis axis The domain.
  * @return ClosedFloatingPointRange<Float> The legal range, ascending.
  */
-fun dragBoundsOf(marks: List<TrackKeyMark>, keyIndex: Int, axis: TrackAxis): ClosedFloatingPointRange<Float> {
-	val domainLow = minOf(axis.start, axis.end)
-	val domainHigh = maxOf(axis.start, axis.end)
-	val dragged = marks.firstOrNull { mark -> mark.keyIndex == keyIndex } ?: return domainLow..domainHigh
-	var lowerWall = domainLow
-	var upperWall = domainHigh
-	for (mark in marks) {
-		if (mark.keyIndex == keyIndex) {
-			continue
-		}
-		if (mark.position <= dragged.position) {
-			lowerWall = maxOf(lowerWall, mark.position)
-		}
-		if (mark.position >= dragged.position) {
-			upperWall = minOf(upperWall, mark.position)
-		}
-	}
-	// Coincident neighbours can invert the walls; collapsing to the mark's own position is the honest
-	// outcome (there is nowhere legal to go) rather than an empty range that coerceIn would throw on.
-	return if (lowerWall > upperWall) dragged.position..dragged.position else lowerWall..upperWall
-}
+fun dragBoundsOf(axis: TrackAxis): ClosedFloatingPointRange<Float> =
+	minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
 
 /**
  * A row's color band, which is how a sheet makes kinds of track separable at a glance.
