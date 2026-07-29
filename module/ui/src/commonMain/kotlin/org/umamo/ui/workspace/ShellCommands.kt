@@ -24,6 +24,7 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.captureChannelKey
 import org.umamo.edit.channelValueAt
 import org.umamo.edit.insertTrackKeyAt
+import org.umamo.edit.nudgeTrackKeys
 import org.umamo.edit.removeTrackKeys
 import org.umamo.edit.snapToGrid
 import org.umamo.edit.trackKeyIndexAtPose
@@ -248,6 +249,8 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
  * @param Function hoveredSurface Resolves the last-touched editor surface (area id + space kind) at
  *   dispatch time; the transform commands branch to the UV operators when it names a UV editor,
  *   Blender's hovered-area routing (see HoveredSurface.kt).
+ * @param KeyformSheetViews keyformSheets The shell's open-sheet registry; the sheet selection and view
+ *   commands resolve the acting sheet through it at dispatch time.
  * @return List<Command> The commands to register.
  */
 internal fun shellSessionCommands(
@@ -256,6 +259,7 @@ internal fun shellSessionCommands(
 	activeViewportArea: () -> String?,
 	hoveredSurface: () -> HoveredSurface?,
 	hoveredKeyable: () -> KeyformHover?,
+	keyformSheets: KeyformSheetViews,
 ): List<Command> {
 	// The availability tiers of the document-scoped commands: most need only an open document; the
 	// Edit-mode element commands hide in Object mode; the circle radius pair needs a live brush.
@@ -416,6 +420,35 @@ internal fun shellSessionCommands(
 		},
 		Command("keyform.delete", title = Res.string.cmd_keyform_delete, availability = hasDocument) {
 			editorSession?.let { session -> session.keyformRemove(hoveredKeyable()) }
+		},
+		// The keyform sheet's selection and view commands, registered HERE rather than per sheet area:
+		// CommandRegistry is last-write-wins per id, so per-area registration made two open sheets clobber
+		// each other's handlers and closing either area unregistered the shared ids out from under the
+		// survivor.  The acting sheet resolves at dispatch time through the shell's sheet registry - the
+		// hovered sheet, else the only open one, else (for the selection ops) the unique one with keys
+		// selected.
+		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = hasDocument) {
+			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))
+			val removals = sheet?.selectedTracks().orEmpty()
+			if (editorSession != null && sheet != null && removals.isNotEmpty()) {
+				editorSession.removeTrackKeys(removals)
+				// A removal renumbers every later key on its track, so no surviving ref can be trusted;
+				// clearing is the honest outcome rather than pointing at a neighbour.
+				sheet.clearSelection()
+			}
+		},
+		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = hasDocument) {
+			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.let { sheet ->
+				editorSession?.nudgeTrackKeys(sheet.selectedTracks(), -KEYFORM_NUDGE_FRACTION)
+			}
+		},
+		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = hasDocument) {
+			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.let { sheet ->
+				editorSession?.nudgeTrackKeys(sheet.selectedTracks(), KEYFORM_NUDGE_FRACTION)
+			}
+		},
+		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = hasDocument) {
+			keyformSheets.resolve(hoveredSheetArea(hoveredSurface))?.frameAll?.invoke()
 		},
 		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = hasDocument) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset)
@@ -632,7 +665,7 @@ private fun EditorSession.keyformInsert(hover: KeyformHover?) {
 		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
 		return
 	}
-	val parameter = targetedParameter() ?: return
+	val parameter = keyformParameterOf(hover) ?: return
 	val position = hover.position
 	if (position != null) {
 		// Aimed at a spot on a track, so the key lands THERE rather than at the playhead - pointing at a
@@ -673,7 +706,7 @@ private fun EditorSession.keyformRemove(hover: KeyformHover?) {
 		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
 		return
 	}
-	val parameter = targetedParameter() ?: return
+	val parameter = keyformParameterOf(hover) ?: return
 	// Whichever mark is under the pointer when there is one to point at, and otherwise the key the pose is
 	// standing on.  Either way it is an ORDINAL, and either way pointing at nothing removes nothing:
 	// picking "the nearest key" would be a guess at which the user meant, and a wrong guess silently
@@ -687,6 +720,43 @@ private fun EditorSession.keyformRemove(hover: KeyformHover?) {
 	if (keyIndex >= 0) {
 		removeTrackKeys(listOf(Triple(hover.track, parameter, keyIndex)))
 	}
+}
+
+/**
+ * How far one arrow-key press moves a sheet key, as a fraction of its parameter's range.
+ *
+ * Relative rather than absolute because ranges differ by orders of magnitude across a rig - an angle
+ * spans 60, an open/close spans 1 - so one absolute step would be invisible on the first and wild on the
+ * second.  A hundredth puts a full sweep at a hundred presses, which reads as fine adjustment.
+ */
+private const val KEYFORM_NUDGE_FRACTION = 0.01f
+
+/**
+ * The last-touched keyform-sheet area id, or null when the last-touched surface is not a sheet.
+ *
+ * @param Function hoveredSurface The shell's last-touched-surface resolver.
+ * @return String? The sheet area id, or null.
+ */
+private fun hoveredSheetArea(hoveredSurface: () -> HoveredSurface?): String? =
+	hoveredSurface()?.takeIf { surface -> surface.kind == SpaceKind.KeyformSheet }?.areaId
+
+/**
+ * The parameter a keyform edit on [hover] writes on: the hover's OWN parameter when it carries one (a
+ * sheet lane belongs to one section's axis, which need not be the selection's active member), else the
+ * panel's targeted parameter.
+ *
+ * Emits the no-parameter notice and returns null when the hover's parameter no longer resolves.
+ *
+ * @param KeyformHover hover The hovered keyable.
+ * @return Parameter? The parameter to write on, or null.
+ */
+private fun EditorSession.keyformParameterOf(hover: KeyformHover): Parameter? {
+	val hoveredId = hover.parameterId ?: return targetedParameter()
+	val parameter = model.value.parameters.firstOrNull { candidate -> candidate.id == hoveredId }
+	if (parameter == null) {
+		emitNotice("notice.keyform.noParameter", NoticePlacement.NearCursor)
+	}
+	return parameter
 }
 
 /**

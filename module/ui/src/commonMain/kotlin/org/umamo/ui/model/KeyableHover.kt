@@ -13,6 +13,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformTrackRef
+import org.umamo.runtime.model.ParameterId
 
 /**
  * The keyform track the pointer is currently over - what a keyform insert aims at.
@@ -43,6 +44,16 @@ data class KeyformHover(
 	val position: Float? = null,
 	/** The ordinal of the key under the pointer, or null when the pointer is not on one. */
 	val keyIndex: Int? = null,
+	/**
+	 * The parameter [position] and [keyIndex] are measured on, or null when the hover carries no axis of
+	 * its own (a Properties row keys the panel's targeted parameter).
+	 *
+	 * A keyform-sheet lane belongs to one SECTION's parameter, which is not necessarily the selection's
+	 * active member - a linked pad targets both of its axes at once.  Without this, an insert aimed at the
+	 * other section landed its position on the active axis, and a removal applied the hovered ordinal to
+	 * the wrong axis's keys.
+	 */
+	val parameterId: ParameterId? = null,
 )
 
 class KeyableHover {

@@ -16,31 +16,35 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
-import org.umamo.edit.insertTrackKeyAt
 import org.umamo.edit.moveTrackKey
-import org.umamo.edit.nudgeTrackKeys
-import org.umamo.edit.removeTrackKeys
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
-import org.umamo.ui.action.Command
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
@@ -69,18 +73,14 @@ import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.tracks.TrackWindowScrollbar
 import org.umamo.ui.tracks.trackWindowGestures
 import org.umamo.ui.workspace.AreaScope
+import org.umamo.ui.workspace.HoveredSurface
+import org.umamo.ui.workspace.KeyformSheetSurface
+import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
+import org.umamo.ui.workspace.LocalKeyformSheetViews
+import org.umamo.ui.workspace.SpaceKind
 
 /** The key this space's view state is stored under on its hosting area. */
 private const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
-
-/**
- * How far one arrow-key press moves a key, as a fraction of its parameter's range.
- *
- * Relative rather than absolute because ranges differ by orders of magnitude across a rig - an angle
- * spans 60, an open/close spans 1 - so one absolute step would be invisible on the first and wild on the
- * second.  A hundredth puts a full sweep at a hundred presses, which reads as fine adjustment.
- */
-private const val NUDGE_FRACTION = 0.01f
 
 /**
  * The keyform sheet's per-area view state: the label column's width and which groups are open.
@@ -200,11 +200,25 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	var panningTracks by remember { mutableStateOf(false) }
 	var resizingColumn by remember { mutableStateOf(false) }
 	val horizontalDrag = panningTracks || resizingColumn
+	// Stamp the shell's last-touched surface, exactly like the 2D viewport and the UV editor: the sheet's
+	// shell-level commands (delete/nudge selected keys, frame all) resolve WHICH sheet at dispatch time
+	// from this.  Observed on the Initial pass so the lanes' own gestures keep every event.
+	val hoveredTracker = LocalHoveredSurfaceTracker.current
 	Box(
 		modifier =
 			Modifier
 				.fillMaxSize()
 				.background(colors.panelBackground)
+				.pointerInput(hoveredTracker, scope.areaId) {
+					awaitPointerEventScope {
+						while (true) {
+							val event = awaitPointerEvent(PointerEventPass.Initial)
+							if (event.type != PointerEventType.Exit) {
+								hoveredTracker?.lastTouched = HoveredSurface(scope.areaId, SpaceKind.KeyformSheet)
+							}
+						}
+					}
+				}
 				.pointerHoverIcon(
 					icon = if (horizontalDrag) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
 					// Only while a drag is live: otherwise the label column's own hover cursors, and the
@@ -228,50 +242,50 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				targetedParameters.map { parameter -> parameter to keyformSheetRows(puppet, parameter.id, labels) }
 			}
 		if (!viewState.seeded) {
-			viewState.seeded = true
-			viewState.expandedKeys = projections.flatMap { (_, projection) -> projection.groupRowKeys }.toSet()
+			// In a SideEffect so it runs only for APPLIED compositions: an abandoned composition rolls back
+			// the snapshot write to expandedKeys but not the plain seeded gate, which would strand the sheet
+			// all-collapsed forever - indistinguishable from a rig with nothing keyed.
+			val seedKeys = projections.flatMap { (_, projection) -> projection.groupRowKeys }.toSet()
+			SideEffect {
+				if (!viewState.seeded) {
+					viewState.seeded = true
+					viewState.expandedKeys = seedKeys
+				}
+			}
 		}
 		if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
 			EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
 			return@Box
 		}
-		// Delete removes every selected key as ONE undo step. Registered as a command rather than wired to a
-		// key handler here so the keymap owns the binding, per the action-registry rule; the sheet only
-		// supplies what "the current selection" means while it is on screen.
-		val commands = LocalCommands.current
-		DisposableEffect(commands, session, projections, viewState.selectedKeys) {
-			// What "the current selection" resolves to, shared by every command below.  A ref whose row is
-			// gone simply drops out, which is what makes a stale selection harmless rather than dangerous.
-			fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
-				viewState.selectedKeys.mapNotNull { keyRef ->
-					val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
-					entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
-						Triple(track, entry.first, keyRef.keyIndex)
-					}
-				}
-			val sheetCommands =
-				listOf(
-					Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys) {
-						val removals = selectedTracks()
-						if (session != null && removals.isNotEmpty()) {
-							session.removeTrackKeys(removals)
-							// A removal renumbers every later key on its track, so no surviving ref can be
-							// trusted; clearing is the honest outcome rather than pointing at a neighbour.
-							viewState.selectedKeys = emptySet()
+		// The sheet's commands (delete/nudge selected keys, frame all) live at SHELL level - per-area
+		// registration made two open sheets clobber each other in the last-write-wins registry.  The area
+		// only registers its command surface here; the lambdas read the live view state and the CURRENT
+		// projections at dispatch time, so the effect never needs to re-run on an edit or a selection
+		// change.  A ref whose row is gone simply drops out of selectedTracks, which is what makes a stale
+		// selection harmless rather than dangerous.
+		val keyformSheetViews = LocalKeyformSheetViews.current
+		val currentProjections = rememberUpdatedState(projections)
+		DisposableEffect(keyformSheetViews, scope.areaId) {
+			if (keyformSheetViews == null) {
+				onDispose {}
+			} else {
+				fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
+					viewState.selectedKeys.mapNotNull { keyRef ->
+						val entry = currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+							Triple(track, entry.first, keyRef.keyIndex)
 						}
-					},
-					Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left) {
-						session?.nudgeTrackKeys(selectedTracks(), -NUDGE_FRACTION)
-					},
-					Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right) {
-						session?.nudgeTrackKeys(selectedTracks(), NUDGE_FRACTION)
-					},
-					Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all) {
-						viewState.window = TrackWindow.Full
-					},
-				)
-			sheetCommands.forEach { command -> commands.register(command) }
-			onDispose { sheetCommands.forEach { command -> commands.unregister(command.id) } }
+					}
+				val surface =
+					KeyformSheetSurface(
+						selectedTracks = ::selectedTracks,
+						hasSelection = { viewState.selectedKeys.isNotEmpty() },
+						clearSelection = { viewState.selectedKeys = emptySet() },
+						frameAll = { viewState.window = TrackWindow.Full },
+					)
+				keyformSheetViews.register(scope.areaId, surface)
+				onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
+			}
 		}
 		// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
 		// reason (a lazy list nested in a scroll fights it for the gesture).
@@ -309,7 +323,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							parameter = parameter,
 							projection = projection,
 							selectedKeys = viewState.selectedKeys,
-							playhead = liveParams?.observedValues?.get(parameter.id) ?: parameter.default,
 							window = viewState.window,
 							labelColumnWidth = viewState.labelColumnWidth,
 							expandedKeys = viewState.expandedKeys,
@@ -383,7 +396,6 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
  * @param Parameter parameter The parameter this section's domain comes from.
  * @param KeyformSheetProjection projection Its tracks and their owning targets.
  * @param Set<TrackKeyRef> selectedKeys The sheet-wide key selection (shared across sections).
- * @param Float playhead The live scrub value of this parameter.
  * @param TrackWindow window The visible slice of the parameter's range, shared by every section.
  * @param Dp labelColumnWidth The label column's width, shared by every section.
  * @param Set<String> expandedKeys The open group rows, shared by every section.
@@ -395,7 +407,6 @@ private fun KeyformSheetSection(
 	parameter: Parameter,
 	projection: KeyformSheetProjection,
 	selectedKeys: Set<TrackKeyRef>,
-	playhead: Float,
 	window: TrackWindow,
 	labelColumnWidth: Dp,
 	expandedKeys: Set<String>,
@@ -405,11 +416,26 @@ private fun KeyformSheetSection(
 	val session = LocalEditorSession.current
 	val liveParams = LocalLiveParams.current
 	val keyableHover = LocalKeyableHover.current
+	val commands = LocalCommands.current
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	val keymap = LocalKeymap.current
 	val insertLabel = stringResource(Res.string.cmd_keyform_insert)
 	val deleteLabel = stringResource(Res.string.cmd_keyform_delete)
+	// The playhead follows the live scrub through snapshotFlow rather than a composition read:
+	// observedValues is one whole-map state replaced on every preview move of ANY parameter, so reading
+	// it while composing invalidated the entire sheet per pointer move (ParametersSpace documents the
+	// same rule).  The initial read is deliberately unobserved; the flow delivers every later change to
+	// this section's own state alone.
+	var playhead by remember(parameter.id) {
+		mutableStateOf(
+			Snapshot.withoutReadObservation { liveParams?.observedValues?.get(parameter.id) } ?: parameter.default,
+		)
+	}
+	LaunchedEffect(liveParams, parameter.id) {
+		snapshotFlow { liveParams?.observedValues?.get(parameter.id) ?: parameter.default }
+			.collect { value -> playhead = value }
+	}
 	val rows =
 		remember(projection, selectedKeys, parameter.id) {
 			projection.rows.map { row -> row.withSelection(parameter.id, selectedKeys) }
@@ -457,7 +483,9 @@ private fun KeyformSheetSection(
 			// Clamped again at the model boundary, not only in the lane: the lane clamps to the VISIBLE
 			// window, which is a subrange, but this is the call that reaches the evaluator - and a pose
 			// outside the parameter's range brackets nothing, so every entity keyed on it disappears.
-			liveParams?.preview(parameter.id, value.coerceIn(parameter.min, parameter.max))
+			// The minOf/maxOf form tolerates a reversed (min > max) range from a malformed import, like
+			// every sibling clamp in this feature - a plain coerceIn throws on one mid-gesture.
+			liveParams?.preview(parameter.id, value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)))
 		},
 		// One undo step per gesture, at its end - the same contract a slider drag has.
 		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
@@ -472,19 +500,24 @@ private fun KeyformSheetSection(
 		// Publishing the hovered row is what lets `I` / `Alt+I` aim at a track the way they already aim at a
 		// Properties row: point at it and press.  The projection maps the row back to what it edits; a row
 		// with no track ref (a group header, a blend-shape binding) publishes nothing, so the shortcut
-		// falls through to its notice rather than acting on something it cannot address.
+		// falls through to its notice rather than acting on something it cannot address.  The hover carries
+		// THIS section's parameter - the selection's active member can be the other axis of a linked pad.
 		onLaneHover = { row, hit ->
 			projection.tracksByRowKey[row.key]?.let { track ->
 				if (hit == null) {
 					keyableHover?.exit(track)
 				} else {
-					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex))
+					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id))
 				}
 			}
 		},
 		laneMenuItems = { hit ->
 			// A group row names the owner rather than a track, and a blend-shape row is not a keyform grid -
 			// neither has a track ref, so both get an empty menu rather than actions that silently do nothing.
+			// Each item dispatches THROUGH the registry rather than calling the session, so the menu can
+			// never drift from the shortcut it advertises.  The popup owns the pointer by the time an item
+			// fires and the live lane hover is gone, so the clicked spot is re-published for the command's
+			// dispatch-time read and cleared right after.
 			val track = projection.tracksByRowKey[hit.row.key]
 			val hitMark = hit.mark
 			when {
@@ -494,7 +527,9 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = deleteLabel,
 							onSelect = {
-								session.removeTrackKeys(listOf(Triple(track, parameter, hitMark.keyIndex)))
+								keyableHover?.enter(KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id))
+								commands.invoke("keyform.delete")
+								keyableHover?.exit(track)
 							},
 							shortcut = keymap.chordFor("keyform.delete")?.let { chord -> formatAccelerator(chord) },
 						),
@@ -504,7 +539,11 @@ private fun KeyformSheetSection(
 					listOf(
 						MenuItem.Action(
 							label = insertLabel,
-							onSelect = { session.insertTrackKeyAt(track, parameter, hit.value) },
+							onSelect = {
+								keyableHover?.enter(KeyformHover(track, hit.value, keyIndex = null, parameterId = parameter.id))
+								commands.invoke("keyform.insert")
+								keyableHover?.exit(track)
+							},
 							shortcut = keymap.chordFor("keyform.insert")?.let { chord -> formatAccelerator(chord) },
 						),
 					)

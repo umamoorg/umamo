@@ -168,10 +168,14 @@ fun keyformSheetRows(puppet: PuppetModel, parameterId: ParameterId, labels: Keyf
 			parameterId = parameterId,
 		)
 	}
-	for ((glueIndex, glue) in puppet.glues.withIndex()) {
+	val drawableNameById = puppet.drawables.associate { drawable -> drawable.id to drawable.name }
+	for (glue in puppet.glues) {
+		// Keyed by the MESH PAIR, the same stable identity KeyformOwner.Glue encodes - a list ordinal
+		// renumbers every later glue when one is removed, silently migrating selection and collapse state
+		// (and so a Delete) onto a different glue's rows.  Labeled with display names, not raw ids.
 		builder.addOwner(
-			ownerKey = "glue$glueIndex",
-			ownerName = "${glue.meshA.raw} ↔ ${glue.meshB.raw}",
+			ownerKey = "glue:${glue.meshA.raw}:${glue.meshB.raw}",
+			ownerName = "${drawableNameById[glue.meshA] ?: glue.meshA.raw} ↔ ${drawableNameById[glue.meshB] ?: glue.meshB.raw}",
 			ownerKind = KeyformOwnerKind.Glue,
 			owner = KeyformOwner.Glue(glue.meshA, glue.meshB),
 			geometryMarks = null,
@@ -313,7 +317,13 @@ private fun blendShapeMarksOf(
 ): List<List<TrackKeyMark>> =
 	bindings
 		.filter { (bindingParameter, _) -> bindingParameter == parameterId }
-		.map { (_, keys) -> keys.mapIndexed { keyIndex, keyValue -> TrackKeyMark(keyIndex, keyValue, TrackKeyShape.Square) } }
+		.map { (_, keys) ->
+			keys.mapIndexed { keyIndex, keyValue ->
+				// NOT editable: a blend row has no track ref, so none of the sheet's ops can apply - an
+				// editable mark would accept a drag that snaps back and a selection Delete cannot resolve.
+				TrackKeyMark(keyIndex, keyValue, TrackKeyShape.Square, editable = false)
+			}
+		}
 
 /**
  * The axis domain for [parameter] - its authored range, which is what the sheet rules against.

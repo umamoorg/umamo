@@ -144,6 +144,7 @@ fun EditorShell(
 	val hoveredSurfaces = remember { HoveredSurfaceTracker() }
 	// The keyable property under the pointer, so a keyform insert needs no prior selection.
 	val keyableHover = remember { KeyableHover() }
+	val keyformSheetViews = remember { KeyformSheetViews() }
 	// The camera-bearing areas' per-area controllers, registered by each 2D viewport and UV space for
 	// its lifetime; the view commands resolve the hovered area here at dispatch time (one hub for both
 	// surfaces).
@@ -193,7 +194,7 @@ fun EditorShell(
 		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
 		val cleanup =
 			commandRegistry.registerAll(
-				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, hoveredKeyable),
+				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, hoveredKeyable, keyformSheetViews),
 			)
 		onDispose { cleanup() }
 	}
@@ -253,6 +254,7 @@ fun EditorShell(
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
 				LocalKeyableHover provides keyableHover,
+			LocalKeyformSheetViews provides keyformSheetViews,
 				LocalRelationPick provides relationPick,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
 				LocalAreaCameraHub provides areaCameras,
