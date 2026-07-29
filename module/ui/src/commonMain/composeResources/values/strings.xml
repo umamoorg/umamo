@@ -104,6 +104,7 @@
 
 	<!-- View commands (action registry; shown in the palette / a future View menu). -->
 	<string name="cmd_view_fit">Fit View</string>
+	<string name="cmd_frame_all">Frame All</string>
 	<string name="cmd_view_actual_size">Actual Size (100%)</string>
 	<string name="cmd_view_zoom_in">Zoom In</string>
 	<string name="cmd_view_zoom_out">Zoom Out</string>

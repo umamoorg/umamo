@@ -256,8 +256,9 @@ fun PuppetModel.withChannelKeyRemoved(target: KeyableTarget, parameter: Paramete
 fun PuppetModel.channelValueAt(target: KeyableTarget, pose: Pose): ChannelValue? {
 	val grids = channelGridsOf(target.owner) ?: return null
 	val staticValue = staticValueOf(target.owner, target.channel) ?: return null
-	val defaults = parameters.associate { it.id to it.default }
-	val poseValue: (ParameterId) -> Float = { id -> pose[id] ?: defaults[id] ?: 0f }
+	// No defaults map: this runs per keyable row per recomposition, a track has at most a few axes, and
+	// the pose usually answers - the per-miss linear scan beats an every-call full-map build.
+	val poseValue: (ParameterId) -> Float = { id -> pose[id] ?: parameters.firstOrNull { it.id == id }?.default ?: 0f }
 	return when (staticValue) {
 		is ChannelValue.Scalar -> ChannelValue.Scalar(grids.scalarAt(target.channel, staticValue.value, poseValue))
 		is ChannelValue.Color -> ChannelValue.Color(grids.colorAt(target.channel, staticValue.color, poseValue))

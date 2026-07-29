@@ -100,7 +100,11 @@ class TrackMarkSizeTest {
 				val image = onNodeWithTag("sheet").captureToImage()
 				val pixels = IntArray(image.width * image.height)
 				image.readPixels(pixels)
-				if (drawMark) withMark = pixels else without = pixels
+				if (drawMark) {
+					withMark = pixels
+				} else {
+					without = pixels
+				}
 			}
 		}
 		val marked = requireNotNull(withMark)

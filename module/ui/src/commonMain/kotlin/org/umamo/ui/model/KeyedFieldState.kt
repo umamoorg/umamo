@@ -80,7 +80,8 @@ fun keyedFieldStateOf(
 	if (parameterId == null || track == null || track.axisIndexOf(parameterId) < 0) {
 		return KeyedFieldState.None
 	}
-	val defaults = puppet.parameters.associate { parameter -> parameter.id to parameter.default }
-	val poseValue = pose[parameterId] ?: defaults[parameterId] ?: 0f
+	// A direct lookup, not a defaults map over every parameter: this runs per keyable row per
+	// recomposition, and only this one parameter's default can ever be read.
+	val poseValue = pose[parameterId] ?: puppet.parameters.firstOrNull { parameter -> parameter.id == parameterId }?.default ?: 0f
 	return if (track.keyIndexAt(parameterId, poseValue) >= 0) KeyedFieldState.OnKey else KeyedFieldState.BetweenKeys
 }

@@ -88,6 +88,7 @@ verbatim.
 	<string name="dialog_close">閉じる</string>
 
 	<string name="cmd_view_fit">ビューをフィット</string>
+	<string name="cmd_frame_all">全体を表示</string>
 	<string name="cmd_view_actual_size">等倍 (100%)</string>
 	<string name="cmd_view_zoom_in">ズームイン</string>
 	<string name="cmd_view_zoom_out">ズームアウト</string>

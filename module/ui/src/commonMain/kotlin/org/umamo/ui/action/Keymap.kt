@@ -160,7 +160,7 @@ val KEYMAP_PRESET_IDS: List<String> = listOf("default", "cubism", "blender")
  * primary modifier, so they hold across OSes and layouts.
  */
 private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Space" to "palette.toggle",
 		"Escape" to "area.dragCancel",
@@ -185,7 +185,9 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"Delete" to "keyform.deleteSelectedKeys",
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
-		"Home" to "keyform.frameAll",
+		// Context-aware, Blender's Home semantics: frames the hovered editor (keyform sheet → the keys,
+		// anything else → the viewport).
+		"Home" to "frame.all",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",
@@ -213,12 +215,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+shift+Equals" to "view.zoomInCoarse",
 		"primary+Minus" to "view.zoomOut",
 		"primary+shift+Minus" to "view.zoomOutCoarse",
-		"KeyI" to "keyform.insert",
-		"alt+KeyI" to "keyform.delete",
-		"Delete" to "keyform.deleteSelectedKeys",
-		"ArrowLeft" to "keyform.nudgeKeyLeft",
-		"ArrowRight" to "keyform.nudgeKeyRight",
-		"Home" to "keyform.frameAll",
 	)
 
 /**
@@ -227,7 +223,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
  * canvas panning); fully rebindable in the keybindings editor.
  */
 private val CUBISM_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Escape" to "area.dragCancel",
 		"primary+PageUp" to "workspace.prev",
@@ -251,11 +247,11 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 
 /**
  * The "Blender-like" preset for migrants from Blender (whose editing model Umamo borrows).  A starting
- * point keyed to Blender muscle memory (operator search on F3, Frame All on Home for view.fit); fully
- * rebindable in the keybindings editor.
+ * point keyed to Blender muscle memory (operator search on F3, Frame All on Home - context-aware per
+ * hovered editor, exactly as in Blender); fully rebindable in the keybindings editor.
  */
 private val BLENDER_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"F3" to "palette.toggle",
 		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
@@ -279,7 +275,6 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"Delete" to "keyform.deleteSelectedKeys",
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
-		"Home" to "keyform.frameAll",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",
@@ -301,13 +296,35 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
 		"primary+Comma" to "edit.preferences",
-		"Home" to "view.fit",
+		// Blender's Home is Frame All in WHICHEVER editor the pointer is over; one context-aware binding
+		// replaces the two colliding entries this map once held (mapOf kept the later one silently).
+		"Home" to "frame.all",
 		"primary+Digit1" to "view.zoomActualSize",
 		"Equals" to "view.zoomIn",
 		"shift+Equals" to "view.zoomInCoarse",
 		"Minus" to "view.zoomOut",
 		"shift+Minus" to "view.zoomOutCoarse",
 	)
+
+/**
+ * Builds a preset's chord-spec table, refusing duplicate chords.
+ *
+ * mapOf keeps the LAST duplicate pair silently - which is how the Blender preset once shipped with two
+ * Home bindings and one of them silently unbound, invisible even to the keybindings editor's conflict
+ * detection (it sees only the already-collapsed map).  Failing at build time turns the mistake into a
+ * test failure instead.
+ *
+ * @param Pair bindings The chord-spec to command-id pairs, in presentation order.
+ * @return Map The bindings as a map.
+ */
+private fun presetSpecs(vararg bindings: Pair<String, String>): Map<String, String> {
+	val byChord = LinkedHashMap<String, String>(bindings.size)
+	for ((chord, commandId) in bindings) {
+		val previous = byChord.put(chord, commandId)
+		require(previous == null) { "duplicate chord $chord: bound to both $previous and $commandId" }
+	}
+	return byChord
+}
 
 /**
  * The chord-spec → command-id bindings for the built-in preset [presetId], falling back to the default

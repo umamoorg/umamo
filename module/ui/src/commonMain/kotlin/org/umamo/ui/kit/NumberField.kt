@@ -286,6 +286,10 @@ private fun NumberFieldCore(
 				dragValue = null
 			},
 			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
+			// Forwarded on the RESTING face, the one every real field shows: this is the border tint that
+			// warns a typed value is unkeyed and dies on the next scrub, and it once reached only the
+			// disabled-plain branch - so no enabled numeric field ever showed it.
+			keyState = keyState,
 		)
 	}
 }

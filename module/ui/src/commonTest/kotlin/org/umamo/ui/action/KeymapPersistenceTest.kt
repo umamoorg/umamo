@@ -38,7 +38,8 @@ class KeymapPersistenceTest {
 	}
 
 	/**
-	 * Selecting a preset changes the base bindings (Blender frames all on Home, searches on F3).
+	 * Selecting a preset changes the base bindings (Blender frames all on Home - the context-aware
+	 * frame.all, which resolves per hovered editor - and searches on F3).
 	 */
 	@Test
 	fun presetSelectionSwitchesBase() {
@@ -47,7 +48,7 @@ class KeymapPersistenceTest {
 		setKeymapPreset(settings, "blender")
 
 		val keymap = loadKeymap(Settings.load(storage, defaultJson))
-		assertEquals(parseKeyChord("Home"), keymap.chordFor("view.fit"))
+		assertEquals(parseKeyChord("Home"), keymap.chordFor("frame.all"))
 		assertEquals("palette.toggle", keymap.commandFor(parseKeyChord("F3")!!))
 	}
 

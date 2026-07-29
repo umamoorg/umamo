@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -177,6 +178,19 @@ fun EditorShell(
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
 		val cleanup = commandRegistry.registerAll(shellViewportCommands(areaCameras, hoveredSurface, service != null))
 		onDispose { cleanup() }
+	}
+	// The context-aware frame command - Blender's Home: Frame All in WHICHEVER editor the pointer is over.
+	// Registered here rather than in a command table because it dispatches THROUGH the registry to the
+	// command the hovered surface means, resolved at invocation time.
+	DisposableEffect(commandRegistry) {
+		val frameAll =
+			Command("frame.all", title = Res.string.cmd_frame_all) {
+				val target =
+					if (hoveredSurfaces.lastTouched?.kind == SpaceKind.KeyformSheet) "keyform.frameAll" else "view.fit"
+				commandRegistry.invoke(target)
+			}
+		commandRegistry.register(frameAll)
+		onDispose { commandRegistry.unregister(frameAll.id) }
 	}
 	val selection = LocalSelection.current
 	val editorMode = LocalEditorMode.current

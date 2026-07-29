@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import org.umamo.edit.EditorSession
+import org.umamo.edit.Pose
 import org.umamo.edit.channelValueAt
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -11,8 +13,10 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.channelGridsOf
 import org.umamo.ui.model.KeyedFieldState
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.keyedFieldStateOf
 
@@ -49,15 +53,32 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
 	val session = LocalEditorSession.current ?: return KeyedFieldState.None
 	val parameterSelection by remember(session) { session.parameterSelection }.collectAsState()
-	val pose by remember(session) { session.pose }.collectAsState()
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	return keyedFieldStateOf(
 		puppet = puppet,
 		target = KeyableTarget(owner, channel),
 		parameterId = parameterSelection.active,
-		pose = pose,
+		pose = displayPose(session),
 		pendingEdits = pendingEdits,
 	)
+}
+
+/**
+ * The pose the Properties panel should resolve against: the LIVE preview pose when a viewport is
+ * publishing one, else the session's committed pose.
+ *
+ * A preview deliberately never touches session.pose (that is what keeps a whole drag to one undo step),
+ * so resolving at the committed pose froze every keyable field and its OnKey/BetweenKeys tint at the
+ * gesture-start value while the viewport animated - the exact field/viewport disagreement this resolver
+ * exists to prevent.  The observed map is snapshot state, so the reading row recomposes as it moves.
+ *
+ * @param EditorSession session The open document's session.
+ * @return Pose The pose to resolve displayed values at.
+ */
+@Composable
+private fun displayPose(session: EditorSession): Pose {
+	val committedPose by remember(session) { session.pose }.collectAsState()
+	return LocalLiveParams.current?.observedValues ?: committedPose
 }
 
 /**
@@ -78,10 +99,32 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 internal fun displayedChannelValue(owner: KeyformOwner, channel: FormChannel, stored: ChannelValue): ChannelValue {
 	val puppet = LocalPuppet.current ?: return stored
 	val session = LocalEditorSession.current ?: return stored
-	val pose by remember(session) { session.pose }.collectAsState()
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	val target = KeyableTarget(owner, channel)
-	return pendingEdits[target] ?: puppet.channelValueAt(target, pose) ?: stored
+	return pendingEdits[target] ?: puppet.channelValueAt(target, displayPose(session)) ?: stored
+}
+
+/**
+ * Routes a keyable row's typed or picked [value]: a KEYED channel records it as a pending unkeyed edit,
+ * an unkeyed channel writes the static through [writeStatic].
+ *
+ * The one place the rule lives.  Writing the static of a keyed channel is shadowed by the track, so the
+ * edit appears to be silently rejected (the field snaps back and a following `I` captures the old track
+ * value); a pending edit previews in the viewport and waits for `I`.  An unkeyed channel has no track to
+ * shadow it, so the static is the real store.  Half the rows hand-copied this branch and the other half
+ * shipped without it - which is exactly the drift a shared helper exists to prevent.
+ *
+ * @param KeyableTarget target The entity and channel the row edits.
+ * @param ChannelValue value The value the user chose.
+ * @param Function writeStatic Writes the owner's static (the unkeyed path).
+ */
+internal fun EditorSession.editKeyedChannel(target: KeyableTarget, value: ChannelValue, writeStatic: () -> Unit) {
+	val keyed = model.value.channelGridsOf(target.owner)?.get(target.channel) != null
+	if (keyed) {
+		setPendingChannelEdit(target, value)
+	} else {
+		writeStatic()
+	}
 }
 
 /**

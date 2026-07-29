@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -278,6 +279,12 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// scroll its row into view when it is not already visible (the created item can otherwise land just
 	// above the viewport when the list was scrolled down). Mirrors the reveal-on-select effect in the
 	// outliner / history spaces; the visibility guard keeps renaming an already-visible item from jumping.
+	// The row is AWAITED through snapshotFlow rather than looked up once: a created parameter reaches this
+	// composition through the model StateFlow's collector, which can land a recomposition after the
+	// renaming id was set - a one-shot look at the captured rows missed it and, with the effect's keys
+	// unchanged, never ran again.  The prepended row also sits above a scrolled-down viewport, where its
+	// lazy item cannot even open the rename field until this scroll composes it.
+	val currentRows = rememberUpdatedState(rows)
 	LaunchedEffect(viewState.renamingGroupId, viewState.renamingParameterId) {
 		val renamingGroupId = viewState.renamingGroupId
 		val renamingParameterId = viewState.renamingParameterId
@@ -285,16 +292,15 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			return@LaunchedEffect
 		}
 		val index =
-			rows.indexOfFirst { row ->
-				when (row) {
-					is ParameterRow.GroupHeader -> row.groupId == renamingGroupId
-					is ParameterRow.Single -> row.parameter.id == renamingParameterId
-					is ParameterRow.Pair2D -> row.horizontal.id == renamingParameterId || row.vertical.id == renamingParameterId
+			snapshotFlow {
+				currentRows.value.indexOfFirst { row ->
+					when (row) {
+						is ParameterRow.GroupHeader -> row.groupId == renamingGroupId
+						is ParameterRow.Single -> row.parameter.id == renamingParameterId
+						is ParameterRow.Pair2D -> row.horizontal.id == renamingParameterId || row.vertical.id == renamingParameterId
+					}
 				}
-			}
-		if (index < 0) {
-			return@LaunchedEffect
-		}
+			}.first { candidate -> candidate >= 0 }
 		if (listState.layoutInfo.visibleItemsInfo.none { visible -> visible.index == index }) {
 			listState.animateScrollToItem(index)
 		}
@@ -511,7 +517,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										ParameterIsland(
 											modifier = Modifier.fillMaxWidth(),
 											selected = parameter.id in parameterSelection,
-											onSelect = { session?.setParameterSelection(ParameterSelection.of(parameter.id)) },
+											// Through parameterSelectionOf, the ONE place the targeting policy lives -
+											// the grip handle uses the same function, so click and grab cannot drift.
+											onSelect = { parameterSelectionOf(row)?.let { target -> session?.setParameterSelection(target) } },
 										) {
 											ParameterSlider(
 												parameter = parameter,
@@ -620,12 +628,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										ParameterIsland(
 											modifier = Modifier.fillMaxWidth(),
 											selected = row.horizontal.id in parameterSelection || row.vertical.id in parameterSelection,
-											// A pad targets BOTH its axes: keying on a linked pair means keying on the pair.
-											onSelect = {
-												session?.setParameterSelection(
-													ParameterSelection(setOf(row.horizontal.id, row.vertical.id), row.horizontal.id),
-												)
-											},
+											// A pad targets BOTH its axes - through parameterSelectionOf, the ONE place
+											// the policy lives, shared with the grip handle and the single island.
+											onSelect = { parameterSelectionOf(row)?.let { target -> session?.setParameterSelection(target) } },
 										) {
 											ParameterPad2D(
 												horizontal = row.horizontal,
@@ -1255,30 +1260,49 @@ private fun ParameterGripHandle(
 						val down = awaitFirstDown(requireUnconsumed = false)
 						val origin = gripCoordinates.coordinates?.boundsInWindow()
 						var dragging = false
-						while (true) {
-							val event = awaitPointerEvent()
-							val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
-							if (!change.pressed) {
-								break
+						// Only a REAL release completes the gesture.  Everything else - the coroutine
+						// cancelled mid-drag (the row scrolled out of composition), the pointer id lost, a
+						// change consumed by another handler - must cancel a live drag rather than drop it,
+						// and must never turn a press into a click.  The finally is what runs the cancel on
+						// cancellation, which awaitEachGesture itself gives no hook for.
+						var released = false
+						try {
+							while (true) {
+								val event = awaitPointerEvent()
+								val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+								if (change.isConsumed) {
+									break
+								}
+								if (!change.pressed) {
+									released = true
+									break
+								}
+								if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
+									dragging = true
+									dragController.start(
+										rowKey,
+										subject,
+										(origin?.left ?: 0f) + down.position.x,
+										(origin?.top ?: 0f) + down.position.y,
+									)
+								}
+								if (dragging) {
+									dragController.drag(
+										(origin?.left ?: 0f) + change.position.x,
+										(origin?.top ?: 0f) + change.position.y,
+									)
+									change.consume()
+								}
 							}
-							if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
-								dragging = true
-								dragController.start(
-									rowKey,
-									subject,
-									(origin?.left ?: 0f) + down.position.x,
-									(origin?.top ?: 0f) + down.position.y,
-								)
-							}
-							if (dragging) {
-								dragController.drag(
-									(origin?.left ?: 0f) + change.position.x,
-									(origin?.top ?: 0f) + change.position.y,
-								)
-								change.consume()
+						} finally {
+							when {
+								dragging && released -> latestDrop()
+								dragging -> dragController.end()
+								released -> latestSelect()
+								// A lost pointer id or a consumed press ends the gesture with no action.
+								else -> Unit
 							}
 						}
-						if (dragging) latestDrop() else latestSelect()
 					}
 				}
 				.semantics { contentDescription = gripLabel },
