@@ -44,9 +44,6 @@ enum class OutlinerIcon {
  * grouping rows (the puppet root and the Armature deformer-hierarchy node). Synthetic rows carry a null
  * [target] - they only expand / collapse, they do not select.
  *
- * 統合アウトライナーの1ノード。パーツ・描画オブジェクト・デフォーマ、または2つの合成ノード（ルートと
- * Armature）のいずれか。
- *
  * @property String id A stable, unique key for expand-state and reveal lookup (never reused).
  * @property String label The display text (already localised for synthetic rows; raw document name otherwise).
  * @property OutlinerIcon icon The placeholder icon kind.
@@ -72,9 +69,6 @@ data class OutlinerNode(
  * over [PuppetModel] so it unit-tests without Compose. Cross-links (which deformer deforms a drawable,
  * which part owns a deformer) are deliberately absent - they belong in the Properties panel, not
  * duplicated into the tree, which is exactly what makes Cubism's twin-panel layout confusing.
- *
- * パペットから統合アウトライナーツリーを構築する純粋関数。ルート→Armature（デフォーマ階層）＋トップ
- * レベルのパーツ（各パーツは描画オブジェクト→子パーツ）。
  *
  * @param PuppetModel puppet The rig to walk.
  * @param String rootLabel The localised label for the puppet root row.
@@ -143,8 +137,6 @@ fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armature", armat
  * part still shows its contents; ancestors of a deeper match are retained as the path to it. The puppet
  * root always survives so the panel never goes fully blank.
  *
- * 検索ボックスと種別トグルでツリーを2段階で絞り込む純粋関数。パーツを隠すと配下の描画は上に繰り上げる。
- *
  * @param OutlinerNode root The full tree.
  * @param String query The case-insensitive name filter (blank = no name filter).
  * @param Boolean showParts Whether to keep part / folder rows (false hoists their drawables up).
@@ -163,8 +155,6 @@ fun filterOutliner(root: OutlinerNode, query: String, showParts: Boolean, showDr
  * selection, and the clicked target becomes active. With no current anchor the range is just the clicked
  * row. Pure over the ordered target list (the row order the user sees), so it unit-tests without Compose;
  * the visible-row order encodes the range, which is why this takes [orderedTargets] rather than the tree.
- *
- * Shift クリックの範囲選択。アンカー（アクティブ）からクリック行までの連続区間を既存選択に加える純粋関数。
  *
  * @param List orderedTargets The visible rows' targets in display order (null for non-selectable rows).
  * @param Selection current The selection before the click.

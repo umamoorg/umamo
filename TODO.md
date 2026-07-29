@@ -95,6 +95,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Context Menus
 
 ## Parameters
+* Improvements
+	* Search in header.
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 

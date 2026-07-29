@@ -328,7 +328,7 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Sets a drawable's per-art-mesh multiply color (the 5.3 tint). Writes only the static value - a track
+	 * Sets a drawable's per-art-mesh multiply color.  Writes only the static value - a track
 	 * keyed on this channel shadows it, exactly like [SetOpacity] (see PuppetModelEdits.withDrawableMultiplyColor).
 	 *
 	 * @property DrawableId id The drawable whose multiply color changed.
@@ -340,7 +340,7 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Sets a drawable's per-art-mesh screen color (the 5.3 tint); the static-value sibling of [SetMultiplyColor].
+	 * Sets a drawable's per-art-mesh screen color; the static-value sibling of [SetMultiplyColor].
 	 *
 	 * @property DrawableId id The drawable whose screen color changed.
 	 * @property ColorRgb color The new screen color.

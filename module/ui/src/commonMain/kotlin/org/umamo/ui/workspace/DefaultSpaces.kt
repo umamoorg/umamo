@@ -40,9 +40,6 @@ import org.umamo.ui.workspace.spaces.ViewportToolbarOverlay
  * KeyformSheet, Properties, History, Logs) - only ToolDetails still renders a [PlaceholderSpace] until
  * its own panel lands. The app layers additional overrides on with [SpaceRegistry.withOverrides].
  *
- * すべてのシェルの土台となる SpaceRegistry を構築する。2D ビューポートはホスト注入に委譲し、
- * ToolDetails 以外は全て実体のあるパネルを持つ。
- *
  * @return SpaceRegistry The base registry covering every SpaceKind.
  */
 fun defaultSpaceRegistry(): SpaceRegistry {
@@ -118,9 +115,6 @@ fun defaultSpaceRegistry(): SpaceRegistry {
  * shows the themed grid backdrop - with the floating chrome (the left tool toolbar and the
  * right sidebar drawer) overlaid either way, so the work surface reads the same before a document
  * opens (the toolbar renders disabled without a session).
- *
- * 2D ビューポートの本体。注入されたホストがあれば委譲、無ければグリッド背景。左ツールバーと右
- * サイドバーをその上に重ねる。
  *
  * @param AreaScope scope The hosting area context (its id keys the host's GL surface).
  */
