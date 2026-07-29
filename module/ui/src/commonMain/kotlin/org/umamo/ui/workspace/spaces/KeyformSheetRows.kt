@@ -36,7 +36,7 @@ import org.umamo.ui.tracks.summarizedMarks
  * and every one of these already has art in the icon set.
  */
 enum class KeyformOwnerKind {
-	ArtMesh,
+	Drawable,
 	WarpDeformer,
 	RotationDeformer,
 	Part,
@@ -110,16 +110,23 @@ data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val key
  *   not a track) and neither does a blend-shape row (a blend binding is not a keyform grid, so the sheet's
  *   grid ops cannot touch it) - so a null lookup is the sheet's "this row is read-only" signal.
  * @property Map ownerKindByRowKey The owner kind behind each GROUP row, for its icon.
+ * @property Map ownerByRowKey The model reference behind each GROUP row, so the row's own menu can act on
+ *   the thing it names rather than on a track.
  * @property Set groupRowKeys Every group row's key, so a caller can seed "expand all".
  * @property Map summaryMembersByRowKey What each GROUP row's summary marks stand for, indexed by the
  *   summary ordinal the collapsed row draws them under.
+ * @property Boolean hiddenByFilter Whether the filter dropped at least one row that would otherwise be
+ *   listed - what lets an empty sheet say "hidden by filters" instead of "nothing is keyed here", which
+ *   are opposite diagnoses and only one of them is the user's own doing.
  */
 class KeyformSheetProjection(
 	val rows: List<TrackRow>,
 	val tracksByRowKey: Map<String, KeyformTrackRef>,
 	val ownerKindByRowKey: Map<String, KeyformOwnerKind>,
+	val ownerByRowKey: Map<String, KeyformOwner>,
 	val groupRowKeys: Set<String>,
 	val summaryMembersByRowKey: Map<String, List<List<TrackKeyRef>>>,
+	val hiddenByFilter: Boolean = false,
 ) {
 	/**
 	 * The child keys a summary mark stands for, or null when the row is not a collapsed group's.
@@ -203,7 +210,7 @@ fun keyformSheetRows(
 		builder.addOwner(
 			ownerKey = "drawable:${drawable.id.raw}",
 			ownerName = drawable.name,
-			ownerKind = KeyformOwnerKind.ArtMesh,
+			ownerKind = KeyformOwnerKind.Drawable,
 			owner = KeyformOwner.Drawable(drawable.id),
 			geometryMarks = marksOf(drawable.geometryGrid, parameterId, TrackKeyShape.Circle),
 			channelGrids = drawable.channelGrids,
@@ -248,6 +255,8 @@ private class ProjectionBuilder(
 	private val rows = ArrayList<TrackRow>()
 	private val tracks = HashMap<String, KeyformTrackRef>()
 	private val ownerKinds = HashMap<String, KeyformOwnerKind>()
+	private val owners = HashMap<String, KeyformOwner>()
+	private var hiddenByFilter = false
 
 	/**
 	 * Adds one owner's group row and its tracks, or nothing at all when it keys nothing on the parameter.
@@ -272,6 +281,11 @@ private class ProjectionBuilder(
 		parameterId: ParameterId,
 	) {
 		val children = ArrayList<TrackRow>()
+		// Recorded per DROPPED row rather than per enabled flag: a flag that is off but hides nothing on this
+		// rig must not make an empty sheet blame the filter for a rig that simply keys nothing here.
+		if (geometryMarks != null && !filter.geometry) {
+			hiddenByFilter = true
+		}
 		if (geometryMarks != null && filter.geometry) {
 			val rowKey = "$ownerKey/geometry"
 			children.add(
@@ -287,8 +301,12 @@ private class ProjectionBuilder(
 			// every gesture on what is, after compaction, nearly every row a corpus rig shows.
 			tracks[rowKey] = KeyformTrackRef.Geometry(owner)
 		}
-		for ((channel, track) in if (filter.channels) channelGrids.gridsByChannel else emptyMap()) {
+		for ((channel, track) in channelGrids.gridsByChannel) {
 			val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: continue
+			if (!filter.channels) {
+				hiddenByFilter = true
+				continue
+			}
 			val rowKey = "$ownerKey/${channel.name}"
 			children.add(
 				TrackRow(
@@ -302,6 +320,9 @@ private class ProjectionBuilder(
 		}
 		// A blend-shape binding is not a keyform grid, so it gets a row but no track ref: the sheet's ops
 		// would have nothing to apply, and offering a drag that reverts is worse than offering none.
+		if (blendShapeMarks.isNotEmpty() && !filter.blendShapes) {
+			hiddenByFilter = true
+		}
 		for ((bindingIndex, marks) in (if (filter.blendShapes) blendShapeMarks else emptyList()).withIndex()) {
 			children.add(
 				TrackRow(
@@ -325,6 +346,7 @@ private class ProjectionBuilder(
 			),
 		)
 		ownerKinds[ownerKey] = ownerKind
+		owners[ownerKey] = owner
 	}
 
 	/**
@@ -353,8 +375,10 @@ private class ProjectionBuilder(
 			rows = rows,
 			tracksByRowKey = tracks,
 			ownerKindByRowKey = ownerKinds,
+			ownerByRowKey = owners,
 			groupRowKeys = rows.map { row -> row.key }.toSet(),
 			summaryMembersByRowKey = rows.associate { row -> row.key to summaryMembersOf(row) },
+			hiddenByFilter = hiddenByFilter,
 		)
 }
 

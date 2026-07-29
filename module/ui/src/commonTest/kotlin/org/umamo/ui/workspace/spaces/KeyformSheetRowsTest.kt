@@ -11,6 +11,7 @@ import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
@@ -177,6 +178,45 @@ class KeyformSheetRowsTest {
 		)
 		val filtered = keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(channels = false))
 		assertTrue(filtered.rows.isEmpty(), "with channels hidden the glue has no children left, so no group row either")
+	}
+
+	/**
+	 * The projection reports whether a filter actually DROPPED something, not merely that one is off.
+	 *
+	 * "Nothing is keyed here" and "you hid it" are opposite diagnoses; a flag that is off but hides nothing
+	 * on this rig must not make an empty sheet blame the filter for a rig that simply keys nothing.
+	 */
+	@Test
+	fun theProjectionReportsWhetherTheFilterDroppedAnything() {
+		val puppet = model(drawables = listOf(drawableWithEveryTrackKind()))
+		assertFalse(keyformSheetRows(puppet, angleX, labels()).hiddenByFilter, "nothing is filtered by default")
+		assertTrue(
+			keyformSheetRows(puppet, angleX, labels(), KeyformTrackFilter(geometry = false)).hiddenByFilter,
+			"the drawable has a geometry track, so hiding geometry hid something",
+		)
+
+		// A rig with only channel tracks: hiding GEOMETRY takes nothing away from it, so the sheet must not
+		// claim a filter is responsible for what it shows.
+		val glueOnly = model(glues = listOf(glue("a", "b")))
+		assertFalse(
+			keyformSheetRows(glueOnly, angleX, labels(), KeyformTrackFilter(geometry = false)).hiddenByFilter,
+			"a glue has no geometry track, so the geometry filter dropped nothing",
+		)
+		assertTrue(keyformSheetRows(glueOnly, angleX, labels(), KeyformTrackFilter(channels = false)).hiddenByFilter)
+	}
+
+	/** Every group row carries the owner it names, so its own menu can act on the thing rather than a track. */
+	@Test
+	fun groupRowsCarryTheirOwner() {
+		val puppet = model(drawables = listOf(drawableWithEveryTrackKind()), glues = listOf(glue("a", "b")))
+		val projection = keyformSheetRows(puppet, angleX, labels())
+		assertEquals(KeyformOwner.Drawable(DrawableId("d")), projection.ownerByRowKey["drawable:d"])
+		assertEquals(KeyformOwner.Glue(DrawableId("a"), DrawableId("b")), projection.ownerByRowKey["glue:a:b"])
+		assertEquals(
+			projection.ownerKindByRowKey.keys,
+			projection.ownerByRowKey.keys,
+			"the two group-row maps are keyed alike - a row with an icon but no owner would show a dead menu",
+		)
 	}
 
 	/**

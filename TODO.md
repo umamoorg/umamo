@@ -103,16 +103,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Background highlight in property controls instead of the border highlight.
 
 # Parameters
-* Bugs
-	* 
 * Improvements
 	* New icon for keyform sheet.(I will find one and put it in.)
 	* Keyform Sheet
-		* Context menu on item with "Select Drawable/Part/Deformer".
-		* We'll need the same full width/height crosshairs like the viewport.  Right now nothing shows on box arm resulting in confusion if the mode was even activated.
-			* Lets keep this DRY and not rebuild everything.  We can make helpers in the theme kit as needed, but it looks like we are already importing some pieces.
 		* When multiple marks are selected moving one should move the rest of them.  Right now only nudging with the arrow keys works.
-		* When the filter is hiding visible tracks it should not show, "Nothing is keyed...", and instead say that "All tracks hidden by filters.".
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 

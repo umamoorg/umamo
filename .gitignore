@@ -45,7 +45,8 @@ captures/
 *.iml
 *.ipr
 *.iws
-.vscode/
+.vscode/*
+!.vscode/settings.json
 
 #Get fucked, Git.
 /docs/formats

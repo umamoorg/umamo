@@ -168,6 +168,107 @@ fun EditorSession.moveTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 }
 
 /**
+ * Drags every key in [keys] by [fraction] of its parameter's range, as ONE undo step - the multi-select
+ * mark drag.
+ *
+ * By a fraction rather than an absolute delta because a selection can span two parameters (a linked pad
+ * shows both axes at once) whose ranges differ by orders of magnitude.  Within ONE parameter a fraction of
+ * its range IS the absolute delta, so the common case is exactly what the hand did; across two it is the
+ * only reading that keeps the group together on screen.
+ *
+ * Clamped to the MOST CONSTRAINED member rather than per key: clamping individually would let the keys
+ * nearest an end pile up while the rest kept travelling, silently destroying the spacing the rigger
+ * authored.  Reducing the whole drag instead just stops the group at the wall.
+ *
+ * Each key is re-found BY VALUE inside the fold rather than trusted to keep its ordinal: a key that crosses
+ * an unselected neighbour renumbers the axis under the keys still to be moved.
+ *
+ * @param List keys The (track, parameter, key ordinal) triples to drag.
+ * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @return List<Int> Each key's ordinal AFTER the drag, in the order given - crossings renumber the axis, so
+ *   a caller holding the old ordinals would be pointing at whichever keys took their place.
+ */
+fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> {
+	val startingOrdinals = keys.map { (_, _, keyIndex) -> keyIndex }
+	if (keys.isEmpty() || fraction == 0f) {
+		return startingOrdinals
+	}
+	val beforeDrag = model.value
+	// Aligned WITH keys, holding null where a ref no longer resolves - the caller gets one ordinal back per
+	// key it passed, so a stale ref must not shift every later answer by one.
+	val moves =
+		keys.map { (track, parameter, keyIndex) ->
+			beforeDrag.trackKeyValue(track, parameter, keyIndex)?.let { fromValue -> KeyDrag(track, parameter, fromValue) }
+		}
+	val live = moves.filterNotNull()
+	if (live.isEmpty()) {
+		return startingOrdinals
+	}
+	val effectiveFraction = live.fold(fraction) { limited, move -> move.limitedTo(limited) }
+	if (effectiveFraction == 0f) {
+		return startingOrdinals
+	}
+	val destinations = live.associateWith { move -> move.destinationAt(effectiveFraction) }
+	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { current ->
+		// Nearest the destination first, so a run of keys shuffling the same way cannot have an earlier one
+		// clamp against a neighbour that is about to move out of the way.
+		val ordered = if (effectiveFraction > 0f) live.sortedByDescending { it.fromValue } else live.sortedBy { it.fromValue }
+		ordered.fold(current) { working, move ->
+			val liveIndex = working.trackKeyIndexAt(move.track, move.parameter, move.fromValue)
+			if (liveIndex < 0) {
+				working
+			} else {
+				working.withTrackKeyMoved(move.track, move.parameter, liveIndex, destinations.getValue(move))
+			}
+		}
+	}
+	// Re-resolved against the NEW model by the value each key was sent to, which is the only description of
+	// a key that survives its own move.
+	val afterDrag = model.value
+	return keys.mapIndexed { position, (track, parameter, keyIndex) ->
+		val destination = moves[position]?.let { move -> destinations[move] } ?: return@mapIndexed keyIndex
+		afterDrag.trackKeyIndexAt(track, parameter, destination).takeIf { index -> index >= 0 } ?: keyIndex
+	}
+}
+
+/**
+ * One key's in-flight drag: where it is now, and what bounds how far it may go.
+ *
+ * @property KeyformTrackRef track The track it sits on.
+ * @property Parameter parameter The parameter whose axis it sits on.
+ * @property Float fromValue Its position before the drag.
+ */
+private class KeyDrag(val track: KeyformTrackRef, val parameter: Parameter, val fromValue: Float) {
+	/** The parameter's span, floored so a degenerate (min == max) parameter cannot divide by zero. */
+	private val span: Float get() = (maxOf(parameter.min, parameter.max) - minOf(parameter.min, parameter.max)).takeIf { it > 0f } ?: 1f
+
+	/**
+	 * [fraction] reduced, if needed, so this key stays inside its parameter's range.
+	 *
+	 * @param Float fraction The requested drag.
+	 * @return Float The fraction this key can take, same sign or zero.
+	 */
+	fun limitedTo(fraction: Float): Float {
+		val low = minOf(parameter.min, parameter.max)
+		val high = maxOf(parameter.min, parameter.max)
+		return if (fraction > 0f) {
+			minOf(fraction, ((high - fromValue) / span).coerceAtLeast(0f))
+		} else {
+			maxOf(fraction, ((low - fromValue) / span).coerceAtMost(0f))
+		}
+	}
+
+	/**
+	 * Where this key lands at [fraction] of its parameter's range.
+	 *
+	 * @param Float fraction The (already limited) drag.
+	 * @return Float The destination, clamped defensively to the range.
+	 */
+	fun destinationAt(fraction: Float): Float =
+		(fromValue + span * fraction).coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+}
+
+/**
  * Nudges every key in [keys] along its parameter by [fraction] of that parameter's range, as ONE undo step.
  *
  * Relative to each parameter's own range rather than an absolute step, because ranges differ by orders of
@@ -226,6 +327,21 @@ fun PuppetModel.trackKeyIndexAtPose(track: KeyformTrackRef, parameter: Parameter
 	val grid = trackGridOf(this, track) ?: return -1
 	return grid.keyIndexAt(parameter.id, pose[parameter.id] ?: parameter.default)
 }
+
+/**
+ * The ordinal of [track]'s key sitting at [value] on [parameter]'s axis, or -1 when none does.
+ *
+ * Within EPS_KEY, the same tolerance the evaluator snaps with - so "the key at this value" means what it
+ * means everywhere else.  The value-addressed sibling of [trackKeyIndexAtPose], for the one case where an
+ * ordinal cannot be trusted: after a move that may have crossed a neighbour and renumbered the axis.
+ *
+ * @param KeyformTrackRef track The track to read.
+ * @param Parameter parameter The parameter whose axis to read.
+ * @param Float value The parameter value to look at.
+ * @return Int The key's ordinal, or -1.
+ */
+fun PuppetModel.trackKeyIndexAt(track: KeyformTrackRef, parameter: Parameter, value: Float): Int =
+	trackGridOf(this, track)?.keyIndexAt(parameter.id, value) ?: -1
 
 /** The grid behind [track] - its owner's channel track or its geometry - or null when there is none. */
 private fun trackGridOf(puppet: PuppetModel, track: KeyformTrackRef): KeyformGrid<*>? =

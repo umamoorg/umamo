@@ -1015,7 +1015,7 @@ private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean, baseTint: Colo
 	val colors = LocalUmamoColors.current
 	val tint =
 		when (icon) {
-			OutlinerIcon.PuppetRoot, OutlinerIcon.Part, OutlinerIcon.ArtMesh ->
+			OutlinerIcon.PuppetRoot, OutlinerIcon.Part, OutlinerIcon.Drawable ->
 				if (dimmed) colors.outlinerObjectTintDimmed else colors.outlinerObjectTint
 			OutlinerIcon.Armature, OutlinerIcon.WarpDeformer, OutlinerIcon.RotationDeformer ->
 				if (dimmed) colors.outlinerDeformTintDimmed else colors.outlinerDeformTint
@@ -1029,7 +1029,7 @@ private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean, baseTint: Colo
 				OutlinerIcon.PuppetRoot -> drawIcon(LocalUmamoIcons.puppetRoot, tint)
 				OutlinerIcon.Armature -> drawIcon(LocalUmamoIcons.armature, tint)
 				OutlinerIcon.Part -> drawIcon(LocalUmamoIcons.part, tint)
-				OutlinerIcon.ArtMesh -> drawIcon(LocalUmamoIcons.mesh, tint)
+				OutlinerIcon.Drawable -> drawIcon(LocalUmamoIcons.mesh, tint)
 				OutlinerIcon.WarpDeformer -> drawIcon(LocalUmamoIcons.warpDeformer, tint)
 				OutlinerIcon.RotationDeformer -> drawIcon(LocalUmamoIcons.rotationDeformer, tint)
 			}

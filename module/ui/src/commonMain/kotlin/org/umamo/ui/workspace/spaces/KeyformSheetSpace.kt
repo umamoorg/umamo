@@ -42,10 +42,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.dragTrackKeys
 import org.umamo.edit.moveTrackKey
 import org.umamo.edit.moveTrackKeys
 import org.umamo.edit.removeTrackKeys
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -225,7 +229,15 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				}
 			}
 			if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
-				EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_tracks))
+				// "Nothing is keyed" and "you hid it" are opposite diagnoses, and only one of them is the
+				// user's own doing - saying the first while a filter is eating the rows sends them looking for
+				// a rig problem that is not there.
+				val everythingFiltered = projections.any { (_, projection) -> projection.hiddenByFilter }
+				EmptySheetNotice(
+					stringResource(
+						if (everythingFiltered) Res.string.keyform_sheet_all_filtered else Res.string.keyform_sheet_no_tracks,
+					),
+				)
 				return@Box
 			}
 			// The sheet's commands (delete/nudge selected keys, frame all) live at SHELL level - per-area
@@ -242,11 +254,13 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				} else {
 					fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
 						viewState.selectedKeys.mapNotNull { keyRef ->
-							val entry = currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+							val entry =
+								currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
 							entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
 								Triple(track, entry.first, keyRef.keyIndex)
 							}
 						}
+
 					val surface =
 						KeyformSheetSurface(
 							selectedTracks = ::selectedTracks,
@@ -257,6 +271,27 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 						)
 					keyformSheetViews.register(scope.areaId, surface)
 					onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
+				}
+			}
+			// Dragging one mark of a multi-key selection drags the whole selection, which means resolving refs
+			// from EVERY section: a linked pad shows two, and one box select can enclose keys in both.  The
+			// section that owns the gesture sees only its own projection, so the resolution lives here and it
+			// is handed down as an action.
+			val dragSelectedKeys: (Float) -> Unit = { fraction ->
+				val plan =
+					viewState.selectedKeys.mapNotNull { keyRef ->
+						val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+							keyRef to Triple(track, entry.first, keyRef.keyIndex)
+						}
+					}
+				if (session != null && plan.isNotEmpty()) {
+					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
+					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
+					// old ordinals would leave the selection on whichever keys took their places.
+					viewState.selectedKeys =
+						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
+							.toSet()
 				}
 			}
 			// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
@@ -289,9 +324,19 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 						if (collapsed) {
 							// Folded: the header alone, so a linked pad's other axis is one click away.
 						} else if (projection.rows.isEmpty()) {
-							Box(modifier = Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+							Box(
+								modifier = Modifier.fillMaxWidth().padding(12.dp),
+								contentAlignment = Alignment.Center
+							) {
 								Text(
-									text = stringResource(Res.string.keyform_sheet_no_tracks),
+									text =
+										stringResource(
+											if (projection.hiddenByFilter) {
+												Res.string.keyform_sheet_all_filtered
+											} else {
+												Res.string.keyform_sheet_no_tracks
+											},
+										),
 									style = LocalUmamoTypography.current.bodyMedium,
 									color = colors.textMuted,
 								)
@@ -313,6 +358,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 										}
 								},
 								onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
+								onDragSelectedKeys = dragSelectedKeys,
 								onLaneBounds = { row, bounds -> viewState.laneBounds[row.key] = bounds },
 							)
 						}
@@ -390,6 +436,8 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
  * @param Set<String> expandedKeys The open group rows, shared by every section.
  * @param Function onToggleExpanded Publishes a chevron click.
  * @param Function onSelectedKeysChange Publishes a new selection to the sheet.
+ * @param Function onDragSelectedKeys Drags the WHOLE selection by a fraction of each key's parameter range,
+ *   which only the sheet can do - the selection spans sections and a section sees only its own projection.
  * @param Function onLaneBounds Reports each lane's window bounds, for the box-select marquee.
  */
 @Composable
@@ -402,6 +450,7 @@ private fun KeyformSheetSection(
 	expandedKeys: Set<String>,
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
+	onDragSelectedKeys: (Float) -> Unit,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
 ) {
 	val session = LocalEditorSession.current
@@ -412,6 +461,16 @@ private fun KeyformSheetSection(
 	val icons = LocalUmamoIcons
 	val keymap = LocalKeymap.current
 	val insertLabel = stringResource(Res.string.cmd_keyform_insert)
+	// Resolved in COMPOSITION, not in the menu lambda: stringResource only runs while composing, and
+	// the lambda fires on a pointer event.
+	val selectOwnerLabels =
+		ownerKindLabels().mapValues { (_, kindLabel) ->
+			stringResource(
+				Res.string.keyform_sheet_select_owner,
+				kindLabel
+			)
+		}
+	val ownerKindLabels = ownerKindLabels()
 	val deleteLabel = stringResource(Res.string.cmd_keyform_delete)
 	// The playhead follows the live scrub through snapshotFlow rather than a composition read:
 	// observedValues is one whole-map state replaced on every preview move of ANY parameter, so reading
@@ -450,7 +509,7 @@ private fun KeyformSheetSection(
 			// track names a property, and several of those (opacity, draw order) have no icon in the set -
 			// giving some of them art and not others would read as a missing glyph rather than a category.
 			when (projection.ownerKindByRowKey[row.key]) {
-				KeyformOwnerKind.ArtMesh -> TrackRowDecor(icons.mesh, colors.outlinerObjectTint)
+				KeyformOwnerKind.Drawable -> TrackRowDecor(icons.mesh, colors.outlinerObjectTint)
 				KeyformOwnerKind.Part -> TrackRowDecor(icons.part, colors.outlinerObjectTint)
 				KeyformOwnerKind.WarpDeformer -> TrackRowDecor(icons.warpDeformer, colors.outlinerDeformTint)
 				KeyformOwnerKind.RotationDeformer -> TrackRowDecor(icons.rotationDeformer, colors.outlinerDeformTint)
@@ -479,7 +538,10 @@ private fun KeyformSheetSection(
 			// outside the parameter's range brackets nothing, so every entity keyed on it disappears.
 			// The minOf/maxOf form tolerates a reversed (min > max) range from a malformed import, like
 			// every sibling clamp in this feature - a plain coerceIn throws on one mid-gesture.
-			liveParams?.preview(parameter.id, value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)))
+			liveParams?.preview(
+				parameter.id,
+				value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+			)
 		},
 		// One undo step per gesture, at its end - the same contract a slider drag has.
 		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
@@ -501,13 +563,23 @@ private fun KeyformSheetSection(
 				// the group mark's new membership rather than guess - it is recomputed from the new model.
 				onSelectedKeysChange(emptySet())
 			} else if (session != null && track != null) {
-				// A key may cross its neighbours, which renumbers the axis - so the move reports where the
-				// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
-				// would silently leave the selection on whichever key took its place.
-				val landedIndex = session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
-				val moved = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
-				if (moved in selectedKeys) {
-					onSelectedKeysChange(selectedKeys - moved + TrackKeyRef(parameter.id, row.key, landedIndex))
+				val dragged = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
+				if (dragged in selectedKeys && selectedKeys.size > 1) {
+					// Dragging one mark of a multi-key selection drags them all, by the same fraction of each
+					// key's own parameter range.  Within one parameter that IS the distance the hand moved; it
+					// only diverges across a linked pad's two axes, where no single absolute delta is right.
+					val span = maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min)
+					if (span > 0f) {
+						onDragSelectedKeys((releasedAt - mark.position) / span)
+					}
+				} else {
+					// A key may cross its neighbours, which renumbers the axis - so the move reports where the
+					// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
+					// would silently leave the selection on whichever key took its place.
+					val landedIndex = session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+					if (dragged in selectedKeys) {
+						onSelectedKeysChange(selectedKeys - dragged + TrackKeyRef(parameter.id, row.key, landedIndex))
+					}
 				}
 			}
 		},
@@ -524,6 +596,24 @@ private fun KeyformSheetSection(
 				} else {
 					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id))
 				}
+			}
+		},
+		// The LABEL half of a row answers a different question from the lane: the lane is about a key at a
+		// position, the label is about the thing the row names.  Only a GROUP row names a rig entity, and
+		// only a selectable one - a glue has no SelectionTarget - so every other row gets an empty list and
+		// no gesture at all.
+		labelMenuItems = { row ->
+			val target = projection.ownerByRowKey[row.key]?.let(::selectionTargetOf)
+			val ownerKind = projection.ownerKindByRowKey[row.key]
+			if (session == null || target == null || ownerKind == null) {
+				emptyList()
+			} else {
+				listOf(
+					MenuItem.Action(
+						label = selectOwnerLabels.getValue(ownerKind),
+						onSelect = { session.setSelection(Selection(setOf(target), target)) },
+					),
+				)
 			}
 		},
 		laneMenuItems = { hit ->
@@ -576,7 +666,14 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = insertLabel,
 							onSelect = {
-								keyableHover?.enter(KeyformHover(track, hit.value, keyIndex = null, parameterId = parameter.id))
+								keyableHover?.enter(
+									KeyformHover(
+										track,
+										hit.value,
+										keyIndex = null,
+										parameterId = parameter.id
+									)
+								)
 								commands.invoke("keyform.insert")
 								keyableHover?.exit(track)
 							},
@@ -587,6 +684,24 @@ private fun KeyformSheetSection(
 		},
 	)
 }
+
+/**
+ * The selection target a keyform owner names, or null when it names nothing selectable.
+ *
+ * Glue is the null case, and deliberately so: it has no SelectionTarget, no outliner entry, and is
+ * addressed by a mesh pair rather than an id, so there is nothing for a "select this" to put in the
+ * selection.  See TODO.md's Claude Note on glue having no editable home.
+ *
+ * @param KeyformOwner owner The row's owner.
+ * @return SelectionTarget? What to select, or null.
+ */
+private fun selectionTargetOf(owner: KeyformOwner): SelectionTarget? =
+	when (owner) {
+		is KeyformOwner.Drawable -> SelectionTarget.Drawable(owner.id)
+		is KeyformOwner.Part -> SelectionTarget.Part(owner.id)
+		is KeyformOwner.Deformer -> SelectionTarget.Deformer(owner.id)
+		is KeyformOwner.Glue -> null
+	}
 
 /**
  * This row and its whole subtree with each mark's selected flag resolved against [selectedKeys].
@@ -600,7 +715,15 @@ private fun KeyformSheetSection(
  */
 private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<TrackKeyRef>): TrackRow =
 	copy(
-		marks = marks.map { mark -> mark.copy(selected = TrackKeyRef(parameterId, key, mark.keyIndex) in selectedKeys) },
+		marks = marks.map { mark ->
+			mark.copy(
+				selected = TrackKeyRef(
+					parameterId,
+					key,
+					mark.keyIndex
+				) in selectedKeys
+			)
+		},
 		children = children.map { child -> child.withSelection(parameterId, selectedKeys) },
 	)
 
@@ -630,7 +753,17 @@ private fun keysWithin(
 		for (row in projection.rows) {
 			// Only rows with a track ref: a group header names an owner and a blend-shape row is not a
 			// keyform grid, so neither has keys a selection could act on.
-			collectRowsWithin(row, region, laneBounds, parameter, domainStart, domainEnd, markRadiusPx, projection, enclosed)
+			collectRowsWithin(
+				row,
+				region,
+				laneBounds,
+				parameter,
+				domainStart,
+				domainEnd,
+				markRadiusPx,
+				projection,
+				enclosed
+			)
 		}
 	}
 	return enclosed
@@ -713,7 +846,7 @@ private fun channelLabels(): Map<FormChannel, String> =
 private fun ownerKindLabels(): Map<KeyformOwnerKind, String> =
 	KeyformOwnerKind.entries.associateWith { kind ->
 		when (kind) {
-			KeyformOwnerKind.ArtMesh -> stringResource(Res.string.owner_kind_art_mesh)
+			KeyformOwnerKind.Drawable -> stringResource(Res.string.owner_kind_drawable)
 			KeyformOwnerKind.WarpDeformer -> stringResource(Res.string.owner_kind_warp_deformer)
 			KeyformOwnerKind.RotationDeformer -> stringResource(Res.string.owner_kind_rotation_deformer)
 			KeyformOwnerKind.Part -> stringResource(Res.string.owner_kind_part)

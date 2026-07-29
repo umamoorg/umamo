@@ -72,10 +72,13 @@ import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.theme.drawCrosshairGuides
+import org.umamo.ui.theme.drawCursor
 import org.umamo.ui.theme.drawIcon
+import org.umamo.ui.theme.drawRubberBand
+import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.theme.umamoPointerIcon
-import org.umamo.ui.viewport.drawRubberBand
-import org.umamo.ui.viewport.selectionOverlayStyle
 import kotlin.math.abs
 
 /*
@@ -179,6 +182,9 @@ data class TrackLaneHit(
  * @param Function? onTrackScrubEnd Invoked when such a drag is released, to commit the value it landed on.
  * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
+ * @param Function? labelMenuItems Builds the context-menu items for a row's LABEL cell; null disables it.
+ *   Separate from [laneMenuItems] because the two halves of a row answer different questions - the lane is
+ *   about a key at a position, the label is about the thing the row names.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit, for hover-aimed commands.
  * @param Function? onLaneBounds Reports each lane's window bounds, so a region gesture can resolve rows.
  * @param Dp markRadius Half-extent of a drawn mark, and the inset applied at both ends of the track region.
@@ -199,6 +205,7 @@ fun TrackSheet(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
+	labelMenuItems: ((TrackRow) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
 	markRadius: Dp = TRACK_MARK_RADIUS,
@@ -226,6 +233,7 @@ fun TrackSheet(
 					onTrackScrubEnd = onTrackScrubEnd,
 					onMarkDragEnd = onMarkDragEnd,
 					laneMenuItems = laneMenuItems,
+					labelMenuItems = labelMenuItems,
 					onLaneHover = onLaneHover,
 					onLaneBounds = onLaneBounds,
 					markRadius = markRadius,
@@ -448,6 +456,7 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
+ * @param Function? labelMenuItems Builds the label cell's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
  * @param Dp markRadius Half-extent of a drawn mark, and the track region's end inset.
@@ -465,6 +474,7 @@ private fun TrackSheetRow(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
+	labelMenuItems: ((TrackRow) -> List<MenuItem>)?,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)?,
 	markRadius: Dp,
@@ -487,6 +497,7 @@ private fun TrackSheetRow(
 			width = labelColumnWidth,
 			background = toneBackground,
 			onToggleExpanded = onToggleExpanded,
+			menuItems = labelMenuItems,
 		)
 		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.divider))
 		TrackLane(
@@ -520,6 +531,7 @@ private fun TrackSheetRow(
  * @param Dp width The label column's width.
  * @param Color background The row's tone fill.
  * @param Function? onToggleExpanded Invoked when the chevron is clicked.
+ * @param Function? menuItems Builds this row's label context menu; null (or an empty list) shows none.
  */
 @Composable
 private fun TrackRowLabel(
@@ -528,18 +540,35 @@ private fun TrackRowLabel(
 	width: Dp,
 	background: Color,
 	onToggleExpanded: ((TrackRow) -> Unit)?,
+	menuItems: ((TrackRow) -> List<MenuItem>)? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
 	// Only wrap a name in a tooltip when it is ACTUALLY clipped: a tooltip that repeats text already fully
 	// on screen is noise, and Tooltip treats a blank label as "no tooltip".
 	var nameTruncated by remember(line.row.key) { mutableStateOf(false) }
+	// Built ONCE per composition, not on the pointer event: the labels are localized through
+	// stringResource, which only runs while composing.  An empty list means this row has nothing to
+	// offer, so no gesture is attached at all rather than a blank popup opening on right-click.
+	val items = menuItems?.invoke(line.row).orEmpty()
+	var menuOpen by remember(line.row.key) { mutableStateOf(false) }
+	var menuOffset by remember(line.row.key) { mutableStateOf(IntOffset.Zero) }
 	Row(
 		modifier =
 			Modifier
 				.width(width)
 				.fillMaxHeight()
 				.background(background)
+				.then(
+					if (items.isEmpty()) {
+						Modifier
+					} else {
+						Modifier.contextMenuGesture { localOffset ->
+							menuOffset = localOffset
+							menuOpen = true
+						}
+					},
+				)
 				.padding(start = 4.dp + INDENT_PER_DEPTH * line.depth, end = 6.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
@@ -580,6 +609,9 @@ private fun TrackRowLabel(
 				}
 			}
 		}
+	}
+	if (menuOpen) {
+		Menu(items = items, onDismissRequest = { menuOpen = false }, positionProvider = AtPointPositionProvider(menuOffset))
 	}
 }
 
@@ -676,6 +708,12 @@ private fun TrackRuler(
  * Reports WINDOW coordinates - the same space the lanes report their bounds in - so the owner can resolve
  * the region against rows that live inside a scroll it knows nothing about.
  *
+ * While armed and before the drag begins it shows the same affordance the viewport's armed box select does:
+ * full-width / full-height marching-ants guides through the pointer, and the drawn crosshair standing in
+ * for a hidden OS cursor.  Without it nothing on screen said the mode was active at all.  The chrome comes
+ * from the theme kit ([drawCrosshairGuides] / [drawRubberBand]), shared with the viewport rather than
+ * reimplemented here - this package stays domain-free, but drawing primitives are not domain.
+ *
  * @param Boolean armed Whether a marquee is awaiting its drag.
  * @param Function onSelect Receives the enclosed region and whether the gesture was additive (Shift).
  * @param Function onDismiss Called when the gesture ends or is abandoned, so the caller can disarm.
@@ -692,16 +730,37 @@ fun TrackSheetMarqueeOverlay(
 		return
 	}
 	val style = selectionOverlayStyle(LocalUmamoColors.current)
+	val crosshairCursor = LocalUmamoCursors.crosshair
 	val latestSelect by rememberUpdatedState(onSelect)
 	val latestDismiss by rememberUpdatedState(onDismiss)
 	var origin by remember { mutableStateOf<Offset?>(null) }
 	var current by remember { mutableStateOf<Offset?>(null) }
 	var windowOffset by remember { mutableStateOf(Offset.Zero) }
+	// Null until the pointer is first seen, so an arm from the keyboard does not paint guides through the
+	// top-left corner before the hand has arrived.
+	var hoverPoint by remember { mutableStateOf<Offset?>(null) }
 	Canvas(
 		modifier =
 			modifier
 				.fillMaxSize()
 				.onGloballyPositioned { coordinates -> windowOffset = coordinates.boundsInWindow().topLeft }
+				// Hide the OS cursor so only the drawn crosshair shows, matching the armed viewport gesture.
+				.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
+				// A SECOND pointerInput, on the Initial pass and consuming nothing: the gesture loop below
+				// blocks in awaitFirstDown and so sees no hover moves at all, which is why the guides need
+				// their own observer rather than a position latched inside the drag.
+				.pointerInput(Unit) {
+					awaitPointerEventScope {
+						while (true) {
+							val event = awaitPointerEvent(PointerEventPass.Initial)
+							if (event.type == PointerEventType.Exit) {
+								hoverPoint = null
+							} else {
+								event.changes.lastOrNull()?.let { change -> hoverPoint = change.position }
+							}
+						}
+					}
+				}
 				.pointerInput(Unit) {
 					awaitEachGesture {
 						val down = awaitFirstDown(requireUnconsumed = false)
@@ -736,7 +795,16 @@ fun TrackSheetMarqueeOverlay(
 					}
 				},
 	) {
+		val pointer = current ?: hoverPoint
+		// Guides only BEFORE the drag: once a band exists it says everything the guides did, and keeping
+		// both draws four lines through a box that is already outlined.
+		if (origin == null && pointer != null) {
+			drawCrosshairGuides(pointer, size, style)
+		}
 		drawRubberBand(origin, current, style)
+		if (pointer != null) {
+			drawCursor(crosshairCursor, pointer)
+		}
 	}
 }
 

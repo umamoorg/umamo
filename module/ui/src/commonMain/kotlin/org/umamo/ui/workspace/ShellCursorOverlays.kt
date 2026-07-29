@@ -158,8 +158,6 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
  * Above the area tree for the same reason the pie menu is: the prompt answers a keypress made over a
  * Properties row, and it must not be clipped to that panel's box.
  *
- * どのパラメータに書き込むか判別できないキーフォーム編集で、対象パラメータをポインタ位置に一覧表示する。
- *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
  *   pointer event (the prompt then opens at the window's centre).
  * @param Modifier modifier The layout modifier (the shell passes a window fill).

@@ -533,13 +533,15 @@
 	<string name="space_keyformsheet">Keyform Sheet</string>
 	<string name="keyform_choose_parameter_insert">Insert key on which parameter?</string>
 	<string name="keyform_choose_parameter_remove">Remove key from which parameter?</string>
+	<string name="keyform_sheet_select_owner">Select %1$s</string>
+	<string name="keyform_sheet_all_filtered">All tracks hidden by filters.</string>
 	<string name="keyform_sheet_filters">Track Filters</string>
 	<string name="keyform_sheet_filter_geometry">Deformation Tracks</string>
 	<string name="keyform_sheet_filter_channels">Property Tracks</string>
 	<string name="keyform_sheet_filter_blend_shapes">Blend Shape Tracks</string>
 	<string name="keyform_sheet_no_parameter">Select a parameter to see its tracks.</string>
 	<string name="keyform_sheet_no_tracks">Nothing is keyed on this parameter yet.</string>
-	<string name="owner_kind_art_mesh">Art Mesh</string>
+	<string name="owner_kind_drawable">Drawable</string>
 	<string name="owner_kind_warp_deformer">Warp Deformer</string>
 	<string name="owner_kind_rotation_deformer">Rotation Deformer</string>
 	<string name="owner_kind_part">Part</string>

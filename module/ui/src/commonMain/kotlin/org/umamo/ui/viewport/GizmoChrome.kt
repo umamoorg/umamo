@@ -10,10 +10,11 @@ import androidx.compose.ui.unit.dp
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.render.WorldAxisColors
+import org.umamo.ui.theme.SelectionOverlayStyle
 import org.umamo.ui.theme.UmamoCursor
+import org.umamo.ui.theme.drawCrosshairGuides
 import org.umamo.ui.theme.drawCursor
-import kotlin.math.abs
-import kotlin.math.min
+import org.umamo.ui.theme.drawSelectionCircle
 
 // The shared gizmo chrome: the draw helpers and constants both gizmo overlays (Edit and Object - and
 // later the UV editor's) render identically.  Everything here is geometry-source agnostic: it takes
@@ -133,21 +134,4 @@ internal fun DrawScope.drawSelectToolAffordances(
 
 		null -> {}
 	}
-}
-
-/**
- * Draws the in-flight box-select rubber-band between two drag corners, or nothing when no drag is in
- * flight (either corner null).  Normalizes the corners so the drag direction never matters.
- *
- * @param Offset? start The drag's press corner in area-local pixels, or null.
- * @param Offset? end The drag's current corner in area-local pixels, or null.
- * @param SelectionOverlayStyle style The shared two-tone marching-ants style.
- */
-internal fun DrawScope.drawRubberBand(start: Offset?, end: Offset?, style: SelectionOverlayStyle) {
-	if (start == null || end == null) {
-		return
-	}
-	val topLeft = Offset(min(start.x, end.x), min(start.y, end.y))
-	val boxSize = Size(abs(end.x - start.x), abs(end.y - start.y))
-	drawSelectionBox(topLeft, boxSize, style)
 }

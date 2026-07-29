@@ -295,6 +295,56 @@ class KeyformGeometryEditsTest {
 		assertEquals(listOf(-30f, 0f, 15f, 30f), keysOf(session.model.value))
 	}
 
+	/**
+	 * Dragging a multi-key selection moves every member by the same distance, keeping their spacing.
+	 *
+	 * The whole point of a group drag: a delta applied per key preserves the shape the rigger authored,
+	 * where the summary drag's send-them-all-to-one-value deliberately does not.
+	 */
+	@Test
+	fun draggingASelectionMovesEveryKeyByTheSameDistance() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// -30 and 0, dragged a tenth of the 60-wide range: +6 each.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 0), Triple(track, parameter, 1)), fraction = 0.1f)
+
+		assertEquals(listOf(-24f, 6f, 30f), keysOf(session.model.value))
+		assertEquals(listOf(0, 1), landed, "neither key crossed anything, so both keep their ordinals")
+		session.undo()
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores the whole drag")
+		assertTrue(!session.canUndo.value, "because it was one step")
+	}
+
+	/**
+	 * The drag stops at the MOST CONSTRAINED member rather than clamping each key on its own.
+	 *
+	 * Per-key clamping would let the keys nearest the end pile up while the rest kept travelling, silently
+	 * destroying the spacing - which is exactly the thing a group drag exists to preserve.
+	 */
+	@Test
+	fun aGroupDragStopsAtItsMostConstrainedMember() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// The key at 30 is already at the maximum, so the whole drag is refused rather than collapsing the pair.
+		session.dragTrackKeys(listOf(Triple(track, parameter, 1), Triple(track, parameter, 2)), fraction = 0.5f)
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "nothing moved, so nothing piled up")
+
+		// Half of that is reachable: the key at 0 can take +15, the key at 30 cannot move at all.
+		session.dragTrackKeys(listOf(Triple(track, parameter, 0), Triple(track, parameter, 1)), fraction = 0.25f)
+		assertEquals(listOf(-15f, 15f, 30f), keysOf(session.model.value), "both moved the same 15, and the gap is intact")
+	}
+
+	/** A key that crosses a neighbour reports its NEW ordinal, so the caller's selection can follow it. */
+	@Test
+	fun aGroupDragReportsWhereEachKeyLanded() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// Only the FIRST key is selected; dragging it +40 carries it past the key at 0.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 0)), fraction = 40f / 60f)
+		assertEquals(listOf(0f, 10f, 30f), keysOf(session.model.value), "it crossed the key at 0 and the axis re-sorted")
+		assertEquals(listOf(1), landed, "and it now sits at ordinal 1")
+	}
+
 	/** Each member is clamped to its OWN parameter's range, so a mixed batch cannot push one out of range. */
 	@Test
 	fun aBatchMoveClampsPerParameter() {

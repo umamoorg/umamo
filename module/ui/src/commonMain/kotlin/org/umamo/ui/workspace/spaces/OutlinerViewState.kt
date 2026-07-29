@@ -33,4 +33,6 @@ internal class OutlinerViewState {
 
 	/** Whether the eye restriction indicator column renders on the rows. */
 	var showVisibilityColumn by mutableStateOf(true)
+
+	val isUnfiltered: Boolean get() = showParts && showDrawables && showDeformers
 }
