@@ -78,6 +78,11 @@ import androidx.compose.ui.graphics.Color
  * @property Color viewportGridBackground The flat canvas fill behind the GL viewport's world-aligned grid.
  * @property Color viewportGridLineMajor The major (whole-scale) grid line color.
  * @property Color viewportGridLineMinor The minor (subdivision) grid line color.
+ * @property Color trackRegionBackground The keyform / dope sheet's track region, behind and below the rows.
+ * @property Color trackRowGroup      Band behind a track sheet's grouping rows.
+ * @property Color trackRowPrimary    Band behind a track sheet's primary tracks.
+ * @property Color trackRowSecondary  Band behind a track sheet's secondary tracks.
+ * @property Color trackRowAlternate  Band behind a track sheet's layered-source tracks.
  * @property Color outlinerObjectTint  Signature tint for puppet-root / part / art-mesh outliner icons.
  * @property Color outlinerDeformTint  Signature tint for armature / deformer outliner icons.
  * @property Color outlinerObjectTintDimmed Dimmed variant of the object tint for muted rows.
@@ -110,6 +115,17 @@ data class UmamoColors(
 	val controlBackground: Color,
 	val controlBackgroundHover: Color,
 	val controlGlyph: Color,
+	/**
+	 * The pose sits exactly ON a key of this field's channel.  Blender's #d1b727.
+	 *
+	 * The three keyed-field colors are borrowed rather than derived: a rigger coming from Blender reads
+	 * them without being told, and inventing a scheme-matched palette would trade that away for tidiness.
+	 */
+	val keyedOnKey: Color,
+	/** The channel is keyed but the pose is BETWEEN keys - editing here will be lost unless keyed. */
+	val keyedBetween: Color,
+	/** An edit has been made but not keyed; it shows in the viewport and dies on the next scrub. */
+	val keyedModified: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
@@ -130,6 +146,11 @@ data class UmamoColors(
 	val viewportGridBackground: Color,
 	val viewportGridLineMajor: Color,
 	val viewportGridLineMinor: Color,
+	val trackRegionBackground: Color,
+	val trackRowGroup: Color,
+	val trackRowPrimary: Color,
+	val trackRowSecondary: Color,
+	val trackRowAlternate: Color,
 	val outlinerObjectTint: Color,
 	val outlinerDeformTint: Color,
 	val outlinerObjectTintDimmed: Color,
@@ -190,6 +211,11 @@ val umamoDarkColors =
 		controlBackground = Color(0xFF545454),
 		controlBackgroundHover = Color(0xFF696969), // The NumberField hover fill (a step lighter than the control fill).
 		controlGlyph = Color(0xFFFFFFFF),
+		// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
+		// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.
+		keyedOnKey = Color(0xFFD1B727),
+		keyedBetween = Color(0xFF5FC729),
+		keyedModified = Color(0xFFDF8431),
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
@@ -211,6 +237,11 @@ val umamoDarkColors =
 		viewportGridBackground = Color(0xFF343434),
 		viewportGridLineMajor = Color(0xFF515151),
 		viewportGridLineMinor = Color(0xFF454545),
+		trackRegionBackground = Color(0xFF1F1F1F),
+		trackRowGroup = Color(0xFF2C4640),
+		trackRowPrimary = Color(0xFF39442C),
+		trackRowSecondary = Color(0xFF313640),
+		trackRowAlternate = Color(0xFF413043),
 		outlinerObjectTint = outlinerTanDark,
 		outlinerDeformTint = outlinerTealDark,
 		outlinerObjectTintDimmed = outlinerTanDark.copy(alpha = 0.2f),
@@ -246,6 +277,9 @@ val umamoLightColors =
 		controlBackground = Color(0xFFDFDFDF),
 		controlBackgroundHover = Color(0xFFCECECE), // The NumberField hover fill; a subtle darken keeps dark text legible in the light theme.
 		controlGlyph = Color(0xFF2E2E2E),
+		keyedOnKey = Color(0xFFD1B727),
+		keyedBetween = Color(0xFF5FC729),
+		keyedModified = Color(0xFFDF8431),
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),
@@ -271,6 +305,11 @@ val umamoLightColors =
 		viewportGridBackground = Color(0xFFCFCFCF),
 		viewportGridLineMajor = Color(0xFFA8A8A8),
 		viewportGridLineMinor = Color(0xFFBEBEBE),
+		trackRegionBackground = Color(0xFFE8E8E8),
+		trackRowGroup = Color(0xFFCFE3DC),
+		trackRowPrimary = Color(0xFFDCE6CB),
+		trackRowSecondary = Color(0xFFDCE0E8),
+		trackRowAlternate = Color(0xFFE9D9EB),
 		outlinerObjectTint = outlinerTanLight,
 		outlinerDeformTint = outlinerTealLight,
 		outlinerObjectTintDimmed = outlinerTanLight.copy(alpha = 0.2f),

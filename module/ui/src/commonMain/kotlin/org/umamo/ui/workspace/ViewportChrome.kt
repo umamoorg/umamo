@@ -18,8 +18,6 @@ const val SHOW_SIDEBAR_SETTINGS_KEY = "interface.viewport.showSidebar"
  * defaults below in a standalone shell).  The view.toggleToolbar / view.toggleSidebar commands and the
  * sidebar's pull tab flip the backing settings; this state follows reactively.
  *
- * ビューポートの浮遊クローム（左ツールバー・右サイドバー）の表示状態。設定に連動する。
- *
  * @property Boolean showToolbar Whether the left tool toolbar overlay is shown.
  * @property Boolean showSidebar Whether the right sidebar drawer is open.
  */

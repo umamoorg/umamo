@@ -19,7 +19,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -79,10 +79,10 @@ class UvReuploadTest {
 				mesh = DrawableMesh(quadPositions.copyOf(), leftHalfUvs.copyOf(), quadIndices),
 				// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped
 				// by the renderer); the base mesh alone drives its shape.
-				keyforms =
+				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-						listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(quadPositions.size)))),
+						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
 					),
 			)
 		return PuppetModel(

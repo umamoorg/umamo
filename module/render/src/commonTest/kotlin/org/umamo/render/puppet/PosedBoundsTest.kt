@@ -11,6 +11,7 @@ import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import kotlin.math.abs
@@ -29,11 +30,11 @@ class PosedBoundsTest {
 	private val paramA = ParameterId("A")
 
 	/** A one-cell grid over [base]'s vertex count, whose single cell holds [deltas]. */
-	private fun oneCellCells(deltas: FloatArray): Map<Int, KeyformCell<MeshForm>> {
+	private fun oneCellCells(deltas: FloatArray): Map<Int, KeyformCell<MeshDeltaForm>> {
 		val grid =
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-				listOf(KeyformCell(intArrayOf(0), MeshForm(deltas))),
+				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(deltas))),
 			)
 		return cellsByLinearIndex(grid)
 	}

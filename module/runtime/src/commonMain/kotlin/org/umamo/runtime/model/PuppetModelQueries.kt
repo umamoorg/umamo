@@ -5,9 +5,6 @@ package org.umamo.runtime.model
  * (the desktop offscreen renderer today, the Android GLES service when it lands): the pickable
  * geometry sets picking iterates, and the display lookups the overlap picker labels rows with.
  * All derive from the model alone, so services recompute them on each model swap.
- *
- * PuppetModel に対する描画対象ごとの純粋な索引クエリ。各プラットフォームのビューポートサービス
- * が共有する（ピッキング対象の形状と、重なり選択の表示用ルックアップ）。
  */
 
 /**
@@ -243,13 +240,14 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 }
 
 /**
- * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel: the tint on its
- * first keyform cell, or the identity when the drawable is unkeyed.  The panel edits the color uniformly
- * across the grid (see PuppetModelEdits.withDrawableMultiplyColor), so any cell is representative.
+ * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel.
  *
- * @return ColorRgb The drawable's multiply color, or [ColorRgb.MultiplyIdentity] when unkeyed.
+ * A plain static read now that the tint is its own channel: it used to have to reach into the first
+ * keyform cell, which was only representative because the editor wrote the color across every cell.
+ *
+ * @return ColorRgb The drawable's static multiply color.
  */
-fun Drawable.displayMultiplyColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.form?.multiplyColor ?: ColorRgb.MultiplyIdentity
+fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
 
 /**
  * The drawable's 5.3 per-art-mesh screen color for display in the Properties panel; see
@@ -257,4 +255,4 @@ fun Drawable.displayMultiplyColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.
  *
  * @return ColorRgb The drawable's screen color, or [ColorRgb.ScreenIdentity] when unkeyed.
  */
-fun Drawable.displayScreenColor(): ColorRgb = keyforms?.cells?.firstOrNull()?.form?.screenColor ?: ColorRgb.ScreenIdentity
+fun Drawable.displayScreenColor(): ColorRgb = screenColor

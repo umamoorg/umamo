@@ -60,6 +60,10 @@ androidx-activity-compose = { module = "androidx.activity:activity-compose", ver
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
+# Compose UI testing. The keyform sheet's lane resolves tap-versus-drag from one raw pointer stream, which
+# no unit test over pure functions can cover - only a real composition with real pointer input can.
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
+compose-ui-test-junit4 = { module = "org.jetbrains.compose.ui:ui-test-junit4", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 
 # JDOM 1.x — main.xml read/write for the CMO3 serializer (jvmAndroidMain; works on Android via JAXP).

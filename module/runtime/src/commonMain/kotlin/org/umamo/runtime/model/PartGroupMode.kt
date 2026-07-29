@@ -5,8 +5,6 @@ package org.umamo.runtime.model
  * these as two entangled checkboxes ("Group by Draw Order" and "offscreen drawing", the latter
  * forcing the former on); Umamo folds them into a single sealed type so the illegal combination is
  * unrepresentable and the Cubism naming stops at the CMO3/MOC3 import boundary.
- *
- * パートのグループ描画モード。PassThrough / Grouped / Isolated の三段階。
  */
 sealed interface PartGroupMode {
 	/**

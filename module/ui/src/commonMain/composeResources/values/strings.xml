@@ -100,6 +100,7 @@
 
 	<!-- View commands (action registry; shown in the palette / a future View menu). -->
 	<string name="cmd_view_fit">Fit View</string>
+	<string name="cmd_frame_all">Frame All</string>
 	<string name="cmd_view_actual_size">Actual Size (100%)</string>
 	<string name="cmd_view_zoom_in">Zoom In</string>
 	<string name="cmd_view_zoom_out">Zoom Out</string>
@@ -160,6 +161,10 @@
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>
+	<string name="history_keyform_insert">Insert Keyframe</string>
+	<string name="history_keyform_move">Move Keyframe</string>
+	<string name="history_keyform_remove">Remove Keyframe</string>
+	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>
 	<string name="history_parameter_link">Link Parameters</string>
@@ -205,7 +210,8 @@
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
 
-	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature data naming. -->
+	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
+	data naming. -->
 	<string name="outliner_root">Puppet</string>
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parts</string>
@@ -251,7 +257,7 @@
 	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">Only drawables can be transformed - parts and deformers are not yet supported.</string>
+	<string name="notice_transform_only_drawables">Only drawables can be transformed.  Parts and deformers are not yet supported.</string>
 	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 
@@ -308,8 +314,8 @@
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
 	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
 	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
-	<string name="notice_connect_refused">Can't connect - the cut crosses nothing, or the geometry is degenerate.</string>
-	<string name="notice_rip_nothing">Nothing to rip here - the selection has no fan to split.</string>
+	<string name="notice_connect_refused">Can't connect: The cut crosses nothing, or the geometry is degenerate.</string>
+	<string name="notice_rip_nothing">Nothing to rip here: The selection has no fan to split.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -359,7 +365,7 @@
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
-	  icon strip), the section headings, and the read-only sample fields not already covered by the status bar strings.
+	  icon strip), the section headings, and the read-only sample fields not already covered by the	status bar strings.
 	-->
 	<string name="properties_no_matches">No matching properties.</string>
 	<string name="properties_tab_document">Document</string>
@@ -380,8 +386,8 @@
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
 
-	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum option
-	  names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
+	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
+	option names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
 	<string name="properties_field_canvas_width">Width</string>
 	<string name="properties_field_canvas_height">Height</string>
 	<string name="properties_field_origin_x">Origin X</string>
@@ -456,6 +462,7 @@
 	<string name="parameter_menu_add_blendshape">Add Blend Shape Parameter</string>
 	<string name="parameter_menu_delete">Delete Parameter</string>
 	<string name="parameter_default_name">New Parameter</string>
+	<string name="parameter_filters">Filters</string>
 	<string name="parameter_filter_selected">Only the selected object's parameters</string>
 	<string name="parameter_range_min">Min</string>
 	<string name="parameter_range_default">Default</string>
@@ -471,7 +478,8 @@
 	<string name="settings_category_viewport">Viewport</string>
 	<string name="settings_category_keybindings">Keybindings</string>
 	<string name="settings_category_pen">Pen</string>
-	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string resources. -->
+	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
+	resources. -->
 	<string name="settings_interface_theme">Theme</string>
 	<string name="settings_theme_dark">Dark</string>
 	<string name="settings_theme_light">Light</string>
@@ -487,7 +495,7 @@
 	<string name="settings_keybindings_unbound">Unbound</string>
 	<string name="settings_keybindings_clear">Clear shortcut</string>
 	<!-- %1$s is the shortcut, %2$s is the command it is already bound to. -->
-	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”.  Reassign it?</string>
+	<string name="settings_keybindings_conflict">%1$s is already bound to “%2$s”. Reassign it?</string>
 	<string name="settings_keybindings_reassign">Reassign</string>
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
@@ -513,4 +521,29 @@
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>
 	<string name="pick_hover_deformer">Deformer: %1$s</string>
+	<string name="space_keyformsheet">Keyform Sheet</string>
+	<string name="keyform_sheet_no_parameter">Select a parameter to see its tracks.</string>
+	<string name="keyform_sheet_no_tracks">Nothing is keyed on this parameter yet.</string>
+	<string name="owner_kind_art_mesh">Art Mesh</string>
+	<string name="owner_kind_warp_deformer">Warp Deformer</string>
+	<string name="owner_kind_rotation_deformer">Rotation Deformer</string>
+	<string name="owner_kind_part">Part</string>
+	<string name="owner_kind_glue">Glue</string>
+	<string name="track_geometry">Geometry</string>
+	<string name="track_blend_shape">Blend Shape</string>
+	<string name="channel_draw_order">Draw Order</string>
+	<string name="channel_opacity">Opacity</string>
+	<string name="channel_multiply_color">Multiply</string>
+	<string name="channel_screen_color">Screen</string>
+	<string name="channel_flip_x">Flip X</string>
+	<string name="channel_flip_y">Flip Y</string>
+	<string name="channel_glue_intensity">Glue Intensity</string>
+	<string name="cmd_keyform_insert">Insert Keyframe</string>
+	<string name="cmd_keyform_frame_all">Frame All Keys</string>
+	<string name="cmd_keyform_nudge_left">Nudge Keyframe Left</string>
+	<string name="cmd_keyform_nudge_right">Nudge Keyframe Right</string>
+	<string name="cmd_keyform_delete_keys">Delete Selected Keys</string>
+	<string name="cmd_keyform_delete">Delete Keyframe</string>
+	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
+	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
 </resources>

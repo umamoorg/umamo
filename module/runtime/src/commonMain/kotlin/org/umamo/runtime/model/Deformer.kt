@@ -25,6 +25,15 @@ sealed interface Deformer {
 	val partId: PartId?
 
 	/**
+	 * The deformer's per-channel keyform tracks.
+	 *
+	 * On the interface rather than only the subtypes because every generic walk over a rig - the
+	 * parameter-delete scrub, the panel's effective-parameter set, the clamped-pose axis collection -
+	 * needs the tracks without caring which kind of deformer carries them.
+	 */
+	val channelGrids: ChannelGrids
+
+	/**
 	 * Blender-style selectable toggle: an unselectable deformer cannot be picked in the viewport.
 	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
 	 * emit isLocked = !isSelectable.
@@ -45,12 +54,28 @@ sealed interface Deformer {
 		val columns: Int,
 		/** FFD interpolation mode: true = bilinear (quad), false = triangle split (the Umamo C++ Runtime's warp mode). */
 		val isQuadTransform: Boolean,
-		/** Per-parameter lattice control-point forms, or null if unkeyed. */
-		val keyforms: KeyformGrid<WarpForm>?,
+		/**
+		 * Per-parameter lattice control-point forms, or null if unkeyed.
+		 *
+		 * A warp carries no separate rest lattice, so this is the ONLY source of its geometry - an unkeyed
+		 * warp therefore still cannot render, unlike an unkeyed drawable which falls back to its rest mesh.
+		 */
+		val geometryGrid: KeyformGrid<WarpLatticeForm>?,
+		/**
+		 * The deformer's per-channel render tracks (opacity, multiply / screen color), each falling back to
+		 * the statics below.  These CASCADE onto every drawable under the deformer.
+		 */
+		override val channelGrids: ChannelGrids = ChannelGrids.Empty,
+		/** Static opacity used when [channelGrids] has no opacity track. */
+		val opacity: Float = 1f,
+		/** Static multiply color used when [channelGrids] has no multiply track. */
+		val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+		/** Static screen color used when [channelGrids] has no screen track. */
+		val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 		override val isSelectable: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the lattice control points, applied on top of the
-		 * [keyforms] grid result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 * [geometryGrid] result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
 		 */
 		val blendShapes: List<BlendShapeBinding<WarpForm>> = emptyList(),
 	) : Deformer
@@ -65,8 +90,25 @@ sealed interface Deformer {
 		override val parent: DeformerId?,
 		override val partId: PartId?,
 		val baseAngle: Float,
-		/** Per-parameter pivot-transform forms, or null if unkeyed. */
-		val keyforms: KeyformGrid<RotationForm>?,
+		/** Per-parameter pivot-transform forms (origin / angle / scale), or null if unkeyed. */
+		val geometryGrid: KeyformGrid<RotationPivotForm>?,
+		/**
+		 * The deformer's per-channel tracks: the render channels (opacity, multiply / screen color) that
+		 * cascade onto every drawable underneath, plus the two reflection FLAGS.  The flags live here rather
+		 * than on the pivot form because they snap to the floor cell instead of blending, so they do not
+		 * belong beside values that interpolate.
+		 */
+		override val channelGrids: ChannelGrids = ChannelGrids.Empty,
+		/** Static opacity used when [channelGrids] has no opacity track. */
+		val opacity: Float = 1f,
+		/** Static multiply color used when [channelGrids] has no multiply track. */
+		val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+		/** Static screen color used when [channelGrids] has no screen track. */
+		val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
+		/** Static horizontal reflection used when [channelGrids] has no flip-X track. */
+		val flipX: Boolean = false,
+		/** Static vertical reflection used when [channelGrids] has no flip-Y track. */
+		val flipY: Boolean = false,
 		override val isSelectable: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the pivot transform, applied on top of the [keyforms]

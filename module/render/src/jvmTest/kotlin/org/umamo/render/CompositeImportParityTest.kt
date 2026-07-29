@@ -5,10 +5,10 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.ingest.Moc3Import
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
-import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.PartForm
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PuppetModel
 import java.io.File
 import kotlin.math.abs
@@ -57,19 +57,36 @@ class CompositeImportParityTest {
 		)
 	}
 
-	private fun assertGridChannelsMatch(cmo3Grid: KeyformGrid<PartForm>, moc3Grid: KeyformGrid<PartForm>, label: String) {
-		assertEquals(cmo3Grid.axes.size, moc3Grid.axes.size, "$label: axis count")
-		assertEquals(cmo3Grid.cells.size, moc3Grid.cells.size, "$label: cell count")
-		val moc3ByCoordinate = moc3Grid.cells.associateBy { it.coordinate.toList() }
-		for (cmo3Cell in cmo3Grid.cells) {
-			val coordinate = cmo3Cell.coordinate.toList()
-			val moc3Cell = assertNotNull(moc3ByCoordinate[coordinate], "$label: cell $coordinate present in moc3")
-			assertTrue(
-				abs(cmo3Cell.form.opacity - moc3Cell.form.opacity) < SCALAR_TOLERANCE,
-				"$label: opacity at $coordinate (${cmo3Cell.form.opacity} vs ${moc3Cell.form.opacity})",
-			)
-			assertColorClose(cmo3Cell.form.multiplyColor, moc3Cell.form.multiplyColor, "$label: multiply at $coordinate")
-			assertColorClose(cmo3Cell.form.screenColor, moc3Cell.form.screenColor, "$label: screen at $coordinate")
+	/**
+	 * Asserts the two imports' per-channel part tracks agree cell for cell.
+	 *
+	 * Compares each channel's own track rather than one bundled cell: after the fan-out the channels are
+	 * independent tracks, and comparing them separately is what would catch a fan-out that mis-routed one
+	 * channel's values into another's.
+	 */
+	private fun assertChannelTracksMatch(cmo3Channels: ChannelGrids, moc3Channels: ChannelGrids, label: String) {
+		for (channel in listOf(FormChannel.OPACITY, FormChannel.MULTIPLY_COLOR, FormChannel.SCREEN_COLOR)) {
+			val cmo3Track = cmo3Channels[channel] ?: continue
+			val moc3Track = moc3Channels[channel] ?: continue
+			assertEquals(cmo3Track.axes.size, moc3Track.axes.size, "$label: $channel axis count")
+			assertEquals(cmo3Track.cells.size, moc3Track.cells.size, "$label: $channel cell count")
+			val moc3ByCoordinate = moc3Track.cells.associateBy { cell -> cell.coordinate.toList() }
+			for (cmo3Cell in cmo3Track.cells) {
+				val coordinate = cmo3Cell.coordinate.toList()
+				val moc3Cell = assertNotNull(moc3ByCoordinate[coordinate], "$label: $channel cell $coordinate present in moc3")
+				val cmo3Value = cmo3Cell.form
+				val moc3Value = moc3Cell.form
+				if (cmo3Value is ChannelValue.Scalar && moc3Value is ChannelValue.Scalar) {
+					assertTrue(
+						abs(cmo3Value.value - moc3Value.value) < SCALAR_TOLERANCE,
+						"$label: $channel at $coordinate (${cmo3Value.value} vs ${moc3Value.value})",
+					)
+				} else if (cmo3Value is ChannelValue.Color && moc3Value is ChannelValue.Color) {
+					assertColorClose(cmo3Value.color, moc3Value.color, "$label: $channel at $coordinate")
+				} else {
+					assertEquals(cmo3Value, moc3Value, "$label: $channel kind at $coordinate")
+				}
+			}
 		}
 	}
 
@@ -100,12 +117,10 @@ class CompositeImportParityTest {
 			)
 			assertColorClose(cmo3Composite.multiplyColor, moc3Composite.multiplyColor, "$partLabel static multiply")
 			assertColorClose(cmo3Composite.screenColor, moc3Composite.screenColor, "$partLabel static screen")
-			// Keyformed channels: comparable only when both sides carry a parameter-driven grid (a
-			// static moc part stores no grid, while the cmo3 may keep a degenerate zero-axis one).
-			val cmo3Grid = cmo3Part.formGrid
-			val moc3Grid = moc3Part.formGrid
-			if (cmo3Grid != null && moc3Grid != null && cmo3Grid.axes.isNotEmpty()) {
-				assertGridChannelsMatch(cmo3Grid, moc3Grid, partLabel)
+			// Keyformed channels: comparable only when both sides carry parameter-driven tracks (a static
+			// moc part stores none, while the cmo3 may keep a degenerate zero-axis one).
+			if (!cmo3Part.channelGrids.isEmpty && !moc3Part.channelGrids.isEmpty) {
+				assertChannelTracksMatch(cmo3Part.channelGrids, moc3Part.channelGrids, partLabel)
 			}
 		}
 		assertTrue(comparedComposites > 0, "$pairName: compared at least one isolated part")
@@ -149,16 +164,30 @@ class CompositeImportParityTest {
 				"mul=${round(multiplyColor.red)},${round(multiplyColor.green)},${round(multiplyColor.blue)} " +
 				"scr=${round(screenColor.red)},${round(screenColor.green)},${round(screenColor.blue)}"
 		}
-		return puppet.deformers
-			.flatMap { deformer ->
-				when (deformer) {
-					is Deformer.Warp ->
-						deformer.keyforms?.cells.orEmpty().mapNotNull { row(it.form.opacity, it.form.multiplyColor, it.form.screenColor) }
 
-					is Deformer.Rotation ->
-						deformer.keyforms?.cells.orEmpty().mapNotNull { row(it.form.opacity, it.form.multiplyColor, it.form.screenColor) }
+		// Zip the three channel tracks back together by cell so the comparison stays a per-cell
+		// (opacity, multiply, screen) row - the tracks share a shape, so index N means the same cell in all
+		// three.
+		fun channelRows(channels: ChannelGrids): List<String> {
+			val opacities = channels[FormChannel.OPACITY]?.cells.orEmpty().map { cell -> (cell.form as? ChannelValue.Scalar)?.value ?: 1f }
+			val multiplies =
+				channels[FormChannel.MULTIPLY_COLOR]?.cells.orEmpty().map { cell ->
+					(cell.form as? ChannelValue.Color)?.color ?: ColorRgb.MultiplyIdentity
 				}
+			val screens =
+				channels[FormChannel.SCREEN_COLOR]?.cells.orEmpty().map { cell ->
+					(cell.form as? ChannelValue.Color)?.color ?: ColorRgb.ScreenIdentity
+				}
+			return opacities.indices.mapNotNull { cellIndex ->
+				row(
+					opacities[cellIndex],
+					multiplies.getOrElse(cellIndex) { ColorRgb.MultiplyIdentity },
+					screens.getOrElse(cellIndex) { ColorRgb.ScreenIdentity },
+				)
 			}
+		}
+		return puppet.deformers
+			.flatMap { deformer -> channelRows(deformer.channelGrids) }
 			.distinct()
 			.sorted()
 	}

@@ -9,7 +9,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -39,7 +39,7 @@ class MeshTopologyEditsTest {
 	private val stripMesh = DrawableMesh(stripPositions, stripUvs, stripIndices)
 
 	// Per-vertex deltas 10*(index+1) on x, 0 on y - distinguishable per vertex.
-	private fun stripForm(): MeshForm = MeshForm(floatArrayOf(10f, 0f, 20f, 0f, 30f, 0f, 40f, 0f))
+	private fun stripForm(): MeshDeltaForm = MeshDeltaForm(floatArrayOf(10f, 0f, 20f, 0f, 30f, 0f, 40f, 0f))
 
 	private fun stripDrawable(id: String): Drawable =
 		Drawable(
@@ -49,7 +49,7 @@ class MeshTopologyEditsTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = stripMesh,
-			keyforms = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), stripForm()))),
+			geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), stripForm()))),
 		)
 
 	private fun model(): PuppetModel =
@@ -66,7 +66,6 @@ class MeshTopologyEditsTest {
 						meshA = DrawableId("d"),
 						meshB = DrawableId("other"),
 						pairs = listOf(GluePair(1, 1, 0.5f, 0.5f), GluePair(3, 3, 0.5f, 0.5f)),
-						intensity = null,
 					),
 				),
 		)
@@ -94,7 +93,7 @@ class MeshTopologyEditsTest {
 		val edited = model().withMeshTopologyEdit(DrawableId("d"), edit)
 		val editedDrawable = edited.drawables.first { it.id == DrawableId("d") }
 		assertSame(newMesh, editedDrawable.mesh, "the replacement mesh swaps in")
-		val deltas = editedDrawable.keyforms!!.cells.single().form.positionDeltas
+		val deltas = editedDrawable.geometryGrid!!.cells.single().form.positionDeltas
 		assertEquals(10f, deltas[0], "v0 copies its delta")
 		assertEquals(20f, deltas[2], "v1 copies its delta")
 		assertEquals(35f, deltas[4], "the merge survivor averages v2 and v3 (30 + 40) / 2")

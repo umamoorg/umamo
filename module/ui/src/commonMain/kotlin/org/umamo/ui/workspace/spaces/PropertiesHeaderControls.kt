@@ -27,8 +27,6 @@ import org.umamo.ui.workspace.AreaScope
  * [PropertiesViewState] so the body filters live and auto-switches to a tab with matches; renders nothing
  * without an open document, matching the other header controls.
  *
- * プロパティパネルのエリアヘッダ内容。右寄せの検索フィールド。エリア共有の PropertiesViewState を読み書きする。
- *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  */
 @Composable

@@ -9,7 +9,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -31,10 +31,10 @@ import kotlin.test.assertTrue
 class ModelDiffTest {
 	private val paramA = ParameterId("A")
 
-	private fun grid(positions: FloatArray): KeyformGrid<MeshForm> =
+	private fun grid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 		)
 
 	private fun drawable(
@@ -42,7 +42,7 @@ class ModelDiffTest {
 		positions: FloatArray,
 		uvs: FloatArray = FloatArray(positions.size),
 		indices: IntArray = intArrayOf(0, 1, 2),
-		keyforms: KeyformGrid<MeshForm>? = null,
+		keyforms: KeyformGrid<MeshDeltaForm>? = null,
 	): Drawable =
 		Drawable(
 			id = DrawableId(id),
@@ -51,7 +51,7 @@ class ModelDiffTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, uvs, indices),
-			keyforms = keyforms ?: grid(positions),
+			geometryGrid = keyforms ?: grid(positions),
 		)
 
 	private fun model(vararg drawables: Drawable): PuppetModel =
@@ -124,7 +124,7 @@ class ModelDiffTest {
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f))
 		val movedPositions = floatArrayOf(5f, 5f, 6f, 5f, 6f, 6f)
 		// withMeshPositions shares the uvs array by reference; only positions is a new instance.
-		val after = drawable("a", movedPositions, uvs = before.mesh!!.uvs, indices = before.mesh!!.indices, keyforms = before.keyforms)
+		val after = drawable("a", movedPositions, uvs = before.mesh!!.uvs, indices = before.mesh!!.indices, keyforms = before.geometryGrid)
 		val keep = assertIs<DrawableAction.Keep>(diffModel(model(before), model(after), resident("a" to 3)).actions.single())
 		assertSame(movedPositions, keep.positions, "the moved positions re-upload")
 		assertNull(keep.uvs, "the shared uvs array does not")
@@ -135,7 +135,7 @@ class ModelDiffTest {
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f))
 		val movedUvs = floatArrayOf(0.5f, 0.5f, 1f, 0.5f, 1f, 1f)
 		val after =
-			drawable("a", before.mesh!!.positions, uvs = movedUvs, indices = before.mesh!!.indices, keyforms = before.keyforms)
+			drawable("a", before.mesh!!.positions, uvs = movedUvs, indices = before.mesh!!.indices, keyforms = before.geometryGrid)
 		val keep = assertIs<DrawableAction.Keep>(diffModel(model(before), model(after), resident("a" to 3)).actions.single())
 		assertNull(keep.positions)
 		assertSame(movedUvs, keep.uvs, "a UV edit re-uploads the UV buffer only")
@@ -146,7 +146,7 @@ class ModelDiffTest {
 		// Defensive: the copy-on-write UV edit never changes the length, so a mismatch means the backend
 		// padded this mesh's UVs at upload. Re-uploading a short array would leave the tail stale.
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f), uvs = FloatArray(6))
-		val after = drawable("a", before.mesh!!.positions, uvs = FloatArray(2), indices = before.mesh!!.indices, keyforms = before.keyforms)
+		val after = drawable("a", before.mesh!!.positions, uvs = FloatArray(2), indices = before.mesh!!.indices, keyforms = before.geometryGrid)
 		val keep = assertIs<DrawableAction.Keep>(diffModel(model(before), model(after), resident("a" to 3)).actions.single())
 		assertNull(keep.uvs, "a length mismatch leaves the resident's UVs alone")
 	}
@@ -170,7 +170,7 @@ class ModelDiffTest {
 		// backend, not the model, because the model no longer carries what the buffers were built at.
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f))
 		val meshless =
-			Drawable(DrawableId("a"), "a", null, BlendMode.Normal, emptyList(), mesh = null, keyforms = before.keyforms)
+			Drawable(DrawableId("a"), "a", null, BlendMode.Normal, emptyList(), mesh = null, geometryGrid = before.geometryGrid)
 		val diff = diffModel(model(before), model(meshless), resident("a" to 3))
 		val keep = assertIs<DrawableAction.Keep>(diff.actions.single())
 		assertNull(keep.positions)
@@ -197,8 +197,8 @@ class ModelDiffTest {
 		// now parents the warp directly) must Reupload, or the resident keeps a stale / absent cp texture and
 		// the shader samples whatever texture unit 3 last held. Keying purely on the two models' warp sets.
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f)
-		val warp = Deformer.Warp(DeformerId("warp"), "warp", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)
-		val rotation = Deformer.Rotation(DeformerId("rot"), "rot", parent = null, partId = null, baseAngle = 0f, keyforms = null)
+		val warp = Deformer.Warp(DeformerId("warp"), "warp", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)
+		val rotation = Deformer.Rotation(DeformerId("rot"), "rot", parent = null, partId = null, baseAngle = 0f, geometryGrid = null)
 
 		val rotationParented = drawable("a", positions).copy(parentDeformerId = DeformerId("rot"))
 		val warpParented = rotationParented.copy(parentDeformerId = DeformerId("warp"))

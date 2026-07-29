@@ -7,8 +7,6 @@ package org.umamo.runtime.model
  *
  * CMO3: CParameterSource field paramType (NORMAL | MORPH_TARGET).  MOC3 v4+: Parameter types,
  * section index 114 (0 normal, 1 blend-shape).
- *
- * パラメータ種別。NORMAL はキーフォーム格子、BLEND_SHAPE は加算ブレンドシェイプを駆動する。
  */
 enum class ParameterKind {
 	NORMAL,
@@ -21,8 +19,6 @@ enum class ParameterKind {
  * [id] is the format-level identifier (`ParamAngleX`, …) - kept verbatim for interop, never
  * localised. [name] is the user-facing display name (the editor's `cdi3`-style label), free to
  * localise.
- *
- * アニメーション軸（例：ParamAngleX）。[id] は相互運用のため不変、[name] は表示名。
  */
 data class Parameter(
 	val id: ParameterId,
@@ -40,8 +36,6 @@ data class Parameter(
  * in document order). Both remain ordinary, independently-keyable [Parameter]s; this record only states
  * that they should be scrubbed together as a 2D unit.
  *
- * リンク（"combined"）された 2D パラメータ対。[horizontal] が X 軸（上）、[vertical] が Y 軸（下）。
- *
  * @property ParameterId horizontal The X-axis parameter (the pair's first/topmost member).
  * @property ParameterId vertical   The Y-axis parameter (the pair's second/bottommost member).
  */
@@ -57,9 +51,6 @@ data class ParameterLink(
  * tree records panel layout only; the flat [Parameter] list remains the authoritative source of axes
  * (live values, ranges, links).  A model with no groups has an empty tree, and callers fall back to
  * rendering the flat list.
- *
- * パラメータパネルのグループツリーの 1 ノード。葉 [Param]（1 軸）か [Group]（順序付きの子を持つ
- * グループ、入れ子可）。配置のみを表し、軸の正は平坦な [Parameter] のまま。
  */
 sealed interface ParameterNode {
 	/**
@@ -89,8 +80,6 @@ sealed interface ParameterNode {
  * A captured delta at a specific parameter value. The runtime blends across the N-D grid of
  * keyforms: `p = base + Σ wᵢ·Δᵢ` (multilinear interpolation). Weights are cheap and computed
  * CPU-side per frame; the per-vertex delta-sum runs in the vertex shader (see `:gpu`).
- *
- * 特定パラメータ値で捕捉した差分。実行時にキーフォーム格子上で多重線形補間する。
  */
 data class Keyform(
 	val atValue: Float,
@@ -98,7 +87,6 @@ data class Keyform(
 ) {
 	// data class with an array field: generated equals/hashCode use referential array equality,
 	// which is wrong for value semantics. Override so two keyforms with equal deltas compare equal.
-	// 配列を持つ data class は equals/hashCode を手で実装する必要がある。
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (other !is Keyform) return false

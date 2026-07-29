@@ -44,7 +44,7 @@ class PuppetModelQueriesTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = mesh,
-			keyforms = null,
+			geometryGrid = null,
 			isVisible = isVisible,
 			textureSourceId = textureSource,
 		)

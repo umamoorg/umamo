@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -122,6 +123,10 @@ private fun HistoryStepRow(
 			Modifier.fillMaxWidth()
 				.height(ROW_HEIGHT)
 				.background(background, shape = shapes.medium)
+				// NOT focusable: jumping to an entry can truncate the stack, disposing the very row that
+				// holds focus, and Compose leaves focus null when that happens - every keyboard shortcut
+				// then dies until something focusable is clicked again.
+				.focusProperties { canFocus = false }
 				.clickable(interactionSource = interaction, indication = null, onClick = onClick)
 				.padding(horizontal = 8.dp),
 		verticalAlignment = Alignment.CenterVertically,
@@ -156,6 +161,10 @@ private fun historyStepLabel(labelKey: String?): String =
 	when (labelKey) {
 		null -> stringResource(Res.string.history_open)
 		"change.selection" -> stringResource(Res.string.history_selection)
+		"change.parameter.select" -> stringResource(Res.string.history_parameter_select)
+		"change.keyform.insert" -> stringResource(Res.string.history_keyform_insert)
+		"change.keyform.move" -> stringResource(Res.string.history_keyform_move)
+		"change.keyform.delete" -> stringResource(Res.string.history_keyform_remove)
 		"change.mode" -> stringResource(Res.string.history_mode)
 		"change.part.visibility" -> stringResource(Res.string.history_part_visibility)
 		"change.part.rename" -> stringResource(Res.string.history_part_rename)

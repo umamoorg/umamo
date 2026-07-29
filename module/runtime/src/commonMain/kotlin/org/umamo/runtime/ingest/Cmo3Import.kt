@@ -43,15 +43,24 @@ import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.runtime.keyform.asChannelTrack
+import org.umamo.runtime.keyform.channelGridsOf
+import org.umamo.runtime.keyform.fanOutMesh
+import org.umamo.runtime.keyform.fanOutRotation
+import org.umamo.runtime.keyform.fanOutWarp
+import org.umamo.runtime.keyform.withChannelsCompacted
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GlueForm
 import org.umamo.runtime.model.GluePair
@@ -94,9 +103,12 @@ object Cmo3Import {
 	 * Builds a [PuppetModel] from a CMO3 `CModelSource` root (e.g. from `Cmo3.read(file).root`).
 	 *
 	 * @param CModelSource modelSource The parsed model root.
+	 * @param Boolean compactChannels Whether to run the post-import channel compaction (on by default).
+	 *   Off imports the fanned-out tracks verbatim, which is the reference an equivalence test diffs
+	 *   against and the switch to flip when bisecting a suspected compaction fault.
 	 * @return PuppetModel The concrete runtime puppet.
 	 */
-	fun fromModelSource(modelSource: CModelSource): PuppetModel {
+	fun fromModelSource(modelSource: CModelSource, compactChannels: Boolean = true): PuppetModel {
 		val parameterSources =
 			elementsOf((modelSource.parameterSourceSet as? CParameterSourceSet)?._sources)
 				.filterIsInstance<CParameterSource>()
@@ -245,26 +257,35 @@ object Cmo3Import {
 				rawOpacity
 			}
 
-		fun partFormGridOf(part: CPartSource): KeyformGrid<PartForm>? =
-			buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
-				// CMO3: CPartForm carries the part's keyformed channels - drawOrder always, and (5.3)
-				// opacity/multiplyColor/screenColor for the layer composite.
-				(form as? CPartForm)?.let {
-					PartForm(
-						drawOrder = it.drawOrder.toFloat(),
-						opacity = resolvedPartOpacity(it.opacity, isPre53Part(part)),
-						multiplyColor = colorRgbOf(it.multiplyColor) ?: ColorRgb.MultiplyIdentity,
-						screenColor = colorRgbOf(it.screenColor) ?: ColorRgb.ScreenIdentity,
-					)
+		fun partChannelsOf(part: CPartSource): ChannelGrids {
+			val bundled =
+				buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
+					// CMO3: CPartForm carries the part's keyformed channels - drawOrder always, and (5.3)
+					// opacity/multiplyColor/screenColor for the layer composite.
+					(form as? CPartForm)?.let {
+						PartForm(
+							drawOrder = it.drawOrder.toFloat(),
+							opacity = resolvedPartOpacity(it.opacity, isPre53Part(part)),
+							multiplyColor = colorRgbOf(it.multiplyColor) ?: ColorRgb.MultiplyIdentity,
+							screenColor = colorRgbOf(it.screenColor) ?: ColorRgb.ScreenIdentity,
+						)
+					}
 				}
-			}
-				// A grid with no parameter axes is a single static cell - it carries nothing the eval reads
-				// beyond Part.drawOrder (kept separately) and the opacity/color channels, which then fall back
-				// to the part's PartComposite.  Dropping it means an isolated static part honors an edited
-				// composite opacity/color (the eval samples the grid over the static composite when a grid is
-				// present), and it matches Moc3Import, which returns a null grid for an unbound part.  A part
-				// with real animation keeps its grid (non-empty axes), where the keyformed channels still win.
-				?.takeIf { it.axes.isNotEmpty() }
+					// A grid with no parameter axes is a single static cell - it carries nothing the eval reads
+					// beyond Part.drawOrder (kept separately) and the opacity/color channels, which then fall back
+					// to the part's PartComposite.  Dropping it means an isolated static part honors an edited
+					// composite opacity/color, and it matches Moc3Import, which yields no track for an unbound
+					// part.  A part with real animation keeps its tracks (non-empty axes).
+					?.takeIf { it.axes.isNotEmpty() } ?: return ChannelGrids.Empty
+			// Fan the one bundled grid out into per-channel tracks sharing its axes: a pure re-shape, so the
+			// blended values are bit-identical to what the bundled cell produced.
+			return channelGridsOf(
+				FormChannel.DRAW_ORDER to bundled.asChannelTrack { form -> ChannelValue.Scalar(form.drawOrder) },
+				FormChannel.OPACITY to bundled.asChannelTrack { form -> ChannelValue.Scalar(form.opacity) },
+				FormChannel.MULTIPLY_COLOR to bundled.asChannelTrack { form -> ChannelValue.Color(form.multiplyColor) },
+				FormChannel.SCREEN_COLOR to bundled.asChannelTrack { form -> ChannelValue.Color(form.screenColor) },
+			)
+		}
 
 		// CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
 		// called for every part (not just offscreen ones) to capture the settings regardless of mode; the
@@ -310,7 +331,7 @@ object Cmo3Import {
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
-					formGrid = partFormGridOf(source),
+					channelGrids = partChannelsOf(source),
 					// The composite is stored latently on every part (not just offscreen ones): the CMO3
 					// composition/clip fields survive unchecking offscreen, so we capture them regardless of the
 					// mode and apply them only while Isolated.  partCompositeOf defaults gracefully when absent.
@@ -327,7 +348,8 @@ object Cmo3Import {
 				val parent = deformerIdByUuid[uuidOf(source.targetDeformerGuid)]
 				val partId = partIdByUuid[uuidOf(source.parentGuid)]
 				when (source) {
-					is CWarpDeformerSource ->
+					is CWarpDeformerSource -> {
+						val fanned = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::warpForm)?.fanOutWarp()
 						Deformer.Warp(
 							id,
 							name,
@@ -336,25 +358,30 @@ object Cmo3Import {
 							rows = source.row,
 							columns = source.col,
 							isQuadTransform = source.isQuadTransform,
-							keyforms = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::warpForm),
+							geometryGrid = fanned?.geometry,
+							channelGrids = fanned?.channels ?: ChannelGrids.Empty,
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
 							blendShapes =
 								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::warpForm),
 						)
-					is CRotationDeformerSource ->
+					}
+					is CRotationDeformerSource -> {
+						val fanned = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::rotationForm)?.fanOutRotation()
 						Deformer.Rotation(
 							id,
 							name,
 							parent,
 							partId,
 							baseAngle = source.baseAngle,
-							keyforms = buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid, ::rotationForm),
+							geometryGrid = fanned?.geometry,
+							channelGrids = fanned?.channels ?: ChannelGrids.Empty,
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
 							blendShapes =
 								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::rotationForm),
 						)
+					}
 					else -> null
 				}
 			}
@@ -370,6 +397,11 @@ object Cmo3Import {
 		val drawables =
 			orderedDrawableSources.map { source ->
 				val mesh = meshOf(source)
+				// One bundled grid, then split into per-vertex deltas and the render channels.
+				val fannedMesh =
+					buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid) { form ->
+						meshForm(form, mesh?.positions)
+					}?.fanOutMesh()
 				Drawable(
 					id = DrawableId(idStrOf(source.id).orEmpty()),
 					// CMO3: ACParameterControllableSource.localName is the user-facing drawable name; fall back to the id.
@@ -389,10 +421,8 @@ object Cmo3Import {
 					// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 					isSelectable = !source.isLocked,
 					mesh = mesh,
-					keyforms =
-						buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid) { form ->
-							meshForm(form, mesh?.positions)
-						},
+					geometryGrid = fannedMesh?.geometry,
+					channelGrids = fannedMesh?.channels ?: ChannelGrids.Empty,
 					blendShapes =
 						blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid) { form ->
 							meshForm(form, mesh?.positions)
@@ -470,7 +500,8 @@ object Cmo3Import {
 				worldOriginX = originCanvasX,
 				worldOriginY = -originCanvasY,
 			)
-		return model.copy(renderRoot = model.deriveRenderRoot())
+		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
+		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
 
 	/**
@@ -567,8 +598,11 @@ object Cmo3Import {
 			val indexB = uidToIndexB[uids[pairIndex * 2 + 1].toInt()] ?: continue
 			pairs.add(GluePair(indexA, indexB, weights[pairIndex * 2], weights[pairIndex * 2 + 1]))
 		}
-		val intensity = buildGrid(glue.keyformGridSource, glue.keyforms, paramIdByUuid, ::glueForm)
-		return Glue(meshA, meshB, pairs, intensity)
+		val intensityTrack =
+			buildGrid(glue.keyformGridSource, glue.keyforms, paramIdByUuid, ::glueForm)
+				?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
+		// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
+		return Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
 	}
 
 	/**

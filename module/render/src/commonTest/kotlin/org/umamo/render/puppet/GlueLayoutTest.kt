@@ -10,7 +10,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -41,10 +41,10 @@ class GlueLayoutTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), IntArray(0)),
-			keyforms =
+			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 				),
 		)
 	}
@@ -77,7 +77,7 @@ class GlueLayoutTest {
 		// "middle" is not glued, so it takes no region: offsets follow model.drawables order over the
 		// GLUED meshes only. Both the pass-1 write and the pass-2 partner read depend on this exactly.
 		val drawables = listOf(drawable("a", 4), drawable("middle", 9), drawable("b", 2))
-		val glue = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null)
+		val glue = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)))
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
 		assertEquals(setOf(DrawableId("a"), DrawableId("b")), layout.glueMeshIds)
 		assertEquals(0, layout.baseOffsetById[DrawableId("a")], "the first glued mesh starts the store")
@@ -89,7 +89,7 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutDefaultsEveryVertexToAnUngluedSelfWeld() {
 		val drawables = listOf(drawable("a", 3), drawable("b", 3))
-		val glue = Glue(DrawableId("a"), DrawableId("b"), emptyList(), null)
+		val glue = Glue(DrawableId("a"), DrawableId("b"), emptyList())
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
 		val attributesB = layout.attributesById.getValue(DrawableId("b"))
 		// Self-pointing by GLOBAL index (b starts at 3), so the weld is arithmetically a no-op.
@@ -101,7 +101,7 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutPointsEachPairAtItsPartnerByGlobalIndex() {
 		val drawables = listOf(drawable("a", 4), drawable("b", 4))
-		val glue = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(1, 2, 0.25f, 0.75f)), null)
+		val glue = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(1, 2, 0.25f, 0.75f)))
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
 		val attributesA = layout.attributesById.getValue(DrawableId("a"))
 		val attributesB = layout.attributesById.getValue(DrawableId("b"))
@@ -122,9 +122,9 @@ class GlueLayoutTest {
 	fun planGlueLayoutGivesAnIndexLessAnchorItsOwnRegion() {
 		// A zero-triangle anchor draws nothing but is a weld partner, so it MUST still get a region: pass 1
 		// deforms it, and pass 2 reads its positions. Dropping it would weld against uninitialised memory.
-		val anchor = drawable("anchor", 4).let { Drawable(it.id, it.name, null, BlendMode.Normal, emptyList(), it.mesh, it.keyforms) }
+		val anchor = drawable("anchor", 4).let { Drawable(it.id, it.name, null, BlendMode.Normal, emptyList(), it.mesh, it.geometryGrid) }
 		val drawables = listOf(anchor, drawable("b", 2))
-		val glue = Glue(DrawableId("anchor"), DrawableId("b"), listOf(GluePair(0, 0, 0f, 1f)), null)
+		val glue = Glue(DrawableId("anchor"), DrawableId("b"), listOf(GluePair(0, 0, 0f, 1f)))
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
 		assertEquals(0, layout.baseOffsetById[DrawableId("anchor")])
 		assertEquals(4, layout.baseOffsetById[DrawableId("b")], "the anchor's 4 vertices still occupy the store")
@@ -138,8 +138,8 @@ class GlueLayoutTest {
 		val drawables = listOf(drawable("a", 2), drawable("b", 2), drawable("c", 2))
 		val glues =
 			listOf(
-				Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null),
-				Glue(DrawableId("b"), DrawableId("c"), listOf(GluePair(1, 1, 0.5f, 0.5f)), null),
+				Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f))),
+				Glue(DrawableId("b"), DrawableId("c"), listOf(GluePair(1, 1, 0.5f, 0.5f))),
 			)
 		val layout = planGlueLayout(model(drawables, glues))
 		val attributesB = layout.attributesById.getValue(DrawableId("b"))
@@ -150,7 +150,7 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutSkipsAGlueNamingAnAbsentDrawable() {
 		val drawables = listOf(drawable("a", 2))
-		val glue = Glue(DrawableId("a"), DrawableId("ghost"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null)
+		val glue = Glue(DrawableId("a"), DrawableId("ghost"), listOf(GluePair(0, 0, 0.5f, 0.5f)))
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
 		// "ghost" is named by the glue but carried by no drawable, so it gets no region and no attributes,
 		// and the pair is dropped rather than welding against a region that does not exist.
@@ -167,7 +167,7 @@ class GlueLayoutTest {
 		val a = drawable("a", 1)
 		val b = drawable("b", 1)
 		// MAX_GLUES + 1 glues, all on the same pair. The first MAX_GLUES tag vertex 0; the last must not.
-		val glues = List(MAX_GLUES + 1) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null) }
+		val glues = List(MAX_GLUES + 1) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f))) }
 		val layout = planGlueLayout(model(listOf(a, b), glues))
 		// Each pair overwrites vertex 0's tag, so after the loop it holds the LAST in-bounds glue index.
 		assertEquals(MAX_GLUES - 1, layout.attributesById.getValue(DrawableId("a")).glueIndex[0], "the last addressable glue tags the vertex")

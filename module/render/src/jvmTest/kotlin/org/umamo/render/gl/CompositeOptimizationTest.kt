@@ -17,7 +17,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -56,10 +56,10 @@ class CompositeOptimizationTest {
 	private val insideRow = 50
 	private val outsideRow = 12
 
-	private fun restGrid(size: Int): KeyformGrid<MeshForm> =
+	private fun restGrid(size: Int): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(size)))),
 		)
 
 	private fun quad(id: String, positions: FloatArray = bandQuad): Drawable =
@@ -72,7 +72,7 @@ class CompositeOptimizationTest {
 			culling = false,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
-			keyforms = restGrid(positions.size),
+			geometryGrid = restGrid(positions.size),
 			isVisible = true,
 		)
 

@@ -33,8 +33,8 @@ fun PuppetModel.withDrawableDuplicated(id: DrawableId): Pair<PuppetModel, Drawab
 			id = copyId,
 			name = uniqueDuplicateName(source.name),
 			mesh = DrawableMesh(mesh.positions.copyOf(), mesh.uvs, mesh.indices),
-			keyforms =
-				source.keyforms?.let { grid ->
+			geometryGrid =
+				source.geometryGrid?.let { grid ->
 					KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, cell.form) })
 				},
 			// The atlas mapping is keyed by the source format's ids, so the copy resolves its texture

@@ -7,6 +7,7 @@ import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -15,7 +16,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -48,10 +49,10 @@ class PoseResolveTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
-			keyforms =
+			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size)))),
+					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 				),
 		)
 	}
@@ -121,7 +122,7 @@ class PoseResolveTest {
 		val source =
 			model(
 				listOf(drawable("a"), drawable("b")),
-				listOf(Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null)),
+				listOf(Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)))),
 			)
 		val resolved = resolve(source, renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true))
 		assertEquals(1f, resolved.glueIntensities[0], "both posed, so the weld runs at full intensity")
@@ -134,7 +135,7 @@ class PoseResolveTest {
 		val source =
 			model(
 				listOf(drawable("a"), drawable("b")),
-				listOf(Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null)),
+				listOf(Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)))),
 			)
 		val resolved = resolve(source, renderable = mapOf(DrawableId("a") to true))
 		assertEquals(0f, resolved.glueIntensities[0], "an unposed partner disables the weld")
@@ -147,7 +148,7 @@ class PoseResolveTest {
 		val source =
 			model(
 				listOf(drawable("anchor", indices = IntArray(0)), drawable("b")),
-				listOf(Glue(DrawableId("anchor"), DrawableId("b"), listOf(GluePair(0, 0, 0f, 1f)), null)),
+				listOf(Glue(DrawableId("anchor"), DrawableId("b"), listOf(GluePair(0, 0, 0f, 1f)))),
 			)
 		val resolved = resolve(source, renderable = mapOf(DrawableId("anchor") to false, DrawableId("b") to true))
 		assertEquals(1f, resolved.glueIntensities[0], "a non-drawing anchor still counts as posed")
@@ -163,7 +164,7 @@ class PoseResolveTest {
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), ChannelGrids.Empty, PartComposite()),
 					),
 			)
 		val resolved =
@@ -192,7 +193,7 @@ class PoseResolveTest {
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), null, PartComposite()),
+						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), ChannelGrids.Empty, PartComposite()),
 					),
 			)
 		val resolved =
@@ -213,7 +214,7 @@ class PoseResolveTest {
 		// #65+ renders UNWELDED rather than overrunning the array. Pinned so the ceiling is not "fixed" by
 		// growing the Kotlin side alone, which would silently disagree with the GLSL.
 		val drawables = listOf(drawable("a"), drawable("b"))
-		val glues = List(70) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null) }
+		val glues = List(70) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f))) }
 		val resolved =
 			resolve(model(drawables, glues), renderable = mapOf(DrawableId("a") to true, DrawableId("b") to true))
 		assertEquals(64, resolved.glueIntensities.size, "the array is exactly the shader's")

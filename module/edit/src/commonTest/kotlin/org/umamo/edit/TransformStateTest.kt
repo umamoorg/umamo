@@ -53,7 +53,7 @@ class TransformStateTest {
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
 				mesh = mesh,
-				keyforms = null,
+				geometryGrid = null,
 			)
 		val model =
 			PuppetModel(

@@ -9,7 +9,7 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 class GlueTest {
 	/** A direct (deformer-less) one-vertex drawable resting at `(x, y)` - evaluates to world `(x, −y)`. */
 	private fun pointDrawable(raw: String, x: Float, y: Float): Drawable {
-		val grid = KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(intArrayOf(), MeshForm(floatArrayOf(0f, 0f)))))
+		val grid = KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(intArrayOf(), MeshDeltaForm(floatArrayOf(0f, 0f)))))
 		return Drawable(
 			id = DrawableId(raw),
 			name = raw,
@@ -30,7 +30,7 @@ class GlueTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(floatArrayOf(x, y), floatArrayOf(0f, 0f), IntArray(0)),
-			keyforms = grid,
+			geometryGrid = grid,
 		)
 	}
 
@@ -51,7 +51,7 @@ class GlueTest {
 			modelWith(
 				pointDrawable("A", 10f, 0f),
 				pointDrawable("B", 20f, 0f),
-				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 0.5f, 0.5f)), null),
+				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 0.5f, 0.5f))),
 			)
 		val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())
 		assertEquals(15f, geometry.worldPositions.getValue(DrawableId("A"))[0], 1e-4f)
@@ -65,7 +65,7 @@ class GlueTest {
 			modelWith(
 				pointDrawable("A", 10f, 4f),
 				pointDrawable("B", 22f, -8f),
-				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 0.25f, 0.75f)), null),
+				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 0.25f, 0.75f))),
 			)
 		val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())
 		val a = geometry.worldPositions.getValue(DrawableId("A"))
@@ -82,7 +82,7 @@ class GlueTest {
 			modelWith(
 				pointDrawable("A", 10f, 0f),
 				pointDrawable("B", 20f, 0f),
-				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 1f, 0f)), null),
+				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 1f, 0f))),
 			)
 		val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())
 		assertEquals(20f, geometry.worldPositions.getValue(DrawableId("A"))[0], 1e-4f)

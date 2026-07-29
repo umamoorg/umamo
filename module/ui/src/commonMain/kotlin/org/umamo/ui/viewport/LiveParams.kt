@@ -1,7 +1,11 @@
 package org.umamo.ui.viewport
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
+import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.LiveParamsHandle
@@ -15,8 +19,39 @@ import kotlin.concurrent.Volatile
  * Compose UI スレッドからレンダースレッドへのパラメータ値のスレッドセーフな受け渡し。
  */
 class LiveParams(
-	@Volatile var values: Map<ParameterId, Float>,
-)
+	initialValues: Map<ParameterId, Float>,
+	initialChannelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+) {
+	@Volatile
+	private var publishedValues: Map<ParameterId, Float> = initialValues
+
+	/**
+	 * A Compose-snapshot mirror of the pose, so UI that DISPLAYS it (the keyform sheet's playhead) sees it
+	 * move.  The volatile stays the render thread's read: the renderer must never take a Compose
+	 * dependency, and a per-frame snapshot read on the GL thread would be one.
+	 */
+	private val observedValues: MutableState<Map<ParameterId, Float>> = mutableStateOf(initialValues)
+
+	/** The current pose. Every write also publishes to the snapshot mirror behind [observed]. */
+	var values: Map<ParameterId, Float>
+		get() = publishedValues
+		set(value) {
+			publishedValues = value
+			observedValues.value = value
+		}
+
+	/** The same pose, read as Compose state - a read inside a composition recomposes when it moves. */
+	val observed: Map<ParameterId, Float> get() = observedValues.value
+
+	/**
+	 * Pending unkeyed channel edits, published the same way as [values].
+	 *
+	 * These are session state rather than document state, so they cannot ride the model to the renderer -
+	 * they travel beside the pose, exactly as the pose itself travels beside the model.
+	 */
+	@Volatile
+	var channelOverrides: Map<KeyableTarget, ChannelValue> = initialChannelOverrides
+}
 
 /**
  * Builds the initial [LiveParams] from each parameter's default. Hosts with a headless-dump flow
@@ -45,6 +80,8 @@ fun initialLiveParams(puppet: PuppetModel): LiveParams =
  */
 class LiveParamsAdapter(private val liveParams: LiveParams, private val session: EditorSession) : LiveParamsHandle {
 	override val values: Map<ParameterId, Float> get() = liveParams.values
+
+	override val observedValues: Map<ParameterId, Float> get() = liveParams.observed
 
 	/**
 	 * Previews one parameter's value toward the render thread without recording an undo step (the fast

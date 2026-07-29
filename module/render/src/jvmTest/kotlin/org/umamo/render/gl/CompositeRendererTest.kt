@@ -18,7 +18,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
@@ -57,10 +57,12 @@ class CompositeRendererTest {
 	// The left half of the viewport, as a clip-mask source.
 	private val leftHalfQuad = floatArrayOf(-32f, -32f, 0f, -32f, -32f, 32f, 0f, 32f)
 
-	private fun restGrid(positions: FloatArray, opacity: Float = 1f): KeyformGrid<MeshForm> =
+	// Opacity is its own channel now, so the geometry grid carries deltas only; callers pass the opacity
+	// to the drawable's static instead.
+	private fun restGrid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = opacity))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
 		)
 
 	private fun drawable(
@@ -82,7 +84,8 @@ class CompositeRendererTest {
 			culling = culling,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
-			keyforms = restGrid(positions, opacity),
+			geometryGrid = restGrid(positions),
+			opacity = opacity,
 			isVisible = isVisible,
 		)
 
@@ -353,11 +356,9 @@ class CompositeRendererTest {
 					blendMode = BlendMode.Normal,
 					maskedBy = emptyList(),
 					mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
-					keyforms =
-						KeyformGrid(
-							listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-							listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = 1f, multiplyColor = ColorRgb(1f, 0f, 0f)))),
-						),
+					geometryGrid = restGrid(positions),
+					// The tint is a channel with a static; no track needed to prove the renderer applies it.
+					multiplyColor = ColorRgb(1f, 0f, 0f),
 				)
 			val plainPixel = renderCenterPixel(model(listOf(drawable("top")), rootChildren = listOf(OrgChild.Drawable(DrawableId("top")))))
 			val tintedPixel = renderCenterPixel(model(listOf(tinted), rootChildren = listOf(OrgChild.Drawable(DrawableId("top")))))

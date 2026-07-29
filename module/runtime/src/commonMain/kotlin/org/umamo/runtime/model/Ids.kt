@@ -13,8 +13,6 @@ import kotlin.jvm.JvmInline
  * The import is load-bearing, not noise: `kotlin.jvm.*` is a default import only on JVM targets, so
  * without it this file stops compiling the moment a non-JVM target (Kotlin/Native, for iPadOS) is
  * added.  The annotation itself is an optional expectation, so non-JVM targets simply ignore it.
- *
- * モデル要素の型付き ID。value class でゼロコストかつ型安全（取り違えをコンパイルエラーにする）。
  */
 @JvmInline
 value class PartId(val raw: String)

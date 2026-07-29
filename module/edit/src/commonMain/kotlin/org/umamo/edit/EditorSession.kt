@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
@@ -81,6 +83,31 @@ class EditorSession(
 
 	/** The live object-mode selection. */
 	val selection: StateFlow<Selection> = mutableSelection.asStateFlow()
+
+	private val mutableParameterSelection = MutableStateFlow(ParameterSelection())
+
+	/**
+	 * The parameters targeted for keyform authoring - which parameter an insert would write a key on.
+	 *
+	 * Independent of [selection]: the object selection says WHAT to key, this says on WHICH AXIS.
+	 */
+	val parameterSelection: StateFlow<ParameterSelection> = mutableParameterSelection.asStateFlow()
+
+	private val mutablePendingChannelEdits = MutableStateFlow<Map<KeyableTarget, ChannelValue>>(emptyMap())
+
+	/**
+	 * Channel values edited but NOT yet keyed - Blender's model, where changing a keyed property off a key
+	 * takes effect now but is lost unless you key it.
+	 *
+	 * Deliberately NOT in the document and NOT in the undo history: a pending edit is a value in flight, and
+	 * recording every keystroke of one as an undo step would bury the real edits.  It is cleared whenever
+	 * the pose moves or history jumps, because both make the value meaningless - it was a value FOR a pose,
+	 * and that pose is gone.
+	 *
+	 * The keyed-field tint reads this to show the edited-but-unkeyed state, and a keyform insert consumes
+	 * it: the whole point is that `I` captures what you just typed rather than what is still stored.
+	 */
+	val pendingChannelEdits: StateFlow<Map<KeyableTarget, ChannelValue>> = mutablePendingChannelEdits.asStateFlow()
 
 	private val mutablePose = MutableStateFlow(initialPose)
 
@@ -260,16 +287,39 @@ class EditorSession(
 	 * @param PuppetModel model The new document model (same instance as now for a pose-only commit).
 	 * @param Pose pose The new live pose (same value as now for a model-only commit).
 	 */
+
 	private fun commit(change: Change, model: PuppetModel, pose: Pose) {
 		if (model === mutableModel.value && pose == mutablePose.value) {
 			return
 		}
-		history.push(EditorSnapshot(model, mutableSelection.value, pose, mutableMeshSelection.value, mutableMode.value), change)
+		// A pose move invalidates every pending edit: the value was chosen for the pose being left.
+		if (pose != mutablePose.value) {
+			clearPendingChannelEdits()
+		}
+		history.push(snapshot(model = model, pose = pose), change)
 		mutableModel.value = model
 		mutablePose.value = pose
 		refreshFlags()
 		mutableChanges.tryEmit(change)
 	}
+
+	/**
+	 * A snapshot of the session's current state, with any field overridden.
+	 *
+	 * Every history push goes through this rather than calling [EditorSnapshot] directly.  The constructor's
+	 * own defaults are dangerous here: a field added later defaults to its EMPTY value at every existing call
+	 * site, which compiles cleanly and then silently records the wrong state - exactly how the parameter
+	 * target came to be cleared by undoing an unrelated edit.  Defaulting to live state instead makes the
+	 * omission harmless.
+	 */
+	private fun snapshot(
+		model: PuppetModel = mutableModel.value,
+		selection: Selection = mutableSelection.value,
+		pose: Pose = mutablePose.value,
+		meshSelection: MeshSelection = mutableMeshSelection.value,
+		mode: EditorMode = mutableMode.value,
+		parameterSelection: ParameterSelection = mutableParameterSelection.value,
+	): EditorSnapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection)
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
@@ -282,6 +332,47 @@ class EditorSession(
 	 */
 	fun commitPose(change: Change, pose: Pose) {
 		commit(change, mutableModel.value, pose)
+	}
+
+	/**
+	 * Records [value] as an unkeyed edit of [target] - a value the user typed that is not stored anywhere yet.
+	 *
+	 * Transient by construction: no history step, no model change.  The next pose move discards it, which is
+	 * the behaviour rather than a limitation - the value was chosen FOR this pose, so carrying it to another
+	 * would be applying an edit somewhere it was never meant.
+	 *
+	 * @param KeyableTarget target The property edited.
+	 * @param ChannelValue value The value typed.
+	 */
+	fun setPendingChannelEdit(target: KeyableTarget, value: ChannelValue) {
+		mutablePendingChannelEdits.value = mutablePendingChannelEdits.value + (target to value)
+	}
+
+	/**
+	 * Discards every pending unkeyed edit.
+	 *
+	 * Called on any pose move and on any history jump - the situations that invalidate ALL of them at once.
+	 * A keyform insert that consumed one target's value uses [clearPendingChannelEdit] instead, because the
+	 * other targets' values are still valid for the unchanged pose.
+	 */
+	fun clearPendingChannelEdits() {
+		if (mutablePendingChannelEdits.value.isNotEmpty()) {
+			mutablePendingChannelEdits.value = emptyMap()
+		}
+	}
+
+	/**
+	 * Discards the pending unkeyed edit of [target] alone.
+	 *
+	 * The keyform-insert path: the capture consumed this one value, and the pose did not move, so every
+	 * other target's pending value is still the value its user chose for the current pose.
+	 *
+	 * @param KeyableTarget target The property whose pending edit was consumed.
+	 */
+	fun clearPendingChannelEdit(target: KeyableTarget) {
+		if (mutablePendingChannelEdits.value.containsKey(target)) {
+			mutablePendingChannelEdits.value = mutablePendingChannelEdits.value - target
+		}
 	}
 
 	/**
@@ -329,9 +420,22 @@ class EditorSession(
 	 * @param Boolean linked True to create the link, false to remove it.
 	 */
 	fun setParameterLink(horizontal: ParameterId, vertical: ParameterId, linked: Boolean) {
-		mutate(ParameterChange.SetLink(horizontal, vertical, linked)) { model ->
-			model.withParameterLink(horizontal, vertical, linked)
+		val newModel = mutableModel.value.withParameterLink(horizontal, vertical, linked)
+		if (newModel === mutableModel.value) {
+			return
 		}
+		if (!linked) {
+			// A pad targets BOTH its axes; once they are two separate sliders that reads as a multi-selection
+			// the panel cannot otherwise produce, so the target narrows to the one that was active.  Narrowed
+			// BEFORE the commit, so the pushed snapshot carries the narrowed target and a later redo cannot
+			// restore the multi-selection.
+			val target = mutableParameterSelection.value
+			if (target.ids.size > 1) {
+				mutableParameterSelection.value =
+					target.active?.let { ParameterSelection.of(it) } ?: ParameterSelection()
+			}
+		}
+		commit(ParameterChange.SetLink(horizontal, vertical, linked), newModel, mutablePose.value)
 	}
 
 	/**
@@ -348,6 +452,11 @@ class EditorSession(
 		if (newModel === mutableModel.value) {
 			return
 		}
+		// The target must never dangle on a parameter the model no longer has - pruned BEFORE the commit,
+		// so the pushed snapshot carries the pruned selection and a later redo (or a History jump to this
+		// entry) cannot restore the dangling id.
+		mutableParameterSelection.value =
+			mutableParameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
 		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
 	}
 
@@ -358,6 +467,7 @@ class EditorSession(
 	 *
 	 * @param Selection selection The new selection.
 	 */
+
 	fun setSelection(selection: Selection) {
 		if (selection == mutableSelection.value) {
 			return
@@ -366,12 +476,32 @@ class EditorSession(
 			elementMemory.lastActiveDrawableId = activeDrawable.id
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, selection, mutablePose.value, mutableMeshSelection.value, mutableMode.value),
+			snapshot(selection = selection),
 			EditorStateChange.SelectionChanged,
 		)
 		mutableSelection.value = selection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.SelectionChanged)
+	}
+
+	/**
+	 * Sets the parameters targeted for keyform authoring as its own undo step.
+	 *
+	 * Pushes its own snapshot rather than going through [mutate] / [commit], exactly like [setSelection]:
+	 * neither the model nor the pose changes, so the commit choke point would short-circuit and record
+	 * nothing.  Shared session state rather than a panel's view state, so every area agrees on which
+	 * parameter an insert would write to.
+	 *
+	 * @param ParameterSelection parameterSelection The new target set.
+	 */
+	fun setParameterSelection(parameterSelection: ParameterSelection) {
+		if (parameterSelection == mutableParameterSelection.value) {
+			return
+		}
+		history.push(snapshot(parameterSelection = parameterSelection), EditorStateChange.ParameterSelectionChanged)
+		mutableParameterSelection.value = parameterSelection
+		refreshFlags()
+		mutableChanges.tryEmit(EditorStateChange.ParameterSelectionChanged)
 	}
 
 	/**
@@ -446,7 +576,7 @@ class EditorSession(
 				}
 			}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, newMeshSelection, mode),
+			snapshot(meshSelection = newMeshSelection, mode = mode),
 			EditorStateChange.ModeChanged(mode),
 		)
 		mutableMode.value = mode
@@ -468,7 +598,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, meshSelection, mutableMode.value),
+			snapshot(meshSelection = meshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
 		mutableMeshSelection.value = meshSelection
@@ -688,7 +818,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(mutableModel.value, mutableSelection.value, mutablePose.value, converted, mutableMode.value),
+			snapshot(meshSelection = converted),
 			EditorStateChange.MeshSelectModeChanged(selectMode),
 		)
 		mutableMeshSelection.value = converted
@@ -1203,7 +1333,7 @@ class EditorSession(
 			)
 		val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
 		val change = MeshChange.TopologyEdit(drawableId, labelKey)
-		history.push(EditorSnapshot(newModel, mutableSelection.value, mutablePose.value, newSelection, mutableMode.value), change)
+		history.push(snapshot(model = newModel, meshSelection = newSelection), change)
 		mutableModel.value = newModel
 		mutableMeshSelection.value = newSelection
 		refreshFlags()
@@ -1348,7 +1478,7 @@ class EditorSession(
 				SelectionTarget.Drawable(copies.last()),
 			)
 		val change = DrawableChange.Duplicate(copies)
-		history.push(EditorSnapshot(newModel, newSelection, mutablePose.value, mutableMeshSelection.value, mutableMode.value), change)
+		history.push(snapshot(model = newModel, selection = newSelection), change)
 		mutableModel.value = newModel
 		mutableSelection.value = newSelection
 		refreshFlags()
@@ -1387,7 +1517,7 @@ class EditorSession(
 			return
 		}
 		history.push(
-			EditorSnapshot(model, newObjectSelection, mutablePose.value, newMeshSelection, mutableMode.value),
+			snapshot(model = model, selection = newObjectSelection, meshSelection = newMeshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
 		mutableSelection.value = newObjectSelection
@@ -1469,6 +1599,9 @@ class EditorSession(
 		mutableSelection.value = snapshot.selection
 		mutablePose.value = snapshot.pose
 		mutableMeshSelection.value = snapshot.meshSelection
+		mutableParameterSelection.value = snapshot.parameterSelection
+		// A history jump lands on a pose the pending values were never chosen for.
+		clearPendingChannelEdits()
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
 		// into a snapshot of the other and drive the wrong overlay.

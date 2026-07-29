@@ -1,6 +1,17 @@
 package org.umamo.edit
 
+import org.umamo.runtime.keyform.CollapsedChannels
+import org.umamo.runtime.keyform.colorOr
+import org.umamo.runtime.keyform.flagOr
+import org.umamo.runtime.keyform.hasFractionalDrawOrder
+import org.umamo.runtime.keyform.integralDrawOrderOrNull
+import org.umamo.runtime.keyform.scalarOr
+import org.umamo.runtime.keyform.withAxisCollapsed
+import org.umamo.runtime.keyform.withAxisCollapsedLifting
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
@@ -8,7 +19,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
-import kotlin.math.abs
+import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
  * Parameter document edits: create a new axis, rename one (its display name), and delete one everywhere.
@@ -107,10 +118,16 @@ fun PuppetModel.withParameterRenamed(id: ParameterId, newName: String): PuppetMo
 
 /**
  * A copy of this model with parameter [id] removed everywhere: the axis list, every panel-tree leaf, any
- * link it belongs to (its partner reverts to a plain slider), and every object's keyform grid - dropping
- * the deleted axis collapses each grid to the slice at the parameter's default value (the neutral look),
- * discarding that axis's motion; a grid left with no axes becomes null (the object is unkeyed). The live
- * pose entry is dropped by the session wrapper. A no-op (no such parameter) returns this same instance.
+ * link it belongs to (its partner reverts to a plain slider), and every keyform grid in the rig -
+ * drawables, both deformer kinds, parts, and glue intensities. Dropping the deleted axis collapses each
+ * grid to the slice at the parameter's default value (the neutral look), discarding that axis's motion.
+ * A channel track left with no axes is dropped, and the value of its kept slice is lifted into the
+ * owner's static so the neutral look survives the drop; a fractional part draw order stays behind as a
+ * constant track because the Int static slot cannot hold it without rounding. A geometry grid left with
+ * no axes becomes null (the drawable returns to its rest mesh - the base mesh is authored, never baked
+ * from a slice). The render root is re-derived at the end so its per-group copies of the part tracks
+ * lose the deleted axis too. The live pose entry is dropped by the session wrapper. A no-op (no such
+ * parameter) returns this same instance.
  *
  * @param ParameterId id The parameter to delete.
  * @return PuppetModel The model with the parameter removed, or this if it was absent.
@@ -118,48 +135,95 @@ fun PuppetModel.withParameterRenamed(id: ParameterId, newName: String): PuppetMo
 fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 	val deleted = parameters.firstOrNull { parameter -> parameter.id == id } ?: return this
 	val keepValue = deleted.default
+	// Both halves of a drawable key on parameters: the geometry grid and every channel track.
 	val newDrawables =
 		drawables.map { drawable ->
-			val grid = drawable.keyforms ?: return@map drawable
-			val collapsed = grid.withAxisCollapsed(id, keepValue)
-			if (collapsed === grid) {
+			val collapsed = drawable.geometryGrid?.withAxisCollapsed(id, keepValue)
+			val scrubbed = drawable.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (collapsed === drawable.geometryGrid && scrubbed.channelGrids === drawable.channelGrids) {
 				drawable
 			} else {
-				drawable.copy(keyforms = collapsed)
+				drawable.copy(
+					geometryGrid = collapsed,
+					channelGrids = scrubbed.channelGrids,
+					drawOrder = scrubbed.lifted.scalarOr(FormChannel.DRAW_ORDER, drawable.drawOrder),
+					opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, drawable.opacity),
+					multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor),
+					screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, drawable.screenColor),
+				)
 			}
 		}
+	// Both halves of a deformer key on parameters: the geometry grid and every channel track.
 	val newDeformers =
 		deformers.map { deformer ->
+			val scrubbed = deformer.channelGrids.withAxisCollapsedLifting(id, keepValue)
 			when (deformer) {
 				is Deformer.Warp -> {
-					val grid = deformer.keyforms ?: return@map deformer
-					val collapsed = grid.withAxisCollapsed(id, keepValue)
-					if (collapsed === grid) {
+					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
+					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
-						deformer.copy(keyforms = collapsed)
+						deformer.copy(
+							geometryGrid = collapsed,
+							channelGrids = scrubbed.channelGrids,
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, deformer.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, deformer.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, deformer.screenColor),
+						)
 					}
 				}
 
 				is Deformer.Rotation -> {
-					val grid = deformer.keyforms ?: return@map deformer
-					val collapsed = grid.withAxisCollapsed(id, keepValue)
-					if (collapsed === grid) {
+					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
+					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
-						deformer.copy(keyforms = collapsed)
+						deformer.copy(
+							geometryGrid = collapsed,
+							channelGrids = scrubbed.channelGrids,
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, deformer.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, deformer.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, deformer.screenColor),
+							flipX = scrubbed.lifted.flagOr(FormChannel.FLIP_X, deformer.flipX),
+							flipY = scrubbed.lifted.flagOr(FormChannel.FLIP_Y, deformer.flipY),
+						)
 					}
 				}
 			}
 		}
 	val newParts =
 		parts.map { part ->
-			val grid = part.formGrid ?: return@map part
-			val collapsed = grid.withAxisCollapsed(id, keepValue)
-			if (collapsed === grid) {
+			val scrubbed = part.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (scrubbed.channelGrids === part.channelGrids) {
 				part
 			} else {
-				part.copy(formGrid = collapsed)
+				part.copy(
+					channelGrids = scrubbed.withFractionalDrawOrderKept().channelGrids,
+					drawOrder = scrubbed.lifted.integralDrawOrderOrNull() ?: part.drawOrder,
+					composite =
+						part.composite.copy(
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, part.composite.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, part.composite.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, part.composite.screenColor),
+						),
+				)
+			}
+		}
+	// Glue tracks key on parameters exactly like the rest, so they need the same scrub - without it a
+	// deleted parameter survives as a dangling KeyformAxis.parameterId that nothing can ever resolve.
+	val newGlues =
+		glues.map { glue ->
+			val scrubbed = glue.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (scrubbed.channelGrids === glue.channelGrids) {
+				glue
+			} else {
+				Glue(
+					glue.meshA,
+					glue.meshB,
+					glue.pairs,
+					scrubbed.channelGrids,
+					scrubbed.lifted.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
+				)
 			}
 		}
 	return copy(
@@ -169,6 +233,28 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 		drawables = newDrawables,
 		deformers = newDeformers,
 		parts = newParts,
+		glues = newGlues,
+	).withDerivedRenderRoot()
+}
+
+/**
+ * These collapsed channels with a fractional lifted DRAW_ORDER kept as a zero-axis constant track.
+ *
+ * A part's static draw-order slot is an Int, so a fractional slice value cannot lift without rounding,
+ * and rounding could reorder two parts the track kept distinct.  The deleted axis cannot stay either, so
+ * the value is kept as a single-cell track with no axes - the same degenerate shape MOC3 import already
+ * produces - which the evaluator reads as a constant.
+ *
+ * @return CollapsedChannels The channels with the fractional draw order retained as a constant track.
+ */
+private fun CollapsedChannels.withFractionalDrawOrderKept(): CollapsedChannels {
+	if (!lifted.hasFractionalDrawOrder()) {
+		return this
+	}
+	val constantTrack = KeyformGrid(emptyList(), listOf(KeyformCell(IntArray(0), lifted[FormChannel.DRAW_ORDER]!!)))
+	return CollapsedChannels(
+		ChannelGrids(channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to constantTrack)),
+		lifted,
 	)
 }
 
@@ -180,64 +266,6 @@ private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): Li
 			is ParameterNode.Group -> node.copy(children = removeParameterLeaf(node.children, id))
 		}
 	}
-
-/**
- * This grid with the axis for [parameterId] removed, collapsing that dimension to the key nearest
- * [keepKeyValue]. Returns this same instance when the grid has no such axis (so a caller can skip
- * untouched entities by identity), or null when removing the axis leaves no axes at all (the entity
- * becomes unkeyed). The surviving cells are those whose coordinate on the dropped axis is the kept key
- * index, each re-projected to the N-1 coordinate; the form payloads are carried through untouched.
- *
- * @param ParameterId parameterId The axis parameter to remove.
- * @param Float keepKeyValue The parameter value whose nearest key slice survives (the deleted default).
- * @return KeyformGrid The collapsed grid, this if the axis was absent, or null if no axes remain.
- */
-internal fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepKeyValue: Float): KeyformGrid<TForm>? {
-	val axisIndex = axes.indexOfFirst { axis -> axis.parameterId == parameterId }
-	if (axisIndex < 0) {
-		return this
-	}
-	val newAxes = axes.filterIndexed { index, _ -> index != axisIndex }
-	if (newAxes.isEmpty()) {
-		return null
-	}
-	val keepIndex = nearestKeyIndex(axes[axisIndex].keys, keepKeyValue)
-	val newCells =
-		cells
-			.filter { cell -> cell.coordinate[axisIndex] == keepIndex }
-			.map { cell -> KeyformCell(cell.coordinate.withElementRemoved(axisIndex), cell.form) }
-	return KeyformGrid(newAxes, newCells)
-}
-
-/** The index of the key in [keys] nearest [value] (0 for an empty axis, defensively). */
-private fun nearestKeyIndex(keys: FloatArray, value: Float): Int {
-	if (keys.isEmpty()) {
-		return 0
-	}
-	var bestIndex = 0
-	var bestDistance = abs(keys[0] - value)
-	for (keyIndex in 1 until keys.size) {
-		val distance = abs(keys[keyIndex] - value)
-		if (distance < bestDistance) {
-			bestDistance = distance
-			bestIndex = keyIndex
-		}
-	}
-	return bestIndex
-}
-
-/** A copy of this coordinate array with the element at [removeIndex] dropped (length shrinks by one). */
-private fun IntArray.withElementRemoved(removeIndex: Int): IntArray {
-	val result = IntArray(size - 1)
-	var writeIndex = 0
-	for (readIndex in indices) {
-		if (readIndex != removeIndex) {
-			result[writeIndex] = this[readIndex]
-			writeIndex++
-		}
-	}
-	return result
-}
 
 /**
  * Creates a new animatable parameter (a freshly minted id, default -1..1 range) named [name] of [kind]

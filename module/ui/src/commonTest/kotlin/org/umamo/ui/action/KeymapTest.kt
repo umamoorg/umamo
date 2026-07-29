@@ -53,6 +53,22 @@ class KeymapTest {
 	}
 
 	/**
+	 * Every built-in preset builds without duplicate chords (presetSpecs refuses them at construction, so
+	 * merely reading each preset asserts it), and Home resolves to the context-aware frame command in the
+	 * presets that bind it.  mapOf's silent last-wins once left the Blender preset with two Home entries
+	 * and keyform.frameAll unbound, invisible even to the keybindings editor's conflict detection.
+	 */
+	@Test
+	fun presetsHaveNoDuplicateChordsAndHomeFramesContextually() {
+		for (presetId in listOf("default", "cubism", "blender")) {
+			val specs = keymapPresetSpecs(presetId)
+			assertEquals(specs.size, specs.keys.distinct().size, "$presetId: chords are unique")
+		}
+		assertEquals("frame.all", keymapPresetSpecs("default")["Home"], "default Home is the context-aware frame")
+		assertEquals("frame.all", keymapPresetSpecs("blender")["Home"], "blender Home is the context-aware frame")
+	}
+
+	/**
 	 * A malformed spec is dropped from the keymap rather than shadowing valid bindings.
 	 */
 	@Test

@@ -1,15 +1,17 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.keyform.fanOutWarp
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.RotationForm
+import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -30,17 +32,17 @@ class DeformerCascadeTest {
 	private fun singleKeyAxis() = listOf(KeyformAxis(paramA, floatArrayOf(0f)))
 
 	private fun warp(id: String, parent: String?, cols: Int, rows: Int, bilinear: Boolean, cp: FloatArray): Deformer.Warp {
-		val grid = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), WarpForm(cp))))
+		val grid = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(cp))))
 		return Deformer.Warp(DeformerId(id), id, parent?.let(::DeformerId), null, rows, cols, bilinear, grid)
 	}
 
 	private fun rotation(id: String, baseAngle: Float, originX: Float, originY: Float, angle: Float, scale: Float): Deformer.Rotation {
-		val grid = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), RotationForm(originX, originY, angle, scale, false, false))))
+		val grid = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), RotationPivotForm(originX, originY, angle, scale))))
 		return Deformer.Rotation(DeformerId(id), id, null, null, baseAngle, grid)
 	}
 
-	private fun zeroDeltaMesh(vertexCount: Int): KeyformGrid<MeshForm> =
-		KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(vertexCount * 2)))))
+	private fun zeroDeltaMesh(vertexCount: Int): KeyformGrid<MeshDeltaForm> =
+		KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(vertexCount * 2)))))
 
 	@Test
 	fun meshUnderTranslatedWarp() {
@@ -86,9 +88,11 @@ class DeformerCascadeTest {
 		multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 		screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 	): Deformer.Warp {
+		// Built bundled and fanned out, so the fixture exercises the real import split rather than
+		// hand-assembling tracks that could drift from what an importer actually produces.
 		val form = WarpForm(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f), opacity, multiplyColor, screenColor)
-		val grid = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), form)))
-		return Deformer.Warp(DeformerId(id), id, parent?.let(::DeformerId), null, 1, 1, true, grid)
+		val fanned = KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), form))).fanOutWarp()
+		return Deformer.Warp(DeformerId(id), id, parent?.let(::DeformerId), null, 1, 1, true, fanned.geometry, fanned.channels)
 	}
 
 	@Test
@@ -150,15 +154,15 @@ class DeformerCascadeTest {
 	fun channelsBlendAcrossKeysRatherThanSnapping() {
 		// A two-key axis keyed 1 -> 0: at the midpoint the subtree must be half faded, not fully on or
 		// fully off. Snapping to the nearest key was a real bug in the reference implementation.
-		val fadeGrid =
+		val fanned =
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
 				listOf(
 					KeyformCell(intArrayOf(0), WarpForm(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f), 1f)),
 					KeyformCell(intArrayOf(1), WarpForm(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f), 0f)),
 				),
-			)
-		val fading = Deformer.Warp(DeformerId("F"), "F", null, null, 1, 1, true, fadeGrid)
+			).fanOutWarp()
+		val fading = Deformer.Warp(DeformerId("F"), "F", null, null, 1, 1, true, fanned.geometry, fanned.channels)
 		val atMidpoint = buildDeformerWorlds(listOf(fading), values(paramA to 0.5f))[DeformerId("F")]!!
 		assertEquals(0.5f, atMidpoint.accumulatedOpacity, tol)
 	}

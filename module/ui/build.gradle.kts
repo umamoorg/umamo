@@ -102,6 +102,11 @@ kotlin {
 				// rgbaToImageBitmap → Image.makeRaster) can run under :ui:jvmTest — the plain compose-ui
 				// coordinate carries no natives. Same direct-coordinate rationale as app/desktop.
 				runtimeOnly("org.jetbrains.compose.desktop:desktop-jvm-$buildTarget:${libs.versions.composeMultiplatform.get()}")
+				// A real composition with real pointer input. The panels' gesture code (tap-versus-drag off
+				// one raw stream, selection round-tripping through hoisted state) is not reachable from a
+				// pure-function test, and that is exactly where the interaction bugs have been living.
+				implementation(libs.compose.ui.test)
+				implementation(libs.compose.ui.test.junit4)
 			}
 		}
 	}

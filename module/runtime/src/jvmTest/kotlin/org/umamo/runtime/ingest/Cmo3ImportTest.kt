@@ -66,12 +66,12 @@ class Cmo3ImportTest {
 		val totalPolygons = puppet.drawables.sumOf { it.mesh?.triangleCount ?: 0 }
 		println("[Umamo][import] vertices=$totalVertices polygons=$totalPolygons")
 
-		val artInterpolations = puppet.drawables.sumOf { it.keyforms?.cells?.size ?: 0 }
+		val artInterpolations = puppet.drawables.sumOf { it.geometryGrid?.cells?.size ?: 0 }
 		val deformerInterpolations =
 			puppet.deformers.sumOf { deformer ->
 				when (deformer) {
-					is Deformer.Warp -> deformer.keyforms?.cells?.size ?: 0
-					is Deformer.Rotation -> deformer.keyforms?.cells?.size ?: 0
+					is Deformer.Warp -> deformer.geometryGrid?.cells?.size ?: 0
+					is Deformer.Rotation -> deformer.geometryGrid?.cells?.size ?: 0
 				}
 			}
 		println(

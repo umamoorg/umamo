@@ -48,7 +48,7 @@ class UvSnapTest {
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
 						mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), startUvs.copyOf(), intArrayOf(0, 1, 2)),
-						keyforms = null,
+						geometryGrid = null,
 					),
 				),
 			rootChildren = emptyList(),

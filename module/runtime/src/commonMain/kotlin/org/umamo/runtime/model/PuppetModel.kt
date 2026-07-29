@@ -83,6 +83,12 @@ sealed interface OrgChild {
 	data class Drawable(val id: DrawableId) : OrgChild
 }
 
+/**
+ * Default art-mesh draw order which is also Cubism's default.  Mirrors :render's DEFAULT_DRAW_ORDER, which cannot be
+ * referenced here (:render depends on :runtime, not the other way round).
+ */
+const val DEFAULT_DRAWABLE_DRAW_ORDER: Float = 500f
+
 /** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
 data class Part(
 	val id: PartId,
@@ -115,11 +121,13 @@ data class Part(
 	 */
 	val drawOrder: Int = CUBISM_DEFAULT_PART_DRAW_ORDER,
 	/**
-	 * The parameter-driven keyform grid for a grouped part, or null for a static [drawOrder].
-	 * Lets a group's stacking slot animate per pose, like a drawable's own draw order; for an
-	 * isolated part the same grid also keys the composite's opacity/color channels.
+	 * The part's per-channel keyform tracks, empty for a fully static part.
+	 *
+	 * [FormChannel.DRAW_ORDER] animates a grouped part's stacking slot per pose, like a drawable's own
+	 * draw order; [FormChannel.OPACITY] and the two color channels key an isolated part's composite.
+	 * Each channel falls back to [drawOrder] / [composite] when it has no track.
 	 */
-	val formGrid: KeyformGrid<PartForm>? = null,
+	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	/**
 	 * The part's compositing settings, stored latently regardless of [groupMode] so they survive the
 	 * part leaving and re-entering [PartGroupMode.Isolated] (and so the UMA format can track them).  Only
@@ -156,8 +164,26 @@ data class Drawable(
 	val maskedBy: List<DrawableId>,
 	/** Rest-pose mesh, or null if the source carried no geometry. */
 	val mesh: DrawableMesh?,
-	/** Per-parameter morph deltas over the mesh, or null if the drawable is unkeyed. */
-	val keyforms: KeyformGrid<MeshForm>?,
+	/**
+	 * Per-parameter morph deltas over the mesh, or null if the drawable is unkeyed.
+	 *
+	 * An unkeyed drawable is a NORMAL state - freshly created, or one whose last keyform axis was
+	 * removed - and renders at its rest mesh rather than vanishing.
+	 */
+	val geometryGrid: KeyformGrid<MeshDeltaForm>?,
+	/**
+	 * The drawable's per-channel keyform tracks (draw order, opacity, multiply / screen color), each
+	 * falling back to the statics below when it has no track.
+	 */
+	val channelGrids: ChannelGrids = ChannelGrids.Empty,
+	/** Static draw order (Cubism's 500) used when [channelGrids] has no draw-order track. */
+	val drawOrder: Float = DEFAULT_DRAWABLE_DRAW_ORDER,
+	/** Static opacity used when [channelGrids] has no opacity track. */
+	val opacity: Float = 1f,
+	/** Static multiply color used when [channelGrids] has no multiply track. */
+	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	/** Static screen color used when [channelGrids] has no screen track. */
+	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 	/** When true, the clip is inverted - this drawable shows outside the [maskedBy] coverage. */
 	val invertMask: Boolean = false,
 	/**

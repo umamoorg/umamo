@@ -90,9 +90,10 @@ class DeformerChannelOracleTest {
 				// the oracle side rather than reimplementing it here, so the two cannot drift.
 				val defaults = puppet.parameters.associate { it.id to it.default }
 				val partOpacity =
-					foldNonIsolatedPartOpacity(puppet) { parameterId ->
-						parameterValues[parameterId] ?: defaults[parameterId] ?: 0f
-					}
+					foldNonIsolatedPartOpacity(
+						puppet,
+						paramValue = { parameterId -> parameterValues[parameterId] ?: defaults[parameterId] ?: 0f },
+					)
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
 					if (wasNeverEvaluated(oracleEntry)) {

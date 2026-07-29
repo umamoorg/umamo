@@ -27,7 +27,7 @@ class PartMaskResolveTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = null,
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	/** A mask part holding one drawable plus a nested part holding another, beside an isolated subject part. */

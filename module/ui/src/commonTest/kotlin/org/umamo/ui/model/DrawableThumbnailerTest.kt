@@ -58,7 +58,7 @@ class DrawableThumbnailerTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions = positions, uvs = uvs, indices = intArrayOf()),
-			keyforms = null,
+			geometryGrid = null,
 		)
 
 	/** A flat model: every [drawables] entry sits at the organisational root (no owning part). */

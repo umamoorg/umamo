@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -54,8 +55,11 @@ import org.umamo.ui.kit.MessageDialog
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
+import org.umamo.ui.model.KeyableHover
+import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalKeyableHover
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.properties.LocalPropertyTabRegistry
@@ -139,6 +143,9 @@ fun EditorShell(
 	// pointer loops and read by command handlers at dispatch time - the space-aware generalization of
 	// the camera controller's activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
 	val hoveredSurfaces = remember { HoveredSurfaceTracker() }
+	// The keyable property under the pointer, so a keyform insert needs no prior selection.
+	val keyableHover = remember { KeyableHover() }
+	val keyformSheetViews = remember { KeyformSheetViews() }
 	// The camera-bearing areas' per-area controllers, registered by each 2D viewport and UV space for
 	// its lifetime; the view commands resolve the hovered area here at dispatch time (one hub for both
 	// surfaces).
@@ -172,6 +179,19 @@ fun EditorShell(
 		val cleanup = commandRegistry.registerAll(shellViewportCommands(areaCameras, hoveredSurface, service != null))
 		onDispose { cleanup() }
 	}
+	// The context-aware frame command - Blender's Home: Frame All in WHICHEVER editor the pointer is over.
+	// Registered here rather than in a command table because it dispatches THROUGH the registry to the
+	// command the hovered surface means, resolved at invocation time.
+	DisposableEffect(commandRegistry) {
+		val frameAll =
+			Command("frame.all", title = Res.string.cmd_frame_all) {
+				val target =
+					if (hoveredSurfaces.lastTouched?.kind == SpaceKind.KeyformSheet) "keyform.frameAll" else "view.fit"
+				commandRegistry.invoke(target)
+			}
+		commandRegistry.register(frameAll)
+		onDispose { commandRegistry.unregister(frameAll.id) }
+	}
 	val selection = LocalSelection.current
 	val editorMode = LocalEditorMode.current
 	DisposableEffect(commandRegistry, selection, editorMode) {
@@ -185,7 +205,11 @@ fun EditorShell(
 	DisposableEffect(commandRegistry, editorSession, selection, service) {
 		val activeViewportArea: () -> String? = { service?.activeAreaId }
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
-		val cleanup = commandRegistry.registerAll(shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface))
+		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
+		val cleanup =
+			commandRegistry.registerAll(
+				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, hoveredKeyable, keyformSheetViews),
+			)
 		onDispose { cleanup() }
 	}
 
@@ -243,6 +267,8 @@ fun EditorShell(
 				LocalMenuBarController provides menuBarController,
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
+				LocalKeyableHover provides keyableHover,
+				LocalKeyformSheetViews provides keyformSheetViews,
 				LocalRelationPick provides relationPick,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
 				LocalAreaCameraHub provides areaCameras,

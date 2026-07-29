@@ -12,7 +12,12 @@ class GluePair(
 	val weightB: Float,
 )
 
-/** A glue keyform: the weld [intensity] (0 = no weld, 1 = full) at one grid cell. */
+/**
+ * A glue keyform: the weld intensity (0 = no weld, 1 = full) at one grid cell.
+ *
+ * Retained as the CMO3 / MOC3 import intermediate; the model itself keys weld strength through
+ * [FormChannel.GLUE_INTENSITY] on [Glue.channelGrids].
+ */
 class GlueForm(val intensity: Float)
 
 /**
@@ -20,13 +25,15 @@ class GlueForm(val intensity: Float)
  * two skinned strips, a sleeve seam, …). It runs after both meshes are deformed: for each [GluePair]
  * each side slides toward the other by `weight · intensity` from the pre-blend positions -
  * `A' = A + (B−A)·wA·i`, `B' = B + (A−B)·wB·i`. Without it the welded strips drift apart into "two
- * copies". [intensity] is blended over its keyform grid (constant 1 when static).
+ * copies".
  *
- * グルー：変形後に2メッシュの継ぎ目頂点を溶接する。なければ継ぎ目が分離して二重像になる。
+ * Weld strength is the [FormChannel.GLUE_INTENSITY] track when one is keyed, else the static
+ * [intensity] - which is 1 (full weld) for a glue that was never animated.
  */
 class Glue(
 	val meshA: DrawableId,
 	val meshB: DrawableId,
 	val pairs: List<GluePair>,
-	val intensity: KeyformGrid<GlueForm>?,
+	val channelGrids: ChannelGrids = ChannelGrids.Empty,
+	val intensity: Float = 1f,
 )

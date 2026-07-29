@@ -1,17 +1,17 @@
 package org.umamo.render.eval
 
-import org.umamo.runtime.eval.blendScalarsFromCorners
-import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
+import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.RotationForm
+import org.umamo.runtime.model.RotationPivotForm
 
 /*
  * Blend-shape ("MorphTarget") evaluation: the additive pass applied on top of the multilinear
@@ -174,21 +174,15 @@ internal fun meshBlendState(
 			contributions.add(MeshBlendContribution(bindingIndex, key.keyIndex, form, key.weight))
 		}
 	}
-	// The reference is the grid form at the DEFAULT pose (E5): deltas vs the rest mesh plus the
-	// grid's scalar channels there. An ungridded drawable's reference is the rest state itself.
-	val grid = drawable.keyforms
-	val defaultCorners = grid?.let { gridCorners(it, defaultValue) }
-	val referenceScalars =
-		if (grid != null && defaultCorners != null) {
-			blendScalarsFromCorners(grid, defaultCorners)
-		} else {
-			null
-		}
+	// The reference is the entity's state at the DEFAULT pose (E5): geometry deltas vs the rest mesh,
+	// plus each scalar channel's own value there. An untracked or out-of-range channel resolves to the
+	// drawable's static, which for an imported drawable is Cubism's 500 / full opacity - the same
+	// fallbacks this used before the split, so the evaluator's subtraction still cancels exactly.
 	return MeshBlendState(
 		contributions = contributions,
 		referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue),
-		referenceDrawOrder = referenceScalars?.drawOrder ?: CUBISM_DEFAULT_DRAW_ORDER,
-		referenceOpacity = referenceScalars?.opacity ?: 1f,
+		referenceDrawOrder = drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue),
+		referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue),
 	)
 }
 
@@ -218,7 +212,7 @@ internal fun warpBlendDeltas(
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
 			if (reference == null) {
-				reference = warpControlPointsAt(warp.keyforms, defaultValue) ?: FloatArray(form.controlPoints.size)
+				reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(form.controlPoints.size)
 			}
 			val target = deltas ?: FloatArray(form.controlPoints.size).also { deltas = it }
 			for (componentIndex in target.indices) {
@@ -260,15 +254,17 @@ internal fun rotationBlendDeltas(
 	var angle = 0f
 	var scale = 0f
 	var contributed = false
-	var reference: RotationForm? = null
+	var reference: RotationPivotForm? = null
 	for (binding in rotation.blendShapes) {
 		val active =
 			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
 		for (key in active) {
 			val form = binding.forms[key.keyIndex] ?: continue
 			if (reference == null) {
-				reference = rotationFormAt(rotation.keyforms, defaultValue)
-					?: RotationForm(0f, 0f, 0f, 1f, flipX = false, flipY = false)
+				// The identity fallback mirrors the importer's, so the subtraction cancels exactly even for
+				// an unkeyed rotation. Flips are FLAG channels and never take part in a blend-shape delta.
+				reference = rotationFormAt(rotation.geometryGrid, defaultValue)
+					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			}
 			originX += key.weight * (form.originX - reference.originX)
 			originY += key.weight * (form.originY - reference.originY)

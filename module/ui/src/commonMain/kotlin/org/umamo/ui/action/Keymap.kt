@@ -160,65 +160,55 @@ val KEYMAP_PRESET_IDS: List<String> = listOf("default", "cubism", "blender")
  * primary modifier, so they hold across OSes and layouts.
  */
 private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Space" to "palette.toggle",
-		// Escape cancels the current transient interaction (today: an in-flight area corner drag).
 		"Escape" to "area.dragCancel",
-		// Tab toggles object/edit mode (Blender's convention; Edit mode is a stub in v1).
 		"Tab" to "mode.toggleEdit",
-		// Browser-style workspace navigation (Previous = Page Up, Next = Page Down).
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.saveAs",
-		// Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z); H toggles the selection's visibility (Blender's hide key).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
-		// Edit-mode modal mesh transforms (Blender G / S / R); each no-ops outside Edit mode with a
-		// selection. Unmodified, so no clash with primary+KeyS (saveAs).
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
 		"KeyR" to "mesh.rotate",
-		// Edit-mode select modes (Blender 1 / 2 / 3: vertex / edge / face); no-op outside Edit mode.
 		"Digit1" to "mesh.selectMode.vertex",
 		"Digit2" to "mesh.selectMode.edge",
 		"Digit3" to "mesh.selectMode.face",
-		// Selection operators (Blender A / Ctrl+I); mode-dispatched to mesh elements or whole objects. I is
-		// reserved for the inset operation, so Invert takes the primary modifier.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
-		// Box (B) and Circle (C) select tools; Zoom Region on Shift+B; numpad +/- resize the circle brush.
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.delete",
+		"Delete" to "keyform.deleteSelectedKeys",
+		"ArrowLeft" to "keyform.nudgeKeyLeft",
+		"ArrowRight" to "keyform.nudgeKeyRight",
+		// Context-aware, Blender's Home semantics: frames the hovered editor (keyform sheet → the keys,
+		// anything else → the viewport).
+		"Home" to "frame.all",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",
 		"NumpadAdd" to "mesh.circleSelect.grow",
 		"NumpadSubtract" to "mesh.circleSelect.shrink",
-		// The transform pivot pie (Blender's Period) and the snap pie (Blender's Shift+S).
 		"Period" to "transform.pivotPie",
 		"shift+KeyS" to "snap.pie",
-		// Select Linked (Blender's L under the cursor, Ctrl+L from the selection) and the Alt+Q
-		// edited-mesh switch; Frame Selected on the numpad period (Blender's framing key).
 		"KeyL" to "mesh.selectLinkedAtCursor",
 		"primary+KeyL" to "mesh.selectLinked",
 		"alt+KeyQ" to "edit.switchObjectUnderCursor",
 		"NumpadDecimal" to "view.frameSelected",
-		// The topology operators (Blender's Shift+D duplicate, M merge, V rip, J connect, Shift+V slide).
 		"shift+KeyD" to "mesh.duplicate",
 		"KeyM" to "mesh.merge",
 		"KeyV" to "mesh.rip",
 		"KeyJ" to "mesh.connect",
 		"shift+KeyV" to "mesh.vertexSlide",
-		// Proportional editing (Blender's O; Alt+O toggles Connected Only).
 		"KeyO" to "mesh.proportional.toggle",
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
-		// The viewport chrome toggles (Blender's T toolbar and N sidebar).
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
-		// The conventional Preferences shortcut (Ctrl+, / Cmd+,); opens the settings window.
 		"primary+Comma" to "edit.preferences",
-		// Photoshop / Cubism muscle memory for view navigation.
 		"primary+Digit0" to "view.fit",
 		"primary+Digit1" to "view.zoomActualSize",
 		"primary+Equals" to "view.zoomIn",
@@ -233,7 +223,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
  * canvas panning); fully rebindable in the keybindings editor.
  */
 private val CUBISM_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Escape" to "area.dragCancel",
 		"primary+PageUp" to "workspace.prev",
@@ -257,69 +247,84 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 
 /**
  * The "Blender-like" preset for migrants from Blender (whose editing model Umamo borrows).  A starting
- * point keyed to Blender muscle memory (operator search on F3, Frame All on Home for view.fit); fully
- * rebindable in the keybindings editor.
+ * point keyed to Blender muscle memory (operator search on F3, Frame All on Home - context-aware per
+ * hovered editor, exactly as in Blender); fully rebindable in the keybindings editor.
  */
 private val BLENDER_KEYMAP_SPECS: Map<String, String> =
-	mapOf(
+	presetSpecs(
 		"F3" to "palette.toggle",
 		"Escape" to "area.dragCancel",
-		// Tab toggles object/edit mode (Blender's convention; Edit mode is a stub in v1).
 		"Tab" to "mode.toggleEdit",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.saveAs",
-		// Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z); H hides the selection (Blender's hide key) as a toggle.
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
-		// Blender's mesh transform operators (Grab / Scale / Rotate) in Edit mode.
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
 		"KeyR" to "mesh.rotate",
-		// Blender's Edit-mode select modes (1 / 2 / 3: vertex / edge / face); no-op outside Edit mode.
 		"Digit1" to "mesh.selectMode.vertex",
 		"Digit2" to "mesh.selectMode.edge",
 		"Digit3" to "mesh.selectMode.face",
-		// Blender's selection operators (A select all, Ctrl+I invert), Box (B) / Circle (C) select, Zoom Region
-		// (Shift+B), and numpad +/- for the circle brush radius.
 		"KeyA" to "select.all",
 		"primary+KeyI" to "select.invert",
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.delete",
+		"Delete" to "keyform.deleteSelectedKeys",
+		"ArrowLeft" to "keyform.nudgeKeyLeft",
+		"ArrowRight" to "keyform.nudgeKeyRight",
 		"KeyB" to "mesh.boxSelect",
 		"KeyC" to "mesh.circleSelect",
 		"shift+KeyB" to "view.zoomRegion",
 		"NumpadAdd" to "mesh.circleSelect.grow",
 		"NumpadSubtract" to "mesh.circleSelect.shrink",
-		// Blender's pivot pie (Period) and snap pie (Shift+S).
 		"Period" to "transform.pivotPie",
 		"shift+KeyS" to "snap.pie",
-		// Blender's Select Linked (L / Ctrl+L), the Alt+Q object switch, and numpad-period framing.
 		"KeyL" to "mesh.selectLinkedAtCursor",
 		"primary+KeyL" to "mesh.selectLinked",
 		"alt+KeyQ" to "edit.switchObjectUnderCursor",
 		"NumpadDecimal" to "view.frameSelected",
-		// Blender's topology operators (Shift+D, M, V, J, Shift+V).
 		"shift+KeyD" to "mesh.duplicate",
 		"KeyM" to "mesh.merge",
 		"KeyV" to "mesh.rip",
 		"KeyJ" to "mesh.connect",
 		"shift+KeyV" to "mesh.vertexSlide",
-		// Blender's proportional editing (O; Alt+O toggles Connected Only).
 		"KeyO" to "mesh.proportional.toggle",
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
-		// Blender's chrome toggles (T toolbar, N sidebar).
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
 		"primary+Comma" to "edit.preferences",
-		// Blender frames all content with Home; the numpad . frames the selection (mapped to 1:1 here).
-		"Home" to "view.fit",
+		// Blender's Home is Frame All in WHICHEVER editor the pointer is over; one context-aware binding
+		// replaces the two colliding entries this map once held (mapOf kept the later one silently).
+		"Home" to "frame.all",
 		"primary+Digit1" to "view.zoomActualSize",
 		"Equals" to "view.zoomIn",
 		"shift+Equals" to "view.zoomInCoarse",
 		"Minus" to "view.zoomOut",
 		"shift+Minus" to "view.zoomOutCoarse",
 	)
+
+/**
+ * Builds a preset's chord-spec table, refusing duplicate chords.
+ *
+ * mapOf keeps the LAST duplicate pair silently - which is how the Blender preset once shipped with two
+ * Home bindings and one of them silently unbound, invisible even to the keybindings editor's conflict
+ * detection (it sees only the already-collapsed map).  Failing at build time turns the mistake into a
+ * test failure instead.
+ *
+ * @param Pair bindings The chord-spec to command-id pairs, in presentation order.
+ * @return Map The bindings as a map.
+ */
+private fun presetSpecs(vararg bindings: Pair<String, String>): Map<String, String> {
+	val byChord = LinkedHashMap<String, String>(bindings.size)
+	for ((chord, commandId) in bindings) {
+		val previous = byChord.put(chord, commandId)
+		require(previous == null) { "duplicate chord $chord: bound to both $previous and $commandId" }
+	}
+	return byChord
+}
 
 /**
  * The chord-spec → command-id bindings for the built-in preset [presetId], falling back to the default

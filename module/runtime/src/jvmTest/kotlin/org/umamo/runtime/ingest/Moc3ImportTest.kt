@@ -2,7 +2,9 @@ package org.umamo.runtime.ingest
 
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterLink
@@ -48,12 +50,12 @@ class Moc3ImportTest {
 		val totalVertices = puppet.drawables.sumOf { it.mesh?.vertexCount ?: 0 }
 		val totalPolygons = puppet.drawables.sumOf { it.mesh?.triangleCount ?: 0 }
 		println("[Umamo][moc3import] vertices=$totalVertices polygons=$totalPolygons")
-		val artInterpolations = puppet.drawables.sumOf { it.keyforms?.cells?.size ?: 0 }
+		val artInterpolations = puppet.drawables.sumOf { it.geometryGrid?.cells?.size ?: 0 }
 		val deformerInterpolations =
 			puppet.deformers.sumOf { deformer ->
 				when (deformer) {
-					is Deformer.Warp -> deformer.keyforms?.cells?.size ?: 0
-					is Deformer.Rotation -> deformer.keyforms?.cells?.size ?: 0
+					is Deformer.Warp -> deformer.geometryGrid?.cells?.size ?: 0
+					is Deformer.Rotation -> deformer.geometryGrid?.cells?.size ?: 0
 				}
 			}
 		println("[Umamo][moc3import] artInterpolations=$artInterpolations deformerInterpolations=$deformerInterpolations")
@@ -233,6 +235,28 @@ class Moc3ImportTest {
 					"${file.name}: driving parameter is BLEND_SHAPE-typed",
 				)
 			}
+			// The rotation forms' flips must pin the FLIP tracks' value at the default pose.  The statics are
+			// not lifted until compaction runs at the end of the import, so a form built from the statics
+			// would read constant false and silently un-mirror a reflected deformer's morph targets - the
+			// regression this block guards.  The count is printed so the gate's coverage stays visible.
+			var reflectedForms = 0
+			val defaultPose: (ParameterId) -> Float = { id -> defaultByParameter[id] ?: 0f }
+			for (rotation in puppet.deformers.filterIsInstance<Deformer.Rotation>()) {
+				val expectedFlipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, defaultPose)
+				val expectedFlipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, defaultPose)
+				for (binding in rotation.blendShapes) {
+					for (form in binding.forms) {
+						if (form == null) {
+							continue
+						}
+						assertEquals(expectedFlipX, form.flipX, "${file.name}: rotation blend form flipX pins the default-pose flip")
+						assertEquals(expectedFlipY, form.flipY, "${file.name}: rotation blend form flipY pins the default-pose flip")
+						if (form.flipX || form.flipY) {
+							reflectedForms++
+						}
+					}
+				}
+			}
 			val blendParameterCount = puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE }
 			val nonNeutralForms = allBindings.sumOf { binding -> binding.forms.count { it != null } }
 			val limitCurves = allBindings.sumOf { it.limits.size }
@@ -240,7 +264,7 @@ class Moc3ImportTest {
 			println(
 				"[moc3import] ${file.name}: blendParams=$blendParameterCount bindings=${allBindings.size} " +
 					"(drawable=${drawableBindings.size} warp=${warpBindings.size} rotation=${rotationBindings.size}) " +
-					"forms=$nonNeutralForms limits=$limitCurves points=$limitPoints",
+					"forms=$nonNeutralForms limits=$limitCurves points=$limitPoints reflectedForms=$reflectedForms",
 			)
 			// Goldens mirror Cmo3ImportTest.blendShapeBindingsAcrossCorpus (Model C's PART record
 			// excluded on both sides; MOC3 limit refs expand the dedup pool per record, one curve

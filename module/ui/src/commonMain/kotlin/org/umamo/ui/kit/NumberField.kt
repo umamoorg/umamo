@@ -51,6 +51,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -110,9 +112,11 @@ fun NumberField(
 	plain: Boolean = false,
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
+		keyState = keyState,
 		value = value,
 		range = range,
 		step = step,
@@ -146,6 +150,7 @@ fun NumberField(
  * @param Boolean plain When true, renders a bare type-in box only (the simple field).
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
+ * @param KeyedFieldState keyState The keyform state to tint the field's border with.
  */
 @Composable
 fun NumberField(
@@ -159,11 +164,13 @@ fun NumberField(
 	plain: Boolean = false,
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val floatRange = range.first.toFloat()..range.last.toFloat()
 	// A whole-domain endpoint means "unbounded", so a plain int clamp such as 0..Int.MAX_VALUE draws no fill.
 	val bounded = showFill && range.first > Int.MIN_VALUE && range.last < Int.MAX_VALUE
 	NumberFieldCore(
+		keyState = keyState,
 		value = value.toFloat(),
 		range = floatRange,
 		step = step.toFloat(),
@@ -213,6 +220,7 @@ private fun NumberFieldCore(
 	plain: Boolean,
 	enabled: Boolean,
 	stackPosition: StackPosition,
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
@@ -227,7 +235,15 @@ private fun NumberFieldCore(
 		if (enabled) {
 			NumberEntryField(display = format(value), shape = shape, modifier = modifier, commit = commitTyped)
 		} else {
-			NumberFieldDisplay(text = format(value), unitSuffix = unitSuffix, fillFraction = null, shape = shape, modifier = modifier, enabled = false)
+			NumberFieldDisplay(
+				text = format(value),
+				unitSuffix = unitSuffix,
+				fillFraction = null,
+				shape = shape,
+				modifier = modifier,
+				enabled = false,
+				keyState = keyState,
+			)
 		}
 		return
 	}
@@ -270,6 +286,10 @@ private fun NumberFieldCore(
 				dragValue = null
 			},
 			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
+			// Forwarded on the RESTING face, the one every real field shows: this is the border tint that
+			// warns a typed value is unkeyed and dies on the next scrub, and it once reached only the
+			// disabled-plain branch - so no enabled numeric field ever showed it.
+			keyState = keyState,
 		)
 	}
 }
@@ -308,6 +328,7 @@ private fun NumberFieldDisplay(
 	onScrub: (Float) -> Unit = {},
 	onScrubEnd: () -> Unit = {},
 	onStep: (Int) -> Unit = {},
+	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
@@ -324,7 +345,9 @@ private fun NumberFieldDisplay(
 				.height(NUMBER_FIELD_HEIGHT)
 				.clip(shape)
 				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
-				.border(1.dp, Color.Transparent, shape)
+				// The resting border is transparent by default, so the keyed tint is the whole signal rather
+				// than a recolour of something already there - an unkeyed field looks exactly as it did.
+				.border(1.dp, keyState.tint(colors) ?: Color.Transparent, shape)
 				.then(
 					if (!enabled) {
 						// A disabled field attaches no gesture or cursor affordance at all, so it cannot be

@@ -1,11 +1,17 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.eval.WeightedCell
-import org.umamo.runtime.eval.blendScalarsFromCorners
+import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.eval.scalarAt
+import org.umamo.runtime.eval.scalarOrNull
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
+import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
@@ -32,6 +38,15 @@ internal class DrawableDeformInputs(
 	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 	val blend: MeshBlendState? = null,
 )
+
+/**
+ * The corner set of an entity with no keyform grid: one full-weight corner into a cell map that holds
+ * nothing, so every blend contributes zero and the entity evaluates at its rest state.
+ *
+ * Shared rather than rebuilt per drawable per frame, and deliberately NOT an empty list - an empty corner
+ * set would make the weights sum to zero, which is a different thing entirely.
+ */
+private val REST_CORNERS: List<WeightedCell> = listOf(WeightedCell(0, 1f))
 
 /** A glue affecter with its pose-blended weld [intensity] already resolved, so the apply pass is param-free. */
 internal class GlueInputs(
@@ -67,30 +82,58 @@ internal class PoseDeformInputs(
  *
  * @param PuppetModel model      The rig.
  * @param Map         parameters Parameter id → value (partial; the rest default).
+ * @param Map         channelOverrides Pending unkeyed channel edits, which win over the stored value - how
+ *   a value the user typed but has not keyed shows in the viewport without entering the document.
  * @return PoseDeformInputs The backend-neutral per-pose inputs.
  */
-internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>): PoseDeformInputs {
+internal fun preparePose(
+	model: PuppetModel,
+	parameters: Map<ParameterId, Float>,
+	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+): PoseDeformInputs {
 	val defaults = model.parameters.associate { it.id to it.default }
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
 	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
-	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue)
+	// Null in the steady state (no pending unkeyed edit), so every lookup below short-circuits before
+	// constructing its KeyableTarget key - the per-frame path otherwise allocated a handful of key
+	// objects per entity purely to probe an empty map.
+	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
+	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
 	// A non-isolated part's opacity has no other home in the render pipeline (an isolated part applies
 	// its own at the composite pass), so cascade the product of each drawable's non-isolated ancestor
 	// part opacities into its drawable opacity below - the general Cubism part-opacity behavior.
-	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue)
+	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue, channelOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
-		val grid = drawable.keyforms ?: continue
 		if (drawable.mesh?.positions == null) {
 			continue
 		}
-		val corners = gridCorners(grid, paramValue)
+		// An UNKEYED drawable renders at its rest mesh rather than vanishing: one full-weight corner into
+		// an empty cell map contributes no deltas, and every blend site already treats a missing cell as a
+		// zero contribution. Null corners keep meaning HIDDEN (a pose outside a keyed grid's range), so
+		// "no grid" and "out of range" stay distinguishable - they are opposite outcomes.
+		val grid = drawable.geometryGrid
+		val corners = if (grid != null) gridCorners(grid, paramValue) else REST_CORNERS
 		val parentDeformerId = drawable.parentDeformerId
 		val parentWorld = parentDeformerId?.let { deformerWorlds[it] }
-		val scalars = corners?.let { blendScalarsFromCorners(grid, it) }
 		val blend = meshBlendState(drawable, paramValue, defaultValue)
-		var drawOrder = scalars?.drawOrder ?: CUBISM_DEFAULT_DRAW_ORDER
-		var opacity = scalars?.opacity ?: 1f
+		// Each channel resolves against its own track and falls back to the drawable's static; a channel
+		// out of range never hides, which is the geometry grid's decision alone (corners == null above).
+		val drawableOwner = KeyformOwner.Drawable(drawable.id)
+		var drawOrder =
+			drawable.channelGrids.scalarAt(
+				FormChannel.DRAW_ORDER,
+				drawable.drawOrder,
+				paramValue,
+				overrides?.get(KeyableTarget(drawableOwner, FormChannel.DRAW_ORDER)),
+			)
+		var opacity =
+			drawable.channelGrids.scalarAt(
+				FormChannel.OPACITY,
+				drawable.opacity,
+				paramValue,
+				overrides?.get(KeyableTarget(drawableOwner, FormChannel.OPACITY)),
+			)
 		// Blend shapes: additive scalar deltas (opacity clamps to [0,1] AFTER summing; the Umamo C++
 		// Runtime rounds draw order (int)(0.001+v) at sort time - Umamo sorts floats, recorded in
 		// MOC3.md §5.6).
@@ -101,8 +144,20 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 			}
 			opacity = opacity.coerceIn(0f, 1f)
 		}
-		var multiplyColor = scalars?.multiplyColor ?: ColorRgb.MultiplyIdentity
-		var screenColor = scalars?.screenColor ?: ColorRgb.ScreenIdentity
+		var multiplyColor =
+			drawable.channelGrids.colorAt(
+				FormChannel.MULTIPLY_COLOR,
+				drawable.multiplyColor,
+				paramValue,
+				overrides?.get(KeyableTarget(drawableOwner, FormChannel.MULTIPLY_COLOR)),
+			)
+		var screenColor =
+			drawable.channelGrids.colorAt(
+				FormChannel.SCREEN_COLOR,
+				drawable.screenColor,
+				paramValue,
+				overrides?.get(KeyableTarget(drawableOwner, FormChannel.SCREEN_COLOR)),
+			)
 		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
 		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
@@ -147,7 +202,13 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 				meshA = glue.meshA,
 				meshB = glue.meshB,
 				pairs = glue.pairs,
-				intensity = glue.intensity?.let { sampleGlueIntensity(it, paramValue) } ?: 1f,
+				intensity =
+					glue.channelGrids.scalarAt(
+						FormChannel.GLUE_INTENSITY,
+						glue.intensity,
+						paramValue,
+						overrides?.get(KeyableTarget(KeyformOwner.Glue(glue.meshA, glue.meshB), FormChannel.GLUE_INTENSITY)),
+					),
 			)
 		}
 	// Blend each group's (animated) part draw order, so the renderer can position whole groups per
@@ -160,15 +221,43 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
 
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
-		val grid = group.formGrid
-		if (partId != null && grid != null) {
-			samplePartDrawOrder(grid, paramValue)?.let { partDrawOrders[partId] = it }
+		val channels = group.channelGrids
+		val partOwner = partId?.let { KeyformOwner.Part(it) }
+		if (partId != null && partOwner != null) {
+			// Left ABSENT when the part has no draw-order track or the pose is out of its range, so the
+			// renderer keeps the part's static slot - the map's sparseness is the signal.
+			channels
+				.scalarOrNull(
+					FormChannel.DRAW_ORDER,
+					paramValue,
+					overrides?.get(KeyableTarget(partOwner, FormChannel.DRAW_ORDER)),
+				)?.let { partDrawOrders[partId] = it }
 		}
 		val composite = group.composite
 		if (partId != null && composite != null) {
+			// Each composite channel resolves independently against its own static, so an isolated part
+			// can key opacity alone without dragging its tints onto the same axes.
 			partCompositeStates[partId] =
-				grid?.let { samplePartRenderState(it, paramValue) }
-					?: PartRenderState(composite.opacity, composite.multiplyColor, composite.screenColor)
+				PartRenderState(
+					channels.scalarAt(
+						FormChannel.OPACITY,
+						composite.opacity,
+						paramValue,
+						partOwner?.let { owner -> overrides?.get(KeyableTarget(owner, FormChannel.OPACITY)) },
+					),
+					channels.colorAt(
+						FormChannel.MULTIPLY_COLOR,
+						composite.multiplyColor,
+						paramValue,
+						partOwner?.let { owner -> overrides?.get(KeyableTarget(owner, FormChannel.MULTIPLY_COLOR)) },
+					),
+					channels.colorAt(
+						FormChannel.SCREEN_COLOR,
+						composite.screenColor,
+						paramValue,
+						partOwner?.let { owner -> overrides?.get(KeyableTarget(owner, FormChannel.SCREEN_COLOR)) },
+					),
+				)
 		}
 		for (child in group.children) {
 			if (child is RenderGroup) {
@@ -191,13 +280,25 @@ internal fun preparePose(model: PuppetModel, parameters: Map<ParameterId, Float>
  * @param Function    paramValue Current value for a given parameter id.
  * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
  */
-internal fun foldNonIsolatedPartOpacity(model: PuppetModel, paramValue: (ParameterId) -> Float): Map<DrawableId, Float> {
+internal fun foldNonIsolatedPartOpacity(
+	model: PuppetModel,
+	paramValue: (ParameterId) -> Float,
+	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+): Map<DrawableId, Float> {
 	val partById = model.parts.associateBy { it.id }
 	val result = HashMap<DrawableId, Float>()
+	// Null in the steady state, so the per-part lookup below allocates nothing (see preparePose).
+	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
 
-	// A part's pose-blended opacity: the keyformed grid when it has one, else the static PartComposite
+	// A part's pose-blended opacity: its opacity track when it has one, else the static PartComposite
 	// value (populated from the neutral keyform on ingest, so it holds the authored opacity either way).
-	fun partOpacity(part: Part): Float = part.formGrid?.let { samplePartOpacity(it, paramValue) } ?: part.composite.opacity
+	fun partOpacity(part: Part): Float =
+		part.channelGrids.scalarAt(
+			FormChannel.OPACITY,
+			part.composite.opacity,
+			paramValue,
+			overrides?.get(KeyableTarget(KeyformOwner.Part(part.id), FormChannel.OPACITY)),
+		)
 
 	fun walk(children: List<OrgChild>, inheritedOpacity: Float) {
 		for (child in children) {
@@ -240,10 +341,10 @@ internal fun applyCpuDeform(model: PuppetModel, inputs: PoseDeformInputs): Defor
 			continue
 		}
 		val drawable = drawableById[drawableInputs.drawableId] ?: continue
-		val grid = drawable.keyforms ?: continue
 		val base = drawable.mesh?.positions ?: continue
+		// A null grid is an unkeyed drawable, which deforms to its rest mesh - see preparePose.
 		worldPositions[drawableInputs.drawableId] =
-			deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, drawableInputs.blend)
+			deformMeshWorldFromCorners(drawable.geometryGrid, base, corners, drawableInputs.parentWorld, drawableInputs.blend)
 		drawOrders[drawableInputs.drawableId] = drawableInputs.drawOrder
 		opacities[drawableInputs.drawableId] = drawableInputs.opacity
 	}

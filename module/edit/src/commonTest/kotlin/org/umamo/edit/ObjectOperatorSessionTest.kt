@@ -29,10 +29,10 @@ class ObjectOperatorSessionTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
-			keyforms = null,
+			geometryGrid = null,
 		)
 
-	private val warp = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, keyforms = null)
+	private val warp = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)
 
 	private fun model(): PuppetModel =
 		PuppetModel(

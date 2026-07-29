@@ -6,11 +6,14 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.ingest.Moc3Import
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -138,12 +141,13 @@ class Moc3Cmo3ParityTest {
 
 			compareMeshKeyforms(
 				drawableId,
-				cmo3Drawable.keyforms,
+				cmo3Drawable.geometryGrid,
 				cmo3Mesh.positions,
-				moc3Drawable.keyforms,
+				moc3Drawable.geometryGrid,
 				moc3Mesh.positions,
 				keyformTolerance(moc3Drawable.parentDeformerId),
 			)
+			compareMeshChannels(drawableId, cmo3Drawable.channelGrids, moc3Drawable.channelGrids)
 		}
 		println("[Umamo][parity] compared $comparedVertices rest vertices, max delta $maxRestDelta px")
 		assertTrue(
@@ -167,11 +171,12 @@ class Moc3Cmo3ParityTest {
 	 * @param FloatArray   moc3Base   The MOC3 rest positions.
 	 * @param Float        tolerance  The per-coordinate tolerance in the drawable's parent space.
 	 */
+
 	private fun compareMeshKeyforms(
 		drawableId: DrawableId,
-		cmo3Grid: KeyformGrid<MeshForm>?,
+		cmo3Grid: KeyformGrid<MeshDeltaForm>?,
 		cmo3Base: FloatArray,
-		moc3Grid: KeyformGrid<MeshForm>?,
+		moc3Grid: KeyformGrid<MeshDeltaForm>?,
 		moc3Base: FloatArray,
 		tolerance: Float,
 	) {
@@ -184,11 +189,6 @@ class Moc3Cmo3ParityTest {
 		val moc3Cells = moc3Grid.cells.associateBy { cell -> cell.coordinate.toList() }
 		for (cmo3Cell in cmo3Grid.cells) {
 			val moc3Cell = moc3Cells[cmo3Cell.coordinate.toList()] ?: error("moc3 ${drawableId.raw} misses cell ${cmo3Cell.coordinate.toList()}")
-			assertEquals(cmo3Cell.form.drawOrder, moc3Cell.form.drawOrder, "draw order of ${drawableId.raw}@${cmo3Cell.coordinate.toList()}")
-			assertTrue(
-				abs(cmo3Cell.form.opacity - moc3Cell.form.opacity) <= 0.001f,
-				"opacity of ${drawableId.raw}@${cmo3Cell.coordinate.toList()}",
-			)
 			val cmo3Deltas = cmo3Cell.form.positionDeltas
 			val moc3Deltas = moc3Cell.form.positionDeltas
 			assertEquals(cmo3Deltas.size, moc3Deltas.size, "delta array of ${drawableId.raw}")
@@ -199,6 +199,34 @@ class Moc3Cmo3ParityTest {
 					abs(cmo3Absolute - moc3Absolute) <= tolerance,
 					"keyform position of ${drawableId.raw}@${cmo3Cell.coordinate.toList()}[$coordIndex]: " +
 						"cmo3=$cmo3Absolute moc3=$moc3Absolute",
+				)
+			}
+		}
+	}
+
+	/**
+	 * Asserts the two import paths agree on a drawable's scalar channel tracks, cell for cell.
+	 *
+	 * Draw order and opacity used to ride the geometry cell, so they were compared there; they are their
+	 * own tracks now, but the parity claim is unchanged - both paths must land on the same values.
+	 *
+	 * @param DrawableId drawableId The drawable under comparison (for failure messages).
+	 * @param ChannelGrids cmo3Channels The CMO3 import's tracks.
+	 * @param ChannelGrids moc3Channels The MOC3 import's tracks.
+	 */
+	private fun compareMeshChannels(drawableId: DrawableId, cmo3Channels: ChannelGrids, moc3Channels: ChannelGrids) {
+		for (channel in listOf(FormChannel.DRAW_ORDER, FormChannel.OPACITY)) {
+			val cmo3Track = cmo3Channels[channel] ?: continue
+			val moc3Track = moc3Channels[channel] ?: continue
+			val moc3Cells = moc3Track.cells.associateBy { cell -> cell.coordinate.toList() }
+			for (cmo3Cell in cmo3Track.cells) {
+				val coordinate = cmo3Cell.coordinate.toList()
+				val moc3Cell = moc3Cells[coordinate] ?: error("moc3 ${drawableId.raw} misses $channel cell $coordinate")
+				val cmo3Value = (cmo3Cell.form as ChannelValue.Scalar).value
+				val moc3Value = (moc3Cell.form as ChannelValue.Scalar).value
+				assertTrue(
+					abs(cmo3Value - moc3Value) <= 0.001f,
+					"$channel of ${drawableId.raw}@$coordinate: cmo3=$cmo3Value moc3=$moc3Value",
 				)
 			}
 		}
@@ -245,7 +273,7 @@ class Moc3Cmo3ParityTest {
 						assertEquals(cmo3Deformer.rows, mocWarp.rows, "warp rows above ${drawableId.raw}")
 						assertEquals(cmo3Deformer.columns, mocWarp.columns, "warp columns above ${drawableId.raw}")
 						assertEquals(cmo3Deformer.isQuadTransform, mocWarp.isQuadTransform, "warp mode above ${drawableId.raw}")
-						compareWarpGrids(drawableId, cmo3Deformer.keyforms, mocWarp.keyforms, spaceTolerance)
+						compareWarpGrids(drawableId, cmo3Deformer.geometryGrid, mocWarp.geometryGrid, spaceTolerance)
 					}
 					is Deformer.Rotation -> {
 						val mocRotation = moc3Deformer as? Deformer.Rotation ?: error("kind mismatch above ${drawableId.raw}")
@@ -272,8 +300,8 @@ class Moc3Cmo3ParityTest {
 	 */
 	private fun compareWarpGrids(
 		drawableId: DrawableId,
-		cmo3Grid: KeyformGrid<org.umamo.runtime.model.WarpForm>?,
-		moc3Grid: KeyformGrid<org.umamo.runtime.model.WarpForm>?,
+		cmo3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+		moc3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
 		tolerance: Float,
 	) {
 		if (cmo3Grid == null || moc3Grid == null) {
@@ -320,8 +348,8 @@ class Moc3Cmo3ParityTest {
 		moc3Rotation: Deformer.Rotation,
 		tolerance: Float,
 	): Float {
-		val cmo3Grid = cmo3Rotation.keyforms ?: return 0f
-		val moc3Grid = moc3Rotation.keyforms ?: return 0f
+		val cmo3Grid = cmo3Rotation.geometryGrid ?: return 0f
+		val moc3Grid = moc3Rotation.geometryGrid ?: return 0f
 		// Hard-gate the grid shapes like compareMeshKeyforms does: silently skipping unmatched cells
 		// would report "max angle delta 0.0" for a systematically-wrong conversion.
 		assertEquals(
@@ -354,8 +382,22 @@ class Moc3Cmo3ParityTest {
 					"cmo3=$cmo3TotalAngle moc3=$moc3TotalAngle (sign convention?)",
 			)
 			assertTrue(abs(cmo3Cell.form.scale - moc3Cell.form.scale) <= 0.001f, "rotation scale above ${drawableId.raw}")
-			assertEquals(cmo3Cell.form.flipX, moc3Cell.form.flipX, "rotation flipX above ${drawableId.raw}")
-			assertEquals(cmo3Cell.form.flipY, moc3Cell.form.flipY, "rotation flipY above ${drawableId.raw}")
+		}
+		// Reflections are FLAG channel tracks now, not pivot-form fields, but the parity claim is the same:
+		// both import paths must land on the same flip at every cell.
+		for (flipChannel in listOf(FormChannel.FLIP_X, FormChannel.FLIP_Y)) {
+			val cmo3Flips = cmo3Rotation.channelGrids[flipChannel]
+			val moc3Flips = moc3Rotation.channelGrids[flipChannel]
+			if (cmo3Flips == null || moc3Flips == null) {
+				continue
+			}
+			val moc3FlipCells = moc3Flips.cells.associateBy { cell -> cell.coordinate.toList() }
+			for (cmo3Cell in cmo3Flips.cells) {
+				val moc3Cell =
+					moc3FlipCells[cmo3Cell.coordinate.toList()]
+						?: error("moc3 rotation above ${drawableId.raw} misses $flipChannel cell ${cmo3Cell.coordinate.toList()}")
+				assertEquals(cmo3Cell.form, moc3Cell.form, "rotation $flipChannel above ${drawableId.raw}")
+			}
 		}
 		return maxAngleDelta
 	}

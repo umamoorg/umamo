@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
@@ -10,8 +11,6 @@ import org.umamo.runtime.model.PuppetModel
  * so a `when` over a selection is exhaustive; adding a fourth selectable kind becomes a compile error
  * until handled everywhere. This is object-mode selection — whole entities, not their interior mesh
  * vertices or deformer control points (those belong to Edit mode, see [EditorMode]).
- *
- * 選択可能なリグ要素。パーツ・描画オブジェクト・デフォーマの3種に限定した型付き参照。
  */
 sealed interface SelectionTarget {
 	/** An organisational tree part. */
@@ -29,8 +28,6 @@ sealed interface SelectionTarget {
  * last target the user added, which the Inspector features when several are selected and which anchors
  * future range operations. The active target is always a member of [targets], or null when the
  * selection is empty.
- *
- * オブジェクトモードの選択状態。選択集合とアクティブ（主）対象を保持する不変値。
  */
 data class Selection(
 	/** The selected targets, empty when nothing is selected. */
@@ -54,12 +51,72 @@ data class Selection(
 }
 
 /**
+ * The parameters currently targeted for keyform authoring: the selected set plus the active (primary) one.
+ *
+ * Separate from [Selection] because it addresses a different axis of the document - you pick WHICH OBJECT
+ * to key from the object selection, and WHICH PARAMETER to key it on from here, and the two move
+ * independently.  Held on the session rather than a panel's view state because it is shared: a keyform
+ * sheet in one area follows the parameter chosen in a parameters panel in another.
+ */
+data class ParameterSelection(
+	/** The selected parameters, empty when none is targeted. */
+	val ids: Set<ParameterId> = emptySet(),
+	/** The primary parameter (last added), or null when [ids] is empty. */
+	val active: ParameterId? = null,
+) {
+	/** True when no parameter is targeted. */
+	val isEmpty: Boolean get() = ids.isEmpty()
+
+	/**
+	 * Reports whether the given parameter is selected.
+	 *
+	 * @param ParameterId id The parameter to test.
+	 * @return Boolean True when [id] is selected.
+	 */
+	operator fun contains(id: ParameterId): Boolean = id in ids
+
+	companion object {
+		/**
+		 * A selection of just [id], the plain-click result.
+		 *
+		 * @param ParameterId id The sole parameter to select.
+		 * @return ParameterSelection A selection holding only [id], with it active.
+		 */
+		fun of(id: ParameterId): ParameterSelection = ParameterSelection(setOf(id), id)
+	}
+
+	/**
+	 * This selection with [id] toggled (a Shift or primary-modifier click, matching [SelectionOps.toggle]).
+	 *
+	 * @param ParameterId id The parameter to toggle.
+	 * @return ParameterSelection The resulting selection.
+	 */
+	fun toggled(id: ParameterId): ParameterSelection =
+		if (id in ids) {
+			val remaining = ids - id
+			ParameterSelection(remaining, remaining.lastOrNull())
+		} else {
+			ParameterSelection(ids + id, id)
+		}
+
+	/**
+	 * This selection with every parameter not in [surviving] dropped - applied after a parameter is
+	 * deleted, so the target can never dangle on an id the model no longer has.
+	 *
+	 * @param Set<ParameterId> surviving The parameter ids still present in the model.
+	 * @return ParameterSelection The pruned selection, or this when nothing was dropped.
+	 */
+	fun prunedTo(surviving: Set<ParameterId>): ParameterSelection {
+		val kept = ids intersect surviving
+		return if (kept.size == ids.size) this else ParameterSelection(kept, active?.takeIf { it in kept } ?: kept.lastOrNull())
+	}
+}
+
+/**
  * Pure transformations over a [Selection], one per selection gesture. Each returns a new immutable
  * [Selection] and never mutates its input, so they are trivially unit-testable without Compose or a
  * render context. The active target is maintained per the [Selection] invariant: it is always a member
  * of the result's targets, or null when the result is empty.
- *
- * 選択状態に対する純粋な変換。各ジェスチャに1つ。入力を変更せず新しい不変値を返す。
  */
 object SelectionOps {
 	/**

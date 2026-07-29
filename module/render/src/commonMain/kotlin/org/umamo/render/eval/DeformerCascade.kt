@@ -2,12 +2,19 @@ package org.umamo.render.eval
 
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.cellsByLinearIndex
+import org.umamo.runtime.eval.colorAt
+import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.eval.scalarAt
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import kotlin.math.atan2
 
@@ -171,6 +178,7 @@ internal fun buildDeformerWorlds(
 	deformers: List<Deformer>,
 	paramValue: (ParameterId) -> Float,
 	defaultValue: (ParameterId) -> Float = paramValue,
+	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
 ): Map<DeformerId, DeformerWorld> {
 	val worlds = HashMap<DeformerId, DeformerWorld>(deformers.size)
 	val ids = deformers.mapTo(HashSet()) { it.id }
@@ -188,7 +196,7 @@ internal fun buildDeformerWorlds(
 				continue
 			}
 			val parentWorld = parentId?.let { worlds[it] }
-			val world = buildDeformerWorld(deformer, paramValue, defaultValue, parentWorld)
+			val world = buildDeformerWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
 			if (world != null) {
 				worlds[deformer.id] = world
 				built = true
@@ -216,10 +224,11 @@ private fun buildDeformerWorld(
 	paramValue: (ParameterId) -> Float,
 	defaultValue: (ParameterId) -> Float,
 	parentWorld: DeformerWorld?,
+	channelOverrides: Map<KeyableTarget, ChannelValue>,
 ): DeformerWorld? =
 	when (deformer) {
-		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, defaultValue, parentWorld)
-		is Deformer.Rotation -> buildRotationWorld(deformer, paramValue, defaultValue, parentWorld)
+		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
+		is Deformer.Rotation -> buildRotationWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
 	}
 
 /**
@@ -236,8 +245,9 @@ private fun buildWarpWorld(
 	paramValue: (ParameterId) -> Float,
 	defaultValue: (ParameterId) -> Float,
 	parentWorld: DeformerWorld?,
+	channelOverrides: Map<KeyableTarget, ChannelValue>,
 ): DeformerWorld? {
-	val grid = warp.keyforms ?: return null
+	val grid = warp.geometryGrid ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
 	val pointCount = (warp.rows + 1) * (warp.columns + 1)
@@ -256,31 +266,28 @@ private fun buildWarpWorld(
 			cp[coordIndex] += deltas[coordIndex]
 		}
 	}
-	// The render channels ride the SAME corner weights as the control points - blended, never snapped
-	// to the nearest key, or they step instead of fading at mid-parameter values.
-	var localOpacity = 0f
-	var localMultiplyRed = 0f
-	var localMultiplyGreen = 0f
-	var localMultiplyBlue = 0f
-	var localScreenRed = 0f
-	var localScreenGreen = 0f
-	var localScreenBlue = 0f
-	for (corner in corners) {
-		val form = cells[corner.linearIndex]?.form ?: continue
-		localOpacity += corner.weight * form.opacity
-		localMultiplyRed += corner.weight * form.multiplyColor.red
-		localMultiplyGreen += corner.weight * form.multiplyColor.green
-		localMultiplyBlue += corner.weight * form.multiplyColor.blue
-		localScreenRed += corner.weight * form.screenColor.red
-		localScreenGreen += corner.weight * form.screenColor.green
-		localScreenBlue += corner.weight * form.screenColor.blue
-	}
+	// The render channels are blended, never snapped to the nearest key, or they step instead of fading
+	// at mid-parameter values. Each track resolves its own corners; pre-compaction those are the same
+	// corners in the same order as the control points', so the sums are unchanged.
+	// A constant null in the steady state (no pending edit), so the per-channel lookups below allocate
+	// no KeyableTarget keys on the per-frame path.
+	val warpOverride: (FormChannel) -> ChannelValue? =
+		if (channelOverrides.isEmpty()) {
+			{ null }
+		} else {
+			{ channel -> channelOverrides[KeyableTarget(KeyformOwner.Deformer(warp.id), channel)] }
+		}
 	val channels =
 		cascadeDeformerChannels(
 			DeformerChannels(
-				localOpacity,
-				ColorRgb(localMultiplyRed, localMultiplyGreen, localMultiplyBlue),
-				ColorRgb(localScreenRed, localScreenGreen, localScreenBlue),
+				warp.channelGrids.scalarAt(FormChannel.OPACITY, warp.opacity, paramValue, warpOverride(FormChannel.OPACITY)),
+				warp.channelGrids.colorAt(
+					FormChannel.MULTIPLY_COLOR,
+					warp.multiplyColor,
+					paramValue,
+					warpOverride(FormChannel.MULTIPLY_COLOR),
+				),
+				warp.channelGrids.colorAt(FormChannel.SCREEN_COLOR, warp.screenColor, paramValue, warpOverride(FormChannel.SCREEN_COLOR)),
 			),
 			parentWorld,
 		)
@@ -317,43 +324,47 @@ private fun buildRotationWorld(
 	paramValue: (ParameterId) -> Float,
 	defaultValue: (ParameterId) -> Float,
 	parentWorld: DeformerWorld?,
+	channelOverrides: Map<KeyableTarget, ChannelValue>,
 ): DeformerWorld? {
-	val grid = rotation.keyforms ?: return null
+	val grid = rotation.geometryGrid ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
 	val cells = cellsByLinearIndex(grid)
 	var originX = 0f
 	var originY = 0f
 	var scaleAccum = 0f
 	var angleAccum = 0f
-	// The render channels ride the SAME corner weights as the transform - blended, never snapped to
-	// the nearest key (unlike the flip flags below, which are not interpolable).
-	var localOpacity = 0f
-	var localMultiplyRed = 0f
-	var localMultiplyGreen = 0f
-	var localMultiplyBlue = 0f
-	var localScreenRed = 0f
-	var localScreenGreen = 0f
-	var localScreenBlue = 0f
 	for (corner in corners) {
 		val form = cells[corner.linearIndex]?.form ?: continue
 		originX += corner.weight * form.originX
 		originY += corner.weight * form.originY
 		scaleAccum += corner.weight * form.scale
 		angleAccum += corner.weight * form.angle
-		localOpacity += corner.weight * form.opacity
-		localMultiplyRed += corner.weight * form.multiplyColor.red
-		localMultiplyGreen += corner.weight * form.multiplyColor.green
-		localMultiplyBlue += corner.weight * form.multiplyColor.blue
-		localScreenRed += corner.weight * form.screenColor.red
-		localScreenGreen += corner.weight * form.screenColor.green
-		localScreenBlue += corner.weight * form.screenColor.blue
 	}
+	// The render channels blend, never snap to the nearest key (unlike the flip flags below, which are
+	// not interpolable and take the floor cell).
+	// A constant null in the steady state, so the lookups allocate nothing (see buildWarpWorld's note).
+	val rotationOverride: (FormChannel) -> ChannelValue? =
+		if (channelOverrides.isEmpty()) {
+			{ null }
+		} else {
+			{ channel -> channelOverrides[KeyableTarget(KeyformOwner.Deformer(rotation.id), channel)] }
+		}
 	val channels =
 		cascadeDeformerChannels(
 			DeformerChannels(
-				localOpacity,
-				ColorRgb(localMultiplyRed, localMultiplyGreen, localMultiplyBlue),
-				ColorRgb(localScreenRed, localScreenGreen, localScreenBlue),
+				rotation.channelGrids.scalarAt(FormChannel.OPACITY, rotation.opacity, paramValue, rotationOverride(FormChannel.OPACITY)),
+				rotation.channelGrids.colorAt(
+					FormChannel.MULTIPLY_COLOR,
+					rotation.multiplyColor,
+					paramValue,
+					rotationOverride(FormChannel.MULTIPLY_COLOR),
+				),
+				rotation.channelGrids.colorAt(
+					FormChannel.SCREEN_COLOR,
+					rotation.screenColor,
+					paramValue,
+					rotationOverride(FormChannel.SCREEN_COLOR),
+				),
 			),
 			parentWorld,
 		)
@@ -364,9 +375,9 @@ private fun buildRotationWorld(
 		scaleAccum += deltas.scale
 		angleAccum += deltas.angle
 	}
-	val snapForm = cells[corners[0].linearIndex]?.form
-	val flipX = snapForm?.flipX ?: false
-	val flipY = snapForm?.flipY ?: false
+	// Reflections snap to the floor cell (corner 0 is the all-lower-key corner), which is what flagAt does.
+	val flipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, paramValue, rotationOverride(FormChannel.FLIP_X))
+	val flipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, paramValue, rotationOverride(FormChannel.FLIP_Y))
 	val angleDegrees = rotation.baseAngle + angleAccum
 	val parentAccY = parentWorld?.accY ?: 1f
 	val scale = parentAccY * scaleAccum
@@ -435,7 +446,7 @@ private fun buildRotationWorld(
  * @param Function       paramValue Current value for a given parameter id.
  * @return FloatArray? World positions (interleaved x,y), or null when hidden.
  */
-internal fun deformMeshThroughParent(grid: KeyformGrid<MeshForm>, base: FloatArray, parent: DeformerWorld, paramValue: (ParameterId) -> Float): FloatArray? {
+internal fun deformMeshThroughParent(grid: KeyformGrid<MeshDeltaForm>, base: FloatArray, parent: DeformerWorld, paramValue: (ParameterId) -> Float): FloatArray? {
 	val local = sampleMeshLocal(grid, base, paramValue) ?: return null
 	val world = FloatArray(local.size)
 	val vertexCount = local.size / 2
@@ -460,7 +471,7 @@ internal fun deformMeshThroughParent(grid: KeyformGrid<MeshForm>, base: FloatArr
  * @return FloatArray World positions (interleaved x,y).
  */
 internal fun deformMeshWorldFromCorners(
-	grid: KeyformGrid<MeshForm>,
+	grid: KeyformGrid<MeshDeltaForm>?,
 	base: FloatArray,
 	corners: List<WeightedCell>,
 	parent: DeformerWorld?,

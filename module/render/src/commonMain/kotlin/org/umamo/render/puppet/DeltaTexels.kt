@@ -2,10 +2,11 @@ package org.umamo.render.puppet
 
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.eval.meshGridDefaultDeltas
+import org.umamo.runtime.keyform.cellCount
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 
 /**
@@ -15,10 +16,14 @@ import org.umamo.runtime.model.ParameterId
  * (the same index [org.umamo.runtime.eval.WeightedCell.linearIndex] carries, which is how the vertex
  * shader's active corners find their column).
  *
- * @param KeyformGrid grid The mesh's keyform grid.
- * @return Int The cell count, floored at 1 so an axis-less grid still gets its single rest cell.
+ * A null grid is an UNKEYED drawable and gets a single column, which the texel build fills with zeros -
+ * so the shader fetches column 0 at full weight and reads no offset, leaving the mesh at rest.  That is
+ * what lets an unkeyed drawable render with no shader, uniform-layout, or RenderDevice change at all.
+ *
+ * @param KeyformGrid? grid The mesh's keyform grid, or null when the drawable is unkeyed.
+ * @return Int The cell count, floored at 1 so an axis-less or absent grid still gets its single rest cell.
  */
-internal fun keyformCellCount(grid: KeyformGrid<MeshForm>): Int = maxOf(1, grid.axes.fold(1) { count, axis -> count * axis.keys.size })
+internal fun keyformCellCount(grid: KeyformGrid<MeshDeltaForm>?): Int = maxOf(1, grid?.cellCount ?: 1)
 
 /**
  * Builds a mesh's per-keyform-cell vertex deltas as RG texels: row = vertex id, column = cell linear
@@ -33,7 +38,8 @@ internal fun keyformCellCount(grid: KeyformGrid<MeshForm>): Int = maxOf(1, grid.
  * i.e. that cell leaves the vertex at its rest position.  Both cases are reachable in real models, so
  * they are a normal absence rather than an error.
  *
- * @param KeyformGrid grid        The mesh's keyform grid.
+ * @param KeyformGrid? grid       The mesh's keyform grid, or null when the drawable is unkeyed (which
+ *   yields an all-zero single column - the rest mesh).
  * @param Int         vertexCount The mesh's vertex count (the texture height).
  * @param Int         cellCount   The grid's linear cell extent from [keyformCellCount] (the width).
  * @param Map         cells       The grid's cells by linear index; defaults to [cellsByLinearIndex] of
@@ -42,10 +48,10 @@ internal fun keyformCellCount(grid: KeyformGrid<MeshForm>): Int = maxOf(1, grid.
  * @return FloatArray The texels, row-major, length `vertexCount * cellCount * 2`.
  */
 internal fun buildDeltaTexels(
-	grid: KeyformGrid<MeshForm>,
+	grid: KeyformGrid<MeshDeltaForm>?,
 	vertexCount: Int,
 	cellCount: Int,
-	cells: Map<Int, KeyformCell<MeshForm>> = cellsByLinearIndex(grid),
+	cells: Map<Int, KeyformCell<MeshDeltaForm>> = if (grid != null) cellsByLinearIndex(grid) else emptyMap(),
 ): FloatArray {
 	val texels = FloatArray(vertexCount * cellCount * 2)
 	var writeIndex = 0
@@ -129,12 +135,12 @@ internal fun blendColumnLayout(drawable: Drawable, cellCount: Int): BlendColumnL
  * @return FloatArray The texels, row-major, length `vertexCount * (cellCount + blendColumnCount) * 2`.
  */
 internal fun buildDeltaTexelsWithBlend(
-	grid: KeyformGrid<MeshForm>,
+	grid: KeyformGrid<MeshDeltaForm>?,
 	drawable: Drawable,
 	defaultValue: (ParameterId) -> Float,
 	vertexCount: Int,
 	layout: BlendColumnLayout,
-	cells: Map<Int, KeyformCell<MeshForm>> = cellsByLinearIndex(grid),
+	cells: Map<Int, KeyformCell<MeshDeltaForm>> = if (grid != null) cellsByLinearIndex(grid) else emptyMap(),
 ): FloatArray {
 	val width = layout.cellCount + layout.blendColumnCount
 	val texels = FloatArray(vertexCount * width * 2)

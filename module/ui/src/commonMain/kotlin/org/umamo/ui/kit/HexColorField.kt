@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
+import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -64,8 +66,16 @@ import kotlin.math.roundToInt
  * @param Modifier modifier      Layout modifier (the caller supplies the width).
  */
 @Composable
-fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+fun HexColorField(
+	value: String,
+	onValueChange: (String) -> Unit,
+	modifier: Modifier = Modifier,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+) {
 	val colors = LocalUmamoColors.current
+	// The keyed tint replaces the ordinary border rather than sitting beside it, so the state reads at a
+	// glance across a column of fields instead of needing a second mark to notice.
+	val borderColor = keyState.tint(colors) ?: colors.controlBorder
 	val shapes = LocalUmamoShapes.current
 	val controller = LocalInlineEditController.current
 	val focusManager = LocalFocusManager.current
@@ -73,10 +83,18 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 	var text by remember { mutableStateOf(value) }
 	var pickerOpen by remember { mutableStateOf(false) }
 
-	// While not editing, mirror the external value (another control or a re-read may change it); on focus
-	// loss this re-seeds the field from the last persisted value, discarding any invalid leftover text.
+	// Mirror the external value - and do it EVEN WHILE FOCUSED, because this field is not the only writer
+	// of what it shows.  The swatch's own picker, a parameter scrub moving a keyed channel, and undo all
+	// change the value underneath it; skipping the mirror while focused pinned the field to whatever it
+	// last held, and since nothing takes focus back off it, a keyed color stayed frozen on its first key
+	// forever while the viewport went on blending.
+	//
+	// The compare is on the PARSED color, not the text, and that is what keeps this from fighting the
+	// typist: the user's own keystroke round-trips out through onValueChange and comes back equal, so it
+	// re-seeds nothing.  Half-typed text that does not parse is left alone for the same reason.
 	LaunchedEffect(value, focused) {
-		if (!focused) {
+		val typed = parseHexColor(text)
+		if (!focused || (typed != null && typed != parseHexColor(value))) {
 			text = value
 		}
 	}
@@ -101,7 +119,7 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 						.size(18.dp)
 						.clip(shapes.small)
 						.background(swatchColor)
-						.border(1.dp, colors.controlBorder, shapes.small)
+						.border(1.dp, borderColor, shapes.small)
 						// Opens only.  It must NOT toggle: an outside-click dismiss fires first and closes the
 						// popover, and this click would then immediately reopen it, so the swatch could never
 						// be used to close.  Closing is the popup's own job (click-away or Escape).
@@ -144,7 +162,7 @@ fun HexColorField(value: String, onValueChange: (String) -> Unit, modifier: Modi
 					.weight(1f)
 					.clip(shapes.small)
 					.background(colors.controlBackground)
-					.border(1.dp, colors.controlBorder, shapes.small)
+					.border(1.dp, borderColor, shapes.small)
 					.padding(horizontal = 6.dp, vertical = 4.dp)
 					.onFocusChanged { focusState ->
 						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only

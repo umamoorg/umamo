@@ -85,6 +85,7 @@
 	<string name="dialog_close">閉じる</string>
 
 	<string name="cmd_view_fit">ビューをフィット</string>
+	<string name="cmd_frame_all">全体を表示</string>
 	<string name="cmd_view_actual_size">等倍 (100%)</string>
 	<string name="cmd_view_zoom_in">ズームイン</string>
 	<string name="cmd_view_zoom_out">ズームアウト</string>
@@ -138,6 +139,10 @@
 	<string name="history_deformer_rename">デフォーマ名を変更</string>
 	<string name="history_deformer_selectable">デフォーマの選択可否を切り替え</string>
 	<string name="history_deformer_move">デフォーマを移動</string>
+	<string name="history_keyform_insert">キーフレーム挿入</string>
+	<string name="history_keyform_move">キーフレーム移動</string>
+	<string name="history_keyform_remove">キーフレーム削除</string>
+	<string name="history_parameter_select">パラメータ選択</string>
 	<string name="history_parameter_value">パラメータを調整</string>
 	<string name="history_parameter_range">パラメータの範囲を編集</string>
 	<string name="history_parameter_link">パラメータをリンク</string>
@@ -415,6 +420,7 @@
 	<string name="parameter_menu_add_blendshape">ブレンドシェイプパラメータを追加</string>
 	<string name="parameter_menu_delete">パラメータを削除</string>
 	<string name="parameter_default_name">新規パラメータ</string>
+	<string name="parameter_filters">フィルター</string>
 	<string name="parameter_filter_selected">選択オブジェクトのパラメータのみ</string>
 	<string name="parameter_range_min">最小</string>
 	<string name="parameter_range_default">既定</string>
@@ -470,4 +476,29 @@
 	<string name="pick_hover_drawable">メッシュ: %1$s</string>
 	<string name="pick_hover_part">パーツ: %1$s</string>
 	<string name="pick_hover_deformer">デフォーマ: %1$s</string>
+	<string name="space_keyformsheet">キーフォームシート</string>
+	<string name="keyform_sheet_no_parameter">パラメータを選択するとトラックが表示されます</string>
+	<string name="keyform_sheet_no_tracks">このパラメータにはまだ何もキーされていません</string>
+	<string name="owner_kind_art_mesh">アートメッシュ</string>
+	<string name="owner_kind_warp_deformer">ワープデフォーマ</string>
+	<string name="owner_kind_rotation_deformer">回転デフォーマ</string>
+	<string name="owner_kind_part">パーツ</string>
+	<string name="owner_kind_glue">グルー</string>
+	<string name="track_geometry">ジオメトリ</string>
+	<string name="track_blend_shape">ブレンドシェイプ</string>
+	<string name="channel_draw_order">描画順</string>
+	<string name="channel_opacity">不透明度</string>
+	<string name="channel_multiply_color">乗算</string>
+	<string name="channel_screen_color">スクリーン</string>
+	<string name="channel_flip_x">X反転</string>
+	<string name="channel_flip_y">Y反転</string>
+	<string name="channel_glue_intensity">グルー強度</string>
+	<string name="cmd_keyform_insert">キーフレーム挿入</string>
+	<string name="cmd_keyform_frame_all">すべてのキーを表示</string>
+	<string name="cmd_keyform_nudge_left">キーフレームを左へ微調整</string>
+	<string name="cmd_keyform_nudge_right">キーフレームを右へ微調整</string>
+	<string name="cmd_keyform_delete_keys">選択したキーを削除</string>
+	<string name="cmd_keyform_delete">キーフレーム削除</string>
+	<string name="notice_keyform_no_target">キー可能なプロパティを指してください</string>
+	<string name="notice_keyform_no_parameter">キーを打つパラメータを選択してください</string>
 </resources>

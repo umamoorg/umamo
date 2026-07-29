@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,8 +41,18 @@ fun Text(
 	textAlign: TextAlign? = null,
 	maxLines: Int = Int.MAX_VALUE,
 	overflow: TextOverflow = TextOverflow.Clip,
+	onTextLayout: ((TextLayoutResult) -> Unit)? = null,
 ) {
 	val resolvedColor = color.takeOrElse { style.color.takeOrElse { LocalUmamoColors.current.text } }
 	val resolvedStyle = style.copy(color = resolvedColor, textAlign = textAlign ?: style.textAlign)
-	BasicText(text = text, modifier = modifier, style = resolvedStyle, maxLines = maxLines, overflow = overflow)
+	BasicText(
+		text = text,
+		modifier = modifier,
+		style = resolvedStyle,
+		// Reported so a caller can react to the MEASURED result - the only way to know a label was actually
+		// ellipsized, which is what decides whether a "show the full name" tooltip is noise or necessary.
+		onTextLayout = onTextLayout,
+		maxLines = maxLines,
+		overflow = overflow,
+	)
 }
