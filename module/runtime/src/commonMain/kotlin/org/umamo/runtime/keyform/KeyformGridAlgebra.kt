@@ -216,7 +216,7 @@ fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, ne
 	if (keyIndex < 0 || keyIndex >= keys.size) {
 		return null
 	}
-	var nearestOther = Float.NaN
+	var nearestIndex = -1
 	var nearestDistance = Float.MAX_VALUE
 	for (index in keys.indices) {
 		if (index == keyIndex) {
@@ -225,12 +225,13 @@ fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, ne
 		val distance = abs(keys[index] - newValue)
 		if (distance < nearestDistance) {
 			nearestDistance = distance
-			nearestOther = keys[index]
+			nearestIndex = index
 		}
 	}
-	if (nearestDistance >= EPS_SPAN || nearestOther.isNaN()) {
+	if (nearestDistance >= EPS_SPAN || nearestIndex < 0) {
 		return newValue
 	}
+	val nearestOther = keys[nearestIndex]
 	// Pushed to the side it was already approaching from, so the nudge never reverses the drag.
 	//
 	// A dead-on collision has no approach side, and resolving it by direction of travel would push a key
@@ -243,7 +244,38 @@ fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, ne
 		} else {
 			newValue < nearestOther
 		}
-	return if (approachingFromBelow) nearestOther - EPS_SPAN else nearestOther + EPS_SPAN
+	val nudged = if (approachingFromBelow) nearestOther - EPS_SPAN else nearestOther + EPS_SPAN
+	// The nudge is measured against the NEAREST key only, so on a crowded axis it can land right on top of
+	// the next one along - and two axis keys closer than EPS_SPAN is precisely the unresolvable span this
+	// function exists to prevent (bindBracket gives such a span fraction 0, making the upper key
+	// unreachable).  Rather than hunt for a gap that may not exist, refuse: a move that cannot be made
+	// resolvable is better left undone than made silently wrong.
+	return if (collidesBeyond(keys, keyIndex, nearestIndex, nudged)) null else nudged
+}
+
+/**
+ * Whether [value] lands unresolvably close to a key OTHER than [keyIndex] and [nudgedOffIndex].
+ *
+ * Both exclusions are necessary and neither is slack.  A key cannot collide with itself, and the key the
+ * nudge was measured off is EPS_SPAN away BY CONSTRUCTION - but `nearest ± EPS_SPAN` is computed in float32
+ * and rounds, so testing it would reject the very destination just derived.  Every other key is a real
+ * collision: the nudge only ever consults the NEAREST key, so on a crowded axis it can land right on top of
+ * the next one along, and two keys closer than EPS_SPAN is the unresolvable span this all exists to
+ * prevent (bindBracket gives such a span fraction 0, making the upper key unreachable).
+ *
+ * @param FloatArray keys The axis's keys.
+ * @param Int keyIndex The key being moved.
+ * @param Int nudgedOffIndex The key the destination was pushed away from.
+ * @param Float value The candidate destination.
+ * @return Boolean True when the destination would be unresolvably close to some third key.
+ */
+private fun collidesBeyond(keys: FloatArray, keyIndex: Int, nudgedOffIndex: Int, value: Float): Boolean {
+	for (index in keys.indices) {
+		if (index != keyIndex && index != nudgedOffIndex && abs(keys[index] - value) < EPS_SPAN) {
+			return true
+		}
+	}
+	return false
 }
 
 /**

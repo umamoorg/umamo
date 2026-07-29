@@ -11,6 +11,9 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.multiplyColor
+import org.umamo.runtime.model.opacity
+import org.umamo.runtime.model.screenColor
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
@@ -466,7 +469,7 @@ fun PuppetModel.withDeformerPart(id: DeformerId, partId: PartId?): PuppetModel {
  * @return PuppetModel The model with that deformer's opacity updated, or [this] if nothing changed.
  */
 fun PuppetModel.withDeformerOpacity(id: DeformerId, opacity: Float): PuppetModel =
-	withDeformerRewritten(id, { deformer -> deformerOpacityOf(deformer) == opacity }) { deformer ->
+	withDeformerRewritten(id, { deformer -> deformer.opacity == opacity }) { deformer ->
 		when (deformer) {
 			is Deformer.Warp -> deformer.copy(opacity = opacity)
 			is Deformer.Rotation -> deformer.copy(opacity = opacity)
@@ -482,7 +485,7 @@ fun PuppetModel.withDeformerOpacity(id: DeformerId, opacity: Float): PuppetModel
  * @return PuppetModel The model with that deformer's multiply color updated, or [this] if unchanged.
  */
 fun PuppetModel.withDeformerMultiplyColor(id: DeformerId, color: ColorRgb): PuppetModel =
-	withDeformerRewritten(id, { deformer -> deformerMultiplyColorOf(deformer) == color }) { deformer ->
+	withDeformerRewritten(id, { deformer -> deformer.multiplyColor == color }) { deformer ->
 		when (deformer) {
 			is Deformer.Warp -> deformer.copy(multiplyColor = color)
 			is Deformer.Rotation -> deformer.copy(multiplyColor = color)
@@ -498,7 +501,7 @@ fun PuppetModel.withDeformerMultiplyColor(id: DeformerId, color: ColorRgb): Pupp
  * @return PuppetModel The model with that deformer's screen color updated, or [this] if unchanged.
  */
 fun PuppetModel.withDeformerScreenColor(id: DeformerId, color: ColorRgb): PuppetModel =
-	withDeformerRewritten(id, { deformer -> deformerScreenColorOf(deformer) == color }) { deformer ->
+	withDeformerRewritten(id, { deformer -> deformer.screenColor == color }) { deformer ->
 		when (deformer) {
 			is Deformer.Warp -> deformer.copy(screenColor = color)
 			is Deformer.Rotation -> deformer.copy(screenColor = color)
@@ -530,27 +533,6 @@ fun PuppetModel.withDeformerFlipX(id: DeformerId, flip: Boolean): PuppetModel =
 fun PuppetModel.withDeformerFlipY(id: DeformerId, flip: Boolean): PuppetModel =
 	withDeformerRewritten(id, { deformer -> deformer !is Deformer.Rotation || deformer.flipY == flip }) { deformer ->
 		(deformer as Deformer.Rotation).copy(flipY = flip)
-	}
-
-/** A deformer's static opacity, whichever subtype it is. */
-private fun deformerOpacityOf(deformer: Deformer): Float =
-	when (deformer) {
-		is Deformer.Warp -> deformer.opacity
-		is Deformer.Rotation -> deformer.opacity
-	}
-
-/** A deformer's static multiply color, whichever subtype it is. */
-private fun deformerMultiplyColorOf(deformer: Deformer): ColorRgb =
-	when (deformer) {
-		is Deformer.Warp -> deformer.multiplyColor
-		is Deformer.Rotation -> deformer.multiplyColor
-	}
-
-/** A deformer's static screen color, whichever subtype it is. */
-private fun deformerScreenColorOf(deformer: Deformer): ColorRgb =
-	when (deformer) {
-		is Deformer.Warp -> deformer.screenColor
-		is Deformer.Rotation -> deformer.screenColor
 	}
 
 /**

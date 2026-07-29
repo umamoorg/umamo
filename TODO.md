@@ -97,18 +97,22 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Keyform Sheet Related
 	* Background highlight in property controls instead of the border highlight.
 
-# Parameters
+## Parameters
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 
-# Button UI
+## Keyform Sheet
+* Bugs
+	* If I drag multiple selected marks all the way to the edge over top, for example, the left edge marks when undoing the selection becomes the original selection minus the ones that overlapped the edge marks.
+
+## Button UI
 * Needs a click action, either a background color change or movement.
 
-# Tooltips
+## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
 * Anywhere that we are using semantics/contentDescription we need to have a Tooltip as well.
 
-# DRY
+## DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 * Refactor ShellCommands.kt to split it out.  See KeyformCommands.kt as an example.
 

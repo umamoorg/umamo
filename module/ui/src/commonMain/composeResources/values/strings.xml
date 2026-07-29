@@ -223,7 +223,7 @@
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parts</string>
 	<string name="outliner_filter_deformers">Deformers</string>
-	<string name="outliner_filter_drawables">Art Meshes</string>
+	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_filters">Filters</string>
 	<string name="outliner_restriction_toggles">Restriction Toggles</string>
 	<string name="outliner_column_selectable">Selectable Column</string>

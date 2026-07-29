@@ -186,8 +186,10 @@ data class TrackLaneHit(
  * @param Function selectedMarkDragDelta A domain offset drawn on every SELECTED mark while a group drag is
  *   in flight, so the rest of the selection travels with the one under the hand instead of jumping on
  *   release.  In this axis's own units; the owner converts, since only it knows what the group is being
- *   dragged along.  A LAMBDA, read inside the lane's draw: a plain Float would make every pointer frame of
- *   a drag recompose the whole sheet, where a read in the draw scope only redraws the lanes.
+ *   dragged along.  NULL means no group drag is in flight - distinct from 0f, which means one IS in flight
+ *   but has been clamped to a standstill, and in that case the mark under the hand must stop with the rest
+ *   instead of running on and snapping back.  A LAMBDA, read inside the lane's draw: a plain value would
+ *   make every pointer frame of a drag recompose the whole sheet, where a draw-scope read only redraws.
  * @param Function? laneMenuItems Builds the context-menu items for a lane hit; null disables the menu.
  * @param Function? labelMenuItems Builds the context-menu items for a row's LABEL cell; null disables it.
  *   Separate from [laneMenuItems] because the two halves of a row answer different questions - the lane is
@@ -212,7 +214,7 @@ fun TrackSheet(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)? = null,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
-	selectedMarkDragDelta: () -> Float = { 0f },
+	selectedMarkDragDelta: () -> Float? = { null },
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
@@ -467,7 +469,7 @@ fun TrackSheetBackdrop(labelColumnWidth: Dp, modifier: Modifier = Modifier) {
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDrag Invoked on every move of a mark drag.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
- * @param Function selectedMarkDragDelta The in-flight group-drag offset drawn on selected marks.
+ * @param Function selectedMarkDragDelta The in-flight group-drag offset drawn on selected marks; null for none.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? labelMenuItems Builds the label cell's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
@@ -487,7 +489,7 @@ private fun TrackSheetRow(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)?,
-	selectedMarkDragDelta: () -> Float,
+	selectedMarkDragDelta: () -> Float?,
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)?,
 	labelMenuItems: ((TrackRow) -> List<MenuItem>)?,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)?,
@@ -898,7 +900,7 @@ fun TrackSheetSeparatorOverlay(
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDrag Invoked on every move of a mark drag.
  * @param Function? onMarkDragEnd Invoked when a mark drag is released.
- * @param Function selectedMarkDragDelta The in-flight group-drag offset drawn on selected marks.
+ * @param Function selectedMarkDragDelta The in-flight group-drag offset drawn on selected marks; null for none.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  * @param Function? onLaneBounds Reports the lane's window bounds.
@@ -917,7 +919,7 @@ private fun TrackLane(
 	onTrackScrubEnd: ((TrackRow, Float) -> Unit)?,
 	onMarkDrag: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
 	onMarkDragEnd: ((TrackRow, TrackKeyMark, Float) -> Unit)? = null,
-	selectedMarkDragDelta: () -> Float = { 0f },
+	selectedMarkDragDelta: () -> Float? = { null },
 	laneMenuItems: ((TrackLaneHit) -> List<MenuItem>)? = null,
 	onLaneHover: ((TrackRow, TrackLaneHit?) -> Unit)? = null,
 	onLaneBounds: ((TrackRow, Rect) -> Unit)? = null,
@@ -1021,8 +1023,10 @@ private fun TrackLane(
 								return@awaitEachGesture
 							}
 							val pressedValue = domainAt(down.position.x, axis, size.width, markRadiusPx)
-							// Summary marks are drawn but not addressable, so a press on one falls through
-							// to the scrub path rather than starting a drag that could only guess.
+							// Summary marks ARE addressable (summarizedMarks keeps them editable and renumbers them to a
+							// summary ordinal), so a press on one starts a drag like any other; it is the owner that maps
+							// that ordinal back to the whole set of child keys beneath it.  Only a non-editable mark - a
+							// blend-shape binding - falls through to the scrub path.
 							val hitMark = nearestMark(editableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
 							var dragging = false
 							var releaseValue = pressedValue
@@ -1101,10 +1105,11 @@ private fun TrackLane(
 				// direct manipulation rather than as a jump on release.  A GROUP drag shifts every selected mark
 				// by the owner's offset instead - including the one under the hand, which is why that case is
 				// tested first: the group has already been clamped to its most constrained member, and letting the
-				// dragged mark run on past the rest would put back the snap the offset exists to remove.
+				// dragged mark run on past the rest would put back the snap the offset exists to remove - which is
+				// also why a group drag clamped to a standstill is a 0f offset and not a null one.
 				val drawnPosition =
 					when {
-						groupDelta != 0f && mark.selected -> mark.position + groupDelta
+						groupDelta != null && mark.selected -> mark.position + groupDelta
 						mark.keyIndex == draggingMark?.keyIndex -> dragDomainValue
 						else -> mark.position
 					}
@@ -1162,24 +1167,21 @@ private fun domainAt(x: Float, axis: TrackAxis, laneWidth: Int, markRadius: Floa
 }
 
 /**
- * The domain value at [offsetX] pixels across a lane [laneWidth] wide - the public inverse of the sheet's
- * own pixel mapping.
+ * The pixel x a mark at [domainValue] is drawn at, within a lane [laneWidth] wide.
  *
  * Exposed because anything resolving a region of the sheet back to keys (a marquee) has to use the SAME
- * mapping the marks were drawn with, including the end inset.  Re-deriving it would drift by exactly the
- * inset, which is the width of a mark.
+ * mapping the marks were drawn with, including the end inset.  Re-deriving it drifts by exactly the inset,
+ * which is the width of a mark - so this is the one definition, and [laneX] behind it is the one the marks
+ * themselves go through.
  *
- * @param TrackAxis axis The visible domain.
- * @param Float offsetX The pixel offset within the lane.
+ * @param TrackAxis axis The VISIBLE domain (a zoomed sheet passes its window's axis, not the full range).
+ * @param Float domainValue The mark's position.
  * @param Float laneWidth The lane's pixel width.
- * @param Dp markRadius The sheet's mark radius, which is also its end inset.
- * @return Float The domain value there.
+ * @param Float markRadiusPx The sheet's mark radius, which is also its end inset.
+ * @return Float The pixel offset within the lane.
  */
-@Composable
-fun laneDomainAt(axis: TrackAxis, offsetX: Float, laneWidth: Float, markRadius: Dp = TRACK_MARK_RADIUS): Float {
-	val markRadiusPx = with(LocalDensity.current) { markRadius.toPx() }
-	return domainAt(offsetX, axis, laneWidth.toInt(), markRadiusPx)
-}
+fun laneMarkOffsetX(axis: TrackAxis, domainValue: Float, laneWidth: Float, markRadiusPx: Float): Float =
+	laneX(axis.fractionOf(domainValue), laneWidth, markRadiusPx)
 
 /**
  * The pick radius for a mark, in DOMAIN units, so it stays a constant number of pixels however wide the

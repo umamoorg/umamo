@@ -30,8 +30,6 @@ private val ThumbnailCheckerCell = 6.dp
  * so the layer's silhouette reads against the surface; when it is null the slot is an empty box of the same
  * size, keeping label-only rows aligned with thumbnailed ones.
  *
- * アートメッシュのサムネイル枠。重なり選択ポップアップとアウトライナーのホバープレビューで共用。
- *
  * @param ImageBitmap? thumbnail The layer-art preview, or null for an untextured drawable.
  * @param Dp           size      The square edge of the slot.
  */

@@ -199,7 +199,7 @@
 	<string name="outliner_armature">アーマチュア</string>
 	<string name="outliner_filter_parts">パーツ</string>
 	<string name="outliner_filter_deformers">デフォーマ</string>
-	<string name="outliner_filter_drawables">アートメッシュ</string>
+	<string name="outliner_filter_drawables">ドローアブル</string>
 	<string name="outliner_filters">フィルター</string>
 	<string name="outliner_restriction_toggles">制限の切り替え</string>
 	<string name="outliner_column_selectable">選択可否列</string>
@@ -496,7 +496,7 @@
 	<string name="keyform_sheet_filter_blend_shapes">ブレンドシェイプトラック</string>
 	<string name="keyform_sheet_no_parameter">パラメータを選択するとトラックが表示されます</string>
 	<string name="keyform_sheet_no_tracks">このパラメータにはまだ何もキーされていません</string>
-	<string name="owner_kind_drawable">アートメッシュ</string>
+	<string name="owner_kind_drawable">ドローアブル</string>
 	<string name="owner_kind_warp_deformer">ワープデフォーマ</string>
 	<string name="owner_kind_rotation_deformer">回転デフォーマ</string>
 	<string name="owner_kind_part">パーツ</string>

@@ -17,8 +17,6 @@ import org.umamo.format.png.PngCodec
  * Lives in jvmAndroidMain (not commonMain) because [Cmo3Model] belongs to :format's JDOM-backed
  * codec, which is JVM-only API shared by the desktop-JVM and Android targets.
  *
- * CMO3: 各アートメッシュの GTexture2D.srcImageResource（共有アトラス）を一度だけデコードする。
- *
  * @param Cmo3Model model The loaded CMO3.
  * @return PuppetTextures The decoded atlas pages + per-drawable index.
  */

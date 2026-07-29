@@ -84,6 +84,8 @@ import org.umamo.ui.tracks.TrackSheetMarqueeOverlay
 import org.umamo.ui.tracks.TrackSheetSeparatorOverlay
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.tracks.TrackWindowScrollbar
+import org.umamo.ui.tracks.flattenTrackRows
+import org.umamo.ui.tracks.laneMarkOffsetX
 import org.umamo.ui.tracks.trackWindowGestures
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.HoveredSurface
@@ -250,6 +252,40 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			// selection harmless rather than dangerous.
 			val keyformSheetViews = LocalKeyformSheetViews.current
 			val currentProjections = rememberUpdatedState(projections)
+			// Dragging one mark of a multi-key selection drags the whole selection, which means resolving refs
+			// from EVERY section: a linked pad shows two, and one box select can enclose keys in both.  The
+			// section that owns the gesture sees only its own projection, so the resolution lives here and it
+			// is handed down as an action.
+			//
+			// PREVIEW then COMMIT, through the same clamp: while the pointer moves, the fraction is only
+			// recorded (the marks draw shifted by it and the model is untouched); on release it is applied as
+			// one undo step.  A per-move commit would push an undo entry per pixel, and a preview at the
+			// unclamped fraction would show the group travelling past the wall it is about to stop at.
+			// Reads the live projections holder rather than the composition's own `projections`, because the
+			// surface registered below captures this lambda once and must not go stale on the next edit.
+			val dragSelectedKeys: (Float, Boolean) -> Unit = { fraction, commit ->
+				val plan =
+					viewState.selectedKeys.mapNotNull { keyRef ->
+						val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
+						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
+							keyRef to Triple(track, entry.first, keyRef.keyIndex)
+						}
+					}
+				if (session == null || plan.isEmpty()) {
+					viewState.dragPreviewFraction = null
+				} else if (commit) {
+					viewState.dragPreviewFraction = null
+					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
+					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
+					// old ordinals would leave the selection on whichever keys took their places.
+					viewState.selectedKeys =
+						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
+							.toSet()
+				} else {
+					viewState.dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
+				}
+			}
+			val currentDragSelectedKeys = rememberUpdatedState(dragSelectedKeys)
 			DisposableEffect(keyformSheetViews, scope.areaId) {
 				if (keyformSheetViews == null) {
 					onDispose {}
@@ -270,40 +306,14 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							clearSelection = { viewState.selectedKeys = emptySet() },
 							frameAll = { viewState.window = TrackWindow.Full },
 							armBoxSelect = { viewState.boxSelectArmed = true },
+							boxSelectArmed = { viewState.boxSelectArmed },
+							disarmBoxSelect = { viewState.boxSelectArmed = false },
+							// The same path a mark drag commits through, so a nudge and a drag cannot disagree about
+							// clamping or about where the selection points afterwards.
+							nudgeSelection = { fraction -> currentDragSelectedKeys.value(fraction, true) },
 						)
 					keyformSheetViews.register(scope.areaId, surface)
 					onDispose { keyformSheetViews.unregister(scope.areaId, surface) }
-				}
-			}
-			// Dragging one mark of a multi-key selection drags the whole selection, which means resolving refs
-			// from EVERY section: a linked pad shows two, and one box select can enclose keys in both.  The
-			// section that owns the gesture sees only its own projection, so the resolution lives here and it
-			// is handed down as an action.
-			//
-			// PREVIEW then COMMIT, through the same clamp: while the pointer moves, the fraction is only
-			// recorded (the marks draw shifted by it and the model is untouched); on release it is applied as
-			// one undo step.  A per-move commit would push an undo entry per pixel, and a preview at the
-			// unclamped fraction would show the group travelling past the wall it is about to stop at.
-			val dragSelectedKeys: (Float, Boolean) -> Unit = { fraction, commit ->
-				val plan =
-					viewState.selectedKeys.mapNotNull { keyRef ->
-						val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
-						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
-							keyRef to Triple(track, entry.first, keyRef.keyIndex)
-						}
-					}
-				if (session == null || plan.isEmpty()) {
-					viewState.dragPreviewFraction = 0f
-				} else if (commit) {
-					viewState.dragPreviewFraction = 0f
-					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
-					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
-					// old ordinals would leave the selection on whichever keys took their places.
-					viewState.selectedKeys =
-						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
-							.toSet()
-				} else {
-					viewState.dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
 				}
 			}
 			// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
@@ -375,8 +385,9 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 								// each section converts with its own span - which is what keeps a linked pad's two axes moving
 								// together on screen despite unrelated ranges.
 								selectedMarkDragDelta = {
-									viewState.dragPreviewFraction *
-										(maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min))
+									viewState.dragPreviewFraction?.times(
+										maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min),
+									)
 								},
 								onLaneBounds = { row, bounds -> viewState.laneBounds[row.key] = bounds },
 							)
@@ -393,7 +404,16 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			TrackSheetMarqueeOverlay(
 				armed = viewState.boxSelectArmed,
 				onSelect = { region, additive ->
-					val enclosed = keysWithin(region, projections, viewState.laneBounds, markRadiusPx)
+					val enclosed =
+						keysWithin(
+							region,
+							projections,
+							viewState.laneBounds,
+							markRadiusPx,
+							viewState.window,
+							viewState.expandedKeys,
+							viewState.collapsedParameters,
+						)
 					viewState.selectedKeys = if (additive) viewState.selectedKeys + enclosed else enclosed
 				},
 				onDismiss = { viewState.boxSelectArmed = false },
@@ -474,7 +494,7 @@ private fun KeyformSheetSection(
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
 	onDragSelectedKeys: (Float, Boolean) -> Unit,
-	selectedMarkDragDelta: () -> Float,
+	selectedMarkDragDelta: () -> Float?,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
 ) {
 	val session = LocalEditorSession.current
@@ -494,7 +514,6 @@ private fun KeyformSheetSection(
 				kindLabel,
 			)
 		}
-	val ownerKindLabels = ownerKindLabels()
 	val deleteLabel = stringResource(Res.string.cmd_keyform_delete)
 	// The playhead follows the live scrub through snapshotFlow rather than a composition read:
 	// observedValues is one whole-map state replaced on every preview move of ANY parameter, so reading
@@ -799,73 +818,75 @@ private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<T
  * Resolved against the lanes' own reported bounds rather than computed from row heights: sections fold,
  * groups collapse, and the sheet scrolls, so the only reliable answer to "where is this row" is the one
  * the row gave during layout.  A mark counts when its lane overlaps the region vertically AND its drawn
- * position falls inside it horizontally, using the same pixel mapping the marks were drawn with.
+ * position falls inside it horizontally.
+ *
+ * Two things have to match what is ON SCREEN rather than what is in the model, or the marquee selects keys
+ * the user cannot see:
+ *
+ *   - The rows walked are the FLATTENED, currently-visible ones ([flattenTrackRows] with the sheet's own
+ *     expand state, skipping folded sections), not the whole tree.  laneBounds is never pruned - a lane
+ *     that leaves composition simply stops reporting - so a collapsed group's children keep their last
+ *     rectangles forever, and walking the tree blind would keep hitting them.
+ *   - The axis is the WINDOWED one, so a zoomed sheet maps a mark to the pixel it is actually drawn at.
+ *     The full-range axis put every mark at the wrong x the moment the sheet was not framed to the whole
+ *     domain.
  *
  * @param Rect region The marquee, in window coordinates.
  * @param List projections Each targeted parameter and its tracks.
  * @param Map laneBounds Each row key's last reported window bounds.
  * @param Float markRadiusPx The sheet's mark radius, which is also its lane end inset.
+ * @param TrackWindow window The visible slice of each parameter's range, shared by every section.
+ * @param Set<String> expandedKeys The open group rows, which decide which lanes exist.
+ * @param Set<ParameterId> collapsedParameters The folded sections, whose rows are not on screen at all.
+ * Internal rather than private so the resolution can be tested without a composition - it is pure over
+ * plain data, and both of its bugs (the un-windowed axis, the walk through collapsed rows) were invisible
+ * from outside it and neither showed up as a crash.
+ *
  * @return Set<TrackKeyRef> The enclosed keys.
  */
-private fun keysWithin(
+internal fun keysWithin(
 	region: Rect,
 	projections: List<Pair<Parameter, KeyformSheetProjection>>,
 	laneBounds: Map<String, Rect>,
 	markRadiusPx: Float,
+	window: TrackWindow,
+	expandedKeys: Set<String>,
+	collapsedParameters: Set<ParameterId>,
 ): Set<TrackKeyRef> {
 	val enclosed = mutableSetOf<TrackKeyRef>()
 	for ((parameter, projection) in projections) {
+		if (parameter.id in collapsedParameters) {
+			continue
+		}
 		val (domainStart, domainEnd) = parameterDomain(parameter)
-		for (row in projection.rows) {
+		val axis = window.axisOver(TrackAxis(domainStart, domainEnd))
+		for (line in flattenTrackRows(projection.rows, expandedKeys)) {
 			// Only rows with a track ref: a group header names an owner and a blend-shape row is not a
 			// keyform grid, so neither has keys a selection could act on.
-			collectRowsWithin(
-				row,
-				region,
-				laneBounds,
-				parameter,
-				domainStart,
-				domainEnd,
-				markRadiusPx,
-				projection,
-				enclosed,
-			)
+			val row = line.row
+			val bounds = laneBounds[row.key] ?: continue
+			if (!projection.tracksByRowKey.containsKey(row.key) || !bounds.overlapsVertically(region)) {
+				continue
+			}
+			for (mark in row.marks) {
+				// The same mapping the marks were drawn with, from the same function - re-deriving the end
+				// inset here is how a marquee drifts by exactly one mark width.
+				val drawnX = bounds.left + laneMarkOffsetX(axis, mark.position, bounds.width, markRadiusPx)
+				if (drawnX in region.left..region.right) {
+					enclosed.add(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
+				}
+			}
 		}
 	}
 	return enclosed
 }
 
-/** Walks [row] and its children, adding every enclosed key to [into]. */
-private fun collectRowsWithin(
-	row: TrackRow,
-	region: Rect,
-	laneBounds: Map<String, Rect>,
-	parameter: Parameter,
-	domainStart: Float,
-	domainEnd: Float,
-	markRadiusPx: Float,
-	projection: KeyformSheetProjection,
-	into: MutableSet<TrackKeyRef>,
-) {
-	val bounds = laneBounds[row.key]
-	if (bounds != null && projection.tracksByRowKey.containsKey(row.key) && bounds.overlapsVertically(region)) {
-		val usable = bounds.width - markRadiusPx * 2f
-		if (usable > 0f) {
-			val axis = TrackAxis(domainStart, domainEnd)
-			for (mark in row.marks) {
-				val drawnX = bounds.left + markRadiusPx + axis.fractionOf(mark.position) * usable
-				if (drawnX in region.left..region.right) {
-					into.add(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
-				}
-			}
-		}
-	}
-	for (child in row.children) {
-		collectRowsWithin(child, region, laneBounds, parameter, domainStart, domainEnd, markRadiusPx, projection, into)
-	}
-}
-
-/** Whether two rectangles share any vertical extent - the marquee's row test. */
+/**
+ * Whether two rectangles share any vertical extent - the marquee's row test.
+ *
+ * @param Rect other The rectangle to test against.
+ * @return Boolean True when their vertical extents overlap.
+ */
 private fun Rect.overlapsVertically(other: Rect): Boolean = top < other.bottom && bottom > other.top
 
 /** The centered muted notice shown when the sheet has nothing to draw. */

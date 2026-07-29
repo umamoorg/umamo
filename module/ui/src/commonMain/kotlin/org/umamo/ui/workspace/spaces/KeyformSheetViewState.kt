@@ -66,14 +66,18 @@ internal class KeyformSheetViewState {
 	var boxSelectArmed: Boolean by mutableStateOf(false)
 
 	/**
-	 * The in-flight group drag, as a signed fraction of each dragged key's parameter range, or 0 for none.
+	 * The in-flight group drag, as a signed fraction of each dragged key's parameter range, or NULL when
+	 * no group drag is in flight.
+	 *
+	 * Null rather than 0f for "none", because 0f is a real state: a group whose most constrained member is
+	 * already at its parameter's end clamps the whole drag to a standstill, and the mark under the hand
+	 * has to stop with the rest rather than run on to the pointer and snap back on release.
 	 *
 	 * Held on the SHEET rather than in the lane that owns the gesture because the selection it previews
 	 * spans rows and sections, and a lane knows only its own marks.  Already clamped to the group's most
-	 * constrained member (`limitedDragFraction`), so what is drawn is what the release will commit - a
-	 * preview at the raw fraction would show the marks running past a wall they are about to stop at.
+	 * constrained member (`limitedDragFraction`), so what is drawn is what the release will commit.
 	 */
-	var dragPreviewFraction: Float by mutableStateOf(0f)
+	var dragPreviewFraction: Float? by mutableStateOf(null)
 
 	/**
 	 * Where each lane sits, in WINDOW coordinates, so a marquee drawn over the whole scrolling sheet can

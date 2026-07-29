@@ -320,6 +320,7 @@ fun EditorShell(
 									dragController = dragController,
 									rowDragCancel = rowDragCancel,
 									relationPick = relationPick,
+									keyformSheets = keyformSheetViews,
 									commandRegistry = commandRegistry,
 									keymap = keymap,
 								)

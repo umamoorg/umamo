@@ -306,4 +306,28 @@ class KeyformGridAlgebraTest {
 		assertSame(before, before.withKeyMoved(angleX, keyIndex = 1, newValue = 5f))
 		assertSame(before, before.withKeyMoved(angleY, keyIndex = 0, newValue = 1f))
 	}
+
+	/**
+	 * The collision nudge never lands ON another key, even where the only gap is one it created itself.
+	 *
+	 * The nudge is measured against the NEAREST key, so on a crowded axis "nearest + EPS_SPAN" can be
+	 * exactly where the next key along already sits - and two keys closer than EPS_SPAN is the
+	 * unresolvable span the nudge exists to prevent (bindBracket gives such a span fraction 0, so the
+	 * upper key can never be reached).  A move that cannot be made resolvable is refused instead.
+	 */
+	@Test
+	fun theCollisionNudgeNeverLandsOnAnotherKey() {
+		val crowded = track(floatArrayOf(0f, EPS_SPAN, 10f), floatArrayOf(0f, 1f, 2f))
+		// Aimed just above the key at 0: the nearest is 0, so the nudge goes to 0 + EPS_SPAN - which is
+		// exactly the second key.
+		assertNull(
+			crowded.keyDestinationFor(angleX, keyIndex = 2, newValue = EPS_SPAN / 3f),
+			"nudging onto an existing key is refused rather than authored",
+		)
+		assertSame(crowded, crowded.withKeyMoved(angleX, keyIndex = 2, newValue = EPS_SPAN / 3f), "so the move is a no-op")
+
+		// The same axis still accepts a destination with room on both sides.
+		val moved = crowded.withKeyMoved(angleX, keyIndex = 2, newValue = 5f)
+		assertEquals(listOf(0f, EPS_SPAN, 5f), moved.axes.single().keys.toList())
+	}
 }

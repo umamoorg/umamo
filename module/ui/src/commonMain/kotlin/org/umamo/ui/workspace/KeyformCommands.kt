@@ -3,7 +3,6 @@ package org.umamo.ui.workspace
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.captureKeyOnTrack
-import org.umamo.edit.nudgeTrackKeys
 import org.umamo.edit.removeKeyOnTrack
 import org.umamo.edit.removeTrackKeys
 import org.umamo.ui.action.Command
@@ -77,14 +76,10 @@ internal fun shellKeyformCommands(
 			}
 		},
 		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = hasDocument) {
-			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.let { sheet ->
-				editorSession?.nudgeTrackKeys(sheet.selectedTracks(), -KEYFORM_NUDGE_FRACTION)
-			}
+			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.nudgeSelection(-KEYFORM_NUDGE_FRACTION)
 		},
 		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = hasDocument) {
-			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.let { sheet ->
-				editorSession?.nudgeTrackKeys(sheet.selectedTracks(), KEYFORM_NUDGE_FRACTION)
-			}
+			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.nudgeSelection(KEYFORM_NUDGE_FRACTION)
 		},
 		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = hasDocument) {
 			keyformSheets.resolve(hoveredSheetArea(hoveredSurface))?.frameAll?.invoke()

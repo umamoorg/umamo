@@ -15,6 +15,9 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.multiplyColor
+import org.umamo.runtime.model.opacity
+import org.umamo.runtime.model.screenColor
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -330,11 +333,11 @@ class PropertyScalarEditsTest {
 		val base = model()
 		for (id in listOf(rotationId, warpId)) {
 			val faded = base.withDeformerOpacity(id, 0.5f)
-			assertEquals(0.5f, deformerOpacity(faded, id), "opacity on $id")
+			assertEquals(0.5f, faded.deformerNamed(id).opacity, "opacity on $id")
 			val tinted = base.withDeformerMultiplyColor(id, ColorRgb(0.5f, 0.5f, 0.5f))
-			assertEquals(ColorRgb(0.5f, 0.5f, 0.5f), deformerMultiply(tinted, id), "multiply on $id")
+			assertEquals(ColorRgb(0.5f, 0.5f, 0.5f), tinted.deformerNamed(id).multiplyColor, "multiply on $id")
 			val screened = base.withDeformerScreenColor(id, ColorRgb(0.25f, 0f, 0f))
-			assertEquals(ColorRgb(0.25f, 0f, 0f), deformerScreen(screened, id), "screen on $id")
+			assertEquals(ColorRgb(0.25f, 0f, 0f), screened.deformerNamed(id).screenColor, "screen on $id")
 
 			assertSame(base, base.withDeformerOpacity(id, 1f), "the default opacity is already 1")
 		}
@@ -363,13 +366,13 @@ class PropertyScalarEditsTest {
 		session.setDeformerOpacity(rotationId, 0.5f)
 		session.setDeformerFlipX(rotationId, true)
 		assertEquals(0.25f, session.model.value.drawables.first().opacity)
-		assertEquals(0.5f, deformerOpacity(session.model.value, rotationId))
+		assertEquals(0.5f, session.model.value.deformerNamed(rotationId).opacity)
 
 		session.undo()
 		session.undo()
 		session.undo()
 		assertEquals(1f, session.model.value.drawables.first().opacity)
-		assertEquals(1f, deformerOpacity(session.model.value, rotationId))
+		assertEquals(1f, session.model.value.deformerNamed(rotationId).opacity)
 	}
 
 	/** A no-op setter records nothing, so an unchanged value cannot pad the history. */
@@ -381,24 +384,6 @@ class PropertyScalarEditsTest {
 		assertEquals(false, session.canUndo.value)
 	}
 
-	/** The deformer's opacity, whichever subtype it is. */
-	private fun deformerOpacity(puppet: PuppetModel, id: DeformerId): Float =
-		when (val deformer = puppet.deformers.first { candidate -> candidate.id == id }) {
-			is Deformer.Warp -> deformer.opacity
-			is Deformer.Rotation -> deformer.opacity
-		}
-
-	/** The deformer's multiply color, whichever subtype it is. */
-	private fun deformerMultiply(puppet: PuppetModel, id: DeformerId): ColorRgb =
-		when (val deformer = puppet.deformers.first { candidate -> candidate.id == id }) {
-			is Deformer.Warp -> deformer.multiplyColor
-			is Deformer.Rotation -> deformer.multiplyColor
-		}
-
-	/** The deformer's screen color, whichever subtype it is. */
-	private fun deformerScreen(puppet: PuppetModel, id: DeformerId): ColorRgb =
-		when (val deformer = puppet.deformers.first { candidate -> candidate.id == id }) {
-			is Deformer.Warp -> deformer.screenColor
-			is Deformer.Rotation -> deformer.screenColor
-		}
+	/** The deformer with [id], for reading a static through the sealed-type accessors. */
+	private fun PuppetModel.deformerNamed(id: DeformerId): Deformer = deformers.first { candidate -> candidate.id == id }
 }

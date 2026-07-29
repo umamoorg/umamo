@@ -93,13 +93,14 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 			SpaceKind.ToolDetails to
 				SpaceDescriptor(
 					SpaceKind.ToolDetails,
-					Res.string.space_tooldetails, LocalUmamoIcons.spaceTool
+					Res.string.space_tooldetails,
+					LocalUmamoIcons.spaceTool,
 				) { PlaceholderSpace(stringResource(Res.string.space_tooldetails)) },
 			SpaceKind.History to
 				SpaceDescriptor(
 					SpaceKind.History,
 					Res.string.space_history,
-					LocalUmamoIcons.spaceHistory
+					LocalUmamoIcons.spaceHistory,
 				) { HistorySpace() },
 			SpaceKind.Logs to
 				SpaceDescriptor(

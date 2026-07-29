@@ -292,33 +292,6 @@ private class KeyDrag(val track: KeyformTrackRef, val parameter: Parameter, val 
 }
 
 /**
- * Nudges every key in [keys] along its parameter by [fraction] of that parameter's range, as ONE undo step.
- *
- * Relative to each parameter's own range rather than an absolute step, because ranges differ by orders of
- * magnitude across a rig (an angle spans 60, an open/close spans 1) and one absolute step would be either
- * imperceptible on the first or catastrophic on the second.
- *
- * Applied in the direction of travel - keys nearest the destination first - so a run of keys shuffling the
- * same way cannot have an earlier one clamp against a neighbour that is about to move out of the way.
- *
- * @param List keys The (track, parameter, key ordinal) triples to nudge.
- * @param Float fraction The step as a signed fraction of each parameter's range.
- */
-fun EditorSession.nudgeTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float) {
-	if (keys.isEmpty() || fraction == 0f) {
-		return
-	}
-	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { model ->
-		val ordered = if (fraction > 0f) keys.sortedByDescending { it.third } else keys.sortedBy { it.third }
-		ordered.fold(model) { current, (track, parameter, keyIndex) ->
-			val currentValue = current.trackKeyValue(track, parameter, keyIndex) ?: return@fold current
-			val step = (parameter.max - parameter.min) * fraction
-			current.withTrackKeyMoved(track, parameter, keyIndex, clampToParameterRange(currentValue + step, parameter))
-		}
-	}
-}
-
-/**
  * The parameter value key [keyIndex] currently sits at on [track], or null when there is no such key.
  *
  * @param KeyformTrackRef track The track to read.

@@ -48,6 +48,7 @@ import org.umamo.ui.viewport.pieMenuEntriesFor
  * @param AreaDragController dragController The area drag state (an in-flight drag defers Escape to area.dragCancel).
  * @param RowDragCancelController rowDragCancel The panel row-drag seam (an in-flight row drag claims Escape).
  * @param RelationPickController relationPick The relation-pick seam (an armed eyedropper claims Escape).
+ * @param KeyformSheetViews keyformSheets The open keyform sheets (an armed marquee claims Escape).
  * @param CommandRegistry commandRegistry The registry modal picks and the fallthrough dispatch into.
  * @param Keymap keymap The active keymap for the fallthrough dispatch.
  * @return Boolean True when the event was consumed.
@@ -62,6 +63,7 @@ internal fun handleModalKeyLadder(
 	dragController: AreaDragController,
 	rowDragCancel: RowDragCancelController,
 	relationPick: RelationPickController,
+	keyformSheets: KeyformSheetViews,
 	commandRegistry: CommandRegistry,
 	keymap: Keymap,
 ): Boolean {
@@ -248,6 +250,13 @@ internal fun handleModalKeyLadder(
 		// An armed relation pick (a Properties field's eyedropper) owns Escape: cancel the pick before the
 		// clear-selection branch below, so abandoning a pick never also wipes the user's selection.  Like
 		// the zoom region this is mode-agnostic, and it resolves from the outliner as well as a viewport.
+		// An armed keyform-sheet marquee owns Escape, before the clear-selection branch below.  It hides
+		// the OS cursor while armed, so a mode with no way out leaves the pointer invisible over the
+		// sheet until the user happens to press and release somewhere.
+		isEscapeDown && keyformSheets.armedBoxSelect() != null -> {
+			keyformSheets.armedBoxSelect()?.disarmBoxSelect?.invoke()
+			true
+		}
 		isEscapeDown && relationPick.request != null -> {
 			relationPick.cancel()
 			true

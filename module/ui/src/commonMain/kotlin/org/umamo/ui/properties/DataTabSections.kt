@@ -40,6 +40,9 @@ import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.displayMultiplyColor
 import org.umamo.runtime.model.displayScreenColor
+import org.umamo.runtime.model.multiplyColor
+import org.umamo.runtime.model.opacity
+import org.umamo.runtime.model.screenColor
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.toColorRgb
@@ -579,7 +582,7 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				label = stringResource(Res.string.properties_field_opacity),
 				owner = owner,
 				channel = FormChannel.OPACITY,
-				stored = deformerOpacityOf(deformer),
+				stored = deformer.opacity,
 				session = session,
 				range = 0f..1f,
 				decimals = 2,
@@ -592,7 +595,7 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				label = stringResource(Res.string.properties_field_multiply_color),
 				owner = owner,
 				channel = FormChannel.MULTIPLY_COLOR,
-				stored = deformerMultiplyColorOf(deformer),
+				stored = deformer.multiplyColor,
 				session = session,
 				writeStatic = { color -> session?.setDeformerMultiplyColor(deformer.id, color) },
 			)
@@ -602,34 +605,13 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				label = stringResource(Res.string.properties_field_screen_color),
 				owner = owner,
 				channel = FormChannel.SCREEN_COLOR,
-				stored = deformerScreenColorOf(deformer),
+				stored = deformer.screenColor,
 				session = session,
 				writeStatic = { color -> session?.setDeformerScreenColor(deformer.id, color) },
 			)
 		},
 	)
 }
-
-/** A deformer's static opacity, whichever subtype it is. */
-private fun deformerOpacityOf(deformer: Deformer): Float =
-	when (deformer) {
-		is Deformer.Warp -> deformer.opacity
-		is Deformer.Rotation -> deformer.opacity
-	}
-
-/** A deformer's static multiply color, whichever subtype it is. */
-private fun deformerMultiplyColorOf(deformer: Deformer): ColorRgb =
-	when (deformer) {
-		is Deformer.Warp -> deformer.multiplyColor
-		is Deformer.Rotation -> deformer.multiplyColor
-	}
-
-/** A deformer's static screen color, whichever subtype it is. */
-private fun deformerScreenColorOf(deformer: Deformer): ColorRgb =
-	when (deformer) {
-		is Deformer.Warp -> deformer.screenColor
-		is Deformer.Rotation -> deformer.screenColor
-	}
 
 /**
  * One keyable SCALAR channel's field row: [KeyableColorChannelRow]'s counterpart for a number field.
