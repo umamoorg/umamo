@@ -205,6 +205,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.object.scale" -> stringResource(Res.string.history_object_scale)
 		"change.object.rotate" -> stringResource(Res.string.history_object_rotate)
 		"change.mesh.select" -> stringResource(Res.string.history_mesh_select)
+		"change.keyform.select" -> stringResource(Res.string.history_keyform_select)
 		"change.mesh.selectMode" -> stringResource(Res.string.history_mesh_select_mode)
 		"change.part.delete" -> stringResource(Res.string.history_part_delete)
 		"change.drawable.delete" -> stringResource(Res.string.history_drawable_delete)

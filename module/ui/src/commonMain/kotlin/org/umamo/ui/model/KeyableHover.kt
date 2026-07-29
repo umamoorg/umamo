@@ -53,6 +53,15 @@ data class KeyformHover(
 	 * the wrong axis's keys.
 	 */
 	val parameterId: ParameterId? = null,
+	/**
+	 * The keyform-sheet row the pointer is over, or null when the hover has no sheet row (a Properties row).
+	 *
+	 * Carried so an authoring op can reconcile the sheet's key selection against what it changed: a removal
+	 * renumbers the keys above it, and a selection left alone then names the neighbour rather than the key
+	 * the user selected.  Row identity is the sheet's to supply - :edit treats a row key as opaque - so it
+	 * rides the hover, which every aimed op already goes through.
+	 */
+	val rowKey: String? = null,
 ) {
 	/**
 	 * This hover as the aim an authoring op takes: a named place when the pointer is on a positioned row,

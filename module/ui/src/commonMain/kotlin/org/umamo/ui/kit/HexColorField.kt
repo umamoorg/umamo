@@ -33,6 +33,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -40,6 +42,7 @@ import androidx.compose.ui.window.PopupProperties
 import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.model.KeyedFieldState
+import org.umamo.ui.model.backgroundTint
 import org.umamo.ui.model.tint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -73,14 +76,16 @@ fun HexColorField(
 	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	val colors = LocalUmamoColors.current
-	// The keyed tint replaces the ordinary border rather than sitting beside it, so the state reads at a
-	// glance across a column of fields instead of needing a second mark to notice.
-	val borderColor = keyState.tint(colors) ?: colors.controlBorder
+	// The SWATCH keeps the outline form of the keyed tint, because its background IS the user's own color and
+	// has nothing to spare; the hex field beside it takes the tint as a fill, like every other text control.
+	val swatchBorderColor = keyState.tint(colors) ?: colors.controlBorder
+	val keyedFill = keyState.backgroundTint(colors) ?: Color.Transparent
 	val shapes = LocalUmamoShapes.current
 	val controller = LocalInlineEditController.current
 	val focusManager = LocalFocusManager.current
 	var focused by remember { mutableStateOf(false) }
-	var text by remember { mutableStateOf(value) }
+	// A TextFieldValue rather than a String so the context menu can act on a selection.
+	var text by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
 	var pickerOpen by remember { mutableStateOf(false) }
 
 	// Mirror the external value - and do it EVEN WHILE FOCUSED, because this field is not the only writer
@@ -93,9 +98,9 @@ fun HexColorField(
 	// typist: the user's own keystroke round-trips out through onValueChange and comes back equal, so it
 	// re-seeds nothing.  Half-typed text that does not parse is left alone for the same reason.
 	LaunchedEffect(value, focused) {
-		val typed = parseHexColor(text)
+		val typed = parseHexColor(text.text)
 		if (!focused || (typed != null && typed != parseHexColor(value))) {
-			text = value
+			text = TextFieldValue(value, TextRange(value.length))
 		}
 	}
 
@@ -111,7 +116,7 @@ fun HexColorField(
 	Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
 		// The live swatch: the color being typed when parseable, else the last persisted one.  Clicking it
 		// opens the slider popover, anchored to this swatch (the Box wrapper is the popup's anchor bounds).
-		val swatchColor = parseHexColor(text) ?: parseHexColor(value) ?: Color.Transparent
+		val swatchColor = parseHexColor(text.text) ?: parseHexColor(value) ?: Color.Transparent
 		Box {
 			Box(
 				modifier =
@@ -119,7 +124,7 @@ fun HexColorField(
 						.size(18.dp)
 						.clip(shapes.small)
 						.background(swatchColor)
-						.border(1.dp, borderColor, shapes.small)
+						.border(1.dp, swatchBorderColor, shapes.small)
 						// Opens only.  It must NOT toggle: an outside-click dismiss fires first and closes the
 						// popover, and this click would then immediately reopen it, so the swatch could never
 						// be used to close.  Closing is the popup's own job (click-away or Escape).
@@ -145,51 +150,82 @@ fun HexColorField(
 			}
 		}
 		Spacer(modifier = Modifier.width(6.dp))
-		BasicTextField(
+		TextEditContextMenuArea(
 			value = text,
-			onValueChange = { newText ->
-				text = newText
-				val parsed = parseHexColor(newText)
-				if (parsed != null) {
-					onValueChange(formatHexColor(parsed))
-				}
-			},
-			textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
-			singleLine = true,
-			cursorBrush = SolidColor(colors.text),
-			modifier =
-				Modifier
-					.weight(1f)
-					.clip(shapes.small)
-					.background(colors.controlBackground)
-					.border(1.dp, borderColor, shapes.small)
-					.padding(horizontal = 6.dp, vertical = 4.dp)
-					.onFocusChanged { focusState ->
-						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
-						// ever sees its subtree's focus.
-						if (focusState.hasFocus) {
-							if (!focused) {
-								focused = true
-								// Escape routes here via the shell: end the edit by clearing focus (the mirror
-								// effect above then re-seeds the text from the persisted value).
-								controller.cancel = { focusManager.clearFocus() }
+			onValueChange = { edited -> commitHexEdit(edited, text, onValueChange) { updated -> text = updated } },
+			modifier = Modifier.weight(1f),
+		) { gesture ->
+			BasicTextField(
+				value = text,
+				onValueChange = { edited -> commitHexEdit(edited, text, onValueChange) { updated -> text = updated } },
+				textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
+				singleLine = true,
+				cursorBrush = SolidColor(colors.text),
+				modifier =
+					gesture
+						.fillMaxWidth()
+						.clip(shapes.small)
+						.background(colors.controlBackground)
+						.background(keyedFill, shapes.small)
+						.border(1.dp, colors.controlBorder, shapes.small)
+						.padding(horizontal = 6.dp, vertical = 4.dp)
+						.onFocusChanged { focusState ->
+							// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
+							// ever sees its subtree's focus.
+							if (focusState.hasFocus) {
+								if (!focused) {
+									focused = true
+									// Escape routes here via the shell: end the edit by clearing focus (the mirror
+									// effect above then re-seeds the text from the persisted value).
+									controller.cancel = { focusManager.clearFocus() }
+								}
+							} else if (focused) {
+								focused = false
+								controller.cancel = null
 							}
-						} else if (focused) {
-							focused = false
-							controller.cancel = null
 						}
-					}
-					.onKeyEvent { event ->
-						// Hardware Enter confirms by clearing focus (edits are already persisted live).
-						if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
-							focusManager.clearFocus()
-							true
-						} else {
-							false
-						}
-					},
-		)
+						.onKeyEvent { event ->
+							// Hardware Enter confirms by clearing focus (edits are already persisted live).
+							if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+								focusManager.clearFocus()
+								true
+							} else {
+								false
+							}
+						},
+			)
+		}
 	}
+}
+
+/**
+ * Applies one hex-field edit: shows it, and persists it when the TEXT changed and parses.
+ *
+ * Shared by the field and its context menu so a pasted color takes effect exactly like a typed one - the
+ * menu writing only the local text would have shown a color the document never received.
+ *
+ * Selection-only changes are shown and not persisted.  BasicTextField's TextFieldValue overload reports a
+ * caret or selection move through the same callback as an edit, so persisting unconditionally re-committed
+ * the stored value for merely clicking into the field, dragging a selection across it, or picking Select
+ * All - and on a keyed channel that is an undo step plus an uncommitted-edit tint for a value that never
+ * changed.
+ *
+ * @param TextFieldValue edited The value the field or menu produced.
+ * @param TextFieldValue previous The value it replaces, for telling an edit from a selection move.
+ * @param Function onValueChange The caller's persist callback, given canonical hex.
+ * @param Function show Writes the edited value back to the field's own state.
+ */
+private fun commitHexEdit(
+	edited: TextFieldValue,
+	previous: TextFieldValue,
+	onValueChange: (String) -> Unit,
+	show: (TextFieldValue) -> Unit,
+) {
+	show(edited)
+	if (edited.text == previous.text) {
+		return
+	}
+	parseHexColor(edited.text)?.let { parsed -> onValueChange(formatHexColor(parsed)) }
 }
 
 /**

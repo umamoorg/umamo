@@ -13,10 +13,15 @@ import org.umamo.ui.tracks.TrackWindow
 internal const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
 
 /**
- * The keyform sheet's per-area view state: the label column's width and which groups are open.
+ * The keyform sheet's per-area view state: the label column's width, which groups are open, the zoom window.
  *
  * On the AreaScope rather than the session because these are how one area is LOOKING at the rig, not what
- * the rig is - two sheets side by side may reasonably be folded differently, and neither belongs in undo.
+ * the rig is - two sheets side by side may reasonably be folded differently, and none of it belongs in undo.
+ *
+ * The SELECTED KEYS used to live here on that reasoning and no longer do: undo restores session state, so a
+ * selection that undo is meant to bring back has to be session state, and that outranks letting two sheets
+ * disagree about what is selected.  It is EditorSession.keySelection now, alongside the object, mesh, and
+ * parameter selections, which all made the same trade.
  */
 internal class KeyformSheetViewState {
 	/** The label column's width, dragged on the separator. */
@@ -24,16 +29,6 @@ internal class KeyformSheetViewState {
 
 	/** The group rows whose tracks are shown. */
 	var expandedKeys: Set<String> by mutableStateOf(emptySet())
-
-	/**
-	 * The selected keys, which is what Delete acts on.
-	 *
-	 * On the view state rather than remembered against the projection: the projection is rebuilt on every
-	 * model change, so keying the selection to it discarded the selection on the user's own edit - and a
-	 * click both selects AND scrubs, so even selecting could not survive its own gesture.  Refs that no
-	 * longer resolve are pruned at use, which is cheaper and less surprising than clearing wholesale.
-	 */
-	var selectedKeys: Set<TrackKeyRef> by mutableStateOf(emptySet())
 
 	/**
 	 * Whether [expandedKeys] has been seeded yet.

@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.spaces
 
+import org.umamo.edit.TrackKeyRef
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
@@ -83,20 +84,6 @@ class KeyformTrackLabels(
 	val blendShape: String,
 	val ownerKindName: (KeyformOwnerKind) -> String,
 )
-
-/**
- * One selected key: the parameter section, the row, and WHICH key on that row.
- *
- * By ordinal rather than by parameter value.  Two keys a hair apart are legal and useful, and resolving a
- * value back to a key then picks whichever happens to be nearer - which is how dragging one of a pair of
- * near-coincident marks moved the other.  The parameter is part of the identity because a linked pair
- * renders two sections at once and one item's row key is the same string in both.
- *
- * @property ParameterId parameterId The parameter whose section the key sits in.
- * @property String rowKey The owning row's stable key.
- * @property Int keyIndex The key's ordinal on that row's track.
- */
-data class TrackKeyRef(val parameterId: ParameterId, val rowKey: String, val keyIndex: Int)
 
 /**
  * The sheet's projection of a rig: rows to draw, and what each row edits.

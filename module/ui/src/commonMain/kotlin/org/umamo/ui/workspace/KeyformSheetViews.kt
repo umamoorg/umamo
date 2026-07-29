@@ -20,7 +20,6 @@ import org.umamo.runtime.model.Parameter
 internal class KeyformSheetSurface(
 	val selectedTracks: () -> List<Triple<KeyformTrackRef, Parameter, Int>>,
 	val hasSelection: () -> Boolean,
-	val clearSelection: () -> Unit,
 	val frameAll: () -> Unit,
 	val armBoxSelect: () -> Unit,
 	/**

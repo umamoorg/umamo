@@ -6,7 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.Change
+import org.umamo.edit.DeformerChange
+import org.umamo.edit.DrawableChange
 import org.umamo.edit.EditorSession
+import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editKeyedChannel
 import org.umamo.edit.previewChannelEdit
@@ -122,6 +126,7 @@ internal val BlendSection =
 							range = 0f..1000f,
 							decimals = 0,
 							step = 1f,
+							changeFor = { order -> DrawableChange.SetDrawOrder(drawable.id, order) },
 							writeStatic = { order -> session?.setDrawableDrawOrder(drawable.id, order) },
 						)
 					},
@@ -133,8 +138,9 @@ internal val BlendSection =
 							stored = drawable.opacity,
 							session = session,
 							range = 0f..1f,
-							decimals = 2,
+							decimals = 3,
 							step = 0.05f,
+							changeFor = { opacity -> DrawableChange.SetOpacity(drawable.id, opacity) },
 							writeStatic = { opacity -> session?.setDrawableOpacity(drawable.id, opacity) },
 						)
 					},
@@ -175,6 +181,7 @@ internal val BlendSection =
 							channel = FormChannel.MULTIPLY_COLOR,
 							stored = drawable.displayMultiplyColor(),
 							session = session,
+							changeFor = { color -> DrawableChange.SetMultiplyColor(drawable.id, color) },
 							writeStatic = { color -> session?.setDrawableMultiplyColor(drawable.id, color) },
 						)
 					},
@@ -185,6 +192,7 @@ internal val BlendSection =
 							channel = FormChannel.SCREEN_COLOR,
 							stored = drawable.displayScreenColor(),
 							session = session,
+							changeFor = { color -> DrawableChange.SetScreenColor(drawable.id, color) },
 							writeStatic = { color -> session?.setDrawableScreenColor(drawable.id, color) },
 						)
 					},
@@ -260,6 +268,7 @@ internal val DeformerSection =
 									channel = FormChannel.FLIP_X,
 									stored = deformer.flipX,
 									session = session,
+									changeFor = { flip -> DeformerChange.SetFlipX(deformer.id, flip) },
 									writeStatic = { flip -> session?.setDeformerFlipX(deformer.id, flip) },
 								)
 							},
@@ -270,6 +279,7 @@ internal val DeformerSection =
 									channel = FormChannel.FLIP_Y,
 									stored = deformer.flipY,
 									session = session,
+									changeFor = { flip -> DeformerChange.SetFlipY(deformer.id, flip) },
 									writeStatic = { flip -> session?.setDeformerFlipY(deformer.id, flip) },
 								)
 							},
@@ -316,7 +326,11 @@ internal val PartSection =
 												part.drawOrder.toFloat(),
 											).roundToInt(),
 										onValueChange = { order: Int ->
-											session?.editKeyedChannel(target, ChannelValue.Scalar(order.toFloat())) {
+											session?.editKeyedChannel(
+												target,
+												ChannelValue.Scalar(order.toFloat()),
+												PartChange.SetDrawOrder(part.id, order),
+											) {
 												session.setPartDrawOrder(part.id, order)
 											}
 										},
@@ -359,8 +373,9 @@ internal val PartSection =
 									stored = composite.opacity,
 									session = session,
 									range = 0f..1f,
-									decimals = 2,
+									decimals = 3,
 									step = 0.05f,
+									changeFor = { opacity -> PartChange.SetComposite(part.id, composite.copy(opacity = opacity)) },
 									writeStatic = { opacity ->
 										session?.setPartComposite(part.id, composite.copy(opacity = opacity))
 									},
@@ -405,6 +420,7 @@ internal val PartSection =
 									channel = FormChannel.MULTIPLY_COLOR,
 									stored = composite.multiplyColor,
 									session = session,
+									changeFor = { color -> PartChange.SetComposite(part.id, composite.copy(multiplyColor = color)) },
 									writeStatic = { color ->
 										session?.setPartComposite(part.id, composite.copy(multiplyColor = color))
 									},
@@ -419,6 +435,7 @@ internal val PartSection =
 									channel = FormChannel.SCREEN_COLOR,
 									stored = composite.screenColor,
 									session = session,
+									changeFor = { color -> PartChange.SetComposite(part.id, composite.copy(screenColor = color)) },
 									writeStatic = { color ->
 										session?.setPartComposite(part.id, composite.copy(screenColor = color))
 									},
@@ -495,6 +512,7 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
  * @param FormChannel channel The color channel the row edits.
  * @param ColorRgb stored The owner's static color.
  * @param EditorSession? session The open document's session, or null.
+ * @param Function changeFor The history descriptor for a committed color, whichever branch stores it.
  * @param Function writeStatic Writes the owner's static color (the unkeyed path).
  */
 @Composable
@@ -504,6 +522,7 @@ private fun KeyableColorChannelRow(
 	channel: FormChannel,
 	stored: ColorRgb,
 	session: EditorSession?,
+	changeFor: (ColorRgb) -> Change,
 	writeStatic: (ColorRgb) -> Unit,
 ) {
 	val target = KeyableTarget(owner, channel)
@@ -516,8 +535,9 @@ private fun KeyableColorChannelRow(
 				value = formatHexColor(displayedChannelColor(owner, channel, stored).toComposeColor()),
 				onValueChange = { hex ->
 					parseHexColor(hex)?.let { picked ->
-						session?.editKeyedChannel(target, ChannelValue.Color(picked.toColorRgb())) {
-							writeStatic(picked.toColorRgb())
+						val color = picked.toColorRgb()
+						session?.editKeyedChannel(target, ChannelValue.Color(color), changeFor(color)) {
+							writeStatic(color)
 						}
 					}
 				},
@@ -538,6 +558,7 @@ private fun KeyableColorChannelRow(
  * @param FormChannel channel The flag channel the row edits.
  * @param Boolean stored The owner's static value.
  * @param EditorSession? session The open document's session, or null.
+ * @param Function changeFor The history descriptor for a committed value, whichever branch stores it.
  * @param Function writeStatic Writes the owner's static value (the unkeyed path).
  */
 @Composable
@@ -547,6 +568,7 @@ private fun KeyableFlagChannelRow(
 	channel: FormChannel,
 	stored: Boolean,
 	session: EditorSession?,
+	changeFor: (Boolean) -> Change,
 	writeStatic: (Boolean) -> Unit,
 ) {
 	val target = KeyableTarget(owner, channel)
@@ -556,7 +578,7 @@ private fun KeyableFlagChannelRow(
 			// What is APPLIED: a keyed channel's track shadows the static.
 			checked = displayedChannelFlag(owner, channel, stored),
 			onCheckedChange = { flag ->
-				session?.editKeyedChannel(target, ChannelValue.Flag(flag)) { writeStatic(flag) }
+				session?.editKeyedChannel(target, ChannelValue.Flag(flag), changeFor(flag)) { writeStatic(flag) }
 			},
 			label = label,
 		)
@@ -585,8 +607,9 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				stored = deformer.opacity,
 				session = session,
 				range = 0f..1f,
-				decimals = 2,
+				decimals = 3,
 				step = 0.05f,
+				changeFor = { opacity -> DeformerChange.SetOpacity(deformer.id, opacity) },
 				writeStatic = { opacity -> session?.setDeformerOpacity(deformer.id, opacity) },
 			)
 		},
@@ -597,6 +620,7 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				channel = FormChannel.MULTIPLY_COLOR,
 				stored = deformer.multiplyColor,
 				session = session,
+				changeFor = { color -> DeformerChange.SetMultiplyColor(deformer.id, color) },
 				writeStatic = { color -> session?.setDeformerMultiplyColor(deformer.id, color) },
 			)
 		},
@@ -607,6 +631,7 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				channel = FormChannel.SCREEN_COLOR,
 				stored = deformer.screenColor,
 				session = session,
+				changeFor = { color -> DeformerChange.SetScreenColor(deformer.id, color) },
 				writeStatic = { color -> session?.setDeformerScreenColor(deformer.id, color) },
 			)
 		},
@@ -624,6 +649,7 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
  * @param ClosedFloatingPointRange range The field's legal range.
  * @param Int decimals The field's display precision.
  * @param Float step The field's chevron step.
+ * @param Function changeFor The history descriptor for a committed value, whichever branch stores it.
  * @param Function writeStatic Writes the owner's static value (the unkeyed path).
  */
 @Composable
@@ -636,6 +662,7 @@ private fun KeyableScalarChannelRow(
 	range: ClosedFloatingPointRange<Float>,
 	decimals: Int,
 	step: Float,
+	changeFor: (Float) -> Change,
 	writeStatic: (Float) -> Unit,
 ) {
 	val target = KeyableTarget(owner, channel)
@@ -646,7 +673,7 @@ private fun KeyableScalarChannelRow(
 				// What is APPLIED: a keyed channel's track shadows the static.
 				value = displayedChannelScalar(owner, channel, stored),
 				onValueChange = { value: Float ->
-					session?.editKeyedChannel(target, ChannelValue.Scalar(value)) {
+					session?.editKeyedChannel(target, ChannelValue.Scalar(value), changeFor(value)) {
 						writeStatic(value)
 					}
 				},

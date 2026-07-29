@@ -18,6 +18,15 @@ import org.umamo.runtime.model.PuppetModel
 internal class HistoryCore(initialSnapshot: EditorSnapshot, historyLimit: Int) {
 	private val history = History(initialSnapshot, historyLimit)
 
+	/**
+	 * The live step's snapshot - what the last push (or the last undo) recorded.
+	 *
+	 * Distinct from the session's live flows, which run ahead of it whenever an edit is being previewed
+	 * without being recorded.  A caller that must decide whether an edit would record anything new has to
+	 * compare against THIS, not against the flows.
+	 */
+	val current: EditorSnapshot get() = history.current
+
 	// The exact stack entry last persisted to disk, tracked by snapshot reference so the panel marks one
 	// row precisely (the dirty flag below tracks the model instead - see EditorSession's class doc).
 	private var savedSnapshot: EditorSnapshot = history.current

@@ -99,15 +99,29 @@ class EditorSession(
 	 * Channel values edited but NOT yet keyed - Blender's model, where changing a keyed property off a key
 	 * takes effect now but is lost unless you key it.
 	 *
-	 * Deliberately NOT in the document and NOT in the undo history: a pending edit is a value in flight, and
-	 * recording every keystroke of one as an undo step would bury the real edits.  It is cleared whenever
-	 * the pose moves or history jumps, because both make the value meaningless - it was a value FOR a pose,
-	 * and that pose is gone.
+	 * Deliberately NOT in the document: a pending edit never reaches [PuppetModel], so it costs nothing in
+	 * document terms and a keyform insert can consume it without that being a document edit either. It IS in
+	 * the undo history, one step per gesture end (see [commitPendingChannelEdit]) rather than per keystroke -
+	 * a per-frame preview ([setPendingChannelEdit]) records nothing on its own. Every pending value is
+	 * cleared whenever the pose moves, because a value chosen FOR one pose is meaningless at another; a
+	 * history jump does not clear them, since [restore] lands on the very pose they were chosen for and
+	 * restores them alongside it.
 	 *
 	 * The keyed-field tint reads this to show the edited-but-unkeyed state, and a keyform insert consumes
 	 * it: the whole point is that `I` captures what you just typed rather than what is still stored.
 	 */
 	val pendingChannelEdits: StateFlow<Map<KeyableTarget, ChannelValue>> = mutablePendingChannelEdits.asStateFlow()
+
+	private val mutableKeySelection = MutableStateFlow<Set<TrackKeyRef>>(emptySet())
+
+	/**
+	 * The keyform sheet's selected keys - what its Delete and nudge commands act on.
+	 *
+	 * Shell-wide rather than per-sheet: it is snapshotted, and undo restores session state.  Two open sheets
+	 * therefore share one selection, which is the same call [parameterSelection] made and for the same
+	 * reason - a second sheet showing a different answer to "what is selected" is worse than agreement.
+	 */
+	val keySelection: StateFlow<Set<TrackKeyRef>> = mutableKeySelection.asStateFlow()
 
 	private val mutablePose = MutableStateFlow(initialPose)
 
@@ -319,7 +333,19 @@ class EditorSession(
 		meshSelection: MeshSelection = mutableMeshSelection.value,
 		mode: EditorMode = mutableMode.value,
 		parameterSelection: ParameterSelection = mutableParameterSelection.value,
-	): EditorSnapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection)
+		pendingChannelEdits: Map<KeyableTarget, ChannelValue> = mutablePendingChannelEdits.value,
+		keySelection: Set<TrackKeyRef> = mutableKeySelection.value,
+	): EditorSnapshot =
+		EditorSnapshot(
+			model,
+			selection,
+			pose,
+			meshSelection,
+			mode,
+			parameterSelection,
+			pendingChannelEdits,
+			keySelection,
+		)
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
@@ -349,11 +375,54 @@ class EditorSession(
 	}
 
 	/**
+	 * Records [value] as an unkeyed edit of [target] AND as one undo step, described by [change].
+	 *
+	 * What a keyable property field calls when its gesture ends, where [setPendingChannelEdit] is what it
+	 * calls per frame while the gesture is still running.  A pending edit is still transient - the next pose
+	 * move discards it - but discarding is not the same as never having happened: it is a deliberate edit
+	 * the user can see take effect in the viewport, so it must be undoable independent of whether it ever
+	 * reaches the document.
+	 *
+	 * Pushes its own snapshot rather than going through [mutate] / [commit], for the same reason
+	 * [setSelection] and [setMeshSelection] do: neither the model nor the pose changes, so the commit choke
+	 * point would short-circuit and record nothing.  Not a document edit, so it leaves dirty untouched.
+	 *
+	 * [change] is the SAME descriptor the unkeyed path would have used, so the history entry reads "Set
+	 * Opacity" whichever branch the edit took - which branch it took is an implementation detail of where
+	 * the value could be stored, not something a rigger asked for.
+	 *
+	 * @param KeyableTarget target The property edited.
+	 * @param ChannelValue value The value the user chose.
+	 * @param Change change The descriptor of this edit (for the bus and the history-panel label).
+	 */
+	fun commitPendingChannelEdit(target: KeyableTarget, value: ChannelValue, change: Change) {
+		// Compared against what HISTORY holds, not against the live map: a scrub has already written its last
+		// preview frame there, so a live-map comparison makes the release of every drag look like a no-op and
+		// records nothing - the one case this exists for.
+		if (history.current.pendingChannelEdits[target] == value) {
+			// Still published: the guard says this step would record nothing new, not that the value is live.
+			// The two diverge whenever something retired the pending edit without recording that it did - a
+			// scrub previews through clearPendingChannelEdits and then ends where it began - and returning
+			// outright left the re-typed value out of the viewport and the field untinted.
+			setPendingChannelEdit(target, value)
+			return
+		}
+		val edits = mutablePendingChannelEdits.value + (target to value)
+		history.push(snapshot(pendingChannelEdits = edits), change)
+		mutablePendingChannelEdits.value = edits
+		refreshFlags()
+		mutableChanges.tryEmit(change)
+	}
+
+	/**
 	 * Discards every pending unkeyed edit.
 	 *
-	 * Called on any pose move and on any history jump - the situations that invalidate ALL of them at once.
-	 * A keyform insert that consumed one target's value uses [clearPendingChannelEdit] instead, because the
-	 * other targets' values are still valid for the unchanged pose.
+	 * Called on any pose move - the situation that invalidates ALL of them at once, since every pending value
+	 * was chosen for the pose being left.  A history jump does NOT call this: [restore] restores the
+	 * snapshot's own [EditorSnapshot.pendingChannelEdits] instead, since the pose it lands on is exactly the
+	 * pose those values were chosen for.  A keyform insert that consumed one target's value uses
+	 * [clearPendingChannelEdit] instead, because the other targets' values are still valid for the unchanged
+	 * pose.
 	 */
 	fun clearPendingChannelEdits() {
 		if (mutablePendingChannelEdits.value.isNotEmpty()) {
@@ -604,6 +673,94 @@ class EditorSession(
 		mutableMeshSelection.value = meshSelection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.MeshSelectionChanged)
+	}
+
+	/**
+	 * Records a keyform-sheet key-selection gesture as its own undo step, so a misclick that loses a
+	 * carefully built multi-key selection is recoverable.  A no-op records nothing.  Not a document edit -
+	 * leaves dirty untouched.
+	 *
+	 * Shared session state rather than a sheet's view state, for the same reason the parameter target is: a
+	 * thing that undo restores has to live where undo can reach it, and two open sheets agreeing on one
+	 * selection is the same trade [setParameterSelection] already made.
+	 *
+	 * Also the CONFIRM half of [stageKeySelection]: calling this with the staged selection after the
+	 * gesture's edit records the selection exactly when the edit did not.
+	 *
+	 * @param Set<TrackKeyRef> keySelection The new key selection.
+	 */
+	fun setKeySelection(keySelection: Set<TrackKeyRef>) {
+		// Compared against what HISTORY holds, not against the live flow, because a stage has already moved
+		// the flow: comparing there makes a confirm look like a no-op in precisely the case it exists for -
+		// the one where the edit it followed recorded nothing and the staged selection reached no snapshot.
+		if (keySelection == history.current.keySelection) {
+			// Published rather than merely dropped: this step records nothing new, which is not the same as
+			// the live flow already holding it (a restore or an abandoned stage can leave it elsewhere).
+			mutableKeySelection.value = keySelection
+			return
+		}
+		history.push(snapshot(keySelection = keySelection), EditorStateChange.KeySelectionChanged)
+		mutableKeySelection.value = keySelection
+		refreshFlags()
+		mutableChanges.tryEmit(EditorStateChange.KeySelectionChanged)
+	}
+
+	/**
+	 * Publishes [keySelection] WITHOUT recording a step of its own, for a gesture whose own step is about to
+	 * follow.
+	 *
+	 * A keyform-sheet gesture selects and edits at once - a drag re-points the selection at the ordinals its
+	 * keys landed on, an empty-track press drops the selection and scrubs - and they are one gesture, so
+	 * they are one entry.  [snapshot] defaults every field it is not given to live state, so staging the
+	 * selection BEFORE the edit folds it into that edit's own step.  Recording both would make one drag take
+	 * two presses of Ctrl+Z to reverse.
+	 *
+	 * STAGE, EDIT, CONFIRM - every caller runs all three.  The edit may decline to record anything (a drag
+	 * clamped to zero, a scrub that ended where it began, a move onto a key's own value), and a stage that
+	 * reached no snapshot is a selection change undo cannot see.  So the gesture ends by calling
+	 * [setKeySelection] with the same selection: that compares against history rather than against the live
+	 * flow, so it is a no-op when the edit's push already carried the selection and records a step of its
+	 * own when it did not.  Staging without confirming is a bug, not a shortcut.
+	 *
+	 * @param Set<TrackKeyRef> keySelection The new key selection.
+	 */
+	fun stageKeySelection(keySelection: Set<TrackKeyRef>) {
+		mutableKeySelection.value = keySelection
+	}
+
+	/**
+	 * Selects [keySelection] and moves the pose to [pose] as ONE undo step, named for the selection.
+	 *
+	 * Clicking a mark in the keyform sheet does both - it selects the key and lands the pose exactly on it -
+	 * and they are one gesture, so they are one entry.  Naming it for the selection rather than for the
+	 * scrub is what makes the history read as what the user did: they clicked a keyframe, and the pose
+	 * moving is the consequence.
+	 *
+	 * Recorded even when the pose does not move (clicking a key the pose already sits on), which is why this
+	 * exists rather than staging the selection and letting a pose commit carry it: the pose commit
+	 * short-circuits on an unchanged pose, and the selection would then vanish from history entirely.
+	 *
+	 * @param Set<TrackKeyRef> keySelection The keys the click selected.
+	 * @param Pose pose The pose the click landed on.
+	 */
+	fun selectKeysAtPose(keySelection: Set<TrackKeyRef>, pose: Pose) {
+		// Against history rather than the live flow, for the reason [setKeySelection] spells out: a staged
+		// selection has already moved the flow, and a click that lands on the selection a stage left there
+		// must still record it.
+		if (keySelection == history.current.keySelection && pose == history.current.pose) {
+			mutableKeySelection.value = keySelection
+			mutablePose.value = pose
+			return
+		}
+		// A pose move invalidates every pending edit, exactly as it does through the ordinary commit path.
+		if (pose != mutablePose.value) {
+			clearPendingChannelEdits()
+		}
+		history.push(snapshot(pose = pose, keySelection = keySelection), EditorStateChange.KeySelectionChanged)
+		mutableKeySelection.value = keySelection
+		mutablePose.value = pose
+		refreshFlags()
+		mutableChanges.tryEmit(EditorStateChange.KeySelectionChanged)
 	}
 
 	/**
@@ -1621,8 +1778,11 @@ class EditorSession(
 		mutablePose.value = snapshot.pose
 		mutableMeshSelection.value = snapshot.meshSelection
 		mutableParameterSelection.value = snapshot.parameterSelection
-		// A history jump lands on a pose the pending values were never chosen for.
-		clearPendingChannelEdits()
+		// Restored, not cleared: the snapshot carries the pose these values were chosen for, so restoring the
+		// pair together keeps them coherent - an undo must land on the step's pose WITH the step's pending
+		// edits, not on the pose alone.
+		mutablePendingChannelEdits.value = snapshot.pendingChannelEdits
+		mutableKeySelection.value = snapshot.keySelection
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
 		// into a snapshot of the other and drive the wrong overlay.

@@ -10,8 +10,6 @@ import androidx.compose.ui.unit.IntOffset
  * standard tap-gesture detector, which fires onLongPress with the press point once the finger has been
  * held past the long-press timeout without moving.
  *
- * タッチのトリガーは長押し（タッチには副ボタンが無い）。長押しタイムアウト経過時に押下点で通知する。
- *
  * @param Function onContextMenu Called with the press point in local coordinates.
  * @return Modifier The modifier with the long-press detector attached.
  */
@@ -19,3 +17,18 @@ internal actual fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Un
 	this.pointerInput(Unit) {
 		detectTapGestures(onLongPress = { offset -> onContextMenu(offset.toIntOffset()) })
 	}
+
+/**
+ * Touch text-field context-menu trigger: the same long press, with no attempt to outrank the platform.
+ *
+ * The desktop actual has to beat the text field's built-in secondary-click menu; here the corresponding
+ * gesture is a long press, and on a touch screen long-pressing text means SELECT A WORD, which is correct
+ * platform behaviour and not ours to take away.  So this loses to the platform where the two collide, and a
+ * field inside a context-menu area does not offer that area's items on Android.  Revisit alongside the
+ * Android viewport - until that lands the editor does not run here, so the gap costs nothing today.
+ *
+ * @param Function onContextMenu Called with the press point in local coordinates.
+ * @return Modifier The modifier with the detector attached.
+ */
+internal actual fun Modifier.textEditContextMenuGesture(onContextMenu: (IntOffset) -> Unit): Modifier =
+	contextMenuGesture(onContextMenu)

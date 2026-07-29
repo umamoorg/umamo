@@ -17,8 +17,6 @@ import androidx.compose.ui.graphics.Color
  *  - The accent deepens in light mode so white on-accent text and accent-as-text stay legible.
  *  - Selection decouples from the accent in light mode: a soft lavender row tint with deep plum marks, so
  *    selected rows read as selection rather than as primary buttons.
- *
- * 独自デザイン系の平坦なパレット。Blender 風のダーク（灰＋紫アクセント）と、独立して設計したライト。
  */
 
 /**
@@ -115,17 +113,12 @@ data class UmamoColors(
 	val controlBackground: Color,
 	val controlBackgroundHover: Color,
 	val controlGlyph: Color,
-	/**
-	 * The pose sits exactly ON a key of this field's channel.  Blender's #d1b727.
-	 *
-	 * The three keyed-field colors are borrowed rather than derived: a rigger coming from Blender reads
-	 * them without being told, and inventing a scheme-matched palette would trade that away for tidiness.
-	 */
 	val keyedOnKey: Color,
-	/** The channel is keyed but the pose is BETWEEN keys - editing here will be lost unless keyed. */
 	val keyedBetween: Color,
-	/** An edit has been made but not keyed; it shows in the viewport and dies on the next scrub. */
 	val keyedModified: Color,
+	val keyedOnKeyBackground: Color,
+	val keyedBetweenBackground: Color,
+	val keyedModifiedBackground: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
@@ -161,6 +154,15 @@ data class UmamoColors(
 // like 0.7f have no exact 8-bit representation, and the derivation keeps the rendered floats bit-identical
 // to what the call sites historically computed inline.
 private val brandPurple = Color(0xFFBF86D7)
+
+// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
+// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.  Shared as
+// one constant, alpha included, so a per-scheme background tint could not drift them apart through the back
+// door.
+private val keyframeOnKey = Color(0xFFD1B727)
+private val keyframeBetween = Color(0xFF5FC729)
+private val keyframeModified = Color(0xFFDF8431)
+private const val KEYED_BACKGROUND_ALPHA = 0.22f
 private val brandPurpleBright = Color(0xFFD394ED)
 
 // The light scheme deepens the accent so white on-accent text reads at ~5.6:1 (the dark purple family
@@ -211,11 +213,12 @@ val umamoDarkColors =
 		controlBackground = Color(0xFF545454),
 		controlBackgroundHover = Color(0xFF696969), // The NumberField hover fill (a step lighter than the control fill).
 		controlGlyph = Color(0xFFFFFFFF),
-		// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
-		// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.
-		keyedOnKey = Color(0xFFD1B727),
-		keyedBetween = Color(0xFF5FC729),
-		keyedModified = Color(0xFFDF8431),
+		keyedOnKey = keyframeOnKey,
+		keyedBetween = keyframeBetween,
+		keyedModified = keyframeModified,
+		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
@@ -277,17 +280,18 @@ val umamoLightColors =
 		controlBackground = Color(0xFFDFDFDF),
 		controlBackgroundHover = Color(0xFFCECECE), // The NumberField hover fill; a subtle darken keeps dark text legible in the light theme.
 		controlGlyph = Color(0xFF2E2E2E),
-		keyedOnKey = Color(0xFFD1B727),
-		keyedBetween = Color(0xFF5FC729),
-		keyedModified = Color(0xFFDF8431),
+		keyedOnKey = keyframeOnKey,
+		keyedBetween = keyframeBetween,
+		keyedModified = keyframeModified,
+		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),
 		dropZoneFill = brandPurpleDeep.copy(alpha = 0.16f),
 		dropZoneEmphasis = brandPurpleDeep.copy(alpha = 0.28f),
 		dropTargetBackground = brandPurpleDeep.copy(alpha = 0.45f),
-		// Kept subordinate to the solid lavender selection; dark's half-alpha-over-dark is dimmer than
-		// the full accent, and light preserves that ordering.
 		selectionAncestorBackground = brandPurpleDeep.copy(alpha = 0.28f),
 		searchMatchBackground = brandPurpleDeep.copy(alpha = 0.14f),
 		scrollbarThumb = mutedGreyLight.copy(alpha = 0.4f),
@@ -299,7 +303,6 @@ val umamoLightColors =
 		viewportMarquee = Color(0xCC333333),
 		// The light tone that alternates with the dark marquee so the marching-ants dash reads on dark art.
 		viewportMarqueeContrast = Color(0xCCFFFFFF),
-		// The classic Photoshop transparency checker (white / #CCCCCC), kept for the thumbnail alpha reveal.
 		transparencyCheckerLight = Color(0xFFFFFFFF),
 		transparencyCheckerDark = Color(0xFFCCCCCC),
 		viewportGridBackground = Color(0xFFCFCFCF),

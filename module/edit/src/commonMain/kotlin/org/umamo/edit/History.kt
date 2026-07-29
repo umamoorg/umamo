@@ -1,5 +1,7 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 
@@ -43,6 +45,24 @@ data class EditorSnapshot(
 	 * across a parameter click returns the target the edit was made against.
 	 */
 	val parameterSelection: ParameterSelection = ParameterSelection(),
+	/**
+	 * The channel values edited but not yet keyed at this step.
+	 *
+	 * Snapshotted even though a pending edit never reaches the document: it is a deliberate user action
+	 * that shows in the viewport, so Blender records one and so do we.  The pose rides in the same
+	 * snapshot, which is what makes restoring these coherent - a pending value was chosen FOR a pose, and
+	 * undo returns to both together.
+	 */
+	val pendingChannelEdits: Map<KeyableTarget, ChannelValue> = emptyMap(),
+	/**
+	 * The keyform-sheet keys selected at this step.
+	 *
+	 * The fourth selection to be snapshotted, and for the same reason as the other three: a misclick that
+	 * loses a carefully built selection is otherwise unrecoverable, and the sheet's selection takes the most
+	 * work to build of any of them.  Ordinals renumber when keys cross, so a restored ref can name a key
+	 * that no longer exists there - the sheet prunes at use, which is what makes that harmless.
+	 */
+	val keySelection: Set<TrackKeyRef> = emptySet(),
 )
 
 /**

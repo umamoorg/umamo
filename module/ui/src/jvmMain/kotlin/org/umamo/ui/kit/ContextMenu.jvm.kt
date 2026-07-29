@@ -1,6 +1,7 @@
 package org.umamo.ui.kit
 
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -22,10 +23,34 @@ import androidx.compose.ui.unit.IntOffset
  * @return Modifier The modifier with the secondary-click detector attached.
  */
 internal actual fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Unit): Modifier =
-	this.pointerInput(Unit) {
+	secondaryClickGesture(PointerEventPass.Main, onContextMenu)
+
+/**
+ * Desktop text-field context-menu trigger: the same secondary-click detector on the INITIAL pass.
+ *
+ * The initial pass runs outermost-first, which is the whole point: the text-field primitive's own menu
+ * handler sits on an inner node and watches the main pass, so watching a pass earlier and consuming there is
+ * what lets the kit's menu replace it rather than lose to it.  Consuming a secondary press costs the field
+ * nothing - it uses the primary button for caret placement and selection.
+ *
+ * @param Function onContextMenu Called with the press point in local coordinates.
+ * @return Modifier The modifier with the detector attached.
+ */
+internal actual fun Modifier.textEditContextMenuGesture(onContextMenu: (IntOffset) -> Unit): Modifier =
+	secondaryClickGesture(PointerEventPass.Initial, onContextMenu)
+
+/**
+ * A secondary-press detector on [pass], reporting the press point and consuming it.
+ *
+ * @param PointerEventPass pass The pointer pass to watch.
+ * @param Function onContextMenu Called with the press point in local coordinates.
+ * @return Modifier The modifier with the detector attached.
+ */
+private fun Modifier.secondaryClickGesture(pass: PointerEventPass, onContextMenu: (IntOffset) -> Unit): Modifier =
+	this.pointerInput(pass) {
 		awaitPointerEventScope {
 			while (true) {
-				val event = awaitPointerEvent()
+				val event = awaitPointerEvent(pass)
 				val change = event.changes.first()
 				if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed && !change.isConsumed) {
 					change.consume()
