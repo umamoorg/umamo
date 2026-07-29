@@ -25,6 +25,24 @@ class KeyformGridShapeTest {
 	private val angleZ = ParameterId("ParamAngleZ")
 
 	/**
+	 * Unfolds a linear index back into a per-axis coordinate - the inverse of linearIndexOf, kept as a
+	 * fixture helper (production code only ever folds).
+	 */
+	private fun KeyformGrid<*>.coordinateOf(linearIndex: Int): IntArray {
+		val coordinate = IntArray(axes.size)
+		var remaining = linearIndex
+		for (axisIndex in axes.indices) {
+			val keyCount = axes[axisIndex].keys.size
+			if (keyCount <= 0) {
+				continue
+			}
+			coordinate[axisIndex] = remaining % keyCount
+			remaining /= keyCount
+		}
+		return coordinate
+	}
+
+	/**
 	 * A dense grid over the given axis key counts, each cell carrying its own linear index as its
 	 * payload so a re-shape can be traced by value.
 	 */
@@ -51,9 +69,8 @@ class KeyformGridShapeTest {
 	}
 
 	/**
-	 * The shape layer's stride folding matches the evaluator's cellsByLinearIndex exactly. This is the
-	 * duplication guard: the two implementations are deliberately separate so the oracle-critical
-	 * sampling file stays untouched, so something has to pin that they agree.
+	 * The stride folding matches the evaluator's cellsByLinearIndex exactly. Both now share
+	 * KeyformGrid's own members, so this pins the contract rather than guarding a duplicate.
 	 */
 	@Test
 	fun linearIndexMatchesTheEvaluatorFolding() {
@@ -92,14 +109,6 @@ class KeyformGridShapeTest {
 		assertFalse(sparse.isDense, "a dropped cell makes the grid sparse")
 		val duplicated = KeyformGrid(dense.axes, dense.cells.dropLast(1) + dense.cells.first())
 		assertFalse(duplicated.isDense, "a duplicated coordinate makes the grid sparse")
-	}
-
-	/** The corner budget flags grids past the evaluator's four-fractional-axis split limit. */
-	@Test
-	fun cornerBudgetFlagsDeepGrids() {
-		val axes = List(5) { axisIndex -> KeyformAxis(ParameterId("Param$axisIndex"), floatArrayOf(0f, 1f)) }
-		assertFalse(denseGrid(4, 3, 2).exceedsCornerBudget)
-		assertTrue(KeyformGrid(axes, emptyList<KeyformCell<GlueForm>>()).exceedsCornerBudget)
 	}
 
 	/** axisIndexOf finds an axis by parameter and reports -1 when the grid has none. */

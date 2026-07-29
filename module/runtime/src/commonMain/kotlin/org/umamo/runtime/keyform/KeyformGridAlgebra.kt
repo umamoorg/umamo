@@ -152,7 +152,8 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 	if (oldKeys.isEmpty()) {
 		return this
 	}
-	if (oldKeys.any { existing -> abs(existing - keyValue) < EPS_KEY }) {
+	// Through keyIndexAt, the one definition of the evaluator's on-a-key snap tolerance.
+	if (keyIndexAt(parameterId, keyValue) >= 0) {
 		return this
 	}
 	// The insert position in the NEW key array: the count of existing keys below the new value.
@@ -173,7 +174,6 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 	val formByOldIndex = cells.associate { cell -> linearIndexOf(cell.coordinate) to cell.form }
 	val newAxes = axes.toMutableList()
 	newAxes[axisIndex] = KeyformAxis(parameterId, newKeys)
-	val newGridShape = KeyformGrid(newAxes.toList(), emptyList<KeyformCell<TForm>>())
 
 	// The source slices for the new one: the two it sits between, or the single nearest end when extending.
 	val lowerSourceKeyIndex = if (isBelowSpan) 0 else insertPosition - 1
@@ -214,7 +214,7 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
 		val insertedCoordinate = cell.coordinate.copyOf().also { it[axisIndex] = insertPosition }
 		newCells.add(KeyformCell(insertedCoordinate, insertedForm))
 	}
-	return KeyformGrid(newGridShape.axes, newCells)
+	return KeyformGrid(newAxes.toList(), newCells)
 }
 
 /**
@@ -379,8 +379,9 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 	var working = this
 	for (axis in axes) {
 		val poseValue = pose(axis.parameterId)
-		val currentKeys = working.axes[working.axisIndexOf(axis.parameterId)].keys
-		if (currentKeys.any { existing -> abs(existing - poseValue) < EPS_KEY }) {
+		// keyIndexAt is the one definition of the on-a-key snap; inlining the epsilon here once let the
+		// capture and the sheet UI disagree about whether the pose sits on a key.
+		if (working.keyIndexAt(axis.parameterId, poseValue) >= 0) {
 			continue
 		}
 		working = working.withKeyInserted(axis.parameterId, poseValue, interpolator)
@@ -389,7 +390,7 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 	for (axisIndex in working.axes.indices) {
 		val axis = working.axes[axisIndex]
 		val poseValue = pose(axis.parameterId)
-		val keyIndex = axis.keys.indexOfFirst { existing -> abs(existing - poseValue) < EPS_KEY }
+		val keyIndex = working.keyIndexAt(axis.parameterId, poseValue)
 		if (keyIndex < 0) {
 			// An axis refused its key (a degenerate span, say); writing a neighbouring cell would silently
 			// retarget the capture, so leave the grid untouched instead.

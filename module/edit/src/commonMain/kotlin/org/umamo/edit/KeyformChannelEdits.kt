@@ -219,25 +219,15 @@ fun PuppetModel.withChannelKeyCaptured(
  * @return PuppetModel The model with the key removed, or this on a refusal.
  */
 fun PuppetModel.withChannelKeyRemoved(target: KeyableTarget, parameter: Parameter, pose: Pose): PuppetModel {
-	val grids = channelGridsOf(target.owner) ?: return this
-	val track = grids[target.channel] ?: return this
-	val defaults = parameters.associate { it.id to it.default }
-	val scrubValue = pose[parameter.id] ?: defaults[parameter.id] ?: 0f
+	val track = channelGridsOf(target.owner)?.get(target.channel) ?: return this
+	val scrubValue = pose[parameter.id] ?: parameters.firstOrNull { it.id == parameter.id }?.default ?: 0f
 	val keyIndex = track.keyIndexAt(parameter.id, scrubValue)
 	if (keyIndex < 0) {
 		return this
 	}
-	val reduced = track.withKeyRemoved(parameter.id, keyIndex)
-	if (reduced === track) {
-		return this
-	}
-	val newGrids =
-		if (reduced == null) {
-			ChannelGrids(grids.gridsByChannel - target.channel)
-		} else {
-			ChannelGrids(grids.gridsByChannel + (target.channel to reduced))
-		}
-	return withChannelGrids(target.owner, newGrids)
+	// One removal body: the pose-addressed remove is the ordinal-addressed one after resolving the key,
+	// so the collapse-below-two-keys rule cannot fork between the two paths.
+	return withChannelKeyRemovedAt(target, parameter, keyIndex)
 }
 
 /**

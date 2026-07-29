@@ -4,6 +4,7 @@ import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.ParameterId
 
 /*
@@ -137,13 +138,12 @@ fun ChannelGrids.scalarOrNull(
 }
 
 /**
- * Whether any of this owner's channel tracks keys on [parameterId].
+ * Every axis of every channel track, in channel order.
  *
- * Used by the panel's effective-parameter walk, which must union geometry's axes with every channel's or
- * an opacity-only track becomes invisible to the parameter list.
+ * The panel's effective-parameter walk and key-mark scan must union geometry's axes with every channel
+ * track's, or an opacity-only track becomes invisible to the parameter list.  Each walk once inlined
+ * this flatten for itself, which is exactly how glue tracks went invisible to all of them.
  *
- * @param ParameterId parameterId The parameter to look for.
- * @return Boolean True when some track keys on it.
+ * @return List<KeyformAxis> The axes of every track.
  */
-fun ChannelGrids.keysOn(parameterId: ParameterId): Boolean =
-	gridsByChannel.values.any { grid -> grid.axes.any { axis -> axis.parameterId == parameterId } }
+fun ChannelGrids.allAxes(): List<KeyformAxis> = gridsByChannel.values.flatMap { grid -> grid.axes }

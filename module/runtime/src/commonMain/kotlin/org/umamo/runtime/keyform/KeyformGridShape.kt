@@ -22,16 +22,6 @@ import kotlin.math.abs
  */
 
 /**
- * The number of simultaneously fractional axes past which the evaluator stops splitting corners.
- *
- * KeyformGridSampling caps its corner set at 16 (the Umamo C++ Runtime's kbCorners maxc), so a fifth
- * fractional axis snaps to its lower key rather than doubling the set.  A grid over the budget still
- * evaluates, but inserting a key into one can change which axes snap - so grid-editing callers warn
- * rather than silently reshaping it.
- */
-private const val MAX_FRACTIONAL_AXES = 4
-
-/**
  * The grid's linear cell extent: the product of every axis's key count.
  *
  * Zero for a grid carrying an empty axis, which is a malformed grid rather than a rest cell; the
@@ -41,35 +31,6 @@ private const val MAX_FRACTIONAL_AXES = 4
  */
 val KeyformGrid<*>.cellCount: Int
 	get() = axes.fold(1) { count, axis -> count * axis.keys.size }
-
-/**
- * Whether this grid has more fractional axes than the evaluator's corner budget can split.
- *
- * @return Boolean True when an edit to this grid could change which axes the evaluator snaps.
- */
-val KeyformGrid<*>.exceedsCornerBudget: Boolean
-	get() = axes.size > MAX_FRACTIONAL_AXES
-
-/**
- * Unfolds a [linearIndex] back into its per-axis key-index coordinate - the inverse of [linearIndexOf]
- * for any index inside [cellCount].
- *
- * @param Int linearIndex The stride-folded cell index.
- * @return IntArray The key index per axis, in axis order.
- */
-fun KeyformGrid<*>.coordinateOf(linearIndex: Int): IntArray {
-	val coordinate = IntArray(axes.size)
-	var remaining = linearIndex
-	for (axisIndex in axes.indices) {
-		val keyCount = axes[axisIndex].keys.size
-		if (keyCount <= 0) {
-			continue
-		}
-		coordinate[axisIndex] = remaining % keyCount
-		remaining /= keyCount
-	}
-	return coordinate
-}
 
 /**
  * Whether this grid holds exactly one cell per coordinate in its shape.

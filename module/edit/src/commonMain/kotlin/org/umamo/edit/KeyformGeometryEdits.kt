@@ -38,21 +38,10 @@ import org.umamo.runtime.model.PuppetModel
  * @param ParameterId parameterId The parameter to look for.
  * @return Boolean True when a geometry grid exists and keys on that parameter.
  */
-fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId): Boolean {
-	val axisIndex =
-		when (owner) {
-			is KeyformOwner.Drawable -> drawableGeometry(owner)?.axisIndexOf(parameterId)
-			is KeyformOwner.Deformer ->
-				when (val deformer = deformers.firstOrNull { candidate -> candidate.id == owner.id }) {
-					is Deformer.Warp -> deformer.geometryGrid?.axisIndexOf(parameterId)
-					is Deformer.Rotation -> deformer.geometryGrid?.axisIndexOf(parameterId)
-					null -> null
-				}
-			// A part is organisational and a glue welds two meshes; neither carries geometry of its own.
-			is KeyformOwner.Part, is KeyformOwner.Glue -> null
-		}
-	return axisIndex != null && axisIndex >= 0
-}
+fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId): Boolean =
+	// Through geometryGridOf, the one owner dispatch - a second copy of the when let the keyed indicator
+	// and the actual edit ops disagree about a new owner kind.
+	(geometryGridOf(owner)?.axisIndexOf(parameterId) ?: -1) >= 0
 
 /**
  * [owner]'s geometry grid, or null when that kind of entity carries none.

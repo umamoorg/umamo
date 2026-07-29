@@ -142,4 +142,41 @@ class ParameterObjectBindingTest {
 		val deformerResult = effectiveParameterIds(puppet, Selection(setOf(SelectionTarget.Deformer(warpWithBlendShape.id))))
 		assertEquals(setOf(shrink, angleY), deformerResult, "deformer: own axis + own blend driver; limit param excluded")
 	}
+
+	/**
+	 * A glue's intensity track affects the drawables it welds: scrubbing its parameter visibly moves
+	 * their vertices, so selecting either welded mesh must keep that parameter in the filtered list.
+	 * Glues were the one owner this walk missed.
+	 */
+	@Test
+	fun glueIntensityCountsForItsWeldedDrawables() {
+		val meshA = drawable("a", parentDeformerId = null, ownParamId = null)
+		val meshB = drawable("b", parentDeformerId = null, ownParamId = angleZ)
+		val weld =
+			org.umamo.runtime.model.Glue(
+				meshA = meshA.id,
+				meshB = meshB.id,
+				pairs = emptyList(),
+				channelGrids =
+					org.umamo.runtime.model.ChannelGrids(
+						mapOf(
+							org.umamo.runtime.model.FormChannel.GLUE_INTENSITY to
+								KeyformGrid(
+									listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
+									listOf(
+										KeyformCell(intArrayOf(0), org.umamo.runtime.model.ChannelValue.Scalar(0.5f)),
+										KeyformCell(intArrayOf(1), org.umamo.runtime.model.ChannelValue.Scalar(1f)),
+									),
+								),
+						),
+					),
+			)
+		val puppet = model(listOf(meshA, meshB), emptyList()).copy(glues = listOf(weld))
+
+		val result = effectiveParameterIds(puppet, Selection(setOf(SelectionTarget.Drawable(meshA.id))))
+		assertEquals(setOf(angleX), result, "the weld's driving parameter counts for a welded drawable")
+
+		val marks = puppet.parameterKeyMarks()
+		assertEquals(listOf(-1f, 1f), marks[angleX]?.gridKeys, "the glue's keys show as slider marks")
+	}
 }

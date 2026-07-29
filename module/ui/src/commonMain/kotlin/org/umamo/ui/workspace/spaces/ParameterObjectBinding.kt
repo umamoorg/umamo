@@ -2,10 +2,12 @@ package org.umamo.ui.workspace.spaces
 
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.eval.allAxes
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
@@ -40,6 +42,7 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 	val deformerById = puppet.deformers.associateBy { deformer -> deformer.id }
 	val drawableById = puppet.drawables.associateBy { drawable -> drawable.id }
 	val partById = puppet.parts.associateBy { part -> part.id }
+	val gluesByMesh = puppet.gluesByMesh()
 	val result = HashSet<ParameterId>()
 
 	// Walks the deformer nesting from [startDeformerId] up through parents, adding each deformer's axes
@@ -55,13 +58,17 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 		}
 	}
 
-	// A drawable's effective set: its own mesh keyform axes and blend-shape drivers plus its whole
-	// parent deformer chain's axes.
+	// A drawable's effective set: its own mesh keyform axes and blend-shape drivers, its whole parent
+	// deformer chain's axes, and the intensity tracks of every glue welding it - a weld visibly moves
+	// the drawable's vertices, so its driving parameter affects the drawable.
 	fun addDrawableEffective(drawable: Drawable) {
 		// Geometry AND channel tracks, so an opacity-only track still reports the parameter driving it.
 		drawable.geometryGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
-		drawable.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> result.add(axis.parameterId) } }
+		drawable.channelGrids.allAxes().forEach { axis -> result.add(axis.parameterId) }
 		drawable.blendShapes.forEach { binding -> result.add(binding.parameterId) }
+		gluesByMesh[drawable.id]?.forEach { glue ->
+			glue.channelGrids.allAxes().forEach { axis -> result.add(axis.parameterId) }
+		}
 		addDeformerChainAxes(drawable.parentDeformerId)
 	}
 
@@ -72,7 +79,7 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 			is SelectionTarget.Deformer -> addDeformerChainAxes(target.id)
 			is SelectionTarget.Part ->
 				partById[target.id]?.let { part ->
-					part.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> result.add(axis.parameterId) } }
+					part.channelGrids.allAxes().forEach { axis -> result.add(axis.parameterId) }
 					collectPartDrawables(part, partById).forEach { drawableId ->
 						drawableById[drawableId]?.let { drawable -> addDrawableEffective(drawable) }
 					}
@@ -80,6 +87,16 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 		}
 	}
 	return result
+}
+
+/** Every glue keyed by the meshes it welds, so a drawable's welds resolve without a per-drawable scan. */
+private fun PuppetModel.gluesByMesh(): Map<DrawableId, List<Glue>> {
+	val byMesh = HashMap<DrawableId, MutableList<Glue>>()
+	for (glue in glues) {
+		byMesh.getOrPut(glue.meshA) { ArrayList() }.add(glue)
+		byMesh.getOrPut(glue.meshB) { ArrayList() }.add(glue)
+	}
+	return byMesh
 }
 
 /**
@@ -120,9 +137,7 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 
 	for (drawable in drawables) {
 		drawable.geometryGrid?.axes?.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
-		drawable.channelGrids.gridsByChannel.values.forEach { track ->
-			track.axes.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
-		}
+		drawable.channelGrids.allAxes().forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
 		drawable.blendShapes.forEach { binding -> addBlendKeys(binding.parameterId, binding.keys) }
 	}
 	for (deformer in deformers) {
@@ -130,7 +145,12 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 		deformer.blendShapeBindingKeys().forEach { (parameterId, keys) -> addBlendKeys(parameterId, keys) }
 	}
 	for (part in parts) {
-		part.channelGrids.gridsByChannel.values.forEach { track -> track.axes.forEach { axis -> addGridKeys(axis.parameterId, axis.keys) } }
+		part.channelGrids.allAxes().forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
+	}
+	// Glue intensity tracks key parameters like every other channel; without this walk a glue-only-keyed
+	// parameter showed marks in the keyform sheet but none on its Parameters-panel slider.
+	for (glue in glues) {
+		glue.channelGrids.allAxes().forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
 	}
 
 	val keyedParameters = gridKeysByParameter.keys + blendKeysByParameter.keys
@@ -155,7 +175,7 @@ private fun Deformer.keyformAxes(): List<KeyformAxis> {
 			is Deformer.Warp -> geometryGrid?.axes ?: emptyList()
 			is Deformer.Rotation -> geometryGrid?.axes ?: emptyList()
 		}
-	return geometryAxes + channelGrids.gridsByChannel.values.flatMap { track -> track.axes }
+	return geometryAxes + channelGrids.allAxes()
 }
 
 /** This deformer's blend-shape bindings as (driving parameter, key values) pairs (empty when none). */
