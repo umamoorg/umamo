@@ -839,6 +839,16 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
+	 * The keyform sheet's key selection changed (a click, a shift-click, a marquee, or a clear).
+	 *
+	 * @see MeshSelectionChanged for the same granularity in Edit mode.
+	 */
+	object KeySelectionChanged : EditorStateChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.keyform.select"
+	}
+
+	/**
 	 * An Edit-mode select-mode switch (vertex / edge / face). Its own undo step, so undoing back across
 	 * the switch restores both the prior mode and the selection it converted - the flush-down / derive-up
 	 * conversion is lossy by design (Blender-faithful), so only the snapshot can bring the set back.

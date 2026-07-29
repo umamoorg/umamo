@@ -44,6 +44,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TrackKeyRef
 import org.umamo.edit.dragTrackKeys
 import org.umamo.edit.limitedDragFraction
 import org.umamo.edit.moveTrackKey
@@ -123,6 +124,17 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	val parameterSelection by remember(session) {
 		session?.parameterSelection ?: MutableStateFlow(ParameterSelection())
 	}.collectAsState()
+
+	// The key selection lives on the SESSION, not on this area's view state: it is snapshotted, and undo can
+	// only restore what the session holds.  Two open sheets therefore share one selection - the same trade
+	// the parameter target already makes.  A sheet with no session (previews, tests) simply has none.
+	val selectedKeys by remember(session) {
+		session?.keySelection ?: MutableStateFlow(emptySet())
+	}.collectAsState()
+	// Recording a selection as its own undo step, versus folding it into the step a following commit is
+	// about to record.  See EditorSession.stageKeySelection for which is correct where.
+	val setSelectedKeys: (Set<TrackKeyRef>) -> Unit = { keys -> session?.setKeySelection(keys) }
+	val stageSelectedKeys: (Set<TrackKeyRef>) -> Unit = { keys -> session?.stageKeySelection(keys) }
 
 	// Channel and track labels are Umamo chrome, so they resolve from resources here and are injected into
 	// the Compose-free projection. Item names are the user's own data and are never translated.
@@ -265,7 +277,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			// surface registered below captures this lambda once and must not go stale on the next edit.
 			val dragSelectedKeys: (Float, Boolean) -> Unit = { fraction, commit ->
 				val plan =
-					viewState.selectedKeys.mapNotNull { keyRef ->
+					session?.keySelection?.value.orEmpty().mapNotNull { keyRef ->
 						val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
 						entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
 							keyRef to Triple(track, entry.first, keyRef.keyIndex)
@@ -278,9 +290,12 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
 					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
 					// old ordinals would leave the selection on whichever keys took their places.
-					viewState.selectedKeys =
+					// Staged, not recorded: dragTrackKeys has just committed the move as one step, and this only
+					// re-points the same selection at where those keys landed - a second step for the same gesture.
+					session.stageKeySelection(
 						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
-							.toSet()
+							.toSet(),
+					)
 				} else {
 					viewState.dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
 				}
@@ -291,7 +306,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					onDispose {}
 				} else {
 					fun selectedTracks(): List<Triple<KeyformTrackRef, Parameter, Int>> =
-						viewState.selectedKeys.mapNotNull { keyRef ->
+						session?.keySelection?.value.orEmpty().mapNotNull { keyRef ->
 							val entry =
 								currentProjections.value.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
 							entry?.second?.tracksByRowKey?.get(keyRef.rowKey)?.let { track ->
@@ -302,8 +317,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					val surface =
 						KeyformSheetSurface(
 							selectedTracks = ::selectedTracks,
-							hasSelection = { viewState.selectedKeys.isNotEmpty() },
-							clearSelection = { viewState.selectedKeys = emptySet() },
+							hasSelection = { session?.keySelection?.value?.isNotEmpty() == true },
+							clearSelection = { session?.setKeySelection(emptySet()) },
 							frameAll = { viewState.window = TrackWindow.Full },
 							armBoxSelect = { viewState.boxSelectArmed = true },
 							boxSelectArmed = { viewState.boxSelectArmed },
@@ -367,7 +382,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							KeyformSheetSection(
 								parameter = parameter,
 								projection = projection,
-								selectedKeys = viewState.selectedKeys,
+								selectedKeys = selectedKeys,
 								window = viewState.window,
 								labelColumnWidth = viewState.labelColumnWidth,
 								expandedKeys = viewState.expandedKeys,
@@ -379,7 +394,8 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 											viewState.expandedKeys + row.key
 										}
 								},
-								onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
+								onSelectedKeysChange = setSelectedKeys,
+								onStageSelectedKeys = stageSelectedKeys,
 								onDragSelectedKeys = dragSelectedKeys,
 								// The preview fraction is of the parameter's RANGE; a lane draws in its own domain units, so
 								// each section converts with its own span - which is what keeps a linked pad's two axes moving
@@ -414,7 +430,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							viewState.expandedKeys,
 							viewState.collapsedParameters,
 						)
-					viewState.selectedKeys = if (additive) viewState.selectedKeys + enclosed else enclosed
+					setSelectedKeys(if (additive) selectedKeys + enclosed else enclosed)
 				},
 				onDismiss = { viewState.boxSelectArmed = false },
 			)
@@ -474,7 +490,9 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
  * @param Dp labelColumnWidth The label column's width, shared by every section.
  * @param Set<String> expandedKeys The open group rows, shared by every section.
  * @param Function onToggleExpanded Publishes a chevron click.
- * @param Function onSelectedKeysChange Publishes a new selection to the sheet.
+ * @param Function onSelectedKeysChange Publishes a new selection, recording it as its own undo step.
+ * @param Function onStageSelectedKeys Publishes a new selection WITHOUT a step of its own, for a gesture
+ *   that commits one immediately afterwards (or has just committed one) - see EditorSession.stageKeySelection.
  * @param Function onDragSelectedKeys Previews (commit = false) or applies (commit = true) a drag of the
  *   WHOLE selection by a fraction of each key's parameter range.  Only the sheet can do this - the
  *   selection spans sections and a section sees only its own projection.
@@ -493,6 +511,7 @@ private fun KeyformSheetSection(
 	expandedKeys: Set<String>,
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
+	onStageSelectedKeys: (Set<TrackKeyRef>) -> Unit,
 	onDragSelectedKeys: (Float, Boolean) -> Unit,
 	selectedMarkDragDelta: () -> Float?,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
@@ -577,11 +596,18 @@ private fun KeyformSheetSection(
 				projection.summaryMembers(row.key, mark.keyIndex)?.toSet()
 					?: setOf(TrackKeyRef(parameter.id, row.key, mark.keyIndex))
 			if (additive) {
+				// Nothing follows a shift-click, so it records a step of its own.
 				onSelectedKeysChange(selectionAfterAdditiveClick(selectedKeys, clicked))
+			} else if (session != null && liveParams != null) {
+				// ONE undo step for the whole click, named for the selection rather than for the scrub it
+				// implies: the user clicked a keyframe, and the pose landing on it is the consequence.
+				// Recorded through the session rather than staged behind liveParams.commit because a click on
+				// the key the pose ALREADY sits on moves nothing - the pose commit would short-circuit and the
+				// selection would never reach history at all.
+				liveParams.preview(parameter.id, mark.position)
+				session.selectKeysAtPose(clicked, liveParams.values)
 			} else {
 				onSelectedKeysChange(clicked)
-				liveParams?.preview(parameter.id, mark.position)
-				liveParams?.commit(setOf(parameter.id))
 			}
 		},
 		// Pressing or dragging empty track scrubs the parameter, so the whole track region works like the
@@ -591,7 +617,8 @@ private fun KeyformSheetSection(
 			// A SHIFT press keeps the selection: shift-clicking is how a multi-key selection is built, and a
 			// near-miss on a mark should not wipe the work rather than merely failing to add to it.
 			if (!additive) {
-				onSelectedKeysChange(emptySet())
+				// Staged: onTrackScrubEnd commits the scrub, and the clear belongs to that same step.
+				onStageSelectedKeys(emptySet())
 			}
 			// Clamped again at the model boundary, not only in the lane: the lane clamps to the VISIBLE
 			// window, which is a subrange, but this is the call that reaches the evaluator - and a pose
@@ -619,6 +646,10 @@ private fun KeyformSheetSection(
 			val members = projection.summaryMembers(row.key, mark.keyIndex)
 			val track = projection.tracksByRowKey[row.key]
 			if (session != null && members != null) {
+				// Every member's ordinal may have changed on its own track, so the safe answer is to drop the
+				// selection rather than guess - and to drop it BEFORE the move, so the move's own snapshot
+				// records the cleared selection instead of a second step having to.
+				onStageSelectedKeys(emptySet())
 				// Dragging a summary moves everything it stands for, to one destination, as one undo step -
 				// they were stacked at a value and stay stacked.
 				session.moveTrackKeys(
@@ -629,9 +660,6 @@ private fun KeyformSheetSection(
 					},
 					releasedAt,
 				)
-				// Every member's ordinal may have changed on its own track, so the safe answer is to select
-				// the group mark's new membership rather than guess - it is recomputed from the new model.
-				onSelectedKeysChange(emptySet())
 			} else if (session != null && track != null) {
 				val dragged = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
 				val groupFraction = groupDragFraction(parameter, selectedKeys, dragged, mark, releasedAt)
@@ -643,7 +671,9 @@ private fun KeyformSheetSection(
 					// would silently leave the selection on whichever key took its place.
 					val landedIndex = session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
 					if (dragged in selectedKeys) {
-						onSelectedKeysChange(selectedKeys - dragged + TrackKeyRef(parameter.id, row.key, landedIndex))
+						// Staged: the move above already recorded the step, and this only re-addresses the same
+						// selection at the ordinal the key landed on.
+						onStageSelectedKeys(selectedKeys - dragged + TrackKeyRef(parameter.id, row.key, landedIndex))
 					}
 				}
 			}
@@ -700,6 +730,9 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = deleteLabel,
 							onSelect = {
+								// Cleared BEFORE the removal, so the removal's own snapshot records it - the keys are
+								// about to stop existing, and a second step to say so would double every delete.
+								onStageSelectedKeys(emptySet())
 								session.removeTrackKeys(
 									summaryMembers.mapNotNull { member ->
 										projection.tracksByRowKey[member.rowKey]?.let { memberTrack ->
@@ -707,7 +740,6 @@ private fun KeyformSheetSection(
 										}
 									},
 								)
-								onSelectedKeysChange(emptySet())
 							},
 						),
 					)

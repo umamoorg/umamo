@@ -87,11 +87,23 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 	 * Previews one parameter's value toward the render thread without recording an undo step (the fast
 	 * per-frame scrub path).
 	 *
+	 * Moving the pose RETIRES every pending unkeyed channel edit, on the first frame that actually moves
+	 * rather than at the gesture's end.  A pending value was chosen for one pose; carrying it across a scrub
+	 * applies it at every pose on the way, so a half-typed opacity showed as a flat override across the
+	 * whole range being scrubbed and only snapped back to the track on release.  The session's own commit
+	 * already clears them on a pose move - this is the same rule applied to the preview path, which does not
+	 * go through commit.
+	 *
 	 * @param ParameterId id The parameter to set.
 	 * @param Float value The new value.
 	 */
 	override fun preview(id: ParameterId, value: Float) {
-		liveParams.values = liveParams.values + (id to value)
+		val current = liveParams.values
+		if (current[id] == value) {
+			return
+		}
+		liveParams.values = current + (id to value)
+		session.clearPendingChannelEdits()
 	}
 
 	/**

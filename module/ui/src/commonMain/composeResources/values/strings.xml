@@ -142,6 +142,15 @@
 	<string name="search_clear">Clear search</string>
 
 	<!--
+	  Text-field context menu. Ours replaces Compose's built-in one, so these are the four clipboard entries
+	  it would otherwise have supplied. Distinct from cmd_select_all, which is the OBJECT-selection command.
+	-->
+	<string name="text_menu_cut">Cut</string>
+	<string name="text_menu_copy">Copy</string>
+	<string name="text_menu_paste">Paste</string>
+	<string name="text_menu_select_all">Select All</string>
+
+	<!--
 	  History panel step labels. One per Change.labelKey (the stable key carried by every edit); the seed
 	  (initial open) row uses history_open and an unmapped key falls back to history_unknown. These name
 	  the editing action, not the affected object's name (that is document data, shown in the tree).
@@ -164,6 +173,7 @@
 	<string name="history_keyform_insert">Insert Keyframe</string>
 	<string name="history_keyform_move">Move Keyframe</string>
 	<string name="history_keyform_remove">Remove Keyframe</string>
+	<string name="history_keyform_select">Select Keyframe</string>
 	<string name="history_parameter_select">Select Parameter</string>
 	<string name="history_parameter_value">Adjust Parameter</string>
 	<string name="history_parameter_range">Edit Parameter Range</string>

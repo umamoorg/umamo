@@ -202,15 +202,24 @@ fun EditorSession.removeKeyOnTrack(track: KeyformTrackRef, parameterId: Paramete
  * shadow it, so the static is the real store.  Half the rows hand-copied this branch and the other half
  * shipped without it - which is exactly the drift a shared helper exists to prevent.
  *
+ * Both branches record exactly one undo step, and both record it under [change] - which of the two a given
+ * channel takes depends on whether it happens to carry a track, which is not a distinction the rigger made.
+ *
  * @param KeyableTarget target The entity and channel being edited.
  * @param ChannelValue value The value the user chose.
+ * @param Change change The descriptor of this edit, used by whichever branch runs.
  * @param Function writeStatic Writes the owner's static (the unkeyed path); the caller supplies it because
  *   which setter that is depends on the owner and channel.
  */
-fun EditorSession.editKeyedChannel(target: KeyableTarget, value: ChannelValue, writeStatic: () -> Unit) {
+fun EditorSession.editKeyedChannel(
+	target: KeyableTarget,
+	value: ChannelValue,
+	change: Change,
+	writeStatic: () -> Unit,
+) {
 	val keyed = model.value.channelGridsOf(target.owner)?.get(target.channel) != null
 	if (keyed) {
-		setPendingChannelEdit(target, value)
+		commitPendingChannelEdit(target, value, change)
 	} else {
 		// A scrub previews through the pending buffer even on an unkeyed channel (see previewChannelEdit),
 		// so the static write has to retire that preview - otherwise the stale pending value keeps

@@ -29,6 +29,9 @@ class ChannelPreviewEditsTest {
 	private val drawableId = DrawableId("d")
 	private val target = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.OPACITY)
 
+	/** The descriptor a real opacity row supplies - the same one whichever branch stores the value. */
+	private fun opacityChange(opacity: Float): Change = DrawableChange.SetOpacity(drawableId, opacity)
+
 	/** A drawable whose opacity channel is keyed when [keyed], and bare otherwise. */
 	private fun model(keyed: Boolean): PuppetModel =
 		PuppetModel(
@@ -92,7 +95,7 @@ class ChannelPreviewEditsTest {
 	fun commitOnAnUnkeyedChannelWritesTheStaticAndRetiresThePreview() {
 		val session = EditorSession(model(keyed = false))
 		session.previewChannelEdit(target, ChannelValue.Scalar(0.25f))
-		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f)) {
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
 			session.setDrawableOpacity(drawableId, 0.25f)
 		}
 
@@ -108,7 +111,9 @@ class ChannelPreviewEditsTest {
 		for (frame in 1..20) {
 			session.previewChannelEdit(target, ChannelValue.Scalar(frame / 20f))
 		}
-		session.editKeyedChannel(target, ChannelValue.Scalar(1f)) { session.setDrawableOpacity(drawableId, 0.5f) }
+		session.editKeyedChannel(target, ChannelValue.Scalar(1f), opacityChange(1f)) {
+			session.setDrawableOpacity(drawableId, 0.5f)
+		}
 		session.undo()
 
 		assertEquals(1f, session.model.value.drawables.first().opacity, "one undo returns to the start")
@@ -121,11 +126,70 @@ class ChannelPreviewEditsTest {
 	@Test
 	fun commitOnAKeyedChannelStaysPending() {
 		val session = EditorSession(model(keyed = true))
-		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f)) { session.setDrawableOpacity(drawableId, 0.25f) }
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
 
 		assertEquals(ChannelValue.Scalar(0.25f), session.pendingChannelEdits.value[target])
 		assertEquals(1f, session.model.value.drawables.first().opacity, "the static is not the store here")
-		assertTrue(!session.canUndo.value, "a pending edit is not a document change")
+	}
+
+	/**
+	 * A pending edit is an undo step, and undoing it puts the previous pending value back.
+	 *
+	 * The value is transient - the next pose move discards it - but discarding is not the same as never
+	 * having happened.  It shows in the viewport the moment it is made, which is the whole test of whether
+	 * something belongs in history; Blender records the equivalent edit and the panel promises the same.
+	 */
+	@Test
+	fun aPendingEditIsItsOwnUndoStep() {
+		val session = EditorSession(model(keyed = true))
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
+		assertTrue(session.canUndo.value, "the commit is one undo step")
+
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.5f), opacityChange(0.5f)) {
+			session.setDrawableOpacity(drawableId, 0.5f)
+		}
+		session.undo()
+
+		assertEquals(ChannelValue.Scalar(0.25f), session.pendingChannelEdits.value[target], "back one edit")
+		session.undo()
+		assertEquals(null, session.pendingChannelEdits.value[target], "and back to none")
+	}
+
+	/** Previewing per frame records nothing; only the gesture's end does. */
+	@Test
+	fun aScrubOnAKeyedChannelIsAlsoOneUndoStep() {
+		val session = EditorSession(model(keyed = true))
+		for (frame in 1..20) {
+			session.previewChannelEdit(target, ChannelValue.Scalar(frame / 20f))
+		}
+		assertTrue(!session.canUndo.value, "twenty preview frames are not twenty steps")
+
+		session.editKeyedChannel(target, ChannelValue.Scalar(1f), opacityChange(1f)) {
+			session.setDrawableOpacity(drawableId, 1f)
+		}
+		session.undo()
+
+		assertEquals(null, session.pendingChannelEdits.value[target], "one undo clears the whole scrub")
+		assertTrue(!session.canUndo.value, "and there was only ever one step")
+	}
+
+	/** A pose move still discards every pending value - undo restores them, a scrub does not. */
+	@Test
+	fun aPoseMoveStillDiscardsAPendingEdit() {
+		val session = EditorSession(model(keyed = true))
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 15f))
+
+		assertEquals(null, session.pendingChannelEdits.value[target], "the value was chosen for the old pose")
+
+		session.undo()
+		assertEquals(ChannelValue.Scalar(0.25f), session.pendingChannelEdits.value[target], "undo brings it back")
 	}
 
 	/** Retiring one target's preview leaves every other target's alone. */
@@ -135,7 +199,7 @@ class ChannelPreviewEditsTest {
 		val other = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.DRAW_ORDER)
 		session.previewChannelEdit(target, ChannelValue.Scalar(0.25f))
 		session.previewChannelEdit(other, ChannelValue.Scalar(720f))
-		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f)) {
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
 			session.setDrawableOpacity(drawableId, 0.25f)
 		}
 

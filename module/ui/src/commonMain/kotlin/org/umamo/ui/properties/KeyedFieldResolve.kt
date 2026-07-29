@@ -28,7 +28,7 @@ import org.umamo.ui.model.keyedFieldStateOf
  */
 
 /**
- * The keyed state of [channel] on [drawable] against the currently targeted parameter.
+ * The keyed state of [channel] on [drawable] at the displayed pose.
  *
  * @param Drawable drawable The drawable the row edits.
  * @param FormChannel channel The channel the row edits.
@@ -39,7 +39,7 @@ internal fun keyedFieldStateOf(drawable: Drawable, channel: FormChannel): KeyedF
 	keyedFieldStateOf(KeyformOwner.Drawable(drawable.id), channel)
 
 /**
- * The keyed state of [channel] on any [owner] against the currently targeted parameter.
+ * The keyed state of [channel] on any [owner] at the displayed pose.
  *
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The channel the row edits.
@@ -49,12 +49,10 @@ internal fun keyedFieldStateOf(drawable: Drawable, channel: FormChannel): KeyedF
 internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): KeyedFieldState {
 	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
 	val session = LocalEditorSession.current ?: return KeyedFieldState.None
-	val parameterSelection by remember(session) { session.parameterSelection }.collectAsState()
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	return keyedFieldStateOf(
 		puppet = puppet,
 		target = KeyableTarget(owner, channel),
-		parameterId = parameterSelection.active,
 		pose = displayPose(session),
 		pendingEdits = pendingEdits,
 	)

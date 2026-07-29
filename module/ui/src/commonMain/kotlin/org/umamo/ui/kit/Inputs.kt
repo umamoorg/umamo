@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.model.KeyedFieldState
 import org.umamo.ui.model.tint
@@ -106,6 +108,13 @@ fun TextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier
 	val controller = LocalInlineEditController.current
 	val focusManager = LocalFocusManager.current
 	var focused by remember { mutableStateOf(false) }
+	// Held as a TextFieldValue purely so the context menu can act on a selection; the public API stays
+	// String-shaped, and the caret is re-pinned to the end whenever the caller replaces the text out from
+	// under the field (a cleared search box, a reset).
+	var fieldValue by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+	if (fieldValue.text != value) {
+		fieldValue = TextFieldValue(value, TextRange(value.length))
+	}
 	// Park the cancel hook only while focused; the shell checks it to yield Space / letters to the field
 	// and to route Escape (clear focus) here.  Drop it on focus loss and on dispose-while-focused.
 	DisposableEffect(Unit) {
@@ -115,39 +124,48 @@ fun TextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier
 			}
 		}
 	}
-	BasicTextField(
-		value = value,
-		onValueChange = onValueChange,
-		textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
-		singleLine = true,
-		cursorBrush = SolidColor(colors.text),
-		modifier =
-			modifier
-				.clip(shapes.small)
-				.background(colors.controlBackground)
-				.border(1.dp, colors.controlBorder, shapes.small)
-				.padding(horizontal = 6.dp, vertical = 4.dp)
-				.onFocusChanged { focusState ->
-					// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
-					// ever sees its subtree's focus.
-					if (focusState.hasFocus) {
-						if (!focused) {
-							focused = true
-							controller.cancel = { focusManager.clearFocus() }
+	val applyEdit: (TextFieldValue) -> Unit = { edited ->
+		fieldValue = edited
+		if (edited.text != value) {
+			onValueChange(edited.text)
+		}
+	}
+	TextEditContextMenuArea(value = fieldValue, onValueChange = applyEdit) { gesture ->
+		BasicTextField(
+			value = fieldValue,
+			onValueChange = applyEdit,
+			textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
+			singleLine = true,
+			cursorBrush = SolidColor(colors.text),
+			modifier =
+				gesture
+					.then(modifier)
+					.clip(shapes.small)
+					.background(colors.controlBackground)
+					.border(1.dp, colors.controlBorder, shapes.small)
+					.padding(horizontal = 6.dp, vertical = 4.dp)
+					.onFocusChanged { focusState ->
+						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only
+						// ever sees its subtree's focus.
+						if (focusState.hasFocus) {
+							if (!focused) {
+								focused = true
+								controller.cancel = { focusManager.clearFocus() }
+							}
+						} else if (focused) {
+							focused = false
+							controller.cancel = null
 						}
-					} else if (focused) {
-						focused = false
-						controller.cancel = null
+					},
+			decorationBox = { innerTextField ->
+				// Overlay the placeholder behind the field's own text so it disappears as soon as the user types.
+				Box {
+					if (placeholder != null && value.isEmpty()) {
+						Text(text = placeholder, style = LocalUmamoTypography.current.bodySmall, color = colors.textMuted)
 					}
-				},
-		decorationBox = { innerTextField ->
-			// Overlay the placeholder behind the field's own text so it disappears as soon as the user types.
-			Box {
-				if (placeholder != null && value.isEmpty()) {
-					Text(text = placeholder, style = LocalUmamoTypography.current.bodySmall, color = colors.textMuted)
+					innerTextField()
 				}
-				innerTextField()
-			}
-		},
-	)
+			},
+		)
+	}
 }

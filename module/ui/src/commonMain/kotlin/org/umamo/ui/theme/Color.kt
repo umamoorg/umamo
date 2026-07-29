@@ -126,6 +126,19 @@ data class UmamoColors(
 	val keyedBetween: Color,
 	/** An edit has been made but not keyed; it shows in the viewport and dies on the next scrub. */
 	val keyedModified: Color,
+	/**
+	 * The three keyed colors as a FIELD BACKGROUND rather than an outline.
+	 *
+	 * Translucent so they layer over whatever fill the control already has, which is what keeps a keyed
+	 * field responding to hover: the base underneath changes, the tint over it does not.  The alpha is
+	 * chosen for the DARK scheme, where light text over an opaque Blender keyframe color contrasts at
+	 * about 1.6:1 - unreadable - and this lands near 4.5:1 instead.  Light comfortably clears either way.
+	 */
+	val keyedOnKeyBackground: Color,
+	/** [keyedBetween] as a field background; see [keyedOnKeyBackground]. */
+	val keyedBetweenBackground: Color,
+	/** [keyedModified] as a field background; see [keyedOnKeyBackground]. */
+	val keyedModifiedBackground: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
@@ -161,6 +174,14 @@ data class UmamoColors(
 // like 0.7f have no exact 8-bit representation, and the derivation keeps the rendered floats bit-identical
 // to what the call sites historically computed inline.
 private val brandPurple = Color(0xFFBF86D7)
+
+// Blender's keyframe colors, and the alpha the field-background variants derive at.  Shared by both schemes
+// because the colors themselves are (see the dark scheme's note): a per-scheme alpha would drift them apart
+// again through the back door.
+private val keyframeOnKey = Color(0xFFD1B727)
+private val keyframeBetween = Color(0xFF5FC729)
+private val keyframeModified = Color(0xFFDF8431)
+private const val KEYED_BACKGROUND_ALPHA = 0.22f
 private val brandPurpleBright = Color(0xFFD394ED)
 
 // The light scheme deepens the accent so white on-accent text reads at ~5.6:1 (the dark purple family
@@ -213,9 +234,12 @@ val umamoDarkColors =
 		controlGlyph = Color(0xFFFFFFFF),
 		// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
 		// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.
-		keyedOnKey = Color(0xFFD1B727),
-		keyedBetween = Color(0xFF5FC729),
-		keyedModified = Color(0xFFDF8431),
+		keyedOnKey = keyframeOnKey,
+		keyedBetween = keyframeBetween,
+		keyedModified = keyframeModified,
+		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
@@ -277,9 +301,12 @@ val umamoLightColors =
 		controlBackground = Color(0xFFDFDFDF),
 		controlBackgroundHover = Color(0xFFCECECE), // The NumberField hover fill; a subtle darken keeps dark text legible in the light theme.
 		controlGlyph = Color(0xFF2E2E2E),
-		keyedOnKey = Color(0xFFD1B727),
-		keyedBetween = Color(0xFF5FC729),
-		keyedModified = Color(0xFFDF8431),
+		keyedOnKey = keyframeOnKey,
+		keyedBetween = keyframeBetween,
+		keyedModified = keyframeModified,
+		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),

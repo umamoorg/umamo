@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -51,6 +55,74 @@ class TrackLaneInteractionTest {
 					),
 			),
 		)
+
+	/**
+	 * A scrub survives its own side effects changing the marks underneath it.
+	 *
+	 * Pressing empty track drops the key selection, and a selection change rebuilds every mark (the flag
+	 * lives on the mark).  While the lane's gesture was KEYED on the marks, that press tore its own handler
+	 * down mid-stroke: the drag froze at the press point and the release never arrived, so the scrub was
+	 * never committed.  This drives exactly that shape - the scrub callback mutates state the marks are
+	 * built from - and asserts the stroke still finishes.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aScrubSurvivesItsOwnCallbackRebuildingTheMarks() =
+		runComposeUiTest {
+			var scrubEndedAt: Float? = null
+			var moves = 0
+			setContent {
+				// Stands in for the key selection: the scrub clears it, and clearing it rebuilds the marks.
+				var selectedKeyIndex by remember { mutableStateOf<Int?>(2) }
+				val liveRows =
+					listOf(
+						TrackRow(
+							key = "owner",
+							label = "Owner",
+							tone = TrackRowTone.Group,
+							children =
+								listOf(
+									TrackRow(
+										key = "owner/opacity",
+										label = "Opacity",
+										marks =
+											listOf(-30f, 0f, 30f).mapIndexed { keyIndex, position ->
+												TrackKeyMark(keyIndex, position, selected = keyIndex == selectedKeyIndex)
+											},
+									),
+								),
+						),
+					)
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = liveRows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, _, _ -> },
+						onTrackScrub = { _, _, _ ->
+							moves++
+							selectedKeyIndex = null
+						},
+						onTrackScrubEnd = { _, released -> scrubEndedAt = released },
+						onMarkDragEnd = { _, _, _ -> },
+					)
+				}
+			}
+			// Press on empty track (a quarter across, clear of every mark), drag right, release.
+			onNodeWithTag("sheet").performMouseInput {
+				val laneStart = labelColumnEdge()
+				moveTo(Offset(laneStart + (width - laneStart) * 0.4f, childRowCenterY()))
+				press()
+				moveTo(Offset(laneStart + (width - laneStart) * 0.6f, childRowCenterY()))
+				moveTo(Offset(laneStart + (width - laneStart) * 0.7f, childRowCenterY()))
+				release()
+			}
+			waitForIdle()
+			assertTrue(moves > 1, "the drag must keep reporting after the press rebuilt the marks")
+			assertNotNull(scrubEndedAt, "and the release must still commit the scrub")
+		}
 
 	/** A press-and-release on a mark reports it as a CLICK, not as a zero-length drag. */
 	@OptIn(ExperimentalTestApi::class)

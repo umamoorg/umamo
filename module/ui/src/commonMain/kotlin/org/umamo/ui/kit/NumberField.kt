@@ -47,12 +47,14 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.model.KeyedFieldState
-import org.umamo.ui.model.tint
+import org.umamo.ui.model.backgroundTint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -247,7 +249,13 @@ private fun NumberFieldCore(
 		// The simple field: a bare type-in box, matching the pre-upgrade behavior (no scrub / chevrons / fill).
 		// Disabled, it degrades to the same inert display face the rich field uses, so both faces read alike.
 		if (enabled) {
-			NumberEntryField(display = format(value), shape = shape, modifier = modifier, commit = commitTyped)
+			NumberEntryField(
+				display = format(value),
+				shape = shape,
+				modifier = modifier,
+				keyState = keyState,
+				commit = commitTyped,
+			)
 		} else {
 			NumberFieldDisplay(
 				text = format(value),
@@ -286,6 +294,7 @@ private fun NumberFieldCore(
 			modifier = modifier,
 			autoFocus = true,
 			onFocusLost = { editing = false },
+			keyState = keyState,
 			commit = commitTyped,
 		)
 	} else {
@@ -374,9 +383,10 @@ private fun NumberFieldDisplay(
 				.height(NUMBER_FIELD_HEIGHT)
 				.clip(shape)
 				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
-				// The resting border is transparent by default, so the keyed tint is the whole signal rather
-				// than a recolour of something already there - an unkeyed field looks exactly as it did.
-				.border(1.dp, keyState.tint(colors) ?: Color.Transparent, shape)
+				// The keyed tint layers OVER the fill rather than replacing it, which is what keeps hover
+				// working on a keyed field: the base below changes, the translucent tint above does not.  An
+				// unkeyed field paints nothing extra and looks exactly as it did.
+				.background(keyState.backgroundTint(colors) ?: Color.Transparent, shape)
 				.then(
 					if (!enabled) {
 						// A disabled field attaches no gesture or cursor affordance at all, so it cannot be
@@ -437,11 +447,13 @@ private fun NumberFieldDisplay(
 				icon = LocalUmamoIcons.chevronLeft,
 				onClick = { onStep(-1) },
 				modifier = Modifier.align(Alignment.CenterStart),
+				keyState = keyState,
 			)
 			StepChevron(
 				icon = LocalUmamoIcons.chevronRight,
 				onClick = { onStep(1) },
 				modifier = Modifier.align(Alignment.CenterEnd),
+				keyState = keyState,
 			)
 		}
 	}
@@ -459,7 +471,7 @@ private fun NumberFieldDisplay(
  * @param Modifier modifier Layout modifier (the caller aligns it to an edge).
  */
 @Composable
-private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier) {
+private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier, keyState: KeyedFieldState) {
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
@@ -472,6 +484,9 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
 				// a drag zone, and the innermost hover icon wins.
 				.pointerHoverIcon(PointerIcon.Default)
 				.background(if (hovered) colors.buttonHover else colors.controlBackground)
+				// Opaque fills over the field's own, and the chevrons show exactly WHEN the field is hovered -
+				// so without the tint here a keyed field loses 32dp of its signal at both ends on hover.
+				.background(keyState.backgroundTint(colors) ?: Color.Transparent)
 				.clickable(interactionSource = interaction, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
 	) {
@@ -503,6 +518,7 @@ private fun NumberEntryField(
 	modifier: Modifier,
 	autoFocus: Boolean = false,
 	onFocusLost: () -> Unit = {},
+	keyState: KeyedFieldState = KeyedFieldState.None,
 	commit: (String) -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -510,7 +526,9 @@ private fun NumberEntryField(
 	val focusManager = LocalFocusManager.current
 	val focusRequester = remember { FocusRequester() }
 	var focused by remember { mutableStateOf(false) }
-	var text by remember { mutableStateOf(display) }
+	// A TextFieldValue rather than a String so the context menu can act on a selection; the caret sits at the
+	// end whenever the value is (re)seeded from outside, which is where a click-to-type gesture wants it.
+	var text by remember { mutableStateOf(TextFieldValue(display, TextRange(display.length))) }
 	// True between an Escape (which clears focus to discard) and the resulting focus-loss, so that path
 	// discards instead of committing.  Plain commit paths (Enter, click-away) leave it false.
 	var discarding by remember { mutableStateOf(false) }
@@ -523,67 +541,73 @@ private fun NumberEntryField(
 	// While not editing, mirror the external value (a slider / pad drag or a reset updates the number).
 	LaunchedEffect(display, focused) {
 		if (!focused) {
-			text = display
+			text = TextFieldValue(display, TextRange(display.length))
 		}
 	}
 
 	// The visual box carries the fixed height, fill, and border so it matches the display face exactly (no
 	// jump on click); the inner text field wraps its own line height and the box centers it, with horizontal
-	// padding only - the same "let the fixed box own the height" approach the display face uses.
-	Box(
-		modifier =
-			modifier
-				.height(NUMBER_FIELD_HEIGHT)
-				.clip(shape)
-				.background(colors.controlBackground)
-				.border(1.dp, colors.controlBorder, shape),
-		contentAlignment = Alignment.Center,
-	) {
-		BasicTextField(
-			value = text,
-			onValueChange = { newText -> text = newText },
-			textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text, textAlign = TextAlign.End),
-			singleLine = true,
-			cursorBrush = SolidColor(colors.text),
-			keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-			// Soft-keyboard Done: clear focus so the single commit happens on the focus-loss path below.
-			keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+	// padding only - the same "let the fixed box own the height" approach the display face uses.  That
+	// promise includes the KEYED tint: without it, clicking a keyed field to type flashed the whole box back
+	// to the plain fill for the length of the edit.
+	TextEditContextMenuArea(value = text, onValueChange = { edited -> text = edited }) { gesture ->
+		Box(
 			modifier =
-				Modifier
-					.fillMaxWidth()
-					.padding(horizontal = 4.dp)
-					.focusRequester(focusRequester)
-					.onFocusChanged { focusState ->
-						// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only ever
-						// sees its subtree's focus.
-						if (focusState.hasFocus) {
-							if (!focused) {
-								focused = true
-								controller.cancel = {
-									discarding = true
-									focusManager.clearFocus()
+				gesture
+					.then(modifier)
+					.height(NUMBER_FIELD_HEIGHT)
+					.clip(shape)
+					.background(colors.controlBackground)
+					.background(keyState.backgroundTint(colors) ?: Color.Transparent, shape)
+					.border(1.dp, colors.controlBorder, shape),
+			contentAlignment = Alignment.Center,
+		) {
+			BasicTextField(
+				value = text,
+				onValueChange = { edited -> text = edited },
+				textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text, textAlign = TextAlign.End),
+				singleLine = true,
+				cursorBrush = SolidColor(colors.text),
+				keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+				// Soft-keyboard Done: clear focus so the single commit happens on the focus-loss path below.
+				keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+				modifier =
+					Modifier
+						.fillMaxWidth()
+						.padding(horizontal = 4.dp)
+						.focusRequester(focusRequester)
+						.onFocusChanged { focusState ->
+							// hasFocus (not isFocused): BasicTextField focuses an internal child, so this node only ever
+							// sees its subtree's focus.
+							if (focusState.hasFocus) {
+								if (!focused) {
+									focused = true
+									controller.cancel = {
+										discarding = true
+										focusManager.clearFocus()
+									}
 								}
+							} else if (focused) {
+								focused = false
+								controller.cancel = null
+								if (discarding) {
+									discarding = false
+								} else {
+									commit(text.text)
+								}
+								onFocusLost()
 							}
-						} else if (focused) {
-							focused = false
-							controller.cancel = null
-							if (discarding) {
-								discarding = false
+						}
+						.onKeyEvent { event ->
+							// Hardware Enter confirms by clearing focus, so the commit runs once on the focus-loss path.
+							if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+								focusManager.clearFocus()
+								true
 							} else {
-								commit(text)
+								false
 							}
-							onFocusLost()
-						}
-					}
-					.onKeyEvent { event ->
-						// Hardware Enter confirms by clearing focus, so the commit runs once on the focus-loss path.
-						if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
-							focusManager.clearFocus()
-							true
-						} else {
-							false
-						}
-					},
-		)
+						},
+			)
+		}
 	}
 }

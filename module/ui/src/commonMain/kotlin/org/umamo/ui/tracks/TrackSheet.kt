@@ -957,6 +957,20 @@ private fun TrackLane(
 	var laneWidth by remember(row.key) { mutableStateOf(0) }
 	val touchSlop = LocalViewConfiguration.current.touchSlop
 	val markRadiusPx = with(density) { markRadius.toPx() }
+	// The marks and the callbacks are read through latest-state holders rather than keying the gesture
+	// blocks below, and that is load-bearing rather than tidy: a pointerInput RESTARTS when a key changes,
+	// and both of these change identity the moment the SELECTION does - so an owner that cleared the
+	// selection on the press (which is exactly what pressing empty track does) tore its own gesture down
+	// mid-stroke.  The drag then froze at the press point and the release never arrived, so nothing
+	// committed.  Only the pixel-to-domain mapping still keys the blocks, because that genuinely
+	// invalidates a stroke in progress.
+	val editableMarks = remember(marks) { marks.filter { candidate -> candidate.editable } }
+	val latestEditableMarks by rememberUpdatedState(editableMarks)
+	val latestMarkClick by rememberUpdatedState(onMarkClick)
+	val latestTrackScrub by rememberUpdatedState(onTrackScrub)
+	val latestTrackScrubEnd by rememberUpdatedState(onTrackScrubEnd)
+	val latestMarkDrag by rememberUpdatedState(onMarkDrag)
+	val latestMarkDragEnd by rememberUpdatedState(onMarkDragEnd)
 	Box(
 		modifier =
 			modifier
@@ -974,10 +988,7 @@ private fun TrackLane(
 					.onSizeChanged { measured -> laneWidth = measured.width }
 					// Hover reporting is its own handler and consumes nothing: it has to see the pointer
 					// wherever it is, including mid-drag, and must never take an event from the gestures.
-					.pointerInput(row.key, marks, axis, markRadiusPx) {
-						// Hoisted out of the event loop: the block is keyed on marks, so the filtered list is
-						// stable for its whole lifetime - filtering per Enter/Move allocated per pointer event.
-						val editableMarks = marks.filter { candidate -> candidate.editable }
+					.pointerInput(row.key, axis, markRadiusPx) {
 						awaitPointerEventScope {
 							while (true) {
 								val event = awaitPointerEvent()
@@ -986,7 +997,8 @@ private fun TrackLane(
 									PointerEventType.Exit -> latestLaneHover?.invoke(row, null)
 									PointerEventType.Enter, PointerEventType.Move -> {
 										val value = domainAt(change.position.x, axis, size.width, markRadiusPx)
-										val mark = nearestMark(editableMarks, value, pickTolerance(axis, size.width, markRadiusPx))
+										val mark =
+											nearestMark(latestEditableMarks, value, pickTolerance(axis, size.width, markRadiusPx))
 										latestLaneHover?.invoke(row, TrackLaneHit(row, value, mark))
 									}
 
@@ -1009,12 +1021,7 @@ private fun TrackLane(
 					// detector consumed the down before the tap detector saw it, so clicking a mark did nothing
 					// and neither selection nor dragging worked. Deciding between them from a single stream is
 					// the only way they cannot fight.
-					.pointerInput(row.key, marks, axis, markRadiusPx, onMarkClick, onTrackScrub, onMarkDrag, onMarkDragEnd) {
-						if (onMarkClick == null && onTrackScrub == null && onMarkDragEnd == null) {
-							return@pointerInput
-						}
-						// Hoisted like the hover handler's: stable for the keyed block's whole lifetime.
-						val editableMarks = marks.filter { mark -> mark.editable }
+					.pointerInput(row.key, axis, markRadiusPx) {
 						awaitEachGesture {
 							val down = awaitFirstDown(requireUnconsumed = false)
 							// A secondary (right) press belongs to the context menu.  Without this it would
@@ -1023,6 +1030,12 @@ private fun TrackLane(
 							// A secondary press belongs to the context menu and a tertiary one to the sheet's
 							// pan; either falling through here would scrub or select on the way past.
 							if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
+								return@awaitEachGesture
+							}
+							// A sheet mounted with no handlers at all is read-only; it must not show drag feedback for a
+							// gesture that can go nowhere.  Checked per gesture rather than keying the block, because the
+							// handlers change identity on every selection change and keying on them tears the stroke down.
+							if (latestMarkClick == null && latestTrackScrub == null && latestMarkDragEnd == null) {
 								return@awaitEachGesture
 							}
 							// Sampled at the PRESS, like the marquee's own Shift read: the modifier is part of what the
@@ -1034,7 +1047,10 @@ private fun TrackLane(
 							// summary ordinal), so a press on one starts a drag like any other; it is the owner that maps
 							// that ordinal back to the whole set of child keys beneath it.  Only a non-editable mark - a
 							// blend-shape binding - falls through to the scrub path.
-							val hitMark = nearestMark(editableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
+							// Sampled once at the press, so the marks a stroke hit-tests against cannot shift under
+							// it - the drag is manipulating the mark it started on, whatever the list does meanwhile.
+							val hitMark =
+									nearestMark(latestEditableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
 							var dragging = false
 							var releaseValue = pressedValue
 							// A press on empty track scrubs immediately, so the playhead lands under the
@@ -1047,7 +1063,7 @@ private fun TrackLane(
 							// pointer position is drawn with, so the playhead stops where the pointer stops.
 							val scrubBounds = minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
 							if (hitMark == null) {
-								onTrackScrub?.invoke(row, pressedValue.coerceIn(scrubBounds), additive)
+								latestTrackScrub?.invoke(row, pressedValue.coerceIn(scrubBounds), additive)
 							}
 							while (true) {
 								val event = awaitPointerEvent()
@@ -1076,21 +1092,21 @@ private fun TrackLane(
 												pointerValue.coerceIn(dragBounds)
 											}
 										if (hitMark == null) {
-											onTrackScrub?.invoke(row, releaseValue, additive)
+											latestTrackScrub?.invoke(row, releaseValue, additive)
 										} else {
 											dragDomainValue = releaseValue
 											// Reported every move, not only on release: an owner previewing a group drag needs
 											// the live value, and it is the owner - not the lane - that knows what travels with it.
-											onMarkDrag?.invoke(row, hitMark, releaseValue)
+											latestMarkDrag?.invoke(row, hitMark, releaseValue)
 										}
 										change.consume()
 									}
 								}
 							}
 							when {
-								hitMark != null && dragging -> onMarkDragEnd?.invoke(row, hitMark, releaseValue)
-								hitMark != null -> onMarkClick?.invoke(row, hitMark, additive)
-								else -> onTrackScrubEnd?.invoke(row, releaseValue)
+								hitMark != null && dragging -> latestMarkDragEnd?.invoke(row, hitMark, releaseValue)
+								hitMark != null -> latestMarkClick?.invoke(row, hitMark, additive)
+								else -> latestTrackScrubEnd?.invoke(row, releaseValue)
 							}
 							draggingMark = null
 						}

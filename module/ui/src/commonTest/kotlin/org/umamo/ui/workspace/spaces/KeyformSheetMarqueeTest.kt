@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import androidx.compose.ui.geometry.Rect
+import org.umamo.edit.TrackKeyRef
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId

@@ -76,6 +76,9 @@ The file picker just writes out the original CMO3 right now as a save test.  Not
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
 * Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
 
+## Context Issues
+* If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
+
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
@@ -89,21 +92,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
-* Bugs
-	* The property edited border should not show up on unkeyed properties while scrubbing.  For example, scrubbing opacity on an unkeyed part results it in showing the keyedModified border while scrubbing.
-	* Opacity is being rounded to two decimal places even on manual input.  We should expand it to three decimal places.
-* NumberField
-	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
-* Keyform Sheet Related
-	* Background highlight in property controls instead of the border highlight.
 
 ## Parameters
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
-
-## Keyform Sheet
-* Improvements
-	* Select Keyframe should be a history action.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
