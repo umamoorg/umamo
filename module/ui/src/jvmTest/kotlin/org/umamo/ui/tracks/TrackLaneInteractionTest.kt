@@ -8,10 +8,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -65,8 +68,8 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, mark, _ -> clicked = mark },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, released -> dragEnded = released },
 					)
 				}
@@ -85,6 +88,64 @@ class TrackLaneInteractionTest {
 			assertNull(dragEnded, "a click is not a drag")
 		}
 
+	/**
+	 * A click reports whether SHIFT was held, on a mark and on empty track alike.
+	 *
+	 * The lane decides nothing about what additive means - only the owner holds a selection - so all that
+	 * has to hold here is that the modifier survives the trip.  It is sampled at the PRESS, so a Shift
+	 * released before the button comes up still reads as an extend.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aClickReportsWhetherShiftWasHeld() =
+		runComposeUiTest {
+			val markAdditive = mutableListOf<Boolean>()
+			val trackAdditive = mutableListOf<Boolean>()
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, _, additive -> markAdditive.add(additive) },
+						onTrackScrub = { _, _, additive -> trackAdditive.add(additive) },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				// The middle mark, at domain 0 - the same target the plain-click test uses.
+				moveTo(Offset((width + labelColumnEdge()) / 2f, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertEquals(listOf(false), markAdditive, "a plain click is not additive")
+
+			onNodeWithTag("sheet").performKeyInput { keyDown(Key.ShiftLeft) }
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset((width + labelColumnEdge()) / 2f, childRowCenterY()))
+				press()
+				release()
+			}
+			onNodeWithTag("sheet").performKeyInput { keyUp(Key.ShiftLeft) }
+			waitForIdle()
+			assertEquals(listOf(false, true), markAdditive, "a Shift+click is")
+
+			// And the same on empty track, which is what lets a Shift+click that MISSES a mark decline to
+			// wipe the selection the user was building.
+			onNodeWithTag("sheet").performKeyInput { keyDown(Key.ShiftLeft) }
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(labelColumnEdge() + 20f, childRowCenterY()))
+				press()
+				release()
+			}
+			onNodeWithTag("sheet").performKeyInput { keyUp(Key.ShiftLeft) }
+			waitForIdle()
+			assertTrue(trackAdditive.isNotEmpty() && trackAdditive.all { additive -> additive }, "empty track too")
+		}
+
 	/** A press on empty track reports an empty-track click carrying the domain value under the pointer. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -100,7 +161,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
+						onMarkClick = { _, mark, _ -> clicked = mark },
 						onTrackScrubEnd = { _, value -> trackValue = value },
 					)
 				}
@@ -133,7 +194,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onMarkClick = { _, mark -> clicked = mark },
+						onMarkClick = { _, mark, _ -> clicked = mark },
 						onMarkDragEnd = { _, mark, released ->
 							draggedMark = mark
 							releasedAt = released
@@ -180,8 +241,8 @@ class TrackLaneInteractionTest {
 						expandedKeys = setOf("owner"),
 						// The tap handlers are live, as they are in the sheet: two pointer-input modifiers on
 						// one node is exactly what a secondary press has to survive.
-						onMarkClick = { _, _ -> markClicked = true },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, _, _ -> markClicked = true },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, _ -> },
 						laneMenuItems = { laneHit ->
 							hit = laneHit
@@ -226,8 +287,8 @@ class TrackLaneInteractionTest {
 						expandedKeys = setOf("owner"),
 						// The tap handlers are live, as they are in the sheet: two pointer-input modifiers on
 						// one node is exactly what a secondary press has to survive.
-						onMarkClick = { _, _ -> markClicked = true },
-						onTrackScrub = { _, _ -> trackClicked = true },
+						onMarkClick = { _, _, _ -> markClicked = true },
+						onTrackScrub = { _, _, _ -> trackClicked = true },
 						onMarkDragEnd = { _, _, _ -> },
 						laneMenuItems = { laneHit ->
 							hit = laneHit
@@ -323,7 +384,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, value -> scrubbed.add(value) },
+						onTrackScrub = { _, value, _ -> scrubbed.add(value) },
 						onTrackScrubEnd = { _, value -> committedAt = value },
 					)
 				}
@@ -345,14 +406,18 @@ class TrackLaneInteractionTest {
 			assertEquals(scrubbed.last(), assertNotNull(committedAt), "the commit lands where the drag ended")
 		}
 
-	/** A press on a COLLAPSED group's summary mark scrubs rather than starting a drag it cannot resolve. */
+	/**
+	 * A COLLAPSED group's summary mark is draggable, and reports its SUMMARY ordinal.
+	 *
+	 * That ordinal is the name its owner maps back to every child key stacked at that value, so one drag
+	 * moves the whole stack instead of guessing at which channel was meant.
+	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun summaryMarksAreNotDraggable() =
+	fun summaryMarksAreDraggable() =
 		runComposeUiTest {
 			var draggedMark: TrackKeyMark? = null
-			var markClicked: TrackKeyMark? = null
-			val scrubbed = mutableListOf<Float>()
+			var releasedAt: Float? = null
 			setContent {
 				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
 					TrackSheet(
@@ -362,9 +427,10 @@ class TrackLaneInteractionTest {
 						modifier = Modifier.fillMaxSize(),
 						// COLLAPSED, so the group row draws its subtree's summary marks.
 						expandedKeys = emptySet(),
-						onMarkClick = { _, mark -> markClicked = mark },
-						onTrackScrub = { _, value -> scrubbed.add(value) },
-						onMarkDragEnd = { _, mark, _ -> draggedMark = mark },
+						onMarkDragEnd = { _, mark, released ->
+							draggedMark = mark
+							releasedAt = released
+						},
 					)
 				}
 			}
@@ -378,9 +444,8 @@ class TrackLaneInteractionTest {
 				release()
 			}
 			waitForIdle()
-			assertNull(draggedMark, "a summary mark stands for several keys, so it cannot be dragged")
-			assertNull(markClicked, "nor selected")
-			assertTrue(scrubbed.isNotEmpty(), "the gesture reads as a scrub of the track instead")
+			assertEquals(1, assertNotNull(draggedMark).keyIndex, "the middle of three summary marks")
+			assertTrue(assertNotNull(releasedAt) > 0f, "dragging right raises the destination")
 		}
 
 	/** A scrub is clamped to the axis: dragging off the end of the track cannot push the pose out of range. */
@@ -398,7 +463,7 @@ class TrackLaneInteractionTest {
 						playhead = null,
 						modifier = Modifier.fillMaxSize(),
 						expandedKeys = setOf("owner"),
-						onTrackScrub = { _, value -> scrubbed.add(value) },
+						onTrackScrub = { _, value, _ -> scrubbed.add(value) },
 						onTrackScrubEnd = { _, value -> committedAt = value },
 					)
 				}
@@ -482,6 +547,101 @@ class TrackLaneInteractionTest {
 			}
 			waitForIdle()
 			assertNull(hits.last(), "leaving the lane must clear what it reported")
+		}
+
+	/** An armed marquee reports the region it enclosed, in window coordinates, and then disarms. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun anArmedMarqueeReportsItsRegion() =
+		runComposeUiTest {
+			var region: Rect? = null
+			var additive: Boolean? = null
+			var dismissed = false
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheetMarqueeOverlay(
+						armed = true,
+						onSelect = { enclosed, wasAdditive ->
+							region = enclosed
+							additive = wasAdditive
+						},
+						onDismiss = { dismissed = true },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(100f, 40f))
+				press()
+				moveTo(Offset(300f, 120f))
+				release()
+			}
+			waitForIdle()
+			val enclosed = assertNotNull(region, "a drag must report its region")
+			assertEquals(200f, enclosed.width, "the region spans the drag horizontally")
+			assertEquals(80f, enclosed.height, "and vertically")
+			assertEquals(false, additive, "an unmodified drag replaces the selection")
+			assertTrue(dismissed, "and the marquee disarms itself afterwards")
+		}
+
+	/** A marquee dragged up-and-left still reports an ascending rectangle. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aMarqueeNormalizesItsRegion() =
+		runComposeUiTest {
+			var region: Rect? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheetMarqueeOverlay(
+						armed = true,
+						onSelect = { enclosed, _ -> region = enclosed },
+						onDismiss = {},
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				moveTo(Offset(300f, 120f))
+				press()
+				moveTo(Offset(100f, 40f))
+				release()
+			}
+			waitForIdle()
+			val enclosed = assertNotNull(region)
+			assertTrue(enclosed.left < enclosed.right && enclosed.top < enclosed.bottom, "got $enclosed")
+		}
+
+	/** A disarmed marquee is not in the way at all - it composes nothing and takes no pointer input. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aDisarmedMarqueeTakesNoInput() =
+		runComposeUiTest {
+			var region: Rect? = null
+			var trackScrubbed = false
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onTrackScrub = { _, _, _ -> trackScrubbed = true },
+					)
+					TrackSheetMarqueeOverlay(
+						armed = false,
+						onSelect = { enclosed, _ -> region = enclosed },
+						onDismiss = {},
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneStart = labelColumnEdge()
+				moveTo(Offset(laneStart + (width - laneStart) * 0.25f, childRowCenterY()))
+				press()
+				release()
+			}
+			waitForIdle()
+			assertNull(region, "a disarmed marquee reports nothing")
+			assertTrue(trackScrubbed, "and the lane underneath still gets its gesture")
 		}
 }
 

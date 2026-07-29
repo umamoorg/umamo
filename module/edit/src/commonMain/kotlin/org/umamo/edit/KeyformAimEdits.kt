@@ -44,6 +44,80 @@ sealed interface KeyformAim {
 }
 
 /**
+ * What a deferred keyform edit will do once the user picks the axis it writes on.
+ */
+enum class KeyformAction {
+	/** Insert a key ([captureKeyOnTrack]). */
+	Capture,
+
+	/** Remove a key ([removeKeyOnTrack]). */
+	Remove,
+}
+
+/**
+ * A keyform edit held back because more than one parameter is targeted and the user never named one.
+ *
+ * The linked-pad case: a 2D pad targets both its axes but reports only the HORIZONTAL one as active, so an
+ * unaimed edit would silently always write there and the vertical section would keep reading as unkeyed.
+ * Guessing is the one thing that must not happen - the wrong axis is authored work in the wrong place - so
+ * the edit parks here and the shell asks.
+ *
+ * Carries the whole edit rather than just the question, so answering it is a plain replay through the same
+ * entry point with the axis filled in; the UI decides nothing but which name was clicked.
+ *
+ * @property KeyformTrackRef track The track the edit was aimed at.
+ * @property KeyformAim aim Where on that track it lands.
+ * @property KeyformAction action Which edit is waiting.
+ * @property List candidates The targeted parameters to choose between, in model order.
+ */
+data class ParameterChoiceRequest(
+	val track: KeyformTrackRef,
+	val aim: KeyformAim,
+	val action: KeyformAction,
+	val candidates: List<ParameterId>,
+)
+
+/**
+ * The targeted parameters an unaimed edit would have to choose between, or null when there is no choice.
+ *
+ * Null - meaning "just proceed" - whenever the caller named a parameter (a sheet lane always does, and its
+ * lane is the answer), or fewer than two of the targeted ids still resolve in the model.
+ *
+ * @param ParameterId? parameterId The axis the caller named, or null.
+ * @return List? The candidates to ask about, or null to proceed without asking.
+ */
+private fun EditorSession.parameterChoiceFor(parameterId: ParameterId?): List<ParameterId>? {
+	if (parameterId != null) {
+		return null
+	}
+	val targeted = parameterSelection.value.ids
+	if (targeted.size < 2) {
+		return null
+	}
+	// Model order, not set order: the prompt has to list the axes the way the panel does, and a Set's
+	// iteration order is an implementation detail the user would experience as the menu reshuffling.
+	val candidates = model.value.parameters.map { parameter -> parameter.id }.filter { id -> id in targeted }
+	return if (candidates.size < 2) null else candidates
+}
+
+/**
+ * Answers the pending [ParameterChoiceRequest] by writing on [parameterId], replaying the parked edit.
+ *
+ * Replayed through the ordinary entry point with the axis now named, so the answered edit takes exactly the
+ * path an aimed one takes - there is no second implementation of what an insert or a removal means.
+ *
+ * @param ParameterId parameterId The axis the user picked.
+ */
+fun EditorSession.resolveParameterChoice(parameterId: ParameterId) {
+	val request = pendingParameterChoice.value ?: return
+	cancelParameterChoice()
+	when (request.action) {
+		KeyformAction.Capture -> captureKeyOnTrack(request.track, parameterId, request.aim)
+		KeyformAction.Remove -> removeKeyOnTrack(request.track, parameterId, request.aim)
+	}
+}
+
+/**
  * Captures a key on [track] at [aim], keyed on the parameter the edit writes on.
  *
  * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
@@ -55,11 +129,18 @@ sealed interface KeyformAim {
  * Refuses with a notice rather than silently doing nothing when no parameter resolves, since that is a thing
  * the user can fix.
  *
+ * When no parameter is named and more than one is targeted (a linked pad), the edit parks as a
+ * [ParameterChoiceRequest] instead of writing on whichever axis happens to be active.
+ *
  * @param KeyformTrackRef track The track to key.
  * @param ParameterId? parameterId The axis to key on, or null to use the session's targeted parameter.
  * @param KeyformAim aim Where the key lands.
  */
 fun EditorSession.captureKeyOnTrack(track: KeyformTrackRef, parameterId: ParameterId?, aim: KeyformAim) {
+	parameterChoiceFor(parameterId)?.let { candidates ->
+		requestParameterChoice(ParameterChoiceRequest(track, aim, KeyformAction.Capture, candidates))
+		return
+	}
 	val parameter = keyformParameterFor(parameterId) ?: return
 	if (aim is KeyformAim.Position) {
 		insertTrackKeyAt(track, parameter, aim.position)
@@ -88,11 +169,18 @@ fun EditorSession.captureKeyOnTrack(track: KeyformTrackRef, parameterId: Paramet
  * Either way the key is an ORDINAL, and either way aiming at nothing removes nothing: picking "the nearest
  * key" would be a guess at which one the user meant, and a wrong guess silently destroys authored work.
  *
+ * Parks as a [ParameterChoiceRequest] on an ambiguous target, exactly as [captureKeyOnTrack] does - a
+ * removal aimed at the wrong axis destroys authored work, so it is the LAST thing to guess at.
+ *
  * @param KeyformTrackRef track The track to unkey.
  * @param ParameterId? parameterId The axis to remove from, or null to use the session's targeted parameter.
  * @param KeyformAim aim The key pointed at, or [KeyformAim.Pose] to take the key the pose stands on.
  */
 fun EditorSession.removeKeyOnTrack(track: KeyformTrackRef, parameterId: ParameterId?, aim: KeyformAim) {
+	parameterChoiceFor(parameterId)?.let { candidates ->
+		requestParameterChoice(ParameterChoiceRequest(track, aim, KeyformAction.Remove, candidates))
+		return
+	}
 	val parameter = keyformParameterFor(parameterId) ?: return
 	val keyIndex =
 		when (aim) {
@@ -124,8 +212,27 @@ fun EditorSession.editKeyedChannel(target: KeyableTarget, value: ChannelValue, w
 	if (keyed) {
 		setPendingChannelEdit(target, value)
 	} else {
+		// A scrub previews through the pending buffer even on an unkeyed channel (see previewChannelEdit),
+		// so the static write has to retire that preview - otherwise the stale pending value keeps
+		// shadowing the very static just committed, and the field stays tinted as an uncommitted edit.
+		clearPendingChannelEdit(target)
 		writeStatic()
 	}
+}
+
+/**
+ * Previews [value] on [target] without committing anything - what a field reports while being scrubbed.
+ *
+ * Always the pending buffer, whether or not the channel is keyed.  For a keyed channel that is already
+ * where a committed edit lands, so preview and commit coincide; for an unkeyed one it is the difference
+ * between a live viewport and a history entry per pointer frame.  [editKeyedChannel] retires the preview
+ * when the gesture ends.
+ *
+ * @param KeyableTarget target The entity and channel being scrubbed.
+ * @param ChannelValue value The in-flight value.
+ */
+fun EditorSession.previewChannelEdit(target: KeyableTarget, value: ChannelValue) {
+	setPendingChannelEdit(target, value)
 }
 
 /**

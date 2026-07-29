@@ -11,13 +11,31 @@ import kotlin.test.assertSame
  * cannot be torn down by the older composition's dispose.
  */
 class KeyformSheetViewsTest {
-	private fun surface(hasSelection: Boolean = false): KeyformSheetSurface =
+	private fun surface(hasSelection: Boolean = false, boxSelectArmed: Boolean = false): KeyformSheetSurface =
 		KeyformSheetSurface(
 			selectedTracks = { emptyList() },
 			hasSelection = { hasSelection },
 			clearSelection = {},
 			frameAll = {},
+			armBoxSelect = {},
+			boxSelectArmed = { boxSelectArmed },
+			disarmBoxSelect = {},
+			nudgeSelection = {},
 		)
+
+	/** Escape has to find the armed sheet wherever it is, since arming is per area but the key is global. */
+	@Test
+	fun theArmedSheetIsFoundWhicheverAreaHoldsIt() {
+		val views = KeyformSheetViews()
+		views.register("a", surface())
+		val armed = surface(boxSelectArmed = true)
+		views.register("b", armed)
+		assertSame(armed, views.armedBoxSelect())
+
+		val quiet = KeyformSheetViews()
+		quiet.register("a", surface())
+		assertNull(quiet.armedBoxSelect(), "with nothing armed, Escape falls through to the branches below it")
+	}
 
 	/** The hovered sheet area always wins, regardless of how many are open. */
 	@Test

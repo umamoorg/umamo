@@ -93,6 +93,7 @@ data class UmamoIcons(
 	val spaceOutliner: UmamoIcon,
 	val spaceHistory: UmamoIcon,
 	val spaceParameters: UmamoIcon,
+	val spaceKeyformSheet: UmamoIcon,
 	val spaceProperties: UmamoIcon,
 	val spaceTool: UmamoIcon,
 	val spaceAnimation: UmamoIcon,
@@ -232,6 +233,8 @@ val LocalUmamoIcons =
 		spaceHistory = simpleIcon("M12 8l0 4l2 2 M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"),
 		// Tabler "adjustments-horizontal" (viewBox 0 0 24 24, stroked).
 		spaceParameters = simpleIcon("M12 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 6l8 0 M16 6l4 0 M6 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 12l2 0 M10 12l10 0 M15 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 18l11 0 M19 18l1 0"),
+		// Tabler "chart-grid-dots" (viewBox 0 0 24 24, stroked).
+		spaceKeyformSheet = simpleIcon("M16 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M4 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M8 18h8 M18 20v1 M18 3v1 M6 20v1 M6 10v-7 M12 3v18 M18 8v8 M8 12h13 M21 6h-1 M16 6h-13 M3 12h1 M20 18h1 M3 18h1 M6 14v2"),
 		// Tabler "list-details" (viewBox 0 0 24 24, stroked).
 		spaceProperties = simpleIcon("M13 5h8 M13 9h5 M13 15h8 M13 19h5 M3 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4 M3 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4"),
 		// Tabler "tools" (viewBox 0 0 24 24, stroked).

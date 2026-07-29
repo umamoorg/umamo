@@ -29,7 +29,7 @@ enum class OutlinerIcon {
 	Part,
 
 	/** A drawable art mesh. */
-	ArtMesh,
+	Drawable,
 
 	/** A warp (FFD lattice) deformer. */
 	WarpDeformer,
@@ -91,7 +91,7 @@ fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armature", armat
 		OutlinerNode(
 			id = "drawable:${drawable.id.raw}",
 			label = drawable.name,
-			icon = OutlinerIcon.ArtMesh,
+			icon = OutlinerIcon.Drawable,
 			dimmed = !drawable.isVisible,
 			target = SelectionTarget.Drawable(drawable.id),
 			children = emptyList(),
@@ -197,7 +197,7 @@ private fun kindFiltered(node: OutlinerNode, showParts: Boolean, showDrawables: 
 	if (!showDeformers && isDeformerKind) {
 		return emptyList()
 	}
-	if (!showDrawables && node.icon == OutlinerIcon.ArtMesh) {
+	if (!showDrawables && node.icon == OutlinerIcon.Drawable) {
 		return emptyList()
 	}
 	val keptChildren = node.children.flatMap { child -> kindFiltered(child, showParts, showDrawables, showDeformers) }

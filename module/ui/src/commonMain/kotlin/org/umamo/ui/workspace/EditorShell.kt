@@ -207,7 +207,7 @@ fun EditorShell(
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
 		val cleanup =
 			commandRegistry.registerAll(
-				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface),
+				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, keyformSheetViews),
 			)
 		onDispose { cleanup() }
 	}
@@ -320,6 +320,7 @@ fun EditorShell(
 									dragController = dragController,
 									rowDragCancel = rowDragCancel,
 									relationPick = relationPick,
+									keyformSheets = keyformSheetViews,
 									commandRegistry = commandRegistry,
 									keymap = keymap,
 								)
@@ -384,6 +385,7 @@ fun EditorShell(
 					ShellNearCursorNotice(pointerPosition = shellPointerPosition)
 					ShellPieMenuHost(pointerPosition = shellPointerPosition)
 					ShellRelationPickOverlay(pointerPosition = shellPointerPosition)
+					ShellParameterChoiceMenu(pointerPosition = shellPointerPosition)
 					// Modal overlays are siblings of the Column (Surface stacks its content in a Box), so their
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open

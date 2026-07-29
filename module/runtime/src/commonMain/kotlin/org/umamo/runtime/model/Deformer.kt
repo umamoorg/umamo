@@ -117,3 +117,37 @@ sealed interface Deformer {
 		val blendShapes: List<BlendShapeBinding<RotationForm>> = emptyList(),
 	) : Deformer
 }
+
+/*
+ * The statics every deformer subtype carries, read through the sealed supertype.
+ *
+ * Deformer is a sealed interface whose statics live on the subtypes, so anything wanting "this deformer's
+ * opacity" had to write the two-branch when itself - and three separate copies of each had accumulated
+ * (the Properties row, the edit op, and their tests), so adding a third subtype meant fixing them in
+ * lockstep and any divergence would silently make the panel disagree with the edit.  One definition here,
+ * exhaustive over the sealed type, so a new subtype is a compile error in exactly one place.
+ */
+
+/** This deformer's static opacity, whichever subtype it is. */
+val Deformer.opacity: Float
+	get() =
+		when (this) {
+			is Deformer.Warp -> opacity
+			is Deformer.Rotation -> opacity
+		}
+
+/** This deformer's static multiply color, whichever subtype it is. */
+val Deformer.multiplyColor: ColorRgb
+	get() =
+		when (this) {
+			is Deformer.Warp -> multiplyColor
+			is Deformer.Rotation -> multiplyColor
+		}
+
+/** This deformer's static screen color, whichever subtype it is. */
+val Deformer.screenColor: ColorRgb
+	get() =
+		when (this) {
+			is Deformer.Warp -> screenColor
+			is Deformer.Rotation -> screenColor
+		}

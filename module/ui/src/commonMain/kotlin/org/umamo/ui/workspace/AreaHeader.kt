@@ -35,10 +35,6 @@ private val HEADER_HEIGHT = 28.dp
  * space arranges its own controls - start-packed by default, or centered / end-aligned via its own
  * weight spacers - without the header knowing.
  *
- * すべての葉エリア上部の帯。左にエディタ種別ドロップダウンと空間固有のヘッダ内容、右に分割／閉じる。
- * ヘッダ内容スロットは中央の可変領域全体を占め、配置（中央寄せ・右寄せ）は各空間側が決める。
- * 構造編集は AreaCommand として onCommand に流すだけ（ヘッダ自身はツリーを変更しない）。
- *
  * @param LeafArea area The area this header belongs to.
  * @param AreaScope scope The area's stable scope, handed to the space's header content.
  * @param Function onCommand Sink for structural edits (split / close / switch space).
@@ -74,9 +70,6 @@ fun AreaHeader(area: LeafArea, scope: AreaScope, onCommand: (AreaCommand) -> Uni
  * registered space, each row an icon plus its localized title. Choosing one emits a SwitchSpace command
  * (the area keeps its id, so a hosted GL surface survives the switch only if you switch back - switching
  * away is a genuine content change).  The chip anatomy is the shared kit [DropdownChip].
- *
- * エディタ種別セレクタ（Blender 式）。現在の空間アイコンとシェブロンを表示し、クリックで全空間の
- * アイコン付きメニューを開く。
  *
  * @param LeafArea area The area whose space is being chosen.
  * @param Function onCommand Sink for the SwitchSpace command.

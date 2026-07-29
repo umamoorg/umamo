@@ -22,8 +22,11 @@ import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
+import org.umamo.ui.theme.drawCrosshairGuides
 import org.umamo.ui.theme.drawCursor
+import org.umamo.ui.theme.drawSelectionBox
 import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.theme.selectionOverlayStyle
 import kotlin.math.abs
 import kotlin.math.min
 

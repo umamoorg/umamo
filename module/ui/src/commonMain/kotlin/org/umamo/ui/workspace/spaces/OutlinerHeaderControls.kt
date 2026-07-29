@@ -82,7 +82,10 @@ internal fun RowScope.OutlinerHeaderControls(scope: AreaScope) {
  */
 @Composable
 private fun FilterDropdownButton(viewState: OutlinerViewState) {
-	FilterPopupChip(contentDescription = stringResource(Res.string.outliner_filters)) {
+	FilterPopupChip(
+		contentDescription = stringResource(Res.string.outliner_filters),
+		icon = if (viewState.isUnfiltered) LocalUmamoIcons.filterUnfiltered else LocalUmamoIcons.filterFiltered,
+	) {
 		FilterSectionLabel(stringResource(Res.string.outliner_restriction_toggles))
 		// Blender's restriction-toggle row: one butted segment per indicator column, lit while
 		// the column is shown.

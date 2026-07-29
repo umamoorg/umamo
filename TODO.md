@@ -84,47 +84,35 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
 	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-	* Live updating for parameter srubbing, but commit to history only when releasing.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
-* Create document of how channel compacting and tracks works along with keyform grids and axises.
-
-## Properties
+* Bugs
+	* The property edited border should not show up on unkeyed properties while scrubbing.  For example, scrubbing opacity on an unkeyed part results it in showing the keyedModified border while scrubbing.
+	* Opacity is being rounded to two decimal places even on manual input.  We should expand it to three decimal places.
 * NumberField
 	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
 * Keyform Sheet Related
 	* Background highlight in property controls instead of the border highlight.
-	* The highlight should update in real time while scrubbing.
-* Missing draw order and opacity properties for drawables.
 
-# Parameters
-* Bugs
-	* I think we should remove marks clamping at neighbors other than the beginning and end of the tracks.  Being able to move around key frames past each other can be useful.
-	* Keyform Sheet is missing a vertical scrollbar.  We will need to add a bit of a margin on the right to accomodate that so that it does not interfere with key frame marks.
-* Improvements
-	* New icon for keyform sheet.(I will find one and put it in.)
-	* Improve filter wording.(User story.)
-	* Keyform Sheet
-		* A new seeded axis on linked parameters always goes onto the first parameter.(Pressing I on a property.)  We should detect that the keyform sheet has more than one parameter selected and ask which parameter to add it to.
-		* Box Select Marks
-		* Dragging a mark on the summary axis track drags all sub-key frames in the same spot.  This gets rid of the disabled keys in the summary.
-		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
-		* Filter to display only certain types.
-	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
+## Parameters
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 
-# Button UI
+## Keyform Sheet
+* Improvements
+	* Select Keyframe should be a history action.
+
+## Button UI
 * Needs a click action, either a background color change or movement.
 
-# Tooltips
+## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
 * Anywhere that we are using semantics/contentDescription we need to have a Tooltip as well.
 
-# DRY
+## DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 * Refactor ShellCommands.kt to split it out.  See KeyformCommands.kt as an example.
 
@@ -144,10 +132,11 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 
+## Glue
+* Glue intensity is keyable but has no Properties home (glue is not selectable) — see Claude Notes § Glue intensity has no editable home.
+
 ## Outliner
-* Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
-* Context Menu — DONE (right-click on desktop): Toggle Visibility, Toggle Selectability, Rename, Delete.
-	* TODO: touch long-press still starts a drag, so the context menu has no mobile trigger yet — the long-press-vs-drag arbitration needs resolving (or a dedicated touch affordance) before Android.
+* After searching for something and clicking on it, when clearing the search it should resolve that tree branch to be open.  Having it return to be closed with the mystery item selected somewhere in the depths is a poor experience.
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
 
@@ -239,6 +228,35 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 	buffer) and loop the welds in the shader **in the CPU's pair order** so the sequential result matches.
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
+
+## Glue intensity has no editable home (deferred 2026-07-29)
+
+**What.** `Glue.intensity` is a real keyable channel — `FormChannel.GLUE_INTENSITY`, with a static on
+`Glue` and a track in `channelGrids` — and the keyform sheet already renders a row per glue and can move,
+insert and delete its keys. What it has nowhere is a **Properties** home: there is no `SelectionTarget.Glue`,
+no outliner entry, and no property section, so intensity cannot be typed, scrubbed, or keyed with `I` the
+way every other channel now can. `:edit` also has no `withGlueIntensity` / `setGlueIntensity`; the only
+writes are whole-object reconstructs inside the keyform and topology ops.
+
+**Why it's fine right now.** The channel is reachable where it matters most — the sheet — and intensity is
+the least-touched of the keyable channels (a weld is usually 1.0 and left alone). Nothing is silently
+broken: an unexposed channel simply cannot be edited, rather than being editable and wrong.
+
+**What giving it a home costs.** Four things, none of them local:
+1. A new `SelectionTarget.Glue`, which touches selection, the outliner, the relation-pick system, and every
+	exhaustive `when` over selection targets.
+2. A stable identity story. A glue has **no id** — `KeyformOwner.Glue` addresses it by the `(meshA, meshB)`
+	pair precisely because a list ordinal is not stable across edits (`KeyableTarget.kt`).
+3. `Glue` is a plain `class`, not a `data class`, so it has no `copy()`; every rewrite reconstructs the full
+	constructor. A `withGlueIntensity` must do the same.
+4. An outliner presence raises a design question that has never been answered: where does a glue *sit* in a
+	tree organised by parts and deformers, when it belongs to neither and welds two meshes that may be far
+	apart in it?
+
+**Fix sketch (when/if it bites).** The cheap half is `withGlueIntensity` / `setGlueIntensity` plus a
+`GlueChange`, following the standard three-file property-op pattern — that alone would let the sheet's
+context menu and `I` write the static. The expensive half is selectability, and is worth deferring until
+there is a second reason to want it.
 
 ## Art-first pipeline: path to a functional editor (mesh/UV decoupling)
 Full design roadmap: docs/plan/art-sourcing-pipeline.md (supersedes and expands this note; the 9 steps below map onto its Phases A–H).  This note stays as the terse status tracker.

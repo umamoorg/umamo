@@ -15,12 +15,31 @@ import org.umamo.runtime.model.Parameter
  * @property Function hasSelection Whether the area has any selected keys.
  * @property Function clearSelection Drops the area's key selection.
  * @property Function frameAll Resets the area's zoom window to the whole domain.
+ * @property Function armBoxSelect Arms the area's marquee, so the next drag selects a region of keys.
  */
 internal class KeyformSheetSurface(
 	val selectedTracks: () -> List<Triple<KeyformTrackRef, Parameter, Int>>,
 	val hasSelection: () -> Boolean,
 	val clearSelection: () -> Unit,
 	val frameAll: () -> Unit,
+	val armBoxSelect: () -> Unit,
+	/**
+	 * Whether this sheet's box-select marquee is armed, and how to disarm it.
+	 *
+	 * Exposed rather than left as private view state so the shell's Escape ladder can cancel the gesture:
+	 * an armed marquee hides the OS cursor, so a mode with no way out strands the pointer invisible.
+	 */
+	val boxSelectArmed: () -> Boolean,
+	val disarmBoxSelect: () -> Unit,
+	/**
+	 * Nudges the sheet's whole key selection by [Float] of each key's parameter range, as one undo step,
+	 * and re-points the selection at where the keys landed.
+	 *
+	 * On the SURFACE rather than left to the command because a crossing renumbers the axis - the same
+	 * reason the mark drag routes through the sheet.  A nudge that moved a key past its neighbour used to
+	 * leave the selection naming whichever key took its place, so the next press moved the wrong one.
+	 */
+	val nudgeSelection: (Float) -> Unit,
 )
 
 /**
@@ -33,6 +52,17 @@ internal class KeyformSheetSurface(
  */
 internal class KeyformSheetViews {
 	private val surfacesByAreaId = LinkedHashMap<String, KeyformSheetSurface>()
+
+	/**
+	 * The one sheet with an armed box-select marquee, or null when none has one.
+	 *
+	 * Arming is a per-area affair but Escape is a shell-level key, so the ladder asks here rather than
+	 * reaching into a space's private view state.  First match wins: two sheets can only both be armed if
+	 * the user armed one, moved to the other and armed that too, and cancelling either is a fine answer.
+	 *
+	 * @return KeyformSheetSurface? The armed sheet, or null.
+	 */
+	fun armedBoxSelect(): KeyformSheetSurface? = surfacesByAreaId.values.firstOrNull { surface -> surface.boxSelectArmed() }
 
 	/**
 	 * Registers [surface] as area [areaId]'s sheet.

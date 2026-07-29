@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.Text
+import org.umamo.ui.model.KeyedFieldState
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -103,13 +104,19 @@ internal fun PropertyFieldRow(
  * @param Boolean checked The current state.
  * @param Function onCheckedChange The toggle callback.
  * @param String label The checkbox's own label (drawn to the right of the box).
+ * @param KeyedFieldState keyState The keyform state to tint the box's border with.
  */
 @Composable
-internal fun PropertyCheckboxRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
+internal fun PropertyCheckboxRow(
+	checked: Boolean,
+	onCheckedChange: (Boolean) -> Unit,
+	label: String,
+	keyState: KeyedFieldState = KeyedFieldState.None,
+) {
 	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		Spacer(modifier = Modifier.weight(1f))
 		Box(modifier = Modifier.weight(1f)) {
-			Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label)
+			Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState)
 		}
 	}
 }

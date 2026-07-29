@@ -1175,6 +1175,27 @@ class EditorSession(
 	}
 
 	/**
+	 * The keyform edit waiting on an axis, or null.  Transient UI coordination exactly like
+	 * [activePieMenu]: an ambiguous `I` / `Alt+I` parks here, the shell lists the candidate parameters at
+	 * the pointer, and picking one replays the edit through [resolveParameterChoice].
+	 */
+	val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = latches.pendingParameterChoice
+
+	/**
+	 * Parks a keyform edit until the user picks the axis it writes on.
+	 *
+	 * @param ParameterChoiceRequest request The parked edit and the axes to choose between.
+	 */
+	fun requestParameterChoice(request: ParameterChoiceRequest) {
+		latches.openParameterChoice(request)
+	}
+
+	/** Abandons the parked keyform edit (Escape, or a click outside the prompt). */
+	fun cancelParameterChoice() {
+		latches.closeParameterChoice()
+	}
+
+	/**
 	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the
 	 * influence radius.  Transient editor state like [pivotMode] - it survives mode switches but is
 	 * never snapshotted; the Edit overlay reads it when a modal operator latches (and on mid-gesture

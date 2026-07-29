@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport
+package org.umamo.ui.theme
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -7,7 +7,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import org.umamo.ui.theme.UmamoColors
+import kotlin.math.abs
+import kotlin.math.min
 
 // The on/off dash length (equal halves, so offsetting the second pass by one length makes its dashes fall in
 // the first pass's gaps - the alternating "marching ants" look).
@@ -20,8 +21,8 @@ private val ANTS_STROKE = 1.dp
 private const val SELECTION_FILL_ALPHA = 0.12f
 
 /**
- * The two-tone "marching ants" palette for the viewport selection affordances (crosshair guides, box, and
- * circle), read once from the theme so the three share one look.  The two dash tones are opposite in
+ * The two-tone "marching ants" palette for the editor's region-selection affordances (crosshair guides,
+ * box, and circle), read once from the theme so they share one look.  The two dash tones are opposite in
  * luminance (light plus dark), so the alternating outline stays legible over any viewport background -
  * grid, bright art, or dark art - where a single-color dash washes out.
  *
@@ -60,9 +61,10 @@ private inline fun strokeMarchingAnts(style: SelectionOverlayStyle, dashPx: Floa
 }
 
 /**
- * Draws Blender's full-viewport crosshair guides for the armed Box-select and Zoom-Region gestures: a
- * horizontal and a vertical marching-ants line spanning the area through [cursor].  The caller clips to the
- * area bounds, so the lines stop at the area edge rather than bleeding across panels.
+ * Draws Blender's full-area crosshair guides for an armed region gesture (viewport Box-select and Zoom
+ * Region, and the keyform sheet's box select): a horizontal and a vertical marching-ants line spanning the
+ * area through [cursor].  The caller clips to the area bounds, so the lines stop at the area edge rather
+ * than bleeding across panels.
  *
  * @param Offset cursor The pointer position in area-local pixels.
  * @param Size size The area size in pixels.
@@ -106,4 +108,24 @@ fun DrawScope.drawSelectionCircle(center: Offset, radius: Float, style: Selectio
 	strokeMarchingAnts(style, ANTS_DASH.toPx()) { color, dash ->
 		drawCircle(color = color, radius = radius, center = center, style = Stroke(width = strokeWidth, pathEffect = dash))
 	}
+}
+
+/**
+ * Draws a rubber band between two corners, in either drag direction, or nothing when either is null.
+ *
+ * The convenience over [drawSelectionBox] for the common case: a gesture holds its two corners as the
+ * points the pointer visited, and normalizing them at every call site is how one of them ends up drawing a
+ * zero-size box on an up-left drag.
+ *
+ * @param Offset? start The corner the drag began at, or null when no drag is in flight.
+ * @param Offset? end The corner the pointer is at now, or null.
+ * @param SelectionOverlayStyle style The shared two-tone style.
+ */
+fun DrawScope.drawRubberBand(start: Offset?, end: Offset?, style: SelectionOverlayStyle) {
+	if (start == null || end == null) {
+		return
+	}
+	val topLeft = Offset(min(start.x, end.x), min(start.y, end.y))
+	val boxSize = Size(abs(end.x - start.x), abs(end.y - start.y))
+	drawSelectionBox(topLeft, boxSize, style)
 }

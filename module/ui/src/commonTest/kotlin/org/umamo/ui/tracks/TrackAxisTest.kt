@@ -124,21 +124,45 @@ class TrackAxisTest {
 		assertEquals(listOf(-30f, 0f, 30f), summarizedMarks(row).map { mark -> mark.position })
 	}
 
-	/** Summary marks are flagged inert: a collapsed group cannot say which channel owns a key. */
+	/**
+	 * Summary marks are renumbered to their ordinal within the summary.
+	 *
+	 * The winner's own ordinal is meaningless across the group - two channels keyed at one value can hold
+	 * different ordinals - whereas a summary ordinal is a stable name the owner maps back to the whole set
+	 * of keys the mark stands for.
+	 */
 	@Test
-	fun summaryMarksAreNotEditable() {
+	fun summaryMarksAreRenumberedByPosition() {
 		val row =
 			TrackRow(
 				key = "owner",
 				label = "Owner",
 				children =
 					listOf(
-						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 0f))),
-						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(0, 30f))),
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 30f), TrackKeyMark(1, 0f))),
+						TrackRow(key = "b", label = "B", marks = listOf(TrackKeyMark(5, 30f))),
 					),
 			)
-		assertTrue(summarizedMarks(row).none { mark -> mark.editable }, "a summary stands for several keys")
-		assertTrue(row.children.first().marks.single().editable, "the child's own mark stays editable")
+		val summary = summarizedMarks(row)
+		assertEquals(listOf(0f, 30f), summary.map { mark -> mark.position }, "ascending by position")
+		assertEquals(listOf(0, 1), summary.map { mark -> mark.keyIndex }, "and renumbered to that order")
+		assertTrue(summary.all { mark -> mark.editable }, "a summary is a handle on the keys beneath it")
+	}
+
+	/** A key nothing can move is left out of the summary, so a summary mark never half-moves. */
+	@Test
+	fun summarySkipsUneditableKeys() {
+		val row =
+			TrackRow(
+				key = "owner",
+				label = "Owner",
+				children =
+					listOf(
+						TrackRow(key = "blend", label = "Blend", marks = listOf(TrackKeyMark(0, 12f, editable = false))),
+						TrackRow(key = "a", label = "A", marks = listOf(TrackKeyMark(0, 30f))),
+					),
+			)
+		assertEquals(listOf(30f), summarizedMarks(row).map { mark -> mark.position })
 	}
 
 	/** A mark's shape survives the summary, so a blend-shape key still reads as a square when folded. */
@@ -153,28 +177,22 @@ class TrackAxisTest {
 		assertEquals(TrackKeyShape.Square, summarizedMarks(row).single().shape)
 	}
 
-	/** A mark's drag window stops at its neighbours, and at the axis ends when it has none on that side. */
+	/**
+	 * A drag is bounded by the AXIS, not by neighbouring marks.
+	 *
+	 * Neighbours stopped being walls when keys gained the ability to cross: the grid re-sorts and permutes
+	 * its cells to match, so clamping here would refuse a gesture the model accepts.
+	 */
 	@Test
-	fun dragBoundsStopAtNeighboursAndAtTheAxisEnds() {
-		val axis = TrackAxis(-30f, 30f)
-		val marks = listOf(TrackKeyMark(0, -30f), TrackKeyMark(1, 0f), TrackKeyMark(2, 30f))
-		assertEquals(-30f..30f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
-		assertEquals(-30f..0f, dragBoundsOf(marks, keyIndex = 0, axis = axis), "an endpoint stops at the axis")
-		assertEquals(0f..30f, dragBoundsOf(marks, keyIndex = 2, axis = axis))
+	fun dragBoundsSpanTheAxis() {
+		assertEquals(-30f..30f, dragBoundsOf(TrackAxis(-30f, 30f)))
+		assertEquals(0f..1f, dragBoundsOf(TrackAxis(0f, 1f)))
 	}
 
-	/** With coincident neighbours the window collapses onto the mark rather than inverting. */
+	/** A reversed axis still yields an ascending range, so coerceIn cannot throw on it. */
 	@Test
-	fun dragBoundsCollapseRatherThanInvert() {
-		val axis = TrackAxis(-30f, 30f)
-		val marks = listOf(TrackKeyMark(0, 5f), TrackKeyMark(1, 5f), TrackKeyMark(2, 5f))
-		assertEquals(5f..5f, dragBoundsOf(marks, keyIndex = 1, axis = axis))
-	}
-
-	/** An unknown index falls back to the whole axis instead of throwing. */
-	@Test
-	fun dragBoundsOfAnUnknownMarkSpanTheAxis() {
-		assertEquals(-30f..30f, dragBoundsOf(listOf(TrackKeyMark(0, 0f)), keyIndex = 9, axis = TrackAxis(-30f, 30f)))
+	fun dragBoundsAscendOnAReversedAxis() {
+		assertEquals(-30f..30f, dragBoundsOf(TrackAxis(30f, -30f)))
 	}
 
 	/** A window maps onto a domain as a proportional slice of it. */

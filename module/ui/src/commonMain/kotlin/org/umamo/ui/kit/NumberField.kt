@@ -98,6 +98,8 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param Boolean plain When true, renders a bare type-in box only (no scrub, chevrons, or fill) - the simple field.
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
+ * @param KeyedFieldState keyState The keyform state to tint the field's border with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  */
 @Composable
 fun NumberField(
@@ -113,6 +115,7 @@ fun NumberField(
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
 	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Float) -> Unit)? = null,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
@@ -124,6 +127,10 @@ fun NumberField(
 		format = { toFormat -> formatDecimals(toFormat, decimals) },
 		parse = { typed -> typed.trim().toFloatOrNull() },
 		onCommit = { raw -> onValueChange(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) },
+		onPreview =
+			onPreview?.let { preview ->
+				{ raw: Float -> preview(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) }
+			},
 		modifier = modifier,
 		unitSuffix = unitSuffix,
 		plain = plain,
@@ -151,6 +158,7 @@ fun NumberField(
  * @param Boolean enabled When false the value still shows but dimmed, and every edit path is inert.
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
  * @param KeyedFieldState keyState The keyform state to tint the field's border with.
+ * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
  */
 @Composable
 fun NumberField(
@@ -165,12 +173,17 @@ fun NumberField(
 	enabled: Boolean = true,
 	stackPosition: StackPosition = StackPosition.Single,
 	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Int) -> Unit)? = null,
 ) {
 	val floatRange = range.first.toFloat()..range.last.toFloat()
 	// A whole-domain endpoint means "unbounded", so a plain int clamp such as 0..Int.MAX_VALUE draws no fill.
 	val bounded = showFill && range.first > Int.MIN_VALUE && range.last < Int.MAX_VALUE
 	NumberFieldCore(
 		keyState = keyState,
+		onPreview =
+			onPreview?.let { preview ->
+				{ raw: Float -> preview(raw.roundToInt().coerceIn(range.first, range.last)) }
+			},
 		value = value.toFloat(),
 		range = floatRange,
 		step = step.toFloat(),
@@ -221,6 +234,7 @@ private fun NumberFieldCore(
 	enabled: Boolean,
 	stackPosition: StackPosition,
 	keyState: KeyedFieldState = KeyedFieldState.None,
+	onPreview: ((Float) -> Unit)? = null,
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
@@ -251,6 +265,11 @@ private fun NumberFieldCore(
 	var editing by remember { mutableStateOf(false) }
 	// The live scrub value while a drag is in flight (null when idle); previews without committing per frame.
 	var dragValue by remember { mutableStateOf<Float?>(null) }
+	// The value the drag STARTED from.  scrubValue maps a TOTAL pointer delta onto a fixed base, so the base
+	// has to stay fixed: reading the live `value` instead compounds the movement, because onPreview feeds
+	// each frame's value straight back in through the pending buffer.  That made a scrub accelerate, and
+	// made reversing direction spend the first stretch merely unwinding the drift.
+	var scrubStartValue by remember { mutableStateOf(0f) }
 
 	// Being disabled ENDS an in-flight edit rather than parking it: leaving `editing` set would re-open the
 	// type-in box - autoFocus and all - the moment the field became editable again, stealing focus for an
@@ -279,8 +298,18 @@ private fun NumberFieldCore(
 			modifier = modifier,
 			enabled = enabled,
 			onTapToEdit = { editing = true },
-			onScrubStart = { dragValue = value },
-			onScrub = { totalDeltaPx -> dragValue = scrubValue(value, totalDeltaPx, step, range) },
+			onScrubStart = {
+				scrubStartValue = value
+				dragValue = value
+			},
+			onScrub = { totalDeltaPx ->
+				val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range)
+				dragValue = scrubbed
+				// Reported live so the caller can drive whatever the value affects while the drag is still
+				// happening.  Without it a scrub moves the number and nothing else until release, which
+				// reads as the edit not working - the field is the only thing that responds.
+				onPreview?.invoke(scrubbed)
+			},
 			onScrubEnd = {
 				dragValue?.let { finalValue -> onCommit(finalValue) }
 				dragValue = null

@@ -43,8 +43,6 @@ private const val PART_COMPOSITE_MAX_DIMENSION = 128
  * covers every drawable carrying mesh UVs (not just the currently visible ones), so a hidden layer
  * previews too.
  *
- * モデルのアトラスからアートメッシュのサムネイルを切り出す。重なり選択とアウトライナーのホバーで共用。
- *
  * @property PuppetModel puppet The rig whose drawables are previewed.
  * @property PuppetTextures textures The decoded atlas page(s) + per-drawable page index.
  */

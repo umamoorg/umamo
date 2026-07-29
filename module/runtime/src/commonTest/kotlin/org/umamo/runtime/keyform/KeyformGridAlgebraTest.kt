@@ -1,5 +1,6 @@
 package org.umamo.runtime.keyform
 
+import org.umamo.runtime.eval.EPS_SPAN
 import org.umamo.runtime.eval.gridCorners
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.KeyformAxis
@@ -216,18 +217,78 @@ class KeyformGridAlgebraTest {
 	}
 
 	/**
-	 * A key clamps at its neighbours instead of crossing them.
+	 * A key may CROSS its neighbours; the axis re-sorts and the cells permute to match.
 	 *
-	 * Crossing would have to reorder cells or swap two keys' contents, and both are surprising mid-drag;
-	 * walls are what a rigger expects from a neighbouring key.
+	 * The permutation is the whole cost of allowing it.  A cell's coordinate on an axis is a key ORDINAL
+	 * and the evaluator requires an ascending axis, so re-sorting the keys alone would still satisfy
+	 * isDense while silently applying every form at the wrong position.
 	 */
 	@Test
-	fun movingClampsAtTheNeighbours() {
+	fun movingAcrossANeighbourPermutesTheCells() {
 		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
-		val pastUpper = before.withKeyMoved(angleX, keyIndex = 1, newValue = 99f)
-		val keys = pastUpper.axes.single().keys.toList()
-		assertTrue(keys[1] < keys[2], "the moved key stays below its upper neighbour")
-		assertTrue(keys[1] > keys[0], "and above its lower one")
+		val crossed = before.withKeyMoved(angleX, keyIndex = 1, newValue = 20f)
+
+		assertEquals(listOf(0f, 10f, 20f), crossed.axes.single().keys.toList(), "the axis re-sorts")
+		assertTrue(crossed.isDense, "and stays dense")
+		assertEquals(42f, assertNotNull(sample(crossed, 20f)), "the moved key still holds what it held")
+		assertEquals(100f, assertNotNull(sample(crossed, 10f)), "the key it passed still holds what it held")
+		assertEquals(0f, assertNotNull(sample(crossed, 0f)), "and the untouched key is untouched")
+	}
+
+	/** Crossing works downward too, and the whole run of passed keys shifts up by one ordinal. */
+	@Test
+	fun movingDownAcrossSeveralNeighbours() {
+		val before = track(floatArrayOf(0f, 5f, 10f, 15f), floatArrayOf(0f, 42f, 100f, 7f))
+		val crossed = before.withKeyMoved(angleX, keyIndex = 3, newValue = 2f)
+
+		assertEquals(listOf(0f, 2f, 5f, 10f), crossed.axes.single().keys.toList())
+		assertTrue(crossed.isDense)
+		assertEquals(7f, assertNotNull(sample(crossed, 2f)), "the dragged key kept its value across three crossings")
+		assertEquals(42f, assertNotNull(sample(crossed, 5f)))
+		assertEquals(100f, assertNotNull(sample(crossed, 10f)))
+	}
+
+	/**
+	 * A destination that would collide with another key is nudged just far enough to stay resolvable.
+	 *
+	 * Not a spacing preference: two keys closer than EPS_SPAN make the evaluator read fraction 0 across the
+	 * gap, so the nearer one becomes unreachable and the blend degenerates into a step.
+	 */
+	@Test
+	fun aCollidingDestinationStaysResolvable() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		val landed = before.withKeyMoved(angleX, keyIndex = 0, newValue = 5f)
+		val keys = landed.axes.single().keys.toList()
+
+		assertTrue(keys[1] - keys[0] >= EPS_SPAN, "the two keys stay at least a resolvable span apart")
+		assertEquals(42f, assertNotNull(sample(landed, 5f)), "the key it landed beside is still reachable")
+	}
+
+	/**
+	 * A key dropped exactly onto the LAST key is nudged inward, never past it.
+	 *
+	 * Outward would put it beyond the axis's own span - and so beyond the parameter's range, where the
+	 * evaluator brackets nothing and every entity keyed on it disappears.  That is the difference between
+	 * a sub-pixel nudge and a vanishing rig.
+	 */
+	@Test
+	fun aCollisionAtAnEndpointNudgesInward() {
+		val before = track(floatArrayOf(-30f, 0f, 30f), floatArrayOf(0f, 42f, 100f))
+		val onTheLast = before.withKeyMoved(angleX, keyIndex = 1, newValue = 30f)
+		val highest = onTheLast.axes.single().keys.max()
+		assertEquals(30f, highest, "the axis did not grow past where it already reached")
+
+		val onTheFirst = before.withKeyMoved(angleX, keyIndex = 1, newValue = -30f)
+		assertEquals(-30f, onTheFirst.axes.single().keys.min(), "and not below it either")
+	}
+
+	/** The mover's new ordinal is reported, so whatever is holding that key can follow it. */
+	@Test
+	fun theNewOrdinalIsReported() {
+		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
+		assertEquals(2, before.keyIndexAfterMove(angleX, keyIndex = 1, newValue = 20f), "crossed to the end")
+		assertEquals(0, before.keyIndexAfterMove(angleX, keyIndex = 2, newValue = -5f), "crossed to the start")
+		assertEquals(1, before.keyIndexAfterMove(angleX, keyIndex = 1, newValue = 6f), "stayed put")
 	}
 
 	/** An endpoint has one wall only, so a move can still widen the axis - that is real authoring. */
@@ -244,5 +305,29 @@ class KeyformGridAlgebraTest {
 		val before = track(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 42f, 100f))
 		assertSame(before, before.withKeyMoved(angleX, keyIndex = 1, newValue = 5f))
 		assertSame(before, before.withKeyMoved(angleY, keyIndex = 0, newValue = 1f))
+	}
+
+	/**
+	 * The collision nudge never lands ON another key, even where the only gap is one it created itself.
+	 *
+	 * The nudge is measured against the NEAREST key, so on a crowded axis "nearest + EPS_SPAN" can be
+	 * exactly where the next key along already sits - and two keys closer than EPS_SPAN is the
+	 * unresolvable span the nudge exists to prevent (bindBracket gives such a span fraction 0, so the
+	 * upper key can never be reached).  A move that cannot be made resolvable is refused instead.
+	 */
+	@Test
+	fun theCollisionNudgeNeverLandsOnAnotherKey() {
+		val crowded = track(floatArrayOf(0f, EPS_SPAN, 10f), floatArrayOf(0f, 1f, 2f))
+		// Aimed just above the key at 0: the nearest is 0, so the nudge goes to 0 + EPS_SPAN - which is
+		// exactly the second key.
+		assertNull(
+			crowded.keyDestinationFor(angleX, keyIndex = 2, newValue = EPS_SPAN / 3f),
+			"nudging onto an existing key is refused rather than authored",
+		)
+		assertSame(crowded, crowded.withKeyMoved(angleX, keyIndex = 2, newValue = EPS_SPAN / 3f), "so the move is a no-op")
+
+		// The same axis still accepts a destination with room on both sides.
+		val moved = crowded.withKeyMoved(angleX, keyIndex = 2, newValue = 5f)
+		assertEquals(listOf(0f, EPS_SPAN, 5f), moved.axes.single().keys.toList())
 	}
 }

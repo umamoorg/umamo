@@ -188,10 +188,9 @@ enum class TrackKeyShape {
  * that edits a key has to say which one by ordinal.  Resolving "the key at this value" instead is
  * ambiguous exactly when it matters, and picks the wrong key silently.
  *
- * A summary mark (drawn on a collapsed group) carries the index it had in whichever child it came from,
- * which is meaningless across the group as a whole.  Those marks are flagged NOT [editable] for exactly
- * that reason: the group's row says keys exist at these values, it cannot say which channel owns them, and
- * an edit that has to guess is worse than no edit.
+ * A summary mark (drawn on a collapsed group) is renumbered to its ordinal within the SUMMARY, which its
+ * owner maps back to the whole set of child keys it stands for - so acting on one acts on all of them at
+ * once rather than guessing at which channel was meant.
  *
  * @property Int keyIndex The mark's ordinal within its row's track.
  * @property Float position The mark's domain value (a parameter value, a frame, …).
@@ -208,38 +207,17 @@ data class TrackKeyMark(
 )
 
 /**
- * The domain window a mark at [keyIndex] may be dragged within: up to its neighbours, inside the axis.
+ * The domain window a mark may be dragged within: the axis, end to end.
  *
- * Returned so a drag can be clamped WHILE IT IS HAPPENING rather than only on release.  A mark that
- * follows the pointer out past its neighbour and then snaps back on release reads as a rejected edit; one
- * that stops at the wall reads as the wall being there, which is what it is.
+ * Neighbours are NOT walls.  A key may be dragged past another - the sheet's owner re-sorts and permutes
+ * to match - so clamping at a neighbour here would stop a gesture the model is happy to accept.  The axis
+ * ends still bound it, because a key outside the domain is one the sheet cannot draw or reach again.
  *
- * @param List<TrackKeyMark> marks The row's marks, in any order.
- * @param Int keyIndex The mark being dragged.
- * @param TrackAxis axis The domain, whose ends are the outer walls.
+ * @param TrackAxis axis The domain.
  * @return ClosedFloatingPointRange<Float> The legal range, ascending.
  */
-fun dragBoundsOf(marks: List<TrackKeyMark>, keyIndex: Int, axis: TrackAxis): ClosedFloatingPointRange<Float> {
-	val domainLow = minOf(axis.start, axis.end)
-	val domainHigh = maxOf(axis.start, axis.end)
-	val dragged = marks.firstOrNull { mark -> mark.keyIndex == keyIndex } ?: return domainLow..domainHigh
-	var lowerWall = domainLow
-	var upperWall = domainHigh
-	for (mark in marks) {
-		if (mark.keyIndex == keyIndex) {
-			continue
-		}
-		if (mark.position <= dragged.position) {
-			lowerWall = maxOf(lowerWall, mark.position)
-		}
-		if (mark.position >= dragged.position) {
-			upperWall = minOf(upperWall, mark.position)
-		}
-	}
-	// Coincident neighbours can invert the walls; collapsing to the mark's own position is the honest
-	// outcome (there is nowhere legal to go) rather than an empty range that coerceIn would throw on.
-	return if (lowerWall > upperWall) dragged.position..dragged.position else lowerWall..upperWall
-}
+fun dragBoundsOf(axis: TrackAxis): ClosedFloatingPointRange<Float> =
+	minOf(axis.start, axis.end)..maxOf(axis.start, axis.end)
 
 /**
  * A row's color band, which is how a sheet makes kinds of track separable at a glance.
@@ -343,14 +321,21 @@ fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 
 	fun visit(current: TrackRow) {
 		for (mark in current.marks) {
-			// NOT editable: one summary mark can stand for several channels' keys at that value, so there
-			// is no single key a drag or a delete could mean.  Expanding the group is how you reach them.
-			byPosition.getOrPut(mark.position) { mark.copy(editable = false) }
+			// Only an EDITABLE child key can be summarized: a summary mark is a handle on the keys beneath
+			// it, so one standing partly on keys nothing can move would move only some of what it shows.
+			if (mark.editable) {
+				byPosition.getOrPut(mark.position) { mark }
+			}
 		}
 		current.children.forEach(::visit)
 	}
 	visit(row)
-	return byPosition.values.sortedBy { mark -> mark.position }
+	// Renumbered to its position in the SUMMARY.  The winner's own ordinal is meaningless across the group
+	// (two channels keyed at one value can hold different ordinals), whereas a summary ordinal is a stable
+	// name the owner can map back to the whole set of keys it stands for.
+	return byPosition.values.sortedBy { mark -> mark.position }.mapIndexed { ordinal, mark ->
+		mark.copy(keyIndex = ordinal)
+	}
 }
 
 /**

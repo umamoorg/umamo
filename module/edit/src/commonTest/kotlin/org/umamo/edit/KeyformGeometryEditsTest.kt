@@ -16,6 +16,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -31,6 +32,7 @@ import kotlin.test.assertTrue
  */
 class KeyformGeometryEditsTest {
 	private val angleX = ParameterId("ParamAngleX")
+	private val angleY = ParameterId("ParamAngleY")
 	private val drawableId = DrawableId("d")
 	private val deformerId = DeformerId("w")
 	private val parameter = Parameter(angleX, "ParamAngleX", min = -30f, max = 30f, default = 0f)
@@ -89,6 +91,22 @@ class KeyformGeometryEditsTest {
 			rootPartId = null,
 		)
 
+	/**
+	 * A two-parameter model whose drawable keys on the VERTICAL axis only - the linked-pad shape.
+	 *
+	 * A pad targets both its axes but reports only the horizontal one as active, so this is the model where
+	 * "write on the active parameter" and "write on the one the rigger meant" give different answers.
+	 */
+	private fun padModel(): PuppetModel {
+		val vertical = Parameter(angleY, "ParamAngleY", min = -30f, max = 30f, default = 0f)
+		val onVertical = KeyformGrid(listOf(KeyformAxis(angleY, floatArrayOf(-30f, 0f, 30f))), meshGrid().cells)
+		val base = model()
+		return base.copy(
+			parameters = listOf(parameter, vertical),
+			drawables = listOf(base.drawables.single().copy(geometryGrid = onVertical)),
+		)
+	}
+
 	/** The drawable's geometry axis keys after an edit. */
 	private fun keysOf(puppet: PuppetModel): List<Float> =
 		assertNotNull(puppet.drawables.single().geometryGrid).axes.single().keys.toList()
@@ -108,13 +126,24 @@ class KeyformGeometryEditsTest {
 		)
 	}
 
-	/** A key dragged past its neighbour clamps rather than crossing it. */
+	/**
+	 * A key dragged past its neighbour CROSSES it, taking its own form along.
+	 *
+	 * The axis re-sorts and the cells permute to match, so the deformation the rigger authored stays with
+	 * the key they dragged rather than staying at the ordinal it vacated.
+	 */
 	@Test
-	fun movingAGeometryKeyClampsAtItsNeighbour() {
-		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 999f)
-		val keys = keysOf(moved)
-		assertTrue(keys[1] < 30f, "the middle key must stop short of the one at 30 (got ${keys[1]})")
-		assertEquals(listOf(-30f, 30f), listOf(keys[0], keys[2]), "its neighbours do not move")
+	fun movingAGeometryKeyCrossesItsNeighbour() {
+		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 99f)
+		assertEquals(listOf(-30f, 30f, 99f), keysOf(moved), "the axis re-sorts")
+		assertEquals(
+			listOf(-1f, 1f, 0f),
+			assertNotNull(moved.drawables.single().geometryGrid)
+				.cells
+				.sortedBy { cell -> cell.coordinate[0] }
+				.map { cell -> cell.form.positionDeltas[0] },
+			"the moved key's own form (0) travelled to the end; the key it passed (1) shifted down",
+		)
 	}
 
 	/** Inserting a geometry key holds the interpolated form, so the deformation through it is unchanged. */
@@ -198,5 +227,153 @@ class KeyformGeometryEditsTest {
 	fun aTrackWithNoGridResolvesToNothing() {
 		val glue = KeyformTrackRef.Geometry(KeyformOwner.Glue(drawableId, drawableId))
 		assertEquals(-1, model().trackKeyIndexAtPose(glue, parameter, mapOf(angleX to 0f)))
+	}
+
+	/**
+	 * Moving several keys to one destination is ONE undo step, and each lands on its own track.
+	 *
+	 * The summary-row drag: marks stacked at a value stay stacked, and one Ctrl+Z restores all of them.
+	 */
+	@Test
+	fun movingSeveralKeysToOneValueIsOneStep() {
+		val session = EditorSession(model())
+		val drawableTrack = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		val deformerTrack = KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId))
+		session.moveTrackKeys(
+			listOf(Triple(drawableTrack, parameter, 1), Triple(deformerTrack, parameter, 1)),
+			toValue = 12f,
+		)
+
+		assertEquals(listOf(-30f, 12f, 30f), keysOf(session.model.value), "the drawable's key moved")
+		val warp = session.model.value.deformers.single() as Deformer.Warp
+		assertEquals(
+			listOf(-30f, 12f, 30f),
+			assertNotNull(warp.geometryGrid).axes.single().keys.toList(),
+			"and so did the deformer's, to the same place",
+		)
+
+		session.undo()
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores both")
+		assertTrue(!session.canUndo.value, "because there was only ever one step")
+	}
+
+	/**
+	 * A key dragged ONTO its neighbour reports its own new ordinal, not the neighbour's.
+	 *
+	 * Dragging a group into the axis end piles the leading key onto the key already sitting there, and the
+	 * collision nudge pushes it EPS_SPAN aside.  EPS_SPAN is WIDER than the EPS_KEY tolerance an
+	 * ordinal lookup uses, so asking "which key is at the value I requested" found the key that was already
+	 * there and handed back ITS ordinal - moving the sheet's selection onto the wrong mark, and collapsing
+	 * two selected keys into one entry when both resolved to it.
+	 */
+	@Test
+	fun aKeyDraggedOntoItsNeighbourReportsItsOwnOrdinal() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// Keys [-30, 0, 30] with 0 and 30 selected, dragged left until the key at 0 reaches the key at -30.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 1), Triple(track, parameter, 2)), fraction = -0.5f)
+
+		val keys = keysOf(session.model.value)
+		assertEquals(-30f, keys[0], "the key already at the end did not move")
+		assertTrue(keys[1] > -30f && keys[1] < -29.99f, "the dragged key was nudged clear of it, at ${keys[1]}")
+		assertEquals(0f, keys[2])
+		assertEquals(listOf(1, 2), landed, "the dragged keys report THEIR ordinals, not the resident key's")
+	}
+
+	/**
+	 * With two parameters targeted and no axis named, an unaimed key edit PARKS instead of guessing.
+	 *
+	 * The linked-pad case: a 2D pad targets both its axes but reports only the horizontal one as active, so
+	 * writing on the active one would silently always key the horizontal parameter and leave the vertical
+	 * section reading as unkeyed.  Answering the prompt replays the very same edit with the axis filled in.
+	 */
+	@Test
+	fun anAmbiguousTargetParksTheEditUntilAnAxisIsPicked() {
+		// The drawable keys on the VERTICAL axis only, while the pad reports the horizontal one as active -
+		// so writing on the active parameter would refuse outright and the pick has to be what decides.
+		val session = EditorSession(padModel())
+		session.setParameterSelection(ParameterSelection(setOf(angleX, angleY), active = angleX))
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+
+		session.captureKeyOnTrack(track, parameterId = null, aim = KeyformAim.Position(15f, keyIndex = null))
+		val parked = assertNotNull(session.pendingParameterChoice.value, "the edit parks rather than guessing")
+		assertEquals(KeyformAction.Capture, parked.action)
+		assertContentEquals(listOf(angleX, angleY), parked.candidates, "listed in model order")
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "and nothing was written yet")
+
+		session.resolveParameterChoice(angleY)
+		assertNull(session.pendingParameterChoice.value, "answering clears the prompt")
+		assertEquals(listOf(-30f, 0f, 15f, 30f), keysOf(session.model.value), "the key landed on the PICKED axis")
+	}
+
+	/** A caller that names its axis - every sheet lane does - never sees the prompt. */
+	@Test
+	fun aNamedAxisBypassesTheChoicePrompt() {
+		val session = EditorSession(padModel())
+		session.setParameterSelection(ParameterSelection(setOf(angleX, angleY), active = angleX))
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+
+		session.captureKeyOnTrack(track, parameterId = angleY, aim = KeyformAim.Position(15f, keyIndex = null))
+		assertNull(session.pendingParameterChoice.value, "a named axis is the answer, so nothing is asked")
+		assertEquals(listOf(-30f, 0f, 15f, 30f), keysOf(session.model.value))
+	}
+
+	/**
+	 * Dragging a multi-key selection moves every member by the same distance, keeping their spacing.
+	 *
+	 * The whole point of a group drag: a delta applied per key preserves the shape the rigger authored,
+	 * where the summary drag's send-them-all-to-one-value deliberately does not.
+	 */
+	@Test
+	fun draggingASelectionMovesEveryKeyByTheSameDistance() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// -30 and 0, dragged a tenth of the 60-wide range: +6 each.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 0), Triple(track, parameter, 1)), fraction = 0.1f)
+
+		assertEquals(listOf(-24f, 6f, 30f), keysOf(session.model.value))
+		assertEquals(listOf(0, 1), landed, "neither key crossed anything, so both keep their ordinals")
+		session.undo()
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "one undo restores the whole drag")
+		assertTrue(!session.canUndo.value, "because it was one step")
+	}
+
+	/**
+	 * The drag stops at the MOST CONSTRAINED member rather than clamping each key on its own.
+	 *
+	 * Per-key clamping would let the keys nearest the end pile up while the rest kept travelling, silently
+	 * destroying the spacing - which is exactly the thing a group drag exists to preserve.
+	 */
+	@Test
+	fun aGroupDragStopsAtItsMostConstrainedMember() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// The key at 30 is already at the maximum, so the whole drag is refused rather than collapsing the pair.
+		session.dragTrackKeys(listOf(Triple(track, parameter, 1), Triple(track, parameter, 2)), fraction = 0.5f)
+		assertEquals(listOf(-30f, 0f, 30f), keysOf(session.model.value), "nothing moved, so nothing piled up")
+
+		// Half of that is reachable: the key at 0 can take +15, the key at 30 cannot move at all.
+		session.dragTrackKeys(listOf(Triple(track, parameter, 0), Triple(track, parameter, 1)), fraction = 0.25f)
+		assertEquals(listOf(-15f, 15f, 30f), keysOf(session.model.value), "both moved the same 15, and the gap is intact")
+	}
+
+	/** A key that crosses a neighbour reports its NEW ordinal, so the caller's selection can follow it. */
+	@Test
+	fun aGroupDragReportsWhereEachKeyLanded() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// Only the FIRST key is selected; dragging it +40 carries it past the key at 0.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 0)), fraction = 40f / 60f)
+		assertEquals(listOf(0f, 10f, 30f), keysOf(session.model.value), "it crossed the key at 0 and the axis re-sorted")
+		assertEquals(listOf(1), landed, "and it now sits at ordinal 1")
+	}
+
+	/** Each member is clamped to its OWN parameter's range, so a mixed batch cannot push one out of range. */
+	@Test
+	fun aBatchMoveClampsPerParameter() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		session.moveTrackKeys(listOf(Triple(track, parameter, 1)), toValue = 9999f)
+		assertEquals(30f, keysOf(session.model.value).last(), "clamped to the parameter's maximum")
 	}
 }

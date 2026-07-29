@@ -3,7 +3,6 @@ package org.umamo.edit
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.scalarAt
-import org.umamo.runtime.keyform.AxisSeedPolicy
 import org.umamo.runtime.keyform.ChannelValueInterpolator
 import org.umamo.runtime.keyform.axisIndexOf
 import org.umamo.runtime.keyform.keyIndexAt
@@ -187,7 +186,7 @@ fun PuppetModel.withChannelKeyCaptured(
 	val existing = grids[target.channel]
 	val bound: KeyformGrid<ChannelValue> =
 		if (existing == null || existing.axisIndexOf(parameter.id) < 0) {
-			existing.withAxisSeeded(parameter, staticValue, scrubValue, AxisSeedPolicy.MinDefaultMax) ?: return this
+			existing.withAxisSeeded(parameter, staticValue) ?: return this
 		} else {
 			existing
 		}

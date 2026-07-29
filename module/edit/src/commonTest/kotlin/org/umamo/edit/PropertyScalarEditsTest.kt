@@ -15,6 +15,9 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.multiplyColor
+import org.umamo.runtime.model.opacity
+import org.umamo.runtime.model.screenColor
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -292,4 +295,95 @@ class PropertyScalarEditsTest {
 		session.undo()
 		assertEquals(PartComposite(), session.model.value.parts.first().composite)
 	}
+
+	/** The drawable's new scalar statics round-trip, and refuse a no-op the same way the others do. */
+	@Test
+	fun drawableScalarChannelBuildersWriteTheStaticAndNoOp() {
+		val base = model()
+		val faded = base.withDrawableOpacity(drawableId, 0.25f)
+		assertEquals(0.25f, faded.drawables.first().opacity)
+		val reordered = base.withDrawableDrawOrder(drawableId, 720f)
+		assertEquals(720f, reordered.drawables.first().drawOrder)
+
+		assertSame(base, base.withDrawableOpacity(drawableId, 1f), "the default opacity is already 1")
+		assertSame(base, base.withDrawableDrawOrder(DrawableId("missing"), 720f))
+		assertSame(
+			base.drawables.first().geometryGrid,
+			faded.drawables.first().geometryGrid,
+			"a scalar-static edit leaves the geometry grid untouched by identity, so no re-upload is triggered",
+		)
+	}
+
+	/**
+	 * A drawable's draw order does NOT re-derive the render root, unlike a part's.
+	 *
+	 * A part's draw order is baked into the derived group tree; a drawable's is resolved per pose at render
+	 * time as its channel's static, so re-deriving would be work with no output.
+	 */
+	@Test
+	fun drawableDrawOrderLeavesTheRenderRootAlone() {
+		val base = model()
+		val reordered = base.withDrawableDrawOrder(drawableId, 720f)
+		assertSame(base.renderRoot, reordered.renderRoot)
+	}
+
+	/** The deformer render statics round-trip on BOTH subtypes and refuse a no-op. */
+	@Test
+	fun deformerRenderStaticBuildersCoverBothSubtypes() {
+		val base = model()
+		for (id in listOf(rotationId, warpId)) {
+			val faded = base.withDeformerOpacity(id, 0.5f)
+			assertEquals(0.5f, faded.deformerNamed(id).opacity, "opacity on $id")
+			val tinted = base.withDeformerMultiplyColor(id, ColorRgb(0.5f, 0.5f, 0.5f))
+			assertEquals(ColorRgb(0.5f, 0.5f, 0.5f), tinted.deformerNamed(id).multiplyColor, "multiply on $id")
+			val screened = base.withDeformerScreenColor(id, ColorRgb(0.25f, 0f, 0f))
+			assertEquals(ColorRgb(0.25f, 0f, 0f), screened.deformerNamed(id).screenColor, "screen on $id")
+
+			assertSame(base, base.withDeformerOpacity(id, 1f), "the default opacity is already 1")
+		}
+		assertSame(base, base.withDeformerOpacity(DeformerId("missing"), 0.5f))
+	}
+
+	/** The flip flags exist only on a rotation deformer; a warp refuses them. */
+	@Test
+	fun deformerFlipsOnlyAffectRotation() {
+		val base = model()
+		val flipped = base.withDeformerFlipX(rotationId, true)
+		assertEquals(true, (flipped.deformers.first { it.id == rotationId } as Deformer.Rotation).flipX)
+		val flippedY = base.withDeformerFlipY(rotationId, true)
+		assertEquals(true, (flippedY.deformers.first { it.id == rotationId } as Deformer.Rotation).flipY)
+
+		assertSame(base, base.withDeformerFlipX(warpId, true), "a warp has no reflection")
+		assertSame(base, base.withDeformerFlipY(warpId, true), "a warp has no reflection")
+		assertSame(base, base.withDeformerFlipX(rotationId, false), "already false")
+	}
+
+	/** Each new session setter is one undo step that reverses cleanly. */
+	@Test
+	fun newSessionSettersAreOneUndoStepEach() {
+		val session = EditorSession(model())
+		session.setDrawableOpacity(drawableId, 0.25f)
+		session.setDeformerOpacity(rotationId, 0.5f)
+		session.setDeformerFlipX(rotationId, true)
+		assertEquals(0.25f, session.model.value.drawables.first().opacity)
+		assertEquals(0.5f, session.model.value.deformerNamed(rotationId).opacity)
+
+		session.undo()
+		session.undo()
+		session.undo()
+		assertEquals(1f, session.model.value.drawables.first().opacity)
+		assertEquals(1f, session.model.value.deformerNamed(rotationId).opacity)
+	}
+
+	/** A no-op setter records nothing, so an unchanged value cannot pad the history. */
+	@Test
+	fun newSessionNoOpSettersRecordNothing() {
+		val session = EditorSession(model())
+		session.setDrawableOpacity(drawableId, 1f)
+		session.setDeformerFlipX(warpId, true)
+		assertEquals(false, session.canUndo.value)
+	}
+
+	/** The deformer with [id], for reading a static through the sealed-type accessors. */
+	private fun PuppetModel.deformerNamed(id: DeformerId): Deformer = deformers.first { candidate -> candidate.id == id }
 }

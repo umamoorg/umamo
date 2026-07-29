@@ -66,6 +66,11 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	/** The radial pie menu currently open, or null (see [EditorSession.activePieMenu]). */
 	val activePieMenu: StateFlow<PieMenuKind?> = mutableActivePieMenu.asStateFlow()
 
+	private val mutablePendingParameterChoice = MutableStateFlow<ParameterChoiceRequest?>(null)
+
+	/** The keyform edit waiting on an axis, or null (see [EditorSession.pendingParameterChoice]). */
+	val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = mutablePendingParameterChoice.asStateFlow()
+
 	private val mutableCursor2d = MutableStateFlow<Cursor2d?>(null)
 
 	/** The 2D cursor's world position, or null before any placement (see [EditorSession.cursor2d]). */
@@ -327,6 +332,20 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	/** Closes the open pie menu. */
 	fun closePieMenu() {
 		mutableActivePieMenu.value = null
+	}
+
+	/**
+	 * Parks a keyform edit until the user picks the axis it writes on.
+	 *
+	 * @param ParameterChoiceRequest request The parked edit and the axes to choose between.
+	 */
+	fun openParameterChoice(request: ParameterChoiceRequest) {
+		mutablePendingParameterChoice.value = request
+	}
+
+	/** Discards the parked keyform edit (an axis was picked, or the prompt was dismissed). */
+	fun closeParameterChoice() {
+		mutablePendingParameterChoice.value = null
 	}
 
 	/**

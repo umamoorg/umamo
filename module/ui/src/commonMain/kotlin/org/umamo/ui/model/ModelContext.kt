@@ -17,8 +17,6 @@ import org.umamo.ui.viewport.PuppetViewportService
  * (Outliner, Inspector, Parameters) read `LocalPuppet.current` to display parts/parameters; the host
  * app provides it. Kept in `:ui` commonMain (PuppetModel is in `:runtime`, a shared dependency) so the
  * panels stay common and Android-sharable while only the GL viewport is platform code.
- *
- * 開いているドキュメントの PuppetModel。パネルがパーツ／パラメータ表示に読む。アプリが供給する。
  */
 val LocalPuppet = staticCompositionLocalOf<PuppetModel?> { null }
 
@@ -28,8 +26,6 @@ val LocalPuppet = staticCompositionLocalOf<PuppetModel?> { null }
  * history; mutation sites (a visibility toggle, a future rename / reparent) resolve it and call its
  * mutation API, while [LocalPuppet] is the read-only model projection panels display. The host provides
  * both from the same session, so a mutation republishes the model and every panel recomposes.
- *
- * 開いているドキュメントの EditorSession。編集操作はこれを解決して変更を適用する。
  */
 val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
 
@@ -41,9 +37,6 @@ val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
  * republishes the committed model.  [resync] restores the renderer to the session's committed model
  * after a cancelled or torn-down gesture.  The UV editor drives its modal G / S / R previews through
  * this; the viewport's own overlays reach the service directly and do not need it.
- *
- * 未確定のプレビューモデルをレンダラへ流すプラットフォーム非依存のハンドル。取り消し段は作らず、
- * 確定はセッション経由で行う。resync は確定済みモデルへ戻す。
  */
 interface PuppetRenderSync {
 	/**
@@ -61,8 +54,6 @@ interface PuppetRenderSync {
  * The render-sync handle for the composition, or null when no puppet renderer is present (no document,
  * or a platform without the offscreen service).  Preview pushes no-op when it is null - the UV editor
  * still edits, just without a live GPU preview.
- *
- * コンポジションのレンダ同期ハンドル。レンダラが無い場合は null（プレビューだけが無効になる）。
  */
 val LocalPuppetRenderSync = staticCompositionLocalOf<PuppetRenderSync?> { null }
 
@@ -72,8 +63,6 @@ val LocalPuppetRenderSync = staticCompositionLocalOf<PuppetRenderSync?> { null }
  * UV editor requires it: it registers an atlas-page area to render its underlay through the same engine
  * the 2D viewport uses, and owns its camera through it; with no service the UV editor shows the grid
  * placeholder, exactly like the 2D viewport's body.
- *
- * コンポジションのレンダサービス。UV エディタはこれ経由でアトラスページを描画しカメラを保持する。
  */
 val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?> { null }
 
@@ -82,8 +71,6 @@ val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?
  * The UV editor reads the full page a drawable samples to draw under its wireframe; the thumbnail
  * provider below serves the cropped-preview case.  Provided by the host from the same extraction the
  * renderer uploads, so the two always show the same texels.
- *
- * 開いているドキュメントのデコード済みアトラスページ。UV エディタがワイヤーフレームの下に描く。
  */
 val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
 
@@ -93,8 +80,6 @@ val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
  * machinery the viewport's overlap picker uses (the atlas region under the mesh UV bounds). Kept an interface
  * in `:ui` commonMain so the panels stay common - the desktop wraps its Skiko rasteriser, Android will wrap
  * its own. A null provider (or a null result) means no preview, so callers simply show nothing.
- *
- * アートメッシュのサムネイルを供給するプラットフォーム非依存のソース。アウトライナーがホバー時に要求する。
  */
 interface DrawableThumbnailProvider {
 	/**
@@ -133,9 +118,6 @@ val LocalDrawableThumbnails = staticCompositionLocalOf<DrawableThumbnailProvider
  * records one undo step at the gesture boundary (drag release, a typed value, a reset). So a whole slider
  * drag is a single undo step. The desktop implementation writes its volatile LiveParams hand-off on
  * preview and routes commit through the EditorSession; Android will wrap its own.
- *
- * ライブパラメータ値（ポーズ）を読み書きするプラットフォーム非依存のハンドル。preview は毎フレーム描画へ
- * 流し（取り消し段にしない）、commit はジェスチャ境界で1つの取り消し段を記録する。
  */
 interface LiveParamsHandle {
 	/** The current parameter values (parameter id → value). */
@@ -172,8 +154,6 @@ interface LiveParamsHandle {
 /**
  * The live-parameter handle for the composition, or null when no posable document is open. The
  * Parameters space writes slider changes here; the host wires it to the renderer.
- *
- * コンポジションのライブパラメータハンドル。Parameters 空間がスライダー変更を書き込む。
  */
 val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
 
@@ -182,8 +162,6 @@ val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
  * common UI, mirroring [LiveParamsHandle]. The Outliner and viewport write gestures through it; the
  * Inspector and the highlight bridge read it. The desktop implementation backs it with Compose state
  * so panels recompose on change; Android will wrap its own.
- *
- * オブジェクトモード選択を読み書きするプラットフォーム非依存のハンドル。
  */
 interface SelectionHandle {
 	/** The current selection. */
@@ -200,8 +178,6 @@ interface SelectionHandle {
 /**
  * The selection handle for the composition, or null when no document is open. Panels read
  * `LocalSelection.current?.selection`; gesture sites call `set`.
- *
- * コンポジションの選択ハンドル。ドキュメント未オープン時は null。
  */
 val LocalSelection = staticCompositionLocalOf<SelectionHandle?> { null }
 
@@ -209,8 +185,6 @@ val LocalSelection = staticCompositionLocalOf<SelectionHandle?> { null }
  * A platform-neutral handle for reading and setting the current [EditorMode], mirroring
  * [SelectionHandle]. The mode-toggle command and, later, the radial menu write it; the viewport pick
  * router and the Inspector read it.
- *
- * 現在の [EditorMode] を読み書きするプラットフォーム非依存のハンドル。
  */
 interface EditorModeHandle {
 	/** The current editor mode. */
@@ -227,7 +201,5 @@ interface EditorModeHandle {
 /**
  * The editor-mode handle for the composition, or null when no document is open. A null handle is
  * treated as [EditorMode.Object] by callers.
- *
- * コンポジションのモードハンドル。未オープン時は null（オブジェクトモード扱い）。
  */
 val LocalEditorMode = staticCompositionLocalOf<EditorModeHandle?> { null }

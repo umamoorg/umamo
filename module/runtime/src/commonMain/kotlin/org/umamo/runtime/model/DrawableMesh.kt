@@ -8,8 +8,6 @@ package org.umamo.runtime.model
  * A plain `class`, not a `data class`: the fields are arrays, whose identity-based `equals` would make
  * a generated structural `equals` quietly wrong (the same trap [Keyform] sidesteps by hand). A mesh is
  * referenced, not value-compared, so reference identity is the honest default here.
- *
- * アートメッシュの基準ジオメトリ（x,y 交互の頂点・UV と三角形インデックス）。差分はキーフォーム格子側。
  */
 class DrawableMesh(
 	val positions: FloatArray,

@@ -48,8 +48,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * One row of the overlap picker: a drawable to select, its display label, and an optional layer-art
  * thumbnail (shown in the row's leading slot when present, or an empty slot when null).
  *
- * 重なり選択ポップアップの 1 行。選択するドロウアブル、表示ラベル、任意のサムネイル。
- *
  * @property DrawableId id        The drawable this row selects.
  * @property String label         The display label (the Outliner shows the same).
  * @property ImageBitmap? thumbnail A layer-art thumbnail for the leading slot, or null.
@@ -64,9 +62,6 @@ data class OverlapEntry(val id: DrawableId, val label: String, val thumbnail: Im
  * picks it, Escape or a click outside dismisses. Shared between desktop and Android — only the trigger
  * differs (Alt-click vs pen long-press). The popup never touches the selection state; it reports the
  * chosen drawable through [onPick] and closure through [onDismiss].
- *
- * カーソル下に重なるアートメッシュから選ぶコマンドパレット風ポップアップ。前面順に並べ、中心度が最も高い
- * 候補を既定で強調する。デスクトップと Android で共用。
  *
  * @param IntOffset anchor          The cursor position to anchor the popup at, in window pixels.
  * @param List entries              The candidates, front-to-back.

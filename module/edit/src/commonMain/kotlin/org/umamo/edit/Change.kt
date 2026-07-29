@@ -303,6 +303,31 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
+	 * Sets a drawable's static opacity - the value its opacity channel falls back to when unkeyed.
+	 *
+	 * @property DrawableId id The retargeted drawable.
+	 * @property Float opacity The new opacity, 0..1.
+	 */
+	data class SetOpacity(val id: DrawableId, val opacity: Float) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.opacity"
+	}
+
+	/**
+	 * Sets a drawable's static draw order - the value its draw-order channel falls back to when unkeyed.
+	 *
+	 * Does NOT re-derive the render root: unlike a part's draw order, a drawable's is resolved per pose at
+	 * render time (DeformPrepare reads it as the channel's static), so the derived group tree is unaffected.
+	 *
+	 * @property DrawableId id The retargeted drawable.
+	 * @property Float drawOrder The new draw order.
+	 */
+	data class SetDrawOrder(val id: DrawableId, val drawOrder: Float) : DrawableChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.drawable.drawOrder"
+	}
+
+	/**
 	 * Sets a drawable's per-art-mesh multiply color uniformly across its keyform grid.  The color is a
 	 * keyformed channel, so this writes every cell (see PuppetModelEdits.withDrawableMultiplyColor for the
 	 * flatten / re-upload follow-up).
@@ -361,6 +386,67 @@ sealed interface DeformerChange : Change {
 	data class Move(val id: DeformerId, val toParentId: DeformerId?, val beforeId: DeformerId?) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.deformer.move"
+	}
+
+	/**
+	 * Sets a deformer's static opacity - the value its opacity channel falls back to when unkeyed.
+	 *
+	 * A deformer's render channels CASCADE: this multiplies onto every drawable beneath it, so it is not
+	 * the same lever as setting each of those drawables' own opacity.
+	 *
+	 * @property DeformerId id The retargeted deformer.
+	 * @property Float opacity The new opacity, 0..1.
+	 */
+	data class SetOpacity(val id: DeformerId, val opacity: Float) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.opacity"
+	}
+
+	/**
+	 * Sets a deformer's static multiply color, which cascades onto every drawable beneath it.
+	 *
+	 * @property DeformerId id The retargeted deformer.
+	 * @property ColorRgb color The new multiply color.
+	 */
+	data class SetMultiplyColor(val id: DeformerId, val color: ColorRgb) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.multiplyColor"
+	}
+
+	/**
+	 * Sets a deformer's static screen color, which cascades onto every drawable beneath it.
+	 *
+	 * @property DeformerId id The retargeted deformer.
+	 * @property ColorRgb color The new screen color.
+	 */
+	data class SetScreenColor(val id: DeformerId, val color: ColorRgb) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.screenColor"
+	}
+
+	/**
+	 * Sets a ROTATION deformer's static horizontal reflection.
+	 *
+	 * A flag rather than a scalar, so it snaps to the floor cell instead of blending - which is why it
+	 * lives on the channel side rather than on the pivot form.
+	 *
+	 * @property DeformerId id The retargeted deformer.
+	 * @property Boolean flip The new reflection state.
+	 */
+	data class SetFlipX(val id: DeformerId, val flip: Boolean) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.flipX"
+	}
+
+	/**
+	 * Sets a ROTATION deformer's static vertical reflection.
+	 *
+	 * @property DeformerId id The retargeted deformer.
+	 * @property Boolean flip The new reflection state.
+	 */
+	data class SetFlipY(val id: DeformerId, val flip: Boolean) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.flipY"
 	}
 
 	/**
