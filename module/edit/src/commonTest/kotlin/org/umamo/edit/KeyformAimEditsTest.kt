@@ -37,6 +37,9 @@ class KeyformAimEditsTest {
 	private val target = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.OPACITY)
 	private val track = KeyformTrackRef.Channel(target)
 
+	/** The sheet row the opacity track is drawn on - opaque to this module, and identity for a selected key. */
+	private val row = "drawable:d/OPACITY"
+
 	/**
 	 * A session whose drawable has an opacity track keyed at the ends of [keyedOn]'s range, with both
 	 * parameters present and [ParameterId] angleX targeted.
@@ -136,6 +139,54 @@ class KeyformAimEditsTest {
 			"the capture step holds no pending edit, because the capture is what consumed it",
 		)
 		assertEquals(listOf(-1f, 0f, 1f), editorSession.keysOn(angleX), "and the key it captured is back")
+	}
+
+	/**
+	 * An aimed edit keeps the sheet's key selection on the key it named, as ONE undo step.
+	 *
+	 * Both halves of the same defect.  An insert renumbers every key at or above it, so inserting to the LEFT
+	 * of a selected mark handed that mark's ordinal to the new key and the new key showed as selected; a
+	 * removal renumbers the same way in the other direction, so deleting a key left the selection on the
+	 * ordinal it freed - the neighbour, which the next Delete then took.
+	 */
+	@Test
+	fun anAimedEditCarriesTheKeySelectionWithIt() {
+		val editorSession = session()
+		// Keys at [-1, 1] with the one at 1 selected; the insert at 0 lands between them.
+		editorSession.setKeySelection(setOf(TrackKeyRef(angleX, row, 1)))
+
+		editorSession.captureKeyOnTrack(track, angleX, KeyformAim.Position(0f, keyIndex = null), row)
+
+		assertEquals(listOf(-1f, 0f, 1f), editorSession.keysOn(angleX))
+		assertEquals(
+			setOf(TrackKeyRef(angleX, row, 2)),
+			editorSession.keySelection.value,
+			"the selection follows its own key past the one just inserted below it",
+		)
+
+		// And back out again: the removal renumbers the other way.
+		editorSession.removeKeyOnTrack(track, angleX, KeyformAim.Position(0f, keyIndex = 1), row)
+
+		assertEquals(listOf(-1f, 1f), editorSession.keysOn(angleX))
+		assertEquals(
+			setOf(TrackKeyRef(angleX, row, 1)),
+			editorSession.keySelection.value,
+			"and back down again when the key below it goes",
+		)
+	}
+
+	/** An insert ABOVE the selection renumbers nothing, and the whole capture stays one undo step. */
+	@Test
+	fun anInsertAboveTheSelectionLeavesItAloneAndRecordsOneStep() {
+		val editorSession = session()
+		editorSession.setKeySelection(setOf(TrackKeyRef(angleX, row, 0)))
+
+		editorSession.captureKeyOnTrack(track, angleX, KeyformAim.Position(0f, keyIndex = null), row)
+
+		assertEquals(setOf(TrackKeyRef(angleX, row, 0)), editorSession.keySelection.value, "nothing below it moved")
+		editorSession.undo()
+		assertEquals(listOf(-1f, 1f), editorSession.keysOn(angleX), "one undo reverses the whole capture")
+		assertEquals(setOf(TrackKeyRef(angleX, row, 0)), editorSession.keySelection.value)
 	}
 
 	/**

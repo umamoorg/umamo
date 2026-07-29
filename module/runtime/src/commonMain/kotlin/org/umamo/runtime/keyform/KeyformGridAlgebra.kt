@@ -299,6 +299,37 @@ private fun axisMidpointExcluding(keys: FloatArray, keyIndex: Int): Float {
 }
 
 /**
+ * The ordinal a key inserted at [keyValue] would take on [parameterId]'s axis, or -1 when no key is added.
+ *
+ * The [keyIndexAfterMove] counterpart, and public for the same reason: an insert renumbers every key at or
+ * above it, so a caller holding ordinals - the keyform sheet's key selection - has to correct them, and it
+ * has to do so BEFORE the insert records its step.  Counting the keys below the new value is exactly how
+ * [withKeyInserted] places it, so the two cannot disagree about where it lands.
+ *
+ * -1 covers every case that adds nothing: a missing axis, a sparse or empty grid, and a value already
+ * within the snap tolerance of an existing key.  An insert refused for a reason only [withKeyInserted]
+ * knows (a span below EPS_SPAN, or an out-of-span key under [OutOfSpanKeyPolicy.Reject]) still reports the
+ * position it would have taken, so a caller that acts on this must confirm against the edit's own outcome.
+ *
+ * @param ParameterId parameterId The axis to insert into.
+ * @param Float keyValue The parameter value of the new key.
+ * @return Int The new key's ordinal, or -1 when the insert would add none.
+ */
+fun KeyformGrid<*>.keyIndexAfterInsert(parameterId: ParameterId, keyValue: Float): Int {
+	val axisIndex = axisIndexOf(parameterId)
+	if (axisIndex < 0 || !isDense) {
+		return -1
+	}
+	val keys = axes[axisIndex].keys
+	// Through keyIndexAt, the one definition of the evaluator's on-a-key snap tolerance - the same gate
+	// withKeyInserted applies before it decides it has anything to add.
+	if (keys.isEmpty() || keyIndexAt(parameterId, keyValue) >= 0) {
+		return -1
+	}
+	return keys.count { existing -> existing < keyValue }
+}
+
+/**
  * The ordinal key [keyIndex] would hold after being moved toward [newValue] - its position in the re-sorted
  * axis.
  *

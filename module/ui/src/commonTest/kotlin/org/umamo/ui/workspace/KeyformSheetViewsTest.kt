@@ -15,7 +15,6 @@ class KeyformSheetViewsTest {
 		KeyformSheetSurface(
 			selectedTracks = { emptyList() },
 			hasSelection = { hasSelection },
-			clearSelection = {},
 			frameAll = {},
 			armBoxSelect = {},
 			boxSelectArmed = { boxSelectArmed },

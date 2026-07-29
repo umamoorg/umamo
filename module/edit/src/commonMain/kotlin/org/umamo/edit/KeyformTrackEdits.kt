@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.keyform.keyDestinationFor
+import org.umamo.runtime.keyform.keyIndexAfterInsert
 import org.umamo.runtime.keyform.keyIndexAfterMove
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.KeyformGrid
@@ -124,6 +125,25 @@ fun EditorSession.moveTrackKey(
 	}
 	return landedIndex
 }
+
+/**
+ * The ordinal a key inserted at [position] on [track] would take, or -1 when the insert adds none.
+ *
+ * The insert counterpart of [trackKeyIndexAfterMove], and needed for the same reason: an insert renumbers
+ * every key at or above it, so the keyform sheet has to correct its key selection - and it has to do so
+ * before the insert records its step, since the selection rides that snapshot.  Left uncorrected, inserting
+ * to the LEFT of a selected mark handed its ordinal to the new key, which then showed as the selected one.
+ *
+ * Clamps [position] exactly as [insertTrackKeyAt] does, so the query cannot answer for a destination the
+ * insert would never use.
+ *
+ * @param KeyformTrackRef track The track to insert into.
+ * @param Parameter parameter The parameter whose axis the key goes on.
+ * @param Float position The new key's requested parameter value.
+ * @return Int The new key's ordinal, or -1 when the track does not resolve or a key already sits there.
+ */
+fun PuppetModel.trackKeyIndexAfterInsert(track: KeyformTrackRef, parameter: Parameter, position: Float): Int =
+	trackGridOf(this, track)?.keyIndexAfterInsert(parameter.id, clampToParameterRange(position, parameter)) ?: -1
 
 /**
  * The ordinal [keyIndex] on [track] would hold after being moved to [toValue] - pure, nothing recorded.

@@ -50,6 +50,7 @@ import org.umamo.edit.limitedDragFraction
 import org.umamo.edit.moveTrackKey
 import org.umamo.edit.moveTrackKeys
 import org.umamo.edit.removeTrackKeys
+import org.umamo.edit.removingKeys
 import org.umamo.edit.trackKeyDragLandings
 import org.umamo.edit.trackKeyIndexAfterMove
 import org.umamo.runtime.model.FormChannel
@@ -324,7 +325,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 						KeyformSheetSurface(
 							selectedTracks = ::selectedTracks,
 							hasSelection = { session?.keySelection?.value?.isNotEmpty() == true },
-							clearSelection = { session?.setKeySelection(emptySet()) },
 							frameAll = { viewState.window = TrackWindow.Full },
 							armBoxSelect = { viewState.boxSelectArmed = true },
 							boxSelectArmed = { viewState.boxSelectArmed },
@@ -715,7 +715,7 @@ private fun KeyformSheetSection(
 				if (hit == null) {
 					keyableHover?.exit(track)
 				} else {
-					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id))
+					keyableHover?.enter(KeyformHover(track, hit.value, hit.mark?.keyIndex, parameter.id, row.key))
 				}
 			}
 		},
@@ -756,19 +756,21 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = deleteLabel,
 							onSelect = {
-								// Cleared BEFORE the removal, so the removal's own snapshot records it - the keys are
-								// about to stop existing, and a second step to say so would double every delete.
-								onStageSelectedKeys(emptySet())
-								session.removeTrackKeys(
-									summaryMembers.mapNotNull { member ->
-										projection.tracksByRowKey[member.rowKey]?.let { memberTrack ->
-											Triple(memberTrack, parameter, member.keyIndex)
-										}
-									},
-								)
-								// CONFIRM, for the removal that refuses (every ref stale): the clear is real either
-								// way, so it has to reach history either way.
-								session.setKeySelection(emptySet())
+								// Reconciled rather than blanket-cleared: dropping the whole selection here
+								// deselected the user's marks for deleting an unrelated one.
+								val removed =
+									summaryMembers
+										.map { member -> TrackKeyRef(parameter.id, member.rowKey, member.keyIndex) }
+										.toSet()
+								session.removingKeys(removed) {
+									session.removeTrackKeys(
+										summaryMembers.mapNotNull { member ->
+											projection.tracksByRowKey[member.rowKey]?.let { memberTrack ->
+												Triple(memberTrack, parameter, member.keyIndex)
+											}
+										},
+									)
+								}
 							},
 						),
 					)
@@ -779,7 +781,13 @@ private fun KeyformSheetSection(
 						MenuItem.Action(
 							label = deleteLabel,
 							onSelect = {
-								keyableHover?.enter(KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id))
+								// The row key rides the hover, so the removal reconciles the key selection itself -
+								// see EditorSession.removeKeyOnTrack.  Without it, deleting a SELECTED mark left its
+								// ref on the ordinal the removal freed, which is the neighbour: the mark to the
+								// right lit up as selected and the next Delete took it.
+								keyableHover?.enter(
+									KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id, hit.row.key),
+								)
 								commands.invoke("keyform.delete")
 								keyableHover?.exit(track)
 							},
@@ -798,6 +806,7 @@ private fun KeyformSheetSection(
 										hit.value,
 										keyIndex = null,
 										parameterId = parameter.id,
+										rowKey = hit.row.key,
 									),
 								)
 								commands.invoke("keyform.insert")

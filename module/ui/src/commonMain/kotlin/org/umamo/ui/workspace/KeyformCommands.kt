@@ -5,6 +5,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.captureKeyOnTrack
 import org.umamo.edit.removeKeyOnTrack
 import org.umamo.edit.removeTrackKeys
+import org.umamo.edit.removingKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.model.KeyformHover
@@ -54,14 +55,18 @@ internal fun shellKeyformCommands(
 		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = hasDocument) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
-					session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim)
+					// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
+					// it adds instead of handing that key the selected mark's ordinal.
+					session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
 				}
 			}
 		},
 		Command("keyform.delete", title = Res.string.cmd_keyform_delete, availability = hasDocument) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
-					session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim)
+					// The hovered row goes with it, so the removal re-points the sheet's key selection at what
+					// survives instead of leaving it on the ordinal the removal frees - the neighbouring key.
+					session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
 				}
 			}
 		},
@@ -69,10 +74,13 @@ internal fun shellKeyformCommands(
 			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))
 			val removals = sheet?.selectedTracks().orEmpty()
 			if (editorSession != null && sheet != null && removals.isNotEmpty()) {
-				editorSession.removeTrackKeys(removals)
-				// A removal renumbers every later key on its track, so no surviving ref can be trusted;
-				// clearing is the honest outcome rather than pointing at a neighbour.
-				sheet.clearSelection()
+				// Everything selected is what is going, so the reconciliation lands on an empty selection -
+				// through the same helper as every other removal rather than a clear of its own, which used
+				// to record a second history row whose undo put the pre-removal refs back over the
+				// post-removal model.
+				editorSession.removingKeys(editorSession.keySelection.value) {
+					editorSession.removeTrackKeys(removals)
+				}
 			}
 		},
 		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = hasDocument) {
