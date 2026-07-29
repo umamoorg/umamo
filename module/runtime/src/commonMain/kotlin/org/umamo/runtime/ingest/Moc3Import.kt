@@ -25,10 +25,10 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
-import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -121,7 +121,7 @@ object Moc3Import {
 	fun fromMocDocument(
 		mocDocument: MocDocument,
 		displayInfo: Cdi3Json?,
-		compactChannels: Boolean = true
+		compactChannels: Boolean = true,
 	): PuppetModel {
 		// MOC3 §5.3 CanvasInfo: pixelsPerUnit + origin place stored model space onto the canvas as a plain
 		// affine, same Y-down orientation: canvasX = originX + ppu·modelX, canvasY = originY + ppu·modelY
@@ -372,7 +372,7 @@ object Moc3Import {
 		 */
 		fun <TForm : Any> bindingOfRecord(
 			record: MocBlendShape,
-			formAt: (keyIndex: Int) -> TForm?
+			formAt: (keyIndex: Int) -> TForm?,
 		): BlendShapeBinding<TForm> =
 			BlendShapeBinding(
 				parameterId = parameterIds.getOrElse(record.parameterIndex) { ParameterId("") },
@@ -397,7 +397,7 @@ object Moc3Import {
 		fun meshBlendShapesOf(
 			drawable: Drawable,
 			space: PointSpace,
-			records: List<MocBlendShape>
+			records: List<MocBlendShape>,
 		): List<BlendShapeBinding<MeshForm>> {
 			val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
 			// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
@@ -408,18 +408,20 @@ object Moc3Import {
 				drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
 			val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform ->
-					(keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null
-				}
+				val payloads =
+					record.keyforms.map { keyform ->
+						(keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null
+					}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
 				bindingOfRecord(record) { keyIndex ->
 					MeshForm(
-						positionDeltas = addReference(
-							referenceDeltas,
-							convertDeltas(space, payloads[keyIndex].vertexPositions)
-						),
+						positionDeltas =
+							addReference(
+								referenceDeltas,
+								convertDeltas(space, payloads[keyIndex].vertexPositions),
+							),
 						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 						opacity = referenceOpacity + payloads[keyIndex].opacity,
 					)
@@ -440,13 +442,14 @@ object Moc3Import {
 		fun warpBlendShapesOf(
 			warp: Deformer.Warp,
 			space: PointSpace,
-			records: List<MocBlendShape>
+			records: List<MocBlendShape>,
 		): List<BlendShapeBinding<WarpForm>> {
 			val reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(0)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform ->
-					(keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null
-				}
+				val payloads =
+					record.keyforms.map { keyform ->
+						(keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null
+					}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
@@ -483,9 +486,10 @@ object Moc3Import {
 				rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform ->
-					(keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null
-				}
+				val payloads =
+					record.keyforms.map { keyform ->
+						(keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null
+					}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
@@ -594,12 +598,13 @@ object Moc3Import {
 							rotation
 						} else {
 							rotation.copy(
-								blendShapes = rotationBlendShapesOf(
-									rotation,
-									keyformSpace,
-									scaleFactor,
-									rotationRecords
-								)
+								blendShapes =
+									rotationBlendShapesOf(
+										rotation,
+										keyformSpace,
+										scaleFactor,
+										rotationRecords,
+									),
 							)
 						}
 					}
@@ -631,10 +636,11 @@ object Moc3Import {
 					gridOf(binding) { gridIndex ->
 						source.keyforms.getOrNull(gridIndex)?.let { keyform ->
 							MeshForm(
-								positionDeltas = deltaVsBase(
-									basePositions,
-									convertPoints(space, keyform.vertexPositions)
-								),
+								positionDeltas =
+									deltaVsBase(
+										basePositions,
+										convertPoints(space, keyform.vertexPositions),
+									),
 								drawOrder = keyform.drawOrder,
 								opacity = keyform.opacity,
 								// MOC3 color-table rows 108-113: the 5.3 per-art-mesh multiply/screen color; null
@@ -660,8 +666,9 @@ object Moc3Import {
 							},
 						alphaBlendMode = alphaBlendOfPacked(source.extendedBlend),
 						// MOC3 §5.6 MASK_INDEX_DATA: mask sources are drawable file indices.
-						maskedBy = source.maskDrawableIndices.toList()
-							.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+						maskedBy =
+							source.maskDrawableIndices.toList()
+								.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
 						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
 						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
@@ -701,9 +708,11 @@ object Moc3Import {
 					}
 				val intensityTrack =
 					gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
-						GlueForm(source.intensityKeyforms.getOrElse(gridIndex) {
-							source.intensityKeyforms.lastOrNull() ?: 1f
-						})
+						GlueForm(
+							source.intensityKeyforms.getOrElse(gridIndex) {
+								source.intensityKeyforms.lastOrNull() ?: 1f
+							},
+						)
 					}?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
 				// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
 				Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
@@ -734,9 +743,10 @@ object Moc3Import {
 			// meshes/deformers where 0 is a real binding.
 			val binding = if (source.keyformBindingIndex > 0) bindingOf(source.keyformBindingIndex) else null
 			val defaultCell = defaultCellIndexOf(binding)
-			val drawOrder = source.drawOrderKeyforms.getOrElse(defaultCell) {
-				source.drawOrderKeyforms.firstOrNull() ?: DEFAULT_DRAW_ORDER.toFloat()
-			}
+			val drawOrder =
+				source.drawOrderKeyforms.getOrElse(defaultCell) {
+					source.drawOrderKeyforms.firstOrNull() ?: DEFAULT_DRAW_ORDER.toFloat()
+				}
 			return (drawOrder + 0.001f).toInt()
 		}
 
@@ -763,8 +773,9 @@ object Moc3Import {
 				blendMode = colorBlendOfPacked(offscreen.blendMode),
 				alphaBlendMode = alphaBlendOfPacked(offscreen.blendMode),
 				// MOC3 §5.6: offscreen mask sources are drawable file indices (the MASK_INDEX_DATA prefix).
-				maskedBy = offscreen.maskIndices.toList()
-					.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+				maskedBy =
+					offscreen.maskIndices.toList()
+						.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
 				// MOC3 v6 §5.6 s156 bit 3: invert clipping mask (same bit position as the drawable flag).
 				invertMask = offscreen.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 				opacity = staticKeyform?.opacity ?: 1f,
@@ -1090,8 +1101,8 @@ object Moc3Import {
 				entries.add(
 					ChildEntry(
 						OrgChild.Drawable(drawableId),
-						panelIndexByDrawable[drawableId] ?: Int.MAX_VALUE
-					)
+						panelIndexByDrawable[drawableId] ?: Int.MAX_VALUE,
+					),
 				)
 			}
 			return entries.sortedBy { entry -> entry.panelIndex }.map { entry -> entry.child }

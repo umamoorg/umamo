@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editKeyedChannel
 import org.umamo.edit.setDeformerBaseAngle
 import org.umamo.edit.setDeformerQuadTransform
 import org.umamo.edit.setDrawableAlphaBlendMode

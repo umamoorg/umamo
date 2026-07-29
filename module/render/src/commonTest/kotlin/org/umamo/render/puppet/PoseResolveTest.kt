@@ -6,8 +6,8 @@ import org.umamo.render.eval.flattenRenderPlan
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
-import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -107,7 +107,7 @@ class PoseResolveTest {
 		val resolved = resolve(source, renderable = mapOf(DrawableId("anchor") to false, DrawableId("b") to true))
 		assertTrue(
 			DrawableId("anchor") in resolved.posed,
-			"the anchor poses: its deformed positions are a weld partner"
+			"the anchor poses: its deformed positions are a weld partner",
 		)
 		assertEquals(listOf(DrawableId("b")), resolved.drawOrder, "but it draws nothing")
 	}
@@ -172,7 +172,7 @@ class PoseResolveTest {
 							600,
 							listOf(RenderDrawable(DrawableId("a"))),
 							ChannelGrids.Empty,
-							PartComposite()
+							PartComposite(),
 						),
 					),
 			)
@@ -207,7 +207,7 @@ class PoseResolveTest {
 							600,
 							listOf(RenderDrawable(DrawableId("a"))),
 							ChannelGrids.Empty,
-							PartComposite()
+							PartComposite(),
 						),
 					),
 			)

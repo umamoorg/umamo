@@ -13,7 +13,6 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
-import org.umamo.runtime.model.channelGridsOf
 import org.umamo.ui.model.KeyedFieldState
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
@@ -100,29 +99,6 @@ internal fun displayedChannelValue(owner: KeyformOwner, channel: FormChannel, st
 	val pendingEdits by remember(session) { session.pendingChannelEdits }.collectAsState()
 	val target = KeyableTarget(owner, channel)
 	return pendingEdits[target] ?: puppet.channelValueAt(target, displayPose(session)) ?: stored
-}
-
-/**
- * Routes a keyable row's typed or picked [value]: a KEYED channel records it as a pending unkeyed edit,
- * an unkeyed channel writes the static through [writeStatic].
- *
- * The one place the rule lives.  Writing the static of a keyed channel is shadowed by the track, so the
- * edit appears to be silently rejected (the field snaps back and a following `I` captures the old track
- * value); a pending edit previews in the viewport and waits for `I`.  An unkeyed channel has no track to
- * shadow it, so the static is the real store.  Half the rows hand-copied this branch and the other half
- * shipped without it - which is exactly the drift a shared helper exists to prevent.
- *
- * @param KeyableTarget target The entity and channel the row edits.
- * @param ChannelValue value The value the user chose.
- * @param Function writeStatic Writes the owner's static (the unkeyed path).
- */
-internal fun EditorSession.editKeyedChannel(target: KeyableTarget, value: ChannelValue, writeStatic: () -> Unit) {
-	val keyed = model.value.channelGridsOf(target.owner)?.get(target.channel) != null
-	if (keyed) {
-		setPendingChannelEdit(target, value)
-	} else {
-		writeStatic()
-	}
 }
 
 /**

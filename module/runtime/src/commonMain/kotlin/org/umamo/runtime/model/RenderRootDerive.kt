@@ -70,8 +70,8 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 								part.drawOrder,
 								groupChildren,
 								part.channelGrids,
-								resolvedComposite(part)
-							)
+								resolvedComposite(part),
+							),
 						)
 					}
 				}

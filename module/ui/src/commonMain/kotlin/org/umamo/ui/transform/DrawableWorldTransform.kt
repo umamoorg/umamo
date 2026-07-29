@@ -28,6 +28,14 @@ import org.umamo.runtime.model.PuppetModel
  * inverse (worldToLocalLinearized) is exact only at the neutral pose, which is why every write here is
  * gated on isPoseNeutral exactly as EditorSession.beginObjectOperator is - the panel disables its fields
  * rather than writing geometry it cannot invert.
+ *
+ * WHY THIS EDITS FROM :ui.  Editing logic over EditorSession belongs in :edit; this file is the standing
+ * exception, and the reason is the module graph, not convenience.  World space is produced by :render's
+ * deform eval (drawableLocalPosed below), and :edit and :render are SIBLINGS over :runtime - :edit cannot
+ * see :render, so an edit expressed in world space cannot live there.  :ui depends on both, so it is the
+ * lowest module that can hold this.  Do not read it as licence to put other session edits here: anything
+ * that does not need :render belongs in :edit (see KeyformEdits.kt, which was moved out of :ui for exactly
+ * this reason).
  */
 
 /**

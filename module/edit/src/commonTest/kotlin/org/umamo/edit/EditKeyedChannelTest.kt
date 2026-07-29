@@ -1,6 +1,5 @@
-package org.umamo.ui.properties
+package org.umamo.edit
 
-import org.umamo.edit.EditorSession
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
