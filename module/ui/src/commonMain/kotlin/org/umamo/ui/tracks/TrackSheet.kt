@@ -292,9 +292,9 @@ fun Modifier.trackWindowGestures(
 		.pointerInput(labelWidthPx) {
 			awaitPointerEventScope {
 				while (true) {
-					// The INITIAL pass, deliberately: the Main pass runs child-first, so the vertical scroll
-					// container has already claimed the wheel by the time it reaches here - which is why
-					// Ctrl+wheel used to zoom and scroll at once.
+					// The INITIAL pass, deliberately: the Main pass runs child-first, so a Main-pass handler here
+					// would see the wheel only after the vertical scroll container had already claimed it, and
+					// Ctrl+wheel would zoom and scroll at once.
 					val event = awaitPointerEvent(PointerEventPass.Initial)
 					if (event.type != PointerEventType.Scroll) {
 						continue
@@ -339,8 +339,8 @@ fun Modifier.trackWindowGestures(
 					// The raw stream on the INITIAL pass, not awaitFirstDown.  Two reasons, both load-bearing:
 					// Initial is the only pass that beats the lanes and the scroll container, which are
 					// children and would otherwise claim a middle press first; and awaitFirstDown does not
-					// resolve a down on that pass at all - it waits forever - which is why this silently did
-					// nothing.  contextMenuGesture watches the raw stream for the same reason.
+					// resolve a down on that pass at all - it waits forever, so calling it here would silently
+					// hang.  contextMenuGesture watches the raw stream for the same reason.
 					val press = awaitPointerEvent(PointerEventPass.Initial)
 					if (press.type != PointerEventType.Press || !press.buttons.isTertiaryPressed) {
 						continue
@@ -959,10 +959,10 @@ private fun TrackLane(
 	val markRadiusPx = with(density) { markRadius.toPx() }
 	// The marks and the callbacks are read through latest-state holders rather than keying the gesture
 	// blocks below, and that is load-bearing rather than tidy: a pointerInput RESTARTS when a key changes,
-	// and both of these change identity the moment the SELECTION does - so an owner that cleared the
-	// selection on the press (which is exactly what pressing empty track does) tore its own gesture down
-	// mid-stroke.  The drag then froze at the press point and the release never arrived, so nothing
-	// committed.  Only the pixel-to-domain mapping still keys the blocks, because that genuinely
+	// and both of these change identity the moment the SELECTION does.  Keying on them would let an owner
+	// that clears the selection on the press (exactly what pressing empty track does) tear its own gesture
+	// down mid-stroke: the drag would freeze at the press point with no release ever arriving, so nothing
+	// would commit.  Only the pixel-to-domain mapping still keys the blocks, because that genuinely
 	// invalidates a stroke in progress.
 	val editableMarks = remember(marks) { marks.filter { candidate -> candidate.editable } }
 	val latestEditableMarks by rememberUpdatedState(editableMarks)

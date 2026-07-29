@@ -503,9 +503,10 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
  * One keyable COLOR channel's field row: the label, the hex field with its keyed tint, the
  * track-resolved display value, and the keyed-goes-pending edit routing.
  *
- * ONE composable for every color channel row - drawable or part, multiply or screen.  The routing rule
- * used to be hand-copied per row, and the part rows shipped without it: typing a color on a keyed part
- * channel wrote a static the track shadowed, so the edit appeared to be silently rejected.
+ * ONE composable for every color channel row - drawable or part, multiply or screen - rather than the
+ * routing rule hand-copied per row: a rule duplicated across every row is exactly the kind of thing that
+ * drifts, and a row missing it writes a static the track shadows, so the edit appears to be silently
+ * rejected.
  *
  * @param String label The row's field label.
  * @param KeyformOwner owner The entity the row edits.
