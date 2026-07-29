@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.runtime.keyform.keyDestinationFor
 import org.umamo.runtime.keyform.keyIndexAfterMove
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.KeyformGrid
@@ -232,27 +233,81 @@ fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 		return startingOrdinals
 	}
 	val destinations = live.associateWith { move -> move.destinationAt(effectiveFraction) }
-	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { current ->
-		// Nearest the destination first, so a run of keys shuffling the same way cannot have an earlier one
-		// clamp against a neighbour that is about to move out of the way.
-		val ordered = if (effectiveFraction > 0f) live.sortedByDescending { it.fromValue } else live.sortedBy { it.fromValue }
-		ordered.fold(current) { working, move ->
-			val liveIndex = working.trackKeyIndexAt(move.track, move.parameter, move.fromValue)
-			if (liveIndex < 0) {
-				working
-			} else {
-				working.withTrackKeyMoved(move.track, move.parameter, liveIndex, destinations.getValue(move))
-			}
-		}
-	}
-	// Re-resolved against the NEW model by the value each key was sent to, which is the only description of
-	// a key that survives its own move.
+	// Nearest the destination first, so a run of keys shuffling the same way cannot have an earlier one
+	// clamp against a neighbour that is about to move out of the way.
+	val ordered = if (effectiveFraction > 0f) live.sortedByDescending { it.fromValue } else live.sortedBy { it.fromValue }
+	val outcome = model.value.withKeyDragsApplied(ordered, destinations)
+	// Computed before the mutate rather than inside it because the landing VALUES have to come back out, and
+	// mutate hands back only a model.  It applies the transform exactly once against this same instance, so
+	// handing it the finished model is equivalent - including the reference-equality no-op check, which
+	// still fires when nothing moved.
+	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { outcome.model }
 	val afterDrag = model.value
 	return keys.mapIndexed { position, (track, parameter, keyIndex) ->
-		val destination = moves[position]?.let { move -> destinations[move] } ?: return@mapIndexed keyIndex
-		afterDrag.trackKeyIndexAt(track, parameter, destination).takeIf { index -> index >= 0 } ?: keyIndex
+		// Resolved by where the key ACTUALLY landed, not by where it was sent.  A key dropped onto a
+		// neighbour is nudged EPS_SPAN aside, which is wider than the EPS_KEY tolerance this lookup uses -
+		// so asking for the requested value found the key already sitting there and handed the caller ITS
+		// ordinal, silently moving the selection onto the wrong mark (and merging two of them into one).
+		val landed = moves[position]?.let { move -> outcome.landedValueByMove[move] } ?: return@mapIndexed keyIndex
+		afterDrag.trackKeyIndexAt(track, parameter, landed).takeIf { index -> index >= 0 } ?: keyIndex
 	}
 }
+
+/**
+ * The result of applying a batch of key drags: the new model, and where each key actually ended up.
+ *
+ * The landing values are not the requested destinations.  A key dropped within EPS_SPAN of a neighbour is
+ * nudged aside, and one that cannot be nudged anywhere resolvable does not move at all - so the only
+ * description of a key that survives its own move is the value it truly holds afterwards.
+ *
+ * @property PuppetModel model The model with every drag applied.
+ * @property Map landedValueByMove Each drag's true landing value.
+ */
+private class KeyDragOutcome(val model: PuppetModel, val landedValueByMove: Map<KeyDrag, Float>)
+
+/**
+ * This model with [ordered] applied in sequence, reporting where each key truly landed.
+ *
+ * Pure, and applied in the given order because each move reshapes the axis the next one is found on.
+ *
+ * @param List ordered The drags, already sorted into the direction of travel.
+ * @param Map destinations Each drag's requested destination.
+ * @return KeyDragOutcome The new model plus each drag's true landing value.
+ */
+private fun PuppetModel.withKeyDragsApplied(ordered: List<KeyDrag>, destinations: Map<KeyDrag, Float>): KeyDragOutcome {
+	val landed = HashMap<KeyDrag, Float>(ordered.size)
+	var working = this
+	for (move in ordered) {
+		// Re-found BY VALUE, not by the ordinal the caller passed: an earlier key crossing an unselected
+		// neighbour renumbers the axis under the keys still to be moved.
+		val liveIndex = working.trackKeyIndexAt(move.track, move.parameter, move.fromValue)
+		if (liveIndex < 0) {
+			continue
+		}
+		val requested = destinations.getValue(move)
+		// Asked BEFORE the move, off the same grid withTrackKeyMoved will consult, so the answer is the one
+		// that is about to be applied.  Null is a refusal - the key stays exactly where it is.
+		landed[move] = working.trackKeyDestination(move.track, move.parameter, liveIndex, requested) ?: move.fromValue
+		working = working.withTrackKeyMoved(move.track, move.parameter, liveIndex, requested)
+	}
+	return KeyDragOutcome(working, landed)
+}
+
+/**
+ * Where [track]'s key at [keyIndex] would land if moved toward [requested] - the collision nudge applied.
+ *
+ * @param KeyformTrackRef track The track to read.
+ * @param Parameter parameter The parameter whose axis the key sits on.
+ * @param Int keyIndex The key's ordinal on that axis.
+ * @param Float requested The requested destination.
+ * @return Float? The value it would take, or null when the move cannot apply.
+ */
+private fun PuppetModel.trackKeyDestination(
+	track: KeyformTrackRef,
+	parameter: Parameter,
+	keyIndex: Int,
+	requested: Float,
+): Float? = trackGridOf(this, track)?.keyDestinationFor(parameter.id, keyIndex, requested)
 
 /**
  * One key's in-flight drag: where it is now, and what bounds how far it may go.

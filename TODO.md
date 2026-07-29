@@ -102,8 +102,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* refinedToUnion to bake parameters.
 
 ## Keyform Sheet
-* Bugs
-	* If I drag multiple selected marks all the way to the edge over top, for example, the left edge marks when undoing the selection becomes the original selection minus the ones that overlapped the edge marks.
+* Improvements
+	* Shift+Click for multiple selecting keys.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.

@@ -258,6 +258,29 @@ class KeyformGeometryEditsTest {
 	}
 
 	/**
+	 * A key dragged ONTO its neighbour reports its own new ordinal, not the neighbour's.
+	 *
+	 * Dragging a group into the axis end piles the leading key onto the key already sitting there, and the
+	 * collision nudge pushes it EPS_SPAN aside.  EPS_SPAN is WIDER than the EPS_KEY tolerance an
+	 * ordinal lookup uses, so asking "which key is at the value I requested" found the key that was already
+	 * there and handed back ITS ordinal - moving the sheet's selection onto the wrong mark, and collapsing
+	 * two selected keys into one entry when both resolved to it.
+	 */
+	@Test
+	fun aKeyDraggedOntoItsNeighbourReportsItsOwnOrdinal() {
+		val session = EditorSession(model())
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+		// Keys [-30, 0, 30] with 0 and 30 selected, dragged left until the key at 0 reaches the key at -30.
+		val landed = session.dragTrackKeys(listOf(Triple(track, parameter, 1), Triple(track, parameter, 2)), fraction = -0.5f)
+
+		val keys = keysOf(session.model.value)
+		assertEquals(-30f, keys[0], "the key already at the end did not move")
+		assertTrue(keys[1] > -30f && keys[1] < -29.99f, "the dragged key was nudged clear of it, at ${keys[1]}")
+		assertEquals(0f, keys[2])
+		assertEquals(listOf(1, 2), landed, "the dragged keys report THEIR ordinals, not the resident key's")
+	}
+
+	/**
 	 * With two parameters targeted and no axis named, an unaimed key edit PARKS instead of guessing.
 	 *
 	 * The linked-pad case: a 2D pad targets both its axes but reports only the horizontal one as active, so
