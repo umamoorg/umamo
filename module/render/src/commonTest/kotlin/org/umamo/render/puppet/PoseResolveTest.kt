@@ -6,7 +6,7 @@ import org.umamo.render.eval.flattenRenderPlan
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.BlendMode
-import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -76,7 +76,7 @@ class PoseResolveTest {
 		source: PuppetModel,
 		renderable: Map<DrawableId, Boolean>,
 		shown: Set<DrawableId> = source.drawables.map { it.id }.toSet(),
-		renderRoot: RenderGroup = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, emptyList()),
+		renderRoot: RenderGroup = RenderGroup(null, DEFAULT_DRAW_ORDER, emptyList()),
 	) = resolvePose(
 		inputs = preparePose(source, emptyMap()),
 		renderableById = renderable,
@@ -105,7 +105,10 @@ class PoseResolveTest {
 		// for a partner to weld against) while drawing nothing. Conflating the two breaks glue silently.
 		val source = model(listOf(drawable("anchor", indices = IntArray(0)), drawable("b")))
 		val resolved = resolve(source, renderable = mapOf(DrawableId("anchor") to false, DrawableId("b") to true))
-		assertTrue(DrawableId("anchor") in resolved.posed, "the anchor poses: its deformed positions are a weld partner")
+		assertTrue(
+			DrawableId("anchor") in resolved.posed,
+			"the anchor poses: its deformed positions are a weld partner"
+		)
 		assertEquals(listOf(DrawableId("b")), resolved.drawOrder, "but it draws nothing")
 	}
 
@@ -160,11 +163,17 @@ class PoseResolveTest {
 		val isolatedRoot =
 			RenderGroup(
 				partId = null,
-				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
+				drawOrder = DEFAULT_DRAW_ORDER,
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), ChannelGrids.Empty, PartComposite()),
+						RenderGroup(
+							PartId("fx"),
+							600,
+							listOf(RenderDrawable(DrawableId("a"))),
+							ChannelGrids.Empty,
+							PartComposite()
+						),
 					),
 			)
 		val resolved =
@@ -189,11 +198,17 @@ class PoseResolveTest {
 		val isolatedRoot =
 			RenderGroup(
 				partId = null,
-				drawOrder = CUBISM_DEFAULT_PART_DRAW_ORDER,
+				drawOrder = DEFAULT_DRAW_ORDER,
 				children =
 					listOf(
 						RenderDrawable(DrawableId("b")),
-						RenderGroup(PartId("fx"), 600, listOf(RenderDrawable(DrawableId("a"))), ChannelGrids.Empty, PartComposite()),
+						RenderGroup(
+							PartId("fx"),
+							600,
+							listOf(RenderDrawable(DrawableId("a"))),
+							ChannelGrids.Empty,
+							PartComposite()
+						),
 					),
 			)
 		val resolved =

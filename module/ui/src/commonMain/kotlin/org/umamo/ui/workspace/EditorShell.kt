@@ -205,10 +205,21 @@ fun EditorShell(
 	DisposableEffect(commandRegistry, editorSession, selection, service) {
 		val activeViewportArea: () -> String? = { service?.activeAreaId }
 		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
-		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
 		val cleanup =
 			commandRegistry.registerAll(
-				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, hoveredKeyable, keyformSheetViews),
+				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface),
+			)
+		onDispose { cleanup() }
+	}
+	// The keyform-authoring group (KeyformCommands.kt), its own table because it closes over the hover
+	// seams rather than the session alone: the hovered keyable the insert / delete write to, and the sheet
+	// registry the selection and view ops act through - both resolved at dispatch time.
+	DisposableEffect(commandRegistry, editorSession) {
+		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
+		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
+		val cleanup =
+			commandRegistry.registerAll(
+				shellKeyformCommands(editorSession, hoveredKeyable, hoveredSurface, keyformSheetViews),
 			)
 		onDispose { cleanup() }
 	}

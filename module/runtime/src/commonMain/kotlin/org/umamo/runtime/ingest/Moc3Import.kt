@@ -25,7 +25,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
 import org.umamo.runtime.model.BlendWeightLimitPoint
-import org.umamo.runtime.model.CUBISM_DEFAULT_PART_DRAW_ORDER
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -118,7 +118,11 @@ object Moc3Import {
 	 *   see Cmo3Import.fromModelSource.
 	 * @return PuppetModel The concrete runtime puppet.
 	 */
-	fun fromMocDocument(mocDocument: MocDocument, displayInfo: Cdi3Json?, compactChannels: Boolean = true): PuppetModel {
+	fun fromMocDocument(
+		mocDocument: MocDocument,
+		displayInfo: Cdi3Json?,
+		compactChannels: Boolean = true
+	): PuppetModel {
 		// MOC3 §5.3 CanvasInfo: pixelsPerUnit + origin place stored model space onto the canvas as a plain
 		// affine, same Y-down orientation: canvasX = originX + ppu·modelX, canvasY = originY + ppu·modelY
 		// (corpus-verified against the CMO3 twin; the Umamo C++ runtime's Y-up presentation happens at eval
@@ -366,7 +370,10 @@ object Moc3Import {
 		 * @param Function      formAt Builds the synthesized runtime form for a non-neutral key.
 		 * @return BlendShapeBinding<TForm> The runtime binding.
 		 */
-		fun <TForm : Any> bindingOfRecord(record: MocBlendShape, formAt: (keyIndex: Int) -> TForm?): BlendShapeBinding<TForm> =
+		fun <TForm : Any> bindingOfRecord(
+			record: MocBlendShape,
+			formAt: (keyIndex: Int) -> TForm?
+		): BlendShapeBinding<TForm> =
 			BlendShapeBinding(
 				parameterId = parameterIds.getOrElse(record.parameterIndex) { ParameterId("") },
 				keys = record.keyPositions.copyOf(),
@@ -387,22 +394,32 @@ object Moc3Import {
 		 * @param List<MocBlendShape> records  The drawable's records.
 		 * @return List<BlendShapeBinding<MeshForm>> The runtime bindings.
 		 */
-		fun meshBlendShapesOf(drawable: Drawable, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<MeshForm>> {
+		fun meshBlendShapesOf(
+			drawable: Drawable,
+			space: PointSpace,
+			records: List<MocBlendShape>
+		): List<BlendShapeBinding<MeshForm>> {
 			val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
 			// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
 			// out-of-range channel falls back to the drawable's static, which for an imported drawable is
 			// Cubism's 500 / full opacity - the same fallback meshBlendState uses, so the evaluator's
 			// subtraction cancels exactly even for an ungridded drawable.
-			val referenceDrawOrder = drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
+			val referenceDrawOrder =
+				drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
 			val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null }
+				val payloads = record.keyforms.map { keyform ->
+					(keyform as? BlendShapeKeyform.Mesh)?.form ?: return@mapNotNull null
+				}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
 				bindingOfRecord(record) { keyIndex ->
 					MeshForm(
-						positionDeltas = addReference(referenceDeltas, convertDeltas(space, payloads[keyIndex].vertexPositions)),
+						positionDeltas = addReference(
+							referenceDeltas,
+							convertDeltas(space, payloads[keyIndex].vertexPositions)
+						),
 						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 						opacity = referenceOpacity + payloads[keyIndex].opacity,
 					)
@@ -420,10 +437,16 @@ object Moc3Import {
 		 * @param List<MocBlendShape> records The warp's records.
 		 * @return List<BlendShapeBinding<WarpForm>> The runtime bindings.
 		 */
-		fun warpBlendShapesOf(warp: Deformer.Warp, space: PointSpace, records: List<MocBlendShape>): List<BlendShapeBinding<WarpForm>> {
+		fun warpBlendShapesOf(
+			warp: Deformer.Warp,
+			space: PointSpace,
+			records: List<MocBlendShape>
+		): List<BlendShapeBinding<WarpForm>> {
 			val reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(0)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null }
+				val payloads = record.keyforms.map { keyform ->
+					(keyform as? BlendShapeKeyform.Warp)?.form ?: return@mapNotNull null
+				}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
@@ -460,12 +483,15 @@ object Moc3Import {
 				rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			return records.mapNotNull { record ->
-				val payloads = record.keyforms.map { keyform -> (keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null }
+				val payloads = record.keyforms.map { keyform ->
+					(keyform as? BlendShapeKeyform.Rotation)?.form ?: return@mapNotNull null
+				}
 				if (payloads.size != record.keyPositions.size) {
 					return@mapNotNull null
 				}
 				bindingOfRecord(record) { keyIndex ->
-					val originDelta = convertDeltas(space, floatArrayOf(payloads[keyIndex].originX, payloads[keyIndex].originY))
+					val originDelta =
+						convertDeltas(space, floatArrayOf(payloads[keyIndex].originX, payloads[keyIndex].originY))
 					RotationForm(
 						originX = reference.originX + originDelta[0],
 						originY = reference.originY + originDelta[1],
@@ -529,6 +555,7 @@ object Moc3Import {
 							warp.copy(blendShapes = warpBlendShapesOf(warp, keyformSpace, warpRecords))
 						}
 					}
+
 					is RotationDeformer -> {
 						rotationOrdinal++
 						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
@@ -537,7 +564,8 @@ object Moc3Import {
 						val fannedRotation =
 							gridOf(binding) { gridIndex ->
 								source.keyforms.getOrNull(gridIndex)?.let { keyform ->
-									val origin = convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
+									val origin =
+										convertPoints(keyformSpace, floatArrayOf(keyform.originX, keyform.originY))
 									RotationForm(
 										originX = origin[0],
 										originY = origin[1],
@@ -565,7 +593,14 @@ object Moc3Import {
 						if (rotationRecords.isEmpty()) {
 							rotation
 						} else {
-							rotation.copy(blendShapes = rotationBlendShapesOf(rotation, keyformSpace, scaleFactor, rotationRecords))
+							rotation.copy(
+								blendShapes = rotationBlendShapesOf(
+									rotation,
+									keyformSpace,
+									scaleFactor,
+									rotationRecords
+								)
+							)
 						}
 					}
 				}
@@ -596,7 +631,10 @@ object Moc3Import {
 					gridOf(binding) { gridIndex ->
 						source.keyforms.getOrNull(gridIndex)?.let { keyform ->
 							MeshForm(
-								positionDeltas = deltaVsBase(basePositions, convertPoints(space, keyform.vertexPositions)),
+								positionDeltas = deltaVsBase(
+									basePositions,
+									convertPoints(space, keyform.vertexPositions)
+								),
 								drawOrder = keyform.drawOrder,
 								opacity = keyform.opacity,
 								// MOC3 color-table rows 108-113: the 5.3 per-art-mesh multiply/screen color; null
@@ -622,7 +660,8 @@ object Moc3Import {
 							},
 						alphaBlendMode = alphaBlendOfPacked(source.extendedBlend),
 						// MOC3 §5.6 MASK_INDEX_DATA: mask sources are drawable file indices.
-						maskedBy = source.maskDrawableIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+						maskedBy = source.maskDrawableIndices.toList()
+							.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
 						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
 						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
@@ -662,7 +701,9 @@ object Moc3Import {
 					}
 				val intensityTrack =
 					gridOf(bindingOf(source.keyformBindingIndex)) { gridIndex ->
-						GlueForm(source.intensityKeyforms.getOrElse(gridIndex) { source.intensityKeyforms.lastOrNull() ?: 1f })
+						GlueForm(source.intensityKeyforms.getOrElse(gridIndex) {
+							source.intensityKeyforms.lastOrNull() ?: 1f
+						})
 					}?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
 				// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
 				Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
@@ -693,7 +734,9 @@ object Moc3Import {
 			// meshes/deformers where 0 is a real binding.
 			val binding = if (source.keyformBindingIndex > 0) bindingOf(source.keyformBindingIndex) else null
 			val defaultCell = defaultCellIndexOf(binding)
-			val drawOrder = source.drawOrderKeyforms.getOrElse(defaultCell) { source.drawOrderKeyforms.firstOrNull() ?: CUBISM_DEFAULT_PART_DRAW_ORDER.toFloat() }
+			val drawOrder = source.drawOrderKeyforms.getOrElse(defaultCell) {
+				source.drawOrderKeyforms.firstOrNull() ?: DEFAULT_DRAW_ORDER.toFloat()
+			}
 			return (drawOrder + 0.001f).toInt()
 		}
 
@@ -720,7 +763,8 @@ object Moc3Import {
 				blendMode = colorBlendOfPacked(offscreen.blendMode),
 				alphaBlendMode = alphaBlendOfPacked(offscreen.blendMode),
 				// MOC3 §5.6: offscreen mask sources are drawable file indices (the MASK_INDEX_DATA prefix).
-				maskedBy = offscreen.maskIndices.toList().mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
+				maskedBy = offscreen.maskIndices.toList()
+					.mapNotNull { maskIndex -> drawableIdsByFileIndex.getOrNull(maskIndex) },
 				// MOC3 v6 §5.6 s156 bit 3: invert clipping mask (same bit position as the drawable flag).
 				invertMask = offscreen.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 				opacity = staticKeyform?.opacity ?: 1f,
@@ -805,7 +849,8 @@ object Moc3Import {
 
 		// The flat drawables list is kept back-to-front (the storage/base order, mirroring Cmo3Import's
 		// panel-derived ordering); unplaced drawables keep file order at the back.
-		val orderedDrawables = drawables.sortedByDescending { drawable -> panelIndexByDrawable[drawable.id] ?: Int.MAX_VALUE }
+		val orderedDrawables =
+			drawables.sortedByDescending { drawable -> panelIndexByDrawable[drawable.id] ?: Int.MAX_VALUE }
 
 		val model =
 			PuppetModel(
@@ -897,12 +942,13 @@ object Moc3Import {
 							composite = partCompositeOf(part),
 						)
 					}
+
 					else -> null
 				}
 			}
 		}
 
-		val root = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, childrenOf(0))
+		val root = RenderGroup(null, DEFAULT_DRAW_ORDER, childrenOf(0))
 		// Safety net, mirroring deriveRenderRoot's: the renderer draws EXCLUSIVELY from this tree, so
 		// a drawable the stored groups never place (out-of-range child index, an unknown future child
 		// kind, or a truncated tree) would silently never render.  Append the missing leaves at the
@@ -910,7 +956,8 @@ object Moc3Import {
 		val placedLeaves = ArrayList<DrawableId>()
 		collectRenderLeaves(root, placedLeaves)
 		val placedDrawableIds = placedLeaves.toHashSet()
-		val missingLeaves = drawableIdsByFileIndex.filter { drawableId -> drawableId !in placedDrawableIds }.map(::RenderDrawable)
+		val missingLeaves =
+			drawableIdsByFileIndex.filter { drawableId -> drawableId !in placedDrawableIds }.map(::RenderDrawable)
 		return if (missingLeaves.isEmpty()) {
 			root
 		} else {
@@ -1040,7 +1087,12 @@ object Moc3Import {
 			}
 			for (drawableIndex in childDrawableIndices[parentIndex].orEmpty()) {
 				val drawableId = drawableIdsByFileIndex[drawableIndex]
-				entries.add(ChildEntry(OrgChild.Drawable(drawableId), panelIndexByDrawable[drawableId] ?: Int.MAX_VALUE))
+				entries.add(
+					ChildEntry(
+						OrgChild.Drawable(drawableId),
+						panelIndexByDrawable[drawableId] ?: Int.MAX_VALUE
+					)
+				)
 			}
 			return entries.sortedBy { entry -> entry.panelIndex }.map { entry -> entry.child }
 		}

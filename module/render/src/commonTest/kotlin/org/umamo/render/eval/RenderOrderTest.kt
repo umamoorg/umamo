@@ -163,13 +163,14 @@ class RenderOrderTest {
 	fun nestedIsolatedGroupsNestInThePlan() {
 		val inner =
 			RenderGroup(PartId("inner"), 500, listOf(RenderDrawable(id("leaf"))), ChannelGrids.Empty, PartComposite())
-		val outer = RenderGroup(
-			PartId("outer"),
-			600,
-			listOf(RenderDrawable(id("sibling")), inner),
-			ChannelGrids.Empty,
-			PartComposite()
-		)
+		val outer =
+			RenderGroup(
+				PartId("outer"),
+				600,
+				listOf(RenderDrawable(id("sibling")), inner),
+				ChannelGrids.Empty,
+				PartComposite(),
+			)
 		val root = RenderGroup(null, 500, listOf(RenderDrawable(id("back")), outer))
 		val plan = renderPlan(root, mapOf(id("back") to 100f, id("sibling") to 400f, id("leaf") to 500f))
 		val outerNode = assertIs<RenderPlanComposite>(plan[1])
@@ -195,7 +196,7 @@ class RenderOrderTest {
 							500,
 							listOf(RenderDrawable(id("fxA"))),
 							ChannelGrids.Empty,
-							PartComposite()
+							PartComposite(),
 						),
 						RenderDrawable(id("front")),
 					),

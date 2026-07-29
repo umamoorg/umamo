@@ -64,7 +64,15 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 					} else {
 						val groupChildren = ArrayList<RenderNode>()
 						collect(part.children, groupChildren)
-						into.add(RenderGroup(part.id, part.drawOrder, groupChildren, part.channelGrids, resolvedComposite(part)))
+						into.add(
+							RenderGroup(
+								part.id,
+								part.drawOrder,
+								groupChildren,
+								part.channelGrids,
+								resolvedComposite(part)
+							)
+						)
 					}
 				}
 			}
@@ -73,7 +81,7 @@ fun PuppetModel.deriveRenderRoot(): RenderGroup {
 
 	val rootNodes = ArrayList<RenderNode>()
 	collect(rootChildren, rootNodes)
-	val root = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, rootNodes)
+	val root = RenderGroup(null, DEFAULT_DRAW_ORDER, rootNodes)
 
 	// Safety net: append any drawable the org walk did not place (e.g. one reachable only under a deformer),
 	// so the render never silently drops a mesh.
