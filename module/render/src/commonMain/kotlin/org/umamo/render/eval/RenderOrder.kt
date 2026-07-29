@@ -1,14 +1,12 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
-
-/** Cubism's neutral drawable draw order; raising a drawable's value moves it toward the front. */
-const val DEFAULT_DRAW_ORDER = 500f
 
 /**
  * A node of the resolved per-pose render plan: the back-to-front order WITH the isolated group
@@ -50,7 +48,7 @@ fun renderPlan(
 ): List<RenderPlanNode> {
 	fun sortKey(node: RenderNode): Int =
 		when (node) {
-			is RenderDrawable -> ((drawOrder[node.id] ?: DEFAULT_DRAW_ORDER) + 0.001f).toInt()
+			is RenderDrawable -> ((drawOrder[node.id] ?: DEFAULT_DRAW_ORDER.toFloat()) + 0.001f).toInt()
 			is RenderGroup -> node.partId?.let { partDrawOrders[it] }?.let { (it + 0.001f).toInt() } ?: node.drawOrder
 		}
 
@@ -146,4 +144,4 @@ fun renderOrder(
  * @return List<DrawableId> The drawables in back-to-front paint order.
  */
 fun paintOrder(baseOrder: List<DrawableId>, drawOrder: Map<DrawableId, Float>): List<DrawableId> =
-	baseOrder.sortedBy { ((drawOrder[it] ?: DEFAULT_DRAW_ORDER) + 0.001f).toInt() }
+	baseOrder.sortedBy { ((drawOrder[it] ?: DEFAULT_DRAW_ORDER.toFloat()) + 0.001f).toInt() }

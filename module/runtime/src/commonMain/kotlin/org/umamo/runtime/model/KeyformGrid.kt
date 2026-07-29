@@ -96,7 +96,7 @@ class MeshForm(
 	val positionDeltas: FloatArray,
 	// Defaults are Cubism's own (drawOrder 500, fully opaque, identity tints); the CMO3 importer always
 	// sets them explicitly, so the defaults only serve geometry-only unit tests that don't exercise these.
-	val drawOrder: Float = 500f,
+	val drawOrder: Float = DEFAULT_DRAW_ORDER.toFloat(),
 	val opacity: Float = 1f,
 	val multiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 	val screenColor: ColorRgb = ColorRgb.ScreenIdentity,

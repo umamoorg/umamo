@@ -24,7 +24,7 @@ data class PuppetModel(
 	 * The draw-order group tree (Cubism's "Group by Draw Order" hierarchy) used to compute render order. A
 	 * group-less model is one flat [RenderGroup]; empty (the default) means "fall back to the flat base order".
 	 */
-	val renderRoot: RenderGroup = RenderGroup(null, CUBISM_DEFAULT_PART_DRAW_ORDER, emptyList()),
+	val renderRoot: RenderGroup = RenderGroup(null, DEFAULT_DRAW_ORDER, emptyList()),
 	/**
 	 * LINKED ("combined") parameter pairs - each renders as one 2D pad instead of two sliders. Empty
 	 * (the default) means every parameter is an independent 1D axis. Both members of a link also remain
@@ -58,8 +58,15 @@ data class PuppetModel(
 	val worldOriginY: Float = 0f,
 )
 
-/** Cubism's neutral part draw order; matches the drawable default and the editor's Inspector default. */
-const val CUBISM_DEFAULT_PART_DRAW_ORDER = 500
+/**
+ * Cubism's neutral draw order: the midpoint of the 0-1000 scale a part's slot and an art mesh's stacking
+ * both sort on, and what the official editor's Inspector shows for an untouched object.
+ *
+ * One constant for both, because it is one number in the format - a drawable's order is merely carried as a
+ * (keyable, therefore fractional) Float, so the Float sites read it .toFloat() rather than keeping a second
+ * copy that can drift.
+ */
+const val DEFAULT_DRAW_ORDER = 500
 
 /**
  * One ordered child of the organisational tree: a sub-part or a drawable. Cubism's parts panel keeps
@@ -82,12 +89,6 @@ sealed interface OrgChild {
 	 */
 	data class Drawable(val id: DrawableId) : OrgChild
 }
-
-/**
- * Default art-mesh draw order which is also Cubism's default.  Mirrors :render's DEFAULT_DRAW_ORDER, which cannot be
- * referenced here (:render depends on :runtime, not the other way round).
- */
-const val DEFAULT_DRAWABLE_DRAW_ORDER: Float = 500f
 
 /** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
 data class Part(
@@ -119,7 +120,7 @@ data class Part(
 	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is
 	 * grouped or isolated. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
 	 */
-	val drawOrder: Int = CUBISM_DEFAULT_PART_DRAW_ORDER,
+	val drawOrder: Int = DEFAULT_DRAW_ORDER,
 	/**
 	 * The part's per-channel keyform tracks, empty for a fully static part.
 	 *
@@ -177,7 +178,7 @@ data class Drawable(
 	 */
 	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	/** Static draw order (Cubism's 500) used when [channelGrids] has no draw-order track. */
-	val drawOrder: Float = DEFAULT_DRAWABLE_DRAW_ORDER,
+	val drawOrder: Float = DEFAULT_DRAW_ORDER.toFloat(),
 	/** Static opacity used when [channelGrids] has no opacity track. */
 	val opacity: Float = 1f,
 	/** Static multiply color used when [channelGrids] has no multiply track. */

@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import org.umamo.edit.KeyformAim
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.ParameterId
@@ -52,7 +53,17 @@ data class KeyformHover(
 	 * the wrong axis's keys.
 	 */
 	val parameterId: ParameterId? = null,
-)
+) {
+	/**
+	 * This hover as the aim an authoring op takes: a named place when the pointer is on a positioned row,
+	 * else the pose.
+	 *
+	 * The mapping lives with the fields it reads rather than at the command that passes it on, so the rule
+	 * that [keyIndex] only means anything alongside a [position] is stated once (see [KeyformAim]).
+	 */
+	val aim: KeyformAim
+		get() = position?.let { at -> KeyformAim.Position(at, keyIndex) } ?: KeyformAim.Pose
+}
 
 class KeyableHover {
 	/** What the pointer is over, or null when it is over nothing keyable. */
