@@ -901,7 +901,7 @@ private fun OutlinerRowBody(
 	) {
 		Spacer(modifier = Modifier.width(4.dp + INDENT_PER_DEPTH * row.depth))
 		ChevronSlot(visible = hasChildren, expanded = expanded, onToggle = onToggle, tint = colors.textMuted)
-		OutlinerIconSlot(icon = node.icon, dimmed = node.dimmed, baseTint = colors.textMuted)
+		OutlinerIconSlot(icon = node.icon, dimmed = node.dimmed)
 		Spacer(modifier = Modifier.width(4.dp))
 		val labelStyle =
 			if (node.target is SelectionTarget.Drawable) LocalUmamoTypography.current.labelSmall else LocalUmamoTypography.current.bodySmall
@@ -1008,10 +1008,9 @@ private fun ChevronSlot(visible: Boolean, expanded: Boolean, onToggle: () -> Uni
  *
  * @param OutlinerIcon icon The icon kind.
  * @param Boolean dimmed Whether the row is muted (the glyph fades to match).
- * @param Color baseTint The default glyph colour for non-signature icons.
  */
 @Composable
-private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean, baseTint: Color) {
+private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean) {
 	val colors = LocalUmamoColors.current
 	val tint =
 		when (icon) {

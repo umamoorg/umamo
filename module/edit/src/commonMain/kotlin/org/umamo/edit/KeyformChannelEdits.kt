@@ -181,7 +181,6 @@ fun PuppetModel.withChannelKeyCaptured(
 	val staticValue = staticValueOf(target.owner, target.channel) ?: return this
 	val defaults = parameters.associate { it.id to it.default }
 	val poseValue: (ParameterId) -> Float = { id -> pose[id] ?: defaults[id] ?: 0f }
-	val scrubValue = poseValue(parameter.id)
 
 	val existing = grids[target.channel]
 	val bound: KeyformGrid<ChannelValue> =

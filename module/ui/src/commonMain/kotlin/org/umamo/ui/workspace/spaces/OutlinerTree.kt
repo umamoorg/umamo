@@ -15,8 +15,6 @@ const val OUTLINER_ROOT_ID = "root"
  * The icon a row carries, drawn as themed vector art from the shared UmamoIcons set inside a reserved
  * fixed-width slot (see OutlinerIconSlot). The two synthetic roots mirror Blender's armature object /
  * armature data icons.
- *
- * アウトライナー行のアイコン種別。共有アイコンセットの本物のベクター素材を固定幅スロットに描画する。
  */
 enum class OutlinerIcon {
 	/** The puppet root (Blender's orange armature-object icon). */

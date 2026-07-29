@@ -122,7 +122,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	val colors = LocalUmamoColors.current
 	val puppet = LocalPuppet.current
 	val session = LocalEditorSession.current
-	val liveParams = LocalLiveParams.current
 	val viewState = scope.spaceState(KEYFORM_SHEET_VIEW_STATE_KEY) { KeyformSheetViewState() }
 
 	val parameterSelection by remember(session) {
