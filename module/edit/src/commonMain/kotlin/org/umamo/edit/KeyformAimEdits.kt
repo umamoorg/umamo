@@ -150,10 +150,15 @@ fun EditorSession.captureKeyOnTrack(track: KeyformTrackRef, parameterId: Paramet
 		is KeyformTrackRef.Channel -> {
 			val target = track.target
 			val value = pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, pose.value) ?: return
-			captureChannelKey(target, parameter, value)
-			// Only THIS target's pending edit was consumed; the pose did not move, so any other target's
-			// typed value is still the value its user chose and must survive for its own capture.
+			// Retired BEFORE the capture records its step, exactly as the unkeyed branch of editKeyedChannel
+			// does below and for the same reason: a snapshot defaults every field to live state, so clearing
+			// afterwards leaves the consumed value inside the step that consumed it - and redo then re-shows
+			// the uncommitted-edit warning over the very key that now stores the value.
+			//
+			// Only THIS target's pending edit is consumed; the pose did not move, so any other target's typed
+			// value is still the value its user chose and must survive for its own capture.
 			clearPendingChannelEdit(target)
+			captureChannelKey(target, parameter, value)
 		}
 
 		// Geometry holds no value the user can have typed, so there is nothing to capture - the key goes in

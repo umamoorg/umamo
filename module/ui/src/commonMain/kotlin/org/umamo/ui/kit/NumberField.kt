@@ -469,6 +469,8 @@ private fun NumberFieldDisplay(
  * @param UmamoIcon icon The chevron glyph (left = decrement, right = increment).
  * @param Function onClick Steps the value one increment.
  * @param Modifier modifier Layout modifier (the caller aligns it to an edge).
+ * @param KeyedFieldState keyState The field's keyed state, tinted over this button's own opaque fill so a
+ *   keyed field does not lose the signal at both ends exactly when the chevrons appear.
  */
 @Composable
 private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier, keyState: KeyedFieldState) {
@@ -509,6 +511,8 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
  * @param Modifier modifier Layout modifier (the width).
  * @param Boolean autoFocus When true, requests focus on first composition (rich edit mode).
  * @param Function onFocusLost Called after focus leaves (rich edit mode swaps back to the display face).
+ * @param KeyedFieldState keyState The field's keyed state, tinted behind the text so clicking a keyed field
+ *   to type does not flash the box back to the plain fill for the length of the edit.
  * @param Function commit Parses / clamps / fires the caller callback with the raw typed text.
  */
 @Composable

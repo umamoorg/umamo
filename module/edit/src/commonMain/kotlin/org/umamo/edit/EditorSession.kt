@@ -396,6 +396,11 @@ class EditorSession(
 		// preview frame there, so a live-map comparison makes the release of every drag look like a no-op and
 		// records nothing - the one case this exists for.
 		if (history.current.pendingChannelEdits[target] == value) {
+			// Still published: the guard says this step would record nothing new, not that the value is live.
+			// The two diverge whenever something retired the pending edit without recording that it did - a
+			// scrub previews through clearPendingChannelEdits and then ends where it began - and returning
+			// outright left the re-typed value out of the viewport and the field untinted.
+			setPendingChannelEdit(target, value)
 			return
 		}
 		val edits = mutablePendingChannelEdits.value + (target to value)
@@ -672,10 +677,19 @@ class EditorSession(
 	 * thing that undo restores has to live where undo can reach it, and two open sheets agreeing on one
 	 * selection is the same trade [setParameterSelection] already made.
 	 *
+	 * Also the CONFIRM half of [stageKeySelection]: calling this with the staged selection after the
+	 * gesture's edit records the selection exactly when the edit did not.
+	 *
 	 * @param Set<TrackKeyRef> keySelection The new key selection.
 	 */
 	fun setKeySelection(keySelection: Set<TrackKeyRef>) {
-		if (keySelection == mutableKeySelection.value) {
+		// Compared against what HISTORY holds, not against the live flow, because a stage has already moved
+		// the flow: comparing there makes a confirm look like a no-op in precisely the case it exists for -
+		// the one where the edit it followed recorded nothing and the staged selection reached no snapshot.
+		if (keySelection == history.current.keySelection) {
+			// Published rather than merely dropped: this step records nothing new, which is not the same as
+			// the live flow already holding it (a restore or an abandoned stage can leave it elsewhere).
+			mutableKeySelection.value = keySelection
 			return
 		}
 		history.push(snapshot(keySelection = keySelection), EditorStateChange.KeySelectionChanged)
@@ -688,13 +702,18 @@ class EditorSession(
 	 * Publishes [keySelection] WITHOUT recording a step of its own, for a gesture whose own step is about to
 	 * follow.
 	 *
-	 * The one caller is a plain click on a mark, which selects the key AND scrubs the pose onto it.  The
-	 * scrub commits a step immediately afterwards, and [snapshot] defaults every field it is not given to
-	 * live state - so staging the selection first folds it into that same step, and one click stays one
-	 * undo.  Recording both would make a single click take two presses of Ctrl+Z to reverse.
+	 * A keyform-sheet gesture selects and edits at once - a drag re-points the selection at the ordinals its
+	 * keys landed on, an empty-track press drops the selection and scrubs - and they are one gesture, so
+	 * they are one entry.  [snapshot] defaults every field it is not given to live state, so staging the
+	 * selection BEFORE the edit folds it into that edit's own step.  Recording both would make one drag take
+	 * two presses of Ctrl+Z to reverse.
 	 *
-	 * Anything NOT immediately followed by a commit must use [setKeySelection] instead, or the selection
-	 * change is invisible to undo.
+	 * STAGE, EDIT, CONFIRM - every caller runs all three.  The edit may decline to record anything (a drag
+	 * clamped to zero, a scrub that ended where it began, a move onto a key's own value), and a stage that
+	 * reached no snapshot is a selection change undo cannot see.  So the gesture ends by calling
+	 * [setKeySelection] with the same selection: that compares against history rather than against the live
+	 * flow, so it is a no-op when the edit's push already carried the selection and records a step of its
+	 * own when it did not.  Staging without confirming is a bug, not a shortcut.
 	 *
 	 * @param Set<TrackKeyRef> keySelection The new key selection.
 	 */
@@ -718,7 +737,12 @@ class EditorSession(
 	 * @param Pose pose The pose the click landed on.
 	 */
 	fun selectKeysAtPose(keySelection: Set<TrackKeyRef>, pose: Pose) {
-		if (keySelection == mutableKeySelection.value && pose == mutablePose.value) {
+		// Against history rather than the live flow, for the reason [setKeySelection] spells out: a staged
+		// selection has already moved the flow, and a click that lands on the selection a stage left there
+		// must still record it.
+		if (keySelection == history.current.keySelection && pose == history.current.pose) {
+			mutableKeySelection.value = keySelection
+			mutablePose.value = pose
 			return
 		}
 		// A pose move invalidates every pending edit, exactly as it does through the ordinary commit path.

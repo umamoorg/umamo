@@ -16,8 +16,6 @@ import org.umamo.runtime.model.ParameterId
  * track is the sheet's job because only the sheet knows which rows it is currently projecting; a session
  * that tried to would have to duplicate that projection to answer.
  *
- * 選択された1キー：パラメータ区画・行・その行の何番目のキーか。値ではなく序数で指す。
- *
  * @property ParameterId parameterId The parameter whose section the key sits in.
  * @property String rowKey The owning row's stable key.
  * @property Int keyIndex The key's ordinal on that row's track.

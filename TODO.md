@@ -87,6 +87,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
 	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)

@@ -1050,7 +1050,7 @@ private fun TrackLane(
 							// Sampled once at the press, so the marks a stroke hit-tests against cannot shift under
 							// it - the drag is manipulating the mark it started on, whatever the list does meanwhile.
 							val hitMark =
-									nearestMark(latestEditableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
+								nearestMark(latestEditableMarks, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
 							var dragging = false
 							var releaseValue = pressedValue
 							// A press on empty track scrubs immediately, so the playhead lands under the

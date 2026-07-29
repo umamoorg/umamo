@@ -206,4 +206,36 @@ class ChannelPreviewEditsTest {
 		assertEquals(null, session.pendingChannelEdits.value[target])
 		assertEquals(ChannelValue.Scalar(720f), session.pendingChannelEdits.value[other], "the other survives")
 	}
+
+	/**
+	 * Re-typing a value the live step already records still puts it back in the viewport.
+	 *
+	 * The commit's no-op guard asks history, not the live map, and that is right - a scrub has already
+	 * written its last preview frame there.  But the two DO diverge: a pose scrub retires pending edits
+	 * through the preview path, which records nothing, so a scrub that ends where it began leaves history
+	 * holding a value the live map no longer has.  Returning outright then dropped the re-typed value on the
+	 * floor: no override reached the renderer and the field showed none of its uncommitted-edit tint.
+	 */
+	@Test
+	fun reTypingAValueHistoryStillHoldsRepublishesIt() {
+		val session = EditorSession(model(keyed = true))
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
+		// What a scrub away and back does: the preview path retires the pending edit without recording that
+		// it did, and the commit then declines because the pose came home.
+		session.clearPendingChannelEdits()
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), session.pose.value)
+		assertEquals(null, session.pendingChannelEdits.value[target], "the scrub retired it")
+
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
+
+		assertEquals(
+			ChannelValue.Scalar(0.25f),
+			session.pendingChannelEdits.value[target],
+			"the re-typed value is live again even though the step records nothing new",
+		)
+	}
 }

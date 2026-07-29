@@ -85,8 +85,6 @@ internal expect fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Un
  * ours, and the main pointer pass runs innermost-first, so an ordinary [contextMenuGesture] never sees the
  * press - the built-in menu has already consumed it.  The trigger therefore has to be watched a pass earlier.
  *
- * テキストフィールド用のトリガー。標準のメニューより先にイベントを受け取る必要がある。
- *
  * @param Function onContextMenu Called with the request point in local coordinates.
  * @return Modifier The modifier with the detector attached.
  */

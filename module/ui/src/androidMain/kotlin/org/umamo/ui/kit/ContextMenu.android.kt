@@ -10,8 +10,6 @@ import androidx.compose.ui.unit.IntOffset
  * standard tap-gesture detector, which fires onLongPress with the press point once the finger has been
  * held past the long-press timeout without moving.
  *
- * タッチのトリガーは長押し（タッチには副ボタンが無い）。長押しタイムアウト経過時に押下点で通知する。
- *
  * @param Function onContextMenu Called with the press point in local coordinates.
  * @return Modifier The modifier with the long-press detector attached.
  */
@@ -28,8 +26,6 @@ internal actual fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Un
  * platform behaviour and not ours to take away.  So this loses to the platform where the two collide, and a
  * field inside a context-menu area does not offer that area's items on Android.  Revisit alongside the
  * Android viewport - until that lands the editor does not run here, so the gap costs nothing today.
- *
- * タッチのトリガーは長押しだが、長押しは単語選択という OS 標準の意味を持つため、そちらを優先する。
  *
  * @param Function onContextMenu Called with the press point in local coordinates.
  * @return Modifier The modifier with the detector attached.

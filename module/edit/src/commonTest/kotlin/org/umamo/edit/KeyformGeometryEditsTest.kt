@@ -376,4 +376,35 @@ class KeyformGeometryEditsTest {
 		session.moveTrackKeys(listOf(Triple(track, parameter, 1)), toValue = 9999f)
 		assertEquals(30f, keysOf(session.model.value).last(), "clamped to the parameter's maximum")
 	}
+
+	/**
+	 * The landing QUERIES answer exactly what the edits they describe report.
+	 *
+	 * The sheet asks before the edit, because its key selection rides the edit's own snapshot and a selection
+	 * re-pointed afterwards reaches no history entry at all - redo then restored the pre-move ordinals onto
+	 * whichever keys had taken them.  A query that could disagree with its edit would just move the bug, so
+	 * both go through one planner and this is what holds them together.
+	 */
+	@Test
+	fun theLandingQueriesAgreeWithTheEditsTheyDescribe() {
+		val track = KeyformTrackRef.Geometry(KeyformOwner.Drawable(drawableId))
+
+		// A single key dragged past its neighbour: keys [-30, 0, 30], the first sent to +10.
+		val moveSession = EditorSession(model())
+		val predictedMove = moveSession.model.value.trackKeyIndexAfterMove(track, parameter, keyIndex = 0, toValue = 10f)
+		assertEquals(1, predictedMove, "it crosses the key at 0")
+		assertEquals(predictedMove, moveSession.moveTrackKey(track, parameter, keyIndex = 0, toValue = 10f))
+
+		// The same crossing as a group drag, and a clamp the drag refuses outright.
+		val dragSession = EditorSession(model())
+		val keys = listOf(Triple(track, parameter, 0))
+		val predictedDrag = dragSession.model.value.trackKeyDragLandings(keys, fraction = 40f / 60f)
+		assertEquals(listOf(1), predictedDrag)
+		assertEquals(predictedDrag, dragSession.dragTrackKeys(keys, fraction = 40f / 60f))
+		assertEquals(
+			listOf(1),
+			dragSession.model.value.trackKeyDragLandings(listOf(Triple(track, parameter, 1)), fraction = 0f),
+			"a drag that moves nothing reports the ordinals it was given",
+		)
+	}
 }

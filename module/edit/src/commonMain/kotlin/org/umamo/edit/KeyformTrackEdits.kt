@@ -118,13 +118,39 @@ fun EditorSession.moveTrackKey(
 	// Resolved BEFORE the mutate, against the grid this ordinal still refers to.  A crossing renumbers the
 	// axis, so afterwards the ordinal names a different key - which is exactly why the caller has to be
 	// told the new one rather than left holding the old.
-	val landedIndex =
-		trackGridOf(model.value, track)?.keyIndexAfterMove(parameter.id, keyIndex, clamped) ?: keyIndex
+	val landedIndex = model.value.trackKeyIndexAfterMove(track, parameter, keyIndex, toValue)
 	mutate(KeyformChange.MoveKey(channelOf(track))) { model ->
 		model.withTrackKeyMoved(track, parameter, keyIndex, clamped)
 	}
 	return landedIndex
 }
+
+/**
+ * The ordinal [keyIndex] on [track] would hold after being moved to [toValue] - pure, nothing recorded.
+ *
+ * Public for the same reason [limitedDragFraction] is: the keyform sheet has to know where a key will land
+ * BEFORE the move records its step, because the sheet's key selection rides that step's snapshot and a
+ * selection staged afterwards reaches no history entry at all.  Preview, stage, and commit must agree about
+ * the landing, so they call one function rather than reimplementing the crossing rule.
+ *
+ * Clamps [toValue] exactly as [moveTrackKey] does, which is why the clamp lives here and not at either
+ * call site - a query that answered for an unclamped destination would disagree with the move it describes.
+ *
+ * @param KeyformTrackRef track The track the key sits on.
+ * @param Parameter parameter The parameter whose axis the key sits on.
+ * @param Int keyIndex The key's current ordinal on that axis.
+ * @param Float toValue The requested destination.
+ * @return Int The ordinal after the move, or [keyIndex] when the track no longer resolves.
+ */
+fun PuppetModel.trackKeyIndexAfterMove(
+	track: KeyformTrackRef,
+	parameter: Parameter,
+	keyIndex: Int,
+	toValue: Float,
+): Int =
+	trackGridOf(this, track)
+		?.keyIndexAfterMove(parameter.id, keyIndex, clampToParameterRange(toValue, parameter))
+		?: keyIndex
 
 /**
  * Inserts a shape-preserving key at [position] on [track], as one undo step.
@@ -219,38 +245,80 @@ private fun PuppetModel.keyDragsOf(keys: List<Triple<KeyformTrackRef, Parameter,
  *   a caller holding the old ordinals would be pointing at whichever keys took their place.
  */
 fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> {
-	val startingOrdinals = keys.map { (_, _, keyIndex) -> keyIndex }
+	val plan = model.value.planTrackKeyDrag(keys, fraction) ?: return keys.map { (_, _, keyIndex) -> keyIndex }
+	// Computed before the mutate rather than inside it because the landing VALUES have to come back out, and
+	// mutate hands back only a model.  It applies the transform exactly once against this same instance, so
+	// handing it the finished model is equivalent - including the reference-equality no-op check, which
+	// still fires when nothing moved.
+	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { plan.model }
+	return plan.landedOrdinals
+}
+
+/**
+ * Where every key in [keys] would land if dragged by [fraction] - pure, nothing recorded.
+ *
+ * The query half of [dragTrackKeys], public for the reason [trackKeyIndexAfterMove] spells out: the sheet
+ * has to re-point its key selection at the landed ordinals BEFORE the drag records its step, because the
+ * selection rides that step's snapshot.  Both call the same planner, so the answer cannot drift from the
+ * drag it describes.
+ *
+ * @param List keys The (track, parameter, key ordinal) triples being dragged.
+ * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @return List<Int> Each key's ordinal after the drag, in the order given - the starting ordinals when the
+ *   drag would move nothing.
+ */
+fun PuppetModel.trackKeyDragLandings(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> =
+	planTrackKeyDrag(keys, fraction)?.landedOrdinals ?: keys.map { (_, _, keyIndex) -> keyIndex }
+
+/**
+ * A planned group drag: the model it would produce, and the ordinal each key would hold in it.
+ *
+ * @property PuppetModel model The model with every drag applied.
+ * @property List<Int> landedOrdinals Each key's post-drag ordinal, aligned with the keys as given.
+ */
+private class KeyDragPlan(val model: PuppetModel, val landedOrdinals: List<Int>)
+
+/**
+ * Plans the group drag [dragTrackKeys] applies, or null when it would move nothing.
+ *
+ * Pure over this model, which is what lets the sheet ask for the landings and then commit the same drag.
+ * Null rather than a plan whose model is this one, so a caller cannot mistake "refused" for "applied".
+ *
+ * @param List keys The (track, parameter, key ordinal) triples to drag.
+ * @param Float fraction The drag as a signed fraction of each parameter's range.
+ * @return KeyDragPlan? The plan, or null when the drag is empty, unresolvable, or clamped to nothing.
+ */
+private fun PuppetModel.planTrackKeyDrag(
+	keys: List<Triple<KeyformTrackRef, Parameter, Int>>,
+	fraction: Float,
+): KeyDragPlan? {
 	if (keys.isEmpty() || fraction == 0f) {
-		return startingOrdinals
+		return null
 	}
-	val moves = model.value.keyDragsOf(keys)
+	val moves = keyDragsOf(keys)
 	val live = moves.filterNotNull()
 	if (live.isEmpty()) {
-		return startingOrdinals
+		return null
 	}
 	val effectiveFraction = live.fold(fraction) { limited, move -> move.limitedTo(limited) }
 	if (effectiveFraction == 0f) {
-		return startingOrdinals
+		return null
 	}
 	val destinations = live.associateWith { move -> move.destinationAt(effectiveFraction) }
 	// Nearest the destination first, so a run of keys shuffling the same way cannot have an earlier one
 	// clamp against a neighbour that is about to move out of the way.
 	val ordered = if (effectiveFraction > 0f) live.sortedByDescending { it.fromValue } else live.sortedBy { it.fromValue }
-	val outcome = model.value.withKeyDragsApplied(ordered, destinations)
-	// Computed before the mutate rather than inside it because the landing VALUES have to come back out, and
-	// mutate hands back only a model.  It applies the transform exactly once against this same instance, so
-	// handing it the finished model is equivalent - including the reference-equality no-op check, which
-	// still fires when nothing moved.
-	mutate(KeyformChange.MoveKey(channelOf(keys.first().first))) { outcome.model }
-	val afterDrag = model.value
-	return keys.mapIndexed { position, (track, parameter, keyIndex) ->
-		// Resolved by where the key ACTUALLY landed, not by where it was sent.  A key dropped onto a
-		// neighbour is nudged EPS_SPAN aside, which is wider than the EPS_KEY tolerance this lookup uses -
-		// so asking for the requested value found the key already sitting there and handed the caller ITS
-		// ordinal, silently moving the selection onto the wrong mark (and merging two of them into one).
-		val landed = moves[position]?.let { move -> outcome.landedValueByMove[move] } ?: return@mapIndexed keyIndex
-		afterDrag.trackKeyIndexAt(track, parameter, landed).takeIf { index -> index >= 0 } ?: keyIndex
-	}
+	val outcome = withKeyDragsApplied(ordered, destinations)
+	val landedOrdinals =
+		keys.mapIndexed { position, (track, parameter, keyIndex) ->
+			// Resolved by where the key ACTUALLY landed, not by where it was sent.  A key dropped onto a
+			// neighbour is nudged EPS_SPAN aside, which is wider than the EPS_KEY tolerance this lookup uses -
+			// so asking for the requested value found the key already sitting there and handed the caller ITS
+			// ordinal, silently moving the selection onto the wrong mark (and merging two of them into one).
+			val landed = moves[position]?.let { move -> outcome.landedValueByMove[move] } ?: return@mapIndexed keyIndex
+			outcome.model.trackKeyIndexAt(track, parameter, landed).takeIf { index -> index >= 0 } ?: keyIndex
+		}
+	return KeyDragPlan(outcome.model, landedOrdinals)
 }
 
 /**

@@ -50,6 +50,8 @@ import org.umamo.edit.limitedDragFraction
 import org.umamo.edit.moveTrackKey
 import org.umamo.edit.moveTrackKeys
 import org.umamo.edit.removeTrackKeys
+import org.umamo.edit.trackKeyDragLandings
+import org.umamo.edit.trackKeyIndexAfterMove
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
@@ -287,15 +289,19 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					viewState.dragPreviewFraction = null
 				} else if (commit) {
 					viewState.dragPreviewFraction = null
-					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
-					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
-					// old ordinals would leave the selection on whichever keys took their places.
-					// Staged, not recorded: dragTrackKeys has just committed the move as one step, and this only
-					// re-points the same selection at where those keys landed - a second step for the same gesture.
-					session.stageKeySelection(
+					val dragged = plan.map { (_, key) -> key }
+					// Asked BEFORE the drag, so the re-pointed selection can be staged into the drag's own
+					// snapshot: a crossing renumbers its axis, and staging afterwards left every recorded step
+					// holding the pre-drag ordinals for redo to restore.
+					val landed = session.model.value.trackKeyDragLandings(dragged, fraction)
+					val landedSelection =
 						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
-							.toSet(),
-					)
+							.toSet()
+					// STAGE, EDIT, CONFIRM - see EditorSession.stageKeySelection.  The confirm is what records
+					// the re-pointing when the drag itself declined to (clamped against a range wall).
+					session.stageKeySelection(landedSelection)
+					session.dragTrackKeys(dragged, fraction)
+					session.setKeySelection(landedSelection)
 				} else {
 					viewState.dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
 				}
@@ -618,6 +624,8 @@ private fun KeyformSheetSection(
 			// near-miss on a mark should not wipe the work rather than merely failing to add to it.
 			if (!additive) {
 				// Staged: onTrackScrubEnd commits the scrub, and the clear belongs to that same step.
+				// It confirms the clear there too - the commit records nothing when the press lands on the
+				// value the playhead already holds, and a selection lost that way has no undo.
 				onStageSelectedKeys(emptySet())
 			}
 			// Clamped again at the model boundary, not only in the lane: the lane clamps to the VISIBLE
@@ -631,7 +639,14 @@ private fun KeyformSheetSection(
 			)
 		},
 		// One undo step per gesture, at its end - the same contract a slider drag has.
-		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
+		onTrackScrubEnd = { _, _ ->
+			liveParams?.commit(setOf(parameter.id))
+			// CONFIRM the selection the press staged (see EditorSession.stageKeySelection): a no-op when the
+			// commit above folded it into the scrub's step, and a step of its own when the commit declined
+			// because the pose never moved.  Read live rather than from `selectedKeys`, which is this
+			// composition's snapshot of a selection the press has since changed.
+			session?.setKeySelection(session.keySelection.value)
+		},
 		// The whole selection follows the mark under the hand rather than snapping to it on release,
 		// which is what makes a group drag read as moving keys instead of as a deferred command.  The
 		// model is untouched until the release; only what is DRAWN moves.
@@ -660,20 +675,31 @@ private fun KeyformSheetSection(
 					},
 					releasedAt,
 				)
+				// CONFIRM: the move records nothing when the summary is released where it was picked up,
+				// and the clear above would then vanish with it.
+				session.setKeySelection(emptySet())
 			} else if (session != null && track != null) {
 				val dragged = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
 				val groupFraction = groupDragFraction(parameter, selectedKeys, dragged, mark, releasedAt)
 				if (groupFraction != null) {
 					onDragSelectedKeys(groupFraction, true)
 				} else {
-					// A key may cross its neighbours, which renumbers the axis - so the move reports where the
-					// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
-					// would silently leave the selection on whichever key took its place.
-					val landedIndex = session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+					// A key may cross its neighbours, which renumbers the axis - so the selection is
+					// re-pointed at the ordinal the key lands on.  Keeping the old ordinal would silently
+					// leave the selection on whichever key took its place.
 					if (dragged in selectedKeys) {
-						// Staged: the move above already recorded the step, and this only re-addresses the same
-						// selection at the ordinal the key landed on.
-						onStageSelectedKeys(selectedKeys - dragged + TrackKeyRef(parameter.id, row.key, landedIndex))
+						// Asked BEFORE the move so the re-pointing can be STAGED into the move's own snapshot;
+						// staging afterwards left every recorded step holding the pre-move ordinal, which redo
+						// then restored onto the wrong key.  CONFIRMED after, for a release that moved nothing.
+						val landedIndex =
+							session.model.value.trackKeyIndexAfterMove(track, parameter, mark.keyIndex, releasedAt)
+						val landedSelection =
+							selectedKeys - dragged + TrackKeyRef(parameter.id, row.key, landedIndex)
+						onStageSelectedKeys(landedSelection)
+						session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
+						session.setKeySelection(landedSelection)
+					} else {
+						session.moveTrackKey(track, parameter, mark.keyIndex, releasedAt)
 					}
 				}
 			}
@@ -740,6 +766,9 @@ private fun KeyformSheetSection(
 										}
 									},
 								)
+								// CONFIRM, for the removal that refuses (every ref stale): the clear is real either
+								// way, so it has to reach history either way.
+								session.setKeySelection(emptySet())
 							},
 						),
 					)

@@ -152,12 +152,12 @@ fun HexColorField(
 		Spacer(modifier = Modifier.width(6.dp))
 		TextEditContextMenuArea(
 			value = text,
-			onValueChange = { edited -> commitHexEdit(edited, onValueChange) { updated -> text = updated } },
+			onValueChange = { edited -> commitHexEdit(edited, text, onValueChange) { updated -> text = updated } },
 			modifier = Modifier.weight(1f),
 		) { gesture ->
 			BasicTextField(
 				value = text,
-				onValueChange = { edited -> commitHexEdit(edited, onValueChange) { updated -> text = updated } },
+				onValueChange = { edited -> commitHexEdit(edited, text, onValueChange) { updated -> text = updated } },
 				textStyle = LocalUmamoTypography.current.bodySmall.copy(color = colors.text),
 				singleLine = true,
 				cursorBrush = SolidColor(colors.text),
@@ -199,17 +199,32 @@ fun HexColorField(
 }
 
 /**
- * Applies one hex-field edit: shows it, and persists it when it parses.
+ * Applies one hex-field edit: shows it, and persists it when the TEXT changed and parses.
  *
  * Shared by the field and its context menu so a pasted color takes effect exactly like a typed one - the
  * menu writing only the local text would have shown a color the document never received.
  *
+ * Selection-only changes are shown and not persisted.  BasicTextField's TextFieldValue overload reports a
+ * caret or selection move through the same callback as an edit, so persisting unconditionally re-committed
+ * the stored value for merely clicking into the field, dragging a selection across it, or picking Select
+ * All - and on a keyed channel that is an undo step plus an uncommitted-edit tint for a value that never
+ * changed.
+ *
  * @param TextFieldValue edited The value the field or menu produced.
+ * @param TextFieldValue previous The value it replaces, for telling an edit from a selection move.
  * @param Function onValueChange The caller's persist callback, given canonical hex.
  * @param Function show Writes the edited value back to the field's own state.
  */
-private fun commitHexEdit(edited: TextFieldValue, onValueChange: (String) -> Unit, show: (TextFieldValue) -> Unit) {
+private fun commitHexEdit(
+	edited: TextFieldValue,
+	previous: TextFieldValue,
+	onValueChange: (String) -> Unit,
+	show: (TextFieldValue) -> Unit,
+) {
 	show(edited)
+	if (edited.text == previous.text) {
+		return
+	}
 	parseHexColor(edited.text)?.let { parsed -> onValueChange(formatHexColor(parsed)) }
 }
 

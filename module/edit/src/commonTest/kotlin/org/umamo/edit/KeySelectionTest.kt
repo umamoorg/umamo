@@ -140,6 +140,45 @@ class KeySelectionTest {
 		assertTrue(editorSession.keySelection.value.isEmpty(), "one undo, not two")
 	}
 
+	/**
+	 * A staged selection the following commit DECLINED to record is recorded by the confirming
+	 * [EditorSession.setKeySelection] instead.
+	 *
+	 * The gesture is an empty-track press at the value the playhead already holds: it drops the selection and
+	 * then scrubs nowhere, so the pose commit short-circuits.  Staging alone left the selection changed with
+	 * nothing in history to undo it - the one failure mode the stage / edit / confirm rule exists to close.
+	 */
+	@Test
+	fun aStagedSelectionTheCommitDroppedIsRecordedByTheConfirm() {
+		val editorSession = session()
+		editorSession.setKeySelection(setOf(keyAt(0), keyAt(1)))
+
+		editorSession.stageKeySelection(emptySet())
+		editorSession.commitPose(ParameterChange.SetValue(listOf(angleX)), editorSession.pose.value)
+		editorSession.setKeySelection(editorSession.keySelection.value)
+
+		assertTrue(editorSession.keySelection.value.isEmpty(), "the press dropped the selection")
+		editorSession.undo()
+		assertEquals(setOf(keyAt(0), keyAt(1)), editorSession.keySelection.value, "and undo brings it back")
+	}
+
+	/**
+	 * The confirm is a no-op when the edit it follows already carried the staged selection - one gesture
+	 * stays one undo step.
+	 */
+	@Test
+	fun confirmingASelectionTheCommitAlreadyCarriedRecordsNothing() {
+		val editorSession = session()
+		editorSession.stageKeySelection(setOf(keyAt(2)))
+		editorSession.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 15f))
+		editorSession.setKeySelection(setOf(keyAt(2)))
+
+		editorSession.undo()
+		assertTrue(editorSession.keySelection.value.isEmpty(), "one undo reverses the whole gesture")
+		assertEquals(0f, editorSession.pose.value[angleX], "selection and scrub together")
+		assertFalse(editorSession.canUndo.value, "so the confirm added no second step")
+	}
+
 	/** The label key of the live history step - what the History panel would show for it. */
 	private fun EditorSession.liveStepLabelKey(): String? = historyView.value.let { view -> view.steps[view.cursor].labelKey }
 }

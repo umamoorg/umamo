@@ -12,7 +12,9 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextInputSelection
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -71,6 +73,47 @@ class HexColorFieldMirrorTest {
 			waitForIdle()
 			field().assertTextEquals(magenta)
 			assertEquals(magenta, value, "a parseable edit commits out through onValueChange")
+		}
+
+	/**
+	 * Moving the selection is not an edit, so it must not persist anything.
+	 *
+	 * The field holds a TextFieldValue so its context menu can act on a selection, and BasicTextField's
+	 * TextFieldValue overload reports caret and selection moves through the same callback as typing.
+	 * Persisting those re-committed the stored colour for merely clicking into the field or dragging a
+	 * selection across it - and on a KEYED channel that is an undo step plus the orange uncommitted-edit
+	 * tint, for a value that never changed.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun movingTheSelectionPersistsNothing() =
+		runComposeUiTest {
+			var value by mutableStateOf(green)
+			var commits = 0
+			setContent {
+				Box(modifier = Modifier.width(240.dp)) {
+					HexColorField(
+						value = value,
+						onValueChange = { hex ->
+							commits++
+							value = hex
+						},
+					)
+				}
+			}
+			field().performClick()
+			waitForIdle()
+			// Counted from here: the click itself places a caret, which is the very thing under test.
+			val commitsBeforeSelecting = commits
+
+			field().performTextInputSelection(TextRange(0, value.length))
+			waitForIdle()
+			assertEquals(commitsBeforeSelecting, commits, "selecting the text is not an edit of it")
+
+			field().performTextClearance()
+			field().performTextInput(magenta)
+			waitForIdle()
+			assertEquals(magenta, value, "but a real edit still persists")
 		}
 
 	/**

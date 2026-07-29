@@ -115,6 +115,30 @@ class KeyformAimEditsTest {
 	}
 
 	/**
+	 * The capture's own history step records the pending edit as CONSUMED, so redo does not resurrect it.
+	 *
+	 * A snapshot defaults every field to live state, so clearing the pending edit after the capture pushed
+	 * left the consumed value inside the step that consumed it: redoing the capture re-showed the
+	 * uncommitted-edit warning over the very key that now stores the value, and left the session's live map
+	 * disagreeing with its own history about what was still pending.
+	 */
+	@Test
+	fun redoingAPoseCaptureDoesNotResurrectTheConsumedEdit() {
+		val editorSession = session()
+		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
+
+		editorSession.captureKeyOnTrack(track, angleX, KeyformAim.Pose)
+		editorSession.undo()
+		editorSession.redo()
+
+		assertTrue(
+			editorSession.pendingChannelEdits.value.isEmpty(),
+			"the capture step holds no pending edit, because the capture is what consumed it",
+		)
+		assertEquals(listOf(-1f, 0f, 1f), editorSession.keysOn(angleX), "and the key it captured is back")
+	}
+
+	/**
 	 * Aiming at track space with no key there removes NOTHING - it must not fall back to the pose, which
 	 * would destroy a key the user never pointed at.
 	 */

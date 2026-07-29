@@ -17,8 +17,6 @@ import androidx.compose.ui.graphics.Color
  *  - The accent deepens in light mode so white on-accent text and accent-as-text stay legible.
  *  - Selection decouples from the accent in light mode: a soft lavender row tint with deep plum marks, so
  *    selected rows read as selection rather than as primary buttons.
- *
- * 独自デザイン系の平坦なパレット。Blender 風のダーク（灰＋紫アクセント）と、独立して設計したライト。
  */
 
 /**
@@ -115,29 +113,11 @@ data class UmamoColors(
 	val controlBackground: Color,
 	val controlBackgroundHover: Color,
 	val controlGlyph: Color,
-	/**
-	 * The pose sits exactly ON a key of this field's channel.  Blender's #d1b727.
-	 *
-	 * The three keyed-field colors are borrowed rather than derived: a rigger coming from Blender reads
-	 * them without being told, and inventing a scheme-matched palette would trade that away for tidiness.
-	 */
 	val keyedOnKey: Color,
-	/** The channel is keyed but the pose is BETWEEN keys - editing here will be lost unless keyed. */
 	val keyedBetween: Color,
-	/** An edit has been made but not keyed; it shows in the viewport and dies on the next scrub. */
 	val keyedModified: Color,
-	/**
-	 * The three keyed colors as a FIELD BACKGROUND rather than an outline.
-	 *
-	 * Translucent so they layer over whatever fill the control already has, which is what keeps a keyed
-	 * field responding to hover: the base underneath changes, the tint over it does not.  The alpha is
-	 * chosen for the DARK scheme, where light text over an opaque Blender keyframe color contrasts at
-	 * about 1.6:1 - unreadable - and this lands near 4.5:1 instead.  Light comfortably clears either way.
-	 */
 	val keyedOnKeyBackground: Color,
-	/** [keyedBetween] as a field background; see [keyedOnKeyBackground]. */
 	val keyedBetweenBackground: Color,
-	/** [keyedModified] as a field background; see [keyedOnKeyBackground]. */
 	val keyedModifiedBackground: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
@@ -232,8 +212,6 @@ val umamoDarkColors =
 		controlBackground = Color(0xFF545454),
 		controlBackgroundHover = Color(0xFF696969), // The NumberField hover fill (a step lighter than the control fill).
 		controlGlyph = Color(0xFFFFFFFF),
-		// Blender's keyframe colors, identical in both schemes on purpose - they are learned signals, and a
-		// per-scheme variant would make the light theme's "orange" mean something a user has to relearn.
 		keyedOnKey = keyframeOnKey,
 		keyedBetween = keyframeBetween,
 		keyedModified = keyframeModified,
@@ -313,8 +291,6 @@ val umamoLightColors =
 		dropZoneFill = brandPurpleDeep.copy(alpha = 0.16f),
 		dropZoneEmphasis = brandPurpleDeep.copy(alpha = 0.28f),
 		dropTargetBackground = brandPurpleDeep.copy(alpha = 0.45f),
-		// Kept subordinate to the solid lavender selection; dark's half-alpha-over-dark is dimmer than
-		// the full accent, and light preserves that ordering.
 		selectionAncestorBackground = brandPurpleDeep.copy(alpha = 0.28f),
 		searchMatchBackground = brandPurpleDeep.copy(alpha = 0.14f),
 		scrollbarThumb = mutedGreyLight.copy(alpha = 0.4f),
@@ -326,7 +302,6 @@ val umamoLightColors =
 		viewportMarquee = Color(0xCC333333),
 		// The light tone that alternates with the dark marquee so the marching-ants dash reads on dark art.
 		viewportMarqueeContrast = Color(0xCCFFFFFF),
-		// The classic Photoshop transparency checker (white / #CCCCCC), kept for the thumbnail alpha reveal.
 		transparencyCheckerLight = Color(0xFFFFFFFF),
 		transparencyCheckerDark = Color(0xFFCCCCCC),
 		viewportGridBackground = Color(0xFFCFCFCF),

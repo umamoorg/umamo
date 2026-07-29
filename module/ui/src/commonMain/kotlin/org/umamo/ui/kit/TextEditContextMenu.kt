@@ -46,7 +46,6 @@ import org.umamo.ui.resources.text_menu_select_all
  * @param TextFieldValue value The field's current text and selection.
  * @param Function onValueChange Applies a clipboard action's result back to the field.
  * @param Modifier modifier Layout for the wrapping box, where the field itself cannot carry it.
- * @param Boolean enabled False to leave the field's own behaviour alone (a read-only or disabled field).
  * @param Function content The text field, given the modifier that opens the menu.
  */
 @Composable
@@ -54,28 +53,14 @@ internal fun TextEditContextMenuArea(
 	value: TextFieldValue,
 	onValueChange: (TextFieldValue) -> Unit,
 	modifier: Modifier = Modifier,
-	enabled: Boolean = true,
 	content: @Composable (Modifier) -> Unit,
 ) {
 	var open by remember { mutableStateOf(false) }
 	var anchorOffset by remember { mutableStateOf(IntOffset.Zero) }
-	val clipboard = LocalClipboardManager.current
-	val surroundingItems = LocalContextMenuItems.current
-	val clipboardItems = textEditMenuItems(value, onValueChange, hasClipboardText = clipboard.hasText())
-	val items =
-		if (surroundingItems.isEmpty()) {
-			clipboardItems
-		} else {
-			surroundingItems + MenuItem.Separator + clipboardItems
-		}
 	val gesture =
-		if (!enabled) {
-			Modifier
-		} else {
-			Modifier.textEditContextMenuGesture { localOffset ->
-				anchorOffset = localOffset
-				open = true
-			}
+		Modifier.textEditContextMenuGesture { localOffset ->
+			anchorOffset = localOffset
+			open = true
 		}
 	Box(modifier = modifier) {
 		// The field must NOT inherit the ambient items a second time through some nested area of its own:
@@ -84,8 +69,20 @@ internal fun TextEditContextMenuArea(
 			content(gesture)
 		}
 		if (open) {
+			// Built only while the menu is up.  Every kit text field mounts one of these, the entries depend
+			// on the CLIPBOARD (a cross-process read on desktop), and LocalContextMenuItems hands down a list
+			// rebuilt by its area every recomposition - so building them unconditionally read the system
+			// clipboard once per field per frame of any neighbouring scrub.  Reading the ambient items here
+			// is still correct: this sits outside the provider that blanks them for `content`.
+			val surroundingItems = LocalContextMenuItems.current
+			val clipboardItems = textEditMenuItems(value, onValueChange)
 			Menu(
-				items = items,
+				items =
+					if (surroundingItems.isEmpty()) {
+						clipboardItems
+					} else {
+						surroundingItems + MenuItem.Separator + clipboardItems
+					},
 				onDismissRequest = { open = false },
 				positionProvider = AtPointPositionProvider(anchorOffset),
 				focusable = true,
@@ -103,17 +100,15 @@ internal fun TextEditContextMenuArea(
  *
  * @param TextFieldValue value The field's current text and selection.
  * @param Function onValueChange Applies the result back to the field.
- * @param Boolean hasClipboardText Whether the clipboard currently holds text.
  * @return List<MenuItem> The clipboard entries.
  */
 @Composable
-private fun textEditMenuItems(
-	value: TextFieldValue,
-	onValueChange: (TextFieldValue) -> Unit,
-	hasClipboardText: Boolean,
-): List<MenuItem> {
+private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit): List<MenuItem> {
 	val clipboard = LocalClipboardManager.current
 	val hasSelection = !value.selection.collapsed
+	// One clipboard read for both the Paste entry's enablement and its action; the caller only builds this
+	// while the menu is opening, so the cross-process query happens once per right-click.
+	val hasClipboardText = clipboard.hasText()
 	return listOf(
 		MenuItem.Action(
 			label = stringResource(Res.string.text_menu_cut),
