@@ -197,20 +197,40 @@ fun KeyformGrid<*>.keyIndexAt(parameterId: ParameterId, value: Float): Int {
 }
 
 /**
- * Every one of this owner's channel tracks with the axis for [parameterId] collapsed out.
+ * The result of collapsing an axis out of a whole owner's channel tracks: the surviving tracks, plus the
+ * value each fully-collapsed track held on its kept slice.
  *
- * The generic counterpart of [withAxisCollapsed] for a whole owner, so deleting a parameter scrubs every
- * track in one walk rather than needing a hand-written case per channel - which is exactly how a glue's
- * intensity grid was missed before.  A track left with no axes is dropped entirely (its owner's static
- * value takes over).  Returns this same instance when no track referenced the parameter.
+ * The lifted value is what the owner's static field must take over so the collapse preserves the neutral
+ * look - dropping a track without lifting it would snap the channel back to whatever the static happened
+ * to hold (typically the import-time value), visibly changing the rig.
+ *
+ * @property ChannelGrids channelGrids The scrubbed tracks.
+ * @property Map lifted Per fully-collapsed channel, the value its kept slice held.
+ */
+class CollapsedChannels(
+	val channelGrids: ChannelGrids,
+	val lifted: Map<FormChannel, ChannelValue>,
+)
+
+/**
+ * Every one of this owner's channel tracks with the axis for [parameterId] collapsed out, lifting the
+ * kept slice's value of any track that drops entirely.
+ *
+ * The whole-owner counterpart of [withAxisCollapsed], so deleting a parameter scrubs every track in one
+ * walk rather than needing a hand-written case per channel - which is exactly how a glue's intensity grid
+ * was missed before.  A track left with no axes is dropped, and the value of its kept slice is returned
+ * in [CollapsedChannels.lifted] for the caller to write into the owner's static.  A sparse grid missing
+ * its kept cell lifts nothing (the static keeps its current value).  Returns this same grids instance
+ * (with an empty lifted map) when no track referenced the parameter.
  *
  * @param ParameterId parameterId The axis parameter to remove from every track.
  * @param Float keepKeyValue The parameter value whose nearest key slice survives.
- * @return ChannelGrids The scrubbed tracks, or this when nothing referenced the parameter.
+ * @return CollapsedChannels The scrubbed tracks plus the lifted slice values.
  */
-fun ChannelGrids.withAxisCollapsed(parameterId: ParameterId, keepKeyValue: Float): ChannelGrids {
+fun ChannelGrids.withAxisCollapsedLifting(parameterId: ParameterId, keepKeyValue: Float): CollapsedChannels {
 	var changed = false
 	val scrubbed = LinkedHashMap<FormChannel, KeyformGrid<ChannelValue>>(gridsByChannel.size)
+	val lifted = LinkedHashMap<FormChannel, ChannelValue>()
 	for ((channel, grid) in gridsByChannel) {
 		val collapsed = grid.withAxisCollapsed(parameterId, keepKeyValue)
 		if (collapsed === grid) {
@@ -220,9 +240,16 @@ fun ChannelGrids.withAxisCollapsed(parameterId: ParameterId, keepKeyValue: Float
 		changed = true
 		if (collapsed != null) {
 			scrubbed[channel] = collapsed
+			continue
+		}
+		val axisIndex = grid.axisIndexOf(parameterId)
+		val keepIndex = nearestKeyIndex(grid.axes[axisIndex].keys, keepKeyValue)
+		val keptCell = grid.cells.firstOrNull { cell -> cell.coordinate.getOrNull(axisIndex) == keepIndex }
+		if (keptCell != null) {
+			lifted[channel] = keptCell.form
 		}
 	}
-	return if (changed) ChannelGrids(scrubbed) else this
+	return if (changed) CollapsedChannels(ChannelGrids(scrubbed), lifted) else CollapsedChannels(this, emptyMap())
 }
 
 /**

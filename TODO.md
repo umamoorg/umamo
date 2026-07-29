@@ -114,6 +114,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Box Select Marks
 		* Dragging a mark on the summary axis track drags all sub-key frames in the same spot.  This gets rid of the disabled keys in the summary.
 		* Being able to I/ALT+I keys for channels other than multiply and screen colors.  Opacity, draw order, etc.
+		* Filter to display only certain types.
 	* DON'T FORGET ABOUT THE FOLLOW UPS AND MISSING PROPERTY KEYING.
 	* "Select a parameter to see its tracks."  Lets just get rid of that.  I hate these kind of placeholders.  It is better to just an empty keyform sheet and tick marks.  It immediately tells the user what the area is for and what they can do with it.  Eventually the editor will default to a new document and having these blank spaces is frustrating.  Even the properties panel should start with its default set.  Whether we do that by defaulting to a new document or whatever, I don't care.
 	* "Nothing is keyed on this parameter yet."  See above about dumb placeholders.  We just need to show an empty background with no tracks that makes it immediately obvious that nothing is there.

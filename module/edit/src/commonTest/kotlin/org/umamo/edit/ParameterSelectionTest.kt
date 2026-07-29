@@ -97,4 +97,39 @@ class ParameterSelectionTest {
 		assertEquals(setOf(angleX), target.ids)
 		assertEquals(angleX, target.active, "the active target falls back to a surviving member")
 	}
+
+	/**
+	 * The prune rides INSIDE the delete's history entry: redo (or a History jump to the entry) restores
+	 * the pruned target, never the dangling id the panel recorded before the delete.
+	 */
+	@Test
+	fun redoOfADeleteRestoresThePrunedTarget() {
+		val editorSession = session(listOf(angleX, angleY))
+		editorSession.setParameterSelection(ParameterSelection(setOf(angleX, angleY), angleY))
+
+		editorSession.deleteParameter(angleY)
+		editorSession.undo()
+		assertTrue(editorSession.model.value.parameters.any { it.id == angleY }, "undo restores the parameter")
+		editorSession.redo()
+
+		val target = editorSession.parameterSelection.value
+		assertFalse(angleY in target, "redo restores the pruned target, not the dangling id")
+		assertEquals(angleX, target.active)
+	}
+
+	/** The unlink's narrowing rides its history entry the same way, so redo cannot restore the pad target. */
+	@Test
+	fun redoOfAnUnlinkRestoresTheNarrowedTarget() {
+		val editorSession = session(listOf(angleX, angleY))
+		editorSession.setParameterLink(angleX, angleY, true)
+		editorSession.setParameterSelection(ParameterSelection(setOf(angleX, angleY), angleX))
+
+		editorSession.setParameterLink(angleX, angleY, false)
+		assertEquals(setOf(angleX), editorSession.parameterSelection.value.ids, "the target narrows on unlink")
+
+		editorSession.undo()
+		editorSession.redo()
+		assertEquals(setOf(angleX), editorSession.parameterSelection.value.ids, "redo restores the narrowed target")
+		assertEquals(angleX, editorSession.parameterSelection.value.active)
+	}
 }

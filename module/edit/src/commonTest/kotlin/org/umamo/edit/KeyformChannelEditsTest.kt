@@ -9,6 +9,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -108,6 +109,49 @@ class KeyformChannelEditsTest {
 		val track = assertNotNull(second.drawables.single().channelGrids[FormChannel.OPACITY])
 		assertEquals(4, track.axes.single().keys.size, "no new key was added")
 		assertEquals(0.5f, opacityAt(second, angleX, 15f))
+	}
+
+	/**
+	 * A capture on a parameter whose range cannot seed an axis (min == max) is refused ENTIRELY.  The old
+	 * receiver-returning refusal let the capture proceed and write keys onto the channel's OTHER axes -
+	 * mutating motion on a parameter the user never targeted.
+	 */
+	@Test
+	fun aCaptureOnADegenerateParameterIsRefusedEntirely() {
+		val degenerate = Parameter(angleY, angleY.raw, min = 5f, max = 5f, default = 5f)
+		val first = model().withChannelKeyCaptured(target, parameter(angleX), mapOf(angleX to 15f), ChannelValue.Scalar(1f))
+
+		val second = first.withChannelKeyCaptured(target, degenerate, mapOf(angleX to 30f, angleY to 5f), ChannelValue.Scalar(0.1f))
+
+		assertSame(first, second, "the refusal must not write onto the channel's other axes")
+	}
+
+	/**
+	 * A capture whose pose falls in the window between EPS_KEY (not on a key) and EPS_SPAN (too close to
+	 * insert beside one) refuses the WHOLE op.  The old guard compared against the pre-seed grid, so a
+	 * fresh bind whose capture then refused still committed the bare axis - the channel read as keyed while
+	 * the typed value was silently dropped.
+	 */
+	@Test
+	fun aCaptureInTheEpsilonWindowCommitsNoBareBind() {
+		val start = model()
+		val captured = start.withChannelKeyCaptured(target, parameter(angleX), mapOf(angleX to 0.00125f), ChannelValue.Scalar(1f))
+		assertSame(start, captured, "no bind-only commit: the channel must not read as keyed without the value")
+	}
+
+	/**
+	 * An insert aimed past the parameter's ends clamps to the range - the lane's edge inset extrapolates
+	 * pixel hits past the domain, and an unclamped insert would author a key no scrub can ever reach.
+	 */
+	@Test
+	fun anInsertPastTheRangeClampsToTheEnd() {
+		val editorSession =
+			EditorSession(model().withChannelKeyCaptured(target, parameter(angleX), mapOf(angleX to 15f), ChannelValue.Scalar(1f)))
+		editorSession.insertTrackKeyAt(KeyformTrackRef.Channel(target), parameter(angleX), -31.7f)
+
+		val axis = editorSession.model.value.drawables.single().channelGrids[FormChannel.OPACITY]!!.axes.single()
+		assertEquals(-30f, axis.keys.first(), "the clamped hit coincides with the min key, so nothing was added")
+		assertEquals(4, axis.keys.size, "no out-of-range key was authored")
 	}
 
 	/** A value of the wrong kind for the channel is refused rather than silently stored. */

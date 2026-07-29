@@ -652,7 +652,9 @@ private fun EditorSession.keyformInsert(hover: KeyformHover?) {
 			val value =
 				pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, pose.value) ?: return
 			captureChannelKey(target, parameter, value)
-			clearPendingChannelEdits()
+			// Only THIS target's pending edit was consumed; the pose did not move, so any other target's
+			// typed value is still the value its user chose and must survive for its own insert.
+			clearPendingChannelEdit(target)
 		}
 
 		// Geometry holds no value the user can have typed, so there is nothing to capture.
@@ -701,5 +703,11 @@ private fun EditorSession.targetedParameter(): Parameter? {
 		emitNotice("notice.keyform.noParameter", NoticePlacement.NearCursor)
 		return null
 	}
-	return model.value.parameters.firstOrNull { parameter -> parameter.id == activeId }
+	val parameter = model.value.parameters.firstOrNull { candidate -> candidate.id == activeId }
+	if (parameter == null) {
+		// A dangling id (a stale snapshot's target for a parameter since deleted) is as unfixable-by-waiting
+		// as no target at all, so it gets the same notice rather than a silent no-op.
+		emitNotice("notice.keyform.noParameter", NoticePlacement.NearCursor)
+	}
+	return parameter
 }

@@ -84,6 +84,20 @@ private fun channelOf(track: KeyformTrackRef) =
 	}
 
 /**
+ * [value] clamped into [parameter]'s range, tolerating a reversed (min > max) range from a malformed
+ * import.
+ *
+ * Centralized HERE rather than at each call site, so a pointer drag, a keyboard nudge, and a lane-edge
+ * insert cannot disagree about where the ends are.
+ *
+ * @param Float value The requested parameter value.
+ * @param Parameter parameter The parameter whose range bounds it.
+ * @return Float The clamped value.
+ */
+private fun clampToParameterRange(value: Float, parameter: Parameter): Float =
+	value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+
+/**
  * Moves [track]'s key at [fromValue] to [toValue], as one undo step.
  *
  * @param KeyformTrackRef track The track to edit.
@@ -92,10 +106,9 @@ private fun channelOf(track: KeyformTrackRef) =
  * @param Float toValue The new position.
  */
 fun EditorSession.moveTrackKey(track: KeyformTrackRef, parameter: Parameter, keyIndex: Int, toValue: Float) {
-	// Clamped to the parameter's own range HERE rather than at each call site, so a pointer drag and a
-	// keyboard nudge cannot disagree about where the ends are.  The grid then clamps at the neighbours;
-	// between them, a key can never leave the range the sheet rules against.
-	val clamped = toValue.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+	// The grid then clamps at the neighbours; between them, a key can never leave the range the sheet
+	// rules against.
+	val clamped = clampToParameterRange(toValue, parameter)
 	mutate(KeyformChange.MoveKey(channelOf(track))) { model ->
 		model.withTrackKeyMoved(track, parameter, keyIndex, clamped)
 	}
@@ -112,8 +125,11 @@ fun EditorSession.moveTrackKey(track: KeyformTrackRef, parameter: Parameter, key
  * @param Float position The new key's parameter value.
  */
 fun EditorSession.insertTrackKeyAt(track: KeyformTrackRef, parameter: Parameter, position: Float) {
+	// Clamped like a move: the lane's edge inset extrapolates a hit past the domain ends, and an unclamped
+	// insert would author a key outside the range that no scrub can ever reach.
+	val clamped = clampToParameterRange(position, parameter)
 	mutate(KeyformChange.InsertKey(channelOf(track))) { model ->
-		model.withTrackKeyInserted(track, parameter, position, pose.value)
+		model.withTrackKeyInserted(track, parameter, clamped, pose.value)
 	}
 }
 
@@ -139,8 +155,7 @@ fun EditorSession.nudgeTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, I
 		ordered.fold(model) { current, (track, parameter, keyIndex) ->
 			val currentValue = current.trackKeyValue(track, parameter, keyIndex) ?: return@fold current
 			val step = (parameter.max - parameter.min) * fraction
-			val range = minOf(parameter.min, parameter.max)..maxOf(parameter.min, parameter.max)
-			current.withTrackKeyMoved(track, parameter, keyIndex, (currentValue + step).coerceIn(range))
+			current.withTrackKeyMoved(track, parameter, keyIndex, clampToParameterRange(currentValue + step, parameter))
 		}
 	}
 }

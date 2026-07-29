@@ -188,17 +188,15 @@ fun PuppetModel.withChannelKeyCaptured(
 
 	val existing = grids[target.channel]
 	val bound: KeyformGrid<ChannelValue> =
-		when {
-			existing == null ->
-				existing.withAxisSeeded(parameter, staticValue, scrubValue, AxisSeedPolicy.MinDefaultMax) ?: return this
-
-			existing.axisIndexOf(parameter.id) < 0 ->
-				existing.withAxisSeeded(parameter, staticValue, scrubValue, AxisSeedPolicy.MinDefaultMax) ?: return this
-
-			else -> existing
+		if (existing == null || existing.axisIndexOf(parameter.id) < 0) {
+			existing.withAxisSeeded(parameter, staticValue, scrubValue, AxisSeedPolicy.MinDefaultMax) ?: return this
+		} else {
+			existing
 		}
+	// Compared against BOUND, not existing: a capture that refuses after a fresh seed must refuse the whole
+	// op - committing the bare axis bind would discard the user's value while the channel reads as keyed.
 	val captured = bound.withFormCaptured(poseValue, value, ChannelValueInterpolator)
-	if (captured === existing) {
+	if (captured === bound) {
 		return this
 	}
 	return withChannelGrids(target.owner, ChannelGrids(grids.gridsByChannel + (target.channel to captured)))

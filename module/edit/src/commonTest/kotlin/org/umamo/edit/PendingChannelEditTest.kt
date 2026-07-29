@@ -119,4 +119,28 @@ class PendingChannelEditTest {
 
 		assertEquals(2, editorSession.pendingChannelEdits.value.size)
 	}
+
+	/**
+	 * Capturing one target consumes only ITS pending edit: the pose did not move, so every other target's
+	 * typed value is still the value its user chose and must survive for its own insert.
+	 */
+	@Test
+	fun capturingOneTargetKeepsOthersPending() {
+		val editorSession = session()
+		val parameter = editorSession.model.value.parameters.single()
+		val multiplyTarget = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.MULTIPLY_COLOR)
+		val multiplyValue = ChannelValue.Color(org.umamo.runtime.model.ColorRgb(1f, 0f, 0f))
+		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
+		editorSession.setPendingChannelEdit(multiplyTarget, multiplyValue)
+
+		val pending = editorSession.pendingChannelEdits.value.getValue(target)
+		editorSession.captureChannelKey(target, parameter, pending)
+		editorSession.clearPendingChannelEdit(target)
+
+		assertEquals(
+			mapOf<KeyableTarget, ChannelValue>(multiplyTarget to multiplyValue),
+			editorSession.pendingChannelEdits.value,
+			"the uncaptured target's typed value survives",
+		)
+	}
 }

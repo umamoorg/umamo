@@ -68,16 +68,19 @@ enum class OutOfSpanKeyPolicy {
  * as it did before at every pose - binding alone never changes the render, only the capture that follows
  * does.
  *
- * Returns the receiver unchanged when the grid already keys [parameter], or when the parameter's range
- * cannot support two distinct keys (a min == max parameter is not animatable, and a one-key axis would
- * hide the entity).
+ * Returns the receiver unchanged when the grid already keys [parameter] (the bind is already true), and
+ * NULL on a refusal - a sparse receiver, or a parameter whose range cannot support two distinct keys (a
+ * min == max parameter is not animatable, and a one-key axis would hide the entity).  Null rather than
+ * the receiver, so a caller's `?: return` refusal guard fires for a non-null receiver too - returning the
+ * receiver here once let a capture proceed and write onto the channel's OTHER axes.
  *
  * @param Parameter parameter The parameter to bind to; its min / default / max define the seeded keys.
  * @param TForm currentForm The form to hold at every seeded key (the entity's present look).
  * @param Float scrubValue The current pose value on this parameter, seeded as a key under
  *   [AxisSeedPolicy.MinDefaultMaxAndScrub].
  * @param AxisSeedPolicy policy Which keys to seed.
- * @return KeyformGrid The grid with the axis appended, or the receiver when nothing could be seeded.
+ * @return KeyformGrid The grid with the axis appended, the receiver when it already keys [parameter], or
+ *   null when nothing could be seeded.
  */
 fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(
 	parameter: Parameter,
@@ -89,7 +92,7 @@ fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(
 		return this
 	}
 	if (this != null && !isDense) {
-		return this
+		return null
 	}
 	val seedCandidates =
 		when (policy) {
@@ -98,7 +101,7 @@ fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(
 		}
 	val seedKeys = distinctSortedKeys(seedCandidates)
 	if (seedKeys.size < 2) {
-		return this
+		return null
 	}
 	val newAxis = KeyformAxis(parameter.id, seedKeys)
 	if (this == null) {

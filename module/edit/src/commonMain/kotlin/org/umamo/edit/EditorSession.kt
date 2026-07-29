@@ -351,11 +351,27 @@ class EditorSession(
 	/**
 	 * Discards every pending unkeyed edit.
 	 *
-	 * Called on any pose move and on any history jump, and directly after a keyform insert consumes one.
+	 * Called on any pose move and on any history jump - the situations that invalidate ALL of them at once.
+	 * A keyform insert that consumed one target's value uses [clearPendingChannelEdit] instead, because the
+	 * other targets' values are still valid for the unchanged pose.
 	 */
 	fun clearPendingChannelEdits() {
 		if (mutablePendingChannelEdits.value.isNotEmpty()) {
 			mutablePendingChannelEdits.value = emptyMap()
+		}
+	}
+
+	/**
+	 * Discards the pending unkeyed edit of [target] alone.
+	 *
+	 * The keyform-insert path: the capture consumed this one value, and the pose did not move, so every
+	 * other target's pending value is still the value its user chose for the current pose.
+	 *
+	 * @param KeyableTarget target The property whose pending edit was consumed.
+	 */
+	fun clearPendingChannelEdit(target: KeyableTarget) {
+		if (mutablePendingChannelEdits.value.containsKey(target)) {
+			mutablePendingChannelEdits.value = mutablePendingChannelEdits.value - target
 		}
 	}
 
@@ -404,18 +420,22 @@ class EditorSession(
 	 * @param Boolean linked True to create the link, false to remove it.
 	 */
 	fun setParameterLink(horizontal: ParameterId, vertical: ParameterId, linked: Boolean) {
-		mutate(ParameterChange.SetLink(horizontal, vertical, linked)) { model ->
-			model.withParameterLink(horizontal, vertical, linked)
+		val newModel = mutableModel.value.withParameterLink(horizontal, vertical, linked)
+		if (newModel === mutableModel.value) {
+			return
 		}
 		if (!linked) {
 			// A pad targets BOTH its axes; once they are two separate sliders that reads as a multi-selection
-			// the panel cannot otherwise produce, so the target narrows to the one that was active.
+			// the panel cannot otherwise produce, so the target narrows to the one that was active.  Narrowed
+			// BEFORE the commit, so the pushed snapshot carries the narrowed target and a later redo cannot
+			// restore the multi-selection.
 			val target = mutableParameterSelection.value
 			if (target.ids.size > 1) {
 				mutableParameterSelection.value =
 					target.active?.let { ParameterSelection.of(it) } ?: ParameterSelection()
 			}
 		}
+		commit(ParameterChange.SetLink(horizontal, vertical, linked), newModel, mutablePose.value)
 	}
 
 	/**
@@ -432,10 +452,12 @@ class EditorSession(
 		if (newModel === mutableModel.value) {
 			return
 		}
-		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
-		// The target must never dangle on a parameter the model no longer has.
+		// The target must never dangle on a parameter the model no longer has - pruned BEFORE the commit,
+		// so the pushed snapshot carries the pruned selection and a later redo (or a History jump to this
+		// entry) cannot restore the dangling id.
 		mutableParameterSelection.value =
-			mutableParameterSelection.value.prunedTo(mutableModel.value.parameters.mapTo(HashSet()) { parameter -> parameter.id })
+			mutableParameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
+		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
 	}
 
 	/**

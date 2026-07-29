@@ -1,13 +1,25 @@
 package org.umamo.edit
 
+import org.umamo.runtime.keyform.CollapsedChannels
+import org.umamo.runtime.keyform.colorOr
+import org.umamo.runtime.keyform.flagOr
+import org.umamo.runtime.keyform.hasFractionalDrawOrder
+import org.umamo.runtime.keyform.integralDrawOrderOrNull
+import org.umamo.runtime.keyform.scalarOr
 import org.umamo.runtime.keyform.withAxisCollapsed
+import org.umamo.runtime.keyform.withAxisCollapsedLifting
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
  * Parameter document edits: create a new axis, rename one (its display name), and delete one everywhere.
@@ -108,9 +120,14 @@ fun PuppetModel.withParameterRenamed(id: ParameterId, newName: String): PuppetMo
  * A copy of this model with parameter [id] removed everywhere: the axis list, every panel-tree leaf, any
  * link it belongs to (its partner reverts to a plain slider), and every keyform grid in the rig -
  * drawables, both deformer kinds, parts, and glue intensities. Dropping the deleted axis collapses each
- * grid to the slice at the parameter's default value (the neutral look), discarding that axis's motion;
- * a grid left with no axes becomes null (the object is unkeyed). The live pose entry is dropped by the
- * session wrapper. A no-op (no such parameter) returns this same instance.
+ * grid to the slice at the parameter's default value (the neutral look), discarding that axis's motion.
+ * A channel track left with no axes is dropped, and the value of its kept slice is lifted into the
+ * owner's static so the neutral look survives the drop; a fractional part draw order stays behind as a
+ * constant track because the Int static slot cannot hold it without rounding. A geometry grid left with
+ * no axes becomes null (the drawable returns to its rest mesh - the base mesh is authored, never baked
+ * from a slice). The render root is re-derived at the end so its per-group copies of the part tracks
+ * lose the deleted axis too. The live pose entry is dropped by the session wrapper. A no-op (no such
+ * parameter) returns this same instance.
  *
  * @param ParameterId id The parameter to delete.
  * @return PuppetModel The model with the parameter removed, or this if it was absent.
@@ -122,55 +139,91 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 	val newDrawables =
 		drawables.map { drawable ->
 			val collapsed = drawable.geometryGrid?.withAxisCollapsed(id, keepValue)
-			val scrubbedChannels = drawable.channelGrids.withAxisCollapsed(id, keepValue)
-			if (collapsed === drawable.geometryGrid && scrubbedChannels === drawable.channelGrids) {
+			val scrubbed = drawable.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (collapsed === drawable.geometryGrid && scrubbed.channelGrids === drawable.channelGrids) {
 				drawable
 			} else {
-				drawable.copy(geometryGrid = collapsed, channelGrids = scrubbedChannels)
+				drawable.copy(
+					geometryGrid = collapsed,
+					channelGrids = scrubbed.channelGrids,
+					drawOrder = scrubbed.lifted.scalarOr(FormChannel.DRAW_ORDER, drawable.drawOrder),
+					opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, drawable.opacity),
+					multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor),
+					screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, drawable.screenColor),
+				)
 			}
 		}
 	// Both halves of a deformer key on parameters: the geometry grid and every channel track.
 	val newDeformers =
 		deformers.map { deformer ->
-			val scrubbedChannels = deformer.channelGrids.withAxisCollapsed(id, keepValue)
+			val scrubbed = deformer.channelGrids.withAxisCollapsedLifting(id, keepValue)
 			when (deformer) {
 				is Deformer.Warp -> {
 					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
-					if (collapsed === deformer.geometryGrid && scrubbedChannels === deformer.channelGrids) {
+					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
-						deformer.copy(geometryGrid = collapsed, channelGrids = scrubbedChannels)
+						deformer.copy(
+							geometryGrid = collapsed,
+							channelGrids = scrubbed.channelGrids,
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, deformer.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, deformer.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, deformer.screenColor),
+						)
 					}
 				}
 
 				is Deformer.Rotation -> {
 					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
-					if (collapsed === deformer.geometryGrid && scrubbedChannels === deformer.channelGrids) {
+					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
-						deformer.copy(geometryGrid = collapsed, channelGrids = scrubbedChannels)
+						deformer.copy(
+							geometryGrid = collapsed,
+							channelGrids = scrubbed.channelGrids,
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, deformer.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, deformer.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, deformer.screenColor),
+							flipX = scrubbed.lifted.flagOr(FormChannel.FLIP_X, deformer.flipX),
+							flipY = scrubbed.lifted.flagOr(FormChannel.FLIP_Y, deformer.flipY),
+						)
 					}
 				}
 			}
 		}
 	val newParts =
 		parts.map { part ->
-			val scrubbed = part.channelGrids.withAxisCollapsed(id, keepValue)
-			if (scrubbed === part.channelGrids) {
+			val scrubbed = part.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (scrubbed.channelGrids === part.channelGrids) {
 				part
 			} else {
-				part.copy(channelGrids = scrubbed)
+				part.copy(
+					channelGrids = scrubbed.withFractionalDrawOrderKept().channelGrids,
+					drawOrder = scrubbed.lifted.integralDrawOrderOrNull() ?: part.drawOrder,
+					composite =
+						part.composite.copy(
+							opacity = scrubbed.lifted.scalarOr(FormChannel.OPACITY, part.composite.opacity),
+							multiplyColor = scrubbed.lifted.colorOr(FormChannel.MULTIPLY_COLOR, part.composite.multiplyColor),
+							screenColor = scrubbed.lifted.colorOr(FormChannel.SCREEN_COLOR, part.composite.screenColor),
+						),
+				)
 			}
 		}
 	// Glue tracks key on parameters exactly like the rest, so they need the same scrub - without it a
 	// deleted parameter survives as a dangling KeyformAxis.parameterId that nothing can ever resolve.
 	val newGlues =
 		glues.map { glue ->
-			val scrubbed = glue.channelGrids.withAxisCollapsed(id, keepValue)
-			if (scrubbed === glue.channelGrids) {
+			val scrubbed = glue.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			if (scrubbed.channelGrids === glue.channelGrids) {
 				glue
 			} else {
-				Glue(glue.meshA, glue.meshB, glue.pairs, scrubbed, glue.intensity)
+				Glue(
+					glue.meshA,
+					glue.meshB,
+					glue.pairs,
+					scrubbed.channelGrids,
+					scrubbed.lifted.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
+				)
 			}
 		}
 	return copy(
@@ -181,6 +234,27 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 		deformers = newDeformers,
 		parts = newParts,
 		glues = newGlues,
+	).withDerivedRenderRoot()
+}
+
+/**
+ * These collapsed channels with a fractional lifted DRAW_ORDER kept as a zero-axis constant track.
+ *
+ * A part's static draw-order slot is an Int, so a fractional slice value cannot lift without rounding,
+ * and rounding could reorder two parts the track kept distinct.  The deleted axis cannot stay either, so
+ * the value is kept as a single-cell track with no axes - the same degenerate shape MOC3 import already
+ * produces - which the evaluator reads as a constant.
+ *
+ * @return CollapsedChannels The channels with the fractional draw order retained as a constant track.
+ */
+private fun CollapsedChannels.withFractionalDrawOrderKept(): CollapsedChannels {
+	if (!lifted.hasFractionalDrawOrder()) {
+		return this
+	}
+	val constantTrack = KeyformGrid(emptyList(), listOf(KeyformCell(IntArray(0), lifted[FormChannel.DRAW_ORDER]!!)))
+	return CollapsedChannels(
+		ChannelGrids(channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to constantTrack)),
+		lifted,
 	)
 }
 

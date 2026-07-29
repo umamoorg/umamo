@@ -11,12 +11,18 @@ import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartGroupMode
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -204,6 +210,128 @@ class ParameterCrudEditsTest {
 	fun deleteUnknownIsNoOp() {
 		val start = model(listOf(parameter(angleX)))
 		assertSame(start, start.withParameterDeleted(ParameterId("ParamNope")))
+	}
+
+	/** A single-axis channel track over angleX with one [ChannelValue.Scalar] per key of [-1, 0, 1]. */
+	private fun scalarTrack(vararg values: Float): KeyformGrid<ChannelValue> =
+		KeyformGrid(
+			listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f))),
+			values.mapIndexed { keyIndex, value -> KeyformCell<ChannelValue>(intArrayOf(keyIndex), ChannelValue.Scalar(value)) },
+		)
+
+	/**
+	 * Dropping a channel track whose only axis is the deleted parameter lifts the kept slice's value into
+	 * the owner's static, so the neutral look survives the drop instead of snapping back to the static.
+	 */
+	@Test
+	fun deleteLiftsCollapsedOpacityTrackIntoStatic() {
+		val drawable =
+			keyedDrawable().copy(
+				geometryGrid = null,
+				opacity = 1f,
+				channelGrids = ChannelGrids(mapOf(FormChannel.OPACITY to scalarTrack(0.5f, 0.3f, 0.9f))),
+			)
+		// angleX's default is 0, whose key is index 1 - the neutral look renders opacity 0.3.
+		val start = model(listOf(parameter(angleX, default = 0f)), drawables = listOf(drawable))
+		val after = start.withParameterDeleted(angleX)
+
+		val scrubbed = after.drawables.single()
+		assertNull(scrubbed.channelGrids[FormChannel.OPACITY], "the sole-axis track is dropped")
+		assertEquals(0.3f, scrubbed.opacity, "the kept slice's value took over the static")
+	}
+
+	/** The same lift for a glue: the kept slice's intensity replaces the full-weld static. */
+	@Test
+	fun deleteLiftsGlueIntensityIntoStatic() {
+		val glue =
+			Glue(
+				meshA = DrawableId("a"),
+				meshB = DrawableId("b"),
+				pairs = emptyList(),
+				channelGrids = ChannelGrids(mapOf(FormChannel.GLUE_INTENSITY to scalarTrack(0.2f, 0.4f, 0.8f))),
+			)
+		val start = model(listOf(parameter(angleX, default = 0f))).copy(glues = listOf(glue))
+		val after = start.withParameterDeleted(angleX)
+
+		val scrubbed = after.glues.single()
+		assertNull(scrubbed.channelGrids[FormChannel.GLUE_INTENSITY], "the sole-axis track is dropped")
+		assertEquals(0.4f, scrubbed.intensity, "the kept slice's intensity took over the static")
+	}
+
+	/**
+	 * A fractional part draw order cannot lift into the Int static slot, so it stays behind as a zero-axis
+	 * constant track; an integral one lifts.
+	 */
+	@Test
+	fun deletePartDrawOrderLiftsIntegralKeepsFractionalAsConstant() {
+		val fractionalPart =
+			Part(
+				id = PartId("pFractional"),
+				name = "pFractional",
+				children = emptyList(),
+				groupMode = PartGroupMode.Grouped,
+				channelGrids = ChannelGrids(mapOf(FormChannel.DRAW_ORDER to scalarTrack(500f, 550.5f, 600f))),
+			)
+		val integralPart =
+			Part(
+				id = PartId("pIntegral"),
+				name = "pIntegral",
+				children = emptyList(),
+				groupMode = PartGroupMode.Grouped,
+				channelGrids = ChannelGrids(mapOf(FormChannel.DRAW_ORDER to scalarTrack(500f, 600f, 700f))),
+			)
+		val start =
+			model(listOf(parameter(angleX, default = 0f)))
+				.copy(parts = listOf(fractionalPart, integralPart))
+		val after = start.withParameterDeleted(angleX)
+
+		val fractional = after.parts.first { part -> part.id == PartId("pFractional") }
+		val constantTrack = fractional.channelGrids[FormChannel.DRAW_ORDER]!!
+		assertTrue(constantTrack.axes.isEmpty(), "the fractional value stays as a zero-axis constant track")
+		assertEquals(550.5f, (constantTrack.cells.single().form as ChannelValue.Scalar).value)
+		assertEquals(500, fractional.drawOrder, "the Int static keeps its value rather than rounding")
+
+		val integral = after.parts.first { part -> part.id == PartId("pIntegral") }
+		assertNull(integral.channelGrids[FormChannel.DRAW_ORDER], "the integral track is dropped")
+		assertEquals(600, integral.drawOrder, "the kept slice's value lifted into the Int static")
+	}
+
+	/**
+	 * The render root's per-group copies of the part tracks are re-derived after the delete, so the
+	 * evaluator (which samples renderRoot, not the parts list) cannot keep blending a ghost axis.
+	 */
+	@Test
+	fun deleteRederivesRenderRootPartTracks() {
+		val twoAxisTrack =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f)), KeyformAxis(angleY, floatArrayOf(0f, 1f))),
+				buildList {
+					for (xIndex in 0..2) {
+						for (yIndex in 0..1) {
+							add(KeyformCell<ChannelValue>(intArrayOf(xIndex, yIndex), ChannelValue.Scalar(500f + xIndex * 10f + yIndex)))
+						}
+					}
+				},
+			)
+		val part =
+			Part(
+				id = PartId("p"),
+				name = "p",
+				children = emptyList(),
+				groupMode = PartGroupMode.Grouped,
+				channelGrids = ChannelGrids(mapOf(FormChannel.DRAW_ORDER to twoAxisTrack)),
+			)
+		val start =
+			model(listOf(parameter(angleX, default = 0f), parameter(angleY)))
+				.copy(parts = listOf(part), rootChildren = listOf(OrgChild.Part(PartId("p"))))
+				.withDerivedRenderRoot()
+		val staleAxes = start.renderRoot.children.filterIsInstance<RenderGroup>().single().channelGrids[FormChannel.DRAW_ORDER]!!.axes
+		assertEquals(listOf(angleX, angleY), staleAxes.map { axis -> axis.parameterId }, "precondition: the group carries both axes")
+
+		val after = start.withParameterDeleted(angleX)
+		val group = after.renderRoot.children.filterIsInstance<RenderGroup>().single()
+		val survivingAxes = group.channelGrids[FormChannel.DRAW_ORDER]!!.axes
+		assertEquals(listOf(angleY), survivingAxes.map { axis -> axis.parameterId }, "the render tree lost the deleted axis too")
 	}
 
 	/**

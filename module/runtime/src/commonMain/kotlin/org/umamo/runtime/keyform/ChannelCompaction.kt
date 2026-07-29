@@ -2,7 +2,6 @@ package org.umamo.runtime.keyform
 
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
-import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
@@ -75,17 +74,42 @@ private fun ChannelGrids.compactedTracks(): CompactedChannels {
 	return CompactedChannels(newGrids, constants)
 }
 
-/** The lifted constant for [channel] as a float, or [fallback] when the channel did not collapse. */
-private fun Map<FormChannel, ChannelValue>.scalarOr(channel: FormChannel, fallback: Float): Float =
-	(this[channel] as? ChannelValue.Scalar)?.value ?: fallback
+/**
+ * A lifted DRAW_ORDER constant resolved against an Int draw-order slot: the integral static to write (or
+ * null to keep the owner's), and the channel grids to keep.
+ *
+ * @property Int? staticDrawOrder The exactly-integral lifted draw order, or null.
+ * @property ChannelGrids channelGrids The grids to keep - the compacted set, or the compacted set with
+ *   [originalGrids]' DRAW_ORDER track restored when the constant was fractional.
+ */
+private class LiftedDrawOrder(
+	val staticDrawOrder: Int?,
+	val channelGrids: ChannelGrids,
+)
 
-/** The lifted constant for [channel] as a color, or [fallback] when the channel did not collapse. */
-private fun Map<FormChannel, ChannelValue>.colorOr(channel: FormChannel, fallback: ColorRgb): ColorRgb =
-	(this[channel] as? ChannelValue.Color)?.color ?: fallback
-
-/** The lifted constant for [channel] as a flag, or [fallback] when the channel did not collapse. */
-private fun Map<FormChannel, ChannelValue>.flagOr(channel: FormChannel, fallback: Boolean): Boolean =
-	(this[channel] as? ChannelValue.Flag)?.flag ?: fallback
+/**
+ * Resolves a lifted DRAW_ORDER constant against an Int draw-order slot.
+ *
+ * A part-like owner's static slot is an Int, so a fractional constant would have to round, and rounding
+ * could reorder two siblings the track kept distinct.  Such a track goes back into the kept grids from
+ * [originalGrids] instead - correct, just not free.
+ *
+ * @param Map constants The lifted constants.
+ * @param ChannelGrids compactedGrids The surviving tracks after compaction.
+ * @param ChannelGrids originalGrids The owner's pre-compaction tracks (the fractional track's source).
+ * @return LiftedDrawOrder The static to write (or null) and the grids to keep.
+ */
+private fun liftedDrawOrder(
+	constants: Map<FormChannel, ChannelValue>,
+	compactedGrids: ChannelGrids,
+	originalGrids: ChannelGrids,
+): LiftedDrawOrder {
+	if (constants.hasFractionalDrawOrder()) {
+		val restored = compactedGrids.gridsByChannel + (FormChannel.DRAW_ORDER to (originalGrids[FormChannel.DRAW_ORDER]!!))
+		return LiftedDrawOrder(staticDrawOrder = null, channelGrids = ChannelGrids(restored))
+	}
+	return LiftedDrawOrder(constants.integralDrawOrderOrNull(), compactedGrids)
+}
 
 /**
  * This model with every channel track compacted and every collapsed track lifted into its owner's static.
@@ -172,18 +196,10 @@ private fun Part.withChannelsCompacted(): Part {
 	if (compacted.constants.isEmpty() && compacted.channelGrids === channelGrids) {
 		return this
 	}
-	val liftedDrawOrder = compacted.constants[FormChannel.DRAW_ORDER] as? ChannelValue.Scalar
-	val integralDrawOrder = liftedDrawOrder?.takeIf { lifted -> lifted.value == lifted.value.toInt().toFloat() }
-	val keptGrids =
-		if (liftedDrawOrder != null && integralDrawOrder == null) {
-			// Put the fractional draw-order track back rather than rounding it into the Int static.
-			ChannelGrids(compacted.channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to (channelGrids[FormChannel.DRAW_ORDER]!!)))
-		} else {
-			compacted.channelGrids
-		}
+	val lifted = liftedDrawOrder(compacted.constants, compacted.channelGrids, channelGrids)
 	return copy(
-		channelGrids = keptGrids,
-		drawOrder = integralDrawOrder?.value?.toInt() ?: drawOrder,
+		channelGrids = lifted.channelGrids,
+		drawOrder = lifted.staticDrawOrder ?: drawOrder,
 		composite =
 			composite.copy(
 				opacity = compacted.constants.scalarOr(FormChannel.OPACITY, composite.opacity),
@@ -202,18 +218,11 @@ private fun Part.withChannelsCompacted(): Part {
  */
 private fun RenderGroup.withChannelsCompacted(): RenderGroup {
 	val compacted = channelGrids.compactedTracks()
-	val liftedDrawOrder = compacted.constants[FormChannel.DRAW_ORDER] as? ChannelValue.Scalar
-	val integralDrawOrder = liftedDrawOrder?.takeIf { lifted -> lifted.value == lifted.value.toInt().toFloat() }
-	val keptGrids =
-		if (liftedDrawOrder != null && integralDrawOrder == null) {
-			ChannelGrids(compacted.channelGrids.gridsByChannel + (FormChannel.DRAW_ORDER to (channelGrids[FormChannel.DRAW_ORDER]!!)))
-		} else {
-			compacted.channelGrids
-		}
+	val lifted = liftedDrawOrder(compacted.constants, compacted.channelGrids, channelGrids)
 	return copy(
-		drawOrder = integralDrawOrder?.value?.toInt() ?: drawOrder,
+		drawOrder = lifted.staticDrawOrder ?: drawOrder,
 		children = children.map { child -> if (child is RenderGroup) child.withChannelsCompacted() else child },
-		channelGrids = keptGrids,
+		channelGrids = lifted.channelGrids,
 		composite =
 			composite?.copy(
 				opacity = compacted.constants.scalarOr(FormChannel.OPACITY, composite.opacity),
