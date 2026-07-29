@@ -103,7 +103,7 @@ internal val TextureSection =
 		},
 	)
 
-/** Data (drawable): blend mode, alpha composition, and back-face culling. */
+/** Data (drawable): draw order, opacity, blend mode, alpha composition, tint colors, back-face culling, and masking. */
 internal val BlendSection =
 	PropertySection(
 		id = "data.blend",
@@ -222,7 +222,7 @@ internal val BlendSection =
 		},
 	)
 
-/** Data (deformer): the warp lattice or the rotation base angle. */
+/** Data (deformer): opacity and tint colors, plus the warp lattice / quad-transform flag or the rotation base angle and flip flags. */
 internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
@@ -290,7 +290,7 @@ internal val DeformerSection =
 		},
 	)
 
-/** Data (part): child count, draw order, and the guide-image flag. */
+/** Data (part): the guide-image flag, draw order, group mode, and, while isolated, the composite's render channels and masks. */
 internal val PartSection =
 	PropertySection(
 		id = "data.part",

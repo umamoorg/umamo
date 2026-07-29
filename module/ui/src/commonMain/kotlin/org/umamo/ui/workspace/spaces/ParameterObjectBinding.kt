@@ -28,8 +28,9 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The set of parameter ids that effectively drive [selection] in [puppet]: for each selected target, the
  * union of the object's own keyform-grid axes and, following the deformer chain, its ancestor deformers'
- * axes. A selected part contributes its draw-order-group axes plus the effective set of every drawable it
- * contains. Empty when the selection is empty.
+ * axes. A selected part contributes its own channel-track axes (draw order and, while isolated, its
+ * composite opacity / color tracks) plus the effective set of every drawable it contains. Empty when the
+ * selection is empty.
  *
  * @param PuppetModel puppet The loaded rig.
  * @param Selection selection The current selection (drawables / deformers / parts).
@@ -148,7 +149,7 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 		part.channelGrids.allAxes().forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
 	}
 	// Glue intensity tracks key parameters like every other channel; without this walk a glue-only-keyed
-	// parameter showed marks in the keyform sheet but none on its Parameters-panel slider.
+	// parameter would show marks in the keyform sheet but none on its Parameters-panel slider.
 	for (glue in glues) {
 		glue.channelGrids.allAxes().forEach { axis -> addGridKeys(axis.parameterId, axis.keys) }
 	}

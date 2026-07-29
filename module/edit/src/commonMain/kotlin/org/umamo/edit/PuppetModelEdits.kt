@@ -340,10 +340,10 @@ fun PuppetModel.withDrawableDrawOrder(id: DrawableId, drawOrder: Float): PuppetM
  * Returns a copy of [this] with drawable [id]'s static [FormChannel.MULTIPLY_COLOR] set to [color].
  * A no-op (missing drawable, or the color already set) returns the same instance.
  *
- * A single-field copy since the channel split: the tint is its own track with its own static, so this no
- * longer rewrites every keyform cell.  That removes two long-standing problems the previous FOLLOW-UP note
- * described - it flattened any authored per-keyform color animation, and replacing the grid tripped
- * diffModel's identity check into re-uploading the drawable's geometry for a colour change.
+ * A single-field copy: the tint is its own track with its own static, so this writes just that field
+ * rather than rewriting every keyform cell.  Rewriting the whole grid instead would flatten any authored
+ * per-keyform color animation, and would trip diffModel's identity check into re-uploading the drawable's
+ * geometry for a mere colour change.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new multiply color.

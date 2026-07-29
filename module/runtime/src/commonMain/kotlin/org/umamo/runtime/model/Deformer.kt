@@ -111,8 +111,8 @@ sealed interface Deformer {
 		val flipY: Boolean = false,
 		override val isSelectable: Boolean = true,
 		/**
-		 * Additive blend-shape bindings on the pivot transform, applied on top of the [keyforms]
-		 * grid result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 * Additive blend-shape bindings on the pivot transform, applied on top of the [geometryGrid]
+		 * result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
 		 */
 		val blendShapes: List<BlendShapeBinding<RotationForm>> = emptyList(),
 	) : Deformer

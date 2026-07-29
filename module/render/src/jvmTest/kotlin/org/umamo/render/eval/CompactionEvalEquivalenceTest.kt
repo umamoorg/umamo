@@ -16,9 +16,10 @@ import kotlin.test.assertTrue
  * post-import channel compaction on, once off - and assert the two evaluate identically over a pose sweep.
  *
  * This is the cheap check that runs wherever the corpus is present, and it is the one that would actually
- * catch a compaction fault: the C-core oracles compare Umamo against an independent implementation at a
- * single pose, while this compares Umamo against ITSELF across many poses, with the un-compacted import as
- * the reference.  A dropped key that mattered, or a constant lifted onto the wrong static, shows up here.
+ * catch a compaction fault: the C-core oracles need `relive.dumpModel`/`relive.coreLib` and shell out to an
+ * external process per pose, so their sweeps stay capped, while this needs nothing but the corpus and
+ * compares Umamo against ITSELF across many poses, with the un-compacted import as the reference.  A
+ * dropped key that mattered, or a constant lifted onto the wrong static, shows up here.
  *
  * The comparison is to a tolerance, and the reason is worth stating: where a track collapses, compaction
  * is the MORE accurate side.  The reference path evaluates a constant channel as `Σ wᵢ·x` over up to 16

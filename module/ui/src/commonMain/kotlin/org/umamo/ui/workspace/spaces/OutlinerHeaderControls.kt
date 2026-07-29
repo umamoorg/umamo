@@ -28,9 +28,9 @@ import org.umamo.ui.workspace.AreaScope
  * The outliner's area-header controls (mounted via SpaceDescriptor.headerContent): the name search
  * field centered in the header's flexible middle and the filter dropdown chip right-aligned at its
  * end. Reads and writes the area's shared OutlinerViewState so the body's tree filtering reacts
- * live; renders nothing without an open document, matching Viewport2DHeaderControls. Keeping a
- * large rig (hundreds of deformers) navigable is the role Cubism's per-panel search served before
- * the panels were unified here.
+ * live; renders nothing without an open document (unlike Viewport2DHeaderControls, which renders its
+ * chips disabled rather than vanishing). Keeping a large rig (hundreds of deformers) navigable is the
+ * role Cubism's per-panel search served before the panels were unified here.
  *
  * アウトライナーのエリアヘッダ内容。中央に名前検索フィールド、右端に絞り込みチップ。エリア共有の
  * OutlinerViewState を読み書きし、本体のツリーが即座に反応する。ドキュメント未オープン時は何も

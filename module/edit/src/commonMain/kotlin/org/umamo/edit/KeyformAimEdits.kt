@@ -136,8 +136,8 @@ fun EditorSession.resolveParameterChoice(parameterId: ParameterId) {
  * [ParameterChoiceRequest] instead of writing on whichever axis happens to be active.
  *
  * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from, exactly as
- * [removeKeyOnTrack] does: the new key renumbers every key at or above it, so a selection left alone ends
- * up one place along - inserting to the LEFT of a selected mark handed its ordinal to the new key.
+ * [removeKeyOnTrack] does: the new key renumbers every key at or above where it lands, so a selection on
+ * one of those keys must shift up by one to keep naming the same key.
  *
  * @param KeyformTrackRef track The track to key.
  * @param ParameterId? parameterId The axis to key on, or null to use the session's targeted parameter.
@@ -269,8 +269,9 @@ fun EditorSession.removeKeyOnTrack(
  * The one place the rule lives.  Writing the static of a keyed channel is shadowed by the track, so the
  * edit appears to be silently rejected (the field snaps back and a following `I` captures the old track
  * value); a pending edit previews in the viewport and waits for `I`.  An unkeyed channel has no track to
- * shadow it, so the static is the real store.  Half the rows hand-copied this branch and the other half
- * shipped without it - which is exactly the drift a shared helper exists to prevent.
+ * shadow it, so the static is the real store.  Reimplementing this branch at each property row instead of
+ * calling here would let the two halves drift: some rows would apply the guard and others would silently
+ * skip it.
  *
  * Both branches record exactly one undo step, and both record it under [change] - which of the two a given
  * channel takes depends on whether it happens to carry a track, which is not a distinction the rigger made.

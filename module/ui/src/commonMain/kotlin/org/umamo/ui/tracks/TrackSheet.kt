@@ -503,9 +503,9 @@ private fun TrackSheetRow(
 	val toneBackground = toneBackgroundOf(line.row.tone)
 	// A collapsed GROUP summarizes its whole subtree, so folding a rig away still shows where its keys are.
 	// Expanded, it shows only its own marks - the children are on screen carrying theirs.  A leaf is
-	// neither: it shows its own marks, which stay editable.  (Routing leaves through the summary too was
-	// harmless while the summary only deduplicated; it stopped being harmless once a summary mark started
-	// declaring itself inert.)
+	// neither: it shows its own marks, unfiltered and at their own ordinals.  (Routing a leaf through the
+	// summary too would drop any non-editable mark it carries and renumber the rest to a summary ordinal -
+	// wrong for a track that owns its keys directly rather than standing in for a whole subtree's.)
 	val marks =
 		remember(line.row, line.expandable, line.expanded) {
 			if (line.expandable && !line.expanded) summarizedMarks(line.row) else line.row.marks
@@ -703,9 +703,9 @@ private fun TrackRuler(
 				playhead?.let { value -> drawPlayhead(value, axis, colors.accent, inset) }
 			}
 			// Tick labels ride above the canvas so they are not clipped by the lane below.  Each is centered
-			// on the same inset laneX its tick line is drawn at - positioning by raw fraction drifted the
-			// labels up to a mark radius off their lines and pushed the domain-max label entirely past the
-			// clipped box's edge, so every ruler hid its max label.
+			// on the same inset laneX its tick line is drawn at - positioning by raw fraction instead would
+			// drift the labels up to a mark radius off their lines and push the domain-max label entirely
+			// past the clipped box's edge, hiding every ruler's max label.
 			for (tick in ticks) {
 				Text(
 					text = formatTick(tick),
@@ -1017,18 +1017,17 @@ private fun TrackLane(
 							}
 						},
 					)
-					// ONE gesture handler for tap AND drag. Two separate pointerInput blocks raced: the drag
-					// detector consumed the down before the tap detector saw it, so clicking a mark did nothing
-					// and neither selection nor dragging worked. Deciding between them from a single stream is
-					// the only way they cannot fight.
+					// ONE gesture handler for tap AND drag. Two separate pointerInput blocks would race: a drag
+					// detector would consume the down before a tap detector saw it, so clicking a mark would do
+					// nothing and neither selection nor dragging would work. Deciding between them from a single
+					// stream is the only way they cannot fight.
 					.pointerInput(row.key, axis, markRadiusPx) {
 						awaitEachGesture {
 							val down = awaitFirstDown(requireUnconsumed = false)
-							// A secondary (right) press belongs to the context menu.  Without this it would
-							// also run the tap path, so opening the menu over empty track would clear the
-							// selection and opening it over a key would scrub the pose onto it.
-							// A secondary press belongs to the context menu and a tertiary one to the sheet's
-							// pan; either falling through here would scrub or select on the way past.
+							// A secondary (right) press belongs to the context menu and a tertiary (middle) one
+							// to the sheet's pan.  Without this guard either would also run the tap path on its
+							// way past: scrubbing the pose if the press missed every mark, or selecting the mark
+							// if it landed on one - instead of only reaching the gesture it actually means.
 							if (currentEvent.buttons.isSecondaryPressed || currentEvent.buttons.isTertiaryPressed) {
 								return@awaitEachGesture
 							}
@@ -1304,8 +1303,8 @@ private fun Modifier.centeredAtTick(fraction: Float, markRadius: Dp): Modifier =
  * rather than 10.0 / 20.0.
  *
  * Through kit's roundToDecimals, which ROUNDS: the axis generates ticks by repeated float addition, so a
- * 0.2-step tick arrives as 0.59999996 - truncation labeled it "0.59" while its neighbours read 0.2 and
- * 0.4, and negative ticks truncated the other way.
+ * 0.2-step tick arrives as 0.59999996 - truncating it would label "0.59" beside neighbours reading 0.2 and
+ * 0.4, and would truncate negative ticks the other way, toward zero rather than away from it.
  *
  * @param Float value The tick value.
  * @return String The label.

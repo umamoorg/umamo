@@ -35,13 +35,13 @@ import org.umamo.ui.workspace.spaces.ViewportToolbarOverlay
 
 /**
  * Builds the base [SpaceRegistry] every shell starts from: a descriptor for each [SpaceKind]. The 2D
- * viewport delegates to the host-injected [LocalViewportHost] (placeholder when absent); the others
- * are placeholders here and get real bodies as the panels land (Outliner/Parameters/Properties in the
- * read-only-panels step, via withOverrides or by replacing these factories). The app layers its
- * overrides on with [SpaceRegistry.withOverrides].
+ * viewport delegates to the host-injected [LocalViewportHost] (placeholder when absent); every other
+ * space but [SpaceKind.ToolDetails] has a real body wired directly here (UvEditor, Outliner, Parameters,
+ * KeyformSheet, Properties, History, Logs) - only ToolDetails still renders a [PlaceholderSpace] until
+ * its own panel lands. The app layers additional overrides on with [SpaceRegistry.withOverrides].
  *
- * すべてのシェルの土台となる SpaceRegistry を構築する。2D ビューポートはホスト注入に委譲し、他は
- * 当面プレースホルダ。
+ * すべてのシェルの土台となる SpaceRegistry を構築する。2D ビューポートはホスト注入に委譲し、
+ * ToolDetails 以外は全て実体のあるパネルを持つ。
  *
  * @return SpaceRegistry The base registry covering every SpaceKind.
  */
@@ -119,7 +119,7 @@ fun defaultSpaceRegistry(): SpaceRegistry {
  * right sidebar drawer) overlaid either way, so the work surface reads the same before a document
  * opens (the toolbar renders disabled without a session).
  *
- * 2D ビューポートの本体。注入されたホストがあれば委譲、無ければチェッカー背景。左ツールバーと右
+ * 2D ビューポートの本体。注入されたホストがあれば委譲、無ければグリッド背景。左ツールバーと右
  * サイドバーをその上に重ねる。
  *
  * @param AreaScope scope The hosting area context (its id keys the host's GL surface).

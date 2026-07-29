@@ -196,7 +196,8 @@ enum class TrackKeyShape {
  * @property Float position The mark's domain value (a parameter value, a frame, …).
  * @property TrackKeyShape shape How to draw it.
  * @property Boolean selected Whether it is part of the current key selection.
- * @property Boolean editable Whether it may be selected, dragged, or removed; a summary mark may not.
+ * @property Boolean editable Whether it may be selected, dragged, or removed; a blend-shape binding key may
+ *   not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
  */
 data class TrackKeyMark(
 	val keyIndex: Int,

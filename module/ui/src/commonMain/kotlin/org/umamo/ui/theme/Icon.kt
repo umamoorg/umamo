@@ -142,7 +142,8 @@ private fun simpleIcon(pathData: String): UmamoIcon =
  *
  * @param String pathData SVG "d" attribute contents; may hold several "M..." subpaths.
  * @param Float opacity The source path's fill-opacity (1 = the highlight layer).
- * @param Color
+ * @param Color? color The layer's own paint color, overriding the caller's tint; null to follow it (the
+ *   default for every theme-following layer).
  * @return IconLayer The layer ready to compose into a [compositeIcon].
  */
 private fun compositeIconLayer(pathData: String, opacity: Float = 1f, color: Color? = null): IconLayer =

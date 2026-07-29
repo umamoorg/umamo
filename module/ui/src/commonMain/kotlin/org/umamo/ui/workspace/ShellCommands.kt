@@ -191,7 +191,7 @@ internal fun shellViewportCommands(
 /**
  * The selection-clear and editor-mode commands.  Escape-to-clear is handled in the modal key ladder
  * (so it yields to an in-flight drag's area.dragCancel), not bound here; mode.toggleEdit is bound to
- * Tab in the presets.
+ * Tab in the default and Blender presets (the Cubism preset leaves it unbound).
  *
  * @param SelectionHandle? selection The selection handle, or null with no document.
  * @param EditorModeHandle? editorMode The mode handle, or null with no document.
@@ -239,6 +239,9 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
  * @param Function hoveredSurface Resolves the last-touched editor surface (area id + space kind) at
  *   dispatch time; the transform commands branch to the UV operators when it names a UV editor,
  *   Blender's hovered-area routing (see HoveredSurface.kt).
+ * @param KeyformSheetViews keyformSheets The shell's open-sheet registry; mesh.boxSelect arms the
+ *   hovered sheet's own marquee instead of the viewport's box-select tool when the pointer is over
+ *   a keyform sheet.
  * @return List<Command> The commands to register.
  * @see shellKeyformCommands The keyform-authoring group, registered alongside these (KeyformCommands.kt).
  */

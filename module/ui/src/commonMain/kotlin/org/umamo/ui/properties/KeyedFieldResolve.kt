@@ -62,9 +62,9 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
  * The pose the Properties panel should resolve against: the LIVE preview pose when a viewport is
  * publishing one, else the session's committed pose.
  *
- * A preview deliberately never touches session.pose (that is what keeps a whole drag to one undo step),
- * so resolving at the committed pose froze every keyable field and its OnKey/BetweenKeys tint at the
- * gesture-start value while the viewport animated - the exact field/viewport disagreement this resolver
+ * A preview deliberately never touches session.pose (that is what keeps a whole drag to one undo step), so
+ * resolving at the committed pose alone would freeze every keyable field and its OnKey/BetweenKeys tint at
+ * the gesture-start value while the viewport animated - the exact field/viewport disagreement this resolver
  * exists to prevent.  The observed map is snapshot state, so the reading row recomposes as it moves.
  *
  * @param EditorSession session The open document's session.
@@ -80,10 +80,11 @@ private fun displayPose(session: EditorSession): Pose {
  * The value a keyable row should DISPLAY: the pending unkeyed edit, else the track's value at the current
  * pose, else the owner's static.
  *
- * The same resolution order the renderer uses, which is the point.  Showing the static alone was wrong
- * twice over: on a keyed channel the static is shadowed by the track, so the field disagreed with the
- * viewport at every pose; and a pending edit lives outside the model entirely, so typing a new value on a
- * keyed channel appeared to be rejected - the field snapped straight back to the shadowed static.
+ * The same resolution order the renderer uses, which is the point.  Showing the static alone would be
+ * wrong twice over: on a keyed channel the static is shadowed by the track, so the field would disagree
+ * with the viewport at every pose; and a pending edit lives outside the model entirely, so typing a new
+ * value on a keyed channel would appear to be rejected - the field would snap straight back to the shadowed
+ * static.
  *
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The channel the row edits.

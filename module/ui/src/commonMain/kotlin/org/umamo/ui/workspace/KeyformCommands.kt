@@ -75,9 +75,8 @@ internal fun shellKeyformCommands(
 			val removals = sheet?.selectedTracks().orEmpty()
 			if (editorSession != null && sheet != null && removals.isNotEmpty()) {
 				// Everything selected is what is going, so the reconciliation lands on an empty selection -
-				// through the same helper as every other removal rather than a clear of its own, which used
-				// to record a second history row whose undo put the pre-removal refs back over the
-				// post-removal model.
+				// through the same helper as every other removal, which folds the selection update into the
+				// removal's own undo step rather than recording it as a separate one.
 				editorSession.removingKeys(editorSession.keySelection.value) {
 					editorSession.removeTrackKeys(removals)
 				}

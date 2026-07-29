@@ -333,8 +333,8 @@ private fun PuppetModel.planTrackKeyDrag(
 		keys.mapIndexed { position, (track, parameter, keyIndex) ->
 			// Resolved by where the key ACTUALLY landed, not by where it was sent.  A key dropped onto a
 			// neighbour is nudged EPS_SPAN aside, which is wider than the EPS_KEY tolerance this lookup uses -
-			// so asking for the requested value found the key already sitting there and handed the caller ITS
-			// ordinal, silently moving the selection onto the wrong mark (and merging two of them into one).
+			// so asking for the requested value would find the key already sitting there and hand the caller
+			// ITS ordinal, silently moving the selection onto the wrong mark (and merging two of them into one).
 			val landed = moves[position]?.let { move -> outcome.landedValueByMove[move] } ?: return@mapIndexed keyIndex
 			outcome.model.trackKeyIndexAt(track, parameter, landed).takeIf { index -> index >= 0 } ?: keyIndex
 		}

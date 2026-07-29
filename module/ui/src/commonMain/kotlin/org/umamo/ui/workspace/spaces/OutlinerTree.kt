@@ -12,11 +12,11 @@ import org.umamo.runtime.model.PuppetModel
 const val OUTLINER_ROOT_ID = "root"
 
 /**
- * The icon a row carries. Rendered as a simple placeholder glyph today (a reserved fixed-width slot),
- * swapped for real art later without touching layout - this is the outliner's "placeholders for
- * eventual icons" seam. The two synthetic roots mirror Blender's armature object / armature data icons.
+ * The icon a row carries, drawn as themed vector art from the shared UmamoIcons set inside a reserved
+ * fixed-width slot (see OutlinerIconSlot). The two synthetic roots mirror Blender's armature object /
+ * armature data icons.
  *
- * アウトライナー行のアイコン種別。当面はプレースホルダ字形で描画し、後で本物の素材へ差し替える。
+ * アウトライナー行のアイコン種別。共有アイコンセットの本物のベクター素材を固定幅スロットに描画する。
  */
 enum class OutlinerIcon {
 	/** The puppet root (Blender's orange armature-object icon). */
@@ -70,8 +70,8 @@ data class OutlinerNode(
  * (all warp / rotation deformers nested by [Deformer.parent], roots being the parentless ones) followed
  * by the top-level parts, each part listing its drawables then its sub-parts. This is a pure function
  * over [PuppetModel] so it unit-tests without Compose. Cross-links (which deformer deforms a drawable,
- * which part owns a deformer) are deliberately absent - they belong in the Inspector, not duplicated
- * into the tree, which is exactly what makes Cubism's twin-panel layout confusing.
+ * which part owns a deformer) are deliberately absent - they belong in the Properties panel, not
+ * duplicated into the tree, which is exactly what makes Cubism's twin-panel layout confusing.
  *
  * パペットから統合アウトライナーツリーを構築する純粋関数。ルート→Armature（デフォーマ階層）＋トップ
  * レベルのパーツ（各パーツは描画オブジェクト→子パーツ）。

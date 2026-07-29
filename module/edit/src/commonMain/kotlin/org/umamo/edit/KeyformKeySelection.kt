@@ -95,8 +95,8 @@ fun EditorSession.insertingKey(inserted: TrackKeyRef?, insertKey: () -> Unit) {
  *
  * STAGE, EDIT, CONFIRM (see [EditorSession.stageKeySelection]): the reconciled selection is staged first so
  * the edit's own snapshot records it, and confirmed afterwards so it still reaches history when the edit
- * declines to record anything.  Staging it AFTER instead left every recorded step holding the pre-edit
- * refs, so undoing back to one pointed the selection at whichever keys had taken those ordinals.
+ * declines to record anything.  Staging it AFTER instead would leave every recorded step holding the
+ * pre-edit refs, so undoing back to one would point the selection at whichever keys had taken those ordinals.
  *
  * An edit that refuses is rolled back to the selection as it was, because nothing renumbered - the
  * re-pointing would then be a shift with no edit under it.  Measured by model identity, which the edit ops

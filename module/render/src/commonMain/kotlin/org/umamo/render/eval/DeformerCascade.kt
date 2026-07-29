@@ -170,8 +170,10 @@ internal class RotationWorld(
  * Out-of-range (hidden) deformers, and any whose ancestor is hidden, are omitted from the result. At
  * default parameters nothing is hidden, so this only affects out-of-range poses.
  *
- * @param List     deformers  All deformers in the model.
- * @param Function paramValue Current value for a given parameter id.
+ * @param List     deformers        All deformers in the model.
+ * @param Function paramValue       Current value for a given parameter id.
+ * @param Function defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param Map      channelOverrides Pending unkeyed channel edits, which win over a deformer's stored channel value.
  * @return Map<DeformerId, DeformerWorld> The built world transforms, keyed by deformer id.
  */
 internal fun buildDeformerWorlds(
@@ -213,10 +215,11 @@ internal fun buildDeformerWorlds(
 /**
  * Builds one deformer's world transform given its parent's (or null at the root).
  *
- * @param Deformer       deformer     The deformer.
- * @param Function       paramValue   Current value for a given parameter id.
- * @param Function       defaultValue Default value for a given parameter id (the blend-shape delta reference pose).
- * @param DeformerWorld? parentWorld  The parent's world transform, or null.
+ * @param Deformer       deformer         The deformer.
+ * @param Function       paramValue       Current value for a given parameter id.
+ * @param Function       defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param DeformerWorld? parentWorld      The parent's world transform, or null.
+ * @param Map            channelOverrides Pending unkeyed channel edits, which win over a deformer's stored channel value.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
 private fun buildDeformerWorld(
@@ -235,9 +238,11 @@ private fun buildDeformerWorld(
  * Builds a warp's world transform: blend its keyform control points, then push each through the parent
  * (warps inherit the parent's accY; they add no scale of their own).
  *
- * @param Deformer.Warp  warp        The warp deformer.
- * @param Function       paramValue  Current value for a given parameter id.
- * @param DeformerWorld? parentWorld The parent's world transform, or null.
+ * @param Deformer.Warp  warp             The warp deformer.
+ * @param Function       paramValue       Current value for a given parameter id.
+ * @param Function       defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param DeformerWorld? parentWorld      The parent's world transform, or null.
+ * @param Map            channelOverrides Pending unkeyed channel edits, which win over the warp's stored channel value.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
 private fun buildWarpWorld(
@@ -314,9 +319,11 @@ private fun buildWarpWorld(
  * corner), compose scale with the parent's accY, and - for a non-root - derive the inherited angle by
  * numerically probing the parent transform.
  *
- * @param Deformer.Rotation rotation    The rotation deformer.
- * @param Function          paramValue  Current value for a given parameter id.
- * @param DeformerWorld?    parentWorld The parent's world transform, or null.
+ * @param Deformer.Rotation rotation         The rotation deformer.
+ * @param Function          paramValue       Current value for a given parameter id.
+ * @param Function          defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param DeformerWorld?    parentWorld      The parent's world transform, or null.
+ * @param Map               channelOverrides Pending unkeyed channel edits, which win over the rotation's stored channel value.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
 private fun buildRotationWorld(

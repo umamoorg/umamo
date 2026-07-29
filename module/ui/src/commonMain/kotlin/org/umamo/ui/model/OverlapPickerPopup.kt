@@ -59,9 +59,10 @@ data class OverlapEntry(val id: DrawableId, val label: String, val thumbnail: Im
  * click is ambiguous. Anchored at [anchor]; lists [entries] front-to-back with [defaultIndex] (the most
  * "unambiguously clicked" mesh) pre-highlighted. There is exactly one highlight state (Blender-style,
  * no separate hover): moving the mouse over a row and pressing Up/Down both drive it, Enter or a click
- * picks it, Escape or a click outside dismisses. Shared between desktop and Android — only the trigger
- * differs (Alt-click vs pen long-press). The popup never touches the selection state; it reports the
- * chosen drawable through [onPick] and closure through [onDismiss].
+ * picks it, Escape or a click outside dismisses. The popup itself is shared, ordinary Compose content;
+ * desktop's Object gizmo triggers it with an Alt-click, and Android's own trigger (a pen long-press) is
+ * intended for once its GLES viewport and gizmo overlay land. The popup never touches the selection
+ * state; it reports the chosen drawable through [onPick] and closure through [onDismiss].
  *
  * @param IntOffset anchor          The cursor position to anchor the popup at, in window pixels.
  * @param List entries              The candidates, front-to-back.

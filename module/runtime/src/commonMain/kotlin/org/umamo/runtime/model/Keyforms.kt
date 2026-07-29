@@ -79,7 +79,7 @@ sealed interface ParameterNode {
 /**
  * A captured delta at a specific parameter value. The runtime blends across the N-D grid of
  * keyforms: `p = base + Σ wᵢ·Δᵢ` (multilinear interpolation). Weights are cheap and computed
- * CPU-side per frame; the per-vertex delta-sum runs in the vertex shader (see `:gpu`).
+ * CPU-side per frame; the per-vertex delta-sum runs in the vertex shader (see `:render`).
  */
 data class Keyform(
 	val atValue: Float,

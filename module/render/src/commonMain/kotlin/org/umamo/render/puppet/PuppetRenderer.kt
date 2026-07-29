@@ -454,9 +454,9 @@ class PuppetRenderer(
 			val parentWorld = posedDrawable.parentWorld
 			gpuDrawable.parentWorld = parentWorld
 			// Warp control points are pose-dependent but frame-INVARIANT: upload them here, once per pose
-			// change, NOT every frame in the draw loop. Re-specifying this texture 60×/sec churned the
-			// d3d12/Mesa driver and progressively corrupted the sampled control points (the "facial features
-			// warp/flicker over time" bug, worst on masked warp meshes that draw twice).
+			// change, NOT every frame in the draw loop. Re-specifying this texture 60×/sec would churn the
+			// d3d12/Mesa driver and progressively corrupt the sampled control points, causing visible
+			// warp flicker over time - worst on masked warp meshes, which draw twice per frame.
 			if (parentWorld is WarpWorld && gpuDrawable.cpTexture != null) {
 				device.updateFloatTexture(gpuDrawable.cpTexture, parentWorld.cols + 1, parentWorld.rows + 1, parentWorld.cp)
 			}
@@ -1184,8 +1184,8 @@ class PuppetRenderer(
 	 * The composite draw runs in its OWN pass under [compositeScissor], which is then ended; the
 	 * returned continuation pass is scissored to [continuationScissor] (the enclosing span's own
 	 * scissor, null at the top level) so the drawables the caller draws AFTER this composite are NOT
-	 * clipped to the composite's bounds - the bug that made a scissored composite shrink everything
-	 * drawn behind it in the same span.
+	 * clipped to the composite's bounds - reusing the composite's own scissor for the continuation
+	 * pass would incorrectly shrink everything drawn behind it in the same span.
 	 *
 	 * @param FrameEncoder      frame          The frame being recorded.
 	 * @param RenderTarget      layerTarget    The pooled layer holding the subtree/drawable to composite.

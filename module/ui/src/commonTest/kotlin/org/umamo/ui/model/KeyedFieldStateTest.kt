@@ -99,8 +99,8 @@ class KeyedFieldStateTest {
 	 * The state follows the TRACK's own axes, not whatever parameter is targeted.
 	 *
 	 * This is the difference between the tint answering "is the value under this field stored" and answering
-	 * "is it stored on the axis you happen to have clicked".  A rigger reads it as the first, and the second
-	 * painted a keyed opacity as unstored whenever the target was the other half of a linked pad.  The
+	 * "is it stored on the axis you happen to have clicked".  A rigger reads it as the first; the second
+	 * would paint a keyed opacity as unstored whenever the target was the other half of a linked pad.  The
 	 * targeted parameter is not even an input here, so a pose sitting on a key reads as on-key regardless.
 	 */
 	@Test
@@ -190,7 +190,7 @@ class KeyedFieldStateTest {
 	 *
 	 * A field being scrubbed writes the pending buffer on every frame regardless of whether the channel is
 	 * keyed (that is what makes the viewport follow the pointer), so reading the pending map before checking
-	 * for a track painted the orange "edited and not keyed" warning across every ordinary drag.  Nothing is
+	 * for a track would paint the orange "edited and not keyed" warning across every ordinary drag.  Nothing is
 	 * uncommitted here: the release writes the owner's static as a plain undoable edit.
 	 */
 	@Test

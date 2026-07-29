@@ -13,7 +13,6 @@ import org.umamo.runtime.model.Parameter
  *
  * @property Function selectedTracks The selection resolved against the area's current projection.
  * @property Function hasSelection Whether the area has any selected keys.
- * @property Function clearSelection Drops the area's key selection.
  * @property Function frameAll Resets the area's zoom window to the whole domain.
  * @property Function armBoxSelect Arms the area's marquee, so the next drag selects a region of keys.
  */

@@ -321,10 +321,10 @@ class EditorSession(
 	 * A snapshot of the session's current state, with any field overridden.
 	 *
 	 * Every history push goes through this rather than calling [EditorSnapshot] directly.  The constructor's
-	 * own defaults are dangerous here: a field added later defaults to its EMPTY value at every existing call
-	 * site, which compiles cleanly and then silently records the wrong state - exactly how the parameter
-	 * target came to be cleared by undoing an unrelated edit.  Defaulting to live state instead makes the
-	 * omission harmless.
+	 * own defaults are dangerous here: a field added later would default to its EMPTY value at every existing
+	 * call site, which compiles cleanly but would silently record the wrong state - for example, undoing an
+	 * unrelated edit would clear the parameter target instead of leaving it as it was.  Defaulting to live
+	 * state instead makes the omission harmless.
 	 */
 	private fun snapshot(
 		model: PuppetModel = mutableModel.value,

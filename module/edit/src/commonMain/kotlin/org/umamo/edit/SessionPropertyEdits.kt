@@ -130,7 +130,7 @@ fun EditorSession.setDeformerFlipY(id: DeformerId, flip: Boolean) {
 }
 
 /**
- * Sets drawable [id]'s 5.3 multiply color (uniformly across its keyform grid) as one undo step.
+ * Sets drawable [id]'s 5.3 multiply color (the static value) as one undo step.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new multiply color.
@@ -140,7 +140,7 @@ fun EditorSession.setDrawableMultiplyColor(id: DrawableId, color: ColorRgb) {
 }
 
 /**
- * Sets drawable [id]'s 5.3 screen color (uniformly across its keyform grid) as one undo step.
+ * Sets drawable [id]'s 5.3 screen color (the static value) as one undo step.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new screen color.

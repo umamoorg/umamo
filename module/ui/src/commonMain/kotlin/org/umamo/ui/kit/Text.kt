@@ -31,6 +31,7 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * @param TextAlign?   textAlign Optional horizontal alignment override.
  * @param Int          maxLines  Maximum line count before truncation.
  * @param TextOverflow overflow  How overflowing text is handled.
+ * @param Function?    onTextLayout Called with the measured layout result, or null to skip it.
  */
 @Composable
 fun Text(
