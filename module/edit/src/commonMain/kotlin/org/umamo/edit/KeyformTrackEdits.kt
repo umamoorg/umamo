@@ -168,6 +168,35 @@ fun EditorSession.moveTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 }
 
 /**
+ * [fraction] reduced to what every key in [keys] can actually take without leaving its parameter's range.
+ *
+ * Public because the sheet PREVIEWS a group drag before committing it, and a preview drawn at the
+ * unclamped fraction would show the marks travelling past a wall they are about to stop at - which is the
+ * snap-back this exists to prevent.  Preview and commit must be the same number, so they call the same
+ * function rather than reimplementing the bound.
+ *
+ * @param List keys The (track, parameter, key ordinal) triples being dragged.
+ * @param Float fraction The requested drag as a signed fraction of each parameter's range.
+ * @return Float The fraction the whole group can take - same sign, or zero when it cannot move.
+ */
+fun PuppetModel.limitedDragFraction(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): Float =
+	keyDragsOf(keys).filterNotNull().fold(fraction) { limited, move -> move.limitedTo(limited) }
+
+/**
+ * One [KeyDrag] per entry of [keys], null where the ref no longer resolves.
+ *
+ * Aligned WITH keys rather than compacted: a caller gets one answer back per key it passed, so a stale ref
+ * must not shift every later answer by one.
+ *
+ * @param List keys The (track, parameter, key ordinal) triples.
+ * @return List The drags, position for position.
+ */
+private fun PuppetModel.keyDragsOf(keys: List<Triple<KeyformTrackRef, Parameter, Int>>): List<KeyDrag?> =
+	keys.map { (track, parameter, keyIndex) ->
+		trackKeyValue(track, parameter, keyIndex)?.let { fromValue -> KeyDrag(track, parameter, fromValue) }
+	}
+
+/**
  * Drags every key in [keys] by [fraction] of its parameter's range, as ONE undo step - the multi-select
  * mark drag.
  *
@@ -193,13 +222,7 @@ fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 	if (keys.isEmpty() || fraction == 0f) {
 		return startingOrdinals
 	}
-	val beforeDrag = model.value
-	// Aligned WITH keys, holding null where a ref no longer resolves - the caller gets one ordinal back per
-	// key it passed, so a stale ref must not shift every later answer by one.
-	val moves =
-		keys.map { (track, parameter, keyIndex) ->
-			beforeDrag.trackKeyValue(track, parameter, keyIndex)?.let { fromValue -> KeyDrag(track, parameter, fromValue) }
-		}
+	val moves = model.value.keyDragsOf(keys)
 	val live = moves.filterNotNull()
 	if (live.isEmpty()) {
 		return startingOrdinals

@@ -2,7 +2,6 @@
 
 ## Documentation
 * Have a full model/ map made in docs/. (When everything is done.)
-* Keyform model, grids/axes, channel fan-out and compaction, and the authoring loop: docs/plan/keyform-authoring.md
 
 ## Deferred
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
@@ -85,28 +84,20 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
 	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
-	* Live updating for property srubbing, but commit to history only when releasing.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
 		* Deformer pickAt().
 		* Context Menus
-* Channel compaction, tracks, keyform grids and axes — DONE, see docs/plan/keyform-authoring.md.
 * Bugs
 	* The property edited border should not show up on unkeyed properties while scrubbing.  For example, scrubbing opacity on an unkeyed part results it in showing the keyedModified border while scrubbing.
 	* Opacity is being rounded to two decimal places even on manual input.  We should expand it to three decimal places.
-
-## Properties
 * NumberField
 	* The number field shows a default Compose Cut, Copy, Paste, and Select All context menu.
 * Keyform Sheet Related
 	* Background highlight in property controls instead of the border highlight.
 
 # Parameters
-* Improvements
-	* New icon for keyform sheet.(I will find one and put it in.)
-	* Keyform Sheet
-		* When multiple marks are selected moving one should move the rest of them.  Right now only nudging with the arrow keys works.
 * Future CMO3/MOC3 Work
 	* refinedToUnion to bake parameters.
 
@@ -141,9 +132,7 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * Glue intensity is keyable but has no Properties home (glue is not selectable) — see Claude Notes § Glue intensity has no editable home.
 
 ## Outliner
-* Later: editing the `drawOrder` NUMBER and the group flag (a separate draw-order concern) in the Inspector.
-* Context Menu — DONE (right-click on desktop): Toggle Visibility, Toggle Selectability, Rename, Delete.
-	* TODO: touch long-press still starts a drag, so the context menu has no mobile trigger yet — the long-press-vs-drag arbitration needs resolving (or a dedicated touch affordance) before Android.
+* After searching for something and clicking on it, when clearing the search it should resolve that tree branch to be open.  Having it return to be closed with the mystery item selected somewhere in the depths is a poor experience.
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
 

@@ -80,7 +80,7 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 				SpaceDescriptor(
 					SpaceKind.KeyformSheet,
 					Res.string.space_keyformsheet,
-					LocalUmamoIcons.spaceParameters,
+					LocalUmamoIcons.spaceKeyformSheet,
 					headerContent = { scope -> KeyformSheetHeaderControls(scope) },
 				) { scope -> KeyformSheetSpace(scope) },
 			SpaceKind.Properties to
@@ -91,9 +91,16 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					headerContent = { scope -> PropertiesHeaderControls(scope) },
 				) { scope -> PropertiesSpace(scope) },
 			SpaceKind.ToolDetails to
-				SpaceDescriptor(SpaceKind.ToolDetails, Res.string.space_tooldetails, LocalUmamoIcons.spaceTool) { PlaceholderSpace(stringResource(Res.string.space_tooldetails)) },
+				SpaceDescriptor(
+					SpaceKind.ToolDetails,
+					Res.string.space_tooldetails, LocalUmamoIcons.spaceTool
+				) { PlaceholderSpace(stringResource(Res.string.space_tooldetails)) },
 			SpaceKind.History to
-				SpaceDescriptor(SpaceKind.History, Res.string.space_history, LocalUmamoIcons.spaceHistory) { HistorySpace() },
+				SpaceDescriptor(
+					SpaceKind.History,
+					Res.string.space_history,
+					LocalUmamoIcons.spaceHistory
+				) { HistorySpace() },
 			SpaceKind.Logs to
 				SpaceDescriptor(
 					SpaceKind.Logs,

@@ -45,6 +45,7 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.dragTrackKeys
+import org.umamo.edit.limitedDragFraction
 import org.umamo.edit.moveTrackKey
 import org.umamo.edit.moveTrackKeys
 import org.umamo.edit.removeTrackKeys
@@ -74,6 +75,7 @@ import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.tracks.TRACK_MARK_RADIUS
 import org.umamo.ui.tracks.TrackAxis
+import org.umamo.ui.tracks.TrackKeyMark
 import org.umamo.ui.tracks.TrackRow
 import org.umamo.ui.tracks.TrackRowDecor
 import org.umamo.ui.tracks.TrackSheet
@@ -277,7 +279,12 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			// from EVERY section: a linked pad shows two, and one box select can enclose keys in both.  The
 			// section that owns the gesture sees only its own projection, so the resolution lives here and it
 			// is handed down as an action.
-			val dragSelectedKeys: (Float) -> Unit = { fraction ->
+			//
+			// PREVIEW then COMMIT, through the same clamp: while the pointer moves, the fraction is only
+			// recorded (the marks draw shifted by it and the model is untouched); on release it is applied as
+			// one undo step.  A per-move commit would push an undo entry per pixel, and a preview at the
+			// unclamped fraction would show the group travelling past the wall it is about to stop at.
+			val dragSelectedKeys: (Float, Boolean) -> Unit = { fraction, commit ->
 				val plan =
 					viewState.selectedKeys.mapNotNull { keyRef ->
 						val entry = projections.firstOrNull { (parameter, _) -> parameter.id == keyRef.parameterId }
@@ -285,13 +292,18 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 							keyRef to Triple(track, entry.first, keyRef.keyIndex)
 						}
 					}
-				if (session != null && plan.isNotEmpty()) {
+				if (session == null || plan.isEmpty()) {
+					viewState.dragPreviewFraction = 0f
+				} else if (commit) {
+					viewState.dragPreviewFraction = 0f
 					val landed = session.dragTrackKeys(plan.map { (_, key) -> key }, fraction)
 					// Re-pointed at where each key actually ended up: a crossing renumbers its axis, so keeping the
 					// old ordinals would leave the selection on whichever keys took their places.
 					viewState.selectedKeys =
 						plan.mapIndexed { position, (keyRef, _) -> keyRef.copy(keyIndex = landed.getOrElse(position) { keyRef.keyIndex }) }
 							.toSet()
+				} else {
+					viewState.dragPreviewFraction = session.model.value.limitedDragFraction(plan.map { (_, key) -> key }, fraction)
 				}
 			}
 			// ONE outer scroll over all the sections; each TrackSheet lays its rows out eagerly for exactly this
@@ -326,7 +338,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 						} else if (projection.rows.isEmpty()) {
 							Box(
 								modifier = Modifier.fillMaxWidth().padding(12.dp),
-								contentAlignment = Alignment.Center
+								contentAlignment = Alignment.Center,
 							) {
 								Text(
 									text =
@@ -359,6 +371,13 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 								},
 								onSelectedKeysChange = { keys -> viewState.selectedKeys = keys },
 								onDragSelectedKeys = dragSelectedKeys,
+								// The preview fraction is of the parameter's RANGE; a lane draws in its own domain units, so
+								// each section converts with its own span - which is what keeps a linked pad's two axes moving
+								// together on screen despite unrelated ranges.
+								selectedMarkDragDelta = {
+									viewState.dragPreviewFraction *
+										(maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min))
+								},
 								onLaneBounds = { row, bounds -> viewState.laneBounds[row.key] = bounds },
 							)
 						}
@@ -436,8 +455,12 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
  * @param Set<String> expandedKeys The open group rows, shared by every section.
  * @param Function onToggleExpanded Publishes a chevron click.
  * @param Function onSelectedKeysChange Publishes a new selection to the sheet.
- * @param Function onDragSelectedKeys Drags the WHOLE selection by a fraction of each key's parameter range,
- *   which only the sheet can do - the selection spans sections and a section sees only its own projection.
+ * @param Function onDragSelectedKeys Previews (commit = false) or applies (commit = true) a drag of the
+ *   WHOLE selection by a fraction of each key's parameter range.  Only the sheet can do this - the
+ *   selection spans sections and a section sees only its own projection.
+ * @param Function selectedMarkDragDelta The in-flight group drag in THIS section's domain units, drawn on
+ *   its selected marks so they travel with the one under the hand.  A lambda so the per-frame read lands in
+ *   the lane's draw scope rather than recomposing the sheet.
  * @param Function onLaneBounds Reports each lane's window bounds, for the box-select marquee.
  */
 @Composable
@@ -450,7 +473,8 @@ private fun KeyformSheetSection(
 	expandedKeys: Set<String>,
 	onToggleExpanded: (TrackRow) -> Unit,
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
-	onDragSelectedKeys: (Float) -> Unit,
+	onDragSelectedKeys: (Float, Boolean) -> Unit,
+	selectedMarkDragDelta: () -> Float,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
 ) {
 	val session = LocalEditorSession.current
@@ -467,7 +491,7 @@ private fun KeyformSheetSection(
 		ownerKindLabels().mapValues { (_, kindLabel) ->
 			stringResource(
 				Res.string.keyform_sheet_select_owner,
-				kindLabel
+				kindLabel,
 			)
 		}
 	val ownerKindLabels = ownerKindLabels()
@@ -540,11 +564,21 @@ private fun KeyformSheetSection(
 			// every sibling clamp in this feature - a plain coerceIn throws on one mid-gesture.
 			liveParams?.preview(
 				parameter.id,
-				value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
+				value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)),
 			)
 		},
 		// One undo step per gesture, at its end - the same contract a slider drag has.
 		onTrackScrubEnd = { _, _ -> liveParams?.commit(setOf(parameter.id)) },
+		// The whole selection follows the mark under the hand rather than snapping to it on release,
+		// which is what makes a group drag read as moving keys instead of as a deferred command.  The
+		// model is untouched until the release; only what is DRAWN moves.
+		onMarkDrag = { row, mark, at ->
+			val dragged = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
+			groupDragFraction(parameter, selectedKeys, dragged, mark, at)?.let { fraction ->
+				onDragSelectedKeys(fraction, false)
+			}
+		},
+		selectedMarkDragDelta = selectedMarkDragDelta,
 		onMarkDragEnd = { row, mark, releasedAt ->
 			val members = projection.summaryMembers(row.key, mark.keyIndex)
 			val track = projection.tracksByRowKey[row.key]
@@ -564,14 +598,9 @@ private fun KeyformSheetSection(
 				onSelectedKeysChange(emptySet())
 			} else if (session != null && track != null) {
 				val dragged = TrackKeyRef(parameter.id, row.key, mark.keyIndex)
-				if (dragged in selectedKeys && selectedKeys.size > 1) {
-					// Dragging one mark of a multi-key selection drags them all, by the same fraction of each
-					// key's own parameter range.  Within one parameter that IS the distance the hand moved; it
-					// only diverges across a linked pad's two axes, where no single absolute delta is right.
-					val span = maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min)
-					if (span > 0f) {
-						onDragSelectedKeys((releasedAt - mark.position) / span)
-					}
+				val groupFraction = groupDragFraction(parameter, selectedKeys, dragged, mark, releasedAt)
+				if (groupFraction != null) {
+					onDragSelectedKeys(groupFraction, true)
 				} else {
 					// A key may cross its neighbours, which renumbers the axis - so the move reports where the
 					// dragged key ended up and the selection is re-pointed at it.  Keeping the old ordinal
@@ -671,8 +700,8 @@ private fun KeyformSheetSection(
 										track,
 										hit.value,
 										keyIndex = null,
-										parameterId = parameter.id
-									)
+										parameterId = parameter.id,
+									),
 								)
 								commands.invoke("keyform.insert")
 								keyableHover?.exit(track)
@@ -683,6 +712,41 @@ private fun KeyformSheetSection(
 			}
 		},
 	)
+}
+
+/**
+ * The fraction of [parameter]'s range a drag of [mark] to [at] represents, or null when it is not a GROUP
+ * drag at all.
+ *
+ * Null - meaning "handle this as an ordinary single-key move" - whenever the dragged mark is not itself
+ * selected, or is the only thing selected, or the parameter has no range to take a fraction of.
+ *
+ * A fraction rather than an absolute delta because a selection can span two parameters (a linked pad shows
+ * both axes at once) whose ranges differ by orders of magnitude.  Within ONE parameter a fraction of its
+ * range IS the distance the hand moved.
+ *
+ * Shared by the live preview and the release so the two cannot disagree about which gesture this is - the
+ * failure mode being a drag that previews as a group and commits as a single key, or the reverse.
+ *
+ * @param Parameter parameter The section's parameter.
+ * @param Set selectedKeys The sheet-wide key selection.
+ * @param TrackKeyRef dragged The key under the hand.
+ * @param TrackKeyMark mark Its mark, for the position the drag started from.
+ * @param Float at The pointer's current (or released) domain position.
+ * @return Float? The signed fraction, or null when this is not a group drag.
+ */
+private fun groupDragFraction(
+	parameter: Parameter,
+	selectedKeys: Set<TrackKeyRef>,
+	dragged: TrackKeyRef,
+	mark: TrackKeyMark,
+	at: Float,
+): Float? {
+	if (dragged !in selectedKeys || selectedKeys.size < 2) {
+		return null
+	}
+	val span = maxOf(parameter.max, parameter.min) - minOf(parameter.max, parameter.min)
+	return if (span > 0f) (at - mark.position) / span else null
 }
 
 /**
@@ -715,15 +779,17 @@ private fun selectionTargetOf(owner: KeyformOwner): SelectionTarget? =
  */
 private fun TrackRow.withSelection(parameterId: ParameterId, selectedKeys: Set<TrackKeyRef>): TrackRow =
 	copy(
-		marks = marks.map { mark ->
-			mark.copy(
-				selected = TrackKeyRef(
-					parameterId,
-					key,
-					mark.keyIndex
-				) in selectedKeys
-			)
-		},
+		marks =
+			marks.map { mark ->
+				mark.copy(
+					selected =
+						TrackKeyRef(
+							parameterId,
+							key,
+							mark.keyIndex,
+						) in selectedKeys,
+				)
+			},
 		children = children.map { child -> child.withSelection(parameterId, selectedKeys) },
 	)
 
@@ -762,7 +828,7 @@ private fun keysWithin(
 				domainEnd,
 				markRadiusPx,
 				projection,
-				enclosed
+				enclosed,
 			)
 		}
 	}
