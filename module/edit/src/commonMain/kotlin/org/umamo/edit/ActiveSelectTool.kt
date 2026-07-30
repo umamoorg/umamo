@@ -17,8 +17,6 @@ const val CIRCLE_RADIUS_STEP_PX: Float = 8f
  * [MeshOperatorKind].  Null when no tool is armed (a plain click selects and an empty drag rubber-bands a
  * box); a command latches one and the overlay reads it to reinterpret pointer input.  Transient editor
  * state, never snapshotted and never on the change bus, exactly like [EditorSession.activeMeshOperator].
- *
- * 編集モードの選択ツール（ボックス／サークル）。ギズモ重畳がこれを読み取り入力を解釈する。スナップショット対象外。
  */
 sealed interface ActiveSelectTool {
 	/**

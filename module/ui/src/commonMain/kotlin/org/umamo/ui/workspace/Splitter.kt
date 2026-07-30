@@ -226,9 +226,6 @@ private fun resizeEdgePanel(node: AreaNode, orientation: SplitOrientation, axisP
  * staleness of the captured node is neutralized by the caller's drag session, which rewrites from a
  * drag-start snapshot rather than the composed node.
  *
- * 分割の 2 子の間のドラッグ可能な仕切り。ドラッグ量（px）を onDragByPx で親に伝え、開始・終了を
- * onDragStarted / onDragStopped で囲む。
- *
  * @param SplitOrientation orientation The parent split's orientation.
  * @param Function onDragByPx Receives the drag delta in pixels along the split axis.
  * @param Modifier modifier The layout modifier.

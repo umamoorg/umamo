@@ -73,9 +73,6 @@ fun AreaTree(
  * (node.copy(first = ...)) stays value-correct under those publishes because a ratio drag never
  * changes any ancestor's other fields.
  *
- * 分割の 2 子を ratio の重みで仕切り付きに配置する。各子は AreaTree で再帰し、自身の書き換えを親へ返す。
- * 仕切りドラッグは SplitterDragSession がスナップショット＋累計で書き換える。
- *
  * @param SplitNode node The split to lay out.
  * @param Function onNodeChange Receives the rewritten split.
  * @param Function onCommand Sink for structural edits.

@@ -89,9 +89,6 @@ internal class AreaSlot {
  * on the UI thread; [OffscreenRenderEngine] iterates the same [areas] map on the render thread and calls
  * [establishCamera] to fit newly-sized areas. The shared state is safe across the two threads: the slot map
  * is a ConcurrentHashMap, per-area hand-off fields are @Volatile, and the camera flows are StateFlows.
- *
- * ビューポートのエリアとカメラを所有する。登録・リサイズ・ナビゲーションは UI スレッド、描画はエンジンが
- * レンダースレッドから同じスロットを読む。
  */
 internal class ViewportAreaRegistry {
 	/** The registered areas, keyed by stable area id. Iterated by the render engine; mutated by the UI thread. */

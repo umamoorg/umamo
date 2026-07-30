@@ -24,9 +24,6 @@ import kotlin.math.max
  * All calls run on the render thread with the device's context current; this class never crosses
  * threads.
  *
- * ビューポートのオフスクリーン面：スーパーサンプル描画ターゲットと表示サイズの解決ターゲットの対。
- * 確保は拡大のみ（高水位容量）で、各描画は原点寄せの使用領域だけを使う。
- *
  * @property RenderDevice device The backend the targets live on.
  * @property Int          scale  The maximum framebuffer pixels per display pixel (the full
  *   supersample factor).  It bounds ensure's activeScale; capacity itself follows the high-water of

@@ -16,8 +16,6 @@ import org.umamo.runtime.model.PartId
  * How a [Change] participates in undo. Reconciles the two channels a mutation feeds: the change-event
  * bus (everything emits) and the undo stack (only a subset are steps). A change declares one of these,
  * so the [EditorSession] knows whether to push a history step without the call site hardcoding it.
- *
- * 変更が取り消しにどう関与するか。全ては変更イベントを発火するが、履歴段になるのは一部だけ。
  */
 sealed interface Undoability {
 	/** Pushes its own history step. The common case (rename, reparent, visibility, a selection gesture). */
@@ -42,8 +40,6 @@ sealed interface Undoability {
  * session's change bus; the [undoability] decides whether it also becomes a history step, and [labelKey]
  * is a stable key the UI resolves to a localized history-panel label (kept here as a string so :edit
  * stays free of Compose resources).
- *
- * 記述された編集。取り消しはスナップショット方式なので逆操作は持たず、何が変わったかだけを持つ。
  */
 sealed interface Change {
 	/** Whether this change is a history step, and how it coalesces. */

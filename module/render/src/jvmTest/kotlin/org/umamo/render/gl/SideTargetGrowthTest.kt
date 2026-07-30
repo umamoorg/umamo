@@ -34,9 +34,6 @@ import kotlin.test.assertTrue
  * composite sampling) and the used-height flip in the destination-snapshot resolve.  The scene has a
  * clip-masked quad and a Darken (5.3 extended blend) quad so both the mask path and the composite
  * path are on screen.
- *
- * 拡大のみのサイドターゲットを検証する。96 -> 64 -> 96 の描画が、各サイズちょうどのターゲットを持つ
- * 新品レンダラーの出力とピクセル一致すること。
  */
 class SideTargetGrowthTest {
 	private val largeSize = 96

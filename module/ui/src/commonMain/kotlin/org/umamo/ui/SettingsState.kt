@@ -17,8 +17,6 @@ import org.umamo.settings.Settings
  * `changes` flow, so the binding stays in sync without the read-once-then-collect boilerplate each call
  * site would otherwise repeat (cf. ProvideAppThemeFromSettings, PersistentEditorShell).
  *
- * 1 つの文字列設定への双方向バインディング。読み取りで現在値、代入で即時保存。他所からの変更も反映する。
- *
  * @param String key     The dotted settings key (e.g. "interface.theme").
  * @param String default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).
  * @return MutableState A state whose getter reads the merged value and whose setter persists to the user layer.
@@ -72,8 +70,6 @@ private class WriteThroughSettingState(
  * A write-through, reactive binding to one number-valued setting - the [rememberStringSetting]
  * counterpart for numeric keys, with the same auto-save and external-change semantics.
  *
- * 1 つの数値設定への双方向バインディング。読み取りで現在値、代入で即時保存。他所からの変更も反映する。
- *
  * @param String key     The dotted settings key (e.g. "viewport.zoomStepPercent").
  * @param Int default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).
  * @return MutableState A state whose getter reads the merged value and whose setter persists to the user layer.
@@ -125,8 +121,6 @@ private class WriteThroughIntSettingState(
  * A write-through, reactive binding to one number-valued setting - the [rememberStringSetting]
  * counterpart for numeric keys, with the same auto-save and external-change semantics.
  *
- * 1 つの数値設定への双方向バインディング。読み取りで現在値、代入で即時保存。他所からの変更も反映する。
- *
  * @param String key     The dotted settings key (e.g. "viewport.zoomStepPercent").
  * @param Double default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).
  * @return MutableState A state whose getter reads the merged value and whose setter persists to the user layer.
@@ -177,8 +171,6 @@ private class WriteThroughDoubleSettingState(
 /**
  * A write-through, reactive binding to one boolean-valued setting - the [rememberStringSetting]
  * counterpart for flag keys, with the same auto-save and external-change semantics.
- *
- * 1 つの真偽値設定への双方向バインディング。読み取りで現在値、代入で即時保存。他所からの変更も反映する。
  *
  * @param String key     The dotted settings key (e.g. "viewport.rendering.supersample").
  * @param Boolean default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).

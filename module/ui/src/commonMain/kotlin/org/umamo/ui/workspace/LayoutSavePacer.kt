@@ -11,9 +11,6 @@ package org.umamo.ui.workspace
  * since the last write" (a commit followed by the still-pending debounce of the same instance writes
  * once, and a zero-movement drag writes nothing).
  *
- * スプリッタードラッグ中はレイアウト保存を保留し、離した瞬間に最新レイアウトを 1 回だけ書き込む。
- * 構造編集は従来どおりデバウンス経由で保存される。
- *
  * @property InterfaceLayout initialSavedLayout The layout already persisted at startup (loaded or seeded).
  * @property Function save Performs the actual write (the settings-backed saveLayout).
  */

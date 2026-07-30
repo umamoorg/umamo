@@ -14,9 +14,6 @@ package org.umamo.ui.workspace
  * start on purpose: only an OS-driven window resize can change them mid-hold, and the next drag
  * re-measures.
  *
- * スプリッターの 1 回のドラッグを、開始時に取ったスナップショットに対して累積する。各デルタは合成中の
- * ノードではなく、スナップショット＋累計ピクセルから書き換える（フレーム間のデルタ欠落を防ぐ）。
- *
  * @property SplitNode startNode The dragged split as it was when the drag began.
  * @property Float axisPx The split's measured length along the drag axis, in pixels.
  * @property Float minPx The minimum size the divider-adjacent panels may shrink to, in pixels.
