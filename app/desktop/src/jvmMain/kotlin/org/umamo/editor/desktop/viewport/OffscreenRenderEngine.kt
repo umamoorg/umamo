@@ -39,10 +39,10 @@ private const val BUSY_MILLIS = 1L
  * gutter drag or a window-edge resize): about 10 Hz of live feedback, with the Compose side
  * stretching the previous frame between them.  Pose / camera / state changes are never throttled.
  */
-private const val RESIZE_THROTTLE_NANOS = 100_000_000L
+private const val RESIZE_THROTTLE_NANOS = 50_000_000L
 
 /** How long a size must hold still before it counts as settled (the full-quality render then runs). */
-private const val RESIZE_SETTLE_NANOS = 50_000_000L
+private const val RESIZE_SETTLE_NANOS = 25_000_000L
 
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
@@ -53,9 +53,6 @@ private const val RESIZE_SETTLE_NANOS = 50_000_000L
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
  * All viewport areas of one document show the same puppet at the same pose (the shared [liveParams]), so
  * areas differ only by SIZE; re-renders happen only when the pose or an area's size/camera/backdrop changes.
- *
- * パペット描画エンジン。専用デーモンスレッドが GL コンテキスト・レンダラー・FBO・読み戻しプールを所有し、
- * 描画ループを回す。読み戻しは PBO とフェンスで非同期化する。
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).
@@ -440,8 +437,8 @@ internal class OffscreenRenderEngine(
 					}
 					if (restFresh && shouldDeferResizeRender(slot, nowNanos)) {
 						// Deliberately NOT pendingWork: with no read-back in flight the loop then sleeps
-						// IDLE_MILLIS (16 ms) and revisits, which cannot oversleep the 50 ms settle or the
-						// 100 ms throttle window - flagging pendingWork with an empty pendingFrames queue
+						// IDLE_MILLIS (16 ms) and revisits, which cannot oversleep the RESIZE_SETTLE_NANOS or the
+						// RESIZE_THROTTLE_NANOS window - flagging pendingWork with an empty pendingFrames queue
 						// would skip both sleeps and busy-spin instead.
 						continue
 					}
