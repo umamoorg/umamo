@@ -126,7 +126,7 @@ Format Goals:
 
 ## Import
 Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
-MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 command): Moc3Import joins the decoded moc with model3.json (required, plus every listed texture) and cdi3.json (optional, degrades to raw ids); missing sidecars fail with dedicated alerts (MissingManifest/MissingTexture).  Moc3Cmo3ParityTest pins the coordinate conversion against the CMO3 corpus twin.  Remaining: Android sibling discovery (SAF has no directory access - desktop-first for now), blend shapes import as no-op sliders until blend-shape eval exists.
+* MOC3 sidecar discovery on Android.  MOC3 might be a desktop only feature.
 
 ## Reimport
 * Detection of edited source art files when application reacquires focus.
@@ -173,7 +173,7 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * Make history limit configurable.
 
 ## Keybindings
-* Create default keybinding maps for Blender and Cubism styles.
+* Audit default keybinding maps for Blender and Cubism styles.
 
 ## Random Bugs
 * While resizing the application window pressing escape to cancel the resize snaps the window back, but the Compose area does not.
@@ -187,8 +187,12 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 
-# Build and Distribute
+## Build and Distribute
 * Eventually get installers, signing, and automatic updates setup.
+
+## MacOS
+* Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
+* Need to add back a light native menu so it does not say "MainKt" all the time.
 
 ## Input
 
