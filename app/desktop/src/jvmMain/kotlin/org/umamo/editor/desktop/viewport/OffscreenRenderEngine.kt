@@ -170,7 +170,7 @@ internal class OffscreenRenderEngine(
 	private var supersampleBacking: Boolean = true
 
 	@Volatile
-	private var supersampleWhileResizingBacking: Boolean = false
+	private var supersampleWhileResizingBacking: Boolean = true
 
 	private var dumped = false
 
