@@ -67,10 +67,14 @@ class SideTargetGrowthTest {
 	private fun quad(id: DrawableId, blendMode: BlendMode, maskedBy: List<DrawableId>, corners: FloatArray): Drawable {
 		val positions =
 			floatArrayOf(
-				corners[0], corners[1],
-				corners[2], corners[1],
-				corners[0], corners[3],
-				corners[2], corners[3],
+				corners[0],
+				corners[1],
+				corners[2],
+				corners[1],
+				corners[0],
+				corners[3],
+				corners[2],
+				corners[3],
 			)
 		return Drawable(
 			id = id,
