@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -90,6 +92,20 @@ private fun SplitContainer(
 ) {
 	val ratio = node.ratio.coerceIn(MIN_RATIO, 1f - MIN_RATIO)
 	var dragSession by remember { mutableStateOf<SplitterDragSession?>(null) }
+	// Release the persistence hold if this container leaves composition MID-DRAG (a keyboard-driven
+	// workspace switch or area close while the bar is held): whether draggable's onDragStopped fires
+	// on detach is not guaranteed, and a stranded drag-active flag would silently suppress structural
+	// layout saves until the next completed drag.  Guarded on the session so a normally-ended drag
+	// (session already cleared) never double-signals.  rememberUpdatedState because onDispose runs
+	// with the closure captured at first composition, which may hold a stale callback by then.
+	val currentOnSplitterDragChange by rememberUpdatedState(onSplitterDragChange)
+	DisposableEffect(Unit) {
+		onDispose {
+			if (dragSession != null) {
+				currentOnSplitterDragChange(false)
+			}
+		}
+	}
 	val first: @Composable () -> Unit = {
 		AreaTree(
 			node = node.first,

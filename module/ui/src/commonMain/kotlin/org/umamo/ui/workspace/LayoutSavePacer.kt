@@ -21,7 +21,11 @@ internal class LayoutSavePacer(
 	initialSavedLayout: InterfaceLayout,
 	private val save: (InterfaceLayout) -> Unit,
 ) {
-	private var dragActive: Boolean = false
+	// A depth counter rather than a boolean: the shared shell targets touch tablets, where two
+	// fingers can in principle hold two splitters at once - a boolean would resume writes when the
+	// FIRST drag released.  Clamped at zero so an unmatched release (the disposal guard's defensive
+	// signal) can never wedge the counter negative.
+	private var activeDragCount: Int = 0
 	private var lastSavedLayout: InterfaceLayout = initialSavedLayout
 
 	/**
@@ -31,7 +35,7 @@ internal class LayoutSavePacer(
 	 * @param InterfaceLayout layout The layout the debounce settled on.
 	 */
 	fun saveDebounced(layout: InterfaceLayout) {
-		if (dragActive || layout === lastSavedLayout) {
+		if (activeDragCount > 0 || layout === lastSavedLayout) {
 			return
 		}
 		save(layout)
@@ -39,15 +43,21 @@ internal class LayoutSavePacer(
 	}
 
 	/**
-	 * Tracks the splitter-drag gesture: while active, debounced writes are held; on release the
-	 * latest layout is committed immediately (skipped when nothing changed since the last write).
+	 * Tracks the splitter-drag gestures: while any is active, debounced writes are held; the release
+	 * of the LAST one commits the latest layout immediately (skipped when nothing changed since the
+	 * last write).
 	 *
-	 * @param Boolean active True at drag start, false at drag end.
+	 * @param Boolean active True at a drag start, false at a drag end.
 	 * @param InterfaceLayout latestLayout The most recently published layout.
 	 */
 	fun setDragActive(active: Boolean, latestLayout: InterfaceLayout) {
-		dragActive = active
-		if (!active && latestLayout !== lastSavedLayout) {
+		activeDragCount =
+			if (active) {
+				activeDragCount + 1
+			} else {
+				maxOf(0, activeDragCount - 1)
+			}
+		if (activeDragCount == 0 && latestLayout !== lastSavedLayout) {
 			save(latestLayout)
 			lastSavedLayout = latestLayout
 		}

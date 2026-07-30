@@ -29,8 +29,9 @@ import kotlin.math.max
  *
  * @property RenderDevice device The backend the targets live on.
  * @property Int          scale  The maximum framebuffer pixels per display pixel (the full
- *   supersample factor); capacity is provisioned for it, and a render may use any activeScale up to
- *   it without reallocating.
+ *   supersample factor).  It bounds ensure's activeScale; capacity itself follows the high-water of
+ *   the pixel sizes actually requested, so a session that never renders above 1x never pays a 2x
+ *   allocation, and the first higher-scale render grows the targets once.
  *
  * @note Shrink-on-idle (trimming the high-water allocation after a quiet period) is the named
  *   future refinement if the retained memory ever matters in practice.

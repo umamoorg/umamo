@@ -196,9 +196,6 @@ private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
  * the resize toggle keeps 2x during panel drags).  The viewport binding reads every key live, so a
  * committed edit re-tunes wheel zoom / re-draws the grid / re-renders at the new quality immediately.
  * Each number field commits clamped to its [ViewportSettings] range (the [NumberField] contract).
- *
- * ビューポート設定。ホイール 1 ノッチあたりのズーム率（通常／Shift の粗い刻み）、グリッドの既定間隔、
- * スーパーサンプリングの性能設定。即時反映。
  */
 @Composable
 internal fun ViewportSection() {
@@ -248,10 +245,14 @@ internal fun ViewportSection() {
 			onCheckedChange = { checked -> supersample = checked },
 			label = stringResource(Res.string.settings_viewport_supersample),
 		)
+		// Inert with supersampling off: everything already renders at 1x, so there is no supersample
+		// to keep while resizing (the engine computes the same 1x either way).  The stored value is
+		// kept, so re-enabling supersampling restores the previous choice.
 		Checkbox(
 			checked = supersampleWhileResizing,
 			onCheckedChange = { checked -> supersampleWhileResizing = checked },
 			label = stringResource(Res.string.settings_viewport_supersample_while_resizing),
+			enabled = supersample,
 		)
 	}
 }

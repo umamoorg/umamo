@@ -387,6 +387,8 @@ internal class OffscreenRenderEngine(
 				var pendingWork = pendingFrames.isNotEmpty()
 				val nowNanos = System.nanoTime()
 				val settleScale = if (supersampleBacking) RENDER_SUPERSAMPLE else 1
+				// With supersampling off both scales collapse to 1, so supersampleWhileResizing is
+				// inert by construction (the preferences UI disables its checkbox to say so).
 				val interactiveScale = if (supersampleWhileResizingBacking) settleScale else 1
 				for ((areaId, slot) in registry.areas) {
 					val width = slot.width

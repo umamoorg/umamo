@@ -60,6 +60,26 @@ class LayoutSavePacerTest {
 	}
 
 	@Test
+	fun overlappingDragsCommitOnlyWhenTheLastReleases() {
+		val saved = ArrayList<InterfaceLayout>()
+		val initial = layout()
+		val pacer = LayoutSavePacer(initial) { persisted -> saved.add(persisted) }
+		// Two fingers on two splitters (the touch-tablet shape): the first release must NOT resume
+		// writes while the second drag is still held.
+		pacer.setDragActive(true, initial)
+		pacer.setDragActive(true, initial)
+		val firstReleased = initial.copy()
+		pacer.setDragActive(false, firstReleased)
+		assertEquals(0, saved.size)
+		pacer.saveDebounced(firstReleased)
+		assertEquals(0, saved.size)
+		val secondReleased = firstReleased.copy()
+		pacer.setDragActive(false, secondReleased)
+		assertEquals(1, saved.size)
+		assertSame(secondReleased, saved.single())
+	}
+
+	@Test
 	fun savesResumeAfterCommit() {
 		val saved = ArrayList<InterfaceLayout>()
 		val initial = layout()

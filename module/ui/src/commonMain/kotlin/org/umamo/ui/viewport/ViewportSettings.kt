@@ -23,8 +23,8 @@ internal object ViewportSettings {
 	/** Supersampling on by default; off renders everything at 1x (the weak-GPU escape hatch). */
 	const val SUPERSAMPLE_DEFAULT = true
 
-	/** Off by default: frames rendered while an area is actively resizing drop to 1x. */
-	const val SUPERSAMPLE_WHILE_RESIZING_DEFAULT = false
+	/** On by default: frames rendered while an area is actively resizing keep the supersample. */
+	const val SUPERSAMPLE_WHILE_RESIZING_DEFAULT = true
 
 	const val SELECTION_HIGHLIGHT_DEFAULT = "#338CFF"
 	const val ACTIVE_SELECTION_HIGHLIGHT_DEFAULT = "#7DE400"
