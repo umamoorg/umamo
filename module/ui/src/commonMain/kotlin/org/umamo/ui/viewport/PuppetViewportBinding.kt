@@ -190,6 +190,11 @@ fun rememberPuppetViewportHost(
 					settings.getDouble(ViewportSettings.ZOOM_STEP_COARSE_KEY)
 						?: ViewportSettings.ZOOM_STEP_COARSE_DEFAULT
 				).toFloat()
+			service.supersampleEnabled =
+				settings.getBoolean(ViewportSettings.SUPERSAMPLE_KEY) ?: ViewportSettings.SUPERSAMPLE_DEFAULT
+			service.supersampleWhileResizing =
+				settings.getBoolean(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY)
+					?: ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT
 			val (red, green, blue) = parseSelectionHighlightColor(settings.getString(ViewportSettings.SELECTION_HIGHLIGHT_KEY))
 			service.setSelectionHighlightColor(red, green, blue)
 			val (activeRed, activeGreen, activeBlue) =

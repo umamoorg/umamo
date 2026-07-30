@@ -215,23 +215,37 @@ private fun resizeEdgePanel(node: AreaNode, orientation: SplitOrientation, axisP
 
 /**
  * The draggable divider between a split's two children. Dragging it reports the pixel delta along the
- * split axis via [onDragByPx]; the parent (SplitContainer) rewrites its subtree with
+ * split axis via [onDragByPx], bracketed by [onDragStarted] / [onDragStopped]; the parent
+ * (SplitContainer) accumulates the deltas in a [SplitterDragSession] and rewrites its subtree with
  * [dragSplitBoundary]. Orientation picks both the bar's long axis and the drag axis: a Horizontal
  * split (children side by side) gets a vertical bar dragged horizontally; a Vertical split gets a
  * horizontal bar dragged vertically.
  *
- * [onDragByPx] is wrapped in rememberUpdatedState so each drag delta uses the latest ratio even though
- * the DraggableState itself is remembered once (avoids a stale-closure drag).
+ * All three callbacks are wrapped in rememberUpdatedState so the pointer path always invokes the
+ * latest composition's closures even though the DraggableState itself is remembered once.  Per-delta
+ * staleness of the captured node is neutralized by the caller's drag session, which rewrites from a
+ * drag-start snapshot rather than the composed node.
  *
- * 分割の 2 子の間のドラッグ可能な仕切り。ドラッグ量（px）を onDragByPx で親に伝える。
+ * 分割の 2 子の間のドラッグ可能な仕切り。ドラッグ量（px）を onDragByPx で親に伝え、開始・終了を
+ * onDragStarted / onDragStopped で囲む。
  *
  * @param SplitOrientation orientation The parent split's orientation.
  * @param Function onDragByPx Receives the drag delta in pixels along the split axis.
  * @param Modifier modifier The layout modifier.
+ * @param Function onDragStarted Called when a drag gesture begins, before the first delta.
+ * @param Function onDragStopped Called when the drag gesture ends or is cancelled.
  */
 @Composable
-fun Splitter(orientation: SplitOrientation, onDragByPx: (Float) -> Unit, modifier: Modifier = Modifier) {
+fun Splitter(
+	orientation: SplitOrientation,
+	onDragByPx: (Float) -> Unit,
+	modifier: Modifier = Modifier,
+	onDragStarted: () -> Unit = {},
+	onDragStopped: () -> Unit = {},
+) {
 	val latestOnDrag by rememberUpdatedState(onDragByPx)
+	val latestOnDragStarted by rememberUpdatedState(onDragStarted)
+	val latestOnDragStopped by rememberUpdatedState(onDragStopped)
 	val dragState = remember { DraggableState { deltaPx -> latestOnDrag(deltaPx) } }
 	val colors = LocalUmamoColors.current
 	val bar =
@@ -249,7 +263,12 @@ fun Splitter(orientation: SplitOrientation, onDragByPx: (Float) -> Unit, modifie
 			modifier
 				.then(bar)
 				.pointerHoverIcon(umamoPointerIcon(splitterCursor(orientation)))
-				.draggable(state = dragState, orientation = dragOrientation)
+				.draggable(
+					state = dragState,
+					orientation = dragOrientation,
+					onDragStarted = { latestOnDragStarted() },
+					onDragStopped = { latestOnDragStopped() },
+				)
 				.background(colors.divider),
 	)
 }

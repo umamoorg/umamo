@@ -72,6 +72,16 @@ internal class AreaSlot {
 	var puppetRenderBumpDone: Long = -1
 	var atlasRenderBumpDone: Long = -1
 	var renderedPageIndex: Int? = null
+
+	// Render-thread-only resize-throttle bookkeeping: the last size the loop observed, when it last
+	// changed, when the last resize-driven render was issued (all System.nanoTime), and the
+	// supersample scale of the last issued render (a 1x interactive frame stays size-stale so the
+	// settle pass re-renders it at full quality).
+	var observedWidth: Int = 0
+	var observedHeight: Int = 0
+	var sizeChangedNanos: Long = 0L
+	var resizeRenderNanos: Long = 0L
+	var renderedScale: Int = -1
 }
 
 /**

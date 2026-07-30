@@ -476,6 +476,9 @@
 	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>
 	<string name="settings_viewport_grid_scale">グリッド間隔（既定）</string>
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
+	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）。 -->
+	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
+	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
 	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>

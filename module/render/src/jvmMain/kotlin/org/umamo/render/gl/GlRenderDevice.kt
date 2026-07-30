@@ -271,28 +271,44 @@ class GlRenderDevice : RenderDevice {
 	override fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect?) {
 		val glSource = source as GlRenderTarget
 		val glDestination = destination as GlRenderTarget
+		resolveUsed(glSource, glSource.width, glSource.height, glDestination, glDestination.width, glDestination.height, region)
+	}
+
+	override fun resolveUsed(
+		source: RenderTarget,
+		sourceUsedWidth: Int,
+		sourceUsedHeight: Int,
+		destination: RenderTarget,
+		destinationUsedWidth: Int,
+		destinationUsedHeight: Int,
+		region: ScissorRect?,
+	) {
+		val glSource = source as GlRenderTarget
+		val glDestination = destination as GlRenderTarget
 		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glSource.framebuffer)
 		GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, glDestination.framebuffer)
-		// GL_LINEAR makes the downscale a box filter - the supersample resolve. On GL this whole
-		// primitive IS a blit; on Metal it cannot be (a blit encoder neither filters nor scales), which
-		// is why the interface names the effect rather than the mechanism.
+		// Content sits at GL (0, 0): every pass runs glViewport(0, 0, used, used), so the used region
+		// IS the bottom-left rows.  GL_LINEAR makes the downscale a box filter - the supersample
+		// resolve. On GL this whole primitive IS a blit; on Metal it cannot be (a blit encoder neither
+		// filters nor scales), which is why the interface names the effect rather than the mechanism.
 		if (region == null) {
 			GL30.glBlitFramebuffer(
 				0,
 				0,
-				glSource.width,
-				glSource.height,
+				sourceUsedWidth,
+				sourceUsedHeight,
 				0,
 				0,
-				glDestination.width,
-				glDestination.height,
+				destinationUsedWidth,
+				destinationUsedHeight,
 				GL11.GL_COLOR_BUFFER_BIT,
 				GL11.GL_LINEAR,
 			)
 		} else {
 			// A same-size sub-rectangle copy (the composite path's snapshot). The rect is
-			// top-left-origin per the ScissorRect contract; GL blits bottom-up.
-			val bottomUpY = glSource.height - region.y - region.height
+			// top-left-origin per the ScissorRect contract; GL blits bottom-up, so the flip is against
+			// the USED height - flipping against a larger allocation would land above the content.
+			val bottomUpY = sourceUsedHeight - region.y - region.height
 			GL30.glBlitFramebuffer(
 				region.x,
 				bottomUpY,
@@ -330,16 +346,22 @@ class GlRenderDevice : RenderDevice {
 
 	override fun beginReadback(target: RenderTarget): ReadbackTicket {
 		val glTarget = target as GlRenderTarget
+		return beginReadback(glTarget, glTarget.width, glTarget.height)
+	}
+
+	override fun beginReadback(target: RenderTarget, usedWidth: Int, usedHeight: Int): ReadbackTicket {
+		val glTarget = target as GlRenderTarget
 		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glTarget.framebuffer)
-		val pbo = acquirePbo(glTarget.width * glTarget.height * 4)
+		val pbo = acquirePbo(usedWidth * usedHeight * 4)
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, pbo.id)
 		// With a PBO bound, the last argument is a BUFFER OFFSET, not a client pointer - glReadPixels
-		// returns immediately and the copy happens asynchronously on the GPU timeline.
-		GL11.glReadPixels(0, 0, glTarget.width, glTarget.height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, 0L)
+		// returns immediately and the copy happens asynchronously on the GPU timeline.  The used
+		// region is the bottom-left rows (passes viewport at the origin), so the read starts at (0, 0).
+		GL11.glReadPixels(0, 0, usedWidth, usedHeight, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, 0L)
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, 0)
 		val fence = GL32.glFenceSync(GL32.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
 		GL11.glFlush() // submit the commands + fence so the fence can eventually signal
-		return GlReadbackTicket(pbo, fence, glTarget.width, glTarget.height)
+		return GlReadbackTicket(pbo, fence, usedWidth, usedHeight)
 	}
 
 	override fun pollReadback(ticket: ReadbackTicket): RasterImage? {
@@ -406,13 +428,19 @@ class GlRenderDevice : RenderDevice {
 
 	override fun readPixels(target: RenderTarget): RasterImage {
 		val glTarget = target as GlRenderTarget
+		return readPixels(glTarget, glTarget.width, glTarget.height)
+	}
+
+	override fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage {
+		val glTarget = target as GlRenderTarget
 		GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, glTarget.framebuffer)
-		val pixels = BufferUtils.createByteBuffer(glTarget.width * glTarget.height * 4)
-		GL11.glReadPixels(0, 0, glTarget.width, glTarget.height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels)
-		val bottomUp = ByteArray(glTarget.width * glTarget.height * 4)
+		val pixels = BufferUtils.createByteBuffer(usedWidth * usedHeight * 4)
+		// The used region is the bottom-left rows (passes viewport at the origin): read from (0, 0).
+		GL11.glReadPixels(0, 0, usedWidth, usedHeight, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels)
+		val bottomUp = ByteArray(usedWidth * usedHeight * 4)
 		pixels.get(bottomUp)
 		// GL reads bottom-up; RasterImage is top-first. The flip is this backend's; no caller asks.
-		return RasterImage(glTarget.width, glTarget.height, flipRowsVertically(bottomUp, glTarget.width, glTarget.height))
+		return RasterImage(usedWidth, usedHeight, flipRowsVertically(bottomUp, usedWidth, usedHeight))
 	}
 
 	override fun describeBackend(): String {

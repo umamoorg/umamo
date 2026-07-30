@@ -130,14 +130,14 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform1i(locations.destTexture, UNIT_DEST)
 	}
 
-	override fun setCamera(worldToNdc: WorldToNdc, viewportWidth: Int, viewportHeight: Int) {
+	override fun setCamera(worldToNdc: WorldToNdc, screenTexWidth: Int, screenTexHeight: Int) {
 		if (cameraApplied) {
 			return // the current program already holds this pass's camera (constant across the pass)
 		}
 		cameraApplied = true
 		val locations = current.locations
 		GL20.glUniform4f(locations.worldToNdc, worldToNdc.scaleX, worldToNdc.scaleY, worldToNdc.offsetX, worldToNdc.offsetY)
-		GL20.glUniform2f(locations.viewportSize, viewportWidth.toFloat(), viewportHeight.toFloat())
+		GL20.glUniform2f(locations.screenTexSize, screenTexWidth.toFloat(), screenTexHeight.toFloat())
 	}
 
 	override fun drawPuppetMesh(mesh: GpuMesh, deform: DeformUniforms, fragment: FragmentUniforms, textures: DrawTextures) {

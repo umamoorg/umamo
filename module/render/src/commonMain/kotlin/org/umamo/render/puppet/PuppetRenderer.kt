@@ -156,21 +156,24 @@ class PuppetRenderer(
 	private var gridScale: Float = 100f
 	private var gridSubdivisions: Int = 10
 
-	// The viewport-sized coverage target the mask pass renders into and the masked draws sample. Recreated
-	// on a viewport resize; the same size as the main target, which is what makes the shader's screen-space
-	// mask lookup line up.
+	// The coverage target the mask pass renders into and the masked draws sample.  Grow-only: kept at
+	// a per-axis high-water capacity and rendered into via an origin-anchored viewport, so a gutter
+	// drag's per-frame size changes never destroy + recreate it.  The shader's screen-space lookup
+	// divides gl_FragCoord by the ALLOCATED size (screenTexSize), which is what keeps the lookup
+	// lined up when the capacity exceeds the viewport.
 	private var maskTarget: RenderTarget? = null
-	private var maskWidth = 0
-	private var maskHeight = 0
 
 	// The layer-composite targets: one layer target per nesting depth (grown lazily to the deepest
 	// isolated group actually rendered) plus one shared destination-snapshot target - composites are
-	// strictly sequential, so a single snapshot suffices. All viewport-sized like the mask target, so the
-	// composite shader's screen-space lookups line up across every level; recreated together on a resize.
+	// strictly sequential, so a single snapshot suffices.  All allocated at the SAME capacity as the
+	// mask target, because the composite shader samples layer, snapshot, and mask through one
+	// screenTexSize divisor - so the three must share allocation dims, and they grow together.
 	private val compositeTargets = ArrayList<RenderTarget>()
 	private var snapshotTarget: RenderTarget? = null
-	private var compositeWidth = 0
-	private var compositeHeight = 0
+
+	// The shared side-target capacity (mask + snapshot + composite pool), each axis a high-water mark.
+	private var sideTargetCapacityWidth = 0
+	private var sideTargetCapacityHeight = 0
 
 	// The shared pass-1 deformed-position store; null when the model has no glue.
 	private var store: DeformedPositionStore? = null
@@ -845,8 +848,7 @@ class PuppetRenderer(
 	 * @param Int          viewportHeight The target height in pixels.
 	 */
 	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int) {
-		ensureMaskTarget(viewportWidth, viewportHeight)
-		ensureCompositeTargets(viewportWidth, viewportHeight)
+		ensureSideTargets(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
 
 		// Pass 1: capture every glue mesh's deformed positions into the shared store. Only when the pose
@@ -958,7 +960,7 @@ class PuppetRenderer(
 						// Mask by pass fragmentation: end the pass, render coverage into the mask target,
 						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
 						pass.end()
-						renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
+						renderMaskCoverage(frame, gpuDrawable.maskIds, affine, viewportWidth, viewportHeight)
 						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight, scissor = scissor))
 						maskCoverage = maskTarget?.sampledTexture
 					}
@@ -968,8 +970,6 @@ class PuppetRenderer(
 						pass,
 						gpuDrawable,
 						affine,
-						viewportWidth,
-						viewportHeight,
 						gpuDrawable.blendMode,
 						gpuDrawable.opacity,
 						highlight,
@@ -1085,7 +1085,7 @@ class PuppetRenderer(
 		subtreePass.end()
 		val masked = node.composite.maskedBy.isNotEmpty()
 		if (masked) {
-			renderMaskCoverage(frame, node.composite.maskedBy, affine)
+			renderMaskCoverage(frame, node.composite.maskedBy, affine, viewportWidth, viewportHeight)
 		}
 		// The pose-blended channels; a part missing from the map (never the case for an isolated
 		// group, but harmless) falls back to its static channels.
@@ -1136,7 +1136,7 @@ class PuppetRenderer(
 	): RenderPassEncoder {
 		var maskCoverage: GpuTexture? = null
 		if (gpuDrawable.maskIds.isNotEmpty()) {
-			renderMaskCoverage(frame, gpuDrawable.maskIds, affine)
+			renderMaskCoverage(frame, gpuDrawable.maskIds, affine, viewportWidth, viewportHeight)
 			maskCoverage = maskTarget?.sampledTexture
 		}
 		val layerTarget = acquireCompositeTarget(depth)
@@ -1150,8 +1150,6 @@ class PuppetRenderer(
 			layerPass,
 			gpuDrawable,
 			affine,
-			viewportWidth,
-			viewportHeight,
 			BlendMode.Normal,
 			gpuDrawable.opacity,
 			highlight,
@@ -1209,12 +1207,15 @@ class PuppetRenderer(
 	): RenderPassEncoder {
 		// Snapshot the destination so the composite shader can sample it (a pass cannot sample its
 		// own target); the copy is ordered between the passes around it, and confined to the same
-		// rect the composite draw reads and writes.
+		// rect the composite draw reads and writes.  Used-region resolve: [target] can be the main
+		// draw target (the surface's capacity) or a pooled layer (the side-target capacity), and the
+		// snapshot has its own capacity - equal USED extents anchored at the origin is the invariant,
+		// and the scissor rect flips against the used height.
 		val snapshot = snapshotTarget ?: error("composite targets not allocated")
-		device.resolve(target, snapshot, compositeScissor)
+		device.resolveUsed(target, viewportWidth, viewportHeight, snapshot, viewportWidth, viewportHeight, compositeScissor)
 		val compositePass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight, scissor = compositeScissor))
 		compositePass.setPipeline(compositePipeline!!)
-		compositePass.setCamera(affine, viewportWidth, viewportHeight)
+		compositePass.setCamera(affine, sideTargetCapacityWidth, sideTargetCapacityHeight)
 		texturesScratch.atlas = null
 		texturesScratch.deltaTexture = null
 		texturesScratch.warpControlPoints = null
@@ -1300,10 +1301,27 @@ class PuppetRenderer(
 		}
 	}
 
-	/** Renders the mask sources' coverage into the shared mask target, as its own cleared pass. */
-	private fun renderMaskCoverage(frame: org.umamo.render.device.FrameEncoder, maskIds: List<DrawableId>, affine: WorldToNdc) {
+	/**
+	 * Renders the mask sources' coverage into the shared mask target, as its own cleared pass at the
+	 * render's USED viewport (the same origin-anchored projection as the main pass, so fragment (x, y)
+	 * there reads coverage texel (x, y) here).  The Clear load fills the whole capacity texture
+	 * (a clear ignores the viewport) - harmless, and cheap next to the realloc it replaces.
+	 *
+	 * @param FrameEncoder frame The frame being recorded.
+	 * @param List<DrawableId> maskIds The mask source drawables.
+	 * @param WorldToNdc affine The camera affine.
+	 * @param Int viewportWidth  The render width in pixels.
+	 * @param Int viewportHeight The render height in pixels.
+	 */
+	private fun renderMaskCoverage(
+		frame: org.umamo.render.device.FrameEncoder,
+		maskIds: List<DrawableId>,
+		affine: WorldToNdc,
+		viewportWidth: Int,
+		viewportHeight: Int,
+	) {
 		val target = maskTarget ?: return
-		val coverage = frame.beginRenderPass(passSpec(target, LoadAction.Clear, maskWidth, maskHeight, clearAlpha = 0f))
+		val coverage = frame.beginRenderPass(passSpec(target, LoadAction.Clear, viewportWidth, viewportHeight, clearAlpha = 0f))
 		for (maskId in maskIds) {
 			val mask = gpuById[maskId] ?: continue
 			if (!mask.visible || mask.indexCount == 0) {
@@ -1316,8 +1334,6 @@ class PuppetRenderer(
 				coverage,
 				mask,
 				affine,
-				maskWidth,
-				maskHeight,
 				blendMode = BlendMode.Normal,
 				opacity = 1f,
 				highlight = 0f,
@@ -1330,7 +1346,10 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * Binds a drawable's pipeline + per-pose state and issues its draw into [pass].
+	 * Binds a drawable's pipeline + per-pose state and issues its draw into [pass].  The camera's
+	 * screen-space divisor is always the side-target capacity: a masked draw samples the mask
+	 * coverage texture at that allocation, and for an unmasked (or coverage-pass) draw the divisor
+	 * is simply unused.
 	 *
 	 * @param BlendMode blendMode The blend to draw with - the drawable's own for the main pass, forced
 	 *   [BlendMode.Normal] for a mask-coverage draw (see [renderMaskCoverage]).
@@ -1339,8 +1358,6 @@ class PuppetRenderer(
 		pass: RenderPassEncoder,
 		gpuDrawable: GpuDrawable,
 		affine: WorldToNdc,
-		viewportWidth: Int,
-		viewportHeight: Int,
 		blendMode: BlendMode,
 		opacity: Float,
 		highlight: Float,
@@ -1349,7 +1366,7 @@ class PuppetRenderer(
 		maskCoverage: GpuTexture?,
 	) {
 		pass.setPipeline(pipelineFor(gpuDrawable.isGlueMesh, blendMode, gpuDrawable.culling))
-		pass.setCamera(affine, viewportWidth, viewportHeight)
+		pass.setCamera(affine, sideTargetCapacityWidth, sideTargetCapacityHeight)
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, isActive, masked)
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
 		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
@@ -1481,44 +1498,50 @@ class PuppetRenderer(
 		bboxReady = true
 	}
 
-	/** (Re)allocates the viewport-sized coverage target the mask pass renders into. */
-	private fun ensureMaskTarget(viewportWidth: Int, viewportHeight: Int) {
-		if (maskTarget != null && maskWidth == viewportWidth && maskHeight == viewportHeight) {
-			return
-		}
-		maskTarget?.let { device.destroyRenderTarget(it) }
-		maskTarget = device.createRenderTarget(RenderTargetSpec(viewportWidth, viewportHeight, TextureFormat.Rgba8, sampled = true))
-		maskWidth = viewportWidth
-		maskHeight = viewportHeight
-	}
-
 	/**
-	 * Frees the composite layer pool + snapshot on a viewport resize (they reallocate lazily at the
-	 * new size) and allocates the shared snapshot target on first use.
+	 * Grows the shared side-target capacity (mask + snapshot + composite pool) to hold a
+	 * [viewportWidth] x [viewportHeight] render, per-axis high-water: a request inside the current
+	 * capacity allocates nothing (the per-frame path during a gutter drag), growth destroys the mask,
+	 * snapshot, and pool together and recreates mask + snapshot at the new capacity (the pool refills
+	 * lazily in [acquireCompositeTarget]).  The three kinds share one capacity because the composite
+	 * shader samples all of them through a single screenTexSize divisor.
+	 *
+	 * @param Int viewportWidth  The render width in pixels.
+	 * @param Int viewportHeight The render height in pixels.
 	 */
-	private fun ensureCompositeTargets(viewportWidth: Int, viewportHeight: Int) {
-		if (compositeWidth != viewportWidth || compositeHeight != viewportHeight) {
+	private fun ensureSideTargets(viewportWidth: Int, viewportHeight: Int) {
+		if (viewportWidth > sideTargetCapacityWidth || viewportHeight > sideTargetCapacityHeight) {
+			maskTarget?.let { device.destroyRenderTarget(it) }
 			compositeTargets.forEach { device.destroyRenderTarget(it) }
 			compositeTargets.clear()
 			snapshotTarget?.let { device.destroyRenderTarget(it) }
 			snapshotTarget = null
-			compositeWidth = viewportWidth
-			compositeHeight = viewportHeight
+			sideTargetCapacityWidth = maxOf(viewportWidth, sideTargetCapacityWidth)
+			sideTargetCapacityHeight = maxOf(viewportHeight, sideTargetCapacityHeight)
+			maskTarget =
+				device.createRenderTarget(
+					RenderTargetSpec(sideTargetCapacityWidth, sideTargetCapacityHeight, TextureFormat.Rgba8, sampled = true),
+				)
 		}
 		if (snapshotTarget == null) {
-			snapshotTarget = device.createRenderTarget(RenderTargetSpec(viewportWidth, viewportHeight, TextureFormat.Rgba8, sampled = true))
+			snapshotTarget =
+				device.createRenderTarget(
+					RenderTargetSpec(sideTargetCapacityWidth, sideTargetCapacityHeight, TextureFormat.Rgba8, sampled = true),
+				)
 		}
 	}
 
 	/**
-	 * The pooled layer target for one composite nesting depth, allocated on first use.  Slots below
-	 * [depth] are ancestors mid-composite; the slot itself is always free when asked for, because
-	 * composites at one level are strictly sequential.
+	 * The pooled layer target for one composite nesting depth, allocated on first use at the shared
+	 * side-target capacity.  Slots below [depth] are ancestors mid-composite; the slot itself is
+	 * always free when asked for, because composites at one level are strictly sequential.
 	 */
 	private fun acquireCompositeTarget(depth: Int): RenderTarget {
 		while (compositeTargets.size <= depth) {
 			compositeTargets.add(
-				device.createRenderTarget(RenderTargetSpec(compositeWidth, compositeHeight, TextureFormat.Rgba8, sampled = true)),
+				device.createRenderTarget(
+					RenderTargetSpec(sideTargetCapacityWidth, sideTargetCapacityHeight, TextureFormat.Rgba8, sampled = true),
+				),
 			)
 		}
 		return compositeTargets[depth]

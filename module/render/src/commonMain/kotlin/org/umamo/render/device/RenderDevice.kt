@@ -162,8 +162,37 @@ public interface RenderDevice {
 	 *   or null for the whole surface.  Only valid when [source] and [destination] are the same size -
 	 *   the scaled supersample resolve always passes null.  The composite path passes its layer bounds
 	 *   here so the destination snapshot copies only the pixels the scissored composite will sample.
+	 *   Equivalent to [resolveUsed] at the targets' full allocated sizes.
 	 */
 	fun resolve(source: RenderTarget, destination: RenderTarget, region: ScissorRect? = null)
+
+	/**
+	 * [resolve] restricted to each target's USED region - the (width x height) extent the last pass
+	 * actually rendered, anchored at the render origin (the GL device's bottom-left rows; a
+	 * top-left-origin backend's top-left rows).  This is the primitive a grow-only surface needs:
+	 * its targets are allocated at a high-water capacity and only the used region holds pixels, so a
+	 * full-allocation copy would read garbage and a full-allocation scale would misplace the content.
+	 *
+	 * @param RenderTarget source The surface to read.
+	 * @param Int sourceUsedWidth The rendered extent of [source] along x, in pixels.
+	 * @param Int sourceUsedHeight The rendered extent of [source] along y, in pixels.
+	 * @param RenderTarget destination The surface to fill.
+	 * @param Int destinationUsedWidth The rendered extent of [destination] along x, in pixels.
+	 * @param Int destinationUsedHeight The rendered extent of [destination] along y, in pixels.
+	 * @param ScissorRect? region The sub-rectangle to copy (same top-left-origin coordinates in both
+	 *   used regions, flipped against the USED height on a bottom-up backend), or null to scale the
+	 *   whole source used region onto the destination used region (filtered - the supersample
+	 *   resolve).  Only valid when the used sizes are equal, exactly like [resolve]'s same-size rule.
+	 */
+	fun resolveUsed(
+		source: RenderTarget,
+		sourceUsedWidth: Int,
+		sourceUsedHeight: Int,
+		destination: RenderTarget,
+		destinationUsedWidth: Int,
+		destinationUsedHeight: Int,
+		region: ScissorRect? = null,
+	)
 
 	// --- Read-back ---
 
@@ -183,6 +212,17 @@ public interface RenderDevice {
 	 * @return ReadbackTicket The claim ticket to poll.
 	 */
 	fun beginReadback(target: RenderTarget): ReadbackTicket
+
+	/**
+	 * [beginReadback] restricted to the target's USED region (see [resolveUsed] for the anchoring
+	 * contract).  The delivered image is usedWidth x usedHeight, top row first as always.
+	 *
+	 * @param RenderTarget target The target to read.
+	 * @param Int usedWidth The rendered extent along x, in pixels.
+	 * @param Int usedHeight The rendered extent along y, in pixels.
+	 * @return ReadbackTicket The claim ticket to poll.
+	 */
+	fun beginReadback(target: RenderTarget, usedWidth: Int, usedHeight: Int): ReadbackTicket
 
 	/**
 	 * The pixels of an in-flight read-back once ready, or null while the GPU is still copying.
@@ -222,6 +262,17 @@ public interface RenderDevice {
 	 * @return RasterImage The pixels, top row first.
 	 */
 	fun readPixels(target: RenderTarget): RasterImage
+
+	/**
+	 * [readPixels] restricted to the target's USED region (see [resolveUsed] for the anchoring
+	 * contract).  The returned image is usedWidth x usedHeight, top row first.
+	 *
+	 * @param RenderTarget target The target to read.
+	 * @param Int usedWidth The rendered extent along x, in pixels.
+	 * @param Int usedHeight The rendered extent along y, in pixels.
+	 * @return RasterImage The pixels, top row first.
+	 */
+	fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage
 
 	/**
 	 * The backend's device / driver / version as one line - a startup diagnostic confirming which backend
@@ -375,13 +426,18 @@ public interface RenderPassEncoder {
 	fun setPipeline(pipeline: RenderPipeline)
 
 	/**
-	 * Sets the pass-wide world→NDC affine and viewport size.
+	 * Sets the pass-wide world→NDC affine and the screen-space texture divisor.
 	 *
-	 * @param WorldToNdc worldToNdc     The camera affine.
-	 * @param Int        viewportWidth  The viewport width, for the mask's screen-space lookup.
-	 * @param Int        viewportHeight The viewport height.
+	 * The divisor is the ALLOCATED size of the screen-space side textures (mask coverage, composite
+	 * layer, destination snapshot) a draw may sample by `gl_FragCoord / screenTexSize` - never the
+	 * pass viewport, which lives in [RenderPassSpec].  The two agree only when the side targets are
+	 * exactly viewport-sized; with grow-only side targets the divisor is the high-water capacity.
+	 *
+	 * @param WorldToNdc worldToNdc      The camera affine.
+	 * @param Int        screenTexWidth  The sampled side textures' allocated width, in pixels.
+	 * @param Int        screenTexHeight The sampled side textures' allocated height, in pixels.
 	 */
-	fun setCamera(worldToNdc: WorldToNdc, viewportWidth: Int, viewportHeight: Int)
+	fun setCamera(worldToNdc: WorldToNdc, screenTexWidth: Int, screenTexHeight: Int)
 
 	/**
 	 * Draws one deforming art mesh.

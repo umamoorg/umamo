@@ -43,7 +43,7 @@ internal fun compositeFragmentShader(dialect: GlslDialect): String =
 		uniform sampler2D layerTexture;
 		uniform sampler2D destTexture;
 		uniform sampler2D maskTexture;
-		uniform vec2 viewportSize;
+		uniform vec2 screenTexSize;
 		uniform int colorMode;
 		uniform int alphaMode;
 		uniform float opacity;
@@ -169,7 +169,7 @@ internal fun compositeFragmentShader(dialect: GlslDialect): String =
 		}
 
 		void main() {
-			vec2 screenUv = gl_FragCoord.xy / viewportSize;
+			vec2 screenUv = gl_FragCoord.xy / screenTexSize;
 			vec4 layer = texture(layerTexture, screenUv);
 			vec4 dest = texture(destTexture, screenUv);
 			float layerScale = opacity;

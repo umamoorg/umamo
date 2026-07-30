@@ -73,9 +73,12 @@ internal class GlDeformedPositionStore(
  * draw - 36 call sites' worth of string lookups per frame.
  */
 internal class GlUniformLocations(program: Int) {
-	// Per-pass
+	// Per-pass.  viewportSize is the grid program's genuine viewport extent; screenTexSize is the
+	// puppet/composite programs' screen-space texture divisor (the side targets' allocated size,
+	// which the grow-only capacity can hold above the viewport size).
 	val worldToNdc = GL20.glGetUniformLocation(program, "worldToNdc")
 	val viewportSize = GL20.glGetUniformLocation(program, "viewportSize")
+	val screenTexSize = GL20.glGetUniformLocation(program, "screenTexSize")
 
 	// Samplers
 	val atlas = GL20.glGetUniformLocation(program, "atlas")

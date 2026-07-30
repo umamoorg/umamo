@@ -21,13 +21,15 @@ import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.resources.*
 
-/** How long to coalesce rapid layout edits (a splitter drag) before writing to disk. */
+/** How long to coalesce rapid layout edits (structural bursts) before writing to disk. */
 private const val PERSIST_DEBOUNCE_MS = 400L
 
 /**
  * The settings-backed [EditorShell]: loads the persisted layout at startup (seeding defaults on first
  * run), drives the UI language from the localization.locale setting (reacting to changes), and
- * debounce-persists layout edits back to settings so a splitter drag does not hammer the disk.
+ * debounce-persists layout edits back to settings.  Splitter drags are paced separately through a
+ * [LayoutSavePacer]: no write happens while the drag is held (even across a mid-drag pause longer
+ * than the debounce), and the release commits exactly one write.
  *
  * Kept separate from [EditorShell] so the shell itself stays Settings-free and unit-testable; this is
  * the thin wrapper apps mount.
@@ -51,6 +53,7 @@ fun PersistentEditorShell(
 	val settings = LocalSettings.current
 	val initialLayout = remember { loadLayout(settings) }
 	var latestLayout by remember { mutableStateOf(initialLayout) }
+	val savePacer = remember(settings) { LayoutSavePacer(initialLayout) { layout -> saveLayout(settings, layout) } }
 
 	// The active locale follows the localization.locale setting and updates live when it changes.
 	val locale by produceState(initialValue = settings.getString("localization.locale") ?: "en", settings) {
@@ -73,12 +76,13 @@ fun PersistentEditorShell(
 	}
 
 	// Persist layout edits, debounced: snapshotFlow observes the latest layout, drop(1) skips the
-	// initial value, and debounce coalesces a flurry of splitter drags into one disk write.
+	// initial value, and debounce coalesces a structural burst into one disk write.  The pacer holds
+	// the write while a splitter drag is live and suppresses the duplicate after a drag-end commit.
 	LaunchedEffect(settings) {
 		snapshotFlow { latestLayout }
 			.drop(1)
 			.debounce(PERSIST_DEBOUNCE_MS)
-			.collect { layout -> saveLayout(settings, layout) }
+			.collect { layout -> savePacer.saveDebounced(layout) }
 	}
 
 	// The viewport chrome flags follow their settings keys reactively, so the toggle commands (and any
@@ -121,6 +125,7 @@ fun PersistentEditorShell(
 			languageTag = locale,
 			keymap = keymap,
 			onLayoutChange = { layout -> latestLayout = layout },
+			onLayoutDragChange = { dragActive -> savePacer.setDragActive(dragActive, latestLayout) },
 		)
 	}
 }

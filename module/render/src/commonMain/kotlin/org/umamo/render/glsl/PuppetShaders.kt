@@ -75,10 +75,13 @@ internal fun glueVertexShader(dialect: GlslDialect): String =
  * the selection highlight, and writes PREMULTIPLIED alpha (`rgb * alpha, alpha`) - which is why every
  * blend mode's source factor is `GL_ONE`.
  *
- * The mask is sampled by `gl_FragCoord.xy / viewportSize` - screen space, since the coverage pass rendered
- * it at the same viewport size.  That is self-consistent under either framebuffer origin convention (GL's
- * bottom-left, Metal's top-left) and so needs no per-dialect flip; it only holds while the mask pass and
- * this pass share a convention, which a port must keep true.
+ * The mask is sampled by `gl_FragCoord.xy / screenTexSize` - screen space, with the divisor the mask
+ * texture's ALLOCATED size (equal to the viewport size only when the texture is exactly viewport-sized;
+ * side targets are grow-only, so it is usually the high-water capacity).  The coverage pass renders at
+ * the same origin-anchored viewport, so fragment (x, y) reads coverage texel (x, y) exactly.  That is
+ * self-consistent under either framebuffer origin convention (GL's bottom-left, Metal's top-left) and so
+ * needs no per-dialect flip; it only holds while the mask pass and this pass share a convention, which a
+ * port must keep true.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
@@ -94,7 +97,7 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		uniform float opacity;
 		uniform int useMask;
 		uniform sampler2D maskTexture;
-		uniform vec2 viewportSize;
+		uniform vec2 screenTexSize;
 		uniform int invertMask;
 		uniform vec3 multiplyColor;
 		uniform vec3 screenColor;
@@ -104,7 +107,7 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 			vec4 base = (useTexture == 1) ? texture(atlas, vUv) : drawColor;
 			float alpha = base.a * opacity;
 			if (useMask == 1) {
-				float coverage = texture(maskTexture, gl_FragCoord.xy / viewportSize).a;
+				float coverage = texture(maskTexture, gl_FragCoord.xy / screenTexSize).a;
 				alpha *= (invertMask == 1) ? (1.0 - coverage) : coverage;
 			}
 			vec3 tinted = base.rgb * multiplyColor;

@@ -100,6 +100,10 @@ import org.umamo.ui.theme.hiddenPointerIcon
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).
  * @param Function onLayoutChange Called with every new layout, for persistence.
+ * @param Function onLayoutDragChange Called with true when a splitter drag begins and false when it
+ *   ends; the persistence wrapper holds the debounced write while the drag is live and commits
+ *   immediately at its end.  The signal carries no layout and publishes nothing, so it bypasses
+ *   [WorkspaceLayoutController] on purpose - a controller pass-through would add API for no state.
  */
 @Composable
 fun EditorShell(
@@ -112,10 +116,12 @@ fun EditorShell(
 	languageTag: String = "en",
 	keymap: Keymap = defaultKeymap(),
 	onLayoutChange: (InterfaceLayout) -> Unit = {},
+	onLayoutDragChange: (Boolean) -> Unit = {},
 ) {
 	// The layout controller outlives recompositions, so it publishes through a live reference to the
 	// persistence hook rather than capturing the first composition's lambda.
 	val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
+	val currentOnLayoutDragChange by rememberUpdatedState(onLayoutDragChange)
 	val workspaces = remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	val overlays = remember { ShellOverlayState() }
 	// The localized base name new and imported workspaces are named from (deduped) - the same string the "+"
@@ -370,6 +376,7 @@ fun EditorShell(
 									onNodeChange = { newRoot -> workspaces.updateActiveRoot(newRoot) },
 									onCommand = { command -> workspaces.applyAreaCommand(command) },
 									modifier = Modifier.padding(4.dp),
+									onSplitterDragChange = { dragActive -> currentOnLayoutDragChange(dragActive) },
 								)
 							}
 							// Visual-only join highlight, painted last so it floats above the tree (and the offscreen viewport).

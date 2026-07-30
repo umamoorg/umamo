@@ -173,3 +173,56 @@ private class WriteThroughDoubleSettingState(
 
 	override fun component2(): (Double) -> Unit = { newValue -> value = newValue }
 }
+
+/**
+ * A write-through, reactive binding to one boolean-valued setting - the [rememberStringSetting]
+ * counterpart for flag keys, with the same auto-save and external-change semantics.
+ *
+ * 1 つの真偽値設定への双方向バインディング。読み取りで現在値、代入で即時保存。他所からの変更も反映する。
+ *
+ * @param String key     The dotted settings key (e.g. "viewport.rendering.supersample").
+ * @param Boolean default The value used when the key is absent (rarely hit; defaultSettings.json seeds most).
+ * @return MutableState A state whose getter reads the merged value and whose setter persists to the user layer.
+ */
+@Composable
+fun rememberBooleanSetting(key: String, default: Boolean): MutableState<Boolean> {
+	val settings = LocalSettings.current
+	val backing = remember(settings, key) { mutableStateOf(settings.getBoolean(key) ?: default) }
+	// Re-read when this key is written from anywhere, so a value changed by another control or command
+	// (not just this binding's own setter) reflects here too.
+	LaunchedEffect(settings, key) {
+		settings.changes.collect { changedKey ->
+			if (changedKey == key) {
+				backing.value = settings.getBoolean(key) ?: default
+			}
+		}
+	}
+	return remember(settings, key, backing) { WriteThroughBooleanSettingState(settings, key, backing) }
+}
+
+/**
+ * The [MutableState] returned by [rememberBooleanSetting]: the flag twin of
+ * [WriteThroughSettingState], persisting through [Settings.setBoolean].
+ *
+ * @property Settings           settings The settings instance the write persists into.
+ * @property String             key      The dotted key being bound.
+ * @property MutableState backing  The local state mirroring the merged value.
+ */
+private class WriteThroughBooleanSettingState(
+	private val settings: Settings,
+	private val key: String,
+	private val backing: MutableState<Boolean>,
+) : MutableState<Boolean> {
+	override var value: Boolean
+		get() = backing.value
+		set(newValue) {
+			// Update the local mirror first so the read is immediate, then persist (which also emits on
+			// `changes`; the collector re-reading the now-identical value is a harmless no-op).
+			backing.value = newValue
+			settings.setBoolean(key, newValue)
+		}
+
+	override fun component1(): Boolean = value
+
+	override fun component2(): (Boolean) -> Unit = { newValue -> value = newValue }
+}
