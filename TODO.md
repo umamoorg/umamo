@@ -15,15 +15,14 @@
 	* This includes MeshEditColors.kt.(One full pass has already been done.)
 
 ## User Stories
+* glTF export for easy import into game engines.  (Requested; far future.)
+	* Shares buffer/accessor concepts with UMA's bulk-geometry encoding decision (docs/plan/uma-format.md U1), and would slot into the Document › Runtime export-targets model (§ Properties Panel).
 * From CrystalorImLisa on Reddit: The ability to mirror deformers and drawables along with their key frames.
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
 ## World Origin
 I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
-
-## Performance
-Investigate if dragging an area gutter is performance bound or if something stupid is happening like thousands of updates per second.
 
 ## MOC3 Lowering
 LimeBirb has some non-byte exactness to investigate.
@@ -115,6 +114,15 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ### UMA (Native File Format)
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
+See format planning document: docs/plan/uma-format.md
+
+Format Goals:
+* Forwards compatible - Newer editors should be able to open older version files and upgrade as necessary.
+* Best effort backwards compatible - Older editors should be able to open newer version files and not crash on unknown data.
+* Extensible - Eventually physics and animation will make it into the format.  Both of those not part of the base puppet model, but features that interacts with it driving parameters and properties.
+* Has to store atlas textures, individual layer textures.  They are all just textures.  Possibly having an "isAtlas" flag would only be data reference purposes and not treating the underlying image differently.
+* Data structures should be marked with file version and/or sub-versions.
+* Storage of editor state: Collapsed/expanded sections in different panels, tracking visibility, etc.
 
 ## Import
 Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.

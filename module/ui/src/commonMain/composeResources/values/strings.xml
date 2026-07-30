@@ -524,10 +524,9 @@
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
-	<string name="settings_viewport_supersample">Supersampling (2x render quality)</string>
+	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
-	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette
-	     (viewport.meshEdit.*), grouped element × state. -->
+	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>

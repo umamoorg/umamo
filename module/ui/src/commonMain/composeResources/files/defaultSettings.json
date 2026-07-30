@@ -32,7 +32,7 @@
 		},
 		"rendering": {
 			"supersample": true,
-			"supersampleWhileResizing": false
+			"supersampleWhileResizing": true
 		},
 		"meshEdit": {
 			"vertexIdle": "#FFFF00EC",
