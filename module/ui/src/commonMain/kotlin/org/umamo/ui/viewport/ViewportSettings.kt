@@ -14,9 +14,17 @@ internal object ViewportSettings {
 	const val ACTIVE_SELECTION_HIGHLIGHT_KEY = "viewport.activeSelectionHighlightColor"
 	const val GRID_SCALE_KEY = "viewport.grid.scale"
 	const val GRID_SUBDIVISIONS_KEY = "viewport.grid.subdivisions"
+	const val SUPERSAMPLE_KEY = "viewport.rendering.supersample"
+	const val SUPERSAMPLE_WHILE_RESIZING_KEY = "viewport.rendering.supersampleWhileResizing"
 
 	const val ZOOM_STEP_DEFAULT = 1.0
 	const val ZOOM_STEP_COARSE_DEFAULT = 5.0
+
+	/** Supersampling on by default; off renders everything at 1x (the weak-GPU escape hatch). */
+	const val SUPERSAMPLE_DEFAULT = true
+
+	/** On by default: frames rendered while an area is actively resizing keep the supersample. */
+	const val SUPERSAMPLE_WHILE_RESIZING_DEFAULT = true
 
 	const val SELECTION_HIGHLIGHT_DEFAULT = "#338CFF"
 	const val ACTIVE_SELECTION_HIGHLIGHT_DEFAULT = "#7DE400"

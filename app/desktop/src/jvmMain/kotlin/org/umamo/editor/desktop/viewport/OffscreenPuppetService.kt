@@ -71,6 +71,18 @@ class OffscreenPuppetService(
 			registry.zoomStepCoarsePercent = value
 		}
 
+	override var supersampleEnabled: Boolean
+		get() = engine.supersampleEnabled
+		set(value) {
+			engine.supersampleEnabled = value
+		}
+
+	override var supersampleWhileResizing: Boolean
+		get() = engine.supersampleWhileResizing
+		set(value) {
+			engine.supersampleWhileResizing = value
+		}
+
 	override var gridColors: GridColors
 		get() = engine.gridColors
 		set(value) {

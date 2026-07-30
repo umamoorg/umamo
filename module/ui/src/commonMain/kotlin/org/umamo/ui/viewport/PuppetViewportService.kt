@@ -67,6 +67,12 @@ interface PuppetViewportService {
 	/** The coarse (Shift-held) zoom increment in percentage points, fed from settings. */
 	var zoomStepCoarsePercent: Float
 
+	/** Whether settled frames render supersampled at all, fed from settings; off is 1x everywhere. */
+	var supersampleEnabled: Boolean
+
+	/** Whether frames rendered mid-resize keep the supersample, fed from settings; off drops them to 1x. */
+	var supersampleWhileResizing: Boolean
+
 	/** The grid backdrop colors (background / major / minor), fed from the editor theme; a change forces a redraw. */
 	var gridColors: GridColors
 

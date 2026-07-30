@@ -16,8 +16,6 @@ import java.awt.Window
  * caption does not sit as a bright system-colored strip above a dark app. Only Windows 11's Desktop Window
  * Manager exposes this (DWMWA_CAPTION_COLOR); every other platform is a no-op. The caption color is read
  * from [LocalUmamoColors] so it tracks the active light/dark theme.
- *
- * デスクトップのウィンドウ装飾連携。タイトルバーをエディタの配色に合わせて着色する（Windows 11 の DWM のみ）。
  */
 
 /**
@@ -81,8 +79,7 @@ private fun Color.toColorRef(): Int {
  * @param Color  color  The desired caption fill color.
  */
 private fun setWindowsCaptionColor(window: Window, color: Color) {
-	// EN: Gate on the OS before touching the JNA binding, so dwmapi.dll is only ever loaded on Windows.
-	// JA: JNA に触れる前に OS を判定し、dwmapi.dll を Windows 以外で読み込まないようにする。
+	// Gate on the OS before touching the JNA binding, so dwmapi.dll is only ever loaded on Windows.
 	if (!System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
 		return
 	}

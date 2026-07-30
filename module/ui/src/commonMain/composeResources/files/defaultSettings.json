@@ -30,6 +30,10 @@
 			"scale": 100.0,
 			"subdivisions": 10
 		},
+		"rendering": {
+			"supersample": true,
+			"supersampleWhileResizing": true
+		},
 		"meshEdit": {
 			"vertexIdle": "#FFFF00EC",
 			"vertexSelected": "#FFFF7A00",

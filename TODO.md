@@ -15,15 +15,14 @@
 	* This includes MeshEditColors.kt.(One full pass has already been done.)
 
 ## User Stories
+* glTF export for easy import into game engines.  (Requested; far future.)
+	* Shares buffer/accessor concepts with UMA's bulk-geometry encoding decision (docs/plan/uma-format.md U1), and would slot into the Document › Runtime export-targets model (§ Properties Panel).
 * From CrystalorImLisa on Reddit: The ability to mirror deformers and drawables along with their key frames.
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
 ## World Origin
 I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
-
-## Performance
-Investigate if dragging an area gutter is performance bound or if something stupid is happening like thousands of updates per second.
 
 ## MOC3 Lowering
 LimeBirb has some non-byte exactness to investigate.
@@ -115,10 +114,19 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ### UMA (Native File Format)
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
+See format planning document: docs/plan/uma-format.md
+
+Format Goals:
+* Forwards compatible - Newer editors should be able to open older version files and upgrade as necessary.
+* Best effort backwards compatible - Older editors should be able to open newer version files and not crash on unknown data.
+* Extensible - Eventually physics and animation will make it into the format.  Both of those not part of the base puppet model, but features that interacts with it driving parameters and properties.
+* Has to store atlas textures, individual layer textures.  They are all just textures.  Possibly having an "isAtlas" flag would only be data reference purposes and not treating the underlying image differently.
+* Data structures should be marked with file version and/or sub-versions.
+* Storage of editor state: Collapsed/expanded sections in different panels, tracking visibility, etc.
 
 ## Import
 Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
-MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 command): Moc3Import joins the decoded moc with model3.json (required, plus every listed texture) and cdi3.json (optional, degrades to raw ids); missing sidecars fail with dedicated alerts (MissingManifest/MissingTexture).  Moc3Cmo3ParityTest pins the coordinate conversion against the CMO3 corpus twin.  Remaining: Android sibling discovery (SAF has no directory access - desktop-first for now), blend shapes import as no-op sliders until blend-shape eval exists.
+* MOC3 sidecar discovery on Android.  MOC3 might be a desktop only feature.
 
 ## Reimport
 * Detection of edited source art files when application reacquires focus.
@@ -165,7 +173,7 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * Make history limit configurable.
 
 ## Keybindings
-* Create default keybinding maps for Blender and Cubism styles.
+* Audit default keybinding maps for Blender and Cubism styles.
 
 ## Random Bugs
 * While resizing the application window pressing escape to cancel the resize snaps the window back, but the Compose area does not.
@@ -179,8 +187,12 @@ MOC3 with sidecar processing - DONE (File > Import MOC3…, the file.importMoc3 
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 
-# Build and Distribute
+## Build and Distribute
 * Eventually get installers, signing, and automatic updates setup.
+
+## MacOS
+* Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
+* Need to add back a light native menu so it does not say "MainKt" all the time.
 
 ## Input
 

@@ -35,6 +35,16 @@ private const val IDLE_MILLIS = 16L
 private const val BUSY_MILLIS = 1L
 
 /**
+ * Minimum interval between resize-driven re-renders while an area's size is actively changing (a
+ * gutter drag or a window-edge resize): about 10 Hz of live feedback, with the Compose side
+ * stretching the previous frame between them.  Pose / camera / state changes are never throttled.
+ */
+private const val RESIZE_THROTTLE_NANOS = 50_000_000L
+
+/** How long a size must hold still before it counts as settled (the full-quality render then runs). */
+private const val RESIZE_SETTLE_NANOS = 25_000_000L
+
+/**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
  * UI thread pushes (selection, shown set, model, grid, highlight colors), renders each registered area whose
@@ -43,9 +53,6 @@ private const val BUSY_MILLIS = 1L
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
  * All viewport areas of one document show the same puppet at the same pose (the shared [liveParams]), so
  * areas differ only by SIZE; re-renders happen only when the pose or an area's size/camera/backdrop changes.
- *
- * パペット描画エンジン。専用デーモンスレッドが GL コンテキスト・レンダラー・FBO・読み戻しプールを所有し、
- * 描画ループを回す。読み戻しは PBO とフェンスで非同期化する。
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).
@@ -152,6 +159,15 @@ internal class OffscreenRenderEngine(
 
 	@Volatile
 	private var activeHighlightBlue: Float = 0.0f
+
+	// The performance settings (viewport.rendering.*): whether settled frames supersample at all, and
+	// whether frames rendered while a size is actively changing keep the supersample (false = drop to
+	// 1x for a quarter of the fill cost during gutter drags and window resizes).
+	@Volatile
+	private var supersampleBacking: Boolean = true
+
+	@Volatile
+	private var supersampleWhileResizingBacking: Boolean = true
 
 	private var dumped = false
 
@@ -285,6 +301,33 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * Whether settled frames render supersampled at all (viewport.rendering.supersample).  Off renders
+	 * everything at 1x - the whole-session performance escape hatch for weak GPUs.  A change bumps
+	 * both render passes so every area repaints at the new quality.
+	 */
+	var supersampleEnabled: Boolean
+		get() = supersampleBacking
+		set(value) {
+			if (value != supersampleBacking) {
+				supersampleBacking = value
+				doPuppetRenderBump()
+				doAtlasRenderBump()
+			}
+		}
+
+	/**
+	 * Whether frames rendered while an area's size is actively changing keep the supersample
+	 * (viewport.rendering.supersampleWhileResizing).  False (the default) drops those frames to 1x;
+	 * the settle render restores full quality within the settle window.  No bump on change - the next
+	 * resize simply picks up the new policy.
+	 */
+	var supersampleWhileResizing: Boolean
+		get() = supersampleWhileResizingBacking
+		set(value) {
+			supersampleWhileResizingBacking = value
+		}
+
+	/**
 	 * Bump the render version for puppets to increase the frame by one.
 	 */
 	fun doPuppetRenderBump() {
@@ -342,11 +385,27 @@ internal class OffscreenRenderEngine(
 					paramsVersion++
 				}
 				var pendingWork = pendingFrames.isNotEmpty()
+				val nowNanos = System.nanoTime()
+				val settleScale = if (supersampleBacking) RENDER_SUPERSAMPLE else 1
+				// With supersampling off both scales collapse to 1, so supersampleWhileResizing is
+				// inert by construction (the preferences UI disables its checkbox to say so).
+				val interactiveScale = if (supersampleWhileResizingBacking) settleScale else 1
 				for ((areaId, slot) in registry.areas) {
 					val width = slot.width
 					val height = slot.height
 					if (width <= 0 || height <= 0) {
 						continue
+					}
+					// Track size-change recency for the resize throttle.  The FIRST observation (a fresh
+					// slot, observed 0x0) does not stamp, so a newly opened area counts as settled and its
+					// first frame renders at full quality immediately.
+					if (width != slot.observedWidth || height != slot.observedHeight) {
+						val firstObservation = slot.observedWidth == 0 && slot.observedHeight == 0
+						slot.observedWidth = width
+						slot.observedHeight = height
+						if (!firstObservation) {
+							slot.sizeChangedNanos = nowNanos
+						}
 					}
 					if (slot.inFlight) {
 						pendingWork = true
@@ -355,30 +414,44 @@ internal class OffscreenRenderEngine(
 					// Establish or refit the camera now that the size is known - the render thread owns the
 					// content bounds; the registry restores a remembered camera or fits fresh.
 					val camera = registry.establishCamera(slot, areaId, width, height) { contentBoundsFor(slot) }
+					// Freshness splits into the size axis (throttled during an active resize) and the rest.
+					// A frame rendered below the settle scale stays size-stale on purpose, so the settle
+					// pass re-renders it at full quality once the size holds still.
 					// An atlas page is model-independent, so its freshness ignores the pose version and
 					// puppetRenderBump: it re-renders only on size / camera / pageIndex, plus the grid colors and
 					// geometry it draws its backdrop with - tracked by atlasRenderBump. The puppet keeps the full
 					// freshness via puppetRenderBump.
-					val fresh =
+					val sizeFresh = slot.renderedWidth == width && slot.renderedHeight == height && slot.renderedScale == settleScale
+					val restFresh =
 						when (slot.scene) {
 							RenderScene.Puppet2D ->
-								slot.renderedWidth == width &&
-									slot.renderedHeight == height &&
-									slot.renderedParamsVersion == paramsVersion &&
+								slot.renderedParamsVersion == paramsVersion &&
 									slot.renderedCamera === camera &&
 									slot.puppetRenderBumpDone == puppetRenderBump
 
 							RenderScene.AtlasPage ->
-								slot.renderedWidth == width &&
-									slot.renderedHeight == height &&
-									slot.renderedPageIndex == slot.pageIndex &&
+								slot.renderedPageIndex == slot.pageIndex &&
 									slot.renderedCamera === camera &&
 									slot.atlasRenderBumpDone == atlasRenderBump
 						}
-					if (fresh) {
+					if (sizeFresh && restFresh) {
 						continue
 					}
-					issueRender(areaId, slot, width, height, paramsVersion, camera, orderModel)
+					if (restFresh && shouldDeferResizeRender(slot, nowNanos)) {
+						// Deliberately NOT pendingWork: with no read-back in flight the loop then sleeps
+						// IDLE_MILLIS (16 ms) and revisits, which cannot oversleep the RESIZE_SETTLE_NANOS or the
+						// RESIZE_THROTTLE_NANOS window - flagging pendingWork with an empty pendingFrames queue
+						// would skip both sleeps and busy-spin instead.
+						continue
+					}
+					// A size still in motion renders at the interactive scale; pose / camera / state changes
+					// during that motion share the burst's quality rather than forcing a full-scale render.
+					val sizeInMotion = nowNanos - slot.sizeChangedNanos < RESIZE_SETTLE_NANOS
+					val renderScale = if (sizeInMotion) interactiveScale else settleScale
+					if (width != slot.renderedWidth || height != slot.renderedHeight) {
+						slot.resizeRenderNanos = nowNanos
+					}
+					issueRender(areaId, slot, width, height, paramsVersion, camera, orderModel, renderScale)
 					pendingWork = true
 				}
 				if (!pendingWork) {
@@ -404,6 +477,21 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * The resize-throttle gate: whether a render whose ONLY staleness is its size should wait.  A size
+	 * that has held still for the settle window renders immediately (the full-quality settle pass);
+	 * one still in motion renders at most once per throttle interval.
+	 *
+	 * @param AreaSlot slot The area being considered.
+	 * @param Long nowNanos The loop pass's monotonic timestamp.
+	 * @return Boolean True to skip this tick and let the idle sleep revisit.
+	 */
+	private fun shouldDeferResizeRender(slot: AreaSlot, nowNanos: Long): Boolean {
+		val settled = nowNanos - slot.sizeChangedNanos >= RESIZE_SETTLE_NANOS
+		val throttleElapsed = nowNanos - slot.resizeRenderNanos >= RESIZE_THROTTLE_NANOS
+		return !settled && !throttleElapsed
+	}
+
+	/**
 	 * Renders [slot] at [width] x [height] into the supersampled draw target, box-downscales it into the
 	 * resolve framebuffer, then kicks off an asynchronous read-back gated by a fence. Marks the slot
 	 * in-flight; the result is posted later by [collectCompleted].
@@ -415,6 +503,8 @@ internal class OffscreenRenderEngine(
 	 * @param Long paramsVersion The pose version this render reflects.
 	 * @param ViewportCamera camera The view to project through.
 	 * @param PuppetModel orderModel The model whose geometry this render reflects (stamped onto the frame).
+	 * @param Int renderScale Framebuffer pixels per display pixel for THIS render: the settle scale for
+	 *   a still frame, the interactive scale while the size is in motion.
 	 */
 	private fun issueRender(
 		areaId: String,
@@ -424,16 +514,18 @@ internal class OffscreenRenderEngine(
 		paramsVersion: Long,
 		camera: ViewportCamera,
 		orderModel: PuppetModel,
+		renderScale: Int,
 	) {
-		val renderWidth = width * RENDER_SUPERSAMPLE
-		val renderHeight = height * RENDER_SUPERSAMPLE
+		val renderWidth = width * renderScale
+		val renderHeight = height * renderScale
 
-		val drawTarget = surface.ensure(width, height)
+		val drawTarget = surface.ensure(width, height, renderScale)
 
-		// Supersample: render the whole pipeline (puppet, clip masks, grid) into the RENDER_SUPERSAMPLE x draw
+		// Supersample: render the whole pipeline (puppet, clip masks, grid) into the renderScale x draw
 		// buffer, then box-downscale to display size on resolve. The camera zoom and the grid line width scale
-		// by the same factor so framing and backdrop are unchanged after the downscale.
-		renderer.setRenderScale(RENDER_SUPERSAMPLE.toFloat())
+		// by the same factor so framing and backdrop are unchanged after the downscale.  The resolve target
+		// is display-size whatever the scale, so read-back consumers never see the quality switch.
+		renderer.setRenderScale(renderScale.toFloat())
 
 		// Capture the backdrop versions applied to this render so the freshness stamp below matches what was
 		// actually drawn; a change after this point bumps them again and re-renders next iteration.
@@ -448,7 +540,7 @@ internal class OffscreenRenderEngine(
 		// The shown set is applied in the render-loop pose block (before setPose filters the draw list by it).
 		renderer.setSelectionHighlightColor(highlightRed, highlightGreen, highlightBlue)
 		renderer.setActiveSelectionHighlightColor(activeHighlightRed, activeHighlightGreen, activeHighlightBlue)
-		renderer.setCamera(camera.copy(zoom = camera.zoom * RENDER_SUPERSAMPLE))
+		renderer.setCamera(camera.copy(zoom = camera.zoom * renderScale))
 
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
@@ -465,7 +557,7 @@ internal class OffscreenRenderEngine(
 				// file write live here rather than in :render - reading pixels is the renderer's business,
 				// turning them into a PNG on disk is not, and keeping the split means :render needs no
 				// image library at all.
-				File(dumpPath).writeBytes(PngCodec.write(device.readPixels(surface.resolveTarget)))
+				File(dumpPath).writeBytes(PngCodec.write(device.readPixels(surface.resolveTarget, width, height)))
 				dumped = true
 				UmamoLog.info("[GL] puppet dumped to $dumpPath (${width}x$height)")
 			}
@@ -473,11 +565,13 @@ internal class OffscreenRenderEngine(
 
 		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera) and to
 		// orderModel, the geometry this render reflects, so the overlay projects/poses against them - keeping
-		// the mesh glued to the raster along both the navigation and edit axes.
-		pendingFrames.addLast(PendingFrame(device.beginReadback(surface.resolveTarget), areaId, camera, orderModel))
+		// the mesh glued to the raster along both the navigation and edit axes.  The resolve target is
+		// capacity-sized (grow-only), so the read-back covers only the used region.
+		pendingFrames.addLast(PendingFrame(device.beginReadback(surface.resolveTarget, width, height), areaId, camera, orderModel))
 		slot.inFlight = true
 		slot.renderedWidth = width
 		slot.renderedHeight = height
+		slot.renderedScale = renderScale
 		slot.renderedParamsVersion = paramsVersion
 		slot.renderedCamera = camera
 		slot.puppetRenderBumpDone = puppetRenderBumpDone

@@ -72,6 +72,16 @@ internal class AreaSlot {
 	var puppetRenderBumpDone: Long = -1
 	var atlasRenderBumpDone: Long = -1
 	var renderedPageIndex: Int? = null
+
+	// Render-thread-only resize-throttle bookkeeping: the last size the loop observed, when it last
+	// changed, when the last resize-driven render was issued (all System.nanoTime), and the
+	// supersample scale of the last issued render (a 1x interactive frame stays size-stale so the
+	// settle pass re-renders it at full quality).
+	var observedWidth: Int = 0
+	var observedHeight: Int = 0
+	var sizeChangedNanos: Long = 0L
+	var resizeRenderNanos: Long = 0L
+	var renderedScale: Int = -1
 }
 
 /**
@@ -79,9 +89,6 @@ internal class AreaSlot {
  * on the UI thread; [OffscreenRenderEngine] iterates the same [areas] map on the render thread and calls
  * [establishCamera] to fit newly-sized areas. The shared state is safe across the two threads: the slot map
  * is a ConcurrentHashMap, per-area hand-off fields are @Volatile, and the camera flows are StateFlows.
- *
- * ビューポートのエリアとカメラを所有する。登録・リサイズ・ナビゲーションは UI スレッド、描画はエンジンが
- * レンダースレッドから同じスロットを読む。
  */
 internal class ViewportAreaRegistry {
 	/** The registered areas, keyed by stable area id. Iterated by the render engine; mutated by the UI thread. */

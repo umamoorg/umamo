@@ -14,8 +14,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * destructive case; deleting a deformer "unwraps" it (its sub-deformers and bound meshes re-home to its
  * parent); deleting a part is either a cascade (the part and its whole subtree) or an ungroup (the folder
  * only, contents spliced up into its parent). Org-tree edits re-derive the render order.
- *
- * 組織ツリー上の要素削除。参照ごと安全に取り除く。デフォーマ削除は配下を親へ繰り上げる。
  */
 
 /** A copy of this deformer re-nested under [newParent] in the transform hierarchy (used to re-home orphans). */

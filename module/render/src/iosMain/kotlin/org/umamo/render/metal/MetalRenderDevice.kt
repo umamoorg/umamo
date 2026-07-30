@@ -100,8 +100,25 @@ class MetalRenderDevice : RenderDevice {
 				"same-size sub-rect copy (the composite snapshot), for which a plain MTLBlitCommandEncoder copy is exact.",
 		)
 
+	override fun resolveUsed(
+		source: RenderTarget,
+		sourceUsedWidth: Int,
+		sourceUsedHeight: Int,
+		destination: RenderTarget,
+		destinationUsedWidth: Int,
+		destinationUsedHeight: Int,
+		region: ScissorRect?,
+	): Unit =
+		TODO(
+			"Metal port: like resolve but over the used regions.  Content anchors at Metal's TOP-LEFT origin, " +
+				"so the used region is the top-left rows and a non-null region needs no y conversion at all.",
+		)
+
 	override fun beginReadback(target: RenderTarget): ReadbackTicket =
 		TODO("Metal port: blit target into a shared-storage staging buffer, addCompletedHandler flags the ticket done")
+
+	override fun beginReadback(target: RenderTarget, usedWidth: Int, usedHeight: Int): ReadbackTicket =
+		TODO("Metal port: the full-target beginReadback over the top-left used region (no flip on this backend)")
 
 	override fun pollReadback(ticket: ReadbackTicket): RasterImage? =
 		TODO("Metal port: drain the completed flag ON THE POLL, so results arrive on the render thread whatever thread the handler ran on; top-first already, no row flip")
@@ -110,6 +127,9 @@ class MetalRenderDevice : RenderDevice {
 
 	override fun readPixels(target: RenderTarget): RasterImage =
 		TODO("Metal port: getBytes - already top-first, NO row flip (unlike the GL device)")
+
+	override fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage =
+		TODO("Metal port: the full-target readPixels over the top-left used region (no flip on this backend)")
 
 	override fun describeBackend(): String = TODO("Metal port: MTLDevice.name")
 }

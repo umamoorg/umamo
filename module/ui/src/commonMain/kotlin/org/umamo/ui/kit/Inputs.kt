@@ -40,12 +40,14 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * A compact checkbox row: a small box (accent-filled with a checkmark when on, neutral when off) plus a
- * label, the whole row toggling [onCheckedChange].
+ * label, the whole row toggling [onCheckedChange].  A disabled row ignores clicks and dims - it still
+ * shows its stored state, so a setting gated behind another one reads as "remembered but inert".
  *
  * @param Boolean  checked         Current state.
  * @param Function onCheckedChange Toggle callback.
  * @param String   label           The row label.
  * @param KeyedFieldState keyState  The keyform state to tint the box's border with.
+ * @param Boolean  enabled         Whether the row accepts clicks; false renders it dimmed.
  */
 @Composable
 fun Checkbox(
@@ -53,20 +55,32 @@ fun Checkbox(
 	onCheckedChange: (Boolean) -> Unit,
 	label: String,
 	keyState: KeyedFieldState = KeyedFieldState.None,
+	enabled: Boolean = true,
 ) {
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
-	val boxFill = if (checked) colors.accent else colors.controlBackground
+	val boxFill =
+		when {
+			checked && enabled -> colors.accent
+			checked -> colors.controlBorder
+			else -> colors.controlBackground
+		}
 	// The keyed tint replaces the box's ordinary border, the way HexColorField does it - a checkbox is
 	// small enough that a second mark beside it would be the louder signal, not the quieter one.
 	val boxBorder = keyState.tint(colors) ?: colors.controlBorder
 	val checkColor = colors.accentText
+	val labelColor = if (enabled) colors.text else colors.textDisabled
 	Row(
 		modifier =
 			Modifier
 				.fillMaxWidth()
 				.height(22.dp)
-				.clickable(interactionSource = interaction, indication = null, onClick = { onCheckedChange(!checked) })
+				.clickable(
+					interactionSource = interaction,
+					indication = null,
+					enabled = enabled,
+					onClick = { onCheckedChange(!checked) },
+				)
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
@@ -83,7 +97,7 @@ fun Checkbox(
 			}
 		}
 		Spacer(modifier = Modifier.width(6.dp))
-		Text(text = label, style = LocalUmamoTypography.current.labelMedium)
+		Text(text = label, style = LocalUmamoTypography.current.labelMedium, color = labelColor)
 	}
 }
 

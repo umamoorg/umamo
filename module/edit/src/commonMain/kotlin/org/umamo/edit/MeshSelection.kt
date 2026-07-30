@@ -71,8 +71,6 @@ sealed interface MeshElement {
  * The active (primary) element of an Edit session: the last-touched element together with the drawable
  * whose mesh it lives in - element indices are mesh-local, so the pair is the element's full identity.
  *
- * アクティブ要素。要素はメッシュ内ローカルなので、属する描画オブジェクトとの組で同一性を持つ。
- *
  * @property DrawableId drawableId The drawable whose mesh holds the element.
  * @property MeshElement element The last-touched element.
  */
@@ -97,9 +95,6 @@ data class ActiveMeshElement(val drawableId: DrawableId, val element: MeshElemen
  * conversion display, the status bar's denominators).  [activeElement] is the element analog of
  * [Selection.active]: the last-touched element with its drawable; it is always a member of its
  * drawable's element set, or null when nothing is selected.
- *
- * 編集モードの選択。セッション内の複数メッシュ・選択モード・メッシュごとの要素集合・アクティブ要素を
- * 保持する不変値。
  *
  * @property List<DrawableId> drawableIds The meshes in the edit session, in selection order.
  * @property DrawableId? activeDrawableId The session's active mesh, or null when the session is inert.
@@ -160,9 +155,6 @@ data class MeshSelection(
  * session and never mutates its input, so they are unit-testable without Compose.  The active element
  * is maintained per the [MeshSelection] invariant: always a member of its drawable's element set, or
  * null when nothing remains.
- *
- * メッシュ要素選択に対する純粋な変換。各ジェスチャに1つ。要素操作は対象メッシュを名指しし、全体操作は
- * メッシュ供給関数を受け取る。入力を変更せず、不変値を返す。
  */
 object MeshSelectionOps {
 	/**

@@ -16,11 +16,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
+import org.umamo.ui.rememberBooleanSetting
 import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.rememberStringSetting
@@ -44,6 +46,8 @@ import org.umamo.ui.resources.settings_theme_light
 import org.umamo.ui.resources.settings_theme_system
 import org.umamo.ui.resources.settings_viewport_grid_scale
 import org.umamo.ui.resources.settings_viewport_grid_subdivisions
+import org.umamo.ui.resources.settings_viewport_supersample
+import org.umamo.ui.resources.settings_viewport_supersample_while_resizing
 import org.umamo.ui.resources.settings_viewport_zoom_step
 import org.umamo.ui.resources.settings_viewport_zoom_step_coarse
 import org.umamo.ui.theme.LocalUmamoColors
@@ -185,13 +189,13 @@ private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
 }
 
 /**
- * The Viewport section: pointer-interaction tuning.  The zoom steps are the percent change per wheel
- * notch (fine) and per Shift-wheel notch (coarse); the grid scale is the default major-line spacing in
- * world units for files that do not store their own (CMO3).  The viewport binding reads all three keys
- * live, so a committed edit re-tunes wheel zoom / re-draws the grid immediately.  Each field commits
- * clamped to its [ViewportSettings] range (the [NumberField] contract).
- *
- * ビューポート設定。ホイール 1 ノッチあたりのズーム率（通常／Shift の粗い刻み）とグリッドの既定間隔。即時反映。
+ * The Viewport section: pointer-interaction tuning plus the rendering performance toggles.  The zoom
+ * steps are the percent change per wheel notch (fine) and per Shift-wheel notch (coarse); the grid
+ * scale is the default major-line spacing in world units for files that do not store their own
+ * (CMO3); the supersampling pair trades render quality for speed on weak GPUs (off = 1x everywhere;
+ * the resize toggle keeps 2x during panel drags).  The viewport binding reads every key live, so a
+ * committed edit re-tunes wheel zoom / re-draws the grid / re-renders at the new quality immediately.
+ * Each number field commits clamped to its [ViewportSettings] range (the [NumberField] contract).
  */
 @Composable
 internal fun ViewportSection() {
@@ -199,6 +203,9 @@ internal fun ViewportSection() {
 	var zoomStepCoarse by rememberDoubleSetting(ViewportSettings.ZOOM_STEP_COARSE_KEY, ViewportSettings.ZOOM_STEP_COARSE_DEFAULT)
 	var gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
 	var gridSubdivisions by rememberIntSetting(ViewportSettings.GRID_SUBDIVISIONS_KEY, ViewportSettings.GRID_SUBDIVISIONS_DEFAULT)
+	var supersample by rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_KEY, ViewportSettings.SUPERSAMPLE_DEFAULT)
+	var supersampleWhileResizing by
+		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step)) {
@@ -233,6 +240,20 @@ internal fun ViewportSection() {
 				modifier = Modifier.width(80.dp),
 			)
 		}
+		Checkbox(
+			checked = supersample,
+			onCheckedChange = { checked -> supersample = checked },
+			label = stringResource(Res.string.settings_viewport_supersample),
+		)
+		// Inert with supersampling off: everything already renders at 1x, so there is no supersample
+		// to keep while resizing (the engine computes the same 1x either way).  The stored value is
+		// kept, so re-enabling supersampling restores the previous choice.
+		Checkbox(
+			checked = supersampleWhileResizing,
+			onCheckedChange = { checked -> supersampleWhileResizing = checked },
+			label = stringResource(Res.string.settings_viewport_supersample_while_resizing),
+			enabled = supersample,
+		)
 	}
 }
 

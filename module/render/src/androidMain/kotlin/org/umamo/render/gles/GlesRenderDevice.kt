@@ -88,8 +88,25 @@ class GlesRenderDevice : RenderDevice {
 				"origin sub-rect GL_NEAREST copy (the composite snapshot).  glBlitFramebuffer is core in ES 3.0.",
 		)
 
+	override fun resolveUsed(
+		source: RenderTarget,
+		sourceUsedWidth: Int,
+		sourceUsedHeight: Int,
+		destination: RenderTarget,
+		destinationUsedWidth: Int,
+		destinationUsedHeight: Int,
+		region: ScissorRect?,
+	): Unit =
+		TODO(
+			"GLES port: like resolve but over the bottom-left used regions (passes viewport at the " +
+				"origin), flipping a non-null region against the USED height - see desktop GlRenderDevice.",
+		)
+
 	override fun beginReadback(target: RenderTarget): ReadbackTicket =
 		TODO("GLES port: PBO + fence, same as desktop - GL_PIXEL_PACK_BUFFER and fence sync are core in ES 3.0")
+
+	override fun beginReadback(target: RenderTarget, usedWidth: Int, usedHeight: Int): ReadbackTicket =
+		TODO("GLES port: the full-target beginReadback with glReadPixels(0, 0, usedWidth, usedHeight, ...)")
 
 	override fun pollReadback(ticket: ReadbackTicket): RasterImage? =
 		TODO("GLES port: clientWaitSync(0) + glMapBufferRange (ES has no glMapBuffer; use the Range form)")
@@ -98,6 +115,9 @@ class GlesRenderDevice : RenderDevice {
 
 	override fun readPixels(target: RenderTarget): RasterImage =
 		TODO("GLES port: glReadPixels + flipRowsVertically - GLES reads bottom-up like GL; the API contract is top-first")
+
+	override fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage =
+		TODO("GLES port: the full-target readPixels with glReadPixels(0, 0, usedWidth, usedHeight, ...)")
 
 	override fun describeBackend(): String = TODO("GLES port: GLES20.glGetString(GL_RENDERER / GL_VERSION / GL_VENDOR)")
 }
