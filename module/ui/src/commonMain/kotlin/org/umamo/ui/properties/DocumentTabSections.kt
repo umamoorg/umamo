@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -13,6 +14,7 @@ import org.umamo.edit.setCanvasSize
 import org.umamo.edit.setRuntimeTarget
 import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.unsupportedFeaturesInUse
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SelectField
@@ -110,9 +112,9 @@ internal val CanvasSection =
  * it restricts.  The selector writes [org.umamo.runtime.model.PuppetModel.runtimeTarget] as one undo
  * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
  *
- * Every target except Ayagami survives a CMO3 save round-trip (NoTarget persists as the editor's
- * SDK(N/A)/Latest sentinel); Ayagami has no CMO3 targetVersionNo encoding, so a save keeps the
- * file's original value - UMA will carry it natively.
+ * A CMO3 save persists every target: Cubism targets as their literals, NoTarget as the editor's
+ * SDK(N/A)/Latest sentinel, and Ayagami at its effective Cubism level (its identity cannot survive
+ * CMO3, so a reopen shows Cubism 5.0 - UMA will carry the identity natively).
  */
 internal val RuntimeSection =
 	PropertySection(
@@ -143,11 +145,23 @@ internal val RuntimeSection =
 					if (restricted.isEmpty()) {
 						PropertyLine(stringResource(Res.string.properties_runtime_no_restrictions))
 					} else {
+						// Marking the entries THIS document actually uses turns the abstract per-target
+						// list into a decision aid (the same strip diff a MOC3 export will confirm).  The
+						// scan walks every drawable, part, and deformer, so it is keyed to the model
+						// instance rather than recomputed on every recomposition.
+						val featuresInUse = remember(puppet) { puppet.unsupportedFeaturesInUse(puppet.runtimeTarget) }
 						Column {
 							PropertyLine(stringResource(Res.string.properties_runtime_restricted))
 							restricted.forEach { feature ->
+								val featureLabel = stringResource(runtimeFeatureLabelRes(feature))
+								val line =
+									if (feature in featuresInUse) {
+										stringResource(Res.string.properties_runtime_feature_in_use, featureLabel)
+									} else {
+										featureLabel
+									}
 								Box(modifier = Modifier.padding(start = 12.dp)) {
-									PropertyLine(stringResource(runtimeFeatureLabelRes(feature)))
+									PropertyLine(line)
 								}
 							}
 						}

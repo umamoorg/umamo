@@ -21,7 +21,7 @@ class TargetVersionNoCorpusTest {
 
 	// CMO3: CModelSource field targetVersionNo - the authored target per corpus file.  The
 	// SDK3.3/4.0/4.2/NA files were saved by the current official editor specifically to pin these
-	// literals; the SDKNA file carry the SDK(N/A)/Latest sentinel, which decodes to
+	// literals; the SDKNA file carries the SDK(N/A)/Latest sentinel, which decodes to
 	// null (no target version).
 	private val expectedByFileName: Map<String, Cmo3TargetVersion?> =
 		mapOf(
@@ -47,9 +47,16 @@ class TargetVersionNoCorpusTest {
 		for (file in probeFiles) {
 			val modelRoot = Cmo3.read(file).root as? CModelSource
 			assertNotNull(modelRoot, "${file.name} root is a CModelSource")
-			// Every corpus value must be an int (or absent) and decode without surprises; the pinned
-			// subset must decode to its known authored target.
-			val rawVersionNo = modelRoot.targetVersionNo as? Int
+			// EVERY probe file's value must deserialize as an Int (or be absent) - a VerbatimNode or
+			// other fallback type would silently coerce to null and land every import on NoTarget, so
+			// the type is asserted before the tolerant cast.  The pinned subset must additionally
+			// decode to its known authored target.
+			val rawField = modelRoot.targetVersionNo
+			assertTrue(
+				rawField == null || rawField is Int,
+				"${file.name} targetVersionNo is an Int or absent, got ${rawField?.let { value -> value::class.simpleName }}",
+			)
+			val rawVersionNo = rawField as? Int
 			val decoded = Cmo3TargetVersion.fromVersionNo(rawVersionNo)
 			if (expectedByFileName.containsKey(file.name)) {
 				assertEquals(expectedByFileName[file.name], decoded, "${file.name} targetVersionNo decode")

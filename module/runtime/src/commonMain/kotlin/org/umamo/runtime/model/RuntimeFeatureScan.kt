@@ -16,20 +16,25 @@ package org.umamo.runtime.model
  * @param RuntimeTarget target The target to diff against.
  * @return Set The restricted features in use; empty when the document fits the target.
  */
-fun PuppetModel.unsupportedFeaturesInUse(target: RuntimeTarget): Set<RuntimeFeature> =
-	RuntimeFeature.entries
-		.filterNot { feature -> target.supports(feature) }
-		.filterTo(linkedSetOf()) { feature -> usesFeature(feature) }
+fun PuppetModel.unsupportedFeaturesInUse(target: RuntimeTarget): Set<RuntimeFeature> {
+	val unsupportedFeatures = RuntimeFeature.entries.filterNot { feature -> target.supports(feature) }
+	if (unsupportedFeatures.isEmpty()) {
+		return emptySet()
+	}
+	// Materialized once for the whole scan rather than inside every feature branch.
+	val activeComposites = parts.mapNotNull { part -> part.activeComposite }
+	return unsupportedFeatures.filterTo(linkedSetOf()) { feature -> usesFeature(feature, activeComposites) }
+}
 
 /**
  * Whether the document uses [feature] at all, independent of any target.
  *
  * @param RuntimeFeature feature The feature to probe for.
+ * @param List activeComposites The isolated parts' composites, precomputed by the caller.
  * @return Boolean True when the feature is present somewhere in the document.
  */
-private fun PuppetModel.usesFeature(feature: RuntimeFeature): Boolean {
-	val activeComposites = parts.mapNotNull { part -> part.activeComposite }
-	return when (feature) {
+private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: List<PartComposite>): Boolean =
+	when (feature) {
 		RuntimeFeature.WarpQuadTransform ->
 			deformers.any { deformer -> deformer is Deformer.Warp && deformer.isQuadTransform }
 
@@ -61,7 +66,6 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature): Boolean {
 		RuntimeFeature.ArtPath,
 		-> false
 	}
-}
 
 /**
  * Whether any drawable, deformer, or isolated part tints through [channel] - a non-identity static

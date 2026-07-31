@@ -19,7 +19,6 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3TargetVersion
-import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.runtime.model.runtimeTargetOfCmo3Target
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
@@ -204,18 +203,17 @@ fun EditorApp(
 			// Suggest the base name without the extension; FileKit re-appends ".cmo3".
 			val suggestedName = cmo3Document.displayName.removeSuffix(".cmo3")
 			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// CMO3: CModelSource field targetVersionNo - written only when the session's target has a
-				// CMO3 encoding (a Cubism literal, or the SDK(N/A)/Latest sentinel for NoTarget) AND
-				// differs from what the file already decodes to.  Ayagami has no encoding, and an
-				// unchanged target keeps the original bytes verbatim, per the write-what-the-editor-writes
-				// rule.
-				val modelRoot = cmo3Document.cmo3.root as? CModelSource
+				// CMO3: CModelSource field targetVersionNo - written only when the session's target
+				// differs from what the file already decodes to, so an unchanged target keeps the
+				// original bytes verbatim (write-what-the-editor-writes).  Every target encodes:
+				// Cubism targets as their literals, Ayagami as its effective Cubism 5.0 level, and
+				// NoTarget as the SDK(N/A)/Latest sentinel.
 				val sessionTarget = session?.model?.value?.runtimeTarget
-				if (modelRoot != null && sessionTarget != null) {
-					val encoded = sessionTarget.cmo3TargetVersionNo()
-					val decodedCurrent = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelRoot.targetVersionNo as? Int))
-					if (encoded != null && decodedCurrent != sessionTarget) {
-						modelRoot.targetVersionNo = encoded
+				if (sessionTarget != null) {
+					val decodedCurrent =
+						runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(cmo3Document.cmo3.targetVersionNo))
+					if (decodedCurrent != sessionTarget) {
+						cmo3Document.cmo3.setTargetVersionNo(sessionTarget.cmo3TargetVersionNo())
 					}
 				}
 				// Writes the original CMO3 bytes (with the target field above as the one exception), not

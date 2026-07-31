@@ -360,9 +360,10 @@
 	<!-- ドキュメント > ランタイム: ターゲット選択と制限機能リスト。製品名（Cubism / Ayagami）は原文のまま。 -->
 	<string name="properties_field_runtime_target">ターゲット</string>
 	<string name="runtime_target_no_target">ターゲットなし（全機能）</string>
-	<string name="runtime_target_ayagami">Ayagami（Cubism 5.0 相当）</string>
+	<string name="runtime_target_ayagami">Ayagami（Cubism %1$s 相当）</string>
 	<string name="properties_runtime_restricted">制限される機能:</string>
 	<string name="properties_runtime_no_restrictions">すべての機能が利用できます。</string>
+	<string name="properties_runtime_feature_in_use">%1$s — このドキュメントで使用中</string>
 	<string name="runtime_feature_warp_quad_transform">新しいワープデフォーマ方式</string>
 	<string name="runtime_feature_reversed_mask">反転マスク</string>
 	<string name="runtime_feature_mesh_warp_blend_shapes">ブレンドシェイプ（アートメッシュ・ワープデフォーマ）</string>
