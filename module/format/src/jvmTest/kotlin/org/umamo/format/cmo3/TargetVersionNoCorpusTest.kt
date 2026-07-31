@@ -56,7 +56,7 @@ class TargetVersionNoCorpusTest {
 				rawField == null || rawField is Int,
 				"${file.name} targetVersionNo is an Int or absent, got ${rawField?.let { value -> value::class.simpleName }}",
 			)
-			val rawVersionNo = rawField as? Int
+			val rawVersionNo = rawField
 			val decoded = Cmo3TargetVersion.fromVersionNo(rawVersionNo)
 			if (expectedByFileName.containsKey(file.name)) {
 				assertEquals(expectedByFileName[file.name], decoded, "${file.name} targetVersionNo decode")
