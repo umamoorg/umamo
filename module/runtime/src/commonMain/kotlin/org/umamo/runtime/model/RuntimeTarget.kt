@@ -19,8 +19,11 @@ import org.umamo.format.moc3.moc.MocVersion
  */
 enum class RuntimeTarget(
 	/**
-	 * The verbatim product name shown in the target dropdown.  Cubism and Ayagami are product
-	 * identity and are never localized; only NoTarget's display goes through the string catalog.
+	 * The verbatim product name shown in the target dropdown.  Cubism entries display this
+	 * directly; NoTarget's phrasing and Ayagami's equivalence parenthetical are chrome, so those
+	 * two resolve through the string catalog instead - with the name "Ayagami" itself kept
+	 * verbatim inside the localized string, and its level fed from [cubismLevelText] so the label
+	 * can never drift from the gating level.
 	 */
 	val displayName: String,
 	/**
@@ -77,6 +80,17 @@ enum class RuntimeTarget(
 	}
 
 	/**
+	 * The Cubism ceiling as display text ("5.0"), or null for no ceiling.  Derived from
+	 * [cubismLevel] so UI text can never drift from the gating level.
+	 *
+	 * @return String? The version text, or null when this target has no Cubism ceiling.
+	 */
+	fun cubismLevelText(): String? {
+		val level = cubismLevel ?: return null
+		return "${level / 10}.${level % 10}"
+	}
+
+	/**
 	 * The features this target restricts, in [RuntimeFeature] declaration (version-tier) order -
 	 * the "unsupported list" the Document > Runtime section shows.  Always derived from [supports],
 	 * never a hardcoded per-target list.
@@ -104,15 +118,19 @@ enum class RuntimeTarget(
 		}
 
 	/**
-	 * The CMO3 target version this target persists as, or null for NoTarget (a target-less document
-	 * has no target VERSION - it persists through the latest sentinel, see [cmo3TargetVersionNo])
-	 * and for Ayagami, which has no CMO3 encoding at all.
+	 * The CMO3 target version this target persists as, or null for NoTarget - a target-less document
+	 * has no target VERSION and persists through the latest sentinel instead (see
+	 * [cmo3TargetVersionNo]).  Ayagami has no CMO3 encoding of its own, so it persists at its
+	 * effective Cubism level: the gating level survives a CMO3 round-trip even though the Ayagami
+	 * identity cannot (a reopen shows Cubism 5.0; UMA will carry the identity).
 	 *
-	 * @return Cmo3TargetVersion? The CMO3-side version, or null when this target is not a Cubism version.
+	 * @return Cmo3TargetVersion? The CMO3-side version, or null for NoTarget.
 	 */
 	fun cmo3TargetVersion(): Cmo3TargetVersion? =
 		when (this) {
-			NoTarget, Ayagami -> null
+			NoTarget -> null
+			// Ayagami writes its effective Cubism level, in lockstep with cubismLevel and mocVersion.
+			Ayagami -> Cmo3TargetVersion.V50
 			Cubism30 -> Cmo3TargetVersion.V30
 			Cubism33 -> Cmo3TargetVersion.V33
 			Cubism40 -> Cmo3TargetVersion.V40
@@ -122,19 +140,14 @@ enum class RuntimeTarget(
 		}
 
 	/**
-	 * The raw `targetVersionNo` a CMO3 save persists for this target: a Cubism target's literal, the
-	 * "SDK(N/A)/Latest Cubism" sentinel for NoTarget, and null for Ayagami - the one target with no
-	 * CMO3 encoding, whose save must preserve whatever value the file already carries.
+	 * The raw `targetVersionNo` a CMO3 save persists for this target: the version's literal, or the
+	 * "SDK(N/A)/Latest Cubism" sentinel for NoTarget.  Every target persists something.
 	 *
-	 * @return Int? The value to write, or null when this target cannot be persisted to CMO3.
+	 * @return Int The value to write.
 	 */
-	fun cmo3TargetVersionNo(): Int? =
-		when (this) {
-			// CMO3: CModelSource field targetVersionNo.
-			NoTarget -> Cmo3TargetVersion.LATEST_VERSION_NO
-			Ayagami -> null
-			Cubism30, Cubism33, Cubism40, Cubism42, Cubism50, Cubism53 -> cmo3TargetVersion()?.versionNo
-		}
+	fun cmo3TargetVersionNo(): Int =
+		// CMO3: CModelSource field targetVersionNo.
+		cmo3TargetVersion()?.versionNo ?: Cmo3TargetVersion.LATEST_VERSION_NO
 }
 
 /**

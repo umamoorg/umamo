@@ -399,15 +399,12 @@
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
-	<!-- Document > Runtime: the runtime-compatibility target selector and its restricted-feature list.
-	Target names (Cubism …, Ayagami) are product identity shown verbatim; only the No Target entry and
-	the feature names are localized chrome.  Feature names follow the official Cubism editor's
-	"Model target version selection" dialog so migrants recognize them. -->
 	<string name="properties_field_runtime_target">Target</string>
 	<string name="runtime_target_no_target">No Target (All Features)</string>
-	<string name="runtime_target_ayagami">Ayagami (Cubism 5.0 Equivalent)</string>
+	<string name="runtime_target_ayagami">Ayagami (Cubism %1$s Equivalent)</string>
 	<string name="properties_runtime_restricted">Restricted features:</string>
 	<string name="properties_runtime_no_restrictions">All features are available.</string>
+	<string name="properties_runtime_feature_in_use">%1$s - CURRENTLY IN USE</string>
 	<string name="runtime_feature_warp_quad_transform">New Warp Deformer Method</string>
 	<string name="runtime_feature_reversed_mask">Reversed Mask</string>
 	<string name="runtime_feature_mesh_warp_blend_shapes">Blend Shapes (Art Mesh and Warp Deformer)</string>

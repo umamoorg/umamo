@@ -882,7 +882,7 @@ object Moc3Import {
 				canvasHeight = canvas?.height ?: 0f,
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
-				// MOC3 §version gating: the version byte is a hard fact of the baked file, so the import
+				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
 			)

@@ -41,7 +41,7 @@ enum class Cmo3TargetVersion(val major: Int, val minor: Int, val versionNo: Int)
 	companion object {
 		/**
 		 * The value the editor writes for the "SDK(N/A)/Latest Cubism" selection - no version
-		 * ceiling at all.  CMO3: CModelSource field targetVersionNo. Deliberately not an enum
+		 * ceiling at all.  CMO3: CModelSource field targetVersionNo.  Deliberately not an enum
 		 * entry: it names the ABSENCE of a target version, so [fromVersionNo] returns null for it
 		 * and callers persist it through this constant.
 		 */

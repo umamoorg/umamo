@@ -159,7 +159,7 @@ internal val BlendSection =
 							)
 						}
 					},
-					if (!showsAlphaBlendRow(target, drawable.blendMode)) {
+					if (!showsAlphaBlendRow(target, drawable.blendMode, drawable.alphaBlendMode)) {
 						null
 					} else {
 						PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
@@ -168,7 +168,7 @@ internal val BlendSection =
 								SelectField(
 									selected = drawable.alphaBlendMode,
 									modifier = Modifier.fillMaxWidth(),
-									options = AlphaBlendMode.entries,
+									options = alphaBlendModeOptionsFor(target, drawable.alphaBlendMode),
 									label = { mode -> alphaLabels[mode] ?: mode.name },
 									onSelect = { mode -> session?.setDrawableAlphaBlendMode(drawable.id, mode) },
 								)
@@ -614,15 +614,17 @@ private fun KeyableFlagChannelRow(
 }
 
 /**
- * A deformer's three keyable render channels: opacity, multiply color, screen color.
+ * A deformer's keyable render channels: opacity, multiply color, screen color.
  *
  * Shared by both subtypes because both carry them and both cascade them.  Listed FIRST in the section, so
  * the channels a rigger keys sit above the structural fields (lattice dimensions, base angle) that are set
- * once and left alone.
+ * once and left alone.  Opacity is always shown; the two color rows are each gated on [target] supporting
+ * their feature, so the result can be fewer than three rows.
  *
  * @param Deformer deformer The deformer the rows edit.
  * @param EditorSession? session The open document's session, or null.
- * @return List<PropertyRow> The three rows.
+ * @param RuntimeTarget target The document's runtime-compatibility target, gating the color rows.
+ * @return List<PropertyRow> The opacity row, plus each color row the target still supports.
  */
 private fun deformerRenderChannelRows(
 	deformer: Deformer,

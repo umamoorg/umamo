@@ -2,6 +2,7 @@ package org.umamo.ui.properties
 
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -37,7 +38,10 @@ class RuntimeGatingTest {
 	private val drawableId = DrawableId("drawable")
 	private val partId = PartId("part")
 
-	private fun drawable(blendMode: BlendMode = BlendMode.Normal): Drawable =
+	private fun drawable(
+		blendMode: BlendMode = BlendMode.Normal,
+		alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	): Drawable =
 		Drawable(
 			id = drawableId,
 			name = drawableId.raw,
@@ -46,6 +50,7 @@ class RuntimeGatingTest {
 			maskedBy = emptyList(),
 			mesh = null,
 			geometryGrid = null,
+			alphaBlendMode = alphaBlendMode,
 		)
 
 	private fun puppetWith(target: RuntimeTarget, drawables: List<Drawable> = emptyList(), parts: List<Part> = emptyList()): PuppetModel =
@@ -59,10 +64,14 @@ class RuntimeGatingTest {
 			runtimeTarget = target,
 		)
 
-	private fun drawableContext(target: RuntimeTarget, blendMode: BlendMode = BlendMode.Normal): PropertyContext {
+	private fun drawableContext(
+		target: RuntimeTarget,
+		blendMode: BlendMode = BlendMode.Normal,
+		alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
+	): PropertyContext {
 		val selected = SelectionTarget.Drawable(drawableId)
 		return PropertyContext(
-			puppetWith(target, drawables = listOf(drawable(blendMode))),
+			puppetWith(target, drawables = listOf(drawable(blendMode, alphaBlendMode))),
 			Selection(setOf(selected), selected),
 			selected,
 			session = null,
@@ -109,11 +118,31 @@ class RuntimeGatingTest {
 	}
 
 	@Test
-	fun alphaBlendRowNeedsBothTheModeAndTheTarget() {
-		assertTrue(showsAlphaBlendRow(RuntimeTarget.Cubism53, BlendMode.Normal))
-		assertTrue(showsAlphaBlendRow(RuntimeTarget.NoTarget, BlendMode.Normal))
-		assertFalse(showsAlphaBlendRow(RuntimeTarget.Cubism50, BlendMode.Normal), "alpha modes are part of the 5.3 blend feature")
-		assertFalse(showsAlphaBlendRow(RuntimeTarget.Cubism53, BlendMode.AdditivePremultiplied), "premultiplied modes ignore alpha")
+	fun alphaBlendRowNeedsTheModeAndTheTargetOrAStoredValue() {
+		assertTrue(showsAlphaBlendRow(RuntimeTarget.Cubism53, BlendMode.Normal, AlphaBlendMode.Over))
+		assertTrue(showsAlphaBlendRow(RuntimeTarget.NoTarget, BlendMode.Normal, AlphaBlendMode.Over))
+		assertFalse(
+			showsAlphaBlendRow(RuntimeTarget.Cubism50, BlendMode.Normal, AlphaBlendMode.Over),
+			"alpha modes are part of the 5.3 blend feature",
+		)
+		assertTrue(
+			showsAlphaBlendRow(RuntimeTarget.Cubism50, BlendMode.Normal, AlphaBlendMode.Atop),
+			"a stored out-of-target value never vanishes from its own control",
+		)
+		assertFalse(
+			showsAlphaBlendRow(RuntimeTarget.Cubism53, BlendMode.AdditivePremultiplied, AlphaBlendMode.Over),
+			"premultiplied modes ignore alpha",
+		)
+	}
+
+	@Test
+	fun alphaBlendModeOptionsFilterToOverPlusCurrent() {
+		assertEquals(
+			listOf(AlphaBlendMode.Over, AlphaBlendMode.Atop),
+			alphaBlendModeOptionsFor(RuntimeTarget.Cubism50, AlphaBlendMode.Atop),
+			"the stored value stays, and Over is the only forward move",
+		)
+		assertEquals(AlphaBlendMode.entries.toList(), alphaBlendModeOptionsFor(RuntimeTarget.Cubism53, AlphaBlendMode.Over))
 	}
 
 	@Test

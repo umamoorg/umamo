@@ -75,9 +75,13 @@ class RuntimeTargetTest {
 	}
 
 	@Test
-	fun cmo3TargetVersionsRoundTripForCubismTargetsOnly() {
-		assertNull(RuntimeTarget.NoTarget.cmo3TargetVersion(), "NoTarget has no CMO3 encoding")
-		assertNull(RuntimeTarget.Ayagami.cmo3TargetVersion(), "Ayagami has no CMO3 encoding")
+	fun cmo3TargetVersionsRoundTripPerTarget() {
+		assertNull(RuntimeTarget.NoTarget.cmo3TargetVersion(), "NoTarget has no target VERSION, only the sentinel")
+		assertEquals(
+			RuntimeTarget.Cubism50.cmo3TargetVersion(),
+			RuntimeTarget.Ayagami.cmo3TargetVersion(),
+			"Ayagami persists at its effective Cubism level",
+		)
 		val cubismTargets =
 			listOf(
 				RuntimeTarget.Cubism30,
@@ -90,16 +94,18 @@ class RuntimeTargetTest {
 		cubismTargets.forEach { target ->
 			assertEquals(target, runtimeTargetOfCmo3Target(target.cmo3TargetVersion()), "round trip for $target")
 		}
+		// Ayagami's identity cannot survive CMO3 - it reopens as its effective Cubism level.
+		assertEquals(RuntimeTarget.Cubism50, runtimeTargetOfCmo3Target(RuntimeTarget.Ayagami.cmo3TargetVersion()))
 	}
 
 	@Test
-	fun persistedVersionNoCoversEveryTargetButAyagami() {
+	fun persistedVersionNoCoversEveryTarget() {
 		assertEquals(
 			Cmo3TargetVersion.LATEST_VERSION_NO,
 			RuntimeTarget.NoTarget.cmo3TargetVersionNo(),
 			"NoTarget persists as the SDK(N/A)/Latest sentinel",
 		)
-		assertNull(RuntimeTarget.Ayagami.cmo3TargetVersionNo(), "Ayagami has no CMO3 encoding")
+		assertEquals(5_000_000, RuntimeTarget.Ayagami.cmo3TargetVersionNo(), "Ayagami persists as Cubism 5.0")
 		assertEquals(4_020_000, RuntimeTarget.Cubism42.cmo3TargetVersionNo(), "a Cubism target persists its literal")
 		// The sentinel round-trips through ingest: it decodes to no version, which maps to NoTarget.
 		assertEquals(
@@ -129,5 +135,12 @@ class RuntimeTargetTest {
 		val names = RuntimeTarget.entries.map { target -> target.displayName }
 		assertEquals(names.size, names.toSet().size, "display names are distinct")
 		assertTrue(names.none { name -> name.isBlank() }, "display names are non-blank")
+	}
+
+	@Test
+	fun cubismLevelTextTracksTheGatingLevel() {
+		assertNull(RuntimeTarget.NoTarget.cubismLevelText(), "no ceiling, no text")
+		assertEquals("5.0", RuntimeTarget.Ayagami.cubismLevelText(), "the Ayagami label's level feed")
+		assertEquals("3.3", RuntimeTarget.Cubism33.cubismLevelText())
 	}
 }
