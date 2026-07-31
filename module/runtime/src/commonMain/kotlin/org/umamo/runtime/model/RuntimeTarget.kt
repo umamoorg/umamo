@@ -104,11 +104,11 @@ enum class RuntimeTarget(
 		}
 
 	/**
-	 * The CMO3 target version this target persists as, or null for NoTarget and Ayagami, which have
-	 * no CMO3 encoding - a save must then preserve whatever `targetVersionNo` the file already
-	 * carries rather than invent a value.
+	 * The CMO3 target version this target persists as, or null for NoTarget (a target-less document
+	 * has no target VERSION - it persists through the latest sentinel, see [cmo3TargetVersionNo])
+	 * and for Ayagami, which has no CMO3 encoding at all.
 	 *
-	 * @return Cmo3TargetVersion? The CMO3-side version, or null when this target cannot be encoded.
+	 * @return Cmo3TargetVersion? The CMO3-side version, or null when this target is not a Cubism version.
 	 */
 	fun cmo3TargetVersion(): Cmo3TargetVersion? =
 		when (this) {
@@ -119,6 +119,21 @@ enum class RuntimeTarget(
 			Cubism42 -> Cmo3TargetVersion.V42
 			Cubism50 -> Cmo3TargetVersion.V50
 			Cubism53 -> Cmo3TargetVersion.V53
+		}
+
+	/**
+	 * The raw `targetVersionNo` a CMO3 save persists for this target: a Cubism target's literal, the
+	 * "SDK(N/A)/Latest Cubism" sentinel for NoTarget, and null for Ayagami - the one target with no
+	 * CMO3 encoding, whose save must preserve whatever value the file already carries.
+	 *
+	 * @return Int? The value to write, or null when this target cannot be persisted to CMO3.
+	 */
+	fun cmo3TargetVersionNo(): Int? =
+		when (this) {
+			// CMO3: CModelSource field targetVersionNo.
+			NoTarget -> Cmo3TargetVersion.LATEST_VERSION_NO
+			Ayagami -> null
+			Cubism30, Cubism33, Cubism40, Cubism42, Cubism50, Cubism53 -> cmo3TargetVersion()?.versionNo
 		}
 }
 

@@ -204,15 +204,15 @@ fun EditorApp(
 			// Suggest the base name without the extension; FileKit re-appends ".cmo3".
 			val suggestedName = cmo3Document.displayName.removeSuffix(".cmo3")
 			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// CMO3: CModelSource field targetVersionNo - written only when the session's target maps
-				// to a Cubism version AND differs from what the file already decodes to.  NoTarget and
-				// Ayagami have no CMO3 encoding, and an unchanged target keeps the original bytes verbatim
-				// (legacy literals and the unconfirmed 9000000 sentinel round-trip untouched), per the
-				// write-what-the-editor-writes rule.
+				// CMO3: CModelSource field targetVersionNo - written only when the session's target has a
+				// CMO3 encoding (a Cubism literal, or the SDK(N/A)/Latest sentinel for NoTarget) AND
+				// differs from what the file already decodes to.  Ayagami has no encoding, and an
+				// unchanged target keeps the original bytes verbatim, per the write-what-the-editor-writes
+				// rule.
 				val modelRoot = cmo3Document.cmo3.root as? CModelSource
 				val sessionTarget = session?.model?.value?.runtimeTarget
 				if (modelRoot != null && sessionTarget != null) {
-					val encoded = sessionTarget.cmo3TargetVersion()?.versionNo
+					val encoded = sessionTarget.cmo3TargetVersionNo()
 					val decodedCurrent = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelRoot.targetVersionNo as? Int))
 					if (encoded != null && decodedCurrent != sessionTarget) {
 						modelRoot.targetVersionNo = encoded

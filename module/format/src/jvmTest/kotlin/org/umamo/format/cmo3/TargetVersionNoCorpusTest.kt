@@ -20,8 +20,9 @@ class TargetVersionNoCorpusTest {
 			.orEmpty()
 
 	// CMO3: CModelSource field targetVersionNo - the authored target per corpus file.  The
-	// SDK3.3/4.0/4.2 files were saved by the current official editor specifically to pin these
-	// literals; haruto carries the unconfirmed 9000000 sentinel, which must stay unknown (null).
+	// SDK3.3/4.0/4.2/NA files were saved by the current official editor specifically to pin these
+	// literals; the SDKNA file carry the SDK(N/A)/Latest sentinel, which decodes to
+	// null (no target version).
 	private val expectedByFileName: Map<String, Cmo3TargetVersion?> =
 		mapOf(
 			"EricaTamamo.cmo3" to Cmo3TargetVersion.V40,
@@ -30,11 +31,11 @@ class TargetVersionNoCorpusTest {
 			"ModelWithoutOffscreenSDK3.3.cmo3" to Cmo3TargetVersion.V33,
 			"ModelWithoutOffscreenSDK4.0.cmo3" to Cmo3TargetVersion.V40,
 			"ModelWithoutOffscreenSDK4.2.cmo3" to Cmo3TargetVersion.V42,
+			"ModelWithoutOffscreenSDKNA.cmo3" to null,
 			"modelA.cmo3" to Cmo3TargetVersion.V53,
 			"modelB.cmo3" to Cmo3TargetVersion.V50,
 			"modelD.cmo3" to Cmo3TargetVersion.V30,
 			"miku.cmo3" to Cmo3TargetVersion.V30,
-			"haruto_pc_pro_t02.cmo3" to null,
 		)
 
 	@Test
@@ -49,10 +50,15 @@ class TargetVersionNoCorpusTest {
 			assertNotNull(modelRoot, "${file.name} root is a CModelSource")
 			// Every corpus value must be an int (or absent) and decode without surprises; the pinned
 			// subset must decode to its known authored target.
-			val decoded = Cmo3TargetVersion.fromVersionNo(modelRoot.targetVersionNo as? Int)
+			val rawVersionNo = modelRoot.targetVersionNo as? Int
+			val decoded = Cmo3TargetVersion.fromVersionNo(rawVersionNo)
 			if (expectedByFileName.containsKey(file.name)) {
 				assertEquals(expectedByFileName[file.name], decoded, "${file.name} targetVersionNo decode")
 				pinnedCount++
+			}
+			if (file.name == "ModelWithoutOffscreenSDKNA.cmo3") {
+				// The freshly saved SDK(N/A)/Latest selection pins the sentinel value itself.
+				assertEquals(Cmo3TargetVersion.LATEST_VERSION_NO, rawVersionNo, "${file.name} raw sentinel")
 			}
 		}
 		assertTrue(pinnedCount > 0, "probe list contained none of the pinned corpus files")

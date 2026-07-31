@@ -26,13 +26,20 @@ class TargetVersionNoTest {
 	}
 
 	@Test
-	fun unknownValuesDecodeToNull() {
+	fun versionLessValuesDecodeToNull() {
 		assertNull(Cmo3TargetVersion.fromVersionNo(null), "absent field")
 		assertNull(Cmo3TargetVersion.fromVersionNo(0), "zero")
-		assertNull(Cmo3TargetVersion.fromVersionNo(9_000_000), "the unconfirmed haruto sentinel")
 		assertNull(Cmo3TargetVersion.fromVersionNo(42), "garbage")
 		assertNull(Cmo3TargetVersion.fromVersionNo(6_000_000), "unknown future version")
 		assertNull(Cmo3TargetVersion.fromVersionNo(-3_000), "negative")
+	}
+
+	@Test
+	fun latestSentinelIsVersionLess() {
+		// The SDK(N/A)/Latest selection names the absence of a target version, so the confirmed
+		// sentinel decodes to null while remaining a first-class write value via the constant.
+		assertEquals(9_000_000, Cmo3TargetVersion.LATEST_VERSION_NO)
+		assertNull(Cmo3TargetVersion.fromVersionNo(Cmo3TargetVersion.LATEST_VERSION_NO))
 	}
 
 	@Test

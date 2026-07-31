@@ -93,6 +93,22 @@ class RuntimeTargetTest {
 	}
 
 	@Test
+	fun persistedVersionNoCoversEveryTargetButAyagami() {
+		assertEquals(
+			Cmo3TargetVersion.LATEST_VERSION_NO,
+			RuntimeTarget.NoTarget.cmo3TargetVersionNo(),
+			"NoTarget persists as the SDK(N/A)/Latest sentinel",
+		)
+		assertNull(RuntimeTarget.Ayagami.cmo3TargetVersionNo(), "Ayagami has no CMO3 encoding")
+		assertEquals(4_020_000, RuntimeTarget.Cubism42.cmo3TargetVersionNo(), "a Cubism target persists its literal")
+		// The sentinel round-trips through ingest: it decodes to no version, which maps to NoTarget.
+		assertEquals(
+			RuntimeTarget.NoTarget,
+			runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(RuntimeTarget.NoTarget.cmo3TargetVersionNo())),
+		)
+	}
+
+	@Test
 	fun unknownCmo3TargetFallsBackToNoTarget() {
 		assertEquals(RuntimeTarget.NoTarget, runtimeTargetOfCmo3Target(null))
 		assertEquals(RuntimeTarget.Cubism42, runtimeTargetOfCmo3Target(Cmo3TargetVersion.V42))

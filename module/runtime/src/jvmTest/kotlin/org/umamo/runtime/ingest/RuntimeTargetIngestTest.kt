@@ -42,6 +42,17 @@ class RuntimeTargetIngestTest {
 	}
 
 	@Test
+	fun latestSentinelIngestsAsNoTarget() {
+		val puppet =
+			importByName("ModelWithoutOffscreenSDKNA.cmo3") ?: run {
+				println("cmo3.probe has no ModelWithoutOffscreenSDKNA.cmo3; skipping sentinel ingest test")
+				return
+			}
+		// CMO3: CModelSource field targetVersionNo - the SDK(N/A)/Latest selection restricts nothing.
+		assertEquals(RuntimeTarget.NoTarget, puppet.runtimeTarget)
+	}
+
+	@Test
 	fun overreachingDocumentReportsItsStripDiff() {
 		// ModelWithOffscreenSDK3.3 was saved by the official editor with offscreen drawing enabled
 		// BEFORE the target was switched to SDK 3.3 - the editor keeps the out-of-target data in the

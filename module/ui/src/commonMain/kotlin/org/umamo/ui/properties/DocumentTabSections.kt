@@ -110,8 +110,9 @@ internal val CanvasSection =
  * it restricts.  The selector writes [org.umamo.runtime.model.PuppetModel.runtimeTarget] as one undo
  * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
  *
- * NoTarget and Ayagami have no CMO3 targetVersionNo encoding, so they do not survive a CMO3 save
- * round-trip (the file keeps its original value); UMA will carry them natively.
+ * Every target except Ayagami survives a CMO3 save round-trip (NoTarget persists as the editor's
+ * SDK(N/A)/Latest sentinel); Ayagami has no CMO3 targetVersionNo encoding, so a save keeps the
+ * file's original value - UMA will carry it natively.
  */
 internal val RuntimeSection =
 	PropertySection(

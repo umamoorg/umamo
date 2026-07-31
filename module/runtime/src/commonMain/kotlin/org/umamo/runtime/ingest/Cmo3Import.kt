@@ -501,9 +501,9 @@ object Cmo3Import {
 				canvasHeight = canvasHeight,
 				worldOriginX = originCanvasX,
 				worldOriginY = -originCanvasY,
-				// CMO3: CModelSource field targetVersionNo - the authored SDK target.  Unknown or absent
-				// values (including the corpus's unconfirmed 9000000 sentinel) map to NoTarget, so nothing
-				// is restricted.
+				// CMO3: CModelSource field targetVersionNo - the authored SDK target.  The SDK(N/A)/Latest
+				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
+				// restricted.
 				runtimeTarget = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelSource.targetVersionNo as? Int)),
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
