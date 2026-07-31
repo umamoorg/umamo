@@ -226,6 +226,7 @@
 	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
+	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
 	data naming. -->
@@ -398,8 +399,24 @@
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
-	<!-- Runtime compatibility (Cubism / Ayagami / …) targets are document-level config with no data model yet. -->
-	<string name="properties_runtime_placeholder">Runtime compatibility options will appear here.</string>
+	<string name="properties_field_runtime_target">Target</string>
+	<string name="runtime_target_no_target">No Target (All Features)</string>
+	<string name="runtime_target_ayagami">Ayagami (Cubism %1$s Equivalent)</string>
+	<string name="properties_runtime_restricted">Restricted features:</string>
+	<string name="properties_runtime_no_restrictions">All features are available.</string>
+	<string name="properties_runtime_feature_in_use">%1$s - CURRENTLY IN USE</string>
+	<string name="runtime_feature_warp_quad_transform">New Warp Deformer Method</string>
+	<string name="runtime_feature_reversed_mask">Reversed Mask</string>
+	<string name="runtime_feature_mesh_warp_blend_shapes">Blend Shapes (Art Mesh and Warp Deformer)</string>
+	<string name="runtime_feature_blend_shape_parameters">Blend Shape Parameters</string>
+	<string name="runtime_feature_multiply_color">Multiply Color</string>
+	<string name="runtime_feature_screen_color">Screen Color</string>
+	<string name="runtime_feature_extended_blend_shapes">Blend Shapes (Part, Rotation Deformer, Glue)</string>
+	<string name="runtime_feature_motion_sync">Motion-sync</string>
+	<string name="runtime_feature_extended_blend_modes">Blend Mode</string>
+	<string name="runtime_feature_part_composite">Part Composite (Offscreen Drawing)</string>
+	<string name="runtime_feature_parameter_repeat">Parameter Repeat</string>
+	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
 

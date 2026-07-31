@@ -201,6 +201,7 @@
 	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>
 	<string name="history_document_canvas_size">キャンバスサイズを設定</string>
 	<string name="history_document_world_origin">ワールド原点を設定</string>
+	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
 	<string name="outliner_armature">アーマチュア</string>
@@ -356,7 +357,25 @@
 	<string name="properties_section_deformer">デフォーマ</string>
 	<string name="properties_section_part">パーツ</string>
 	<string name="properties_canvas_none">キャンバスなし</string>
-	<string name="properties_runtime_placeholder">ランタイム互換オプションがここに表示されます。</string>
+	<!-- ドキュメント > ランタイム: ターゲット選択と制限機能リスト。製品名（Cubism / Ayagami）は原文のまま。 -->
+	<string name="properties_field_runtime_target">ターゲット</string>
+	<string name="runtime_target_no_target">ターゲットなし（全機能）</string>
+	<string name="runtime_target_ayagami">Ayagami（Cubism %1$s 相当）</string>
+	<string name="properties_runtime_restricted">制限される機能:</string>
+	<string name="properties_runtime_no_restrictions">すべての機能が利用できます。</string>
+	<string name="properties_runtime_feature_in_use">%1$s — このドキュメントで使用中</string>
+	<string name="runtime_feature_warp_quad_transform">新しいワープデフォーマ方式</string>
+	<string name="runtime_feature_reversed_mask">反転マスク</string>
+	<string name="runtime_feature_mesh_warp_blend_shapes">ブレンドシェイプ（アートメッシュ・ワープデフォーマ）</string>
+	<string name="runtime_feature_blend_shape_parameters">ブレンドシェイプパラメータ</string>
+	<string name="runtime_feature_multiply_color">乗算色</string>
+	<string name="runtime_feature_screen_color">スクリーン色</string>
+	<string name="runtime_feature_extended_blend_shapes">ブレンドシェイプ（パーツ・回転デフォーマ・グルー）</string>
+	<string name="runtime_feature_motion_sync">モーションシンク</string>
+	<string name="runtime_feature_extended_blend_modes">ブレンドモード</string>
+	<string name="runtime_feature_part_composite">パーツ合成（オフスクリーン描画）</string>
+	<string name="runtime_feature_parameter_repeat">パラメータのリピート</string>
+	<string name="runtime_feature_art_path">アートパス</string>
 	<string name="properties_texture_source">テクスチャソース: %1$s</string>
 	<string name="properties_texture_own">独自のアトラス割り当て</string>
 

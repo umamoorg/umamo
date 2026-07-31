@@ -62,6 +62,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.runtimeTargetOfMocVersion
 import kotlin.math.abs
 import org.umamo.format.moc3.model.BlendShape as MocBlendShape
 import org.umamo.format.moc3.model.Part as MocPart
@@ -881,6 +882,9 @@ object Moc3Import {
 				canvasHeight = canvas?.height ?: 0f,
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
+				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
+				// starts at the matching Cubism target rather than NoTarget.
+				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
 			)
 		val withRenderRoot =
 			if (renderRoot != null) {

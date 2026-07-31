@@ -11,6 +11,7 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
@@ -716,4 +717,18 @@ fun PuppetModel.withWorldOrigin(x: Float, y: Float): PuppetModel {
 		return this
 	}
 	return copy(worldOriginX = x, worldOriginY = y)
+}
+
+/**
+ * Returns a copy of [this] with the runtime-compatibility target set to [target], sharing the rest
+ * of the model. A no-op (the target already matches) returns the same instance.
+ *
+ * @param RuntimeTarget target The new runtime target.
+ * @return PuppetModel The model with the target set, or [this] if nothing changed.
+ */
+fun PuppetModel.withRuntimeTarget(target: RuntimeTarget): PuppetModel {
+	if (runtimeTarget == target) {
+		return this
+	}
+	return copy(runtimeTarget = target)
 }

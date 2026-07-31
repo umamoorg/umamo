@@ -6,6 +6,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.PartGroupMode
+import org.umamo.runtime.model.RuntimeFeature
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alpha_blend_atop
 import org.umamo.ui.resources.alpha_blend_conjoint
@@ -33,6 +35,20 @@ import org.umamo.ui.resources.blend_mode_soft_light
 import org.umamo.ui.resources.part_group_grouped
 import org.umamo.ui.resources.part_group_isolated
 import org.umamo.ui.resources.part_group_pass_through
+import org.umamo.ui.resources.runtime_feature_art_path
+import org.umamo.ui.resources.runtime_feature_blend_shape_parameters
+import org.umamo.ui.resources.runtime_feature_extended_blend_modes
+import org.umamo.ui.resources.runtime_feature_extended_blend_shapes
+import org.umamo.ui.resources.runtime_feature_mesh_warp_blend_shapes
+import org.umamo.ui.resources.runtime_feature_motion_sync
+import org.umamo.ui.resources.runtime_feature_multiply_color
+import org.umamo.ui.resources.runtime_feature_parameter_repeat
+import org.umamo.ui.resources.runtime_feature_part_composite
+import org.umamo.ui.resources.runtime_feature_reversed_mask
+import org.umamo.ui.resources.runtime_feature_screen_color
+import org.umamo.ui.resources.runtime_feature_warp_quad_transform
+import org.umamo.ui.resources.runtime_target_ayagami
+import org.umamo.ui.resources.runtime_target_no_target
 
 /*
  * Localized display names for the format-level enums the Properties dropdowns edit (blend mode, alpha
@@ -173,3 +189,56 @@ fun alphaBlendModeLabels(): Map<AlphaBlendMode, String> =
 @Composable
 fun partGroupModeLabels(): Map<PartGroupModeKind, String> =
 	PartGroupModeKind.entries.associateWith { kind -> stringResource(partGroupModeLabelRes(kind)) }
+
+/**
+ * The [StringResource] naming a restricted runtime feature in the UI, phrased to match the official
+ * Cubism editor's "Model target version selection" dialog so migrants recognize each entry.
+ *
+ * @param RuntimeFeature feature The restricted feature.
+ * @return StringResource The localized label resource.
+ */
+fun runtimeFeatureLabelRes(feature: RuntimeFeature): StringResource =
+	when (feature) {
+		RuntimeFeature.WarpQuadTransform -> Res.string.runtime_feature_warp_quad_transform
+		RuntimeFeature.ReversedMask -> Res.string.runtime_feature_reversed_mask
+		RuntimeFeature.MeshWarpBlendShapes -> Res.string.runtime_feature_mesh_warp_blend_shapes
+		RuntimeFeature.BlendShapeParameters -> Res.string.runtime_feature_blend_shape_parameters
+		RuntimeFeature.MultiplyColor -> Res.string.runtime_feature_multiply_color
+		RuntimeFeature.ScreenColor -> Res.string.runtime_feature_screen_color
+		RuntimeFeature.ExtendedBlendShapes -> Res.string.runtime_feature_extended_blend_shapes
+		RuntimeFeature.MotionSync -> Res.string.runtime_feature_motion_sync
+		RuntimeFeature.ExtendedBlendModes -> Res.string.runtime_feature_extended_blend_modes
+		RuntimeFeature.PartComposite -> Res.string.runtime_feature_part_composite
+		RuntimeFeature.ParameterRepeat -> Res.string.runtime_feature_parameter_repeat
+		RuntimeFeature.ArtPath -> Res.string.runtime_feature_art_path
+	}
+
+/**
+ * The display label for a runtime target: NoTarget and Ayagami resolve through the string catalog
+ * (their parentheticals are chrome), while the Cubism entries are product identity shown verbatim
+ * from [RuntimeTarget.displayName], never localized.
+ *
+ * @param RuntimeTarget target The target to label.
+ * @return String The dropdown label.
+ */
+@Composable
+fun runtimeTargetLabel(target: RuntimeTarget): String =
+	when (target) {
+		RuntimeTarget.NoTarget -> stringResource(Res.string.runtime_target_no_target)
+		RuntimeTarget.Ayagami -> stringResource(Res.string.runtime_target_ayagami, target.cubismLevelText().orEmpty())
+		RuntimeTarget.Cubism30,
+		RuntimeTarget.Cubism33,
+		RuntimeTarget.Cubism40,
+		RuntimeTarget.Cubism42,
+		RuntimeTarget.Cubism50,
+		RuntimeTarget.Cubism53,
+		-> target.displayName
+	}
+
+/**
+ * Resolves every runtime-target label once, as a target-to-string map for the dropdown.
+ *
+ * @return Map Each runtime target to its display label.
+ */
+@Composable
+fun runtimeTargetLabels(): Map<RuntimeTarget, String> = RuntimeTarget.entries.associateWith { target -> runtimeTargetLabel(target) }

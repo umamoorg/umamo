@@ -7,6 +7,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.caff.CaffEntry
 import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.cubismEngine
 import org.umamo.format.cmo3.xml.XmlCodec
@@ -25,6 +26,32 @@ public class Cmo3Model internal constructor(
 ) {
 	/** The model root (a org.umamo.format.cmo3.model.custom.CModelSource), or null. */
 	public val root: Any? get() = graph.root
+
+	/** The model's raw authored SDK target version, or null when the document carries none. */
+	public val targetVersionNo: Int?
+		// CMO3: CModelSource field targetVersionNo.
+		get() = (root as? CModelSource)?.targetVersionNo as? Int
+
+	/**
+	 * Sets the model's authored SDK target version so it survives a re-emit even when the source
+	 * document carried no targetVersionNo element.  The writer replays the child slots recorded at
+	 * read time, so a bare field assignment on such a document would be dropped silently; this also
+	 * records the missing slot, positioned where the editor writes the field (immediately before
+	 * latestVersionOfLastModelerNo).
+	 *
+	 * @param Int versionNo The raw targetVersionNo value to persist.
+	 */
+	public fun setTargetVersionNo(versionNo: Int) {
+		// CMO3: CModelSource field targetVersionNo.
+		val modelSource = root as? CModelSource ?: error("model root is not a CModelSource")
+		modelSource.targetVersionNo = versionNo
+		graph.ensureKnownChildSlot(
+			owner = modelSource,
+			tag = "CModelSource",
+			propertyName = "targetVersionNo",
+			beforePropertyName = "latestVersionOfLastModelerNo",
+		)
+	}
 
 	/** All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG. */
 	public fun imageResources(): List<CImageResource> {

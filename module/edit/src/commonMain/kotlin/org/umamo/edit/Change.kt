@@ -11,6 +11,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.RuntimeTarget
 
 /**
  * How a [Change] participates in undo. Reconciles the two channels a mutation feeds: the change-event
@@ -640,6 +641,17 @@ sealed interface DocumentChange : Change {
 	data class SetWorldOrigin(val x: Float, val y: Float) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.worldOrigin"
+	}
+
+	/**
+	 * Sets the document's runtime-compatibility target. Document content, so it marks the document
+	 * dirty.
+	 *
+	 * @property RuntimeTarget target The new runtime target.
+	 */
+	data class SetRuntimeTarget(val target: RuntimeTarget) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.runtimeTarget"
 	}
 }
 

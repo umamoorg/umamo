@@ -418,7 +418,39 @@ public class ModelGraph internal constructor(
 	internal val rootAttributes: List<Pair<String, String>>,
 	internal val childOrder: IdentityHashMap<Any, MutableMap<String, MutableList<ChildSlot>>>,
 	internal val presentAttrs: IdentityHashMap<Any, MutableMap<String, MutableSet<String>>>,
-)
+) {
+	/**
+	 * Ensures the replayed child order for [owner] at the [tag] level contains a KnownField slot for
+	 * [propertyName], so a field assigned after read reaches the re-emitted document even when the
+	 * source carried no such element (the writer replays recorded slots and would otherwise drop the
+	 * assignment silently).  Amends only an EXISTING recorded order: an owner without one already
+	 * emits every declared field, and creating an order here would collapse its output to this
+	 * single slot.  The new slot lands immediately before [beforePropertyName]'s slot when that
+	 * anchor exists (matching where the editor writes the field), else at the end.
+	 *
+	 * @param Any     owner              The object whose child order is amended.
+	 * @param String  tag                The serializer tag level the order was recorded under.
+	 * @param String  propertyName       The typed property the slot replays.
+	 * @param String? beforePropertyName The anchor property to insert before, or null to append.
+	 */
+	internal fun ensureKnownChildSlot(owner: Any, tag: String, propertyName: String, beforePropertyName: String?) {
+		val slots = childOrder[owner]?.get(tag) ?: return
+		val alreadyRecorded = slots.any { slot -> slot is ChildSlot.KnownField && slot.propertyName == propertyName }
+		if (alreadyRecorded) {
+			return
+		}
+		val newSlot = ChildSlot.KnownField(propertyName)
+		val anchorIndex =
+			beforePropertyName?.let { anchor ->
+				slots.indexOfFirst { slot -> slot is ChildSlot.KnownField && slot.propertyName == anchor }
+			} ?: -1
+		if (anchorIndex >= 0) {
+			slots.add(anchorIndex, newSlot)
+		} else {
+			slots.add(newSlot)
+		}
+	}
+}
 
 /**
  * Top-level model (de)serializer: turns a typed root object into a `<root><shared/><main/></root>`

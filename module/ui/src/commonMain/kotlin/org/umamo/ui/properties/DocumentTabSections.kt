@@ -1,14 +1,23 @@
 package org.umamo.ui.properties
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.setCanvasSize
+import org.umamo.edit.setRuntimeTarget
 import org.umamo.edit.setWorldOrigin
+import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.unsupportedFeaturesInUse
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
+import org.umamo.ui.kit.SelectField
 import org.umamo.ui.resources.*
 
 /*
@@ -99,18 +108,64 @@ internal val CanvasSection =
 	)
 
 /**
- * Document > Runtime: runtime / export-target API compatibility options (Cubism, Ayagami, and others).
- * This is document-level configuration with no model backing yet, so the first cut renders a placeholder;
- * the runtime-compatibility target data model is a dedicated follow-up.
+ * Document > Runtime: the document's runtime-compatibility target (Cubism, Ayagami) and the features
+ * it restricts.  The selector writes [org.umamo.runtime.model.PuppetModel.runtimeTarget] as one undo
+ * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
+ *
+ * A CMO3 save persists every target: Cubism targets as their literals, NoTarget as the editor's
+ * SDK(N/A)/Latest sentinel, and Ayagami at its effective Cubism level (its identity cannot survive
+ * CMO3, so a reopen shows Cubism 5.0 - UMA will carry the identity natively).
  */
 internal val RuntimeSection =
 	PropertySection(
 		id = "document.runtime",
 		title = Res.string.properties_section_runtime,
-		rows = { _ ->
+		rows = { context ->
+			val puppet = context.puppet
+			val session = context.session
 			listOf(
-				PropertyRow(terms = listOf(Res.string.properties_runtime_placeholder)) { _ ->
-					PropertyLine(stringResource(Res.string.properties_runtime_placeholder))
+				PropertyRow(terms = listOf(Res.string.properties_field_runtime_target)) { _ ->
+					val targetLabels = runtimeTargetLabels()
+					PropertyFieldRow(stringResource(Res.string.properties_field_runtime_target)) {
+						SelectField(
+							selected = puppet.runtimeTarget,
+							modifier = Modifier.fillMaxWidth(),
+							options = RuntimeTarget.entries,
+							label = { target -> targetLabels[target] ?: target.displayName },
+							onSelect = { target -> session?.setRuntimeTarget(target) },
+						)
+					}
+				},
+				// The whole restricted list is one searchable row so header search keeps the block
+				// intact, same rationale as the stacked canvas fields above.
+				PropertyRow(
+					terms = listOf(Res.string.properties_runtime_restricted, Res.string.properties_runtime_no_restrictions),
+				) { _ ->
+					val restricted = puppet.runtimeTarget.restrictedFeatures()
+					if (restricted.isEmpty()) {
+						PropertyLine(stringResource(Res.string.properties_runtime_no_restrictions))
+					} else {
+						// Marking the entries THIS document actually uses turns the abstract per-target
+						// list into a decision aid (the same strip diff a MOC3 export will confirm).  The
+						// scan walks every drawable, part, and deformer, so it is keyed to the model
+						// instance rather than recomputed on every recomposition.
+						val featuresInUse = remember(puppet) { puppet.unsupportedFeaturesInUse(puppet.runtimeTarget) }
+						Column {
+							PropertyLine(stringResource(Res.string.properties_runtime_restricted))
+							restricted.forEach { feature ->
+								val featureLabel = stringResource(runtimeFeatureLabelRes(feature))
+								val line =
+									if (feature in featuresInUse) {
+										stringResource(Res.string.properties_runtime_feature_in_use, featureLabel)
+									} else {
+										featureLabel
+									}
+								Box(modifier = Modifier.padding(start = 12.dp)) {
+									PropertyLine(line)
+								}
+							}
+						}
+					}
 				},
 			)
 		},

@@ -71,6 +71,7 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.InlineRenameField
@@ -321,9 +322,10 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// The "add" items every parameter menu ends with: Add Key Form / Add Blend Shape parameter, and New
 	// Group. Each creates a document edit and opens the created item for inline rename. Shared by the
 	// panel-background menu (so the first parameter / group can be made with no row to right-click) and
-	// each row's context menu. The two parameter kinds mirror the header's Add Parameter dropdown.
+	// each row's context menu. The two parameter kinds mirror the header's Add Parameter dropdown,
+	// including its runtime-target gate - a second creation path must not bypass what the header hides.
 	val createMenuItems =
-		listOf(
+		listOfNotNull(
 			MenuItem.Action(
 				label = addKeyFormParamLabel,
 				onSelect = {
@@ -333,15 +335,19 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 				},
 				enabled = session != null,
 			),
-			MenuItem.Action(
-				label = addBlendShapeParamLabel,
-				onSelect = {
-					session?.let {
-						viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
-					}
-				},
-				enabled = session != null,
-			),
+			if (!puppet.runtimeTarget.supports(RuntimeFeature.BlendShapeParameters)) {
+				null
+			} else {
+				MenuItem.Action(
+					label = addBlendShapeParamLabel,
+					onSelect = {
+						session?.let {
+							viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
+						}
+					},
+					enabled = session != null,
+				)
+			},
 			MenuItem.Action(
 				label = newGroupLabel,
 				onSelect = { session?.let { viewState.renamingGroupId = it.createParameterGroup(defaultGroupName) } },

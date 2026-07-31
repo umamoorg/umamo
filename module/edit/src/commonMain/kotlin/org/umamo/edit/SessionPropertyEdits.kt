@@ -8,6 +8,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.RuntimeTarget
 
 /*
  * Scalar property edits on an EditorSession, driven by the Properties panel's editable controls.  Each
@@ -264,4 +265,13 @@ fun EditorSession.setCanvasSize(width: Float, height: Float) {
  */
 fun EditorSession.setWorldOrigin(x: Float, y: Float) {
 	mutate(DocumentChange.SetWorldOrigin(x, y)) { model -> model.withWorldOrigin(x, y) }
+}
+
+/**
+ * Sets the document's runtime-compatibility target as one undo step.
+ *
+ * @param RuntimeTarget target The new runtime target.
+ */
+fun EditorSession.setRuntimeTarget(target: RuntimeTarget) {
+	mutate(DocumentChange.SetRuntimeTarget(target)) { model -> model.withRuntimeTarget(target) }
 }

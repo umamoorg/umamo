@@ -1,5 +1,6 @@
 package org.umamo.runtime.ingest
 
+import org.umamo.format.cmo3.Cmo3TargetVersion
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
@@ -84,6 +85,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.runtimeTargetOfCmo3Target
 
 /**
  * Maps a parsed CMO3 model graph (`:format`) into the concrete [PuppetModel] (`:runtime`).
@@ -499,6 +501,10 @@ object Cmo3Import {
 				canvasHeight = canvasHeight,
 				worldOriginX = originCanvasX,
 				worldOriginY = -originCanvasY,
+				// CMO3: CModelSource field targetVersionNo - the authored SDK target.  The SDK(N/A)/Latest
+				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
+				// restricted.
+				runtimeTarget = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelSource.targetVersionNo as? Int)),
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot

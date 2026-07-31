@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.Cmo3TargetVersion
+import org.umamo.runtime.model.runtimeTargetOfCmo3Target
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
@@ -201,10 +203,23 @@ fun EditorApp(
 			// Suggest the base name without the extension; FileKit re-appends ".cmo3".
 			val suggestedName = cmo3Document.displayName.removeSuffix(".cmo3")
 			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// Writes the original CMO3 bytes, not the edited PuppetModel: there is no model -> CMO3
-				// lowering yet, so edits made in the session are not persisted here. markSaved still moves
-				// the dirty baseline so the modified marker clears, exercising the undo-history save
-				// mechanism ahead of that lowering.
+				// CMO3: CModelSource field targetVersionNo - written only when the session's target
+				// differs from what the file already decodes to, so an unchanged target keeps the
+				// original bytes verbatim (write-what-the-editor-writes).  Every target encodes:
+				// Cubism targets as their literals, Ayagami as its effective Cubism 5.0 level, and
+				// NoTarget as the SDK(N/A)/Latest sentinel.
+				val sessionTarget = session?.model?.value?.runtimeTarget
+				if (sessionTarget != null) {
+					val decodedCurrent =
+						runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(cmo3Document.cmo3.targetVersionNo))
+					if (decodedCurrent != sessionTarget) {
+						cmo3Document.cmo3.setTargetVersionNo(sessionTarget.cmo3TargetVersionNo())
+					}
+				}
+				// Writes the original CMO3 bytes (with the target field above as the one exception), not
+				// the edited PuppetModel: there is no model -> CMO3 lowering yet, so edits made in the
+				// session are not persisted here. markSaved still moves the dirty baseline so the modified
+				// marker clears, exercising the undo-history save mechanism ahead of that lowering.
 				destination.write(Cmo3.write(cmo3Document.cmo3))
 				session?.markSaved()
 				UmamoLog.info("saved ${destination.absolutePath()}")

@@ -3,6 +3,7 @@ package org.umamo.ui.properties
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.PartGroupMode
+import org.umamo.runtime.model.RuntimeFeature
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -22,6 +23,9 @@ class EnumLabelsTest {
 
 		val groupResources = PartGroupModeKind.entries.map { kind -> partGroupModeLabelRes(kind) }
 		assertEquals(PartGroupModeKind.entries.size, groupResources.toSet().size)
+
+		val featureResources = RuntimeFeature.entries.map { feature -> runtimeFeatureLabelRes(feature) }
+		assertEquals(RuntimeFeature.entries.size, featureResources.toSet().size)
 	}
 
 	@Test
