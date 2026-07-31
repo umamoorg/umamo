@@ -18,6 +18,9 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.Cmo3TargetVersion
+import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.runtime.model.runtimeTargetOfCmo3Target
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
@@ -201,10 +204,24 @@ fun EditorApp(
 			// Suggest the base name without the extension; FileKit re-appends ".cmo3".
 			val suggestedName = cmo3Document.displayName.removeSuffix(".cmo3")
 			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// Writes the original CMO3 bytes, not the edited PuppetModel: there is no model -> CMO3
-				// lowering yet, so edits made in the session are not persisted here. markSaved still moves
-				// the dirty baseline so the modified marker clears, exercising the undo-history save
-				// mechanism ahead of that lowering.
+				// CMO3: CModelSource field targetVersionNo - written only when the session's target maps
+				// to a Cubism version AND differs from what the file already decodes to.  NoTarget and
+				// Ayagami have no CMO3 encoding, and an unchanged target keeps the original bytes verbatim
+				// (legacy literals and the unconfirmed 9000000 sentinel round-trip untouched), per the
+				// write-what-the-editor-writes rule.
+				val modelRoot = cmo3Document.cmo3.root as? CModelSource
+				val sessionTarget = session?.model?.value?.runtimeTarget
+				if (modelRoot != null && sessionTarget != null) {
+					val encoded = sessionTarget.cmo3TargetVersion()?.versionNo
+					val decodedCurrent = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelRoot.targetVersionNo as? Int))
+					if (encoded != null && decodedCurrent != sessionTarget) {
+						modelRoot.targetVersionNo = encoded
+					}
+				}
+				// Writes the original CMO3 bytes (with the target field above as the one exception), not
+				// the edited PuppetModel: there is no model -> CMO3 lowering yet, so edits made in the
+				// session are not persisted here. markSaved still moves the dirty baseline so the modified
+				// marker clears, exercising the undo-history save mechanism ahead of that lowering.
 				destination.write(Cmo3.write(cmo3Document.cmo3))
 				session?.markSaved()
 				UmamoLog.info("saved ${destination.absolutePath()}")

@@ -56,6 +56,11 @@ data class PuppetModel(
 	val worldOriginX: Float = 0f,
 	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
 	val worldOriginY: Float = 0f,
+	/**
+	 * The document's runtime-compatibility target; [RuntimeTarget.NoTarget] restricts nothing.  Gates
+	 * editing controls only - never rendering or saving.  See [RuntimeTarget].
+	 */
+	val runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
 )
 
 /**

@@ -15,6 +15,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
@@ -282,6 +283,25 @@ class PropertyScalarEditsTest {
 		session.undo()
 		assertEquals(PartGroupMode.PassThrough, session.model.value.parts.first().groupMode)
 		assertEquals(100f, session.model.value.canvasWidth)
+	}
+
+	@Test
+	fun sessionRuntimeTargetEditCommitsUndoesAndNoOps() {
+		val session = EditorSession(model())
+
+		session.setRuntimeTarget(RuntimeTarget.Cubism50)
+		assertEquals(RuntimeTarget.Cubism50, session.model.value.runtimeTarget)
+		assertTrue(session.dirty.value, "a target change is document content, so it dirties")
+		assertEquals("change.document.runtimeTarget", DocumentChange.SetRuntimeTarget(RuntimeTarget.Cubism50).labelKey)
+
+		session.undo()
+		assertEquals(RuntimeTarget.NoTarget, session.model.value.runtimeTarget)
+		assertFalse(session.dirty.value, "undo restores the saved model instance")
+
+		// The target is already NoTarget, so this edit changes nothing.
+		session.setRuntimeTarget(RuntimeTarget.NoTarget)
+		assertFalse(session.canUndo.value)
+		assertFalse(session.dirty.value)
 	}
 
 	@Test

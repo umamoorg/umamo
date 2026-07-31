@@ -42,6 +42,8 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.RuntimeFeature
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.displayMultiplyColor
 import org.umamo.runtime.model.displayScreenColor
 import org.umamo.runtime.model.multiplyColor
@@ -112,6 +114,7 @@ internal val BlendSection =
 			val drawable = context.activeDrawable()
 			if (drawable != null) {
 				val session = context.session
+				val target = context.puppet.runtimeTarget
 				listOfNotNull(
 					// Opacity and draw order are keyable channels like the colours below, each with its own
 					// static and its own optional track.  Draw order is a FLOAT here, unlike a part's int:
@@ -150,13 +153,13 @@ internal val BlendSection =
 							SelectField(
 								selected = drawable.blendMode,
 								modifier = Modifier.fillMaxWidth(),
-								options = blendModeDisplayOrder(),
+								options = blendModeOptionsFor(target, drawable.blendMode),
 								label = { mode -> blendLabels[mode] ?: mode.name },
 								onSelect = { mode -> session?.setDrawableBlendMode(drawable.id, mode) },
 							)
 						}
 					},
-					if (drawable.blendMode.ignoresAlphaBlend) {
+					if (!showsAlphaBlendRow(target, drawable.blendMode)) {
 						null
 					} else {
 						PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
@@ -172,29 +175,37 @@ internal val BlendSection =
 							}
 						}
 					},
-					// The 5.3 per-art-mesh multiply/screen color: a channel with its own static and its own
+					// The 4.2 per-art-mesh multiply/screen color: a channel with its own static and its own
 					// optional keyform track, so the picker writes the static and `I` over the row keys it.
-					PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
-						KeyableColorChannelRow(
-							label = stringResource(Res.string.properties_field_multiply_color),
-							owner = KeyformOwner.Drawable(drawable.id),
-							channel = FormChannel.MULTIPLY_COLOR,
-							stored = drawable.displayMultiplyColor(),
-							session = session,
-							changeFor = { color -> DrawableChange.SetMultiplyColor(drawable.id, color) },
-							writeStatic = { color -> session?.setDrawableMultiplyColor(drawable.id, color) },
-						)
+					if (!target.supports(RuntimeFeature.MultiplyColor)) {
+						null
+					} else {
+						PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
+							KeyableColorChannelRow(
+								label = stringResource(Res.string.properties_field_multiply_color),
+								owner = KeyformOwner.Drawable(drawable.id),
+								channel = FormChannel.MULTIPLY_COLOR,
+								stored = drawable.displayMultiplyColor(),
+								session = session,
+								changeFor = { color -> DrawableChange.SetMultiplyColor(drawable.id, color) },
+								writeStatic = { color -> session?.setDrawableMultiplyColor(drawable.id, color) },
+							)
+						}
 					},
-					PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
-						KeyableColorChannelRow(
-							label = stringResource(Res.string.properties_field_screen_color),
-							owner = KeyformOwner.Drawable(drawable.id),
-							channel = FormChannel.SCREEN_COLOR,
-							stored = drawable.displayScreenColor(),
-							session = session,
-							changeFor = { color -> DrawableChange.SetScreenColor(drawable.id, color) },
-							writeStatic = { color -> session?.setDrawableScreenColor(drawable.id, color) },
-						)
+					if (!target.supports(RuntimeFeature.ScreenColor)) {
+						null
+					} else {
+						PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
+							KeyableColorChannelRow(
+								label = stringResource(Res.string.properties_field_screen_color),
+								owner = KeyformOwner.Drawable(drawable.id),
+								channel = FormChannel.SCREEN_COLOR,
+								stored = drawable.displayScreenColor(),
+								session = session,
+								changeFor = { color -> DrawableChange.SetScreenColor(drawable.id, color) },
+								writeStatic = { color -> session?.setDrawableScreenColor(drawable.id, color) },
+							)
+						}
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_culling)) { _ ->
 						PropertyCheckboxRow(
@@ -208,12 +219,18 @@ internal val BlendSection =
 					PropertyRow(terms = listOf(Res.string.properties_field_masked_by, Res.string.properties_mask_count)) { _ ->
 						DrawableMaskEditor(drawable, context)
 					},
-					PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
-						PropertyCheckboxRow(
-							checked = drawable.invertMask,
-							onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
-							label = stringResource(Res.string.properties_field_invert_mask),
-						)
+					// Reversed masking is a 4.0 feature (official target dialog), gated separately from the
+					// always-available masks above it.
+					if (!target.supports(RuntimeFeature.ReversedMask)) {
+						null
+					} else {
+						PropertyRow(terms = listOf(Res.string.properties_field_invert_mask)) { _ ->
+							PropertyCheckboxRow(
+								checked = drawable.invertMask,
+								onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
+								label = stringResource(Res.string.properties_field_invert_mask),
+							)
+						}
 					},
 				)
 			} else {
@@ -229,25 +246,31 @@ internal val DeformerSection =
 		title = Res.string.properties_section_deformer,
 		rows = { context ->
 			val session = context.session
+			val target = context.puppet.runtimeTarget
 			when (val deformer = context.activeDeformer()) {
 				is Deformer.Warp ->
-					deformerRenderChannelRows(deformer, session) +
-						listOf(
+					deformerRenderChannelRows(deformer, session, target) +
+						listOfNotNull(
 							PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
 								// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
 								PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
 							},
-							PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
-								PropertyCheckboxRow(
-									checked = deformer.isQuadTransform,
-									onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
-									label = stringResource(Res.string.properties_field_quad_transform),
-								)
+							// The bilinear mode is the official dialog's "new warp deformer method" (3.3+).
+							if (!target.supports(RuntimeFeature.WarpQuadTransform)) {
+								null
+							} else {
+								PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
+									PropertyCheckboxRow(
+										checked = deformer.isQuadTransform,
+										onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+										label = stringResource(Res.string.properties_field_quad_transform),
+									)
+								}
 							},
 						)
 
 				is Deformer.Rotation ->
-					deformerRenderChannelRows(deformer, session) +
+					deformerRenderChannelRows(deformer, session, target) +
 						listOf(
 							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
 								PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
@@ -299,6 +322,7 @@ internal val PartSection =
 			val part = context.activePart()
 			if (part != null) {
 				val session = context.session
+				val target = context.puppet.runtimeTarget
 				buildList {
 					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_sketch)) { _ ->
@@ -351,7 +375,7 @@ internal val PartSection =
 								SelectField(
 									selected = part.groupMode.kind(),
 									modifier = Modifier.fillMaxWidth(),
-									options = PartGroupModeKind.entries,
+									options = partGroupModeOptionsFor(target, part.groupMode.kind()),
 									label = { kind -> groupLabels[kind] ?: kind.name },
 									onSelect = { kind -> session?.setPartGroupMode(part.id, partGroupModeOf(kind)) },
 								)
@@ -361,9 +385,12 @@ internal val PartSection =
 					// An isolated part composites its subtree as one layer; expose the composite's scalar channels,
 					// tint colors, and clip masks.  The composite is stored latently on the part, so each sub-field
 					// edits it via setPartComposite - it survives a mode round-trip and is shown only while the part
-					// is Isolated (activeComposite is non-null exactly then).
+					// is Isolated (activeComposite is non-null exactly then).  The whole block additionally gates on
+					// the 5.3 offscreen feature: an out-of-target isolated part keeps rendering, but its composite
+					// stops being editable.  No inner gates - 5.3 support implies every lower tier (colors, alpha,
+					// reversed mask).
 					val composite = part.activeComposite
-					if (composite != null) {
+					if (composite != null && target.supports(RuntimeFeature.PartComposite)) {
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 								KeyableScalarChannelRow(
@@ -597,9 +624,13 @@ private fun KeyableFlagChannelRow(
  * @param EditorSession? session The open document's session, or null.
  * @return List<PropertyRow> The three rows.
  */
-private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession?): List<PropertyRow> {
+private fun deformerRenderChannelRows(
+	deformer: Deformer,
+	session: EditorSession?,
+	target: RuntimeTarget,
+): List<PropertyRow> {
 	val owner = KeyformOwner.Deformer(deformer.id)
-	return listOf(
+	return listOfNotNull(
 		PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 			KeyableScalarChannelRow(
 				label = stringResource(Res.string.properties_field_opacity),
@@ -614,27 +645,36 @@ private fun deformerRenderChannelRows(deformer: Deformer, session: EditorSession
 				writeStatic = { opacity -> session?.setDeformerOpacity(deformer.id, opacity) },
 			)
 		},
-		PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
-			KeyableColorChannelRow(
-				label = stringResource(Res.string.properties_field_multiply_color),
-				owner = owner,
-				channel = FormChannel.MULTIPLY_COLOR,
-				stored = deformer.multiplyColor,
-				session = session,
-				changeFor = { color -> DeformerChange.SetMultiplyColor(deformer.id, color) },
-				writeStatic = { color -> session?.setDeformerMultiplyColor(deformer.id, color) },
-			)
+		// The deformer color cascade is a 4.2 feature (official target dialog), like the drawable tints.
+		if (!target.supports(RuntimeFeature.MultiplyColor)) {
+			null
+		} else {
+			PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
+				KeyableColorChannelRow(
+					label = stringResource(Res.string.properties_field_multiply_color),
+					owner = owner,
+					channel = FormChannel.MULTIPLY_COLOR,
+					stored = deformer.multiplyColor,
+					session = session,
+					changeFor = { color -> DeformerChange.SetMultiplyColor(deformer.id, color) },
+					writeStatic = { color -> session?.setDeformerMultiplyColor(deformer.id, color) },
+				)
+			}
 		},
-		PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
-			KeyableColorChannelRow(
-				label = stringResource(Res.string.properties_field_screen_color),
-				owner = owner,
-				channel = FormChannel.SCREEN_COLOR,
-				stored = deformer.screenColor,
-				session = session,
-				changeFor = { color -> DeformerChange.SetScreenColor(deformer.id, color) },
-				writeStatic = { color -> session?.setDeformerScreenColor(deformer.id, color) },
-			)
+		if (!target.supports(RuntimeFeature.ScreenColor)) {
+			null
+		} else {
+			PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
+				KeyableColorChannelRow(
+					label = stringResource(Res.string.properties_field_screen_color),
+					owner = owner,
+					channel = FormChannel.SCREEN_COLOR,
+					stored = deformer.screenColor,
+					session = session,
+					changeFor = { color -> DeformerChange.SetScreenColor(deformer.id, color) },
+					writeStatic = { color -> session?.setDeformerScreenColor(deformer.id, color) },
+				)
+			}
 		},
 	)
 }

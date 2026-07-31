@@ -1,14 +1,21 @@
 package org.umamo.ui.properties
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.setCanvasSize
+import org.umamo.edit.setRuntimeTarget
 import org.umamo.edit.setWorldOrigin
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
+import org.umamo.ui.kit.SelectField
 import org.umamo.ui.resources.*
 
 /*
@@ -99,18 +106,51 @@ internal val CanvasSection =
 	)
 
 /**
- * Document > Runtime: runtime / export-target API compatibility options (Cubism, Ayagami, and others).
- * This is document-level configuration with no model backing yet, so the first cut renders a placeholder;
- * the runtime-compatibility target data model is a dedicated follow-up.
+ * Document > Runtime: the document's runtime-compatibility target (Cubism, Ayagami) and the features
+ * it restricts.  The selector writes [org.umamo.runtime.model.PuppetModel.runtimeTarget] as one undo
+ * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
+ *
+ * NoTarget and Ayagami have no CMO3 targetVersionNo encoding, so they do not survive a CMO3 save
+ * round-trip (the file keeps its original value); UMA will carry them natively.
  */
 internal val RuntimeSection =
 	PropertySection(
 		id = "document.runtime",
 		title = Res.string.properties_section_runtime,
-		rows = { _ ->
+		rows = { context ->
+			val puppet = context.puppet
+			val session = context.session
 			listOf(
-				PropertyRow(terms = listOf(Res.string.properties_runtime_placeholder)) { _ ->
-					PropertyLine(stringResource(Res.string.properties_runtime_placeholder))
+				PropertyRow(terms = listOf(Res.string.properties_field_runtime_target)) { _ ->
+					val targetLabels = runtimeTargetLabels()
+					PropertyFieldRow(stringResource(Res.string.properties_field_runtime_target)) {
+						SelectField(
+							selected = puppet.runtimeTarget,
+							modifier = Modifier.fillMaxWidth(),
+							options = RuntimeTarget.entries,
+							label = { target -> targetLabels[target] ?: target.displayName },
+							onSelect = { target -> session?.setRuntimeTarget(target) },
+						)
+					}
+				},
+				// The whole restricted list is one searchable row so header search keeps the block
+				// intact, same rationale as the stacked canvas fields above.
+				PropertyRow(
+					terms = listOf(Res.string.properties_runtime_restricted, Res.string.properties_runtime_no_restrictions),
+				) { _ ->
+					val restricted = puppet.runtimeTarget.restrictedFeatures()
+					if (restricted.isEmpty()) {
+						PropertyLine(stringResource(Res.string.properties_runtime_no_restrictions))
+					} else {
+						Column {
+							PropertyLine(stringResource(Res.string.properties_runtime_restricted))
+							restricted.forEach { feature ->
+								Box(modifier = Modifier.padding(start = 12.dp)) {
+									PropertyLine(stringResource(runtimeFeatureLabelRes(feature)))
+								}
+							}
+						}
+					}
 				},
 			)
 		},

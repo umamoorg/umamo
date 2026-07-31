@@ -21,6 +21,10 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
+## Part Composite
+* Bugs
+	* Switching a part composite from isolated to anything else should stop rendering part composite features, but not lose the set values.  For example, right now it is possible to change to pass through, but the opacity from the part composite keeps applying resulting in a broken looking model.
+
 ## World Origin
 I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 

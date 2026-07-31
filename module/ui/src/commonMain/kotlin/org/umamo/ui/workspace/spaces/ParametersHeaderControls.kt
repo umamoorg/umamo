@@ -17,6 +17,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.createParameter
 import org.umamo.edit.createParameterGroup
 import org.umamo.runtime.model.ParameterKind
+import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.DropdownChip
@@ -78,7 +79,7 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 	) {
 		Menu(
 			items =
-				listOf(
+				listOfNotNull(
 					MenuItem.Action(
 						label = addKeyFormLabel,
 						onSelect = {
@@ -88,15 +89,21 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 						},
 						enabled = session != null,
 					),
-					MenuItem.Action(
-						label = addBlendShapeLabel,
-						onSelect = {
-							session?.let {
-								viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
-							}
-						},
-						enabled = session != null,
-					),
+					// Blend-shape parameters are a 4.2 feature; under an older runtime target the creation
+					// entry disappears (existing blend-shape parameters keep working and rendering).
+					if (!puppet.runtimeTarget.supports(RuntimeFeature.BlendShapeParameters)) {
+						null
+					} else {
+						MenuItem.Action(
+							label = addBlendShapeLabel,
+							onSelect = {
+								session?.let {
+									viewState.renamingParameterId = it.createParameter(defaultParameterName, ParameterKind.BLEND_SHAPE)
+								}
+							},
+							enabled = session != null,
+						)
+					},
 				),
 			onDismissRequest = { addMenuExpanded = false },
 			positionProvider = BelowAnchorPositionProvider,

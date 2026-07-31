@@ -234,6 +234,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.deformer.quadTransform" -> stringResource(Res.string.history_deformer_quad_transform)
 		"change.document.canvasSize" -> stringResource(Res.string.history_document_canvas_size)
 		"change.document.worldOrigin" -> stringResource(Res.string.history_document_world_origin)
+		"change.document.runtimeTarget" -> stringResource(Res.string.history_document_runtime_target)
 		else -> stringResource(Res.string.history_unknown)
 	}
 
