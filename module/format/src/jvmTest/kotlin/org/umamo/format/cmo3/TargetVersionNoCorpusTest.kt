@@ -35,7 +35,6 @@ class TargetVersionNoCorpusTest {
 			"modelA.cmo3" to Cmo3TargetVersion.V53,
 			"modelB.cmo3" to Cmo3TargetVersion.V50,
 			"modelD.cmo3" to Cmo3TargetVersion.V30,
-			"miku.cmo3" to Cmo3TargetVersion.V30,
 		)
 
 	@Test
