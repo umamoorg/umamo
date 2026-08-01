@@ -40,10 +40,15 @@
 	<string name="area_change_editor">エディタの種類を変更</string>
 
 	<string name="menu_file">ファイル</string>
-	<string name="menu_open">開く…</string>
 	<string name="menu_open_recent">最近使ったファイル</string>
-	<string name="menu_import_moc3">MOC3 をインポート…</string>
-	<string name="menu_save_as">名前を付けて保存…</string>
+	<string name="menu_import">インポート</string>
+	<string name="menu_export">エクスポート</string>
+	<string name="menu_import_cmo3">CMO3…</string>
+	<string name="menu_import_moc3">MOC3…</string>
+	<string name="menu_export_cmo3">CMO3…</string>
+	<string name="cmd_import_cmo3">CMO3 をインポート…</string>
+	<string name="cmd_import_moc3">MOC3 をインポート…</string>
+	<string name="cmd_export_cmo3">CMO3 をエクスポート…</string>
 	<string name="menu_exit">終了</string>
 
 	<string name="menu_edit">編集</string>
@@ -61,6 +66,10 @@
 	<string name="dialog_cancel">キャンセル</string>
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
+	<string name="confirm_discard_unexported">現在のドキュメントには書き出していない変更があります。破棄しますか？</string>
+	<!-- CMO3 エクスポート結果の通知（document.exportReport コマンド。%1$s は対象メッシュ名）。 -->
+	<string name="export_report_message">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
+	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">%1$s を読み込めませんでした。</string>

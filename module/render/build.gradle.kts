@@ -25,11 +25,11 @@ kotlin {
 	// `expect class GpuRenderer` — this module is zero expect/actual now; the backend seam is the
 	// RenderDevice interface instead.)
 
-	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
+	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render, module/interop build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
 	// JVM-based targets (desktop JVM + Android/ART). The CMO3 atlas extraction takes a Cmo3Model,
 	// which lives in :format's jvmAndroidMain (the JDOM-backed codec) — so it can't sit in
-	// commonMain. Promote this block to a convention plugin at the 4th user.
+	// commonMain. Promoting this block to a convention plugin is tracked in TODO.md.
 	applyDefaultHierarchyTemplate {
 		common {
 			group("jvmAndroid") {
@@ -68,15 +68,13 @@ kotlin {
 			dependencies {
 				// `api` (not `implementation`): the deformation eval's public surface returns/accepts
 				// :runtime model types (PuppetModel, DrawableId, …), so consumers see them transitively.
-				// :format rides along through :runtime's own api(:format).
 				api(project(":runtime"))
+				// `api`: :format types sit in the renderer's own public surface too — RasterImage in
+				// RenderDevice's upload API, PngCodec behind the MOC3 texture decode — and :runtime is
+				// format-free, so nothing supplies :format transitively. The jvmAndroidMain CMO3 atlas
+				// extraction (extractPuppetTextures, takes a Cmo3Model) rides on this same edge.
+				api(project(":format"))
 			}
-		}
-		// Shared by desktop JVM + Android: the CMO3 atlas extraction (extractPuppetTextures), which
-		// takes a Cmo3Model from :format's jvmAndroidMain. Declared directly per project convention
-		// even though :format also surfaces transitively via :runtime's api.
-		jvmAndroidMain.dependencies {
-			implementation(project(":format"))
 		}
 		jvmMain {
 			dependencies {
@@ -96,6 +94,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// The oracle/parity tests ingest corpus models through :interop's Cmo3Import/Moc3Import.
+				implementation(project(":interop"))
 				// Headless GL (GLFW hidden window) for the GPU-vs-CPU transform-feedback validation test.
 				// `implementation` here (not inherited from jvmMain's `implementation`) so the test sources
 				// compile against the GL/GLFW bindings; natives are pulled for the host.

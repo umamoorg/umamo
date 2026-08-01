@@ -2,7 +2,7 @@ package org.umamo.render.eval
 
 import org.junit.Assume
 import org.umamo.format.moc3.Moc3
-import org.umamo.runtime.ingest.Moc3Import
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import java.io.File

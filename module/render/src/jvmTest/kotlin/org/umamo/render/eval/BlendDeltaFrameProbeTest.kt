@@ -6,8 +6,8 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.eval.gridCorners
-import org.umamo.runtime.ingest.Cmo3Import
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test

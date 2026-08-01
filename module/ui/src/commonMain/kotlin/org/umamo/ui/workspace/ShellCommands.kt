@@ -23,6 +23,7 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.snapToGrid
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
+import org.umamo.interop.Cmo3ExportReport
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -126,6 +127,17 @@ internal fun shellWorkspaceCommands(
 		},
 		Command("document.openFailed", title = null) { argument ->
 			(argument as? DocumentOpenFailure)?.let { failure -> overlays.openFailure = failure }
+		},
+		// The document layer asks before replacing a dirty document (an import discards unexported
+		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
+		Command("document.confirmReplace", title = null) { argument ->
+			(argument as? Function0<*>)?.let { proceed ->
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unexported) { proceed.invoke() }
+			}
+		},
+		// A CMO3 export finished with advisory notices; the shell shows them in a non-blocking alert.
+		Command("document.exportReport", title = null) { argument ->
+			(argument as? Cmo3ExportReport)?.let { report -> overlays.exportReport = report }
 		},
 	)
 

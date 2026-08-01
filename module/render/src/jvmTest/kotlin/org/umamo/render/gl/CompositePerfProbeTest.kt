@@ -5,13 +5,13 @@ import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.system.MemoryUtil
 import org.umamo.format.moc3.Moc3
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.ingest.Moc3Import
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot

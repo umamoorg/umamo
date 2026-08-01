@@ -1,8 +1,8 @@
 package org.umamo.render
 
 import org.umamo.format.moc3.Moc3
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.eval.CpuDeformationEvaluator
-import org.umamo.runtime.ingest.Moc3Import
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue

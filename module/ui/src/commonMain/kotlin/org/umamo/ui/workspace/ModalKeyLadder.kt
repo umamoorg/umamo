@@ -93,6 +93,14 @@ internal fun handleModalKeyLadder(
 			}
 			true
 		}
+		// The export-report alert is modal the same way: Escape or Enter dismisses it (the export
+		// itself already happened; this only acknowledges the notices).
+		overlays.exportReport != null -> {
+			if (isEscapeDown || isEnterDown) {
+				overlays.exportReport = null
+			}
+			true
+		}
 		closeOpenMenu != null && isEscapeDown -> {
 			closeOpenMenu()
 			true

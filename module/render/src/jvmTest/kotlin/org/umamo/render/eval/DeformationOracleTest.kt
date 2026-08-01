@@ -3,7 +3,7 @@ package org.umamo.render.eval
 import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.runtime.ingest.Cmo3Import
+import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import java.io.File

@@ -14,14 +14,16 @@ import org.umamo.ui.resources.menu_credits
 import org.umamo.ui.resources.menu_documentation
 import org.umamo.ui.resources.menu_edit
 import org.umamo.ui.resources.menu_exit
+import org.umamo.ui.resources.menu_export
+import org.umamo.ui.resources.menu_export_cmo3
 import org.umamo.ui.resources.menu_file
 import org.umamo.ui.resources.menu_help
+import org.umamo.ui.resources.menu_import
+import org.umamo.ui.resources.menu_import_cmo3
 import org.umamo.ui.resources.menu_import_moc3
-import org.umamo.ui.resources.menu_open
 import org.umamo.ui.resources.menu_open_recent
 import org.umamo.ui.resources.menu_preferences
 import org.umamo.ui.resources.menu_redo
-import org.umamo.ui.resources.menu_save_as
 import org.umamo.ui.resources.menu_source_code
 import org.umamo.ui.resources.menu_undo
 import org.umamo.ui.resources.menu_web_site
@@ -33,22 +35,26 @@ import org.umamo.ui.resources.menu_workspace_reset
 import org.umamo.ui.resources.workspace_new
 
 /**
- * Builds the File menu shared by every platform's menu bar. Open / Open Recent / Save As reach their
- * operations through the caller's handlers (which route through the file.open / file.saveAs commands
- * and the shared FileKit picker), so the menu, the keyboard, and the palette share one path. The Save
- * As row is gated on [canSaveAs] (a CMO3 document is open); Open Recent labels each stored path via
- * fileDisplayName and disables itself when the list is empty.
+ * Builds the File menu shared by every platform's menu bar.  CMO3 and MOC3 are interop boundaries,
+ * so they live under Import / Export submenus - the Open… / Save As… rows are reserved for the
+ * native UMA format and return when it lands.  Every row reaches its operation through the caller's
+ * handlers (which route through the file.importCmo3 / file.importMoc3 / file.exportCmo3 commands
+ * and the shared FileKit picker), so the menu, the keyboard, and the palette share one path.  The
+ * Export CMO3 row is gated on [canExportCmo3] (a CMO3 document is open - only its retained graph
+ * can be reconciled); Open Recent labels each stored path via fileDisplayName, disables itself when
+ * the list is empty, and routes through the import path.
  *
- * 全プラットフォーム共通の File メニューを構築する。開く／最近使ったファイル／別名で保存はコマンド経由で
- * 到達し、メニュー・キーボード・パレットが同一経路を共有する。
+ * 全プラットフォーム共通の File メニューを構築する。CMO3／MOC3 は相互運用境界なのでインポート／
+ * エクスポートのサブメニューに置き、開く／保存はネイティブ UMA 形式のために予約する。各項目は
+ * コマンド経由で到達し、メニュー・キーボード・パレットが同一経路を共有する。
  *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean canSaveAs Whether a saveable document is open (gates the Save As row).
- * @param Function onOpen Opens the file picker.
+ * @param Boolean canExportCmo3 Whether a CMO3 document is open (gates the Export CMO3 row).
+ * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
- * @param Function onSaveAs Saves the open document via a picker.
+ * @param Function onExportCmo3 Exports the open document via a picker (routes through file.exportCmo3).
  * @param Function onExit Closes the application.
  * @return TopLevelMenu The File menu.
  */
@@ -56,39 +62,49 @@ import org.umamo.ui.resources.workspace_new
 fun fileMenu(
 	keymap: Keymap,
 	recentFiles: List<String>,
-	canSaveAs: Boolean,
-	onOpen: () -> Unit,
+	canExportCmo3: Boolean,
+	onImportCmo3: () -> Unit,
 	onOpenRecent: (String) -> Unit,
 	onImportMoc3: () -> Unit,
-	onSaveAs: () -> Unit,
+	onExportCmo3: () -> Unit,
 	onExit: () -> Unit,
 ): TopLevelMenu =
 	TopLevelMenu(
 		label = stringResource(Res.string.menu_file),
 		items =
 			listOf(
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_open),
-					onSelect = onOpen,
-					shortcut = keymap.chordFor("file.open")?.let { chord -> formatAccelerator(chord) },
-				),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_open_recent),
 					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { onOpenRecent(recent) }) },
 					enabled = recentFiles.isNotEmpty(),
 				),
-				// A flat row rather than an Import submenu while MOC3 is the only import; fold into a
-				// submenu when image import lands (TODO.md's File > Import/Export grouping).
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_import_moc3),
-					onSelect = onImportMoc3,
-					shortcut = keymap.chordFor("file.importMoc3")?.let { chord -> formatAccelerator(chord) },
+				MenuItem.Submenu(
+					label = stringResource(Res.string.menu_import),
+					items =
+						listOf(
+							MenuItem.Action(
+								label = stringResource(Res.string.menu_import_cmo3),
+								onSelect = onImportCmo3,
+								shortcut = keymap.chordFor("file.importCmo3")?.let { chord -> formatAccelerator(chord) },
+							),
+							MenuItem.Action(
+								label = stringResource(Res.string.menu_import_moc3),
+								onSelect = onImportMoc3,
+								shortcut = keymap.chordFor("file.importMoc3")?.let { chord -> formatAccelerator(chord) },
+							),
+						),
 				),
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_save_as),
-					onSelect = onSaveAs,
-					shortcut = keymap.chordFor("file.saveAs")?.let { chord -> formatAccelerator(chord) },
-					enabled = canSaveAs,
+				MenuItem.Submenu(
+					label = stringResource(Res.string.menu_export),
+					items =
+						listOf(
+							MenuItem.Action(
+								label = stringResource(Res.string.menu_export_cmo3),
+								onSelect = onExportCmo3,
+								shortcut = keymap.chordFor("file.exportCmo3")?.let { chord -> formatAccelerator(chord) },
+								enabled = canExportCmo3,
+							),
+						),
 				),
 				MenuItem.Separator,
 				MenuItem.Action(stringResource(Res.string.menu_exit), onSelect = onExit),

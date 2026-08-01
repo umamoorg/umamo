@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.interop.Cmo3ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
 
 /**
@@ -55,6 +56,14 @@ internal class ShellOverlayState {
 	var openFailure: DocumentOpenFailure? by mutableStateOf(null)
 
 	/**
+	 * The CMO3 export report alert's payload - set by the document.exportReport command when an
+	 * export finished with advisory notices (edits not carried into CMO3, weld divergence), cleared
+	 * like the open-failure alert.  Null while none shows.  Non-blocking: the export has already
+	 * been written when this shows.
+	 */
+	var exportReport: Cmo3ExportReport? by mutableStateOf(null)
+
+	/**
 	 * True while an overlay that holds its own focus is open (the palette's search field, the
 	 * preferences window's popups, the Help dialogs).  While one is up the shell must NOT steal focus;
 	 * it reclaims when this flips false.
@@ -63,9 +72,10 @@ internal class ShellOverlayState {
 		get() = paletteVisible || settingsVisible || aboutVisible || creditsVisible
 
 	/**
-	 * True while a modal alert (confirm dialog, file-open failure) is up.  These do NOT hold their own
-	 * focus - the shell keeps root focus so their Escape/Enter route through the modal key ladder.
+	 * True while a modal alert (confirm dialog, file-open failure, export report) is up.  These do
+	 * NOT hold their own focus - the shell keeps root focus so their Escape/Enter route through the
+	 * modal key ladder.
 	 */
 	val modalAlertOpen: Boolean
-		get() = pendingConfirm != null || openFailure != null
+		get() = pendingConfirm != null || openFailure != null || exportReport != null
 }

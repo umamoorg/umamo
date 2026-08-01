@@ -10,9 +10,9 @@ import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.moc.MocModel
+import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.extractPuppetTextures
-import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
@@ -35,7 +35,7 @@ sealed interface Document {
  * A document the editor shell runs a full puppet session over - the shared face of every format that
  * imports to a [PuppetModel].  The session, viewport, and panels consume only this surface, so a new
  * puppet-producing format plugs in by adding a subtype; format-specific state (the CMO3 model kept for
- * Save, the MOC3 container kept for a future re-bake) stays on the concrete type.
+ * export reconcile, the MOC3 container kept for a future re-bake) stays on the concrete type.
  */
 sealed interface PuppetDocument : Document {
 	/** The imported runtime puppet the session edits and the viewport renders. */
@@ -48,7 +48,10 @@ sealed interface PuppetDocument : Document {
 	val liveParams: LiveParams
 }
 
-/** A loaded `.cmo3`: the format model (for Save), the runtime puppet + textures (for render), live params. */
+/**
+ * A loaded `.cmo3`: the format model (the retained graph Export CMO3 reconciles the session's edits
+ * onto - Cmo3Export.apply), the runtime puppet + textures (for render), live params.
+ */
 class Cmo3Document(
 	override val path: String,
 	val cmo3: Cmo3Model,
@@ -60,8 +63,8 @@ class Cmo3Document(
 /**
  * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
  * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
- * reference container); there is no MOC3 save today, so an imported model is read-only at the file
- * level - Save As stays gated to [Cmo3Document].
+ * reference container); there is no MOC3 export today, so an imported model is read-only at the file
+ * level - Export CMO3 stays gated to [Cmo3Document] (only its retained graph can be reconciled).
  */
 class Moc3Document(
 	override val path: String,

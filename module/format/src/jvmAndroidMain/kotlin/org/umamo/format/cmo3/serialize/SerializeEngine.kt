@@ -259,6 +259,21 @@ internal sealed interface ChildSlot {
 }
 
 /**
+ * The first fresh ref id not colliding with a preserved pool id ("#N" numeric ids only; the pool's
+ * non-numeric ids can never collide with the "#counter" form fresh ids take).
+ *
+ * @param IdentityHashMap? preassigned The preserved shared identities, or null outside reconcile mode.
+ * @return Int The starting counter value.
+ */
+private fun nextFreshRefId(preassigned: IdentityHashMap<Any, SharedRef>?): Int {
+	val maxPreserved =
+		preassigned?.values?.maxOfOrNull { sharedRef ->
+			sharedRef.id.removePrefix("#").toIntOrNull() ?: -1
+		} ?: -1
+	return maxPreserved + 1
+}
+
+/**
  * Mutable write-side state: object-identity tracking and the shared pool (written-object map,
  * shared list, ref-id and write-index counters).
  *
@@ -274,7 +289,11 @@ internal class WriteContext(
 ) {
 	private val written = IdentityHashMap<Any, WrittenRecord>()
 	val sharedDefs = ArrayList<SharedDef>()
-	private var refIdCounter = 0
+
+	// Fresh ids continue past the preserved pool's numeric ids: the reader keys references by id,
+	// so a new shared object reusing an id already bound by the source document would hijack every
+	// later xs.ref to that id.
+	private var refIdCounter = nextFreshRefId(preassignedShared)
 	private var writtenIndexCounter = 0
 
 	/** Records [value]'s element on first write (subsequent calls are no-ops, matching the editor). */
@@ -412,7 +431,7 @@ internal class ReadContext(
 public class ModelGraph internal constructor(
 	/** The `<main>` root object (e.g. CModelSource), typed or verbatim. */
 	public val root: Any?,
-	internal val sharedOrder: List<Any>,
+	internal val sharedOrder: MutableList<Any>,
 	internal val sharedInfo: IdentityHashMap<Any, SharedRef>,
 	internal val processingInstructions: List<ProcessingInstruction>,
 	internal val rootAttributes: List<Pair<String, String>>,
@@ -449,6 +468,23 @@ public class ModelGraph internal constructor(
 		} else {
 			slots.add(newSlot)
 		}
+	}
+
+	/**
+	 * Ensures the @SerialAttribute property [propertyName] of [owner] (at the [tag] level) is emitted
+	 * on write even when the source document omitted the attribute.  The writer emits exactly the
+	 * attributes recorded as present at read time, so an attribute assigned after read would otherwise
+	 * be dropped silently.  Amends only an EXISTING record: an owner with no recorded attributes at
+	 * [tag] already falls back to emitting every non-default attribute value, and a fresh object never
+	 * has a record.  Attributes emit in declaration order regardless of record order, so no anchor is
+	 * needed.
+	 *
+	 * @param Any    owner        The object whose attribute record is amended.
+	 * @param String tag          The serializer tag level the record was captured under.
+	 * @param String propertyName The Kotlin property name of the attribute to emit.
+	 */
+	internal fun ensurePresentAttr(owner: Any, tag: String, propertyName: String) {
+		presentAttrs[owner]?.get(tag)?.add(propertyName)
 	}
 }
 
@@ -591,6 +627,8 @@ public class SerializeEngine internal constructor(
 	/**
 	 * Re-emits a [ModelGraph] to a document, reusing the preserved shared ids/order and PIs so an
 	 * unedited graph round-trips byte-identical. Known-shared objects become xs.ref by identity.
+	 * Fresh objects (added after read) referenced more than once are hoisted into the shared pool
+	 * after the preserved entries, with ids and indexes continuing past the preserved maxima.
 	 *
 	 * @param ModelGraph graph The graph to serialize.
 	 * @return Document The reconstructed model document.
@@ -618,6 +656,27 @@ public class SerializeEngine internal constructor(
 					element
 				}
 			sharedElement.addContent(defElement)
+		}
+
+		// Hoist fresh shared defs (objects added after read whose second use stamped an xs.id on the
+		// first inline def) into <shared>, the same replace-with-ref move writeRoot performs.  This
+		// runs after both the main and the preserved-pool emission so defs nested inside preserved
+		// shared subtrees are caught too.  xs.idx continues past the preserved maximum, keeping fresh
+		// entries clear of the source document's pool indexes.
+		var nextSharedIndex = (graph.sharedInfo.values.maxOfOrNull { sharedRef -> sharedRef.index } ?: -1) + 1
+		for (def in context.sharedDefs.sortedBy { it.index }) {
+			val defElement = def.element
+			val parent = defElement.parent as Element
+			val position = parent.indexOf(defElement)
+			val reference = Element(defElement.name)
+			defElement.getAttributeValue(ATTR_NAME)?.let { reference.setAttribute(ATTR_NAME, it) }
+			reference.setAttribute(ATTR_REF, def.refId)
+			parent.removeContent(defElement)
+			parent.addContent(position, reference)
+			defElement.removeAttribute(ATTR_NAME)
+			defElement.setAttribute(ATTR_INDEX, nextSharedIndex.toString())
+			sharedElement.addContent(defElement)
+			nextSharedIndex++
 		}
 
 		val document = Document(rootElement)

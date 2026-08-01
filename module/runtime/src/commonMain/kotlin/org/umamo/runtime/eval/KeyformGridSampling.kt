@@ -17,10 +17,17 @@ import org.umamo.runtime.model.WarpLatticeForm
 
 // Bracket tolerances match the Umamo C++ Runtime, needed for ULP-parity with the differential-oracle test.
 // A value within EPS_KEY of a key snaps to it; a key span below EPS_SPAN contributes no fraction.
-// Internal rather than private so runtime.keyform's grid algebra shares them: authoring a key closer than
-// EPS_KEY to an existing one, or a span below EPS_SPAN, produces a grid this evaluator cannot resolve, so
-// the algebra refuses both - and it must refuse against these exact values, not a second copy of them.
-internal const val EPS_KEY = 0.001f
+// runtime.keyform's grid algebra shares them: authoring a key closer than EPS_KEY to an existing one, or a
+// span below EPS_SPAN, produces a grid this evaluator cannot resolve, so the algebra refuses both - and it
+// must refuse against these exact values, not a second copy of them.
+
+/**
+ * The key-coincidence tolerance. Public because :interop's keyform export refinement merges union
+ * axes against the same snap distance the sampling here and the grid algebra use; every consumer
+ * must bracket against this exact value, never a copy of it.
+ */
+public const val EPS_KEY: Float = 0.001f
+
 internal const val EPS_SPAN = 0.0015f
 
 // The Umamo C++ Runtime caps the multilinear corner set at 16 (kbCorners `maxc`); past that an axis snaps to its

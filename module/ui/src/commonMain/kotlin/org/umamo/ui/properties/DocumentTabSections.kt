@@ -112,7 +112,7 @@ internal val CanvasSection =
  * it restricts.  The selector writes [org.umamo.runtime.model.PuppetModel.runtimeTarget] as one undo
  * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
  *
- * A CMO3 save persists every target: Cubism targets as their literals, NoTarget as the editor's
+ * A CMO3 export persists every target: Cubism targets as their literals, NoTarget as the editor's
  * SDK(N/A)/Latest sentinel, and Ayagami at its effective Cubism level (its identity cannot survive
  * CMO3, so a reopen shows Cubism 5.0 - UMA will carry the identity natively).
  */
