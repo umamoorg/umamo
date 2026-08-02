@@ -2,9 +2,6 @@
 // reconcile, the model diff, and the RuntimeTarget↔format-version mapping. Depends on BOTH
 // :format and :runtime so that neither has to know the other: :format stays a standalone codec
 // library and :runtime stays a pure puppet runtime.
-// :interop — フォーマット↔ランタイム変換。CMO3/MOC3 の PuppetModel への取り込み、CMO3 エクスポートの
-// 照合、モデル差分、RuntimeTarget とフォーマットバージョンの対応付け。:format と :runtime の橋渡しとして
-// その両方に依存する（:format は独立したコーデック層、:runtime は純粋なパペットランタイムのまま）。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
