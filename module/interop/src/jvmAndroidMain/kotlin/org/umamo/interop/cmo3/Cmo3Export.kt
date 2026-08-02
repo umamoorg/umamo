@@ -25,19 +25,19 @@ import org.umamo.runtime.model.PuppetModel
  * Lowers an edited [PuppetModel] back onto the retained CMO3 graph it was imported from - the
  * export half of the CMO3 interop boundary (Cmo3Import is the import half).
  *
- * EN: The design is a state-based reconcile, not a Change-log replay: [apply] re-imports the graph
- *     to get a baseline, diffs the edited model against it, and only diff entries touch the graph.
- *     An unedited model therefore leaves the graph untouched and a subsequent Cmo3.write byte-
- *     identical; a re-export after an export reconciles against the just-updated graph and is a
- *     no-op.  Structure runs first (created entities get identity shells, deleted ones leave their
- *     source sets), then every surviving/created entity's fields flow through the one field-level
- *     lowering path.  Edits the lowering cannot (yet or ever) express in CMO3 are returned as
- *     notices, never silently dropped.
+ * The design is a state-based reconcile, not a Change-log replay: [apply] re-imports the graph
+ * to get a baseline, diffs the edited model against it, and only diff entries touch the graph.
+ * An unedited model therefore leaves the graph untouched and a subsequent Cmo3.write byte-
+ * identical; a re-export after an export reconciles against the just-updated graph and is a
+ * no-op.  Structure runs first (created entities get identity shells, deleted ones leave their
+ * source sets), then every surviving/created entity's fields flow through the one field-level
+ * lowering path.  Edits the lowering cannot (yet or ever) express in CMO3 are returned as
+ * notices, never silently dropped.
  *
- *     The graph is mutated IN PLACE ([Cmo3Model] holds identity-keyed reconcile metadata a deep
- *     copy cannot carry).  The full diff is computed before any mutation, so a failed export
- *     leaves either the untouched or the fully-reconciled graph - and either way the next apply
- *     self-heals from model state.
+ * The graph is mutated IN PLACE ([Cmo3Model] holds identity-keyed reconcile metadata a deep
+ * copy cannot carry).  The full diff is computed before any mutation, so a failed export
+ * leaves either the untouched or the fully-reconciled graph - and either way the next apply
+ * self-heals from model state.
  */
 object Cmo3Export {
 	/** Every field of a synthesized drawable, so its shell is populated through the Changed path. */
