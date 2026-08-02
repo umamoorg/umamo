@@ -15,7 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Gates the blank-skeleton builder (M2 of the fresh-graph synthesis): a built blank assembles
+ * Gates the blank-skeleton builder, part of the fresh-graph synthesis: a built blank assembles
  * into a .cmo3 that reads back through the normal codec and imports as an empty puppet with the
  * right document fields, and its CModelSource child sequence matches BareMinimum.cmo3 (the
  * official editor's own New -> Save As) minus the three 5.x-optional tail elements our model

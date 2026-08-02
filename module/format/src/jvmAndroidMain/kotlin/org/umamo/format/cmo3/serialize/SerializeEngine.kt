@@ -279,7 +279,9 @@ private fun nextFreshRefId(preassigned: IdentityHashMap<Any, SharedRef>?): Int {
  *
  * EN: In reconcile mode ([preassignedShared] != null) objects that were shared on read are emitted
  *     as xs.ref using their preserved id - so a round-trip stays byte-identical even when only some
- *     classes are typed. Otherwise the editor's hoist-on-second-use path assigns fresh ids.
+ *     classes are typed. Any other object referenced more than once - fresh or newly-shared, in or
+ *     out of reconcile mode - goes through the same hoist-on-second-use path, with fresh ids
+ *     continuing past the preserved maximum so they never collide with one.
  */
 internal class WriteContext(
 	private val registry: SerializerRegistry,

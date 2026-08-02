@@ -12,8 +12,6 @@ import org.umamo.ui.document.DocumentOpenFailure
  * shell holds at most one of these (like its palette-visible flag) and renders a ConfirmDialog for it,
  * so a destructive command (reset, import-overwrite) sets one instead of acting immediately.
  *
- * 保留中の確認。表示する文言と、確定時に実行する処理を持つ。
- *
  * @property StringResource message The localized prompt shown in the dialog.
  * @property Function onConfirm The action to run when confirmed.
  */
@@ -21,13 +19,10 @@ internal data class ConfirmRequest(val message: StringResource, val onConfirm: (
 
 /**
  * The shell's transient overlay flags in one place: which modal chrome (palette, preferences, Help
- * dialogs, confirm dialog, file-open alert) is currently up.  The command handlers toggle these, the
- * modal key ladder routes Escape/Enter by them, the focus-reclaim effect watches their aggregate,
- * and the shell renders the matching overlay for each - one holder instead of six loose vars, so the
- * pieces that must agree read the same state.
- *
- * シェルの一時的なオーバーレイ状態（パレット・設定・ヘルプ・確認・ファイルオープン失敗）を
- * まとめて保持する。コマンドが切り替え、キー処理とフォーカス回復と描画が同じ状態を読む。
+ * dialogs, confirm dialog, file-open alert, export report) is currently up.  The command handlers
+ * toggle these, the modal key ladder routes Escape/Enter by them, the focus-reclaim effect watches
+ * their aggregate, and the shell renders the matching overlay for each - one holder instead of seven
+ * loose vars, so the pieces that must agree read the same state.
  */
 internal class ShellOverlayState {
 	/** The command palette's visible flag - toggled by palette.toggle. */

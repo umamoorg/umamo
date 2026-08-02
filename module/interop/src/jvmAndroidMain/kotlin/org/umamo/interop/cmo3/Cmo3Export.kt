@@ -101,10 +101,10 @@ object Cmo3Export {
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
 
-		// Phase 1 - set membership: identity shells for creations, source removal for deletions.
-		// Category order follows the reference web (parameters/groups first, then parts and
-		// deformers, then the drawables that bind to them, then the glues that bind drawables), and
-		// the structural index is REBUILT between categories so same-export creations resolve.
+		// Structural pass - set membership: identity shells for creations, source removal for
+		// deletions.  Category order follows the reference web (parameters/groups first, then parts
+		// and deformers, then the drawables that bind to them, then the glues that bind drawables),
+		// and the structural index is REBUILT between categories so same-export creations resolve.
 		var anyDeleted = false
 		var structural = Cmo3StructureLowering(modelSource, Cmo3GraphIndex(modelSource), editor, edited, notices, drawableTextureBindings)
 
@@ -271,10 +271,10 @@ object Cmo3Export {
 				document = diff.document,
 			)
 
-		// Phase 2 - field lowering over a REBUILT index (it must see the shells and forget the
-		// removed sources).  Parameters and groups first (tree rebuilds reference their sources),
-		// then deformer moves (they mutate _childGuids), then parts (whose CHILDREN rebuild anchors
-		// on the moved lists), then drawables, glues, and the document fields.
+		// Field-lowering pass over a REBUILT index (it must see the shells and forget the removed
+		// sources).  Parameters and groups first (tree rebuilds reference their sources), then
+		// deformer moves (they mutate _childGuids), then parts (whose CHILDREN rebuild anchors on
+		// the moved lists), then drawables, glues, and the document fields.
 		val lowering =
 			Cmo3PropertyLowering(
 				target = target,

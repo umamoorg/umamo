@@ -315,8 +315,8 @@ class Cmo3ExportRoundTripTest {
 				nudged[1] -= 2f
 				puppet.withMeshPositions(drawable.id, nudged)
 			}
-		// Export as-authored + warn (the TODO step-8 decision): the geometry survives exactly, and
-		// the weld-divergence notice names the edited mesh.
+		// Exported geometry is written as authored rather than re-welded to Cubism's own topology,
+		// so the geometry survives exactly while the weld-divergence notice names the edited mesh.
 		val weld = result.report.notices.filterIsInstance<ExportNotice.WeldDivergence>().singleOrNull()
 		assertTrue(weld != null && weld.drawableNames.isNotEmpty(), "weld notice fires for a base-geometry edit")
 		assertTrue(
