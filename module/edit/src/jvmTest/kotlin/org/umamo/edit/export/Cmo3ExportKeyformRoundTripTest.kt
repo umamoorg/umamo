@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
+import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -18,6 +19,7 @@ import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
@@ -399,5 +401,89 @@ class Cmo3ExportKeyformRoundTripTest {
 						}
 				)
 		assertTrue(acceptable, "blend shape nudge: unexpected residual $residual")
+	}
+
+	@Test
+	fun baseMoveWithKeyformEditKeepsBlendShapeDeltas() {
+		// The combined base-move + keyform-edit path writes the base through the grid rebuild
+		// (alsoWriteBase) instead of lowerMeshPositions' pool-wide rebase, so the surviving
+		// morph-target forms must follow the base move on their own - a stale absolute shifts every
+		// re-imported blend-shape delta by the move distance.
+		val file =
+			firstProbeFileWith { probe ->
+				probe.drawables.any { drawable ->
+					drawable.mesh != null &&
+						drawable.geometryGrid != null &&
+						drawable.geometryGrid!!.cells.isNotEmpty() &&
+						drawable.blendShapes.any { binding -> binding.forms.any { form -> form != null } }
+				}
+			} ?: return
+		var editedId: DrawableId? = null
+		val result =
+			roundTrip(file) { puppet ->
+				val drawable =
+					puppet.drawables.first { candidate ->
+						candidate.mesh != null &&
+							candidate.geometryGrid != null &&
+							candidate.geometryGrid!!.cells.isNotEmpty() &&
+							candidate.blendShapes.any { binding -> binding.forms.any { form -> form != null } }
+					}
+				editedId = drawable.id
+				val mesh = drawable.mesh!!
+				val movedPositions = mesh.positions.copyOf()
+				movedPositions[0] += 5f
+				val grid = drawable.geometryGrid!!
+				val nudgedCells =
+					grid.cells.mapIndexed { cellIndex, cell ->
+						if (cellIndex == 0) {
+							val nudged = cell.form.positionDeltas.copyOf()
+							if (nudged.isNotEmpty()) {
+								nudged[0] += 2f
+							}
+							KeyformCell(cell.coordinate, MeshDeltaForm(nudged))
+						} else {
+							cell
+						}
+					}
+				puppet.copy(
+					drawables =
+						puppet.drawables.map { candidate ->
+							if (candidate.id == drawable.id) {
+								candidate.copy(
+									mesh = DrawableMesh(movedPositions, mesh.uvs, mesh.indices),
+									geometryGrid = KeyformGrid(grid.axes, nudgedCells),
+								)
+							} else {
+								candidate
+							}
+						},
+				)
+			}
+		// The base move leaves the imported weld by definition; nothing else may be reported.
+		assertTrue(
+			result.report.notices.all { notice -> notice is ExportNotice.WeldDivergence },
+			"base move + keyform edit: unexpected notices ${result.report.notices}",
+		)
+		val editedDrawable = result.edited.drawables.first { it.id == editedId }
+		val reimportedDrawable = result.reimported.drawables.first { it.id == editedId }
+		assertTrue(
+			reimportedDrawable.blendShapes.size == editedDrawable.blendShapes.size,
+			"base move + keyform edit: blend-shape binding count changed",
+		)
+		var maxDeltaDrift = 0f
+		for (bindingIndex in editedDrawable.blendShapes.indices) {
+			val editedBinding = editedDrawable.blendShapes[bindingIndex]
+			val reimportedBinding = reimportedDrawable.blendShapes[bindingIndex]
+			for (formIndex in editedBinding.forms.indices) {
+				val editedForm = editedBinding.forms[formIndex] ?: continue
+				val reimportedForm = reimportedBinding.forms.getOrNull(formIndex)
+				assertTrue(reimportedForm != null, "base move + keyform edit: blend-shape form $formIndex vanished")
+				for (component in editedForm.positionDeltas.indices) {
+					maxDeltaDrift =
+						maxOf(maxDeltaDrift, abs(editedForm.positionDeltas[component] - reimportedForm!!.positionDeltas[component]))
+				}
+			}
+		}
+		assertTrue(maxDeltaDrift < 1e-3f, "base move + keyform edit: blend-shape deltas drifted by $maxDeltaDrift")
 	}
 }

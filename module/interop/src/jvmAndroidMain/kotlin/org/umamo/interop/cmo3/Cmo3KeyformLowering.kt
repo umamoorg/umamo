@@ -73,13 +73,8 @@ internal class Cmo3KeyformLowering(
 	private val index: Cmo3GraphIndex,
 	private val editor: Cmo3GraphEditor,
 	private val baseline: PuppetModel,
-	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
 ) {
-	private val parameterRanges: Map<ParameterId, ClosedFloatingPointRange<Float>> =
-		edited.parameters.associate { parameter ->
-			parameter.id to (minOf(parameter.min, parameter.max)..maxOf(parameter.min, parameter.max))
-		}
 	private val parameterIdByUuid: Map<String, ParameterId> =
 		buildMap {
 			for (source in index.parameterSources) {
@@ -576,6 +571,37 @@ internal class Cmo3KeyformLowering(
 				gridForms.add(writeMeshForm(existing, (cell.geometry as? MeshDeltaForm)?.positionDeltas, cell.channels))
 			}
 			if (alsoWriteBase) {
+				// Morph-target absolutes follow the base move (import re-derives blend-shape deltas
+				// as absolute minus base), so surviving morph forms rebase BEFORE the base swap -
+				// the same recompute lowerMeshPositions applies to its pool.  Grid forms were just
+				// rewritten against the new base above and must not shift twice (identity skip),
+				// and a morph rebuild below writes fresh absolutes itself.
+				val origBase = source.positions as? FloatArray
+				if (!rebuildMorphs && origBase != null && origBase.size == editedBase.size) {
+					val rewrittenGridForms = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+					gridForms.forEach { gridForm -> rewrittenGridForms.add(gridForm) }
+					for (morphForm in existingMorphForms(source.keyformMorphTargetSet, source.keyforms)) {
+						if (morphForm in rewrittenGridForms || morphForm !is CArtMeshForm) {
+							continue
+						}
+						val origAbsolute = morphForm.positions as? FloatArray
+						if (origAbsolute == null || origAbsolute.size != editedBase.size) {
+							continue
+						}
+						// CMO3: CArtMeshForm field positions - absolute vertex positions.  Unchanged
+						// base components keep the stored value bit-identically (recompute the delta
+						// from the stored values, never (a-b)+b through IEEE rounding).
+						morphForm.positions =
+							FloatArray(origAbsolute.size) { component ->
+								if (editedBase[component].toRawBits() == origBase[component].toRawBits()) {
+									origAbsolute[component]
+								} else {
+									editedBase[component] + (origAbsolute[component] - origBase[component])
+								}
+							}
+						editor.ensureChildSlot(morphForm, "CArtMeshForm", "positions")
+					}
+				}
 				source.positions = editedBase.copyOf()
 				editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
 				val editableMesh = Cmo3Import.editableMeshOf(source)

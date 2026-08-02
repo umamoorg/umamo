@@ -50,9 +50,10 @@ import org.umamo.runtime.model.PuppetModel
  * to write - names, flags, blend modes, masks, reference reparents, tree orders, parameter ranges
  * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
  * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
- * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass - a Created/Deleted
- * diff that still reaches this class means that pass could not represent the entity, and is
- * reported as a notice rather than lowered here.
+ * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass.  A Created diff
+ * that still reaches this class means that pass could not synthesize the entity, and is reported
+ * as a notice rather than lowered here.  Deleted diffs never arrive: the structural pass consumes
+ * every deletion and Cmo3Export strips them from the diff it forwards.
  *
  * Every assignment that can target an element or attribute the source document omitted pairs with
  * the graph editor's ensure call - the writer replays recorded slots, so a bare assignment on a
@@ -79,7 +80,7 @@ internal class Cmo3PropertyLowering(
 	private val weldDivergedDrawableNames = ArrayList<String>()
 
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
-	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, edited, notices)
+	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, notices)
 
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
 	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices)
@@ -92,7 +93,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				is EntityDiff.Created -> unsupported("parameter", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("parameter", diff.id.raw, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.parameterByIdStr[diff.id.raw]
 					val editedParameter = editedParameterById[diff.id]
@@ -129,7 +131,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				is EntityDiff.Created -> unsupported("parameter group", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("parameter group", diff.id.raw, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val group = index.groupByIdStr[diff.id.raw]
 					val editedGroup = findEditedGroup(diff.id)
@@ -161,7 +164,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				is EntityDiff.Created -> unsupported("part", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("part", diff.id.raw, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.partByIdStr[diff.id.raw]
 					val editedPart = editedPartById[diff.id]
@@ -205,7 +209,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				is EntityDiff.Created -> unsupported("deformer", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("deformer", diff.id.raw, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.deformerByIdStr[diff.id.raw]
 					val editedDeformer = editedDeformerById[diff.id]
@@ -303,7 +308,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				is EntityDiff.Created -> unsupported("drawable", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("drawable", diff.id.raw, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.drawableByIdStr[diff.id.raw]
 					val editedDrawable = editedDrawableById[diff.id]
@@ -550,7 +556,8 @@ internal class Cmo3PropertyLowering(
 			val subject = "${diff.meshA.raw}+${diff.meshB.raw}"
 			when (diff) {
 				is GlueDiff.Created -> unsupported("glue", subject, "created; synthesis is not lowered yet")
-				is GlueDiff.Deleted -> unsupported("glue", subject, "deleted; removal is not lowered yet")
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is GlueDiff.Deleted -> Unit
 				is GlueDiff.Changed -> {
 					val pairKey = diff.meshA.raw to diff.meshB.raw
 					val glueSource = sourcesByPair[pairKey as Pair<String?, String?>]?.getOrNull(diff.ordinal)

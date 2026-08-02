@@ -587,8 +587,6 @@ internal class Cmo3StructureLowering(
 		val uidTableA = uidTableOf(editedGlue.meshA)
 		val uidTableB = uidTableOf(editedGlue.meshB)
 		if (uidTableA == null || uidTableB == null) {
-			val sourceA = index.drawableByIdStr[editedGlue.meshA.raw]
-			val sourceB = index.drawableByIdStr[editedGlue.meshB.raw]
 			unsupported("glue", subject, "a glued mesh has no editable-mesh uid table")
 			return false
 		}
