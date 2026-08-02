@@ -326,10 +326,13 @@ internal class Cmo3PropertyLowering(
 							DrawableField.VISIBLE -> lowerIsVisible(source, editedDrawable.isVisible)
 							DrawableField.SELECTABLE -> lowerIsLocked(source, editedDrawable.isSelectable)
 							DrawableField.PARENT_DEFORMER -> {
-								// CMO3: ACDrawableSource field targetDeformerGuid - the deforming parent (null
-								// for an undeformed drawable).
+								// CMO3: ACDrawableSource field targetDeformerGuid - the deforming parent, or
+								// the editor's fixed root-deformer sentinel when the drawable sits at the
+								// deformer-tree root.  Never null: the editor's setter is non-null and NPEs
+								// on absence, and no corpus drawable nulls it in any era.
 								source.targetDeformerGuid =
 									editedDrawable.parentDeformerId?.let { index.deformerByIdStr[it.raw]?.guid }
+										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
 							}
 							DrawableField.BLEND_MODE -> {

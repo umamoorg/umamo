@@ -289,7 +289,7 @@ internal class Cmo3StructureLowering(
 	 * (model image + atlas region) with the region active, mirroring the editor's packed drawables.
 	 *
 	 * @param CArtMeshSource            owner   The drawable source under construction.
-	 * @param Cmo3DrawableTextureBinding binding The page's shared texture web.
+	 * @param Cmo3DrawableTextureBinding binding The drawable's texture web (page texture + patch).
 	 * @return CTextureInputExtension The fresh extension.
 	 */
 	private fun freshTextureInputExtension(owner: CArtMeshSource, binding: Cmo3DrawableTextureBinding): CTextureInputExtension {
@@ -298,6 +298,9 @@ internal class Cmo3StructureLowering(
 			org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
 				// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
 				// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
+				// The transform places the atlas page's pixel frame on the canvas so this drawable's
+				// texture patch coincides with its base mesh - the editor inverts it to draw the mesh
+				// over the texture in the atlas and mesh-edit views.
 				optionalTransformOnCanvas = CAffine()
 				_owner = extension
 				textureAtlasGuid = binding.textureAtlasGuid
@@ -599,7 +602,11 @@ internal class Cmo3StructureLowering(
 			unsupported("drawable", subject, "a drawable without a mesh cannot be written to CMO3")
 			return false
 		}
-		// CMO3: CArtMeshSource fields indices / positions / uvs.
+		// CMO3: CArtMeshSource fields indices / positions / uvs.  The positions are CANVAS-frame
+		// in every official file, and mesh.positions is canvas-frame by the runtime's contract:
+		// the MOC3 document loader normalizes parent-local rest meshes through :render's
+		// restMeshesToCanvasSpace at import (rendering never notices the base's frame - grids sum
+		// to one - but the editor's atlas and mesh-edit views read this field as canvas geometry).
 		source.indices = mesh.indices.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "indices", "keyforms")
 		source.positions = mesh.positions.copyOf()

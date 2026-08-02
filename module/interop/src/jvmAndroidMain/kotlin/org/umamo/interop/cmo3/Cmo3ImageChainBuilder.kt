@@ -11,6 +11,7 @@ import org.umamo.format.cmo3.model.gen.Anisotropy
 import org.umamo.format.cmo3.model.gen.CBlend_Normal
 import org.umamo.format.cmo3.model.gen.CCachedImage
 import org.umamo.format.cmo3.model.gen.CCachedImageManager
+import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.CLayerGroup
 import org.umamo.format.cmo3.model.gen.CLayerIdentifier
@@ -45,14 +46,19 @@ import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.cmo3.type.CHashMap
+import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
 
 /*
- * The image chain a fresh CMO3 needs for its atlas pages: each MOC3 page becomes a flat-PNG
- * "import" exactly like the editor's own flat-image imports (docs/format/CMO3.md §4 - a
- * CLayeredImage whose root group wraps ONE CLayer with a null layerId), plus one CTextureAtlas
- * whose single ModelImageEntry maps the whole page at identity, and one SHARED GTexture2D every
- * drawable on the page references.  The chain is what makes UVs stay in the atlas frame
- * (hasAtlasRegion) and what gives the official editor a source-art panel to show.
+ * The image chain a fresh CMO3 needs for its atlas pages, mirroring the official ATLAS-MODE
+ * shape (EricaTamamo, isTextureInputModelImageMode=false): one CTextureAtlas + ONE SHARED
+ * GTexture2D per page that every packed drawable on the page samples with atlas-frame UVs, plus
+ * a PER-DRAWABLE model-image web - each drawable's texture patch cropped out of the page as its
+ * own CLayer + CModelImage + ModelImageEntry, the entry carrying the patch's packing origin
+ * (materialLocalToAtlasTransform) and the drawable's fitted atlas-to-canvas placement
+ * (atlasLocalToCanvasTransform).  The per-drawable web is what the editor's texture-atlas and
+ * mesh-edit views derive mesh-over-texture placement from - a single whole-page image cannot
+ * place hundreds of drawables, which drew every mesh at its assembled canvas position instead.
  *
  * Every CModelImage carries the editor's layer-filter web (a CLayerSelector feeding a
  * CLayerFilter, connected through per-document shared FilterValue definitions) plus a filtered
@@ -60,19 +66,30 @@ import org.umamo.format.cmo3.type.CHashMap
  * dereference these, so a null is a hard failure, not a cosmetic gap.  The filter definition
  * guids are editor-static constants (identical uuids in every corpus file).
  *
+ * The synthetic source doc is CANVAS-FRAME like the editor's own PSD docs (Erica's main doc is
+ * exactly canvas-sized): CLayeredImage dims are the canvas, and each patch layer's bounds are
+ * its canvas rect (the fit-mapped patch corners).  A page-frame doc makes the layer bounds
+ * cancel against the entry's packing origin, which is exactly the meshes-at-assembled-positions
+ * atlas-view symptom.  The patch pixels stay page-resolution; when the page-to-canvas fit is
+ * not unit-scale the bounds size and the image size disagree - resampling the crops to canvas
+ * resolution is the follow-up if that ever bites.
+ *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
- * are transparent placeholders (the editor regenerates thumbnails on edit), the cached image is
- * the raw page itself at identity (SCALE_1, nothing prerendered), and page placement transforms
- * are identity (the page already IS the packed atlas).
+ * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
+ * images are the raw resources themselves at identity (SCALE_1, nothing prerendered).
  */
 internal object Cmo3ImageChainBuilder {
 	/** One retained atlas page: the original PNG bytes plus its pixel dimensions. */
 	internal class AtlasPage(val pngBytes: ByteArray, val width: Int, val height: Int)
 
-	/** The populated chain: the PNG entries to embed and the per-page drawable bindings. */
+	/** One drawable's geometry on its page: id plus interleaved atlas-frame uvs and base positions. */
+	internal class DrawableRegion(val drawableIdStr: String, val uvs: FloatArray, val positions: FloatArray)
+
+	/** The populated chain: the PNG entries to embed and the texture bindings. */
 	internal class BuiltImageChain(
 		val pngEntries: List<Cmo3FreshFile.PngEntry>,
-		val pageBindings: List<Cmo3DrawableTextureBinding>,
+		val bindingByDrawableId: Map<String, Cmo3DrawableTextureBinding>,
+		val pageFallbackBindings: List<Cmo3DrawableTextureBinding>,
 	)
 
 	/** CMO3: FilterInstance filterDefGuid for "CLayerSelector" - fixed uuid in every corpus file. */
@@ -268,15 +285,114 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * Populates [root]'s texture manager with one page chain per atlas page.
+	 * A drawable's pixel-aligned texture-patch rect on its page, from its atlas-frame uv bounds.
 	 *
-	 * @param CModelSource root      The fresh skeleton root (its textureManager must exist).
-	 * @param List         pages     The atlas pages, in model3 texture order.
-	 * @param Long         nowMillis The import timestamp the wrappers record (caller-supplied so
-	 *                               tests stay deterministic).
-	 * @return BuiltImageChain The PNG entries plus per-page bindings, indexed like [pages].
+	 * Mesh margins may reach slightly outside [0,1]; the rect is clamped to the page and forced to
+	 * at least one pixel.
+	 *
+	 * @param FloatArray uvs        Interleaved atlas-frame uvs.
+	 * @param Int        pageWidth  The page's pixel width.
+	 * @param Int        pageHeight The page's pixel height.
+	 * @return IntArray? [x0, y0, x1, y1] (exclusive max), or null when there are no uvs.
 	 */
-	internal fun populate(root: CModelSource, pages: List<AtlasPage>, nowMillis: Long): BuiltImageChain {
+	private fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
+		if (uvs.size < 2) {
+			return null
+		}
+		var minU = Float.POSITIVE_INFINITY
+		var minV = Float.POSITIVE_INFINITY
+		var maxU = Float.NEGATIVE_INFINITY
+		var maxV = Float.NEGATIVE_INFINITY
+		var componentIndex = 0
+		while (componentIndex + 1 < uvs.size) {
+			minU = minOf(minU, uvs[componentIndex])
+			maxU = maxOf(maxU, uvs[componentIndex])
+			minV = minOf(minV, uvs[componentIndex + 1])
+			maxV = maxOf(maxV, uvs[componentIndex + 1])
+			componentIndex += 2
+		}
+		if (!minU.isFinite() || !minV.isFinite() || !maxU.isFinite() || !maxV.isFinite()) {
+			return null
+		}
+		val x0 = kotlin.math.floor(minU * pageWidth).toInt().coerceIn(0, pageWidth - 1)
+		val y0 = kotlin.math.floor(minV * pageHeight).toInt().coerceIn(0, pageHeight - 1)
+		val x1 = kotlin.math.ceil(maxU * pageWidth).toInt().coerceIn(x0 + 1, pageWidth)
+		val y1 = kotlin.math.ceil(maxV * pageHeight).toInt().coerceIn(y0 + 1, pageHeight)
+		return intArrayOf(x0, y0, x1, y1)
+	}
+
+	/**
+	 * An independent copy of an affine (the writer must not hoist one shared instance across the
+	 * entry, the region input, and the model image - the editor writes separate elements).
+	 *
+	 * @param CAffine source The affine to copy.
+	 * @return CAffine The copy.
+	 */
+	private fun copyAffine(source: CAffine): CAffine =
+		CAffine().apply {
+			m00 = source.m00
+			m01 = source.m01
+			m02 = source.m02
+			m10 = source.m10
+			m11 = source.m11
+			m12 = source.m12
+		}
+
+	/**
+	 * The model image's material-local-to-canvas placement: the page fit composed with the patch
+	 * origin, so patch pixel (0,0) maps to the canvas point the page fit sends (x0, y0) to.
+	 *
+	 * CMO3: CModelImage field _materialLocalToCanvasTransform (official layers carry their canvas
+	 * origin here - translate(144, 222) in ModelWithOffscreenPartClipping).
+	 *
+	 * @param CAffine pageFit The atlas-page-to-canvas fit.
+	 * @param Int     x0      The patch origin x on the page.
+	 * @param Int     y0      The patch origin y on the page.
+	 * @return CAffine The material-local placement.
+	 */
+	private fun materialLocalToCanvas(pageFit: CAffine, x0: Int, y0: Int): CAffine =
+		copyAffine(pageFit).apply {
+			m02 = pageFit.m00 * x0 + pageFit.m01 * y0 + pageFit.m02
+			m12 = pageFit.m10 * x0 + pageFit.m11 * y0 + pageFit.m12
+		}
+
+	/**
+	 * Encodes the patch rect of a decoded page as its own PNG.
+	 *
+	 * @param RasterImage decodedPage The decoded page pixels.
+	 * @param Int         x0          Patch origin x.
+	 * @param Int         y0          Patch origin y.
+	 * @param Int         cropWidth   Patch width.
+	 * @param Int         cropHeight  Patch height.
+	 * @return ByteArray The encoded PNG bytes.
+	 */
+	private fun cropPng(decodedPage: RasterImage, x0: Int, y0: Int, cropWidth: Int, cropHeight: Int): ByteArray {
+		val cropRgba = ByteArray(cropWidth * cropHeight * 4)
+		for (rowIndex in 0 until cropHeight) {
+			val sourceOffset = ((y0 + rowIndex) * decodedPage.width + x0) * 4
+			decodedPage.rgba.copyInto(cropRgba, rowIndex * cropWidth * 4, sourceOffset, sourceOffset + cropWidth * 4)
+		}
+		return PngCodec.write(RasterImage(cropWidth, cropHeight, cropRgba))
+	}
+
+	/**
+	 * Populates [root]'s texture manager with one page chain per atlas page plus the per-drawable
+	 * model-image webs.
+	 *
+	 * @param CModelSource root          The fresh skeleton root (its textureManager must exist).
+	 * @param List         pages         The atlas pages, in model3 texture order.
+	 * @param List         regionsByPage Each page's drawable regions (geometry for the patch crop
+	 *                                   and the placement fit), indexed like [pages].
+	 * @param Long         nowMillis     The import timestamp the wrappers record (caller-supplied
+	 *                                   so tests stay deterministic).
+	 * @return BuiltImageChain The PNG entries plus the texture bindings.
+	 */
+	internal fun populate(
+		root: CModelSource,
+		pages: List<AtlasPage>,
+		regionsByPage: List<List<DrawableRegion>>,
+		nowMillis: Long,
+	): BuiltImageChain {
 		val textureManager = root.textureManager as? CTextureManager ?: error("skeleton has no texture manager")
 		val sharedBlend = CBlend_Normal()
 		val sharedOptions = CHashMap<String, Any?>()
@@ -296,14 +412,29 @@ internal object Cmo3ImageChainBuilder {
 			mutableGraphListOf(textureManager._textureAtlases) ?: error("skeleton texture manager has no texture-atlas list")
 		val modelImageGroups =
 			mutableGraphListOf(textureManager._modelImageGroups) ?: error("skeleton texture manager has no model-image-group list")
-		val pngEntries = ArrayList<Cmo3FreshFile.PngEntry>(pages.size)
-		val pageBindings = ArrayList<Cmo3DrawableTextureBinding>(pages.size)
+		val pngEntries = ArrayList<Cmo3FreshFile.PngEntry>()
+		val bindingByDrawableId = HashMap<String, Cmo3DrawableTextureBinding>()
+		val pageFallbackBindings = ArrayList<Cmo3DrawableTextureBinding>(pages.size)
+		// The source docs live in the CANVAS frame like the editor's own PSD docs (Erica's main
+		// doc is exactly canvas-sized): doc dims are the canvas, and each patch layer's bounds
+		// are its CANVAS rect.  A page-frame doc makes the layer bounds cancel against the
+		// entry's packing origin, which is exactly the meshes-at-assembled-positions symptom.
+		val canvas = root.canvas as? CImageCanvas ?: error("skeleton has no canvas")
+		val canvasWidth = canvas.pixelWidth
+		val canvasHeight = canvas.pixelHeight
 		// The skeleton's three model icons take image.png / image_0.png / image_1.png, so page
 		// icon entries continue the editor's image_N naming from suffix 2.
 		var iconSuffix = 2
+		// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...);
+		// pages claim the first indices and patch crops continue the sequence.
+		var imageFileBufIndex = 0
+		fun nextImageFileBufPath(): String {
+			val path = if (imageFileBufIndex == 0) "imageFileBuf.png" else "imageFileBuf_${imageFileBufIndex - 1}.png"
+			imageFileBufIndex += 1
+			return path
+		}
 		for ((pageIndex, page) in pages.withIndex()) {
-			// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...).
-			val pagePath = if (pageIndex == 0) "imageFileBuf.png" else "imageFileBuf_${pageIndex - 1}.png"
+			val pagePath = nextImageFileBufPath()
 			val pageName = "Texture_$pageIndex.png"
 			pngEntries.add(Cmo3FreshFile.PngEntry(pagePath, page.pngBytes))
 			val pageResource =
@@ -316,34 +447,7 @@ internal object Cmo3ImageChainBuilder {
 					imageFileBuf_size = page.pngBytes.size
 				}
 			val layeredImage = CLayeredImage()
-			val pageLayer =
-				CLayer().apply {
-					// CMO3: the flat-image import shape - a single CLayer, layerId null (no PSD
-					// layer identity exists for a rendered atlas page).
-					name = pageName
-					memo = ""
-					isVisible = true
-					blend = sharedBlend
-					guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
-					opacity255 = 255
-					_optionOfIOption = sharedOptions
-					_layeredImage = layeredImage
-					imageResource = pageResource
-					boundsOnImageDoc =
-						CRect().apply {
-							width = page.width
-							height = page.height
-						}
-					layerIdentifier =
-						CLayerIdentifier().apply {
-							layerName = pageName
-							layerIdValue_testImpl = -1
-						}
-					// CMO3: CLayer fields icon16 / icon64 - thumbnail icons on every corpus layer.
-					icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
-					icon64 = placeholderIcon(64, "image_${iconSuffix++}.png", pngEntries)
-					layerInfo = LinkedHashMap<String, Any?>()
-				}
+			val patchLayers = CArrayList<Any?>()
 			val rootLayerGroup =
 				CLayerGroup().apply {
 					name = "root"
@@ -354,14 +458,16 @@ internal object Cmo3ImageChainBuilder {
 					opacity255 = 255
 					_optionOfIOption = sharedOptions
 					_layeredImage = layeredImage
-					_children = CArrayList<Any?>(mutableListOf(pageLayer))
+					_children = patchLayers
 				}
-			pageLayer.group = rootLayerGroup
+			val layerEntryList = CArrayList<Any?>(mutableListOf<Any?>(rootLayerGroup))
 			layeredImage.apply {
 				name = pageName
 				memo = ""
-				width = page.width
-				height = page.height
+				// CMO3: CLayeredImage width/height - the CANVAS-frame doc dims (the editor's own
+				// main PSD doc is exactly canvas-sized; layer bounds below are canvas rects).
+				width = canvasWidth
+				height = canvasHeight
 				// A rendered page has no source file on anyone's disk; the bare name is the honest
 				// breadcrumb (the editor stores the importing machine's absolute path here).
 				psdFile = FileRef().apply { textPath = pageName }
@@ -372,7 +478,7 @@ internal object Cmo3ImageChainBuilder {
 				layerSet =
 					LayerSet().apply {
 						_layeredImage = layeredImage
-						_layerEntryList = CArrayList<Any?>(mutableListOf(rootLayerGroup, pageLayer))
+						_layerEntryList = layerEntryList
 					}
 			}
 			val wrapper =
@@ -381,61 +487,7 @@ internal object Cmo3ImageChainBuilder {
 					importedTimeMSec = nowMillis
 					lastModifiedTimeMSec = nowMillis
 				}
-			val modelImage =
-				CModelImage().apply {
-					guid = Cmo3SkeletonBuilder.freshGuid("CModelImageGuid")
-					name = pageName
-					// CMO3: CModelImage fields inputFilter / inputFilterEnv - the layer-filter web
-					// selecting this page's single layer; the editor's deserializer dereferences both.
-					inputFilter = buildFilterSet(filterCommons)
-					inputFilterEnv =
-						ModelImageFilterEnv().apply {
-							envValues =
-								CHashMap<Any?, Any?>().apply {
-									put(
-										filterCommons.currentImageGuid,
-										EnvValueSet().apply {
-											id = filterCommons.currentImageGuid
-											value = layeredImage.guid
-											updateTimeMs = nowMillis
-										},
-									)
-									put(
-										filterCommons.inputLayerData,
-										EnvValueSet().apply {
-											id = filterCommons.inputLayerData
-											value =
-												CLayerSelectorMap().apply {
-													_imageToLayerInput =
-														LinkedHashMap<Any?, Any?>().apply {
-															put(
-																layeredImage.guid,
-																ArrayList<Any?>(
-																	mutableListOf(
-																		CLayerInputData().apply {
-																			layer = pageLayer
-																			affine = CAffine()
-																		},
-																	),
-																),
-															)
-														}
-												}
-											updateTimeMs = nowMillis
-										},
-									)
-								}
-						}
-					_filteredImage = pageResource
-					// CMO3: CModelImage fields icon16 / cachedImageManager - present on every corpus
-					// model image; the icon is a placeholder the editor regenerates.
-					icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
-					_materialLocalToCanvasTransform = CAffine()
-					_group = group
-					linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
-					cachedImageManager = identityCacheManager(pageResource, page.width, page.height)
-					memo = ""
-				}
+			val atlasEntries = CArrayList<Any?>()
 			val atlas = CTextureAtlas()
 			atlas.apply {
 				name = "TextureAtlas${pageIndex + 1}"
@@ -443,31 +495,7 @@ internal object Cmo3ImageChainBuilder {
 				height = page.height
 				cachedAtlasImage = pageResource
 				guid = Cmo3SkeletonBuilder.freshGuid("CTextureAtlasGuid")
-				modelImages =
-					CArrayList<Any?>(
-						mutableListOf(
-							ModelImageEntry().apply {
-								// CMO3: ModelImageEntry - the whole page mapped at identity (the page
-								// already IS the packed atlas; there is nothing to place).
-								this.atlas = atlas
-								modelImageGuid = modelImage.guid
-								// CMO3: ModelImageEntry field autoLayoutLock - modern-era entries
-								// always carry an AutoLayoutLock enum (v="NONE"); the editor's field
-								// is enum-typed and class-casts a boolean.
-								autoLayoutLock = org.umamo.format.cmo3.model.gen.AutoLayoutLock.NONE
-								atlasLocalToCanvasTransform = CAffine()
-								materialLocalToAtlasTransform =
-									GTransform2().apply {
-										position = GVector2()
-										scale =
-											GVector2().apply {
-												x = 1f
-												y = 1f
-											}
-									}
-							},
-						),
-					)
+				modelImages = atlasEntries
 				cachedImageManager = identityCacheManager(pageResource, page.width, page.height)
 			}
 			val texture =
@@ -483,9 +511,12 @@ internal object Cmo3ImageChainBuilder {
 					srcImageResource = pageResource
 					transformImageResource01toLogical01 = CAffine()
 					mipmapLevel = 64
-					// MOC3 sidecar pages are straight-alpha PNGs, and the flag must describe the
-					// actual bytes (the editor's own rendered atlas is premultiplied and says true).
-					isPremultiplied = false
+					// CMO3: GTexture2D field isPremultiplied - true on EVERY corpus texture (178 of
+					// 178, every era), including the many whose embedded PNG bytes are straight
+					// alpha.  The flag records the editor's texture-render/upload convention, not
+					// the byte storage (see the Premultiplied section), so a MOC3 sidecar page -
+					// straight alpha like the corpus ones - writes true as well.
+					isPremultiplied = true
 				}
 			texture.filterMode =
 				FilterMode().apply {
@@ -493,23 +524,185 @@ internal object Cmo3ImageChainBuilder {
 					magFilter = MagFilter.LINEAR
 					owner = texture
 				}
+			// Per-drawable patch webs, deduped by patch rect + fitted placement (a mirror duplicate
+			// with a different placement keeps its own web - a ModelImageEntry carries only one).
+			val regions = regionsByPage.getOrNull(pageIndex).orEmpty()
+			val decodedPage = if (regions.isNotEmpty()) PngCodec.read(page.pngBytes) else null
+			val imageGuidByWebKey = HashMap<String, Guid>()
+			for (region in regions) {
+				val pageFit = fitAtlasPageToCanvasTransform(region.uvs, region.positions, page.width, page.height)
+				val patch = patchRectOf(region.uvs, page.width, page.height)
+				if (patch == null || decodedPage == null) {
+					bindingByDrawableId[region.drawableIdStr] =
+						Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, null, pageFit)
+					continue
+				}
+				val patchX0 = patch[0]
+				val patchY0 = patch[1]
+				val cropWidth = patch[2] - patch[0]
+				val cropHeight = patch[3] - patch[1]
+				// The patch's CANVAS rect: both fit-mapped corners, normalized (the fit may flip an
+				// axis) and rounded - the frame the layer bounds live in.
+				val cornerAX = pageFit.m00 * patchX0 + pageFit.m01 * patchY0 + pageFit.m02
+				val cornerAY = pageFit.m10 * patchX0 + pageFit.m11 * patchY0 + pageFit.m12
+				val cornerBX = pageFit.m00 * patch[2] + pageFit.m01 * patch[3] + pageFit.m02
+				val cornerBY = pageFit.m10 * patch[2] + pageFit.m11 * patch[3] + pageFit.m12
+				val canvasBoundsX = kotlin.math.round(minOf(cornerAX, cornerBX)).toInt()
+				val canvasBoundsY = kotlin.math.round(minOf(cornerAY, cornerBY)).toInt()
+				val canvasBoundsWidth = kotlin.math.round(kotlin.math.abs(cornerBX - cornerAX)).toInt().coerceAtLeast(1)
+				val canvasBoundsHeight = kotlin.math.round(kotlin.math.abs(cornerBY - cornerAY)).toInt().coerceAtLeast(1)
+				val fitBits =
+					floatArrayOf(pageFit.m00, pageFit.m01, pageFit.m02, pageFit.m10, pageFit.m11, pageFit.m12)
+						.joinToString(":") { component -> component.toRawBits().toString() }
+				val webKey = "${patch.joinToString(":")}|$fitBits"
+				val imageGuid =
+					imageGuidByWebKey.getOrPut(webKey) {
+						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight)
+						val cropPath = nextImageFileBufPath()
+						pngEntries.add(Cmo3FreshFile.PngEntry(cropPath, cropBytes))
+						val cropResource =
+							CImageResource().apply {
+								// CMO3: CImageResource - the drawable's patch cropped out of the page.
+								width = cropWidth
+								height = cropHeight
+								type = "INT_ARGB"
+								imageFileBuf = FileRef().apply { archivePath = cropPath }
+								imageFileBuf_size = cropBytes.size
+							}
+						val patchLayer =
+							CLayer().apply {
+								// CMO3: CLayer - the patch as its own layer on the canvas-frame doc,
+								// layerId null (no PSD layer identity exists for a rendered atlas).
+								name = region.drawableIdStr
+								memo = ""
+								isVisible = true
+								blend = sharedBlend
+								guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+								opacity255 = 255
+								_optionOfIOption = sharedOptions
+								_layeredImage = layeredImage
+								imageResource = cropResource
+								// CMO3: CLayer field boundsOnImageDoc - the layer's CANVAS rect, like
+								// official PSD layers; a page-frame rect here cancels against the
+								// entry's packing origin and meshes land at assembled positions.
+								boundsOnImageDoc =
+									CRect().apply {
+										x = canvasBoundsX
+										y = canvasBoundsY
+										width = canvasBoundsWidth
+										height = canvasBoundsHeight
+									}
+								layerIdentifier =
+									CLayerIdentifier().apply {
+										layerName = region.drawableIdStr
+										layerIdValue_testImpl = -1
+									}
+								// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer.
+								icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
+								icon64 = placeholderIcon(64, "image_${iconSuffix++}.png", pngEntries)
+								layerInfo = LinkedHashMap<String, Any?>()
+								this.group = rootLayerGroup
+							}
+						patchLayers.add(patchLayer)
+						layerEntryList.add(patchLayer)
+						val patchImage =
+							CModelImage().apply {
+								guid = Cmo3SkeletonBuilder.freshGuid("CModelImageGuid")
+								name = region.drawableIdStr
+								// CMO3: CModelImage fields inputFilter / inputFilterEnv - the layer-filter
+								// web selecting this patch's layer; the deserializer dereferences both.
+								inputFilter = buildFilterSet(filterCommons)
+								inputFilterEnv =
+									ModelImageFilterEnv().apply {
+										envValues =
+											CHashMap<Any?, Any?>().apply {
+												put(
+													filterCommons.currentImageGuid,
+													EnvValueSet().apply {
+														id = filterCommons.currentImageGuid
+														value = layeredImage.guid
+														updateTimeMs = nowMillis
+													},
+												)
+												put(
+													filterCommons.inputLayerData,
+													EnvValueSet().apply {
+														id = filterCommons.inputLayerData
+														value =
+															CLayerSelectorMap().apply {
+																_imageToLayerInput =
+																	LinkedHashMap<Any?, Any?>().apply {
+																		put(
+																			layeredImage.guid,
+																			ArrayList<Any?>(
+																				mutableListOf(
+																					CLayerInputData().apply {
+																						layer = patchLayer
+																						affine = CAffine()
+																					},
+																				),
+																			),
+																		)
+																	}
+															}
+														updateTimeMs = nowMillis
+													},
+												)
+											}
+									}
+								_filteredImage = cropResource
+								// CMO3: CModelImage fields icon16 / cachedImageManager - present on every
+								// corpus model image; the icon is a placeholder the editor regenerates.
+								icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
+								// CMO3: CModelImage field _materialLocalToCanvasTransform - the patch's
+								// canvas placement (official layers carry their canvas origin here).
+								_materialLocalToCanvasTransform = materialLocalToCanvas(pageFit, patchX0, patchY0)
+								_group = group
+								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
+								cachedImageManager = identityCacheManager(cropResource, cropWidth, cropHeight)
+								memo = ""
+							}
+						groupModelImages.add(patchImage)
+						atlasEntries.add(
+							ModelImageEntry().apply {
+								// CMO3: ModelImageEntry - the patch's packing origin on the page plus the
+								// drawable's fitted atlas-to-canvas placement; the editor's atlas and
+								// mesh-edit views derive mesh-over-texture placement from these.
+								this.atlas = atlas
+								modelImageGuid = patchImage.guid
+								// CMO3: ModelImageEntry field autoLayoutLock - an AutoLayoutLock enum
+								// (v="NONE"); the editor's field is enum-typed and class-casts a boolean.
+								autoLayoutLock = org.umamo.format.cmo3.model.gen.AutoLayoutLock.NONE
+								atlasLocalToCanvasTransform = copyAffine(pageFit)
+								materialLocalToAtlasTransform =
+									GTransform2().apply {
+										position =
+											GVector2().apply {
+												x = patchX0.toFloat()
+												y = patchY0.toFloat()
+											}
+										scale =
+											GVector2().apply {
+												x = 1f
+												y = 1f
+											}
+									}
+							},
+						)
+						patchImage.guid as Guid
+					}
+				bindingByDrawableId[region.drawableIdStr] =
+					Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, imageGuid, copyAffine(pageFit))
+			}
+			pageFallbackBindings.add(Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, null, CAffine()))
 			groupLinkedRawImageGuids.add(layeredImage.guid)
-			groupModelImages.add(modelImage)
 			rawImages.add(wrapper)
 			textureAtlases.add(atlas)
-			pageBindings.add(
-				Cmo3DrawableTextureBinding(
-					texture = texture,
-					textureAtlasGuid = atlas.guid as Guid,
-					modelImageGuid = modelImage.guid as Guid,
-					inputImageLocalToCanvasTransform = CAffine(),
-				),
-			)
 		}
 		modelImageGroups.add(group)
 		// CMO3: CTextureManager field isTextureInputModelImageMode - false = atlas display mode,
 		// matching the atlas-region inputs the drawables carry.
 		textureManager.isTextureInputModelImageMode = false
-		return BuiltImageChain(pngEntries, pageBindings)
+		return BuiltImageChain(pngEntries, bindingByDrawableId, pageFallbackBindings)
 	}
 }

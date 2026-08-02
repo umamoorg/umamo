@@ -70,8 +70,11 @@ class Cmo3ConversionRoundTripTest {
 				AtlasPage(pngBytes, decoded.width, decoded.height)
 			}
 		// displayInfo deliberately null: the same puppet is both the conversion source and the
-		// comparison target, so cosmetic names/groups cancel out either way.
-		val puppet = Moc3Import.fromMocDocument(mocDocument, displayInfo = null)
+		// comparison target, so cosmetic names/groups cancel out either way.  The rest meshes are
+		// normalized to canvas space exactly like the app's MOC3 document loader - the export's
+		// source-level positions and the whole texture-placement web are canvas geometry, so
+		// converting a raw parent-local puppet would write deformer-local coordinates there.
+		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo = null))
 		val pageIndexByDrawableId = mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex }
 
 		val result =
@@ -144,7 +147,10 @@ class Cmo3ConversionRoundTripTest {
 			}
 		}
 		for (entityDiff in residual.drawables) {
-			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES") }) {
+			// MESH_POSITIONS: the exported base is the rest-pose CANVAS frame while a MOC3-origin
+			// puppet's base is parent-deformer-local; the absolute-geometry drift check below is
+			// what guards the semantics (base + delta is the render-visible invariant).
+			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES", "MESH_POSITIONS") }) {
 				failures.add("$label: drawable residue $entityDiff")
 				continue
 			}
@@ -156,7 +162,13 @@ class Cmo3ConversionRoundTripTest {
 	}
 
 	/**
-	 * The largest per-component keyform-delta difference between the two models' drawable grids.
+	 * The largest per-component ABSOLUTE keyform-position difference between the two models'
+	 * drawable grids (base + delta per cell).
+	 *
+	 * Absolutes, not raw deltas: the exported source-level base is the rest-pose CANVAS frame
+	 * while a MOC3-origin puppet's base is parent-deformer-local, so the re-imported deltas shift
+	 * by exactly the base difference.  The blended geometry - base plus delta - is the semantic
+	 * invariant (grids sum to one, so the base cancels out of every rendered pose).
 	 *
 	 * @param PuppetModel source     The conversion source.
 	 * @param PuppetModel reimported The re-imported model.
@@ -168,14 +180,20 @@ class Cmo3ConversionRoundTripTest {
 		reimported: org.umamo.runtime.model.PuppetModel,
 		drawableIdRaw: String,
 	): Float {
-		val sourceGrid = source.drawables.firstOrNull { it.id.raw == drawableIdRaw }?.geometryGrid ?: return 0f
-		val reimportedGrid = reimported.drawables.firstOrNull { it.id.raw == drawableIdRaw }?.geometryGrid ?: return 0f
+		val sourceDrawable = source.drawables.firstOrNull { it.id.raw == drawableIdRaw }
+		val reimportedDrawable = reimported.drawables.firstOrNull { it.id.raw == drawableIdRaw }
+		val sourceGrid = sourceDrawable?.geometryGrid ?: return 0f
+		val reimportedGrid = reimportedDrawable?.geometryGrid ?: return 0f
+		val sourceBase = sourceDrawable.mesh?.positions ?: return 0f
+		val reimportedBase = reimportedDrawable.mesh?.positions ?: return 0f
 		val reimportedByCoordinate = reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
 		var maxDifference = 0f
 		for (cell in sourceGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()] ?: return Float.MAX_VALUE
 			for (component in cell.form.positionDeltas.indices) {
-				maxDifference = maxOf(maxDifference, abs(cell.form.positionDeltas[component] - reimportedDeltas[component]))
+				val sourceAbsolute = sourceBase.getOrElse(component) { 0f } + cell.form.positionDeltas[component]
+				val reimportedAbsolute = reimportedBase.getOrElse(component) { 0f } + reimportedDeltas.getOrElse(component) { 0f }
+				maxDifference = maxOf(maxDifference, abs(sourceAbsolute - reimportedAbsolute))
 			}
 		}
 		return maxDifference

@@ -913,6 +913,17 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - a non-null String in the editor's model (its
+						// setter rejects null); every corpus form writes "" when unannotated.
+						notes = template?.notes ?: ""
+						// CMO3: CPartForm multiply/screen colors - a modern-era part form carries all
+						// of drawOrder/opacity/multiplyColor/screenColor, and CPartForm.deserialize
+						// dereferences the colors unconditionally (a form with drawOrder + opacity but
+						// no colors NPEs at load).  Corpus signatures are all-five or the pre-5.3
+						// drawOrder-only shape, never the partial middle; the channel lowering
+						// overwrites these when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 					}
 			scalarOf(cell.channels[FormChannel.DRAW_ORDER])?.let { drawOrder ->
 				// CMO3: CPartForm field drawOrder.

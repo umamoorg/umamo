@@ -68,6 +68,10 @@ kotlin {
 				// The skeleton gate compares emitted XML structure against the corpus blank; JDOM is
 				// :format's own (implementation-scoped) backend, so the test declares it directly.
 				implementation(libs.jdom)
+				// TEST-ONLY: the MOC3 conversion round trip mirrors the app's document loader, which
+				// normalizes rest meshes to canvas space through :render's evaluator before export
+				// (production :interop code never depends on :render - siblings over :runtime).
+				implementation(project(":render"))
 			}
 		}
 	}

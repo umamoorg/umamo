@@ -55,10 +55,24 @@ public object Cmo3Conversion {
 				canvasHeight = puppet.canvasHeight.roundToInt(),
 				targetVersionNo = puppet.runtimeTarget.cmo3TargetVersionNo(),
 			)
+		// Each page's drawable regions feed the per-drawable patch webs (crop + placement fit).
+		// The puppet's mesh.positions MUST be canvas-frame here: the app's MOC3 document loader
+		// normalizes parent-local rest meshes through :render's restMeshesToCanvasSpace before any
+		// export, and callers converting a raw Moc3Import puppet must do the same (the official
+		// source-level positions and the whole placement web are canvas geometry).
+		val regionsByPage = List(pages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
+		for (drawable in puppet.drawables) {
+			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
+			val mesh = drawable.mesh ?: continue
+			regionsByPage.getOrNull(pageIndex)?.add(
+				Cmo3ImageChainBuilder.DrawableRegion(drawable.id.raw, mesh.uvs, mesh.positions),
+			)
+		}
 		val chain =
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
 				pages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
+				regionsByPage,
 				nowMillis,
 			)
 		val model =
@@ -72,7 +86,9 @@ public object Cmo3Conversion {
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
 		for (drawable in puppet.drawables) {
 			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
-			chain.pageBindings.getOrNull(pageIndex)?.let { binding -> bindings[drawable.id.raw] = binding }
+			val binding =
+				chain.bindingByDrawableId[drawable.id.raw] ?: chain.pageFallbackBindings.getOrNull(pageIndex)
+			binding?.let { resolved -> bindings[drawable.id.raw] = resolved }
 		}
 		val report = Cmo3Export.apply(puppet, model, bindings)
 		return Result(model, report)

@@ -37,7 +37,8 @@ class Cmo3ImageChainBuilderTest {
 	fun pageChainEmbedsAndResolvesPagesByName() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Chain Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
 		val pages = listOf(solidPage(4, 0x40), solidPage(8, 0x7F))
-		val chain = Cmo3ImageChainBuilder.populate(skeleton.root, pages, nowMillis = 1_700_000_000_000L)
+		val chain =
+			Cmo3ImageChainBuilder.populate(skeleton.root, pages, listOf(emptyList(), emptyList()), nowMillis = 1_700_000_000_000L)
 		val bytes =
 			Cmo3FreshFile.assemble(
 				skeleton.root,
@@ -65,7 +66,15 @@ class Cmo3ImageChainBuilderTest {
 	@Test
 	fun boundDrawableRoundTripsWithVerbatimUvs() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Bound Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
-		val chain = Cmo3ImageChainBuilder.populate(skeleton.root, listOf(solidPage(4, 0x11)), nowMillis = 1_700_000_000_000L)
+		val uvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.2f, 0.5f, 0.8f)
+		val positions = floatArrayOf(10f, 10f, 90f, 10f, 50f, 90f)
+		val chain =
+			Cmo3ImageChainBuilder.populate(
+				skeleton.root,
+				listOf(solidPage(4, 0x11)),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("BoundDrawable", uvs, positions))),
+				nowMillis = 1_700_000_000_000L,
+			)
 		val model =
 			Cmo3.read(
 				Cmo3FreshFile.assemble(
@@ -75,7 +84,6 @@ class Cmo3ImageChainBuilderTest {
 				),
 			)
 		val drawableId = DrawableId("BoundDrawable")
-		val uvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.2f, 0.5f, 0.8f)
 		val puppet =
 			PuppetModel(
 				parameters = emptyList(),
@@ -91,7 +99,7 @@ class Cmo3ImageChainBuilderTest {
 							maskedBy = emptyList(),
 							mesh =
 								DrawableMesh(
-									positions = floatArrayOf(10f, 10f, 90f, 10f, 50f, 90f),
+									positions = positions,
 									uvs = uvs,
 									indices = intArrayOf(0, 1, 2),
 								),
@@ -106,7 +114,7 @@ class Cmo3ImageChainBuilderTest {
 				worldOriginY = -50f,
 				runtimeTarget = RuntimeTarget.Cubism53,
 			)
-		val report = Cmo3Export.apply(puppet, model, mapOf(drawableId.raw to chain.pageBindings[0]))
+		val report = Cmo3Export.apply(puppet, model, mapOf(drawableId.raw to chain.bindingByDrawableId.getValue(drawableId.raw)))
 		assertTrue(report.isEmpty, "expected no notices, got ${report.notices}")
 
 		val reimportedSource = Cmo3.read(Cmo3.write(model)).root as? CModelSource ?: error("re-read root is not a CModelSource")
@@ -122,5 +130,96 @@ class Cmo3ImageChainBuilderTest {
 				.single()
 		val texture = drawableSource.texture as? GTexture2D ?: error("bound drawable has no GTexture2D")
 		assertTrue(texture.srcImageResource != null, "texture reaches the page resource")
+	}
+
+	@Test
+	fun patchWebCarriesPlacementAndCropBytes() {
+		val skeleton = Cmo3SkeletonBuilder.buildBlank("Patch Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+		// A gradient page so the crop subregion is verifiable byte-for-byte.
+		val pageSize = 8
+		val pageRgba = ByteArray(pageSize * pageSize * 4) { index -> index.toByte() }
+		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		// uv bbox [0.25, 0.5] x [0.5, 1.0] -> patch x 2..4, y 4..8; positions via the exact affine
+		// canvas = (2*pageX + 3, -1*pageY + 10) so the fit recovers it.
+		val uvs = floatArrayOf(0.25f, 0.5f, 0.5f, 0.5f, 0.25f, 1.0f, 0.5f, 1.0f)
+		val positions =
+			FloatArray(uvs.size) { index ->
+				val vertexIndex = index / 2
+				if (index % 2 == 0) {
+					2f * (uvs[2 * vertexIndex] * pageSize) + 3f
+				} else {
+					-1f * (uvs[2 * vertexIndex + 1] * pageSize) + 10f
+				}
+			}
+		val chain =
+			Cmo3ImageChainBuilder.populate(
+				skeleton.root,
+				listOf(page),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("PatchDrawable", uvs, positions))),
+				nowMillis = 1_700_000_000_000L,
+			)
+		val binding = chain.bindingByDrawableId.getValue("PatchDrawable")
+		assertTrue(binding.modelImageGuid != null, "drawable gets its own model image")
+		assertEquals(2f, binding.inputImageLocalToCanvasTransform.m00, 1e-4f, "fitted x scale")
+		assertEquals(-1f, binding.inputImageLocalToCanvasTransform.m11, 1e-4f, "fitted y scale (flip)")
+		assertEquals(3f, binding.inputImageLocalToCanvasTransform.m02, 1e-3f, "fitted x offset")
+		assertEquals(10f, binding.inputImageLocalToCanvasTransform.m12, 1e-3f, "fitted y offset")
+
+		// The atlas entry carries the patch origin and the same fitted placement.
+		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val atlas =
+			Cmo3Import.elementsOf(textureManager._textureAtlases)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.single()
+		val entry =
+			Cmo3Import.elementsOf(atlas.modelImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.single()
+		assertEquals(binding.modelImageGuid, entry.modelImageGuid, "entry joins the drawable's model image")
+		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
+		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		assertEquals(2f, packingPosition.x, 1e-6f, "patch origin x on the page")
+		assertEquals(4f, packingPosition.y, 1e-6f, "patch origin y on the page")
+		val entryPlacement = entry.atlasLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+		assertEquals(2f, entryPlacement.m00, 1e-4f, "entry placement matches the fit")
+		assertEquals(10f, entryPlacement.m12, 1e-3f, "entry placement matches the fit")
+
+		// The layer's bounds are the patch's CANVAS rect: fit-mapped corners (7,6) and (11,2),
+		// normalized across the y flip.
+		val layeredImage =
+			Cmo3Import.elementsOf(textureManager._rawImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.single()
+				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+		assertEquals(100, layeredImage.width, "doc width is the canvas")
+		assertEquals(100, layeredImage.height, "doc height is the canvas")
+		val patchLayer =
+			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
+				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+				.single()
+		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		assertEquals(7, bounds.x, "canvas bounds x")
+		assertEquals(2, bounds.y, "canvas bounds y (flip-normalized)")
+		assertEquals(4, bounds.width, "canvas bounds width")
+		assertEquals(4, bounds.height, "canvas bounds height")
+
+		// The crop PNG is the page subregion (x 2..4, y 4..8).
+		val cropEntry = chain.pngEntries.single { pngEntry -> pngEntry.path == "imageFileBuf_0.png" }
+		val crop = PngCodec.read(cropEntry.pngBytes)
+		assertEquals(2, crop.width, "crop width")
+		assertEquals(4, crop.height, "crop height")
+		for (rowIndex in 0 until crop.height) {
+			for (columnIndex in 0 until crop.width) {
+				val cropOffset = (rowIndex * crop.width + columnIndex) * 4
+				val pageOffset = ((4 + rowIndex) * pageSize + (2 + columnIndex)) * 4
+				for (channel in 0 until 4) {
+					assertEquals(
+						pageRgba[pageOffset + channel],
+						crop.rgba[cropOffset + channel],
+						"crop pixel ($columnIndex, $rowIndex) channel $channel",
+					)
+				}
+			}
+		}
 	}
 }
