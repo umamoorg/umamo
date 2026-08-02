@@ -523,12 +523,12 @@ internal class Cmo3PropertyLowering(
 							newUvs[component].toRawBits() == baselineUvs[component].toRawBits() &&
 							newUvs[component + 1].toRawBits() == baselineUvs[component + 1].toRawBits()
 					if (unchangedPair) {
-						result[component] = storedUvs!![component]
+						result[component] = storedUvs[component]
 						result[component + 1] = storedUvs[component + 1]
 					} else {
 						val u = newUvs[component]
 						val v = newUvs[component + 1]
-						result[component] = affine!!.m00 * u + affine.m01 * v + affine.m02
+						result[component] = affine.m00 * u + affine.m01 * v + affine.m02
 						result[component + 1] = affine.m10 * u + affine.m11 * v + affine.m12
 					}
 					component += 2
@@ -774,8 +774,8 @@ internal class Cmo3PropertyLowering(
 		if (deformerUuid == null) {
 			return
 		}
-		(oldPartSource?._childGuids as? MutableList<Any?>)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }
-		val newChildList = newPartSource._childGuids as? MutableList<Any?>
+		mutableGraphListOf(oldPartSource?._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }
+		val newChildList = mutableGraphListOf(newPartSource._childGuids)
 		if (newChildList != null) {
 			if (newChildList.none { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }) {
 				newChildList.add(source.guid)
@@ -1032,7 +1032,7 @@ internal class Cmo3PropertyLowering(
 		newElements: List<Any?>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val mutable = current as? MutableList<Any?>
+		val mutable = mutableGraphListOf(current)
 		if (mutable != null) {
 			mutable.clear()
 			mutable.addAll(newElements)

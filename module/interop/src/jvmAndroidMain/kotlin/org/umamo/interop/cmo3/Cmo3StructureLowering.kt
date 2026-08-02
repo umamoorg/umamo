@@ -68,7 +68,7 @@ internal class Cmo3StructureLowering(
 		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
 	private fun appendToCollection(owner: Any, ownerTag: String, property: String, current: Any?, assign: (MutableList<Any?>) -> Unit, element: Any) {
-		val mutable = current as? MutableList<Any?>
+		val mutable = mutableGraphListOf(current)
 		if (mutable != null) {
 			mutable.add(element)
 			return
@@ -80,7 +80,7 @@ internal class Cmo3StructureLowering(
 	}
 
 	private fun removeFromCollection(current: Any?, matches: (Any?) -> Boolean): Boolean {
-		val mutable = current as? MutableList<Any?> ?: return false
+		val mutable = mutableGraphListOf(current) ?: return false
 		return mutable.removeAll(matches)
 	}
 
@@ -91,7 +91,7 @@ internal class Cmo3StructureLowering(
 		}
 		val parts = index.userPartSources + listOfNotNull(index.rootPartSource)
 		for (part in parts) {
-			(part._childGuids as? MutableList<Any?>)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == uuid }
+			mutableGraphListOf(part._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == uuid }
 		}
 	}
 

@@ -363,7 +363,7 @@ internal class Cmo3KeyformLowering(
 						parameterGuid = parameterSource.guid
 						keys = ArrayList<Any?>()
 					}
-			val keysList = binding.keys as? MutableList<Any?>
+			val keysList = mutableGraphListOf(binding.keys)
 			if (keysList != null) {
 				keysList.clear()
 				axis.keys.forEach { key -> keysList.add(key) }
@@ -415,7 +415,7 @@ internal class Cmo3KeyformLowering(
 		newElements: List<Any?>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val mutable = current as? MutableList<Any?>
+		val mutable = mutableGraphListOf(current)
 		if (mutable != null) {
 			mutable.clear()
 			mutable.addAll(newElements)
@@ -541,7 +541,7 @@ internal class Cmo3KeyformLowering(
 							baselineBase.size == editedBase.size &&
 							editedBase[component].toRawBits() == baselineBase[component].toRawBits() &&
 							delta.toRawBits() == (origAbsolute[component] - baselineBase[component]).toRawBits()
-					if (reusable) origAbsolute!![component] else editedBase[component] + delta
+					if (reusable) origAbsolute[component] else editedBase[component] + delta
 				}
 			// CMO3: CArtMeshForm field positions (absolute), ACDrawableForm fields drawOrder /
 			// opacity / multiplyColor / screenColor.

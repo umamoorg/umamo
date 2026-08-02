@@ -59,13 +59,21 @@ internal object Cmo3ImageChainBuilder {
 		val textureManager = root.textureManager as? CTextureManager ?: error("skeleton has no texture manager")
 		val sharedBlend = CBlend_Normal()
 		val sharedOptions = CHashMap<String, Any?>()
+		val groupLinkedRawImageGuids = CArrayList<Any?>()
+		val groupModelImages = CArrayList<Any?>()
 		val group =
 			CModelImageGroup().apply {
 				memo = ""
 				groupName = "Textures"
-				_linkedRawImageGuids = CArrayList<Any?>()
-				_modelImages = CArrayList<Any?>()
+				_linkedRawImageGuids = groupLinkedRawImageGuids
+				_modelImages = groupModelImages
 			}
+		val rawImages =
+			mutableGraphListOf(textureManager._rawImages) ?: error("skeleton texture manager has no raw-image list")
+		val textureAtlases =
+			mutableGraphListOf(textureManager._textureAtlases) ?: error("skeleton texture manager has no texture-atlas list")
+		val modelImageGroups =
+			mutableGraphListOf(textureManager._modelImageGroups) ?: error("skeleton texture manager has no model-image-group list")
 		val pngEntries = ArrayList<Cmo3FreshFile.PngEntry>(pages.size)
 		val pageBindings = ArrayList<Cmo3DrawableTextureBinding>(pages.size)
 		for ((pageIndex, page) in pages.withIndex()) {
@@ -197,10 +205,10 @@ internal object Cmo3ImageChainBuilder {
 					// actual bytes (the editor's own rendered atlas is premultiplied and says true).
 					isPremultiplied = false
 				}
-			(group._linkedRawImageGuids as CArrayList<Any?>).add(layeredImage.guid)
-			(group._modelImages as CArrayList<Any?>).add(modelImage)
-			(textureManager._rawImages as CArrayList<Any?>).add(wrapper)
-			(textureManager._textureAtlases as CArrayList<Any?>).add(atlas)
+			groupLinkedRawImageGuids.add(layeredImage.guid)
+			groupModelImages.add(modelImage)
+			rawImages.add(wrapper)
+			textureAtlases.add(atlas)
 			pageBindings.add(
 				Cmo3DrawableTextureBinding(
 					texture = texture,
@@ -210,7 +218,7 @@ internal object Cmo3ImageChainBuilder {
 				),
 			)
 		}
-		(textureManager._modelImageGroups as CArrayList<Any?>).add(group)
+		modelImageGroups.add(group)
 		// CMO3: CTextureManager field isTextureInputModelImageMode - false = atlas display mode,
 		// matching the atlas-region inputs the drawables carry.
 		textureManager.isTextureInputModelImageMode = false
