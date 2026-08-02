@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3
 
+import org.jdom.Document
 import org.jdom.Element
 import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.serialize.cubismEngine
@@ -65,6 +66,73 @@ public object Cmo3Author {
 			document.addContent(instructionIndex++, ProcessingInstruction("import", fqcn))
 		}
 		return XmlCodec.write(document)
+	}
+
+	/**
+	 * Reconciles a written document's prologue PIs with the tags it actually contains.
+	 *
+	 * `Cmo3.write` replays the prologue recorded at read time, which is complete for an unedited
+	 * graph but misses any class first introduced AFTER the read - a session-created glue in a
+	 * glue-less document, or the whole created population of a fresh-graph (MOC3-origin) export.
+	 * The official reader resolves element tags through the `<?import?>` list, so a missing import
+	 * makes the file unreadable in the editor.  This pass restores the corpus invariant: the
+	 * import list is exactly one sorted FQCN per distinct non-structural tag (an import whose tag
+	 * left the document is pruned; corpus files never carry stale imports).  Version PIs are only
+	 * ever APPENDED (5.4-era documents only - the per-tag numbers are era-specific), never pruned:
+	 * corpus files do carry version PIs for classes with no matching element (BareMinimum's
+	 * ModelStateSet:1), so pruning would break replay byte-identity.
+	 *
+	 * A document whose prologue is already complete is left untouched, keeping the unedited
+	 * round trip byte-identical.
+	 *
+	 * @param Document document The written model document (mutated in place).
+	 */
+	public fun completePrologue(document: Document) {
+		val tags = HashSet<String>()
+		collectTags(document.rootElement, tags)
+		val modelTags = tags - CMO3_STRUCTURAL_TAGS
+
+		val instructions = document.content.filterIsInstance<ProcessingInstruction>()
+		val versionInstructions = instructions.filter { it.target == "version" }
+		val importInstructions = instructions.filter { it.target == "import" }
+		val replayedImports = importInstructions.map { it.data.trim() }
+		val replayedFqcnByTag = replayedImports.associateBy { fqcn -> fqcn.substringAfterLast('.').substringAfterLast('$') }
+		val desiredImports =
+			modelTags
+				.map { tag ->
+					// The document's own spelling wins - the 5.4 table only fills tags the read
+					// never saw, so an older era's package layout is never rewritten.
+					replayedFqcnByTag[tag]
+						?: CMO3_TAG_TO_FQCN[tag]
+						?: error("element tag <$tag> has no FQCN table entry and no replayed import; add it to Cmo3PiTables from a corpus sample")
+				}
+				.sorted()
+
+		val replayedVersionNames = versionInstructions.map { it.data.trim().substringBeforeLast(':') }.toHashSet()
+		val fileFormatVersion = document.rootElement.getAttributeValue("fileFormatVersion")
+		val appendedVersions =
+			if (fileFormatVersion == FRESH_FILE_FORMAT_VERSION) {
+				modelTags.sorted().mapNotNull { tag ->
+					CMO3_VERSIONS_BY_TAG_5_4[tag]?.takeIf { (piName, _) -> piName !in replayedVersionNames }
+				}
+			} else {
+				emptyList()
+			}
+
+		if (desiredImports == replayedImports && appendedVersions.isEmpty()) {
+			return
+		}
+		for (instruction in importInstructions) {
+			document.removeContent(instruction)
+		}
+		var instructionIndex =
+			versionInstructions.lastOrNull()?.let { instruction -> document.indexOf(instruction) + 1 } ?: 0
+		for ((piName, versionNumber) in appendedVersions) {
+			document.addContent(instructionIndex++, ProcessingInstruction("version", "$piName:$versionNumber"))
+		}
+		for (fqcn in desiredImports) {
+			document.addContent(instructionIndex++, ProcessingInstruction("import", fqcn))
+		}
 	}
 
 	/**

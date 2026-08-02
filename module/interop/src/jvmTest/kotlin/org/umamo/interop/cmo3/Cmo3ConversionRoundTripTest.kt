@@ -99,6 +99,19 @@ class Cmo3ConversionRoundTripTest {
 		val written = Cmo3.write(result.model)
 		// Each converted corpus model doubles as a manual official-editor gate input.
 		File("build/converted-${mocFile.nameWithoutExtension}.cmo3").writeBytes(written)
+
+		// Prologue completeness: re-running the writer's own reconciliation on the written bytes
+		// must be a no-op - a missing or stale import/version PI here is exactly the malformed-file
+		// class the official editor rejects (it resolves element tags through the import list).
+		val writtenMainXml =
+			org.umamo.format.cmo3.caff.CaffCodec.read(written)
+				.firstByTag(org.umamo.format.cmo3.caff.CaffArchive.TAG_MAIN_XML)!!
+				.content
+		val reparsed = org.umamo.format.cmo3.xml.XmlCodec.parse(writtenMainXml)
+		org.umamo.format.cmo3.Cmo3Author.completePrologue(reparsed)
+		if (!org.umamo.format.cmo3.xml.XmlCodec.write(reparsed).contentEquals(writtenMainXml)) {
+			failures.add("$label: written prologue is incomplete (completePrologue on the output is not a no-op)")
+		}
 		val reimportedSource =
 			Cmo3.read(written).root as? CModelSource
 				?: run {

@@ -64,6 +64,27 @@ internal class Cmo3StructureLowering(
 			note = template?.note ?: "(no debug info)"
 		}
 
+	/**
+	 * The shared CoordType every fresh editable mesh gets.
+	 *
+	 * CMO3: GEditableMesh2 field coordType - corpus meshes always carry a CoordType with coordName
+	 * "Basic Coord"; one instance is reused so the writer hoists a single shared def.
+	 */
+	private val basicCoordType: org.umamo.format.cmo3.model.drawable.CoordType by lazy {
+		org.umamo.format.cmo3.model.drawable.CoordType().apply { coordName = "Basic Coord" }
+	}
+
+	private companion object {
+		/**
+		 * The editor's root-deformer marker uuid.
+		 *
+		 * CMO3: CDeformerGuid uuid + note "ROOT" - the same fixed uuid in every corpus file
+		 * (modelA, miku, ...), written as an affecter's targetDeformerGuid when it hangs off the
+		 * deformer-tree root.
+		 */
+		const val ROOT_DEFORMER_SENTINEL_UUID = "71fae776-e218-4aee-873e-78e8ac0cb48a"
+	}
+
 	private fun freshIdLike(template: Id?, fallbackKind: String, idStr: String): Id =
 		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
@@ -242,8 +263,13 @@ internal class Cmo3StructureLowering(
 							guid = freshGuidLike(null, "CExtensionGuid")
 							editableMesh =
 								GEditableMesh2().apply {
-									meshGuid = freshGuidLike(templateMesh?.meshGuid as? Guid, "CMeshGuid")
-									coordType = templateMesh?.coordType
+									// CMO3: GEditableMesh2 field meshGuid - kind GEditableMeshGuid
+									// (com.live2d.type.GEditableMeshGuid); no corpus file ever emits a
+									// CMeshGuid tag, so that kind would author an unimportable class.
+									meshGuid = freshGuidLike(templateMesh?.meshGuid as? Guid, "GEditableMeshGuid")
+									// CMO3: GEditableMesh2 field coordType - corpus meshes always
+									// carry "Basic Coord" (never null).
+									coordType = templateMesh?.coordType ?: basicCoordType
 									useDelaunayTriangulation = false
 								}
 						},
@@ -433,23 +459,66 @@ internal class Cmo3StructureLowering(
 			return false
 		}
 		val template = index.glueSources.firstOrNull()
-		val fresh =
-			org.umamo.format.cmo3.model.gen.CGlueSource().apply {
-				localName = ""
-				isVisible = true
-				keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
-				_extensions = CArrayList<Any?>()
-				labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
-				guid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
-				// The model keys glues by mesh pair + ordinal (they carry no id of their own), so the
-				// minted idstr only needs uniqueness within the document.
-				id = freshIdLike(template?.id as? Id, "CAffecterId", "Glue_${editedGlue.meshA.raw}_${editedGlue.meshB.raw}_$ordinal")
-				// CMO3: CGlueSource fields targetArtMeshA_guid / targetArtMeshB_guid - identity refs
-				// to the glued drawables' own guid objects.
-				targetArtMeshA_guid = meshAGuid
-				targetArtMeshB_guid = meshBGuid
-				keyforms = CArrayList<Any?>()
+		val ownerPartId = edited.partByDrawable()[editedGlue.meshA]
+		val ownerGuid = ownerPartId?.let { index.partByIdStr[it.raw]?.guid } ?: index.rootPartSource?.guid
+		val fresh = org.umamo.format.cmo3.model.gen.CGlueSource()
+		val formGuid = freshGuidLike(null, "CFormGuid")
+		val form =
+			org.umamo.format.cmo3.model.gen.CGlueForm().apply {
+				// CMO3: CGlueForm - the one default-cell form; every corpus glue carries at least
+				// this cell, and the intensity lowering writes only into existing forms.
+				guid = formGuid
+				isAnimatedForm = false
+				isLocalAnimatedForm = false
+				_source = fresh
+				notes = ""
+				intensity = 1f
 			}
+		fresh.apply {
+			localName = ""
+			isVisible = true
+			// CMO3: ACParameterControllableSource field parentGuid - the owning part, like the
+			// glued drawables' own panel parent (corpus glues always sit under a part).
+			parentGuid = ownerGuid
+			keyformGridSource =
+				org.umamo.format.cmo3.model.gen.KeyformGridSource().apply {
+					// CMO3: KeyformGridSource - one unkeyed cell (empty access key), the corpus
+					// glue default; an intensity track later rebuilds this web via writeGridWeb.
+					keyformsOnGrid =
+						ArrayList<Any?>(
+							mutableListOf(
+								org.umamo.format.cmo3.model.gen.KeyformOnGrid().apply {
+									accessKey =
+										org.umamo.format.cmo3.model.gen.KeyformGridAccessKey().apply {
+											_keyOnParameterList = ArrayList<Any?>()
+										}
+									keyformGuid = formGuid
+								},
+							),
+						)
+					keyformBindings = ArrayList<Any?>()
+				}
+			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			_extensions = CArrayList<Any?>()
+			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			guid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
+			// The model keys glues by mesh pair + ordinal (they carry no id of their own), so the
+			// minted idstr only needs uniqueness within the document.
+			id = freshIdLike(template?.id as? Id, "CAffecterId", "Glue_${editedGlue.meshA.raw}_${editedGlue.meshB.raw}_$ordinal")
+			// CMO3: ACAffecterSource field targetDeformerGuid - the editor's fixed root-deformer
+			// sentinel (uuid identical in every corpus file; the editor writes it even for glues
+			// whose meshes have real deformer parents).
+			targetDeformerGuid =
+				Guid("CDeformerGuid").apply {
+					uuid = ROOT_DEFORMER_SENTINEL_UUID
+					note = "ROOT"
+				}
+			// CMO3: CGlueSource fields targetArtMeshA_guid / targetArtMeshB_guid - identity refs
+			// to the glued drawables' own guid objects.
+			targetArtMeshA_guid = meshAGuid
+			targetArtMeshB_guid = meshBGuid
+			keyforms = CArrayList<Any?>(mutableListOf(form))
+		}
 		appendToCollection(sourceSet, "CAffecterSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
 		return true
 	}

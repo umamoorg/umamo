@@ -85,6 +85,29 @@ internal class Cmo3KeyformLowering(
 		}
 	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
 
+	/**
+	 * Per-name CoordType instances shared across every fresh form this lowering creates, so the
+	 * writer hoists one shared def per name (the editor's own shape; it never writes a null
+	 * coordType).
+	 */
+	private val coordTypes = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+
+	/**
+	 * The CoordType a fresh form gets when no sibling template supplies one.
+	 *
+	 * CMO3: ACForm field coordType - corpus forms carry "DeformerLocal" under a parent deformer
+	 * and "Canvas" at the deformer-tree root (the space the stored positions are expressed in).
+	 *
+	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
+	 * @return CoordType The shared per-export instance for that name.
+	 */
+	private fun formCoordType(hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType =
+		coordTypes.getOrPut(if (hasParentDeformer) "DeformerLocal" else "Canvas") {
+			org.umamo.format.cmo3.model.drawable.CoordType().apply {
+				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
+			}
+		}
+
 	private fun unsupported(category: String, subject: String, detail: String) {
 		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
 	}
@@ -529,7 +552,7 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
 			val absolute =
@@ -673,7 +696,7 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						coordType = template?.coordType ?: formCoordType(editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
 			if (newPoints != null) {
@@ -755,7 +778,7 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						coordType = template?.coordType ?: formCoordType(editedRotation.parent != null)
 					}
 			if (payload != null) {
 				// CMO3: CRotationDeformerForm attributes originX / originY / angle / scale.
