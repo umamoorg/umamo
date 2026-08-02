@@ -328,8 +328,7 @@ fun EditorApp(
 
 	// Register the file operations as real commands so the keymap drives them (Ctrl+O / Ctrl+Shift+E
 	// dispatch through the shell's registry).  file.exportCmo3 re-registers on a document swap so its
-	// handler closes over the current document; it is only available while a CMO3 is open (a MOC3
-	// document has no retained graph to reconcile onto).
+	// handler closes over the current document; it is available only while a puppet document is open.
 	DisposableEffect(commandRegistry) {
 		commandRegistry.register(Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { importCmo3ViaPicker() })
 		commandRegistry.register(Command("file.importMoc3", title = Res.string.cmd_import_moc3) { importMoc3ViaPicker() })
