@@ -70,11 +70,7 @@ class Cmo3SkeletonBuilderTest {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Untitled Model", 1000, 2000, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
 		val freshSpine = modelSourceChildren(XmlCodec.parse(Cmo3Author.writeFreshMainXml(skeleton.root)).rootElement)
 
-		// Our model classes omit the 5.x-optional tails on fresh emission (older-era files omit
-		// them entirely, so the editor's reader accepts their absence).
-		val omittedTails = setOf("randomPoseSetting", "motionSyncSettingsSet", "modelStateSetSet")
-		val expectedSpine = editorSpine.filterNot { (_, fieldName) -> fieldName in omittedTails }
-		assertEquals(expectedSpine, freshSpine, "CModelSource child (tag, xs.n) sequence matches the editor's blank")
+		assertEquals(editorSpine, freshSpine, "CModelSource child (tag, xs.n) sequence matches the editor's blank")
 	}
 
 	/**

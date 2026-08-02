@@ -385,6 +385,14 @@ internal class Cmo3KeyformLowering(
 						_gridSource = gridSource
 						parameterGuid = parameterSource.guid
 						keys = ArrayList<Any?>()
+						// CMO3: KeyformBindingSource fields interpolationType /
+						// extendedInterpolationType / insertPointCount / extendedInterpolationScale /
+						// description - every corpus binding writes LINEAR / LINEAR / 1 / 1.0 / "".
+						interpolationType = org.umamo.format.cmo3.model.gen.InterpolationType.LINEAR
+						extendedInterpolationType = org.umamo.format.cmo3.model.gen.ExtendedInterpolationType.LINEAR
+						insertPointCount = 1
+						extendedInterpolationScale = 1f
+						description = ""
 					}
 			val keysList = mutableGraphListOf(binding.keys)
 			if (keysList != null) {
@@ -552,6 +560,13 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
@@ -696,6 +711,13 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 						coordType = template?.coordType ?: formCoordType(editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
@@ -778,6 +800,13 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 						coordType = template?.coordType ?: formCoordType(editedRotation.parent != null)
 					}
 			if (payload != null) {
@@ -968,6 +997,8 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - non-null in the editor's model.
+						notes = template?.notes ?: ""
 					}
 			scalarOf(cell.channels[FormChannel.GLUE_INTENSITY])?.let { intensity ->
 				// CMO3: CGlueForm field intensity - the weld strength at this cell.
@@ -1074,7 +1105,10 @@ internal class Cmo3KeyformLowering(
 						?: KeyFormMorphTarget().apply {
 							parameterGuid = parameterSource.guid
 							owner = ownerSource
-							editBaseParameterMap = null
+							// CMO3: KeyFormMorphTarget field editBaseParameterMap - corpus records
+							// carry the wrapper with a null baseParameterMap, never a bare null.
+							editBaseParameterMap =
+								org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap()
 						}
 				record.keyValue = keyValue
 				record.keyformGuid = form.guid

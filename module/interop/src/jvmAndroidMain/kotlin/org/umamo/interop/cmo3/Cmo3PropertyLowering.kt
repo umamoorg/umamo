@@ -224,10 +224,13 @@ internal class Cmo3PropertyLowering(
 							DeformerField.NAME -> lowerLocalName(source, editedDeformer.name)
 							DeformerField.SELECTABLE -> lowerIsLocked(source, editedDeformer.isSelectable)
 							DeformerField.PARENT -> {
-								// CMO3: ACDeformerSource field targetDeformerGuid - the transform-tree parent
-								// (null at the root).  Reusing the parent's own guid instance keeps the shared
-								// xs.ref identity the editor writes.
-								source.targetDeformerGuid = editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
+								// CMO3: ACDeformerSource field targetDeformerGuid - the transform-tree parent,
+								// or the editor's fixed ROOT sentinel at the tree root (official deformers
+								// never write null here).  Reusing the parent's own guid instance keeps the
+								// shared xs.ref identity the editor writes.
+								source.targetDeformerGuid =
+									editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
+										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
 							}
 							DeformerField.PART -> lowerDeformerPart(source, diff.id, editedDeformer.partId)

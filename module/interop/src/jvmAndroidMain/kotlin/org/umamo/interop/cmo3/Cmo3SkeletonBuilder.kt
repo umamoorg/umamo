@@ -45,10 +45,10 @@ import org.umamo.format.raster.RasterImage
  * glues, the image chain - is deliberately absent: the reconcile exporter creates the model's own
  * entities against this skeleton, and the image-chain builder populates the texture manager.
  *
- * Fields the editor writes as explicit defaults but the serializer's DontSerializeIfDefault rules
- * omit on a fresh object (useOffscreen=false, invertClippingMask=false, an explicit null
- * internalColor_direct_argb) are left omitted on purpose: older-era corpus files omit them too,
- * which is exactly why the generator marked them, so the editor's reader accepts their absence.
+ * Fields the modern editor always writes as explicit defaults (useOffscreen=false,
+ * invertClippingMask=false, an explicit null internalColor_direct_argb) emit on fresh objects
+ * too - their DontSerializeIfDefault annotations are hand-removed in the generated model, because
+ * the official reader's custom deserializers reject their absence.
  */
 internal object Cmo3SkeletonBuilder {
 	/**
@@ -62,6 +62,25 @@ internal object Cmo3SkeletonBuilder {
 
 	/** The root parameter group's id string.  CMO3: CParameterGroupId idstr. */
 	internal const val ROOT_PARAMETER_GROUP_ID_STR: String = "ParamGroupRoot"
+
+	/**
+	 * The editor's root-deformer marker uuid.
+	 *
+	 * CMO3: CDeformerGuid uuid + note "ROOT" - the same fixed uuid in every corpus file, written
+	 * as an affecter's or root-level deformer's targetDeformerGuid.
+	 */
+	internal const val ROOT_DEFORMER_SENTINEL_UUID: String = "71fae776-e218-4aee-873e-78e8ac0cb48a"
+
+	/**
+	 * A fresh root-deformer sentinel guid (see ROOT_DEFORMER_SENTINEL_UUID).
+	 *
+	 * @return Guid The sentinel CDeformerGuid.
+	 */
+	internal fun rootDeformerSentinel(): Guid =
+		Guid("CDeformerGuid").apply {
+			uuid = ROOT_DEFORMER_SENTINEL_UUID
+			note = "ROOT"
+		}
 
 	/** One embedded PNG the skeleton's icons reference: the archive entry path plus its bytes. */
 	internal class IconEntry(val path: String, val pngBytes: ByteArray)
@@ -125,7 +144,10 @@ internal object Cmo3SkeletonBuilder {
 					CModelInfo().apply {
 						pixelsPerUnit = 1f
 						originInPixels = CPoint()
-						_effectParameterGroups = CEffectParameterGroups().apply { _parameterGroups = CArrayList<Any?>() }
+						// CMO3: CEffectParameterGroups field _parameterGroups - a hash_map in every
+						// corpus file (keyType="string" when empty); the editor's field is Map-typed
+						// and rejects a list.
+						_effectParameterGroups = CEffectParameterGroups().apply { _parameterGroups = CHashMap<Any?, Any?>() }
 					}
 				modelOptions = CHashMap<String, Any?>()
 				_icon64 = iconOf(64, icons[0].path)
@@ -142,6 +164,22 @@ internal object Cmo3SkeletonBuilder {
 				// CMO3: CModelSource field latestVersionOfLastModelerNo (BareMinimum writes 5030000).
 				latestVersionOfLastModelerNo = 5030000
 				artPathBrushesSetting = CArtPathBrushSetting().apply { brushes = CArrayList<Any?>() }
+				// CMO3: CModelSource fields randomPoseSetting / motionSyncSettingsSet /
+				// modelStateSetSet - every 5.4 corpus file writes all three (empty when the
+				// features are unused), modelStateSetSet as the root's last child; its presence
+				// also drives the ModelStateSet:1 version PI.
+				randomPoseSetting =
+					org.umamo.format.cmo3.model.gen.CRandomPoseSettingManager().apply {
+						_settings = CArrayList<Any?>()
+					}
+				motionSyncSettingsSet =
+					org.umamo.format.cmo3.model.gen.CMotionSyncSettingSourceSet().apply {
+						_settingSourceSetMotionSync = LinkedHashSet<Any?>()
+					}
+				modelStateSetSet =
+					org.umamo.format.cmo3.model.gen.CModelStateSetSet().apply {
+						_modelStateSets = CArrayList<Any?>()
+					}
 			}
 		return BlankSkeleton(root, icons)
 	}
@@ -280,7 +318,7 @@ internal object Cmo3SkeletonBuilder {
 	 * @param Int size The square dimension in pixels.
 	 * @return ByteArray The encoded PNG.
 	 */
-	private fun blankPng(size: Int): ByteArray = PngCodec.write(RasterImage(size, size, ByteArray(size * size * 4)))
+	internal fun blankPng(size: Int): ByteArray = PngCodec.write(RasterImage(size, size, ByteArray(size * size * 4)))
 
 	/**
 	 * An icon wrapper referencing an embedded PNG entry.

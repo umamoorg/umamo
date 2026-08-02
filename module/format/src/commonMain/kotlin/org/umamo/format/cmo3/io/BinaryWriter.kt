@@ -95,15 +95,19 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 	}
 
 	/**
-	 * Writes a big-endian 64-bit integer, XOR-obfuscated with (key<<32)|key.
+	 * Writes a big-endian 64-bit integer, XOR-obfuscated with ((long) key << 32) | key.
+	 *
+	 * CMO3: the editor's 64-bit mask ORs the SIGN-EXTENDED key, so a negative key floods the
+	 * high dword to all-ones (corpus-pinned: every negative-key file stores 0xFFFFFFFF high
+	 * dwords for sub-4GB offsets).  A zero-extended mask matches only positive keys - the
+	 * official reader then decodes garbage offsets and reports the file as empty.
 	 *
 	 * @param Long value Value to write.
 	 * @param Int  key   Obfuscation key (0 = none).
 	 */
 	public fun writeInt64(value: Long, key: Int) {
 		ensure(8)
-		val keyLong = key.toLong() and 0xFFFFFFFFL
-		val mask = (keyLong shl 32) or keyLong
+		val mask = (key.toLong() shl 32) or key.toLong()
 		val encoded = value xor mask
 		for (byteIndex in 0 until 8) {
 			buffer[position + byteIndex] = (encoded ushr (56 - 8 * byteIndex)).toByte()

@@ -203,7 +203,8 @@ public open class ACLayerEntry {
 	public open var `group`: Any? = null
 	public open var `opacity255`: Int = 0
 
-	@DontSerializeIfDefault
+	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
+	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
 	public open var `isTransparencyShapesLayer`: Boolean = false
 	public open var `_optionOfIOption`: Any? = null
 	public open var `_layeredImage`: Any? = null
@@ -226,7 +227,8 @@ public open class ACParameterControllableSource {
 	public open var `keyformMorphTargetSet`: Any? = null
 	public open var `_extensions`: Any? = null
 
-	@DontSerializeIfDefault
+	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
+	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
 	public open var `internalColor_direct_argb`: Any? = null
 
 	@DontSerializeIfDefault
@@ -678,13 +680,15 @@ public class CPartSource : ACParameterControllableSource() {
 	public var `partsEditColor`: Any? = null
 	public var `_childGuids`: Any? = null
 
-	@DontSerializeIfDefault
+	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
+	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
 	public var `useOffscreen`: Boolean = false
 
 	@DontSerializeIfDefault
 	public var `clipGuidList`: Any? = null
 
-	@DontSerializeIfDefault
+	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
+	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
 	public var `invertClippingMask`: Boolean = false
 
 	@DontSerializeIfDefault

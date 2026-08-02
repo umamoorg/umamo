@@ -257,4 +257,9 @@ public class CModelSource {
 
 	@DontSerializeIfDefault
 	public var motionSyncSettingsSet: Any? = null
+
+	// CMO3: CModelSource field modelStateSetSet - the 5.4 tail (BareMinimum writes an empty
+	// CModelStateSetSet as the root's last child).
+	@DontSerializeIfDefault
+	public var modelStateSetSet: Any? = null
 }

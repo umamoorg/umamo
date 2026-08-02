@@ -254,19 +254,36 @@ internal val CMO3_VERSIONS_ALWAYS_5_4: List<Pair<String, Int>> =
 // PI name is the tag itself except for ModelImageEntry, whose version PI spells the dotted
 // outer-class-less FQN while its import PI spells CTextureAtlas.ModelImageEntry with a dollar,
 // and ModelStateSet, whose versioned item class rides on its (possibly empty) set's tag.
+// The versions are the highest observed across the corpus (each class's current version at the
+// eras our corpus spans); a versioned class MISSING from this table is load-bearing to get right:
+// the editor's reader falls back to deserializing that class at version 0, and a v0 layout read
+// over our current-version element NPEs field-by-field (CRotationDeformerForm was the proof - its
+// PI rides only on corpus files that contain rotation deformers, so a table built from blank
+// saves alone never sees it).
 internal val CMO3_VERSIONS_BY_TAG_5_4: Map<String, Pair<String, Int>> =
 	mapOf(
 		"CModelStateSetSet" to ("ModelStateSet" to 1),
+		"ACDeformerOriginalShape" to ("ACDeformerOriginalShape" to 1),
 		"CArtMeshSource" to ("CArtMeshSource" to 5),
+		"CArtPathBrush" to ("CArtPathBrush" to 1),
+		"CArtPathBrush_TextureInput" to ("CArtPathBrush_TextureInput" to 1),
 		"CFloatColor" to ("CFloatColor" to 1),
+		"CGuide_Modeling" to ("CGuide_Modeling" to 1),
 		"CLabelColor" to ("CLabelColor" to 0),
 		"CModelImage" to ("CModelImage" to 3),
 		"CModelSource" to ("CModelSource" to 16),
 		"CParameterGroup" to ("CParameterGroup" to 4),
 		"CPartForm" to ("CPartForm" to 2),
 		"CPartSource" to ("CPartSource" to 2),
+		"CRotationDeformerForm" to ("CRotationDeformerForm" to 1),
+		"FixWidthData" to ("FixWidthData" to 1),
+		"KeyFormMorphTarget" to ("KeyFormMorphTarget" to 2),
 		"KeyformGridSource" to ("KeyformGridSource" to 1),
 		"ModelImageEntry" to ("com.live2d.cubism.doc.model.texture.textureAtlas.ModelImageEntry" to 2),
+		"RotationDeformerOriginalShape" to ("RotationDeformerOriginalShape" to 1),
+		"SpriteData" to ("SpriteData" to 1),
+		"TextureUvData" to ("TextureUvData" to 1),
+		"WarpDeformerOriginalShape" to ("WarpDeformerOriginalShape" to 1),
 	)
 
 // Tags owned by the serializer itself (structural, primitive, collection, and array tags) - they

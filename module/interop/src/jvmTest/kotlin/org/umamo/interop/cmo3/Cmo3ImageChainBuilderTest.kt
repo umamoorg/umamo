@@ -48,11 +48,16 @@ class Cmo3ImageChainBuilderTest {
 		val resources = model.imageResources()
 		assertEquals(2, resources.size, "one CImageResource per page")
 		// The reachability walk's order is unspecified; the by-name path attribute is the contract.
+		// pngEntries also carries the per-page icon placeholders (image_N.png), which have no
+		// CImageResource - only the page buffers do.
 		val resourcePaths = resources.map { resource -> resource.imageFileBuf?.archivePath }.toSet()
-		assertEquals(chain.pngEntries.map { entry -> entry.path }.toSet(), resourcePaths, "one resource per page path")
+		val pagePaths = chain.pngEntries.map { entry -> entry.path }.filter { path -> path.startsWith("imageFileBuf") }.toSet()
+		assertEquals(pagePaths, resourcePaths, "one resource per page path")
+		val entriesByPath = chain.pngEntries.associateBy { entry -> entry.path }
 		for ((pageIndex, page) in pages.withIndex()) {
-			val entry = chain.pngEntries[pageIndex]
-			val resource = resources.single { candidate -> candidate.imageFileBuf?.archivePath == entry.path }
+			val pagePath = if (pageIndex == 0) "imageFileBuf.png" else "imageFileBuf_${pageIndex - 1}.png"
+			assertContentEquals(page.pngBytes, entriesByPath.getValue(pagePath).pngBytes, "page $pageIndex entry bytes")
+			val resource = resources.single { candidate -> candidate.imageFileBuf?.archivePath == pagePath }
 			assertContentEquals(page.pngBytes, model.extractLayerPng(resource), "page $pageIndex bytes resolve by name")
 		}
 	}

@@ -92,8 +92,9 @@ public class BinaryReader(private val data: ByteArray) {
 			combined = (combined shl 8) or (data[position + byteIndex].toLong() and 0xFFL)
 		}
 		position += 8
-		val keyLong = key.toLong() and 0xFFFFFFFFL
-		val mask = (keyLong shl 32) or keyLong
+		// CMO3: the editor's 64-bit mask ORs the SIGN-EXTENDED key (see BinaryWriter.writeInt64);
+		// a negative key floods the high dword with ones.
+		val mask = (key.toLong() shl 32) or key.toLong()
 		return combined xor mask
 	}
 

@@ -74,17 +74,6 @@ internal class Cmo3StructureLowering(
 		org.umamo.format.cmo3.model.drawable.CoordType().apply { coordName = "Basic Coord" }
 	}
 
-	private companion object {
-		/**
-		 * The editor's root-deformer marker uuid.
-		 *
-		 * CMO3: CDeformerGuid uuid + note "ROOT" - the same fixed uuid in every corpus file
-		 * (modelA, miku, ...), written as an affecter's targetDeformerGuid when it hangs off the
-		 * deformer-tree root.
-		 */
-		const val ROOT_DEFORMER_SENTINEL_UUID = "71fae776-e218-4aee-873e-78e8ac0cb48a"
-	}
-
 	private fun freshIdLike(template: Id?, fallbackKind: String, idStr: String): Id =
 		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
@@ -142,7 +131,10 @@ internal class Cmo3StructureLowering(
 				maxValue = editedParameter.max
 				defaultValue = editedParameter.default
 				isRepeat = false
-				paramType = if (editedParameter.kind == ParameterKind.BLEND_SHAPE) Type.MORPH_TARGET else template?.paramType
+				// CMO3: CParameterSource fields paramType / description - a Type element plus the
+				// (possibly empty) description string on every corpus parameter, never null.
+				paramType = if (editedParameter.kind == ParameterKind.BLEND_SHAPE) Type.MORPH_TARGET else template?.paramType ?: Type.NORMAL
+				description = ""
 				name = editedParameter.name
 				combined = false
 				parentGroupGuid = index.rootParameterGroup?.guid
@@ -187,6 +179,10 @@ internal class Cmo3StructureLowering(
 				guid = freshGuidLike(template?.guid as? Guid, "CParameterGroupGuid")
 				id = freshIdLike(template?.id as? Id, "CParameterGroupId", groupId.raw)
 				name = editedGroup.name
+				// CMO3: CParameterGroup fields description / labelColor - present on every corpus
+				// group, never null.
+				description = ""
+				labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
 				folderIsOpened = editedGroup.initiallyOpen
 				_childGuids = CArrayList<Any?>()
 				parentGroupGuid = index.rootParameterGroup?.guid
@@ -236,6 +232,11 @@ internal class Cmo3StructureLowering(
 			guid = freshGuidLike(textureSource?.guid as? Guid, "CDrawableGuid")
 			id = freshIdLike(textureSource?.id as? Id, "CDrawableId", subject)
 			parentGuid = ownerGuid
+			// CMO3: ACParameterControllableSource fields keyformMorphTargetSet / labelColor and
+			// CArtMeshSource field userData - present on every corpus drawable, never omitted.
+			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			userData = ""
 			if (textureSource != null) {
 				// CMO3: CArtMeshSource identity shell.  The texture and texture-input extension are
 				// the SOURCE drawable's own objects (the writer hoists the shared references), so the
@@ -261,6 +262,9 @@ internal class Cmo3StructureLowering(
 					add(
 						CEditableMeshExtension().apply {
 							guid = freshGuidLike(null, "CExtensionGuid")
+							// CMO3: ACExtension field _owner - the owning drawable source; every
+							// corpus extension carries the backref.
+							_owner = fresh
 							editableMesh =
 								GEditableMesh2().apply {
 									// CMO3: GEditableMesh2 field meshGuid - kind GEditableMeshGuid
@@ -460,8 +464,10 @@ internal class Cmo3StructureLowering(
 		}
 		val template = index.glueSources.firstOrNull()
 		val ownerPartId = edited.partByDrawable()[editedGlue.meshA]
-		val ownerGuid = ownerPartId?.let { index.partByIdStr[it.raw]?.guid } ?: index.rootPartSource?.guid
+		val ownerPart = ownerPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
+		val ownerGuid = ownerPart?.guid
 		val fresh = org.umamo.format.cmo3.model.gen.CGlueSource()
+		val glueGuid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
 		val formGuid = freshGuidLike(null, "CFormGuid")
 		val form =
 			org.umamo.format.cmo3.model.gen.CGlueForm().apply {
@@ -501,25 +507,34 @@ internal class Cmo3StructureLowering(
 			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
 			_extensions = CArrayList<Any?>()
 			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
-			guid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
+			guid = glueGuid
 			// The model keys glues by mesh pair + ordinal (they carry no id of their own), so the
 			// minted idstr only needs uniqueness within the document.
 			id = freshIdLike(template?.id as? Id, "CAffecterId", "Glue_${editedGlue.meshA.raw}_${editedGlue.meshB.raw}_$ordinal")
 			// CMO3: ACAffecterSource field targetDeformerGuid - the editor's fixed root-deformer
 			// sentinel (uuid identical in every corpus file; the editor writes it even for glues
 			// whose meshes have real deformer parents).
-			targetDeformerGuid =
-				Guid("CDeformerGuid").apply {
-					uuid = ROOT_DEFORMER_SENTINEL_UUID
-					note = "ROOT"
-				}
+			targetDeformerGuid = Cmo3SkeletonBuilder.rootDeformerSentinel()
 			// CMO3: CGlueSource fields targetArtMeshA_guid / targetArtMeshB_guid - identity refs
 			// to the glued drawables' own guid objects.
 			targetArtMeshA_guid = meshAGuid
 			targetArtMeshB_guid = meshBGuid
+			// CMO3: CGlueSource field tabPosOnCanvas - the glue tab marker, never null; the editor
+			// stacks them at x = -100 down the canvas's left margin.
+			tabPosOnCanvas =
+				org.umamo.format.cmo3.model.type.GVector2().apply {
+					x = -100f
+					y = 100f * (ordinal + 1)
+				}
 			keyforms = CArrayList<Any?>(mutableListOf(form))
 		}
 		appendToCollection(sourceSet, "CAffecterSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		// CMO3: CPartSource field _childGuids - the owning part lists the glue's CAffecterGuid
+		// after its drawables and deformers; the editor's load-time verify repairs (and 5.4
+		// crashes on) an affecter absent from the part hierarchy.
+		if (ownerPart != null) {
+			appendToCollection(ownerPart, "CPartSource", "_childGuids", ownerPart._childGuids, { ownerPart._childGuids = it }, glueGuid)
+		}
 		return true
 	}
 
@@ -563,6 +578,7 @@ internal class Cmo3StructureLowering(
 			}
 		val victim = matching.getOrNull(ordinal) ?: return
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === victim }) {
+			stripFromChildLists(Cmo3Import.uuidOf(victim.guid))
 			deletedAnything = true
 		}
 	}
@@ -613,9 +629,11 @@ internal class Cmo3StructureLowering(
 				unsupported("drawable", subject, "vertex count exceeds the editable mesh's short-indexed edge table")
 			}
 			// Priority arrays resize to the new counts, keeping whichever array type was stored.
-			editableMesh.pointPriority = resizedPriorityArray(editableMesh.pointPriority, vertexCount)
+			editableMesh.pointPriority = resizedPriorityArray(editableMesh.pointPriority, vertexCount, freshDefault = 10)
+			editor.ensureChildSlot(editableMesh, "GEditableMesh2", "pointPriority", "edge")
 			(editableMesh.edge as? ShortArray)?.let { edges ->
-				editableMesh.edgePriority = resizedPriorityArray(editableMesh.edgePriority, edges.size / 2)
+				editableMesh.edgePriority = resizedPriorityArray(editableMesh.edgePriority, edges.size / 2, freshDefault = 30)
+				editor.ensureChildSlot(editableMesh, "GEditableMesh2", "edgePriority", "pointUid")
 			}
 		}
 		for (glue in edited.glues) {
@@ -709,13 +727,20 @@ internal class Cmo3StructureLowering(
 		return edges
 	}
 
-	/** A zero-filled priority array of [count] entries matching [existing]'s stored type. */
-	private fun resizedPriorityArray(existing: Any?, count: Int): Any? =
+	/**
+	 * A priority array of [count] entries matching [existing]'s stored type, or a fresh byte
+	 * array filled with [freshDefault] when none was stored.
+	 *
+	 * CMO3: GEditableMesh2 fields pointPriority / edgePriority - byte arrays on every corpus
+	 * mesh, never null (the editor NPEs on a null); points carry 10, triangle edges 30.
+	 */
+	private fun resizedPriorityArray(existing: Any?, count: Int, freshDefault: Byte): Any? =
 		when (existing) {
 			is IntArray -> IntArray(count)
 			is ShortArray -> ShortArray(count)
 			is FloatArray -> FloatArray(count)
-			else -> existing
+			is ByteArray -> ByteArray(count) { freshDefault }
+			else -> ByteArray(count) { freshDefault }
 		}
 
 	/**
