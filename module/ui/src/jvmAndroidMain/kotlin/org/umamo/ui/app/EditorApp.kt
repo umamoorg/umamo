@@ -86,7 +86,7 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
 
 /**
  * The shared editor shell: a custom in-window menu bar (File / Edit / Workspace / Help, drawn with the
- * kit menu system) over the document viewport. The Open/Save dialogs come from FileKit; [document] is
+ * kit menu system) over the document viewport. The Import/Export dialogs come from FileKit; [document] is
  * owned by the caller (so host chrome like the window title tracks it); [onOpen] swaps it; [onExit]
  * closes. Both apps mount this one composable - desktop supplies the GL [viewportServiceFactory],
  * Android passes null until its GLES renderer lands (viewport areas show placeholders, everything else

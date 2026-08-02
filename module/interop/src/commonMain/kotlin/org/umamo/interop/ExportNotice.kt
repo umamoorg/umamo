@@ -12,7 +12,7 @@ sealed interface ExportNotice {
 	 * An edit the export lowering did not persist into the CMO3 graph.
 	 *
 	 * @property String category The entity category ("parameter", "part", "deformer", "drawable",
-	 *                           "glue", "document").
+	 *                           "glue", "document", "keyform").
 	 * @property String subject  The affected entity's id, or the document field name.
 	 * @property String detail   Diagnostic English text describing what was not lowered.
 	 */

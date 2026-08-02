@@ -118,7 +118,8 @@ internal class Cmo3KeyformLowering(
 	 * @param ChannelGrids     channels         The owner's channel tracks.
 	 * @param Map              statics          Fallback value per relevant channel.
 	 * @param Boolean          requireGeometry  Whether a geometry-less bundle is an error (warp/rotation).
-	 * @return Bundle? The bundle, or null when unrepresentable (reported) or fully unkeyed (empty axes).
+	 * @return Bundle? The bundle - possibly with empty axes when fully unkeyed - or null when
+	 *                 unrepresentable (reported).
 	 */
 	private fun <TGeometry> buildBundle(
 		category: String,
@@ -746,6 +747,7 @@ internal class Cmo3KeyformLowering(
 				editor.ensurePresentAttr(form, "CRotationDeformerForm", "isReflectX")
 			}
 			flagOf(channels[FormChannel.FLIP_Y])?.let { flip ->
+				// CMO3: CRotationDeformerForm attribute isReflectY.
 				form.isReflectY = flip
 				editor.ensurePresentAttr(form, "CRotationDeformerForm", "isReflectY")
 			}
@@ -956,6 +958,13 @@ internal class Cmo3KeyformLowering(
 	 * and forms matched by (parameter, key value).  The inserted neutral key (null form at value 0)
 	 * is dropped again - CMO3 stores no record for it.
 	 *
+	 * @param Any      ownerSource The source object owning the morph target set.
+	 * @param String   subject     The owner's id for notices.
+	 * @param Any?     currentSet  The current keyformMorphTargetSet, or null when absent.
+	 * @param Function assignSet   Assigns a freshly created morph target set.
+	 * @param Any?     formsField  The owner's keyforms pool, for resolving forms already on disk.
+	 * @param List     bindings    The edited blend-shape bindings to rebuild from.
+	 * @param Function writeForm   Writes or creates the form for one binding's payload.
 	 * @return List? The morph form objects for the pool, or null when a parameter is unresolvable.
 	 */
 	private fun <TForm : Any> rebuildMorphTargets(

@@ -48,8 +48,11 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
  * to write - names, flags, blend modes, masks, reference reparents, tree orders, parameter ranges
- * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) and structural
- * synthesis dispatch to notices until their own lowerings land.
+ * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
+ * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
+ * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass - a Created/Deleted
+ * diff that still reaches this class means that pass could not represent the entity, and is
+ * reported as a notice rather than lowered here.
  *
  * Every assignment that can target an element or attribute the source document omitted pairs with
  * the graph editor's ensure call - the writer replays recorded slots, so a bare assignment on a
@@ -408,8 +411,8 @@ internal class Cmo3PropertyLowering(
 
 	/**
 	 * Flushes the aggregated weld-divergence notice.  Call after lowerDrawables: exported geometry
-	 * and UVs are written as authored (the TODO step-8 decision), and this tells the user which
-	 * meshes Cubism's own mesh-edit / re-atlas operations could re-derive.
+	 * and UVs are written as authored, a deliberate choice, and this tells the user which meshes
+	 * Cubism's own mesh-edit / re-atlas operations could re-derive.
 	 */
 	fun flushWeldNotice() {
 		if (weldDivergedDrawableNames.isNotEmpty()) {
@@ -1002,8 +1005,8 @@ internal class Cmo3PropertyLowering(
 	/**
 	 * Rewrites a graph collection field to [newElements].  An existing mutable list is mutated in
 	 * place, keeping its object identity (its recorded child slot and its on-disk list tag); an
-	 * absent field gets a fresh list whose concrete type copies [current]'s convention (CArrayList
-	 * when unknown - the editor's collection type for guid lists) plus the recorded slot.
+	 * absent field gets a fresh CArrayList (the editor's collection type for guid lists) plus the
+	 * recorded slot.
 	 *
 	 * @param Any      owner          The object owning the field.
 	 * @param String   tag            The serializer tag level the field is declared at.

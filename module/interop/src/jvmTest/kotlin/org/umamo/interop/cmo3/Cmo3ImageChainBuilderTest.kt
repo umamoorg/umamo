@@ -22,7 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Gates the fresh-graph image chain (M4): atlas pages embed as by-name CAFF entries the read-back
+ * Gates the fresh-graph image chain: atlas pages embed as by-name CAFF entries the read-back
  * model resolves (the extractPuppetTextures contract - texture -> srcImageResource -> archive
  * path), and a drawable bound through Cmo3DrawableTextureBinding round-trips with VERBATIM UVs
  * (the atlas-region input keeps the importer on the packed, no-remap path).

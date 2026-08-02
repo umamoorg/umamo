@@ -29,11 +29,12 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The structural-synthesis gate: created and deleted parameters/groups, duplicated and deleted
- * drawables, deleted parts/deformers, and mesh topology edits reconcile onto the CMO3 graph and
- * survive an export/re-import.  A duplicated drawable's textureSourceId is editor-only state (the
- * re-imported file binds the atlas by the drawable's own id), and rebuilt/duplicated forms follow
- * the delta-vs-absolute bounded-ULP tier, so those two residues are tolerated where noted.
+ * The structural-synthesis gate: created and deleted parameters, created parameter groups,
+ * duplicated and deleted drawables, deleted parts/deformers, and mesh topology edits reconcile
+ * onto the CMO3 graph and survive an export/re-import.  A duplicated drawable's textureSourceId is
+ * editor-only state (the re-imported file binds the atlas by the drawable's own id), and
+ * rebuilt/duplicated forms follow the delta-vs-absolute bounded-ULP tier, so those two residues
+ * are tolerated where noted.
  */
 class Cmo3ExportStructureRoundTripTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -62,6 +63,10 @@ class Cmo3ExportStructureRoundTripTest {
 	/**
 	 * Asserts a clean round trip except the tolerated per-drawable residues: TEXTURE_SOURCE
 	 * (editor-only state) and bounded-ULP GEOMETRY/BLEND_SHAPES drift on [drawableId].
+	 *
+	 * @param RoundTrip  result The edited/reimported model pair and export report under test.
+	 * @param DrawableId drawableId The one drawable allowed to carry the tolerated residues.
+	 * @param String     label Test-scenario label used in assertion failure messages.
 	 */
 	private fun assertLosslessExceptDrawableResidue(result: RoundTrip, drawableId: DrawableId, label: String) {
 		val residual = diffPuppetModels(result.reimported, result.edited)

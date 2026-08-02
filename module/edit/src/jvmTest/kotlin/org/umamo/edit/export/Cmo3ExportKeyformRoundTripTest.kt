@@ -64,6 +64,10 @@ class Cmo3ExportKeyformRoundTripTest {
 	/**
 	 * Asserts the round trip is clean except, at most, a bounded-ULP GEOMETRY residue on the one
 	 * edited drawable (the delta-vs-absolute conversion tier).
+	 *
+	 * @param RoundTrip  result The edited/reimported model pair and export report under test.
+	 * @param DrawableId drawableId The one drawable allowed to carry the tolerated residue.
+	 * @param String     label Test-scenario label used in assertion failure messages.
 	 */
 	private fun assertLosslessWithinGeometryUlp(result: RoundTrip, drawableId: DrawableId, label: String) {
 		assertTrue(result.report.isEmpty, "$label: expected no notices, got ${result.report.notices}")
@@ -135,7 +139,12 @@ class Cmo3ExportKeyformRoundTripTest {
 		return null
 	}
 
-	/** The first drawable with a multi-key geometry grid, for the grid-edit cases. */
+	/**
+	 * The first drawable with a multi-key geometry grid, for the grid-edit cases.
+	 *
+	 * @param PuppetModel puppet The model to search.
+	 * @return Drawable The first matching drawable.
+	 */
 	private fun keyedDrawable(puppet: PuppetModel) =
 		puppet.drawables.first { drawable ->
 			val grid = drawable.geometryGrid
