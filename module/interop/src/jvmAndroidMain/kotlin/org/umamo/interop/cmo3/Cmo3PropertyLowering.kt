@@ -29,6 +29,7 @@ import org.umamo.interop.PartField
 import org.umamo.interop.alphaCompositionOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.colorCompositionOf
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -161,8 +162,10 @@ internal class Cmo3PropertyLowering(
 				is EntityDiff.Changed -> {
 					val source = index.partByIdStr[diff.id.raw]
 					val editedPart = editedPartById[diff.id]
-					val baselinePart = baselinePartById[diff.id]
-					if (source == null || editedPart == null || baselinePart == null) {
+					// A synthesized shell has no baseline; a default part stands in so the composite
+					// lowering diffs the edited state against defaults (the shell's own values).
+					val baselinePart = baselinePartById[diff.id] ?: Part(id = diff.id, name = "", children = emptyList())
+					if (source == null || editedPart == null) {
 						unsupported("part", diff.id.raw, "no matching CMO3 source to reconcile")
 						continue
 					}
@@ -352,7 +355,10 @@ internal class Cmo3PropertyLowering(
 							DrawableField.TEXTURE_SOURCE ->
 								unsupported("drawable", diff.id.raw, "texture-source rebinding is editor-only state")
 							DrawableField.MESH_TOPOLOGY -> {
-								if (structure.lowerMeshTopology(source, editedDrawable)) {
+								// The weld notice means "the base left the IMPORTED weld" - a drawable
+								// with no baseline was never welded, so synthesis stays notice-free.
+								val hadBaseline = baselineDrawableById[diff.id] != null
+								if (structure.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
 									weldDivergedDrawableNames.add(editedDrawable.name)
 								}
 							}
@@ -362,11 +368,15 @@ internal class Cmo3PropertyLowering(
 								if (DrawableField.GEOMETRY !in diff.fields) {
 									lowerMeshPositions(source, diff.id, editedDrawable)
 								}
-								weldDivergedDrawableNames.add(editedDrawable.name)
+								if (baselineDrawableById[diff.id] != null) {
+									weldDivergedDrawableNames.add(editedDrawable.name)
+								}
 							}
 							DrawableField.MESH_UVS -> {
 								lowerMeshUvs(source, diff.id, editedDrawable)
-								weldDivergedDrawableNames.add(editedDrawable.name)
+								if (baselineDrawableById[diff.id] != null) {
+									weldDivergedDrawableNames.add(editedDrawable.name)
+								}
 							}
 							// Handled once per drawable by the keyform rebuild below.
 							DrawableField.GEOMETRY,
@@ -630,8 +640,14 @@ internal class Cmo3PropertyLowering(
 	 * @param Part        editedPart The edited part.
 	 */
 	private fun lowerPartDrawOrder(source: CPartSource, editedPart: Part) {
-		if (editedPart.channelGrids[FormChannel.DRAW_ORDER] != null) {
-			unsupported("part", editedPart.id.raw, "static draw order is shadowed by its keyform track")
+		val drawOrderTrack = editedPart.channelGrids[FormChannel.DRAW_ORDER]
+		if (drawOrderTrack != null) {
+			// Import re-derives the static from the FIRST grid form, so a static that matches the
+			// track's head cell survives on its own; only a disagreeing static is actually lost.
+			val headDrawOrder = (drawOrderTrack.cells.firstOrNull()?.form as? ChannelValue.Scalar)?.value?.toInt()
+			if (headDrawOrder != editedPart.drawOrder) {
+				unsupported("part", editedPart.id.raw, "static draw order is shadowed by its keyform track")
+			}
 			return
 		}
 		// CMO3: CPartSource field defaultOrder_forEditor + CPartForm field drawOrder.
@@ -701,14 +717,21 @@ internal class Cmo3PropertyLowering(
 				baselineComposite.multiplyColor != editedComposite.multiplyColor ||
 				baselineComposite.screenColor != editedComposite.screenColor
 		if (staticsChanged) {
-			val hasCompositeTracks =
-				editedPart.channelGrids[FormChannel.OPACITY] != null ||
-					editedPart.channelGrids[FormChannel.MULTIPLY_COLOR] != null ||
-					editedPart.channelGrids[FormChannel.SCREEN_COLOR] != null
-			if (hasCompositeTracks) {
-				// With tracks present the statics are shadowed by the grid cells and have no
-				// independent CMO3 home (import re-derives them from the first form).
-				unsupported("part", partId.raw, "composite statics are shadowed by the part's keyform tracks")
+			val opacityTrack = editedPart.channelGrids[FormChannel.OPACITY]
+			val multiplyTrack = editedPart.channelGrids[FormChannel.MULTIPLY_COLOR]
+			val screenTrack = editedPart.channelGrids[FormChannel.SCREEN_COLOR]
+			if (opacityTrack != null || multiplyTrack != null || screenTrack != null) {
+				// With tracks present the statics live in the grid cells; import re-derives each
+				// from the FIRST form, so a static matching its track's head cell survives on its
+				// own and only a disagreeing (or track-less-but-changed) one is actually lost.
+				val opacitySurvives = (opacityTrack?.cells?.firstOrNull()?.form as? ChannelValue.Scalar)?.value == editedComposite.opacity
+				val multiplySurvives =
+					(multiplyTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.multiplyColor
+				val screenSurvives =
+					(screenTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.screenColor
+				if (!opacitySurvives || !multiplySurvives || !screenSurvives) {
+					unsupported("part", partId.raw, "composite statics are shadowed by the part's keyform tracks")
+				}
 			} else {
 				keyforms.writePartCompositeStatics(source, editedPart)
 			}

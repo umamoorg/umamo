@@ -66,6 +66,13 @@ kotlin {
 				implementation(kotlin("test"))
 			}
 		}
+		jvmTest {
+			dependencies {
+				// The skeleton gate compares emitted XML structure against the corpus blank; JDOM is
+				// :format's own (implementation-scoped) backend, so the test declares it directly.
+				implementation(libs.jdom)
+			}
+		}
 	}
 }
 

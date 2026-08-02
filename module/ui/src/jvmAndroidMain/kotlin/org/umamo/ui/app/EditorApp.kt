@@ -18,8 +18,8 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
@@ -33,6 +33,7 @@ import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
+import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.loadDocument
@@ -69,6 +70,7 @@ import org.umamo.ui.workspace.decodeLayoutText
 import org.umamo.ui.workspace.decodeWorkspaceText
 import org.umamo.ui.workspace.exportLayoutText
 import org.umamo.ui.workspace.exportWorkspaceText
+import kotlin.random.Random
 
 /**
  * The one editing session per open puppet document (the undo history + dirty state live here),
@@ -217,25 +219,44 @@ fun EditorApp(
 		}
 	}
 
-	fun exportCmo3(cmo3Document: Cmo3Document) {
+	fun exportCmo3(puppetDocument: PuppetDocument) {
 		scope.launch {
-			// Suggest the base name without the extension (case-insensitive); FileKit re-appends ".cmo3".
-			val displayName = cmo3Document.displayName
+			// Suggest the base name without the source extension (case-insensitive); FileKit
+			// re-appends ".cmo3".
+			val displayName = puppetDocument.displayName
 			val suggestedName =
-				if (displayName.endsWith(".cmo3", ignoreCase = true)) {
-					displayName.dropLast(".cmo3".length)
-				} else {
-					displayName
-				}
+				listOf(".cmo3", ".moc3").firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
+					?.let { extension -> displayName.dropLast(extension.length) }
+					?: displayName
 			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// Reconcile the session's CURRENT model onto the retained graph before re-emitting the
-				// container - the document's own puppet is the original import and never sees edits.
-				// The report carries everything the lowering could not persist; it is surfaced, never
-				// silently swallowed.
-				val report =
-					session?.model?.value?.let { edited -> Cmo3Export.apply(edited, cmo3Document.cmo3) }
-						?: Cmo3ExportReport(emptyList())
-				destination.write(Cmo3.write(cmo3Document.cmo3))
+				// Reconcile the session's CURRENT model - the document's own puppet is the original
+				// import and never sees edits.  The report carries everything the lowering could not
+				// persist; it is surfaced, never silently swallowed.
+				val edited = session?.model?.value ?: puppetDocument.puppet
+				val (model, report) =
+					when (puppetDocument) {
+						// A CMO3-origin document reconciles onto its retained graph.
+						is Cmo3Document -> puppetDocument.cmo3 to Cmo3Export.apply(edited, puppetDocument.cmo3)
+						// A MOC3-origin document has no retained graph: synthesize a fresh one from
+						// the blank skeleton + the retained atlas pages, then reconcile onto it.
+						is Moc3Document -> {
+							val result =
+								Cmo3Conversion.freshCmo3(
+									puppet = edited,
+									pages =
+										puppetDocument.atlasPages.mapIndexed { pageIndex, pngBytes ->
+											val decoded = puppetDocument.textures.atlases[pageIndex]
+											Cmo3Conversion.AtlasPage(pngBytes, decoded.width, decoded.height)
+										},
+									pageIndexByDrawableId = puppetDocument.textures.atlasIndexByDrawableId,
+									modelName = suggestedName,
+									nowMillis = System.currentTimeMillis(),
+									obfuscateKey = Random.nextInt(),
+								)
+							result.model to result.report
+						}
+					}
+				destination.write(Cmo3.write(model))
 				// True export semantics: an export is not a save, so the dirty baseline stays put - the
 				// modified marker clears only once UMA Save exists and owns markSaved.
 				for (notice in report.notices) {
@@ -322,13 +343,15 @@ fun EditorApp(
 		}
 	}
 	DisposableEffect(commandRegistry, document) {
-		val cmo3Document = document as? Cmo3Document
+		// Both puppet document kinds export: CMO3-origin reconciles onto its retained graph,
+		// MOC3-origin synthesizes a fresh one.
+		val exportableDocument = document as? PuppetDocument
 		commandRegistry.register(
 			Command(
 				"file.exportCmo3",
 				title = Res.string.cmd_export_cmo3,
-				availability = CommandAvailability { cmo3Document != null },
-			) { cmo3Document?.let { exportCmo3(it) } },
+				availability = CommandAvailability { exportableDocument != null },
+			) { exportableDocument?.let { exportCmo3(it) } },
 		)
 		onDispose { commandRegistry.unregister("file.exportCmo3") }
 	}
@@ -397,7 +420,8 @@ fun EditorApp(
  * @param Function openRecent Opens a recent file by its stored path.
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
- * @param Function exportCmo3 Exports the given CMO3 document via a picker.
+ * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
+ *                            reconciles; MOC3-origin synthesizes a fresh graph).
  * @param Function onExit Closes the application.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).
@@ -422,7 +446,7 @@ private fun buildAppMenu(
 	openRecent: (String) -> Unit,
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
-	exportCmo3: (Cmo3Document) -> Unit,
+	exportCmo3: (PuppetDocument) -> Unit,
 	onExit: () -> Unit,
 	onUndo: () -> Unit,
 	onRedo: () -> Unit,
@@ -440,11 +464,11 @@ private fun buildAppMenu(
 		fileMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
-			canExportCmo3 = document is Cmo3Document,
+			canExportCmo3 = document is PuppetDocument,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,
-			onExportCmo3 = { (document as? Cmo3Document)?.let { exportCmo3(it) } },
+			onExportCmo3 = { (document as? PuppetDocument)?.let { exportCmo3(it) } },
 			onExit = onExit,
 		),
 		editMenu(keymap, canUndo, canRedo, onUndo, onRedo, onOpenPreferences),

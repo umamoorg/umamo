@@ -48,6 +48,7 @@ internal class Cmo3StructureLowering(
 	private val editor: Cmo3GraphEditor,
 	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
+	private val drawableBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
 ) {
 	/** True once any deletion ran - the caller prunes the shared pool exactly once at the end. */
 	var deletedAnything: Boolean = false
@@ -201,43 +202,255 @@ internal class Cmo3StructureLowering(
 			return false
 		}
 		val textureSource = editedDrawable.textureSourceId?.let { index.drawableByIdStr[it.raw] }
-		if (textureSource == null) {
+		val binding = drawableBindings[subject]
+		if (textureSource == null && binding == null) {
 			unsupported("drawable", subject, "created drawable has no texture source to clone; not synthesized")
 			return false
 		}
-		val templateMesh = Cmo3Import.editableMeshOf(textureSource)
+		val templateMesh = textureSource?.let(Cmo3Import::editableMeshOf)
 		val ownerPartId = edited.partByDrawable()[editedDrawable.id]
 		val ownerGuid = ownerPartId?.let { index.partByIdStr[it.raw]?.guid } ?: index.rootPartSource?.guid
-		val fresh =
-			CArtMeshSource().apply {
+		val fresh = CArtMeshSource()
+		fresh.apply {
+			guid = freshGuidLike(textureSource?.guid as? Guid, "CDrawableGuid")
+			id = freshIdLike(textureSource?.id as? Id, "CDrawableId", subject)
+			parentGuid = ownerGuid
+			if (textureSource != null) {
 				// CMO3: CArtMeshSource identity shell.  The texture and texture-input extension are
 				// the SOURCE drawable's own objects (the writer hoists the shared references), so the
 				// duplicate samples the same atlas slot without new image-chain entries.
-				guid = freshGuidLike(textureSource.guid as? Guid, "CDrawableGuid")
-				id = freshIdLike(textureSource.id as? Id, "CDrawableId", subject)
-				parentGuid = ownerGuid
 				texture = textureSource.texture
 				textureState = textureSource.textureState
-				_extensions =
-					CArrayList<Any?>().apply {
+			} else {
+				// CMO3: the fresh-graph binding - the page's SHARED GTexture2D plus a per-drawable
+				// CTextureInput_TextureAtlasRegion, so UVs stay in the atlas frame (hasAtlasRegion).
+				texture = binding!!.texture
+				textureState = org.umamo.format.cmo3.model.gen.TextureState.TEXTURE_ATLAS
+			}
+			_extensions =
+				CArrayList<Any?>().apply {
+					if (textureSource != null) {
 						Cmo3Import.elementsOf(textureSource._extensions)
 							.filterIsInstance<CTextureInputExtension>()
 							.firstOrNull()
 							?.let(::add)
+					} else {
+						add(freshTextureInputExtension(fresh, binding!!))
+					}
+					add(
+						CEditableMeshExtension().apply {
+							guid = freshGuidLike(null, "CExtensionGuid")
+							editableMesh =
+								GEditableMesh2().apply {
+									meshGuid = freshGuidLike(templateMesh?.meshGuid as? Guid, "CMeshGuid")
+									coordType = templateMesh?.coordType
+									useDelaunayTriangulation = false
+								}
+						},
+					)
+				}
+		}
+		appendToCollection(sourceSet, "CDrawableSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		return true
+	}
+
+	/**
+	 * Builds the per-drawable texture-input extension for a fresh-graph binding: both input kinds
+	 * (model image + atlas region) with the region active, mirroring the editor's packed drawables.
+	 *
+	 * @param CArtMeshSource            owner   The drawable source under construction.
+	 * @param Cmo3DrawableTextureBinding binding The page's shared texture web.
+	 * @return CTextureInputExtension The fresh extension.
+	 */
+	private fun freshTextureInputExtension(owner: CArtMeshSource, binding: Cmo3DrawableTextureBinding): CTextureInputExtension {
+		val extension = CTextureInputExtension()
+		val atlasRegion =
+			org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
+				// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
+				// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
+				optionalTransformOnCanvas = CAffine()
+				_owner = extension
+				textureAtlasGuid = binding.textureAtlasGuid
+				inputImageLocalToCanvasTransform = binding.inputImageLocalToCanvasTransform
+			}
+		return extension.apply {
+			guid = freshGuidLike(null, "CExtensionGuid")
+			_owner = owner
+			_textureInputs =
+				CArrayList<Any?>().apply {
+					binding.modelImageGuid?.let { imageGuid ->
 						add(
-							CEditableMeshExtension().apply {
-								guid = freshGuidLike(null, "CExtensionGuid")
-								editableMesh =
-									GEditableMesh2().apply {
-										meshGuid = freshGuidLike(templateMesh?.meshGuid as? Guid, "CMeshGuid")
-										coordType = templateMesh?.coordType
-										useDelaunayTriangulation = false
-									}
+							org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage().apply {
+								// CMO3: CTextureInput_ModelImage field _modelImageGuid.
+								optionalTransformOnCanvas = CAffine()
+								_owner = extension
+								_modelImageGuid = imageGuid
 							},
 						)
 					}
+					add(atlasRegion)
+				}
+			currentTextureInputData = atlasRegion
+		}
+	}
+
+	/**
+	 * Synthesizes the identity shell for a created part: the super web plus a one-cell keyform grid
+	 * with a single CPartForm, so static draw-order/opacity/composite writes have a form to land in
+	 * (the field lowering only fills EXISTING part forms).  Panel placement flows from the parent's
+	 * CHILDREN rebuild.
+	 *
+	 * @param Part editedPart The created part.
+	 * @return Boolean True on success.
+	 */
+	fun synthesizePart(editedPart: org.umamo.runtime.model.Part): Boolean {
+		val sourceSet = modelSource.partSourceSet as? org.umamo.format.cmo3.model.gen.CPartSourceSet
+		if (sourceSet == null) {
+			unsupported("part", editedPart.id.raw, "model has no part source set to create into")
+			return false
+		}
+		val template = index.userPartSources.firstOrNull() ?: index.rootPartSource
+		val part = org.umamo.format.cmo3.model.gen.CPartSource()
+		val formGuid = freshGuidLike(null, "CFormGuid")
+		val form =
+			org.umamo.format.cmo3.model.gen.CPartForm().apply {
+				// CMO3: CPartForm - the one default-cell form (drawOrder/opacity/colors).
+				guid = formGuid
+				_source = part
+				notes = ""
+				drawOrder = editedPart.drawOrder
+				opacity = 1f
+				multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+				screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 			}
-		appendToCollection(sourceSet, "CDrawableSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		part.apply {
+			localName = editedPart.name
+			isVisible = true
+			keyformGridSource =
+				org.umamo.format.cmo3.model.gen.KeyformGridSource().apply {
+					// CMO3: KeyformGridSource - one unkeyed cell (empty access key) like the blank's parts.
+					keyformsOnGrid =
+						ArrayList<Any?>(
+							mutableListOf(
+								org.umamo.format.cmo3.model.gen.KeyformOnGrid().apply {
+									accessKey =
+										org.umamo.format.cmo3.model.gen.KeyformGridAccessKey().apply {
+											_keyOnParameterList = ArrayList<Any?>()
+										}
+									keyformGuid = formGuid
+								},
+							),
+						)
+					keyformBindings = ArrayList<Any?>()
+				}
+			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			_extensions = CArrayList<Any?>()
+			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+			guid = freshGuidLike(template?.guid as? Guid, "CPartGuid")
+			id = freshIdLike(template?.id as? Id, "CPartId", editedPart.id.raw)
+			keyforms = CArrayList<Any?>(mutableListOf(form))
+			defaultOrder_forEditor = editedPart.drawOrder
+			partsEditColor = org.umamo.format.cmo3.model.type.CColor()
+			_childGuids = CArrayList<Any?>()
+			clipGuidList = CArrayList<Any?>()
+			colorComposition = org.umamo.format.cmo3.model.gen.ColorComposition.NORMAL
+			alphaComposition = org.umamo.format.cmo3.model.gen.AlphaComposition.OVER
+		}
+		appendToCollection(sourceSet, "CPartSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, part)
+		return true
+	}
+
+	/**
+	 * Synthesizes the identity shell for a created deformer (warp or rotation).  Lattice/angle
+	 * fields, parent/part wiring, and the whole keyform web flow through the Changed lowering.
+	 *
+	 * @param Deformer editedDeformer The created deformer.
+	 * @return Boolean True on success.
+	 */
+	fun synthesizeDeformer(editedDeformer: org.umamo.runtime.model.Deformer): Boolean {
+		val sourceSet = modelSource.deformerSourceSet as? org.umamo.format.cmo3.model.gen.CDeformerSourceSet
+		if (sourceSet == null) {
+			unsupported("deformer", editedDeformer.id.raw, "model has no deformer source set to create into")
+			return false
+		}
+		val fresh: org.umamo.format.cmo3.model.gen.ACDeformerSource =
+			when (editedDeformer) {
+				is org.umamo.runtime.model.Deformer.Warp -> {
+					val template =
+						index.deformerSources.filterIsInstance<org.umamo.format.cmo3.model.gen.CWarpDeformerSource>().firstOrNull()
+					org.umamo.format.cmo3.model.gen.CWarpDeformerSource().apply {
+						guid = freshGuidLike(template?.guid as? Guid, "CDeformerGuid")
+						id = freshIdLike(template?.id as? Id, "CDeformerId", editedDeformer.id.raw)
+						keyforms = CArrayList<Any?>()
+					}
+				}
+				is org.umamo.runtime.model.Deformer.Rotation -> {
+					val template =
+						index.deformerSources.filterIsInstance<org.umamo.format.cmo3.model.gen.CRotationDeformerSource>().firstOrNull()
+					org.umamo.format.cmo3.model.gen.CRotationDeformerSource().apply {
+						guid = freshGuidLike(template?.guid as? Guid, "CDeformerGuid")
+						id = freshIdLike(template?.id as? Id, "CDeformerId", editedDeformer.id.raw)
+						keyforms = CArrayList<Any?>()
+						// CMO3: CRotationDeformerSource fields handleLengthOnCanvas /
+						// circleRadiusOnCanvas - editor gizmo sizing only; cloned from a sibling when
+						// one exists, else nominal defaults (no runtime consumes them).
+						handleLengthOnCanvas = template?.handleLengthOnCanvas ?: 100f
+						circleRadiusOnCanvas = template?.circleRadiusOnCanvas ?: 20f
+					}
+				}
+			}
+		fresh.apply {
+			localName = editedDeformer.name
+			isVisible = true
+			isLocked = !editedDeformer.isSelectable
+			keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+			_extensions = CArrayList<Any?>()
+			labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+		}
+		appendToCollection(sourceSet, "CDeformerSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
+		return true
+	}
+
+	/**
+	 * Synthesizes the identity shell for a created glue.  Pair weights/uids and the intensity
+	 * track flow through the Changed lowering (lowerGluePairsFor + lowerGlue).
+	 *
+	 * @param Glue editedGlue The created glue.
+	 * @param Int  ordinal    The glue's ordinal among same-pair glues (the diff key).
+	 * @return Boolean True on success.
+	 */
+	fun synthesizeGlue(editedGlue: Glue, ordinal: Int): Boolean {
+		val subject = "${editedGlue.meshA.raw}~${editedGlue.meshB.raw}"
+		val sourceSet = modelSource.affecterSourceSet as? org.umamo.format.cmo3.model.gen.CAffecterSourceSet
+		if (sourceSet == null) {
+			unsupported("glue", subject, "model has no affecter source set to create into")
+			return false
+		}
+		val meshAGuid = index.drawableByIdStr[editedGlue.meshA.raw]?.guid as? Guid
+		val meshBGuid = index.drawableByIdStr[editedGlue.meshB.raw]?.guid as? Guid
+		if (meshAGuid == null || meshBGuid == null) {
+			unsupported("glue", subject, "glued drawable has no CMO3 source; not synthesized")
+			return false
+		}
+		val template = index.glueSources.firstOrNull()
+		val fresh =
+			org.umamo.format.cmo3.model.gen.CGlueSource().apply {
+				localName = ""
+				isVisible = true
+				keyformMorphTargetSet = Cmo3SkeletonBuilder.emptyMorphTargetSet()
+				_extensions = CArrayList<Any?>()
+				labelColor = Cmo3SkeletonBuilder.undefinedLabelColor()
+				guid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
+				// The model keys glues by mesh pair + ordinal (they carry no id of their own), so the
+				// minted idstr only needs uniqueness within the document.
+				id = freshIdLike(template?.id as? Id, "CAffecterId", "Glue_${editedGlue.meshA.raw}_${editedGlue.meshB.raw}_$ordinal")
+				// CMO3: CGlueSource fields targetArtMeshA_guid / targetArtMeshB_guid - identity refs
+				// to the glued drawables' own guid objects.
+				targetArtMeshA_guid = meshAGuid
+				targetArtMeshB_guid = meshBGuid
+				keyforms = CArrayList<Any?>()
+			}
+		appendToCollection(sourceSet, "CAffecterSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, fresh)
 		return true
 	}
 
@@ -337,9 +550,16 @@ internal class Cmo3StructureLowering(
 			}
 		}
 		for (glue in edited.glues) {
-			if (glue.meshA == editedDrawable.id || glue.meshB == editedDrawable.id) {
-				lowerGluePairsFor(glue)
+			if (glue.meshA != editedDrawable.id && glue.meshB != editedDrawable.id) {
+				continue
 			}
+			// A partner whose uid table is still missing is a fresh shell whose own topology pass is
+			// later in this same export - ITS re-bind loop covers this glue with both tables minted,
+			// so a premature attempt here would only raise a spurious notice.
+			if (uidTableOf(glue.meshA) == null || uidTableOf(glue.meshB) == null) {
+				continue
+			}
+			lowerGluePairsFor(glue)
 		}
 		return true
 	}
@@ -367,6 +587,8 @@ internal class Cmo3StructureLowering(
 		val uidTableA = uidTableOf(editedGlue.meshA)
 		val uidTableB = uidTableOf(editedGlue.meshB)
 		if (uidTableA == null || uidTableB == null) {
+			val sourceA = index.drawableByIdStr[editedGlue.meshA.raw]
+			val sourceB = index.drawableByIdStr[editedGlue.meshB.raw]
 			unsupported("glue", subject, "a glued mesh has no editable-mesh uid table")
 			return false
 		}
