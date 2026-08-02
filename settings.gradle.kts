@@ -1,7 +1,5 @@
 // Settings script — the FIRST thing Gradle evaluates. Declares where plugins and
 // dependencies are fetched from, and which subprojects make up the build.
-// 設定スクリプト：Gradle が最初に評価する。プラグイン／依存の取得元と、ビルドを構成する
-// サブプロジェクトを宣言する。
 
 rootProject.name = "umamo"
 

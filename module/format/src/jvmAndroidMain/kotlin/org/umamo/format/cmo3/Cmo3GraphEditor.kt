@@ -9,11 +9,11 @@ import org.umamo.format.cmo3.serialize.VerbatimNode
 /**
  * Mutation support for a read [Cmo3Model]'s graph, for callers lowering editor state back onto it.
  *
- * EN: The writer replays each read object's recorded child order and attribute presence, so a plain
- *     field assignment only reaches the re-emitted document when the source already carried that
- *     element/attribute.  This facade exposes the bookkeeping a lowering needs on top of the bare
- *     assignments: recording missing slots/attributes, distinguishing read objects from fresh ones,
- *     and dropping shared-pool entries orphaned by structural deletes.
+ * The writer replays each read object's recorded child order and attribute presence, so a plain
+ * field assignment only reaches the re-emitted document when the source already carried that
+ * element/attribute.  This facade exposes the bookkeeping a lowering needs on top of the bare
+ * assignments: recording missing slots/attributes, distinguishing read objects from fresh ones,
+ * and dropping shared-pool entries orphaned by structural deletes.
  *
  * @see Cmo3Model.setTargetVersionNo The original single-field precedent this generalizes.
  */

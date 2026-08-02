@@ -45,10 +45,6 @@ import org.umamo.ui.resources.workspace_new
  * path via fileDisplayName, disables itself when
  * the list is empty, and routes through the import path.
  *
- * 全プラットフォーム共通の File メニューを構築する。CMO3／MOC3 は相互運用境界なのでインポート／
- * エクスポートのサブメニューに置き、開く／保存はネイティブ UMA 形式のために予約する。各項目は
- * コマンド経由で到達し、メニュー・キーボード・パレットが同一経路を共有する。
- *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
  * @param Boolean canExportCmo3 Whether an exportable puppet document is open (gates the Export CMO3 row).

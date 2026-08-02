@@ -2,9 +2,6 @@
 // algebra, and the sampling eval. Zero format knowledge — CMO3/MOC3 conversion lives in :interop,
 // which depends on this module and :format. (Deformation eval and the renderer live in :render,
 // which depends on :runtime — not the reverse.)
-// :runtime — 純粋なパペットランタイム：不変の PuppetModel と型付き ID、キーフォームグリッド代数、
-// サンプリング評価。フォーマット知識ゼロ — CMO3/MOC3 変換は :interop にある。（変形評価・レンダラは
-// :render にあり、:runtime に依存する。）
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
