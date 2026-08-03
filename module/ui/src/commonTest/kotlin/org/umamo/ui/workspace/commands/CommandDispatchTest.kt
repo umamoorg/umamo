@@ -34,10 +34,10 @@ import kotlin.test.assertTrue
  * mode is silent.
  *
  * Every case here is a rule that looks wrong on first reading and is not: a hovered UV editor that
- * refuses a transform outright rather than falling back, an Object-mode duplicate that ignores the
- * hovered surface its Edit-mode twin respects, a Box Select that must not reach for a keyform sheet the
- * pointer is nowhere near.  Each would break invisibly - a key that quietly does nothing, or acts in an
- * area the user is not looking at - so each is pinned rather than left to review.
+ * refuses a transform outright rather than falling back, a duplicate that still copies over a UV editor
+ * but declines to auto-grab there, a Box Select that must not reach for a keyform sheet the pointer is
+ * nowhere near.  Each would break invisibly - a key that quietly does nothing, or acts in an area the
+ * user is not looking at - so each is pinned rather than left to review.
  */
 class CommandDispatchTest {
 	private val viewportArea = "viewport-1"

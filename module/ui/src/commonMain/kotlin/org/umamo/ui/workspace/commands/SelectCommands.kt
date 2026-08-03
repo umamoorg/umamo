@@ -63,8 +63,9 @@ internal fun selectCommands(
 		// overlay only composes there). The circle grow / shrink commands (numpad +/-) apply only
 		// while a Circle brush is live, so they hide from the palette otherwise.
 		// ONE Box Select that acts on whatever is under the pointer, rather than a second command fighting
-		// for the same chord: the keyform sheet arms its own marquee, every other surface arms the
-		// viewport's.  Resolved at dispatch time like every other hovered-surface command.
+		// for the same chord: a hovered keyform sheet arms its own marquee, a hovered viewport (or UV
+		// editor in Edit mode) arms the session's tool, and anything else arms nothing.  Resolved at
+		// dispatch time like every other hovered-surface command.
 		Command("mesh.boxSelect", title = Res.string.cmd_mesh_box_select, availability = availability.hasDocument) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the
@@ -77,7 +78,8 @@ internal fun selectCommands(
 			}
 		},
 		// No sheet branch here, unlike Box Select: the keyform sheet has no circle brush to arm, so C over a
-		// sheet falls through to the pointer's viewport rather than doing nothing.
+		// sheet arms nothing at all - selectToolArea answers only for a viewport or an Edit-mode UV editor,
+		// and arming a viewport the pointer has left is worse than doing nothing.
 		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},

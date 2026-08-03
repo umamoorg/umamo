@@ -441,7 +441,8 @@ fun rememberPuppetViewportHost(
  * @param Function setPanning Reports whether a middle-mouse pan is in progress (drives the grab cursor).
  * @note This loop stamps NOTHING about where the pointer is.  Every workspace leaf carries that (see
  *   stampsHoveredSurface), and commands resolve their area from it at dispatch; a viewport-only second
- *   answer used to live here and could disagree with the first, so it was retired.
+ *   answer here would disagree with that one the moment the pointer moved to another space, so there is
+ *   deliberately none.
  */
 private suspend fun PointerInputScope.viewportNavigation(
 	service: PuppetViewportService,

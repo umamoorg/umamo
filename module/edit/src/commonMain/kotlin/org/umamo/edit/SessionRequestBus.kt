@@ -120,8 +120,8 @@ data class SelectLinkedRequest(val fromSelection: Boolean, val areaId: String?)
 /**
  * One UV snap request: which operation, and which UV editor area's overlay executes it.  The area is
  * resolved ONCE at command dispatch (the hovered surface at that instant) and carried in the payload,
- * exactly like [SelectLinkedRequest] - the UV editor deliberately does not stamp the render service's
- * active area, so the collector cannot fall back on it and must gate on this id instead.
+ * exactly like [SelectLinkedRequest] - there is no area answer anywhere else for a collector to fall back
+ * on, so gating on this id is the whole mechanism.
  *
  * @property UvSnapKind kind The snap operation to perform.
  * @property String? areaId The UV editor area whose overlay executes, or null when the hovered surface

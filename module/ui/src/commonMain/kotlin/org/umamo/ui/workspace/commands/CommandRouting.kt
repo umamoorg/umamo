@@ -14,10 +14,10 @@ import org.umamo.ui.workspace.SpaceKind
  * rather than an archaeology exercise across the command tables.
  *
  * ONE resolver backs it: the hovered surface (area id + space kind), stamped by every workspace leaf, so
- * it answers "what is the pointer on" for all nine space kinds.  There used to be a second - the render
- * service's last-addressed 2D viewport - and the two could disagree, because that one meant "the last
- * viewport touched, however long ago" rather than "the one under the pointer".  Every command now resolves
- * a surface the user is actually pointing at, or none at all.
+ * it answers "what is the pointer on" for all nine space kinds.  Exactly one, deliberately: a second
+ * resolver scoped to 2D viewports could only mean "the last viewport touched, however long ago" rather
+ * than "the one under the pointer", and the two would disagree the moment the pointer moved to another
+ * space.  Every command resolves a surface the user is actually pointing at, or none at all.
  *
  * A command that needs a viewport and finds none does NOTHING; it does not reach back to a viewport the
  * pointer has left.  That is Blender's rule and it is the whole point of the seam.
@@ -103,8 +103,8 @@ internal class CommandRouting(
 	 *
 	 * @return String? The hovered viewport's area id, or null.
 	 * @note There is deliberately no "last viewport touched" fallback.  A command that needs a viewport and
-	 *   gets null here must do nothing - acting in a viewport the pointer has left is the failure this
-	 *   resolver was collapsed to remove.
+	 *   gets null here must do nothing - acting in a viewport the pointer has left is precisely the failure
+	 *   a single hovered-surface resolver exists to rule out.
 	 */
 	fun viewportArea(): String? = areaOf(SpaceKind.Viewport2D)
 

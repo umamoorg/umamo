@@ -33,8 +33,8 @@ internal fun topologyCommands(
 				// The duplicate itself needs no area - it is a model edit - so it runs wherever the pointer
 				// is.  Only the auto-grab needs a viewport, and it simply does not happen when the pointer
 				// is on a UV editor or a panel: starting a grab in an area the user is not pointing at is
-				// worse than leaving the copies where they landed for an explicit one.  Both modes now read
-				// the same rule from viewportArea(), which is null off a viewport.
+				// worse than leaving the copies where they landed for an explicit one.  Both modes read the
+				// same rule from viewportArea(), which is null off a viewport.
 				if (live.mode.value == EditorMode.Edit) {
 					live.duplicateSelectedElements()
 					// Proportional weights would drag the ORIGINAL vertices along with the fresh copies, so
