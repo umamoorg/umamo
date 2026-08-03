@@ -18,8 +18,9 @@ import kotlin.test.assertTrue
  * The MOC3 -> CMO3 self round trip: every corpus .moc3 with a model3 sidecar converts to a
  * fresh CMO3, and re-importing the written file reproduces the source PuppetModel with only the
  * documented residues - WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the
- * canvas center) and bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and
- * the re-import subtracts, which is not an IEEE identity).
+ * canvas center), MESH_POSITIONS (the exported base is the rest-pose canvas frame while a
+ * MOC3-origin puppet's base is parent-deformer-local), and bounded-ULP drift on keyform deltas
+ * (fresh absolutes are base + delta and the re-import subtracts, which is not an IEEE identity).
  */
 class Cmo3ConversionRoundTripTest {
 	private val geometryUlpTolerance = 1e-3f

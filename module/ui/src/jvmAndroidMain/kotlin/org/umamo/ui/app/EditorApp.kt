@@ -233,11 +233,11 @@ fun EditorApp(
 				// import and never sees edits.  The report carries everything the lowering could not
 				// persist; it is surfaced, never silently swallowed.
 				//
-				// The session must be THIS document's: one desync was observed (2026-08-03) where a
-				// second MOC3 exported the first model's rig onto the second's atlas pages, which
-				// reads as a wall of drawable notices plus the wrong hierarchy in the output.  A
-				// mismatched session is dropped rather than trusted - exporting the unedited document
-				// is recoverable, exporting another model's rig is not.
+				// The session must be THIS document's: a session from a stale composition pass would
+				// export the PREVIOUS document's rig onto this document's atlas pages, surfacing as a
+				// wall of drawable notices plus the wrong hierarchy in the output.  A mismatched
+				// session is dropped rather than trusted - exporting the unedited document is
+				// recoverable, exporting another model's rig is not.
 				val documentSession = session?.takeIf { it.baselineModel === puppetDocument.puppet }
 				if (session != null && documentSession == null) {
 					UmamoLog.error("export: session does not belong to ${puppetDocument.displayName}; exporting the unedited document")
