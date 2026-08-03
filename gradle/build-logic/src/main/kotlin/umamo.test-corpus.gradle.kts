@@ -18,7 +18,6 @@
 // Resolution rules (explicit `-D` wins, corpus default second, else the test self-skips) are in
 // org.umamo.buildlogic.resolveCorpusSample, and the shared default table in
 // org.umamo.buildlogic.sharedCorpusDefault. Read those before adding a property.
-// 規約プラグイン：ゴールデンコーパスと `-D` 上書きをテスト JVM に受け渡す。
 
 import org.umamo.buildlogic.TestCorpusExtension
 import org.umamo.buildlogic.resolveCorpusSample

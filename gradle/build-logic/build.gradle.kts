@@ -4,8 +4,6 @@
 // id is the file name minus the extension — umamo.kmp-jvmandroid.gradle.kts becomes the plugin id
 // `umamo.kmp-jvmandroid`. Ordinary .kt files in the same source set compile alongside them, which is
 // where the shared types (see org.umamo.buildlogic) live.
-// 規約プラグイン本体のビルドスクリプト。`kotlin-dsl` により src/main/kotlin の *.gradle.kts が
-// プラグイン ID になる。
 
 plugins {
 	`kotlin-dsl`

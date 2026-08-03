@@ -10,8 +10,6 @@
 // This block was copy-pasted across four build scripts and marked "[kmp-jvmandroid] keep identical" —
 // which is the shape of a convention plugin written out longhand. Applied as
 // `id("umamo.kmp-jvmandroid")`, after the module applies the Kotlin Multiplatform plugin.
-// 規約プラグイン：JVM 系ターゲット（デスクトップ JVM と Android/ART）が共有する jvmAndroidMain
-// ソースセットグループを構成する。
 
 // The hierarchy-template DSL (`applyDefaultHierarchyTemplate {}` with a describe block) is still
 // marked experimental in KGP. The module build scripts opted in implicitly by living in a Gradle

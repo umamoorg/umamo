@@ -8,7 +8,6 @@
 // Being a separate build, it inherits NOTHING from the root — not the repositories, not the version
 // catalog. Both are re-declared below, and the catalog is the SAME FILE the modules use so a
 // convention plugin can never compile against a different Kotlin than the one the modules apply.
-// build-logic ビルド設定。ルートとは独立したビルドなので、リポジトリとバージョンカタログを個別に宣言する。
 
 rootProject.name = "build-logic"
 
