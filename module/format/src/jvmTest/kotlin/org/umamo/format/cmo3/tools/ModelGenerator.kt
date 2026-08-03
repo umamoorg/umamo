@@ -29,6 +29,27 @@ import kotlin.test.Test
  * that same corpus validates the output.
  */
 class ModelGenerator {
+	/**
+	 * Fields that must ALWAYS serialize, overriding the sometimes-present inference.
+	 *
+	 * The `@DontSerializeIfDefault` rule is "the corpus does not always carry this field", which is
+	 * a statement about the SAMPLES.  For these four the official editor's custom deserializers
+	 * dereference the field unconditionally and NPE at load when it is absent, so omitting it
+	 * writes a file Cubism cannot open - the corpus merely happens to include older-era samples
+	 * that predate the field.  Corpus evidence cannot express that, so the exception lives here,
+	 * in the generator, and NOT as a hand-edit of the output: a from-scratch regeneration (the
+	 * output file deleted) has to reproduce it, and a hand-edit would not survive that.
+	 *
+	 * Keyed "Tag.field"; the value is the comment emitted above the property.
+	 */
+	private val alwaysSerializedFields =
+		mapOf(
+			"ACLayerEntry.isTransparencyShapesLayer" to "the editor always writes this field",
+			"ACParameterControllableSource.internalColor_direct_argb" to "the editor always writes this field, as an explicit null",
+			"CPartSource.useOffscreen" to "CPartSource.deserialize dereferences this unconditionally",
+			"CPartSource.invertClippingMask" to "CPartSource.deserialize dereferences this unconditionally",
+		)
+
 	private val primitiveTags =
 		mapOf(
 			"i" to ("Int" to "0"),
@@ -265,7 +286,13 @@ class ModelGenerator {
 		val nullable = baseType != "Any?" && (field in info.nullableFields || baseType == "String")
 		val type = if (nullable) "$baseType?" else baseType
 		val default = if (nullable) "null" else baseDefault
-		if ((info.fieldPresence[field] ?: 0) < info.instances) {
+		val alwaysSerializedReason = alwaysSerializedFields["$tag.$field"]
+		if (alwaysSerializedReason != null) {
+			// The exception is emitted as a comment so the output explains itself; the rule that
+			// produces it lives in alwaysSerializedFields, so regeneration reproduces both.
+			lines += "\t// No @DontSerializeIfDefault: $alwaysSerializedReason, and the official"
+			lines += "\t// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions)."
+		} else if ((info.fieldPresence[field] ?: 0) < info.instances) {
 			lines += "\t@DontSerializeIfDefault"
 		}
 		// Field names that are not legal Kotlin identifiers (e.g. "parameters.keys") get a
@@ -314,8 +341,12 @@ class ModelGenerator {
 				added += "enum $tag (new)"
 			}
 			val values = (previous + inferred).sorted()
+			// A SINGLE-constant enum gets a trailing comma because that is what ktlintFormat writes;
+			// emitting it here keeps generate -> format idempotent.  Without it every regeneration
+			// produced a spurious diff on exactly these enums that the next format run reversed.
+			val constants = values.joinToString(", ") + if (values.size == 1) "," else ""
 			builder.appendLine("@SerialTag(\"$tag\")")
-			builder.appendLine("public enum class $tag { ${values.joinToString(", ")} }")
+			builder.appendLine("public enum class $tag { $constants }")
 			builder.appendLine()
 		}
 
@@ -375,7 +406,9 @@ class ModelGenerator {
 		}
 
 		outFile.parentFile.mkdirs()
-		outFile.writeText(builder.toString())
+		// trimEnd + one newline: the per-declaration blank-line separator leaves a trailing empty
+		// line that ktlintFormat strips, which made every generate -> format cycle churn one line.
+		outFile.writeText(builder.toString().trimEnd() + "\n")
 		println("=== ADDED ${added.size} declaration(s) ===")
 		added.sorted().forEach { println("  + $it") }
 	}
@@ -415,6 +448,6 @@ class ModelGenerator {
 				"module/format/src/jvmAndroidMain/kotlin/org/umamo/format/cmo3/serialize/gen/GeneratedRegistration.kt",
 			)
 		outFile.parentFile.mkdirs()
-		outFile.writeText(builder.toString())
+		outFile.writeText(builder.toString().trimEnd() + "\n")
 	}
 }

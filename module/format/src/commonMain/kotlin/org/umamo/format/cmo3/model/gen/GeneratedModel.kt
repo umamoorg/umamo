@@ -203,8 +203,8 @@ public open class ACLayerEntry {
 	public open var `group`: Any? = null
 	public open var `opacity255`: Int = 0
 
-	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
-	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
+	// No @DontSerializeIfDefault: the editor always writes this field, and the official
+	// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions).
 	public open var `isTransparencyShapesLayer`: Boolean = false
 	public open var `_optionOfIOption`: Any? = null
 	public open var `_layeredImage`: Any? = null
@@ -227,8 +227,8 @@ public open class ACParameterControllableSource {
 	public open var `keyformMorphTargetSet`: Any? = null
 	public open var `_extensions`: Any? = null
 
-	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
-	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
+	// No @DontSerializeIfDefault: the editor always writes this field, as an explicit null, and the official
+	// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions).
 	public open var `internalColor_direct_argb`: Any? = null
 
 	@DontSerializeIfDefault
@@ -680,15 +680,15 @@ public class CPartSource : ACParameterControllableSource() {
 	public var `partsEditColor`: Any? = null
 	public var `_childGuids`: Any? = null
 
-	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
-	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
+	// No @DontSerializeIfDefault: CPartSource.deserialize dereferences this unconditionally, and the official
+	// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions).
 	public var `useOffscreen`: Boolean = false
 
 	@DontSerializeIfDefault
 	public var `clipGuidList`: Any? = null
 
-	// Hand-tuned: no @DontSerializeIfDefault - the 5.4 editor always writes this field, and the
-	// additive generator re-emits these lines verbatim (see docs/format/CMO3.md, Created-Entity Conventions).
+	// No @DontSerializeIfDefault: CPartSource.deserialize dereferences this unconditionally, and the official
+	// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions).
 	public var `invertClippingMask`: Boolean = false
 
 	@DontSerializeIfDefault
@@ -1107,14 +1107,14 @@ public class MeshGenerateSetting {
 
 	@DontSerializeIfDefault
 	public var `polygonInnerDensity`: Int = 0
+
+	@DontSerializeIfDefault
+	public var `polygonDensity`: Int = 0
 	public var `polygonMargin`: Int = 0
 	public var `polygonInnerMargin`: Int = 0
 	public var `polygonMinMargin`: Int = 0
 	public var `polygonMinBoundsPt`: Int = 0
 	public var `thresholdAlpha`: Int = 0
-
-	@DontSerializeIfDefault
-	public var `polygonDensity`: Int = 0
 }
 
 @SerialTag("MeshPointRefEx")
