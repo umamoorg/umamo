@@ -100,6 +100,39 @@ class SplitterDragSessionTest {
 	}
 
 	/**
+	 * Cancelling rewinds to the drag-start snapshot exactly, however far the drag had travelled - the
+	 * same snapshot-relative property [overshootRetracesExactly] relies on, so no state has to unwind.
+	 */
+	@Test
+	fun cancelRestoresTheStartingSplitExactly() {
+		val start = hsplit(0.5f, leaf("a"), leaf("b"))
+		val session = SplitterDragSession(start, axisPx = 1000f, minPx = 100f, splitterPx = 0f)
+		session.accumulate(200f)
+
+		val restored = session.cancel()
+
+		assertEquals(start.ratio, restored.ratio, tolerance)
+		assertEquals(500f, leafExtentPx(restored, "a", 1000f, 0f)!!, tolerance)
+		assertTrue(session.isCancelled)
+	}
+
+	/**
+	 * The cancelled session still claims the restored snapshot as its own.  It has to: the pointer is
+	 * usually still down, and a session that disowned its own publish would let SplitContainer rebase a
+	 * fresh one and silently resume the drag Escape just abandoned.
+	 */
+	@Test
+	fun aCancelledSessionStillOwnsTheRestoredNode() {
+		val start = hsplit(0.5f, leaf("a"), leaf("b"))
+		val session = SplitterDragSession(start, axisPx = 1000f, minPx = 100f, splitterPx = 0f)
+		session.accumulate(200f)
+
+		val restored = session.cancel()
+
+		assertTrue(session.ownsNode(restored))
+	}
+
+	/**
 	 * Accumulated deltas on the deep spine (((a | b) | c) | d) land exactly where one direct drag of
 	 * the total does: far panels stay pixel-invariant and only the adjacent panel absorbs.
 	 */

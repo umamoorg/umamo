@@ -27,6 +27,15 @@ internal class SplitterDragSession(
 ) {
 	private var totalDragPx: Float = 0f
 
+	/**
+	 * True once Escape has abandoned this drag.  The pointer is very likely still held at that moment,
+	 * so the session stays in place and inert rather than being discarded: clearing it would let the
+	 * next delta rebase a fresh session on the live node and silently resume the drag the user just
+	 * cancelled.
+	 */
+	var isCancelled: Boolean = false
+		private set
+
 	// Every node this session has published, oldest first.  Recomposition can lag several publishes
 	// behind the pointer, so the composed node handed back to ownsNode may legitimately be ANY
 	// instance this session ever produced, not just the latest.
@@ -44,6 +53,25 @@ internal class SplitterDragSession(
 		val rewritten = dragSplitBoundary(startNode, totalDragPx, axisPx, minPx, splitterPx)
 		publishedNodes.add(rewritten)
 		return rewritten
+	}
+
+	/**
+	 * Abandons the drag and returns the split as it stood when the drag began, for the caller to
+	 * publish - Escape's undo of an in-flight divider drag.
+	 *
+	 * Rewinding to the snapshot is exact rather than approximate: [accumulate] always rewrites from
+	 * that same snapshot, so no incremental state has to be unwound.  The session marks itself
+	 * [isCancelled] and stays alive so the deltas still arriving from the held pointer are ignored.
+	 *
+	 * @return SplitNode The drag-start snapshot to restore.
+	 */
+	fun cancel(): SplitNode {
+		isCancelled = true
+		totalDragPx = 0f
+		// The restored snapshot is a publish like any other, so ownsNode keeps recognizing this split
+		// as ours while the pointer is still down.
+		publishedNodes.add(startNode)
+		return startNode
 	}
 
 	/**

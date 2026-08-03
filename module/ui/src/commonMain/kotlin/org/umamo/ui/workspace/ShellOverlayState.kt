@@ -67,6 +67,22 @@ internal class ShellOverlayState {
 		get() = paletteVisible || settingsVisible || aboutVisible || creditsVisible
 
 	/**
+	 * Closes the topmost open self-focused overlay, if any - what Escape does to this family.
+	 *
+	 * The order is the stacking order the modal key ladder used to spell out as four consecutive arms,
+	 * kept here so the flags and the precedence over them cannot drift apart.  It only matters when two
+	 * are somehow open at once; with one open, any order closes it.
+	 */
+	fun closeTopmostSelfFocused() {
+		when {
+			settingsVisible -> settingsVisible = false
+			aboutVisible -> aboutVisible = false
+			creditsVisible -> creditsVisible = false
+			paletteVisible -> paletteVisible = false
+		}
+	}
+
+	/**
 	 * True while a modal alert (confirm dialog, file-open failure, export report) is up.  These do
 	 * NOT hold their own focus - the shell keeps root focus so their Escape/Enter route through the
 	 * modal key ladder.
