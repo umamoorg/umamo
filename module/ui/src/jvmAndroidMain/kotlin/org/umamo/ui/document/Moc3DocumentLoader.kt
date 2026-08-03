@@ -157,6 +157,7 @@ internal fun buildMoc3Document(
 				puppet = puppet,
 				textures = textures,
 				liveParams = initialLiveParams(puppet),
+				atlasPages = pageBytes,
 			),
 		)
 	}.getOrElse { failure ->

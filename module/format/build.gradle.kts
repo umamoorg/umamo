@@ -253,6 +253,9 @@ tasks.withType<Test>().configureEach {
 			// ModelGenerator's input set. Defaults to the whole cmo3/ corpus so the generated model is
 			// the union across every sample (see corpusDefaultFor).
 			"cmo3.gensample",
+			// Cmo3ResaveDumpTest's input list. Explicit-only (corpusDefaultFor has no entry), so the
+			// resave dump never floods build/ on a plain test run.
+			"cmo3.resave",
 		)
 	for (samplePropertyName in sampleProperties) {
 		resolveSampleProperty(samplePropertyName)?.let { samplePath ->

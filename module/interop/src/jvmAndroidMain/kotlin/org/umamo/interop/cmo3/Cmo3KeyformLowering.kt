@@ -73,13 +73,8 @@ internal class Cmo3KeyformLowering(
 	private val index: Cmo3GraphIndex,
 	private val editor: Cmo3GraphEditor,
 	private val baseline: PuppetModel,
-	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
 ) {
-	private val parameterRanges: Map<ParameterId, ClosedFloatingPointRange<Float>> =
-		edited.parameters.associate { parameter ->
-			parameter.id to (minOf(parameter.min, parameter.max)..maxOf(parameter.min, parameter.max))
-		}
 	private val parameterIdByUuid: Map<String, ParameterId> =
 		buildMap {
 			for (source in index.parameterSources) {
@@ -89,6 +84,29 @@ internal class Cmo3KeyformLowering(
 			}
 		}
 	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
+
+	/**
+	 * Per-name CoordType instances shared across every fresh form this lowering creates, so the
+	 * writer hoists one shared def per name (the editor's own shape; it never writes a null
+	 * coordType).
+	 */
+	private val coordTypes = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+
+	/**
+	 * The CoordType a fresh form gets when no sibling template supplies one.
+	 *
+	 * CMO3: ACForm field coordType - corpus forms carry "DeformerLocal" under a parent deformer
+	 * and "Canvas" at the deformer-tree root (the space the stored positions are expressed in).
+	 *
+	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
+	 * @return CoordType The shared per-export instance for that name.
+	 */
+	private fun formCoordType(hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType =
+		coordTypes.getOrPut(if (hasParentDeformer) "DeformerLocal" else "Canvas") {
+			org.umamo.format.cmo3.model.drawable.CoordType().apply {
+				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
+			}
+		}
 
 	private fun unsupported(category: String, subject: String, detail: String) {
 		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
@@ -118,7 +136,8 @@ internal class Cmo3KeyformLowering(
 	 * @param ChannelGrids     channels         The owner's channel tracks.
 	 * @param Map              statics          Fallback value per relevant channel.
 	 * @param Boolean          requireGeometry  Whether a geometry-less bundle is an error (warp/rotation).
-	 * @return Bundle? The bundle, or null when unrepresentable (reported) or fully unkeyed (empty axes).
+	 * @return Bundle? The bundle - possibly with empty axes when fully unkeyed - or null when
+	 *                 unrepresentable (reported).
 	 */
 	private fun <TGeometry> buildBundle(
 		category: String,
@@ -366,8 +385,16 @@ internal class Cmo3KeyformLowering(
 						_gridSource = gridSource
 						parameterGuid = parameterSource.guid
 						keys = ArrayList<Any?>()
+						// CMO3: KeyformBindingSource fields interpolationType /
+						// extendedInterpolationType / insertPointCount / extendedInterpolationScale /
+						// description - every corpus binding writes LINEAR / LINEAR / 1 / 1.0 / "".
+						interpolationType = org.umamo.format.cmo3.model.gen.InterpolationType.LINEAR
+						extendedInterpolationType = org.umamo.format.cmo3.model.gen.ExtendedInterpolationType.LINEAR
+						insertPointCount = 1
+						extendedInterpolationScale = 1f
+						description = ""
 					}
-			val keysList = binding.keys as? MutableList<Any?>
+			val keysList = mutableGraphListOf(binding.keys)
 			if (keysList != null) {
 				keysList.clear()
 				axis.keys.forEach { key -> keysList.add(key) }
@@ -419,7 +446,7 @@ internal class Cmo3KeyformLowering(
 		newElements: List<Any?>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val mutable = current as? MutableList<Any?>
+		val mutable = mutableGraphListOf(current)
 		if (mutable != null) {
 			mutable.clear()
 			mutable.addAll(newElements)
@@ -533,7 +560,14 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
 			val absolute =
@@ -545,7 +579,7 @@ internal class Cmo3KeyformLowering(
 							baselineBase.size == editedBase.size &&
 							editedBase[component].toRawBits() == baselineBase[component].toRawBits() &&
 							delta.toRawBits() == (origAbsolute[component] - baselineBase[component]).toRawBits()
-					if (reusable) origAbsolute!![component] else editedBase[component] + delta
+					if (reusable) origAbsolute[component] else editedBase[component] + delta
 				}
 			// CMO3: CArtMeshForm field positions (absolute), ACDrawableForm fields drawOrder /
 			// opacity / multiplyColor / screenColor.
@@ -575,6 +609,37 @@ internal class Cmo3KeyformLowering(
 				gridForms.add(writeMeshForm(existing, (cell.geometry as? MeshDeltaForm)?.positionDeltas, cell.channels))
 			}
 			if (alsoWriteBase) {
+				// Morph-target absolutes follow the base move (import re-derives blend-shape deltas
+				// as absolute minus base), so surviving morph forms rebase BEFORE the base swap -
+				// the same recompute lowerMeshPositions applies to its pool.  Grid forms were just
+				// rewritten against the new base above and must not shift twice (identity skip),
+				// and a morph rebuild below writes fresh absolutes itself.
+				val origBase = source.positions as? FloatArray
+				if (!rebuildMorphs && origBase != null && origBase.size == editedBase.size) {
+					val rewrittenGridForms = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+					gridForms.forEach { gridForm -> rewrittenGridForms.add(gridForm) }
+					for (morphForm in existingMorphForms(source.keyformMorphTargetSet, source.keyforms)) {
+						if (morphForm in rewrittenGridForms || morphForm !is CArtMeshForm) {
+							continue
+						}
+						val origAbsolute = morphForm.positions as? FloatArray
+						if (origAbsolute == null || origAbsolute.size != editedBase.size) {
+							continue
+						}
+						// CMO3: CArtMeshForm field positions - absolute vertex positions.  Unchanged
+						// base components keep the stored value bit-identically (recompute the delta
+						// from the stored values, never (a-b)+b through IEEE rounding).
+						morphForm.positions =
+							FloatArray(origAbsolute.size) { component ->
+								if (editedBase[component].toRawBits() == origBase[component].toRawBits()) {
+									origAbsolute[component]
+								} else {
+									editedBase[component] + (origAbsolute[component] - origBase[component])
+								}
+							}
+						editor.ensureChildSlot(morphForm, "CArtMeshForm", "positions")
+					}
+				}
 				source.positions = editedBase.copyOf()
 				editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
 				val editableMesh = Cmo3Import.editableMeshOf(source)
@@ -646,7 +711,14 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						coordType = template?.coordType ?: formCoordType(editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
 			if (newPoints != null) {
@@ -728,7 +800,14 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
-						coordType = template?.coordType
+						// CMO3: ACForm field notes - non-null in the editor's model (its setter rejects
+						// null), and every corpus form writes the empty string.
+						notes = template?.notes ?: ""
+						// CMO3: form multiply/screen colors - modern-era forms always carry identity
+						// values; the channel lowering overwrites them when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
+						coordType = template?.coordType ?: formCoordType(editedRotation.parent != null)
 					}
 			if (payload != null) {
 				// CMO3: CRotationDeformerForm attributes originX / originY / angle / scale.
@@ -746,6 +825,7 @@ internal class Cmo3KeyformLowering(
 				editor.ensurePresentAttr(form, "CRotationDeformerForm", "isReflectX")
 			}
 			flagOf(channels[FormChannel.FLIP_Y])?.let { flip ->
+				// CMO3: CRotationDeformerForm attribute isReflectY.
 				form.isReflectY = flip
 				editor.ensurePresentAttr(form, "CRotationDeformerForm", "isReflectY")
 			}
@@ -833,6 +913,17 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - a non-null String in the editor's model (its
+						// setter rejects null); every corpus form writes "" when unannotated.
+						notes = template?.notes ?: ""
+						// CMO3: CPartForm multiply/screen colors - a modern-era part form carries all
+						// of drawOrder/opacity/multiplyColor/screenColor, and CPartForm.deserialize
+						// dereferences the colors unconditionally (a form with drawOrder + opacity but
+						// no colors NPEs at load).  Corpus signatures are all-five or the pre-5.3
+						// drawOrder-only shape, never the partial middle; the channel lowering
+						// overwrites these when a color channel exists.
+						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
+						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
 					}
 			scalarOf(cell.channels[FormChannel.DRAW_ORDER])?.let { drawOrder ->
 				// CMO3: CPartForm field drawOrder.
@@ -917,6 +1008,8 @@ internal class Cmo3KeyformLowering(
 						isAnimatedForm = template?.isAnimatedForm ?: false
 						isLocalAnimatedForm = template?.isLocalAnimatedForm ?: false
 						_source = source
+						// CMO3: ACForm field notes - non-null in the editor's model.
+						notes = template?.notes ?: ""
 					}
 			scalarOf(cell.channels[FormChannel.GLUE_INTENSITY])?.let { intensity ->
 				// CMO3: CGlueForm field intensity - the weld strength at this cell.
@@ -956,6 +1049,13 @@ internal class Cmo3KeyformLowering(
 	 * and forms matched by (parameter, key value).  The inserted neutral key (null form at value 0)
 	 * is dropped again - CMO3 stores no record for it.
 	 *
+	 * @param Any      ownerSource The source object owning the morph target set.
+	 * @param String   subject     The owner's id for notices.
+	 * @param Any?     currentSet  The current keyformMorphTargetSet, or null when absent.
+	 * @param Function assignSet   Assigns a freshly created morph target set.
+	 * @param Any?     formsField  The owner's keyforms pool, for resolving forms already on disk.
+	 * @param List     bindings    The edited blend-shape bindings to rebuild from.
+	 * @param Function writeForm   Writes or creates the form for one binding's payload.
 	 * @return List? The morph form objects for the pool, or null when a parameter is unresolvable.
 	 */
 	private fun <TForm : Any> rebuildMorphTargets(
@@ -1016,7 +1116,10 @@ internal class Cmo3KeyformLowering(
 						?: KeyFormMorphTarget().apply {
 							parameterGuid = parameterSource.guid
 							owner = ownerSource
-							editBaseParameterMap = null
+							// CMO3: KeyFormMorphTarget field editBaseParameterMap - corpus records
+							// carry the wrapper with a null baseParameterMap, never a bare null.
+							editBaseParameterMap =
+								org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap()
 						}
 				record.keyValue = keyValue
 				record.keyformGuid = form.guid

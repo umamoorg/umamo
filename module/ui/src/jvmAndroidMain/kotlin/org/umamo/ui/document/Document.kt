@@ -63,8 +63,9 @@ class Cmo3Document(
 /**
  * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
  * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
- * reference container); there is no MOC3 export today, so an imported model is read-only at the file
- * level - Export CMO3 stays gated to [Cmo3Document] (only its retained graph can be reconciled).
+ * reference container).  The original atlas page PNGs are retained too ([atlasPages], in model3
+ * texture order): Export CMO3 for a MOC3-origin document synthesizes a fresh graph whose image
+ * chain embeds those exact bytes, higher-fidelity than re-encoding the decoded RGBA.
  */
 class Moc3Document(
 	override val path: String,
@@ -73,6 +74,7 @@ class Moc3Document(
 	override val puppet: PuppetModel,
 	override val textures: PuppetTextures,
 	override val liveParams: LiveParams,
+	val atlasPages: List<ByteArray>,
 ) : PuppetDocument
 
 /**

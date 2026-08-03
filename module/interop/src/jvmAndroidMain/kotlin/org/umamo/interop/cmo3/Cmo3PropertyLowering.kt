@@ -29,6 +29,7 @@ import org.umamo.interop.PartField
 import org.umamo.interop.alphaCompositionOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.colorCompositionOf
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -47,8 +48,13 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
  * to write - names, flags, blend modes, masks, reference reparents, tree orders, parameter ranges
- * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) and structural
- * synthesis dispatch to notices until their own lowerings land.
+ * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
+ * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
+ * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass.  A Created diff
+ * that still reaches this class means that pass already tried to synthesize the entity, failed,
+ * and already reported why - this class has nothing to lower for it and skips it silently.
+ * Deleted diffs never arrive: the structural pass consumes every deletion and Cmo3Export strips
+ * them from the diff it forwards.
  *
  * Every assignment that can target an element or attribute the source document omitted pairs with
  * the graph editor's ensure call - the writer replays recorded slots, so a bare assignment on a
@@ -75,7 +81,7 @@ internal class Cmo3PropertyLowering(
 	private val weldDivergedDrawableNames = ArrayList<String>()
 
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
-	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, edited, notices)
+	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, notices)
 
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
 	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices)
@@ -87,8 +93,10 @@ internal class Cmo3PropertyLowering(
 	fun lowerParameters(diffs: List<EntityDiff<ParameterId, ParameterField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("parameter", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("parameter", diff.id.raw, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.parameterByIdStr[diff.id.raw]
 					val editedParameter = editedParameterById[diff.id]
@@ -124,8 +132,10 @@ internal class Cmo3PropertyLowering(
 	fun lowerParameterGroups(diffs: List<EntityDiff<ParameterGroupId, ParameterGroupField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("parameter group", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("parameter group", diff.id.raw, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val group = index.groupByIdStr[diff.id.raw]
 					val editedGroup = findEditedGroup(diff.id)
@@ -156,13 +166,17 @@ internal class Cmo3PropertyLowering(
 	fun lowerParts(diffs: List<EntityDiff<PartId, PartField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("part", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("part", diff.id.raw, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.partByIdStr[diff.id.raw]
 					val editedPart = editedPartById[diff.id]
-					val baselinePart = baselinePartById[diff.id]
-					if (source == null || editedPart == null || baselinePart == null) {
+					// A synthesized shell has no baseline; a default part stands in so the composite
+					// lowering diffs the edited state against defaults (the shell's own values).
+					val baselinePart = baselinePartById[diff.id] ?: Part(id = diff.id, name = "", children = emptyList())
+					if (source == null || editedPart == null) {
 						unsupported("part", diff.id.raw, "no matching CMO3 source to reconcile")
 						continue
 					}
@@ -198,8 +212,10 @@ internal class Cmo3PropertyLowering(
 	fun lowerDeformers(diffs: List<EntityDiff<DeformerId, DeformerField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("deformer", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("deformer", diff.id.raw, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.deformerByIdStr[diff.id.raw]
 					val editedDeformer = editedDeformerById[diff.id]
@@ -213,10 +229,13 @@ internal class Cmo3PropertyLowering(
 							DeformerField.NAME -> lowerLocalName(source, editedDeformer.name)
 							DeformerField.SELECTABLE -> lowerIsLocked(source, editedDeformer.isSelectable)
 							DeformerField.PARENT -> {
-								// CMO3: ACDeformerSource field targetDeformerGuid - the transform-tree parent
-								// (null at the root).  Reusing the parent's own guid instance keeps the shared
-								// xs.ref identity the editor writes.
-								source.targetDeformerGuid = editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
+								// CMO3: ACDeformerSource field targetDeformerGuid - the transform-tree parent,
+								// or the editor's fixed ROOT sentinel at the tree root (official deformers
+								// never write null here).  Reusing the parent's own guid instance keeps the
+								// shared xs.ref identity the editor writes.
+								source.targetDeformerGuid =
+									editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
+										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
 							}
 							DeformerField.PART -> lowerDeformerPart(source, diff.id, editedDeformer.partId)
@@ -296,8 +315,10 @@ internal class Cmo3PropertyLowering(
 	fun lowerDrawables(diffs: List<EntityDiff<DrawableId, DrawableField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("drawable", diff.id.raw, "created; synthesis is not lowered yet")
-				is EntityDiff.Deleted -> unsupported("drawable", diff.id.raw, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
 					val source = index.drawableByIdStr[diff.id.raw]
 					val editedDrawable = editedDrawableById[diff.id]
@@ -311,10 +332,13 @@ internal class Cmo3PropertyLowering(
 							DrawableField.VISIBLE -> lowerIsVisible(source, editedDrawable.isVisible)
 							DrawableField.SELECTABLE -> lowerIsLocked(source, editedDrawable.isSelectable)
 							DrawableField.PARENT_DEFORMER -> {
-								// CMO3: ACDrawableSource field targetDeformerGuid - the deforming parent (null
-								// for an undeformed drawable).
+								// CMO3: ACDrawableSource field targetDeformerGuid - the deforming parent, or
+								// the editor's fixed root-deformer sentinel when the drawable sits at the
+								// deformer-tree root.  Never null: the editor's setter is non-null and NPEs
+								// on absence, and no corpus drawable nulls it in any era.
 								source.targetDeformerGuid =
 									editedDrawable.parentDeformerId?.let { index.deformerByIdStr[it.raw]?.guid }
+										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
 							}
 							DrawableField.BLEND_MODE -> {
@@ -352,7 +376,10 @@ internal class Cmo3PropertyLowering(
 							DrawableField.TEXTURE_SOURCE ->
 								unsupported("drawable", diff.id.raw, "texture-source rebinding is editor-only state")
 							DrawableField.MESH_TOPOLOGY -> {
-								if (structure.lowerMeshTopology(source, editedDrawable)) {
+								// The weld notice means "the base left the IMPORTED weld" - a drawable
+								// with no baseline was never welded, so synthesis stays notice-free.
+								val hadBaseline = baselineDrawableById[diff.id] != null
+								if (structure.lowerMeshTopology(source, editedDrawable) && hadBaseline) {
 									weldDivergedDrawableNames.add(editedDrawable.name)
 								}
 							}
@@ -362,11 +389,15 @@ internal class Cmo3PropertyLowering(
 								if (DrawableField.GEOMETRY !in diff.fields) {
 									lowerMeshPositions(source, diff.id, editedDrawable)
 								}
-								weldDivergedDrawableNames.add(editedDrawable.name)
+								if (baselineDrawableById[diff.id] != null) {
+									weldDivergedDrawableNames.add(editedDrawable.name)
+								}
 							}
 							DrawableField.MESH_UVS -> {
 								lowerMeshUvs(source, diff.id, editedDrawable)
-								weldDivergedDrawableNames.add(editedDrawable.name)
+								if (baselineDrawableById[diff.id] != null) {
+									weldDivergedDrawableNames.add(editedDrawable.name)
+								}
 							}
 							// Handled once per drawable by the keyform rebuild below.
 							DrawableField.GEOMETRY,
@@ -398,8 +429,8 @@ internal class Cmo3PropertyLowering(
 
 	/**
 	 * Flushes the aggregated weld-divergence notice.  Call after lowerDrawables: exported geometry
-	 * and UVs are written as authored (the TODO step-8 decision), and this tells the user which
-	 * meshes Cubism's own mesh-edit / re-atlas operations could re-derive.
+	 * and UVs are written as authored, a deliberate choice, and this tells the user which meshes
+	 * Cubism's own mesh-edit / re-atlas operations could re-derive.
 	 */
 	fun flushWeldNotice() {
 		if (weldDivergedDrawableNames.isNotEmpty()) {
@@ -504,12 +535,12 @@ internal class Cmo3PropertyLowering(
 							newUvs[component].toRawBits() == baselineUvs[component].toRawBits() &&
 							newUvs[component + 1].toRawBits() == baselineUvs[component + 1].toRawBits()
 					if (unchangedPair) {
-						result[component] = storedUvs!![component]
+						result[component] = storedUvs[component]
 						result[component + 1] = storedUvs[component + 1]
 					} else {
 						val u = newUvs[component]
 						val v = newUvs[component + 1]
-						result[component] = affine!!.m00 * u + affine.m01 * v + affine.m02
+						result[component] = affine.m00 * u + affine.m01 * v + affine.m02
 						result[component + 1] = affine.m10 * u + affine.m11 * v + affine.m12
 					}
 					component += 2
@@ -536,8 +567,10 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			val subject = "${diff.meshA.raw}+${diff.meshB.raw}"
 			when (diff) {
-				is GlueDiff.Created -> unsupported("glue", subject, "created; synthesis is not lowered yet")
-				is GlueDiff.Deleted -> unsupported("glue", subject, "deleted; removal is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is GlueDiff.Created -> Unit
+				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
+				is GlueDiff.Deleted -> Unit
 				is GlueDiff.Changed -> {
 					val pairKey = diff.meshA.raw to diff.meshB.raw
 					val glueSource = sourcesByPair[pairKey as Pair<String?, String?>]?.getOrNull(diff.ordinal)
@@ -630,8 +663,14 @@ internal class Cmo3PropertyLowering(
 	 * @param Part        editedPart The edited part.
 	 */
 	private fun lowerPartDrawOrder(source: CPartSource, editedPart: Part) {
-		if (editedPart.channelGrids[FormChannel.DRAW_ORDER] != null) {
-			unsupported("part", editedPart.id.raw, "static draw order is shadowed by its keyform track")
+		val drawOrderTrack = editedPart.channelGrids[FormChannel.DRAW_ORDER]
+		if (drawOrderTrack != null) {
+			// Import re-derives the static from the FIRST grid form, so a static that matches the
+			// track's head cell survives on its own; only a disagreeing static is actually lost.
+			val headDrawOrder = (drawOrderTrack.cells.firstOrNull()?.form as? ChannelValue.Scalar)?.value?.toInt()
+			if (headDrawOrder != editedPart.drawOrder) {
+				unsupported("part", editedPart.id.raw, "static draw order is shadowed by its keyform track")
+			}
 			return
 		}
 		// CMO3: CPartSource field defaultOrder_forEditor + CPartForm field drawOrder.
@@ -701,14 +740,21 @@ internal class Cmo3PropertyLowering(
 				baselineComposite.multiplyColor != editedComposite.multiplyColor ||
 				baselineComposite.screenColor != editedComposite.screenColor
 		if (staticsChanged) {
-			val hasCompositeTracks =
-				editedPart.channelGrids[FormChannel.OPACITY] != null ||
-					editedPart.channelGrids[FormChannel.MULTIPLY_COLOR] != null ||
-					editedPart.channelGrids[FormChannel.SCREEN_COLOR] != null
-			if (hasCompositeTracks) {
-				// With tracks present the statics are shadowed by the grid cells and have no
-				// independent CMO3 home (import re-derives them from the first form).
-				unsupported("part", partId.raw, "composite statics are shadowed by the part's keyform tracks")
+			val opacityTrack = editedPart.channelGrids[FormChannel.OPACITY]
+			val multiplyTrack = editedPart.channelGrids[FormChannel.MULTIPLY_COLOR]
+			val screenTrack = editedPart.channelGrids[FormChannel.SCREEN_COLOR]
+			if (opacityTrack != null || multiplyTrack != null || screenTrack != null) {
+				// With tracks present the statics live in the grid cells; import re-derives each
+				// from the FIRST form, so a static matching its track's head cell survives on its
+				// own and only a disagreeing (or track-less-but-changed) one is actually lost.
+				val opacitySurvives = (opacityTrack?.cells?.firstOrNull()?.form as? ChannelValue.Scalar)?.value == editedComposite.opacity
+				val multiplySurvives =
+					(multiplyTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.multiplyColor
+				val screenSurvives =
+					(screenTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.screenColor
+				if (!opacitySurvives || !multiplySurvives || !screenSurvives) {
+					unsupported("part", partId.raw, "composite statics are shadowed by the part's keyform tracks")
+				}
 			} else {
 				keyforms.writePartCompositeStatics(source, editedPart)
 			}
@@ -741,8 +787,8 @@ internal class Cmo3PropertyLowering(
 		if (deformerUuid == null) {
 			return
 		}
-		(oldPartSource?._childGuids as? MutableList<Any?>)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }
-		val newChildList = newPartSource._childGuids as? MutableList<Any?>
+		mutableGraphListOf(oldPartSource?._childGuids)?.removeAll { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }
+		val newChildList = mutableGraphListOf(newPartSource._childGuids)
 		if (newChildList != null) {
 			if (newChildList.none { entry -> Cmo3Import.uuidOf(entry) == deformerUuid }) {
 				newChildList.add(source.guid)
@@ -979,8 +1025,8 @@ internal class Cmo3PropertyLowering(
 	/**
 	 * Rewrites a graph collection field to [newElements].  An existing mutable list is mutated in
 	 * place, keeping its object identity (its recorded child slot and its on-disk list tag); an
-	 * absent field gets a fresh list whose concrete type copies [current]'s convention (CArrayList
-	 * when unknown - the editor's collection type for guid lists) plus the recorded slot.
+	 * absent field gets a fresh CArrayList (the editor's collection type for guid lists) plus the
+	 * recorded slot.
 	 *
 	 * @param Any      owner          The object owning the field.
 	 * @param String   tag            The serializer tag level the field is declared at.
@@ -999,7 +1045,7 @@ internal class Cmo3PropertyLowering(
 		newElements: List<Any?>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val mutable = current as? MutableList<Any?>
+		val mutable = mutableGraphListOf(current)
 		if (mutable != null) {
 			mutable.clear()
 			mutable.addAll(newElements)

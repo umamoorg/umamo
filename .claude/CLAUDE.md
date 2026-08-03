@@ -5,7 +5,7 @@
 Umamo is an open-source cross-platform rigging editor for 2D puppet animation, with first class pen and touch support, built as a drop-in replacement for the Live2D Cubism Editor.
 
 - **Language:** Kotlin, Kotlin Multiplatform (shared core across desktop + Android).
-- **Package root:** `org.umamo` (reverse-DNS of the `umamo.org` domain). Shared library modules are flat — `org.umamo.format`, `org.umamo.runtime`, `org.umamo.gpu`, `org.umamo.ui`, `org.umamo.reimport`. App code carries product + platform — `org.umamo.editor.desktop`, `org.umamo.editor.android` (a future viewer takes `org.umamo.viewer.*`).  The editor's Android `applicationId` is `org.umamo.editor`, keeping bare `org.umamo` a clean umbrella.
+- **Package root:** `org.umamo` (reverse-DNS of the `umamo.org` domain). Shared library modules are flat — `org.umamo.format`, `org.umamo.runtime`, `org.umamo.interop`, `org.umamo.gpu`, `org.umamo.ui`, `org.umamo.reimport`. App code carries product + platform — `org.umamo.editor.desktop`, `org.umamo.editor.android` (a future viewer takes `org.umamo.viewer.*`).  The editor's Android `applicationId` is `org.umamo.editor`, keeping bare `org.umamo` a clean umbrella.
 - **Platforms:** Windows, macOS, Linux (keyboard/mouse/pen) **and Android tablets** (pen/touch — e.g.  Wacom MovinkPad).  Rigging is a first-class workflow on **all** of these, not desktop-only.
 - **Headline workflow:** draw in Clip Studio Paint (or Photoshop), save/export, switch to Umamo, and the rig **refreshes against the updated art** without losing rigging work.
 - **Compatibility is the product:** read and write the existing Cubism source format so riggers can adopt incrementally and interoperate with the official editor.
@@ -23,7 +23,7 @@ Runtime concerns (MOC3 emit, SDK/Core replacement) are a work in progress — se
 ## Format Support (priority order)
 
 - **UMA — not yet implemented.**  Native Umamo format; no codec exists yet.  The design roadmap is `docs/plan/art-sourcing-pipeline.md` § Phase G, which leans **ZIP over TAR** (a manifest + model-graph JSON + packed atlas + thumbnails + editor view state, with the original source bytes embedded verbatim) — that roadmap supersedes the earlier "tentatively ZIP/TAR, Blender BLEND as inspiration" framing.  Gated on Phase E (the source-art → `PuppetModel` bridge) landing first.
-- **CMO3 — read, and write at the byte/XML level; no edit-to-CMO3 lowering yet.**  A CMO3 is the native format for the Cubism editor.  `Cmo3.write` round-trips an unedited file's **decompressed `main.xml` byte-for-byte** — not the whole file; see the Fidelity contract for what is and is not guaranteed.  There is no `PuppetModel → CMO3` synthesis: Save re-serializes the model graph it read, it does not copy the original bytes.  See `docs/format/CMO3.md`.
+- **CMO3 — read AND write, with edit-to-CMO3 lowering.**  A CMO3 is the native format for the Cubism editor, and an interop boundary for Umamo: the UI offers it as Import/Export (Open/Save is reserved for UMA).  `Cmo3.write` round-trips an unedited file's **decompressed `main.xml` byte-for-byte** — not the whole file; see the Fidelity contract.  Export is a **state-based reconcile**: `Cmo3Export.apply` (`:interop` jvmAndroidMain) re-imports the retained graph as a baseline, diffs the session's model against it, and patches only what changed — flat fields, base geometry/UVs, the keyform grid web (re-bundled via `refinedToUnion`), blend shapes, and structural create/delete for every entity category.  A MOC3-origin document (no retained graph) exports through **fresh-graph synthesis**: `Cmo3Conversion.freshCmo3` builds a blank BareMinimum-shaped skeleton plus a per-page image chain and runs the SAME reconcile against the empty baseline.  Anything unrepresentable surfaces as an `ExportNotice`, never a silent drop.  See `docs/format/CMO3.md` § Export.
 - **PSD — read.**  Layered-art ingestion.  Re-import join key is the lyid layer id when present (Photoshop-written, stable across rename/reorder), else layer name/path + order (lossy; some exporters omit lyid, so CLIP/KRA with always-present stable ids stay more robust).  See `docs/format/PSD.md`.
 - **CLIP (Clip Studio Paint) — read.**  Layered-art ingestion, proprietary (SQLite-based container).  Implemented: layer tree + raster decode, registered in `FormatRegistry` with corpus-backed tests.  See `docs/format/CLIP.md`.
 - **KRA (Krita) — read.**  Layered-art ingestion, open source format.  See `docs/format/KRA.md`.
@@ -87,7 +87,7 @@ A central **action registry** is the spine of input: every operation is a named 
 - A searchable **command palette** falls out almost free from the registry — a strong discoverability / onboarding aid for rigging's harder abstractions.
 - **Pie/radial menus** (`PieMenuKind` — pivot mode, snap, merge-target, …) are a second dispatch mechanism alongside the palette, built for pen/touch reach rather than search.
 
-Implemented (live code in `:ui`'s `org.umamo.ui.action`): `Command`/`CommandHandler`/`CommandRegistry` (provided as `LocalCommands`), chords modeled by `KeyChord` + `parseKeyChord` and resolved through a `Keymap` (key position + a logical primary modifier).  `ShellCommands` registers several dozen commands — mesh editing (grab/scale/rotate/duplicate/merge/rip/connect/vertex-slide, select modes, box/circle select, proportional editing), transform pivot/snap pies, undo/redo, mode toggling, workspace navigation, view toolbar/sidebar toggles, plus the shell-level `palette.toggle`/`area.dragCancel`/`view.fit`/`view.zoom*` and the app's `file.open`/`file.saveAs` — and `handleShellKey` is the live keyboard dispatch (key position → `KeyChord` → `Keymap.commandFor` → `registry.invoke`); the `CommandPalette` lists `registry.all()`.  New operations register a `Command` and bind a chord — never wire a handler into a widget.  The keymap is editable and persisted: `KeymapPersistence` resolves `default`/`cubism`/`blender` presets (settings `input.keybinding.preset`) plus per-command user overrides (`input.keybinding.overrides`), reactively, and a **keybindings editor** (in Settings) supports capture/reassign/conflict-detection/reset per command.
+Implemented (live code in `:ui`'s `org.umamo.ui.action`): `Command`/`CommandHandler`/`CommandRegistry` (provided as `LocalCommands`), chords modeled by `KeyChord` + `parseKeyChord` and resolved through a `Keymap` (key position + a logical primary modifier).  `ShellCommands` registers several dozen commands — mesh editing (grab/scale/rotate/duplicate/merge/rip/connect/vertex-slide, select modes, box/circle select, proportional editing), transform pivot/snap pies, undo/redo, mode toggling, workspace navigation, view toolbar/sidebar toggles, plus the shell-level `palette.toggle`/`area.dragCancel`/`view.fit`/`view.zoom*` and the app's `file.importCmo3`/`file.importMoc3`/`file.exportCmo3` — and `handleShellKey` is the live keyboard dispatch (key position → `KeyChord` → `Keymap.commandFor` → `registry.invoke`); the `CommandPalette` lists `registry.all()`.  New operations register a `Command` and bind a chord — never wire a handler into a widget.  The keymap is editable and persisted: `KeymapPersistence` resolves `default`/`cubism`/`blender` presets (settings `input.keybinding.preset`) plus per-command user overrides (`input.keybinding.overrides`), reactively, and a **keybindings editor** (in Settings) supports capture/reassign/conflict-detection/reset per command.
 
 ### Localization (EN / JA first-class)
 
@@ -105,7 +105,7 @@ The **settings/storage foundation is built first** — it backs keymaps, layout,
 - **`:storage`** — per-OS config/data directories + file IO over **okio** (Kotlin's stdlib has no common `File`; `java.io.File` is JVM-only), and a `FilePicker` open/save-dialog contract backed by **FileKit** — one commonMain `FileKitFilePicker` over each OS's native dialog (Win32 `IFileDialog`, Cocoa, GTK/portal) plus Android SAF, replacing the old desktop-only AWT `FileDialog`.  Because FileKit already spans platforms there is no per-platform picker impl: desktop is done, and Android needs only `FileKit.init(activity)` in its `Activity` (it owns the result registry) — no separate SAF implementation.  The contract returns FileKit's `PlatformFile`, not an okio `Path`: Android SAF hands back a `content://` URI with no real filesystem path that a `Path` cannot model.  Platform factories `desktopAppStorage` / `androidAppStorage` resolve the dirs.
 - **`:settings`** — a JSON tree of **bundled defaults ← user overrides** (← vendor extension defaults, later), addressed by **dotted keys** (`getString("interface.theme")`).  No caller passes a default — `defaultSettings.json` (a Compose-MP resource in `:ui`, shared cross-platform) is the single baseline.  Writes hit the *user* layer only, persist via `:storage`, and emit the changed key on a `changes: SharedFlow` (the reactive spine the UI / keymap / undo-History collect).  Held as a dynamic `JsonObject`, not typed `@Serializable` classes (settings are open-ended + merged); typed per-domain views layer on later.  Live keys in use today: `interface.theme`, `interface.layout` (the workspace area tree), `interface.window.{width,height,x,y,placement}`, `interface.viewport.showToolbar`/`showSidebar`, `input.keybinding.preset`/`input.keybinding.overrides` (the keymap), `viewport.zoomStepPercent`/`zoomStepCoarsePercent`/`selectionHighlightColor`/`grid.scale`/`grid.subdivisions`, the twelve `viewport.meshEdit.*` color keys, `localization.locale`, and `app.recentFiles`.  `app.launchCount` and `input.pen.backend` exist in `defaultSettings.json` but are genuinely unread/unwritten today — reserved, not wired.
 
-Apps load settings at startup and provide the instance through a `LocalSettings` composition local — the desktop loads **synchronously** so the saved window state is ready before the (unconditional) window opens; `application {}` exits if it ever has zero windows, so an async settings gate would close it.  The **app shell is shared in `:ui`** (`org.umamo.ui.app.EditorApp`, jvmAndroidMain): the File / Edit / Workspace / Help menu bar, a Preferences window (`edit.preferences`, holds the keybindings editor and other settings sections), Help Credits/About, the `Document` layer (open via FileKit, Save As, recent files, workspace-layout import/export), live locale switching, live keymap reload on preset/rebind, and the per-document session wiring.  `:desktop` owns the window (geometry persisted to settings, title dirty-marker, the LWJGL offscreen render service); `:android` owns the Activity and mounts the same shell with a null viewport factory until the GLES renderer lands — Android does have renderer groundwork (`GpuRenderer.android.kt`: GLES20/30 grid + axis shaders), just not a puppet-deformation renderer or the Compose-image bridge yet.
+Apps load settings at startup and provide the instance through a `LocalSettings` composition local — the desktop loads **synchronously** so the saved window state is ready before the (unconditional) window opens; `application {}` exits if it ever has zero windows, so an async settings gate would close it.  The **app shell is shared in `:ui`** (`org.umamo.ui.app.EditorApp`, jvmAndroidMain): the File / Edit / Workspace / Help menu bar, a Preferences window (`edit.preferences`, holds the keybindings editor and other settings sections), Help Credits/About, the `Document` layer (CMO3/MOC3 import and CMO3 export via FileKit — Open/Save is reserved for UMA — recent files, the dirty-replace confirm, the export report alert, workspace-layout import/export), live locale switching, live keymap reload on preset/rebind, and the per-document session wiring.  `:desktop` owns the window (geometry persisted to settings, title dirty-marker, the LWJGL offscreen render service); `:android` owns the Activity and mounts the same shell with a null viewport factory until the GLES renderer lands — Android does have renderer groundwork (`GpuRenderer.android.kt`: GLES20/30 grid + axis shaders), just not a puppet-deformation renderer or the Compose-image bridge yet.
 
 **Use the foundation, don't reinvent it:** new config (a keymap preset, a panel layout, a pen binding) is a settings key under its namespace via `Settings`; file open/save goes through `FilePicker`; app-data paths come from `AppStorage`.
 
@@ -154,14 +154,24 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             jvmMain/androidMain (no expect/actual). → okio, FileKit
 :settings     commonMain  — JSON settings engine: bundled defaults ← user overrides, dotted-key
                             get/set, persistence, change-event Flow. → :storage, kotlinx-serialization
-:runtime      commonMain  — puppet model + CMO3 ingest. → :format
+:runtime      commonMain  — the pure puppet runtime: the immutable PuppetModel + typed ids, the
+                            keyform grid algebra, and the sampling eval.  Zero format knowledge and
+                            zero project deps — CMO3/MOC3 conversion lives in :interop.
+:interop      commonMain  — format↔runtime conversion: CMO3/MOC3 ingest (Cmo3Import / Moc3Import →
+                            PuppetModel), the model diff (diffPuppetModels), export notices, and the
+                            RuntimeTarget↔format-version mapping; jvmAndroidMain hosts the CMO3
+                            export reconcile (Cmo3Export: diff-driven lowering onto the retained
+                            graph) and the fresh-graph synthesis (Cmo3Conversion: blank skeleton +
+                            image chain for MOC3-origin export).  Future import/export formats and
+                            format↔format conversions (each pivoting through PuppetModel) land
+                            here too.  → :format (api), :runtime (api)
 :edit         commonMain  — the editing session over the immutable PuppetModel: EditorSession
                             (snapshot-based undo History, selection + mode state, tool latches,
                             request buses), the sealed Change hierarchy, and the pure edit ops
                             (mesh topology/transforms, parameter edits, proportional editing).
                             → :runtime (api), kotlinx-coroutines (api)
 :render       commonMain  — deformation eval (CPU) + the puppet renderer + morph-blend shaders,
-                  + GL impl   over a `RenderDevice` backend seam.  → :runtime, :format (jvmAndroid).
+                  + GL impl   over a `RenderDevice` backend seam.  → :runtime (api), :format (api).
                             The whole renderer is backend-neutral commonMain now: the eval, the pure
                             render logic (`puppet/`: glue layout, pose resolve, model diff, delta
                             texels, bounds), the GL-family GLSL (`glsl/`, shared by GL 3.3 + GLES 3.0
@@ -171,9 +181,11 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             is one `RenderDevice` impl: `GlRenderDevice` (jvmMain, LWJGL/GL 3.3 core)
                             ships; GLES 3.0 (android) + Metal (iOS) are ports of it, stubbed.  `:render`
                             is zero `expect`/`actual`.  PNG decode goes through :format's `PngCodec`
-                            (the old `decodePngToRgba` expect/actual is retired).  The CMO3 atlas
-                            extraction sits in jvmAndroidMain (takes a `Cmo3Model`, hence the
-                            jvmAndroid-only :format dep).  LWJGL is DESKTOP-ONLY.
+                            (the old `decodePngToRgba` expect/actual is retired).  :format is a
+                            direct commonMain api dep (RasterImage sits in the RenderDevice upload
+                            surface, PngCodec behind the MOC3 texture decode); the CMO3 atlas
+                            extraction sits in jvmAndroidMain (takes a `Cmo3Model`).  LWJGL is
+                            DESKTOP-ONLY.
                             The CPU eval (`eval/`) depends on nothing in :render and would move to
                             :runtime cleanly — it stays here ON PURPOSE, paired with the GPU deform
                             shaders it mirrors and that the differential oracle diffs it against.
@@ -192,7 +204,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             cannot sit in :edit (see the :render note above).  Reference split:
                             `KeyformCommands.kt` (:ui, resolves the hover) over `KeyformAimEdits.kt`
                             (:edit, decides what the edit means).
-                            → :render (api), :runtime, :edit, :settings, :storage, :format (jvmAndroid).
+                            → :render (api), :runtime, :interop, :edit, :settings, :storage, :format (jvmAndroid).
 :desktop      jvm         — thin desktop entrypoint over the shared EditorApp: the window, settings
                             gate, and the LWJGL offscreen `PuppetViewportService` (GLFW hidden
                             context → Compose Image; no SwingPanel/AWTGLCanvas interop remains).
@@ -203,7 +215,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 
 **On disk:** library modules live under `module/`, application targets under `app/` (e.g. `module/format`, `app/desktop`); everything else at the repo root is intentionally non-module.  A module's Gradle path (`:format`, `:desktop`) is kept **flat and decoupled from its folder** via `projectDir` in `settings.gradle.kts`, so dependency declarations stay terse (`project(":format")`) and *path ≠ directory ≠ package*.  Stretch-phase modules follow the same scheme.
 
-Keep `:format`, `:reimport`, `:runtime`, `:edit`, `:ui` in `commonMain` so Android and desktop share them verbatim.  Platform-specific code (GPU contexts, FFI, pen, windowing) lives in `jvmMain` / `androidMain`.
+Keep `:format`, `:reimport`, `:runtime`, `:interop`, `:edit`, `:ui` in `commonMain` so Android and desktop share them verbatim.  Platform-specific code (GPU contexts, FFI, pen, windowing) lives in `jvmMain` / `androidMain`.
 
 ## Fidelity contract
 

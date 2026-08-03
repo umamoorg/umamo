@@ -39,12 +39,13 @@ LimeBirb has some non-byte exactness to investigate.
 	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
 
 ## Read/Write Filing Handling
-module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
-The file picker just writes out the original CMO3 right now as a save test.  Nothing actually converts the PuppetModel into CMO3 format.
+* primary+shift+KeyE should not default to file.exportCmo3.
+* Clean up the boolean logic mess in AppMenu->fileMenu().
+	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
-		* Open/Import should ask to save before doing if the new document is dirty.
 * Drag and drop file opening.
+* Promote the [kmp-jvmandroid] source-set block to a convention plugin since there are four spots currently: module/format, module/ui, module/render, module/interop build scripts (:runtime dropped it with the :interop split; its jvmAndroidMain emptied).
 
 ## Puppet Model, CMO3, MOC3
 * MOC3
@@ -100,8 +101,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Parameters
 * Improvements
 	* Search in header.
-* Future CMO3/MOC3 Work
-	* refinedToUnion to bake parameters.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
@@ -157,8 +156,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* Search box shrinks, but eventually then squishing upwards causing clipping.
 
 * Menu - New Items
-	* File
-		* Import/Export - "Import MOC3…" exists as a flat row; fold into an Import submenu when image import lands, and add Export.
 	* Edit
 		* Cut/Copy/Paste
 
@@ -307,10 +304,5 @@ is still ahead.
 	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
 	May trigger an atlas repack (the invariant above protects it). See § Reimport.
-8. CMO3 write-back — DECISION REQUIRED before the exporter is written. See § Read/Write Filing Handling: no
-	`PuppetModel` → CMO3 writer exists (save just re-emits the original bytes). Hazard: a decoupled geometry
-	edit produces a Cubism default form whose geometry no longer matches its UVs — Cubism renders it displaced
-	and re-derives/corrupts the UVs on its next re-atlas. Decide how Umamo's neutral geometry maps onto
-	Cubism's default form. This gates the CMO3 round-trip fidelity contract.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.

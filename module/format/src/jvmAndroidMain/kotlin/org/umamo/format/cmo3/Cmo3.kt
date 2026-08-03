@@ -220,7 +220,11 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	 * @return ByteArray The complete `.cmo3` file bytes.
 	 */
 	override fun write(model: Cmo3Model): ByteArray {
-		val mainXml = XmlCodec.write(cubismEngine().writeModel(model.graph))
+		val document = cubismEngine().writeModel(model.graph)
+		// Classes first introduced after the read (created entities) are missing from the replayed
+		// <?import?>/<?version?> PIs, and the official reader cannot resolve their tags without them.
+		Cmo3Author.completePrologue(document)
+		val mainXml = XmlCodec.write(document)
 		val entries =
 			model.archive.entries.map { entry ->
 				if (entry.tag == CaffArchive.TAG_MAIN_XML) {

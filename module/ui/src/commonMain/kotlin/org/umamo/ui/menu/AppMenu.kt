@@ -40,13 +40,14 @@ import org.umamo.ui.resources.workspace_new
  * native UMA format and return when it lands.  Every row reaches its operation through the caller's
  * handlers (which route through the file.importCmo3 / file.importMoc3 / file.exportCmo3 commands
  * and the shared FileKit picker), so the menu, the keyboard, and the palette share one path.  The
- * Export CMO3 row is gated on [canExportCmo3] (a CMO3 document is open - only its retained graph
- * can be reconciled); Open Recent labels each stored path via fileDisplayName, disables itself when
+ * Export CMO3 row is gated on [canExportCmo3] (a puppet document is open: CMO3-origin reconciles
+ * onto its retained graph, MOC3-origin synthesizes a fresh one); Open Recent labels each stored
+ * path via fileDisplayName, disables itself when
  * the list is empty, and routes through the import path.
  *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean canExportCmo3 Whether a CMO3 document is open (gates the Export CMO3 row).
+ * @param Boolean canExportCmo3 Whether an exportable puppet document is open (gates the Export CMO3 row).
  * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).

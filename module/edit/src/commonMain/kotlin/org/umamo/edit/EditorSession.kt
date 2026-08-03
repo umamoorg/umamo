@@ -74,6 +74,15 @@ class EditorSession(
 	private val elementMemory = MeshElementMemory()
 	private val latches = ToolLatches(notify = ::emitNotice)
 
+	/**
+	 * The model this session opened on - the document's own puppet, before any edit.
+	 *
+	 * Exposed so a host can verify that a session belongs to the document it is about to act on:
+	 * a session outlives nothing, but a stale one paired with a fresh document would silently
+	 * apply the PREVIOUS model's rig (see the export guard in EditorApp).
+	 */
+	val baselineModel: PuppetModel = initialModel
+
 	private val mutableModel = MutableStateFlow(initialModel)
 
 	/** The live document model; panels read it, the render host observes it. */

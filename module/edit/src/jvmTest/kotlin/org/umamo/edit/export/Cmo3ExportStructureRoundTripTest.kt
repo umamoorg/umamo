@@ -15,6 +15,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
+import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -29,11 +30,12 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The structural-synthesis gate: created and deleted parameters/groups, duplicated and deleted
- * drawables, deleted parts/deformers, and mesh topology edits reconcile onto the CMO3 graph and
- * survive an export/re-import.  A duplicated drawable's textureSourceId is editor-only state (the
- * re-imported file binds the atlas by the drawable's own id), and rebuilt/duplicated forms follow
- * the delta-vs-absolute bounded-ULP tier, so those two residues are tolerated where noted.
+ * The structural-synthesis gate: created and deleted parameters, created parameter groups,
+ * duplicated and deleted drawables, deleted parts/deformers, and mesh topology edits reconcile
+ * onto the CMO3 graph and survive an export/re-import.  A duplicated drawable's textureSourceId is
+ * editor-only state (the re-imported file binds the atlas by the drawable's own id), and
+ * rebuilt/duplicated forms follow the delta-vs-absolute bounded-ULP tier, so those two residues
+ * are tolerated where noted.
  */
 class Cmo3ExportStructureRoundTripTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -61,9 +63,40 @@ class Cmo3ExportStructureRoundTripTest {
 
 	/**
 	 * Asserts a clean round trip except the tolerated per-drawable residues: TEXTURE_SOURCE
-	 * (editor-only state) and bounded-ULP GEOMETRY/BLEND_SHAPES drift on [drawableId].
+	 * (editor-only state) and bounded-ULP GEOMETRY/BLEND_SHAPES drift on [drawableId].  The export
+	 * report may carry WeldDivergence (a topology edit leaves the imported weld by definition) but
+	 * nothing else; the geometry grid and every edited cell must survive - a vanished grid or cell
+	 * is loss, not drift.
+	 *
+	 * @param RoundTrip  result The edited/reimported model pair and export report under test.
+	 * @param DrawableId drawableId The one drawable allowed to carry the tolerated residues.
+	 * @param String     label Test-scenario label used in assertion failure messages.
 	 */
 	private fun assertLosslessExceptDrawableResidue(result: RoundTrip, drawableId: DrawableId, label: String) {
+		assertTrue(
+			result.report.notices.all { notice -> notice is ExportNotice.WeldDivergence },
+			"$label: unexpected notices ${result.report.notices}",
+		)
+		val editedGrid = result.edited.drawables.first { it.id == drawableId }.geometryGrid
+		val reimportedGrid = result.reimported.drawables.first { it.id == drawableId }.geometryGrid
+		assertTrue(
+			(editedGrid == null) == (reimportedGrid == null),
+			"$label: geometry grid presence changed through the round trip",
+		)
+		if (editedGrid != null && reimportedGrid != null) {
+			val reimportedByCoordinate =
+				reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
+			var maxComponentDifference = 0f
+			for (cell in editedGrid.cells) {
+				val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
+				assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
+				for (component in cell.form.positionDeltas.indices) {
+					maxComponentDifference =
+						maxOf(maxComponentDifference, abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]))
+				}
+			}
+			assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
+		}
 		val residual = diffPuppetModels(result.reimported, result.edited)
 		if (residual.isEmpty) {
 			return
@@ -80,21 +113,6 @@ class Cmo3ExportStructureRoundTripTest {
 					entityDiff is EntityDiff.Changed && entityDiff.id == drawableId && tolerated.containsAll(entityDiff.fields)
 				}
 		assertTrue(onlyToleratedResidue, "$label: unexpected residual $residual")
-		val editedGrid = result.edited.drawables.first { it.id == drawableId }.geometryGrid
-		val reimportedGrid = result.reimported.drawables.first { it.id == drawableId }.geometryGrid
-		if (editedGrid != null && reimportedGrid != null) {
-			val reimportedByCoordinate =
-				reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
-			var maxComponentDifference = 0f
-			for (cell in editedGrid.cells) {
-				val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()] ?: continue
-				for (component in cell.form.positionDeltas.indices) {
-					maxComponentDifference =
-						maxOf(maxComponentDifference, abs(cell.form.positionDeltas[component] - reimportedDeltas[component]))
-				}
-			}
-			assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
-		}
 	}
 
 	private fun skipMessageOrNull(): File? {
