@@ -7,16 +7,10 @@ import io.github.vinceglb.filekit.readBytes
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.format.moc3.MocDocument
-import org.umamo.format.moc3.moc.MocModel
-import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.PuppetTextures
-import org.umamo.render.extractPuppetTextures
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
-import org.umamo.ui.viewport.initialLiveParams
 
 /**
  * An open editor document - a parsed source file the viewport renders. Lives in jvmAndroidMain (not
@@ -36,6 +30,9 @@ sealed interface Document {
  * imports to a [PuppetModel].  The session, viewport, and panels consume only this surface, so a new
  * puppet-producing format plugs in by adding a subtype; format-specific state (the CMO3 model kept for
  * export reconcile, the MOC3 container kept for a future re-bake) stays on the concrete type.
+ *
+ * Each subtype lives with its loader rather than here - `Cmo3Document` in Cmo3DocumentLoader.kt,
+ * `Moc3Document` in Moc3DocumentLoader.kt - so this file holds only what every format shares.
  */
 sealed interface PuppetDocument : Document {
 	/** The imported runtime puppet the session edits and the viewport renders. */
@@ -47,35 +44,6 @@ sealed interface PuppetDocument : Document {
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams
 }
-
-/**
- * A loaded `.cmo3`: the format model (the retained graph Export CMO3 reconciles the session's edits
- * onto - Cmo3Export.apply), the runtime puppet + textures (for render), live params.
- */
-class Cmo3Document(
-	override val path: String,
-	val cmo3: Cmo3Model,
-	override val puppet: PuppetModel,
-	override val textures: PuppetTextures,
-	override val liveParams: LiveParams,
-) : PuppetDocument
-
-/**
- * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
- * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
- * reference container).  The original atlas page PNGs are retained too ([atlasPages], in model3
- * texture order): Export CMO3 for a MOC3-origin document synthesizes a fresh graph whose image
- * chain embeds those exact bytes, higher-fidelity than re-encoding the decoded RGBA.
- */
-class Moc3Document(
-	override val path: String,
-	val moc: MocModel,
-	val mocDocument: MocDocument,
-	override val puppet: PuppetModel,
-	override val textures: PuppetTextures,
-	override val liveParams: LiveParams,
-	val atlasPages: List<ByteArray>,
-) : PuppetDocument
 
 /**
  * The outcome of loading a file into a [Document]: the document, or the reason there is none.
@@ -135,15 +103,7 @@ fun loadDocument(bytes: ByteArray, name: String, path: String): DocumentLoad =
 			codec.kind == FileKind.Cmo3 -> {
 				// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
 				// type that kind's codec is known to produce.
-				val cmo3 = codec.read(bytes) as Cmo3Model
-				val root = cmo3.root as? CModelSource
-				if (root == null) {
-					UmamoLog.error("failed to open $path: the CMO3 has no model source")
-					DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
-				} else {
-					val puppet = Cmo3Import.fromModelSource(root)
-					DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, extractPuppetTextures(cmo3), initialLiveParams(puppet)))
-				}
+				buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
 			}
 			else -> {
 				UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")

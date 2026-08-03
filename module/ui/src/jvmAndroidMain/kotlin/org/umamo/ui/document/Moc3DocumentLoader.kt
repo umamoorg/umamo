@@ -8,12 +8,34 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
+import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.format.moc3.moc.MocModel
 import org.umamo.interop.moc3.Moc3Import
-import org.umamo.render.buildPuppetTextures
+import org.umamo.render.PuppetTextures
+import org.umamo.render.moc3PuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
+
+/**
+ * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
+ * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
+ * reference container).  The original atlas page PNGs are retained too ([atlasPages], in model3
+ * texture order): Export CMO3 for a MOC3-origin document synthesizes a fresh graph whose image
+ * chain embeds those exact bytes, higher-fidelity than re-encoding the decoded RGBA.
+ */
+class Moc3Document(
+	override val path: String,
+	val moc: MocModel,
+	val mocDocument: MocDocument,
+	override val puppet: PuppetModel,
+	override val textures: PuppetTextures,
+	override val liveParams: LiveParams,
+	val atlasPages: List<ByteArray>,
+) : PuppetDocument
 
 /**
  * Loads a picked `.moc3` plus its sidecars into a [Moc3Document].  A baked model is a file family,
@@ -134,7 +156,7 @@ internal fun buildMoc3Document(
 			}
 		}
 	val textures =
-		buildPuppetTextures(pageBytes, mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex })
+		moc3PuppetTextures(mocDocument, pageBytes)
 			?: run {
 				UmamoLog.warn("cannot import $path: an atlas page failed to decode")
 				return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))

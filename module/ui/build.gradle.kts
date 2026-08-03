@@ -147,4 +147,7 @@ umamoTestCorpus {
 	// fail on it rather than exercise the load path. Hence a module-specific default rather than the
 	// shared table, which deliberately leaves moc3.sample explicit-only for :interop and :render.
 	sampleWithCorpusDefault("moc3.sample", "moc3/modelA/modelA.moc3")
+	// The CMO3 loader test's counterpart. Takes the shared table's default (a whole .cmo3 embeds its
+	// own pixels, so unlike the moc family there is no sidecar folder that has to resolve).
+	sample("cmo3.sample")
 }

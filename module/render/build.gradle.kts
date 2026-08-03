@@ -8,9 +8,9 @@
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
 	alias(libs.plugins.androidKmpLibrary)
-	// Umamo's own conventions (gradle/build-logic): the shared jvmAndroidMain source-set group, the
-	// iosArm64 → `check` wiring, and the corpus/-D forwarding configured by `umamoTestCorpus` below.
-	id("umamo.kmp-jvmandroid")
+	// Umamo's own conventions (gradle/build-logic): the iosArm64 → `check` wiring, and the corpus/-D
+	// forwarding configured by `umamoTestCorpus` below.  Deliberately NOT umamo.kmp-jvmandroid — this
+	// module has no JVM-bound shared code; see the commonMain :format comment below.
 	id("umamo.kmp-ios-gate")
 	id("umamo.test-corpus")
 }
@@ -29,10 +29,6 @@ kotlin {
 	// (The -Xexpect-actual-classes opt-in that used to sit here left with its only user, the
 	// `expect class GpuRenderer` — this module is zero expect/actual now; the backend seam is the
 	// RenderDevice interface instead.)
-
-	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin. This module
-	// needs it because the CMO3 atlas extraction takes a Cmo3Model, which lives in :format's own
-	// jvmAndroidMain (the JDOM-backed codec) — so it can't sit in commonMain.
 
 	jvm()
 
@@ -57,9 +53,12 @@ kotlin {
 				// :runtime model types (PuppetModel, DrawableId, …), so consumers see them transitively.
 				api(project(":runtime"))
 				// `api`: :format types sit in the renderer's own public surface too — RasterImage in
-				// RenderDevice's upload API, PngCodec behind the MOC3 texture decode — and :runtime is
-				// format-free, so nothing supplies :format transitively. The jvmAndroidMain CMO3 atlas
-				// extraction (extractPuppetTextures, takes a Cmo3Model) rides on this same edge.
+				// RenderDevice's upload API, PngCodec behind the atlas decode, and the CMO3/MOC3 node
+				// types the two texture adapters walk — and :runtime is format-free, so nothing supplies
+				// :format transitively. Those adapters are commonMain: the CMO3 graph node types live in
+				// :format's commonMain, and only the JDOM-built Cmo3Model wrapper does not, so the
+				// adapter takes a CModelSource plus an injected pixel lookup and this module needs no
+				// jvmAndroidMain at all.
 				api(project(":format"))
 			}
 		}
