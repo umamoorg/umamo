@@ -2,6 +2,7 @@ package org.umamo.format.moc3.encode
 
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.io.LittleEndianWriter
+import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.model.BlendShape
@@ -56,9 +57,7 @@ public object MocLowering {
 		put(Sections.PARAM_MAX, floatList(doc.parameters.map { it.maximumValue }))
 		put(Sections.PARAM_MIN, floatList(doc.parameters.map { it.minimumValue }))
 		put(Sections.PARAM_DEFAULT, floatList(doc.parameters.map { it.defaultValue }))
-		// Repeat flags are not retained in the semantic model (the runtime ignores them; every shipped
-		// sample is all-zero). Emit zeros so the section is present and correctly sized.
-		put(Sections.PARAM_REPEAT, intList(List(doc.parameters.size) { 0 }))
+		put(Sections.PARAM_REPEAT, intList(doc.parameters.map { if (it.repeats) 1 else 0 }))
 		if (doc.parameters.any { it.type != null }) {
 			put(
 				Sections.PARAM_TYPE,
@@ -1019,8 +1018,8 @@ public object MocLowering {
 	 * (warp, mesh, part, then rotation records - objects ascending by kind-local index, verified
 	 * on the corpus), the deduplicated binding list (grouped by parameter ascending, first
 	 * occurrence within a parameter), and the deduplicated limit sub-binding pool (sorted by
-	 * gating-parameter index; the within-parameter tie-break is lexicographic over keys then
-	 * weights - an ASSUMPTION, the corpus never shows two curves on one parameter).
+	 * gating-parameter index; the within-parameter tie-break is first-occurrence order across
+	 * recordsInFileOrder).
 	 */
 	private class BlendShapeLayout(doc: MocDocument) {
 		val warpRecords: List<BlendShape>
@@ -1091,15 +1090,21 @@ public object MocLowering {
 			for (parameterIndex in doc.parameters.indices) {
 				parameterBindingCount[parameterIndex] =
 					orderedBindings.count { it.parameterIndex == parameterIndex }
-				// Binding-less parameters store 0, not the running cumulative (corpus-probed).
-				parameterBegin[parameterIndex] = if (parameterBindingCount[parameterIndex] > 0) bindingCursor else 0
+				// Binding-less parameters store 0, not the running cumulative - UNLESS the parameter is
+				// itself blend-shape-typed (a morph-target axis authored with no record bound to it),
+				// which stores -1 instead.
+				parameterBegin[parameterIndex] =
+					when {
+						parameterBindingCount[parameterIndex] > 0 -> bindingCursor
+						doc.parameters[parameterIndex].type == ParameterType.BLEND_SHAPE -> -1
+						else -> 0
+					}
 				bindingCursor += parameterBindingCount[parameterIndex]
 			}
 
 			// The limit sub-binding pool, deduplicated by value.  Sorted by gating-parameter index
-			// (corpus-observed); keys-then-weights lexicographic tie-break within a parameter is a
-			// documented assumption (MOC3.md §5.6) - no corpus sample carries two curves on one
-			// parameter to discriminate.
+			// (corpus-observed); the within-parameter tie-break is first-occurrence order across
+			// recordsInFileOrder (Kotlin's sortedBy is stable).
 			fun identityOf(limit: BlendShapeLimit): List<Any> =
 				listOf(limit.parameterIndex, limit.keyPositions.toList(), limit.weights.toList())
 
@@ -1109,31 +1114,7 @@ public object MocLowering {
 					distinctLimits.getOrPut(identityOf(limit)) { limit }
 				}
 			}
-
-			fun lexicographic(left: FloatArray, right: FloatArray): Int {
-				val sharedLength = minOf(left.size, right.size)
-				for (elementIndex in 0 until sharedLength) {
-					val order = left[elementIndex].compareTo(right[elementIndex])
-					if (order != 0) {
-						return order
-					}
-				}
-				return left.size.compareTo(right.size)
-			}
-			pool =
-				distinctLimits.values.sortedWith(
-					Comparator { left, right ->
-						val byParameter = left.parameterIndex.compareTo(right.parameterIndex)
-						if (byParameter != 0) {
-							return@Comparator byParameter
-						}
-						val byKeys = lexicographic(left.keyPositions, right.keyPositions)
-						if (byKeys != 0) {
-							return@Comparator byKeys
-						}
-						lexicographic(left.weights, right.weights)
-					},
-				)
+			pool = distinctLimits.values.sortedBy { it.parameterIndex }
 			poolIndexByValue = pool.withIndex().associate { (poolIndex, poolEntry) -> identityOf(poolEntry) to poolIndex }
 		}
 

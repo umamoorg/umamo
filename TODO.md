@@ -48,6 +48,8 @@ LimeBirb has some non-byte exactness to investigate.
 * Promote the [kmp-jvmandroid] source-set block to a convention plugin since there are four spots currently: module/format, module/ui, module/render, module/interop build scripts (:runtime dropped it with the :interop split; its jvmAndroidMain emptied).
 
 ## Puppet Model, CMO3, MOC3
+* Parameter Repeat
+* Glue
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
 

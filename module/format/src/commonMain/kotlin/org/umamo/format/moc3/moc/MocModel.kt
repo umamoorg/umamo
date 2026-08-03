@@ -11,13 +11,18 @@ public data class CanvasInfo(
 	val height: Float,
 )
 
-/** A model parameter (slider). [type] is null on moc versions without `Parameter.Types` (< 4). */
+/**
+ * A model parameter (slider). [type] is null on moc versions without `Parameter.Types` (< 4).
+ * [repeats] is the moc 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
+ * `[minimumValue, maximumValue)` instead of clamping.
+ */
 public data class MocParameter(
 	val id: String,
 	val minimumValue: Float,
 	val maximumValue: Float,
 	val defaultValue: Float,
 	val type: ParameterType?,
+	val repeats: Boolean = false,
 )
 
 /** A part (visibility/draw-order group). [parentPartIndex] is -1 when the part is at the root. */
@@ -169,6 +174,7 @@ public class MocModel internal constructor(
 		val maxima = floats(Sections.PARAM_MAX, parameterCount)
 		val minima = floats(Sections.PARAM_MIN, parameterCount)
 		val defaults = floats(Sections.PARAM_DEFAULT, parameterCount)
+		val repeats = ints(Sections.PARAM_REPEAT, parameterCount)
 		val types = if (section(Sections.PARAM_TYPE) != null) ints(Sections.PARAM_TYPE, parameterCount) else null
 		return List(parameterCount) { parameterIndex ->
 			MocParameter(
@@ -177,6 +183,7 @@ public class MocModel internal constructor(
 				maxima[parameterIndex],
 				defaults[parameterIndex],
 				types?.let { ParameterType.fromNumber(it[parameterIndex]) },
+				repeats[parameterIndex] != 0,
 			)
 		}
 	}
