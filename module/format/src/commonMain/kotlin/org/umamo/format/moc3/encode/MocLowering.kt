@@ -2,6 +2,7 @@ package org.umamo.format.moc3.encode
 
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.io.LittleEndianWriter
+import org.umamo.format.moc3.moc.ElementType
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
@@ -105,6 +106,14 @@ public object MocLowering {
 		}
 
 		// deformers (unified list + per-type)
+		// The runtime slot is written zero-filled at the deformer count: the runtime owns its contents,
+		// but the array must be as long as the deformer list or an added deformer reads past it.
+		put(Section.DEFORMER_RUNTIME_SLOT, ByteArray(doc.deformers.size * ElementType.U64.size))
+		put(Section.DEFORMER_ID, idRecords(doc.deformers.map { it.id }))
+		put(Section.DEFORMER_KEYFORM_BINDING, intList(doc.deformers.map { it.keyformBindingIndex }))
+		put(Section.DEFORMER_IS_VISIBLE, intList(doc.deformers.map { if (it.isVisible) 1 else 0 }))
+		put(Section.DEFORMER_IS_ENABLED, intList(doc.deformers.map { if (it.isEnabled) 1 else 0 }))
+		put(Section.DEFORMER_PARENT_PART, intList(doc.deformers.map { it.parentPartIndex }))
 		put(Section.DEFORMER_PARENT, intList(doc.deformers.map { it.parentDeformerIndex }))
 		put(Section.DEFORMER_TYPE, intList(doc.deformers.map { if (it is WarpDeformer) 0 else 1 }))
 		// per-deformer index within its type group (warps vs rotations), in deformer-list order

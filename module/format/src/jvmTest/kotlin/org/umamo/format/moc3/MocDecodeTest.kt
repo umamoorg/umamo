@@ -122,8 +122,12 @@ class MocDecodeTest {
 				}
 			}
 
-			// Warp keyforms have the right control-point lattice size.
-			for (deformer in doc.deformers) {
+			// Warp keyforms have the right control-point lattice size, and the block's common head
+			// lands on the right deformer - the decode walks the unified list while the geometry comes
+			// from the per-type sections, so a head field is the place an index slip would show up.
+			val deformerIds = model.sections.idArray(org.umamo.format.moc3.moc.Section.DEFORMER_ID)
+			val deformerParentParts = model.sections.intArray(org.umamo.format.moc3.moc.Section.DEFORMER_PARENT_PART)
+			for ((deformerIndex, deformer) in doc.deformers.withIndex()) {
 				if (deformer is WarpDeformer) {
 					val cp = (deformer.rows + 1) * (deformer.columns + 1) * 2
 					deformer.keyforms.forEach { assertEquals(cp, it.controlPoints.size, "${file.name}: warp cp size") }
@@ -131,6 +135,16 @@ class MocDecodeTest {
 				assertTrue(
 					deformer.parentDeformerIndex == -1 || deformer.parentDeformerIndex in doc.deformers.indices,
 					"${file.name}: deformer parent",
+				)
+				assertEquals(deformerIds[deformerIndex], deformer.id, "${file.name}: deformer $deformerIndex id")
+				assertEquals(
+					deformerParentParts[deformerIndex],
+					deformer.parentPartIndex,
+					"${file.name}: deformer ${deformer.id} parent part",
+				)
+				assertTrue(
+					deformer.parentPartIndex == -1 || deformer.parentPartIndex in doc.parts.indices,
+					"${file.name}: deformer ${deformer.id} parent part in range",
 				)
 			}
 

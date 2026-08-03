@@ -107,6 +107,9 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## Format
 
+### File
+* Automatic Backup
+
 ### UMA (Native File Format)
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 See format planning document: docs/plan/uma-format.md

@@ -9,6 +9,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
@@ -143,6 +144,31 @@ class Moc3ImportTest {
 			deformer.parent?.let {
 				assertTrue(it in deformerIds, "deformer ${deformer.id.raw} -> unknown parent ${it.raw}")
 			}
+			deformer.partId?.let {
+				assertTrue(it in partIds, "deformer ${deformer.id.raw} -> unknown part ${it.raw}")
+			}
+		}
+
+		// Deformer identity and org placement are READ from the moc (MOC3 §5.6 s11/s15), not synthesized
+		// or inferred: each imported deformer keeps the file's own id and sits in exactly the part the
+		// file names for it, in file order.
+		for ((deformerIndex, source) in mocDocument.deformers.withIndex()) {
+			val expectedPartId = mocDocument.parts.getOrNull(source.parentPartIndex)?.let { PartId(it.id) }
+			assertEquals(
+				source.id,
+				puppet.deformers[deformerIndex].id.raw,
+				"deformer $deformerIndex id",
+			)
+			assertEquals(
+				source.id,
+				puppet.deformers[deformerIndex].name,
+				"deformer $deformerIndex name falls back to its id",
+			)
+			assertEquals(
+				expectedPartId,
+				puppet.deformers[deformerIndex].partId,
+				"deformer $deformerIndex (${source.id}) part membership",
+			)
 		}
 		for (glue in puppet.glues) {
 			assertTrue(glue.meshA in drawableIds, "glue -> unknown mesh A ${glue.meshA.raw}")

@@ -14,6 +14,9 @@ public enum class ElementType(public val size: Int) {
 	/** unsigned 32-bit (CountInfo). */
 	U32(4),
 
+	/** unsigned 64-bit (the per-object runtime slots, zero on disk). */
+	U64(8),
+
 	/** IEEE-754 32-bit float. */
 	F32(4),
 
@@ -24,11 +27,11 @@ public enum class ElementType(public val size: Int) {
 /**
  * How a section's element count is determined.
  *
- * EN: Per-object arrays are sized by a CountInfo count; "table" arrays (keyform values, key
- *     positions, glue pairs, …) have no single count field and are read across the whole section
- *     slice (the runtime indexes them via base/offset tables, not a length). Reading the full slice
- *     is lossless - trailing zero padding becomes trailing zero elements that the semantic layer
- *     never dereferences.
+ * Per-object arrays are sized by a CountInfo count; "table" arrays (keyform values, key
+ * positions, glue pairs, …) have no single count field and are read across the whole section
+ * slice (the runtime indexes them via base/offset tables, not a length). Reading the full slice
+ * is lossless - trailing zero padding becomes trailing zero elements that the semantic layer
+ * never dereferences.
  */
 public enum class Sizing {
 	PER_PART,
@@ -53,11 +56,10 @@ public enum class Sizing {
  * The semantic sections of a `.moc3` beyond the structural set in [Sections], with their element
  * type, sizing rule, and section-table index per moc version.
  *
- * EN: The per-version indices are on-disk facts (which table slot holds which data, recovered from
- *     the runtime). `index[version-1]` gives the slot; `-1` means the section is absent in that
- *     version. Structural sections (IDs, counts, canvas, parameters, parts, drawables, topology) are
- *     handled directly in [MocModel]/[Sections]; this enum covers the deformation payload.
- * JA: セクション索引（バージョン別）・要素型・サイズ規則。
+ * The per-version indices are on-disk facts (which table slot holds which data, recovered from
+ * the runtime). `index[version-1]` gives the slot; `-1` means the section is absent in that
+ * version. Structural sections (IDs, counts, canvas, parameters, parts, drawables, topology) are
+ * handled directly in [MocModel]/[Sections]; this enum covers the deformation payload.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §section map</a>
  */
@@ -67,6 +69,42 @@ public enum class Section(
 	private vararg val indexByVersion: Int, // [v1,v2,v3,v4,v5,v6]; -1 = absent
 ) {
 	// --- deformers (unified list) ---
+
+	/**
+	 * Per-deformer 8-byte runtime slot, the block's leading field.  Zero in every corpus file (the
+	 * runtime fills it after the memory-cast), so it carries no authored data - it is modeled only so
+	 * a bake sizes it to the deformer count instead of carrying a stale array from the source file.
+	 * The parts/drawable blocks open with the same slot (sections 2 and 32).
+	 */
+	DEFORMER_RUNTIME_SLOT(ElementType.U64, Sizing.PER_DEFORMER, 10, 10, 10, 10, 10, 10),
+
+	/** Per-deformer authored id (e.g. "Warp349", "B_LEG_01"), unique within the model. */
+	DEFORMER_ID(ElementType.ID, Sizing.PER_DEFORMER, 11, 11, 11, 11, 11, 11),
+
+	/**
+	 * Per-deformer keyform-binding index, in unified deformer order.  Duplicates the per-type
+	 * [WARP_KEYFORM_BINDING] / [ROTATION_KEYFORM_BINDING] value for the same deformer (corpus-verified
+	 * identical); both are written because the runtime addresses each by a different path.
+	 */
+	DEFORMER_KEYFORM_BINDING(ElementType.I32, Sizing.PER_DEFORMER, 12, 12, 12, 12, 12, 12),
+
+	/**
+	 * Per-deformer visibility flag (`0`/`1`), the editor's eye toggle.  The only deformer flag that
+	 * ever deviates from 1 on the corpus.  See [DEFORMER_IS_ENABLED] for the pairing caveat.
+	 */
+	DEFORMER_IS_VISIBLE(ElementType.I32, Sizing.PER_DEFORMER, 13, 13, 13, 13, 13, 13),
+
+	/**
+	 * Per-deformer enable flag (`0`/`1`), read by analogy with the parts/drawable blocks, where the
+	 * same slot pair sits between the keyform fields and the parent index.  It is 1 on every deformer
+	 * of every corpus model, and no corpus CMO3 twin carries a hidden or locked deformer, so the
+	 * split between this and [DEFORMER_IS_VISIBLE] is unpinned - a sample with a deformer hidden in
+	 * the editor would settle it.
+	 */
+	DEFORMER_IS_ENABLED(ElementType.I32, Sizing.PER_DEFORMER, 14, 14, 14, 14, 14, 14),
+
+	/** Per-deformer owning part (the organisational tree), -1 at the root. */
+	DEFORMER_PARENT_PART(ElementType.I32, Sizing.PER_DEFORMER, 15, 15, 15, 15, 15, 15),
 	DEFORMER_PARENT(ElementType.I32, Sizing.PER_DEFORMER, 16, 16, 16, 16, 16, 16),
 	DEFORMER_TYPE(ElementType.I32, Sizing.PER_DEFORMER, 17, 17, 17, 17, 17, 17),
 

@@ -170,6 +170,13 @@ public object MocDecoder {
 		// ---- deformers ----
 		val deformerType = sections.intArray(Section.DEFORMER_TYPE)
 		val deformerParent = sections.intArray(Section.DEFORMER_PARENT)
+		// The block's common head (MOC3 §5.6 s11-s15).  Read defensively: a stripped or synthesized
+		// moc can omit these, and an absent id/flag must not fail the whole decode.
+		val deformerId = sections.idArray(Section.DEFORMER_ID)
+		val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
+		val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
+		val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
+		val deformerParentPart = sections.intArray(Section.DEFORMER_PARENT_PART)
 		val warpKeyformBinding = sections.intArray(Section.WARP_KEYFORM_BINDING)
 		val warpKeyformBase = sections.intArray(Section.WARP_KEYFORM_BASE)
 		val warpRows = sections.intArray(Section.WARP_ROWS)
@@ -216,12 +223,16 @@ public object MocDecoder {
 					}
 				deformerList.add(
 					WarpDeformer(
-						deformerParent[deformerIndex],
-						keyformBinding,
-						warpRows[warpLocalIndex],
-						warpColumns[warpLocalIndex],
-						warpMode?.get(warpLocalIndex) ?: 0,
-						keyforms,
+						id = deformerId.getOrElse(deformerIndex) { "" },
+						keyformBindingIndex = keyformBinding,
+						isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
+						isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
+						parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
+						parentDeformerIndex = deformerParent[deformerIndex],
+						rows = warpRows[warpLocalIndex],
+						columns = warpColumns[warpLocalIndex],
+						mode = warpMode?.get(warpLocalIndex) ?: 0,
+						keyforms = keyforms,
 					),
 				)
 			} else {
@@ -246,10 +257,14 @@ public object MocDecoder {
 					}
 				deformerList.add(
 					RotationDeformer(
-						deformerParent[deformerIndex],
-						keyformBinding,
-						rotationBaseAngle[rotationLocalIndex],
-						keyforms,
+						id = deformerId.getOrElse(deformerIndex) { "" },
+						keyformBindingIndex = keyformBinding,
+						isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
+						isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
+						parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
+						parentDeformerIndex = deformerParent[deformerIndex],
+						baseAngle = rotationBaseAngle[rotationLocalIndex],
+						keyforms = keyforms,
 					),
 				)
 			}

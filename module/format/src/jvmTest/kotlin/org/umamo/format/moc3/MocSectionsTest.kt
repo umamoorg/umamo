@@ -95,6 +95,44 @@ class MocSectionsTest {
 			val parents = sections.intArray(Section.DEFORMER_PARENT)
 			assertTrue(parents.all { it == -1 || it in 0 until deformers }, "${file.name}: deformer parent range")
 
+			// The deformer block's common head: one id per deformer (unique, like every other id
+			// column), flags that are strictly 0/1, and a part index in range.
+			val deformerIds = sections.idArray(Section.DEFORMER_ID)
+			assertEquals(deformers, deformerIds.size, "${file.name}: deformer id count")
+			assertEquals(deformerIds.size, deformerIds.toSet().size, "${file.name}: deformer ids unique")
+			assertTrue(deformerIds.none { it.isEmpty() }, "${file.name}: deformer ids non-empty")
+			for (flagSection in listOf(Section.DEFORMER_IS_VISIBLE, Section.DEFORMER_IS_ENABLED)) {
+				val flags = sections.intArray(flagSection)
+				assertEquals(deformers, flags.size, "${file.name}: $flagSection count")
+				assertTrue(flags.all { it == 0 || it == 1 }, "${file.name}: $flagSection is boolean")
+			}
+			val deformerParts = sections.intArray(Section.DEFORMER_PARENT_PART)
+			assertTrue(
+				deformerParts.all { it == -1 || it in 0 until model.partCount },
+				"${file.name}: deformer parent part range",
+			)
+
+			// Section 12 is the same keyform binding the per-type sections carry, addressed by the
+			// deformer's type-local index - a reader may take either, so they must not drift.
+			val unifiedBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
+			val warpBinding = sections.intArray(Section.WARP_KEYFORM_BINDING)
+			val rotationBinding = sections.intArray(Section.ROTATION_KEYFORM_BINDING)
+			val localIndex = sections.intArray(Section.DEFORMER_LOCAL_INDEX)
+			assertEquals(deformers, unifiedBinding.size, "${file.name}: deformer keyform binding count")
+			for (deformerIndex in 0 until deformers) {
+				val perType =
+					if (types[deformerIndex] == 0) {
+						warpBinding[localIndex[deformerIndex]]
+					} else {
+						rotationBinding[localIndex[deformerIndex]]
+					}
+				assertEquals(
+					perType,
+					unifiedBinding[deformerIndex],
+					"${file.name}: deformer $deformerIndex keyform binding matches its per-type section",
+				)
+			}
+
 			// Art-mesh keyform position base is a non-decreasing cumulative table.
 			val posBase = sections.intArray(Section.ARTMESH_KEYFORM_BASE)
 			assertTrue(

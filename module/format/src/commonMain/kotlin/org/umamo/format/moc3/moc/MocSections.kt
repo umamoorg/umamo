@@ -129,6 +129,19 @@ public class MocSections internal constructor(private val model: MocModel) {
 	}
 
 	/**
+	 * Reads [section] as fixed-width ID records (for ID sections, e.g. deformer ids).
+	 *
+	 * @param Section section A section whose element type is ID.
+	 * @return List<String> The decoded identifiers (empty if the section is absent).
+	 */
+	public fun idArray(section: Section): List<String> {
+		require(section.element == ElementType.ID) { "$section is not an id section" }
+		val slice = rawSlice(section) ?: return emptyList()
+		val reader = LittleEndianReader(slice)
+		return List(elementCount(section)) { reader.readFixedString(Sections.ID_STRIDE) }
+	}
+
+	/**
 	 * Re-serializes [section]'s element region (the real elements, excluding trailing padding).
 	 * Used to validate that the typed decode is lossless against the original bytes.
 	 *
@@ -147,7 +160,10 @@ public class MocSections internal constructor(private val model: MocModel) {
 					writer.writeU8((shortValue.toInt() shr 8) and 0xFF)
 				}
 			ElementType.U8 -> writer.writeBytes(byteArray(section))
-			ElementType.ID -> writer.writeBytes(rawSlice(section)!!.copyOf(elementCount * ElementType.ID.size))
+			// ID and U64 sections have no typed decode to re-serialize from (an id is a fixed-width
+			// record, a runtime slot is opaque), so their element region round-trips as raw bytes.
+			ElementType.ID, ElementType.U64 ->
+				writer.writeBytes(rawSlice(section)!!.copyOf(elementCount * section.element.size))
 		}
 		return writer.toByteArray()
 	}
