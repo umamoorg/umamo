@@ -86,6 +86,7 @@
 	     per-item diagnostics; %1$s in the weld line is the affected drawable names. -->
 	<string name="export_report_message">The file was exported, but the following could not be carried into CMO3:</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
+	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and reopens correctly in Umamo, but it will NOT render in the Cubism Editor.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export a file Cubism can display.</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">Could not read %1$s.</string>

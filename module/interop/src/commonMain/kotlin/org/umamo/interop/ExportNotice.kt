@@ -31,6 +31,21 @@ sealed interface ExportNotice {
 	 * @property List drawableNames The affected drawables' display names.
 	 */
 	data class WeldDivergence(val drawableNames: List<String>) : ExportNotice
+
+	/**
+	 * The document has no source artwork, so the CMO3 was built around a fabricated one.
+	 *
+	 * A CMO3 is organised around the layered art it was imported from; a MOC3 carries only packed
+	 * atlas pages, so the export reconstructs a stand-in source document by slicing each drawable's
+	 * patch back out of the atlas.  The result opens in the official Cubism Editor with the right
+	 * hierarchy, parameters, and atlas, but the puppet does NOT render there - a documented
+	 * functionality gap that reconciling the ORIGINAL layered art (PSD/CLIP/KRA) into the document
+	 * resolves.  The export still writes: the file is a faithful carrier of the rig, and Umamo
+	 * itself reads it back losslessly.
+	 *
+	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
+	 */
+	data class MissingSourceArt(val pageCount: Int) : ExportNotice
 }
 
 /**

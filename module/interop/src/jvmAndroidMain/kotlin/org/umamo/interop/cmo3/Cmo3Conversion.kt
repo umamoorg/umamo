@@ -3,6 +3,7 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.roundToInt
@@ -105,6 +106,10 @@ public object Cmo3Conversion {
 			binding?.let { resolved -> bindings[drawable.id.raw] = resolved }
 		}
 		val report = Cmo3Export.apply(puppet, model, bindings)
-		return Result(model, report)
+		// Every fresh-graph export is by definition source-art-less - the stand-in document above is
+		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
+		// per-entity findings.  It is the one finding that explains why the file will not render in
+		// the official editor, which no amount of per-drawable detail would tell the user.
+		return Result(model, Cmo3ExportReport(listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
 	}
 }

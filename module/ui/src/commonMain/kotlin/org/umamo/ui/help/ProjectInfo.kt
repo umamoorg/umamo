@@ -8,7 +8,7 @@ package org.umamo.ui.help
  * second definition.
  */
 internal object ProjectInfo {
-	const val VERSION = "0.1.0-dev"
+	const val VERSION = "0.2.0-dev"
 	const val WEB_SITE_URL = "https://umamo.org"
 	const val SOURCE_CODE_URL = "https://github.com/umamoorg/umamo"
 	const val DOCUMENTATION_URL = "https://docs.umamo.org/"

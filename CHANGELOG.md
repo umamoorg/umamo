@@ -2,9 +2,28 @@
 
 All notable changes to Umamo will be documented in this file.
 
-Umamo is early alpha.  Entries are grouped under the version they ship in; sections predating the first tagged release are still grouped by date range.
+Umamo is early alpha.
 
-## [Unreleased]
+## 0.2.0-dev - 2026-08-03
+
+### Added
+
+* CMO3 export: Alpha level support of writing Cubism 5.4 compliant CMO3 files.
+* MOC3 to CMO3 conversion: Development level support of writing Cubism 5.4 complient CMO3 files converted from MOC3.  Source artwork reconciliation is not implemented yet so converted files will not display textures in the official Cubism editor.
+* New :interop module that serves as the import and exporting interoperability border between the :format and :runtime modules.
+* Keyform Sheet: New editor area for editing key forms and blend shapes for all keyable properties.
+* Document > Runtime Target selection: Can now select the runtime target for the puppet including Ayagami and Cubism 3.0 through 5.4.  Selecting a target will automatically hide features in the UI that are not available for that runtime.
+* Right-click context menu(Cut/Copy/Paste/Select All) on text input fields throughout the UI.  This replaces the built-in Compose menu that was blocking some context menus.
+* Viewport rendering settings: Super sampling options to toggle off for performance improvements.
+
+### Changed
+
+* Properties Panel: Expanded and updated for the Keyform Sheet.  Missing properties implemented and the ability to hover over a property then press a shortcut to key it was added.
+
+### Fixes
+
+* Dragging a panel splitter gutter no longer lags out and fails to work on slow systems.  This was due to an issue with how the movement input was accumulated.
+* Dragging a panel splitter gutter only writes up the layout settings after a debounce period.
 
 ## 0.1.0-dev - 2026-07-27
 

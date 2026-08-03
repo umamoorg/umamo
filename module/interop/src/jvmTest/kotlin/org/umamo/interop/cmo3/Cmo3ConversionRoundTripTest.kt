@@ -87,14 +87,23 @@ class Cmo3ConversionRoundTripTest {
 				nowMillis = 1_700_000_000_000L,
 				obfuscateKey = 0x5EEDBEEF,
 			)
+		// Every MOC3-origin conversion MUST warn that it has no source artwork - that is the one
+		// notice explaining why the file will not render in the official editor, so its absence is
+		// as much a defect as a spurious notice would be.
+		if (result.report.notices.none { notice -> notice is ExportNotice.MissingSourceArt }) {
+			failures.add("$label: missing the MissingSourceArt notice")
+		}
 		// Documented residues may notice: the world origin (moc stores one; CMO3 derives the canvas
 		// center) and part statics shadowed by their keyform tracks (import re-derives from the
 		// first form, so a disagreeing static cannot be stored independently).
 		result.report.notices.filterNot { notice ->
-			notice is ExportNotice.UnsupportedChange &&
+			notice is ExportNotice.MissingSourceArt ||
 				(
-					(notice.category == "document" && "origin" in notice.detail) ||
-						(notice.category == "part" && "shadowed" in notice.detail)
+					notice is ExportNotice.UnsupportedChange &&
+						(
+							(notice.category == "document" && "origin" in notice.detail) ||
+								(notice.category == "part" && "shadowed" in notice.detail)
+						)
 				)
 		}.forEach { notice ->
 			failures.add("$label: unexpected notice $notice")

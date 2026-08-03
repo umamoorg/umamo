@@ -476,6 +476,8 @@ private fun exportReportMessage(report: Cmo3ExportReport): String {
 				lines.add("• [${notice.category}] ${notice.subject}: ${notice.detail}")
 			is ExportNotice.WeldDivergence ->
 				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))
+			is ExportNotice.MissingSourceArt ->
+				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
 		}
 	}
 	return lines.joinToString("\n")

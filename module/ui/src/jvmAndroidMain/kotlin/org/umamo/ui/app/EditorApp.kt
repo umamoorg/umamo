@@ -497,6 +497,9 @@ private fun describeExportNotice(notice: ExportNotice): String =
 	when (notice) {
 		is ExportNotice.UnsupportedChange -> "[${notice.category}] ${notice.subject}: ${notice.detail}"
 		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
+		is ExportNotice.MissingSourceArt ->
+			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s); " +
+				"it will not render in the Cubism Editor until the original layered art is reconciled in"
 	}
 
 /**
