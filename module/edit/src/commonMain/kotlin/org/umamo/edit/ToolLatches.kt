@@ -214,6 +214,32 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/**
+	 * The one modal transform operator currently running, whichever family latched it, or null.
+	 *
+	 * Safe to collapse the three into one answer because [clearTransient] runs at every latch site, so at
+	 * most one is ever non-null.  A plain getter rather than a combined StateFlow: the callers that want
+	 * "is any transform running" read it at an instant (the shell's key ladder) and never observe it, so a
+	 * combine would advertise a reactivity nobody consumes.
+	 */
+	val activeOperator: ActiveOperator?
+		get() = activeMeshOperator.value ?: activeObjectOperator.value ?: activeUvOperator.value
+
+	/**
+	 * Clears whichever operator family is running, if any.
+	 *
+	 * Dispatches to that family's own clear rather than blanking all three: only [clearMeshOperator]
+	 * resets the proportional-suppression flag, so a three-way blank would quietly change the duplicate
+	 * and rip auto-grab behavior.
+	 */
+	fun clearActiveOperator() {
+		when {
+			mutableActiveMeshOperator.value != null -> clearMeshOperator()
+			mutableActiveObjectOperator.value != null -> clearObjectOperator()
+			mutableActiveUvOperator.value != null -> clearUvOperator()
+		}
+	}
+
+	/**
 	 * Arms the Box-select tool (the caller has already checked the mode preconditions).
 	 *
 	 * @param String areaId The arming viewport's area id (only its overlay drives the drag).

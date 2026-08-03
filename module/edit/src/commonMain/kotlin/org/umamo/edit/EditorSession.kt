@@ -181,6 +181,24 @@ class EditorSession(
 	val activeUvOperator: StateFlow<ActiveOperator?> = latches.activeUvOperator
 
 	/**
+	 * The one modal transform operator running, from whichever of the three families latched it, or null.
+	 *
+	 * The families are mutually exclusive, so callers that only need to know whether SOME transform is in
+	 * flight - the shell's modal key ladder, deciding who owns Escape / Enter / the axis keys - ask this
+	 * instead of testing all three.  An instantaneous read, not a flow: see [ToolLatches.activeOperator].
+	 */
+	val activeOperator: ActiveOperator?
+		get() = latches.activeOperator
+
+	/**
+	 * Cancels whichever modal transform operator is running, if any - the family-agnostic counterpart to
+	 * [clearMeshOperator] / [clearObjectOperator] / [clearUvOperator].
+	 */
+	fun clearActiveOperator() {
+		latches.clearActiveOperator()
+	}
+
+	/**
 	 * The transient preview of which drawables an in-flight Object-mode circle stroke is painting, or null when
 	 * no stroke is live. The GPU-tint bridge overlays this on top of the committed [selection] so painted
 	 * drawables light up immediately without committing each frame (which would spam undo). Not snapshotted,

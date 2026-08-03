@@ -6,6 +6,7 @@ import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.SplitterDragCancelController
 import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.defaultLayout
 import kotlin.test.Test
@@ -36,7 +37,14 @@ class CommandTableOrderTest {
 	/** The shell-chrome table: overlay toggles, the drag cancels, workspace tab navigation. */
 	@Test
 	fun chromeTableIsComplete() {
-		val commands = chromeCommands(overlays(), AreaDragController(), RowDragCancelController(), workspaces())
+		val commands =
+			chromeCommands(
+				overlays(),
+				AreaDragController(),
+				SplitterDragCancelController(),
+				RowDragCancelController(),
+				workspaces(),
+			)
 		assertEquals(
 			listOf(
 				"palette.toggle",

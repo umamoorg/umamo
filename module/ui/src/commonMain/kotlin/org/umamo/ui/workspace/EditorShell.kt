@@ -158,6 +158,10 @@ fun EditorShell(
 	// branch would swallow it.  One pointer means at most one in-flight drag anywhere, so one slot serves
 	// every panel.
 	val rowDragCancel = remember { RowDragCancelController() }
+	// Shared with the area tree: a divider drag keeps its session inside the dragged SplitContainer, so
+	// while one is in flight that container parks its cancel here for the root Escape precedence to
+	// reach - the corner-drag equivalent of what dragController already exposes directly.
+	val splitterDragCancel = remember { SplitterDragCancelController() }
 	// The one in-flight relation pick (a Properties field's eyedropper), resolved by whichever surface the
 	// user clicks next - the viewport pick overlay or an outliner row - and cancelled by Escape.
 	val relationPick = remember { RelationPickController() }
@@ -190,7 +194,10 @@ fun EditorShell(
 	val service = LocalPuppetViewportService.current
 	val routing = remember { CommandRouting { hoveredSurfaces.lastTouched } }
 	DisposableEffect(commandRegistry, dragController) {
-		val cleanup = commandRegistry.registerAll(chromeCommands(overlays, dragController, rowDragCancel, workspaces))
+		val cleanup =
+			commandRegistry.registerAll(
+				chromeCommands(overlays, dragController, splitterDragCancel, rowDragCancel, workspaces),
+			)
 		onDispose { cleanup() }
 	}
 	DisposableEffect(commandRegistry) {
@@ -307,6 +314,7 @@ fun EditorShell(
 				LocalMenuBarController provides menuBarController,
 				LocalInlineEditController provides inlineEditController,
 				LocalRowDragCancel provides rowDragCancel,
+				LocalSplitterDragCancel provides splitterDragCancel,
 				LocalKeyableHover provides keyableHover,
 				LocalKeyformSheetViews provides keyformSheetViews,
 				LocalRelationPick provides relationPick,
@@ -340,18 +348,22 @@ fun EditorShell(
 							// does not consume falls through to the keymap + action registry.
 							.onPreviewKeyEvent { event ->
 								handleModalKeyLadder(
-									event = event,
-									overlays = overlays,
-									menuBarController = menuBarController,
-									inlineEditController = inlineEditController,
-									editorSession = editorSession,
-									selection = selection,
-									dragController = dragController,
-									rowDragCancel = rowDragCancel,
-									relationPick = relationPick,
-									keyformSheets = keyformSheetViews,
-									commandRegistry = commandRegistry,
-									keymap = keymap,
+									stroke = event.toShellKeyStroke(),
+									state =
+										ShellModalState(
+											overlays = overlays,
+											menuBarController = menuBarController,
+											inlineEditController = inlineEditController,
+											editorSession = editorSession,
+											selection = selection,
+											dragController = dragController,
+											splitterDragCancel = splitterDragCancel,
+											rowDragCancel = rowDragCancel,
+											relationPick = relationPick,
+											keyformSheets = keyformSheetViews,
+											commandRegistry = commandRegistry,
+											keymap = keymap,
+										),
 								)
 							},
 					color = LocalUmamoColors.current.windowBackground,

@@ -103,6 +103,32 @@ private fun SplitContainer(
 			}
 		}
 	}
+	// Park this drag's cancel where the shell's Escape precedence can reach it (see
+	// SplitterDragCancelController): the session below is remembered per container, so nothing outside
+	// this composable could otherwise abort a divider drag.  Cleared by identity rather than blindly,
+	// because nested splits mean sibling containers run this same effect and must not blank the
+	// dragging one's callback.
+	val splitterDragCancel = LocalSplitterDragCancel.current
+	val activeDragSession = dragSession
+	DisposableEffect(activeDragSession, splitterDragCancel) {
+		val cancelDrag: (() -> Unit)? =
+			if (activeDragSession == null) {
+				null
+			} else {
+				{
+					onNodeChange(activeDragSession.cancel())
+					currentOnSplitterDragChange(false)
+				}
+			}
+		if (cancelDrag != null) {
+			splitterDragCancel.cancel = cancelDrag
+		}
+		onDispose {
+			if (cancelDrag != null && splitterDragCancel.cancel === cancelDrag) {
+				splitterDragCancel.cancel = null
+			}
+		}
+	}
 	val first: @Composable () -> Unit = {
 		AreaTree(
 			node = node.first,
@@ -140,16 +166,22 @@ private fun SplitContainer(
 		}
 		val onDrag: (Float) -> Unit = { deltaPx ->
 			val activeSession = dragSession
-			val session =
-				if (activeSession != null && activeSession.ownsNode(node)) {
-					activeSession
-				} else {
-					// A structural edit rewrote the tree mid-drag (a keyboard command while holding
-					// the bar), or the start callback was missed: rebase a fresh session on the live
-					// node so the drag continues from the tree as it now stands.
-					SplitterDragSession(node, axisPx, minPx, splitterPx).also { rebased -> dragSession = rebased }
-				}
-			onNodeChange(session.accumulate(deltaPx))
+			// Escape already abandoned this drag and restored the starting ratio; swallow every further
+			// delta from the still-held pointer rather than rebasing, which would resume the drag.  The
+			// check precedes the ownsNode test so a structural edit landing after the cancel cannot
+			// resurrect it either.
+			if (activeSession == null || !activeSession.isCancelled) {
+				val session =
+					if (activeSession != null && activeSession.ownsNode(node)) {
+						activeSession
+					} else {
+						// A structural edit rewrote the tree mid-drag (a keyboard command while holding
+						// the bar), or the start callback was missed: rebase a fresh session on the live
+						// node so the drag continues from the tree as it now stands.
+						SplitterDragSession(node, axisPx, minPx, splitterPx).also { rebased -> dragSession = rebased }
+					}
+				onNodeChange(session.accumulate(deltaPx))
+			}
 		}
 		val onDragEnd: () -> Unit = {
 			dragSession = null
