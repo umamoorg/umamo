@@ -11,7 +11,6 @@ import org.umamo.format.cmo3.model.gen.Anisotropy
 import org.umamo.format.cmo3.model.gen.CBlend_Normal
 import org.umamo.format.cmo3.model.gen.CCachedImage
 import org.umamo.format.cmo3.model.gen.CCachedImageManager
-import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.CLayerGroup
 import org.umamo.format.cmo3.model.gen.CLayerIdentifier
@@ -66,13 +65,17 @@ import org.umamo.format.raster.RasterImage
  * dereference these, so a null is a hard failure, not a cosmetic gap.  The filter definition
  * guids are editor-static constants (identical uuids in every corpus file).
  *
- * The synthetic source doc is CANVAS-FRAME like the editor's own PSD docs (Erica's main doc is
- * exactly canvas-sized): CLayeredImage dims are the canvas, and each patch layer's bounds are
- * its canvas rect (the fit-mapped patch corners).  A page-frame doc makes the layer bounds
- * cancel against the entry's packing origin, which is exactly the meshes-at-assembled-positions
- * atlas-view symptom.  The patch pixels stay page-resolution; when the page-to-canvas fit is
- * not unit-scale the bounds size and the image size disagree - resampling the crops to canvas
- * resolution is the follow-up if that ever bites.
+ * The synthetic source doc is the ATLAS PAGE's own frame, mirroring how an official document's
+ * CLayeredImage carries the source PSD's size rather than the canvas
+ * (ModelWithOffscreenPartClipping: a 500x500 doc inside a 1000x2000 canvas - Erica's doc merely
+ * happens to equal its canvas).  A layer's placement is NOT in boundsOnImageDoc, which is all
+ * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
+ * CModelImage's _materialLocalToCanvasTransform.
+ *
+ * KNOWN GAP: the packing transform is written as position-only (scale 1, angle 0) while the
+ * fitted page-to-canvas affine may flip, scale, or shear - true for ~890 of LimeBirb's 972
+ * drawables.  For those the crop is an axis-aligned uv bbox described as if packed upright, so
+ * the atlas view mismaps them; only pure-translation packings (Erica) are currently faithful.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
@@ -415,13 +418,6 @@ internal object Cmo3ImageChainBuilder {
 		val pngEntries = ArrayList<Cmo3FreshFile.PngEntry>()
 		val bindingByDrawableId = HashMap<String, Cmo3DrawableTextureBinding>()
 		val pageFallbackBindings = ArrayList<Cmo3DrawableTextureBinding>(pages.size)
-		// The source docs live in the CANVAS frame like the editor's own PSD docs (Erica's main
-		// doc is exactly canvas-sized): doc dims are the canvas, and each patch layer's bounds
-		// are its CANVAS rect.  A page-frame doc makes the layer bounds cancel against the
-		// entry's packing origin, which is exactly the meshes-at-assembled-positions symptom.
-		val canvas = root.canvas as? CImageCanvas ?: error("skeleton has no canvas")
-		val canvasWidth = canvas.pixelWidth
-		val canvasHeight = canvas.pixelHeight
 		// The skeleton's three model icons take image.png / image_0.png / image_1.png, so page
 		// icon entries continue the editor's image_N naming from suffix 2.
 		var iconSuffix = 2
@@ -464,10 +460,11 @@ internal object Cmo3ImageChainBuilder {
 			layeredImage.apply {
 				name = pageName
 				memo = ""
-				// CMO3: CLayeredImage width/height - the CANVAS-frame doc dims (the editor's own
-				// main PSD doc is exactly canvas-sized; layer bounds below are canvas rects).
-				width = canvasWidth
-				height = canvasHeight
+				// CMO3: CLayeredImage width/height - the SOURCE document's own frame, unrelated to
+				// the canvas (ModelWithOffscreenPartClipping: a 500x500 doc in a 1000x2000 canvas).
+				// Our synthetic source document IS the atlas page, so the page dims are its frame.
+				width = page.width
+				height = page.height
 				// A rendered page has no source file on anyone's disk; the bare name is the honest
 				// breadcrumb (the editor stores the importing machine's absolute path here).
 				psdFile = FileRef().apply { textPath = pageName }
@@ -541,16 +538,6 @@ internal object Cmo3ImageChainBuilder {
 				val patchY0 = patch[1]
 				val cropWidth = patch[2] - patch[0]
 				val cropHeight = patch[3] - patch[1]
-				// The patch's CANVAS rect: both fit-mapped corners, normalized (the fit may flip an
-				// axis) and rounded - the frame the layer bounds live in.
-				val cornerAX = pageFit.m00 * patchX0 + pageFit.m01 * patchY0 + pageFit.m02
-				val cornerAY = pageFit.m10 * patchX0 + pageFit.m11 * patchY0 + pageFit.m12
-				val cornerBX = pageFit.m00 * patch[2] + pageFit.m01 * patch[3] + pageFit.m02
-				val cornerBY = pageFit.m10 * patch[2] + pageFit.m11 * patch[3] + pageFit.m12
-				val canvasBoundsX = kotlin.math.round(minOf(cornerAX, cornerBX)).toInt()
-				val canvasBoundsY = kotlin.math.round(minOf(cornerAY, cornerBY)).toInt()
-				val canvasBoundsWidth = kotlin.math.round(kotlin.math.abs(cornerBX - cornerAX)).toInt().coerceAtLeast(1)
-				val canvasBoundsHeight = kotlin.math.round(kotlin.math.abs(cornerBY - cornerAY)).toInt().coerceAtLeast(1)
 				val fitBits =
 					floatArrayOf(pageFit.m00, pageFit.m01, pageFit.m02, pageFit.m10, pageFit.m11, pageFit.m12)
 						.joinToString(":") { component -> component.toRawBits().toString() }
@@ -582,16 +569,10 @@ internal object Cmo3ImageChainBuilder {
 								_optionOfIOption = sharedOptions
 								_layeredImage = layeredImage
 								imageResource = cropResource
-								// CMO3: CLayer field boundsOnImageDoc - the layer's CANVAS rect, like
-								// official PSD layers; a page-frame rect here cancels against the
-								// entry's packing origin and meshes land at assembled positions.
-								boundsOnImageDoc =
-									CRect().apply {
-										x = canvasBoundsX
-										y = canvasBoundsY
-										width = canvasBoundsWidth
-										height = canvasBoundsHeight
-									}
+								// CMO3: CLayer field boundsOnImageDoc - ALL ZERO on every corpus layer
+								// (883 of 883, every file and era).  The layer's placement lives on
+								// its CModelImage's _materialLocalToCanvasTransform, not here.
+								boundsOnImageDoc = CRect()
 								layerIdentifier =
 									CLayerIdentifier().apply {
 										layerName = region.drawableIdStr

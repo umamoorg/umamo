@@ -232,7 +232,17 @@ fun EditorApp(
 				// Reconcile the session's CURRENT model - the document's own puppet is the original
 				// import and never sees edits.  The report carries everything the lowering could not
 				// persist; it is surfaced, never silently swallowed.
-				val edited = session?.model?.value ?: puppetDocument.puppet
+				//
+				// The session must be THIS document's: one desync was observed (2026-08-03) where a
+				// second MOC3 exported the first model's rig onto the second's atlas pages, which
+				// reads as a wall of drawable notices plus the wrong hierarchy in the output.  A
+				// mismatched session is dropped rather than trusted - exporting the unedited document
+				// is recoverable, exporting another model's rig is not.
+				val documentSession = session?.takeIf { it.baselineModel === puppetDocument.puppet }
+				if (session != null && documentSession == null) {
+					UmamoLog.error("export: session does not belong to ${puppetDocument.displayName}; exporting the unedited document")
+				}
+				val edited = documentSession?.model?.value ?: puppetDocument.puppet
 				val (model, report) =
 					when (puppetDocument) {
 						// A CMO3-origin document reconciles onto its retained graph.
@@ -341,7 +351,9 @@ fun EditorApp(
 			commandRegistry.unregister("logs.export")
 		}
 	}
-	DisposableEffect(commandRegistry, document) {
+	// Keyed on the session as well as the document: the handler closes over BOTH, so re-registering
+	// on either change keeps the pair the export reconciles from consistent by construction.
+	DisposableEffect(commandRegistry, document, session) {
 		// Both puppet document kinds export: CMO3-origin reconciles onto its retained graph,
 		// MOC3-origin synthesizes a fresh one.
 		val exportableDocument = document as? PuppetDocument

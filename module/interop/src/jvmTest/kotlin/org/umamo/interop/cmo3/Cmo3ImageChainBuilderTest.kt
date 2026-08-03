@@ -184,24 +184,25 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(2f, entryPlacement.m00, 1e-4f, "entry placement matches the fit")
 		assertEquals(10f, entryPlacement.m12, 1e-3f, "entry placement matches the fit")
 
-		// The layer's bounds are the patch's CANVAS rect: fit-mapped corners (7,6) and (11,2),
-		// normalized across the y flip.
+		// The synthetic source doc is the PAGE's frame (official docs carry the source image's own
+		// size, not the canvas), and the layer's boundsOnImageDoc stays all-zero like every corpus
+		// layer - placement lives on the model image's _materialLocalToCanvasTransform.
 		val layeredImage =
 			Cmo3Import.elementsOf(textureManager._rawImages)
 				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
 				.single()
 				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
-		assertEquals(100, layeredImage.width, "doc width is the canvas")
-		assertEquals(100, layeredImage.height, "doc height is the canvas")
+		assertEquals(pageSize, layeredImage.width, "doc width is the page")
+		assertEquals(pageSize, layeredImage.height, "doc height is the page")
 		val patchLayer =
 			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
 				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
 				.single()
 		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
-		assertEquals(7, bounds.x, "canvas bounds x")
-		assertEquals(2, bounds.y, "canvas bounds y (flip-normalized)")
-		assertEquals(4, bounds.width, "canvas bounds width")
-		assertEquals(4, bounds.height, "canvas bounds height")
+		assertEquals(0, bounds.x, "boundsOnImageDoc is all zero, like official")
+		assertEquals(0, bounds.y, "boundsOnImageDoc is all zero, like official")
+		assertEquals(0, bounds.width, "boundsOnImageDoc is all zero, like official")
+		assertEquals(0, bounds.height, "boundsOnImageDoc is all zero, like official")
 
 		// The crop PNG is the page subregion (x 2..4, y 4..8).
 		val cropEntry = chain.pngEntries.single { pngEntry -> pngEntry.path == "imageFileBuf_0.png" }
