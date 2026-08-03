@@ -10,7 +10,6 @@ import org.umamo.edit.PieMenuKind
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.resources.*
-import org.umamo.ui.workspace.SpaceKind
 
 /**
  * The topology operators (Blender's Shift+D / M / V / J).  Duplicate dispatches by mode like G / S / R
@@ -31,22 +30,18 @@ internal fun topologyCommands(
 		Command("mesh.duplicate", title = Res.string.cmd_mesh_duplicate, availability = availability.hasDocument) {
 			val live = editorSession
 			if (live != null) {
+				// The duplicate itself needs no area - it is a model edit - so it runs wherever the pointer
+				// is.  Only the auto-grab needs a viewport, and it simply does not happen when the pointer
+				// is on a UV editor or a panel: starting a grab in an area the user is not pointing at is
+				// worse than leaving the copies where they landed for an explicit one.  Both modes now read
+				// the same rule from viewportArea(), which is null off a viewport.
 				if (live.mode.value == EditorMode.Edit) {
 					live.duplicateSelectedElements()
-					// The auto-grab places the fresh copies; proportional weights would drag the
-					// original vertices around them, so the latch opts out (Blender parity).  The
-					// duplicate itself never depends on a viewport - only the grab needs one, so a
-					// hovered UV editor skips it (an auto-grab of rest positions over fresh topology
-					// is meaningless there; the copies stay put for an explicit grab instead).
-					if (!routing.isHovering(SpaceKind.UvEditor)) {
-						routing.viewportArea()?.let { areaId ->
-							live.beginMeshOperator(MeshOperatorKind.Grab, areaId, suppressProportional = true)
-						}
+					// Proportional weights would drag the ORIGINAL vertices along with the fresh copies, so
+					// the auto-grab latch opts out of them (Blender parity).
+					routing.viewportArea()?.let { areaId ->
+						live.beginMeshOperator(MeshOperatorKind.Grab, areaId, suppressProportional = true)
 					}
-					// The Object branch deliberately does NOT check the hovered surface the way the Edit one
-					// above does: duplicating drawables over a hovered UV editor still auto-grabs them in the
-					// pointer's last viewport.  Preserved as-is - reconciling the two is a behavior decision,
-					// not a tidy-up.
 				} else if (live.duplicateSelectedDrawables().isNotEmpty()) {
 					routing.viewportArea()?.let { areaId -> live.beginObjectOperator(MeshOperatorKind.Grab, areaId) }
 				}
@@ -74,7 +69,7 @@ internal fun topologyCommands(
 				CommandAvailability {
 					editorSession?.mode?.value == EditorMode.Edit && editorSession.meshSelection.value.selectMode != MeshSelectMode.Face
 				},
-		) { editorSession?.requestRip() },
+		) { editorSession?.requestRip(routing.viewportArea()) },
 		Command("mesh.connect", title = Res.string.cmd_mesh_connect, availability = availability.inEditMode) {
 			editorSession?.connectSelectedVertices()
 		},

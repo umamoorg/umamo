@@ -357,9 +357,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
  * ANOTHER area does not block: its events never reach here, so this area keeps panning and zooming during
  * it (Blender parity).
  *
- * This loop deliberately stamps NEITHER pointer resolver.  The hovered surface is stamped by the hosting
- * leaf, for every space alike (see stampsHoveredSurface); service.activeAreaId stays a 2D-viewport-only
- * election, which is what keeps the dispatch-time object / select latch contract intact.
+ * This loop stamps nothing about where the pointer is: the hovered surface is stamped by the hosting
+ * leaf, for every space alike (see stampsHoveredSurface).
  *
  * @param EditorSession session The session whose latches gate this layer.
  * @param PuppetViewportService service The render service whose per-area camera this drives.

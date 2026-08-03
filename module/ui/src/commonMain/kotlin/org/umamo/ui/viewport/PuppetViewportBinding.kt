@@ -439,10 +439,9 @@ fun rememberPuppetViewportHost(
  * @param String areaId The area this viewport hosts.
  * @param EditorSession session The session whose armed tools gate this layer.
  * @param Function setPanning Reports whether a middle-mouse pan is in progress (drives the grab cursor).
- * @note The space-aware hovered-surface stamp is NOT here - every workspace leaf carries it (see
- *   stampsHoveredSurface).  What stays here is activeAreaId, whose domain is narrower on purpose: it
- *   means "the last 2D VIEWPORT the pointer addressed", and the object / select-tool latches resolve
- *   through it.
+ * @note This loop stamps NOTHING about where the pointer is.  Every workspace leaf carries that (see
+ *   stampsHoveredSurface), and commands resolve their area from it at dispatch; a viewport-only second
+ *   answer used to live here and could disagree with the first, so it was retired.
  */
 private suspend fun PointerInputScope.viewportNavigation(
 	service: PuppetViewportService,
@@ -455,11 +454,6 @@ private suspend fun PointerInputScope.viewportNavigation(
 		while (true) {
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
-			// The Exit guard belongs to activeAreaId alone now: leaving a viewport must not un-elect it,
-			// since the latches it feeds outlive the pointer wandering onto a panel.
-			if (event.type != PointerEventType.Exit) {
-				service.activeAreaId = areaId
-			}
 			// THIS AREA'S modal operator (G / S / R), armed Box / Circle select tool, or armed Zoom Region
 			// - or an in-flight un-armed box drag (area-less: pointer capture pins its events to the
 			// dragging overlay) - owns the pointer: the overlay above consumes the event, but this
@@ -467,7 +461,7 @@ private suspend fun PointerInputScope.viewportNavigation(
 			// otherwise a Circle MMB-erase would also pan, its wheel-resize would also zoom, and an
 			// object G / S / R grab would pan.  A gesture latched in ANOTHER area does not block: its
 			// events never reach here, so this area keeps panning and zooming during it (Blender
-			// parity).  activeAreaId is still updated above so keyboard view commands target here.
+			// parity).
 			if (session.activeMeshOperator.value?.areaId == areaId ||
 				session.activeObjectOperator.value?.areaId == areaId ||
 				session.activeSelectTool.value?.areaId == areaId ||

@@ -29,8 +29,7 @@ class CommandRoutingTest {
 	private val uvArea = "uv-1"
 	private val sheetArea = "sheet-1"
 
-	private fun routing(hovered: HoveredSurface?, viewport: String? = viewportArea): CommandRouting =
-		CommandRouting({ hovered }, { viewport })
+	private fun routing(hovered: HoveredSurface?): CommandRouting = CommandRouting { hovered }
 
 	private fun meshDrawable(): Drawable =
 		Drawable(
@@ -93,9 +92,9 @@ class CommandRoutingTest {
 	 * Every space kind resolves, not just the three that happen to stamp the tracker today.
 	 *
 	 * Swept over [SpaceKind.entries] rather than a hand-picked sample so a tenth kind cannot be added
-	 * without deciding what routing does with it: the UV editor is the ONE kind that changes the answer,
-	 * and every other kind - camera-bearing or not, stamped or not - must resolve its own id and fall
-	 * through to the pointer's viewport for a transform.
+	 * without deciding what routing does with it: every kind names its own area and only its own, and
+	 * exactly two - the 2D viewport and the UV editor - can host a transform.  The remaining seven resolve
+	 * nothing, which is what makes a key pressed over a panel do nothing instead of acting elsewhere.
 	 */
 	@Test
 	fun everySpaceKindResolves() {
@@ -109,11 +108,13 @@ class CommandRoutingTest {
 				assertNull(routing.areaOf(other), "a hovered ${kind.name} must not answer as ${other.name}")
 			}
 
+			// Exactly two kinds can host a transform, and each hosts it in ITS OWN area; the other seven
+			// resolve nothing rather than reaching back to a viewport the pointer has left.
 			val expectedTarget =
-				if (kind == SpaceKind.UvEditor) {
-					TransformTarget.Uv(areaId)
-				} else {
-					TransformTarget.Viewport(viewportArea)
+				when (kind) {
+					SpaceKind.UvEditor -> TransformTarget.Uv(areaId)
+					SpaceKind.Viewport2D -> TransformTarget.Viewport(areaId)
+					else -> null
 				}
 			assertEquals(expectedTarget, routing.transformTarget(), "${kind.name} transform target")
 		}
@@ -150,18 +151,24 @@ class CommandRoutingTest {
 		val routing = routing(HoveredSurface(uvArea, SpaceKind.UvEditor))
 		assertNull(routing.selectToolArea(session(EditorMode.Object)), "Object mode over a UV editor arms nothing")
 		assertNull(routing.selectToolArea(null), "no document arms nothing")
-		// The fixture's viewport is live, so a fallback would have been visible rather than vacuously null.
-		assertEquals(viewportArea, routing.viewportArea())
+		// Not vacuous: the same routing DOES arm in Edit mode, so the nulls above are the mode gate talking.
+		assertEquals(uvArea, routing.selectToolArea(session(EditorMode.Edit)))
 	}
 
-	/** Every other hovered surface - and none at all - arms in the pointer's 2D viewport. */
+	/**
+	 * A select tool arms in the hovered VIEWPORT and nowhere else.
+	 *
+	 * There is no "last viewport" fallback: a marquee is a pointer gesture, so arming one in an area the
+	 * pointer is not over would latch a tool the user cannot drive, exactly as it would in a UV editor
+	 * outside Edit mode.
+	 */
 	@Test
-	fun selectToolFallsBackToTheActiveViewport() {
+	fun selectToolArmsOnlyInAHoveredViewport() {
 		val editing = session(EditorMode.Edit)
 		assertEquals(viewportArea, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)).selectToolArea(editing))
-		assertEquals(viewportArea, routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).selectToolArea(editing))
-		assertEquals(viewportArea, routing(null).selectToolArea(editing))
-		assertNull(routing(null, viewport = null).selectToolArea(editing), "no viewport ever touched arms nothing")
+		assertNull(routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).selectToolArea(editing))
+		assertNull(routing(HoveredSurface("outliner-1", SpaceKind.Outliner)).selectToolArea(editing))
+		assertNull(routing(null).selectToolArea(editing), "nothing hovered arms nothing")
 	}
 
 	/**
@@ -174,31 +181,39 @@ class CommandRoutingTest {
 		assertEquals(TransformTarget.Uv(uvArea), routing(HoveredSurface(uvArea, SpaceKind.UvEditor)).transformTarget())
 	}
 
-	/** Anything else resolves to the pointer's viewport, and nothing at all resolves to nothing. */
+	/**
+	 * A transform runs in the hovered viewport, and in no viewport at all when the pointer is elsewhere.
+	 *
+	 * The hovered viewport's OWN id is what comes back - the property the retired second resolver could not
+	 * guarantee, since it remembered the last viewport touched rather than the one under the pointer.
+	 */
 	@Test
-	fun transformFallsBackToTheActiveViewport() {
-		assertEquals(TransformTarget.Viewport(viewportArea), routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)).transformTarget())
+	fun transformRunsOnlyWhereThePointerIs() {
+		val secondViewport = "viewport-2"
 		assertEquals(
-			TransformTarget.Viewport(viewportArea),
-			routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).transformTarget(),
-			"a keyform sheet has no transform of its own, so the gesture runs in the pointer's viewport",
+			TransformTarget.Viewport(secondViewport),
+			routing(HoveredSurface(secondViewport, SpaceKind.Viewport2D)).transformTarget(),
+			"the hovered viewport, not whichever one was touched first",
 		)
-		assertNull(routing(null, viewport = null).transformTarget(), "no viewport and no UV editor is nowhere to run it")
+		assertNull(
+			routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).transformTarget(),
+			"a keyform sheet hosts no transform, and must not hand the gesture to a viewport",
+		)
+		assertNull(routing(HoveredSurface("logs-1", SpaceKind.Logs)).transformTarget())
+		assertNull(routing(null).transformTarget(), "nothing hovered is nowhere to run it")
 	}
 
 	/**
-	 * Both resolvers are read on every call, never sampled once.  A routing instance outlives the document
-	 * swaps that replace the render service, so a captured answer would go permanently stale.
+	 * The resolver is read on every call, never sampled once.  A routing instance outlives the document
+	 * swaps and area edits that move the pointer, so a captured answer would go permanently stale.
 	 */
 	@Test
-	fun resolversAreReadPerCall() {
+	fun theResolverIsReadPerCall() {
 		var hovered: HoveredSurface? = HoveredSurface(uvArea, SpaceKind.UvEditor)
-		var viewport: String? = null
-		val routing = CommandRouting({ hovered }, { viewport })
+		val routing = CommandRouting { hovered }
 		assertEquals(TransformTarget.Uv(uvArea), routing.transformTarget())
 
 		hovered = HoveredSurface(viewportArea, SpaceKind.Viewport2D)
-		viewport = viewportArea
 		assertEquals(TransformTarget.Viewport(viewportArea), routing.transformTarget(), "the second call saw the new pointer state")
 	}
 }

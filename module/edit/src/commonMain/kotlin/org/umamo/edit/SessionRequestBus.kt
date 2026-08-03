@@ -11,16 +11,13 @@ import kotlinx.coroutines.flow.asSharedFlow
  * session cannot execute it directly; it signals here and the observing overlay executes.  Pure
  * plumbing with no other session state involved, hence a separate collaborator; [EditorSession]
  * exposes each flow and request method unchanged.
- *
- * セッションのリクエストバス。ポインタ位置や投影ジオメトリを持つオーバーレイへ向けた発火信号で、
- * セッション自身は実行できない操作をここで通知する。
  */
 
 internal class SessionRequestBus {
-	private val mutableSnapRequests = MutableSharedFlow<SnapKind>(extraBufferCapacity = 4)
+	private val mutableSnapRequests = MutableSharedFlow<SnapRequest>(extraBufferCapacity = 4)
 
 	/** The geometry-dependent snap requests (see [EditorSession.snapRequests]). */
-	val snapRequests: SharedFlow<SnapKind> = mutableSnapRequests.asSharedFlow()
+	val snapRequests: SharedFlow<SnapRequest> = mutableSnapRequests.asSharedFlow()
 
 	private val mutableSelectLinkedRequests = MutableSharedFlow<SelectLinkedRequest>(extraBufferCapacity = 4)
 
@@ -32,15 +29,15 @@ internal class SessionRequestBus {
 	/** The UV editor snap requests (see [EditorSession.uvSnapRequests]). */
 	val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
 
-	private val mutableSwitchObjectRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+	private val mutableSwitchObjectRequests = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 
-	/** The Alt+Q edited-mesh switch requests (see [EditorSession.switchObjectRequests]). */
-	val switchObjectRequests: SharedFlow<Unit> = mutableSwitchObjectRequests.asSharedFlow()
+	/** The Alt+Q edited-mesh switch requests, each carrying its executing area (see [EditorSession.switchObjectRequests]). */
+	val switchObjectRequests: SharedFlow<String?> = mutableSwitchObjectRequests.asSharedFlow()
 
-	private val mutableRipRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+	private val mutableRipRequests = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 
-	/** The rip-at-pointer requests (see [EditorSession.ripRequests]). */
-	val ripRequests: SharedFlow<Unit> = mutableRipRequests.asSharedFlow()
+	/** The rip-at-pointer requests, each carrying its executing area (see [EditorSession.ripRequests]). */
+	val ripRequests: SharedFlow<String?> = mutableRipRequests.asSharedFlow()
 
 	private val mutableMeshConfirm = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -55,10 +52,10 @@ internal class SessionRequestBus {
 	/**
 	 * Requests a geometry-dependent snap.
 	 *
-	 * @param SnapKind kind The snap to perform.
+	 * @param SnapRequest request The snap to perform plus the dispatch-time resolved area.
 	 */
-	fun requestSnap(kind: SnapKind) {
-		mutableSnapRequests.tryEmit(kind)
+	fun requestSnap(request: SnapRequest) {
+		mutableSnapRequests.tryEmit(request)
 	}
 
 	/**
@@ -79,14 +76,22 @@ internal class SessionRequestBus {
 		mutableUvSnapRequests.tryEmit(request)
 	}
 
-	/** Requests an Alt+Q edited-mesh switch. */
-	fun requestSwitchObjectUnderCursor() {
-		mutableSwitchObjectRequests.tryEmit(Unit)
+	/**
+	 * Requests an Alt+Q edited-mesh switch for one area's overlay to execute.
+	 *
+	 * @param String? areaId The dispatch-time resolved viewport area, or null when the pointer is elsewhere.
+	 */
+	fun requestSwitchObjectUnderCursor(areaId: String?) {
+		mutableSwitchObjectRequests.tryEmit(areaId)
 	}
 
-	/** Requests a rip at the pointer. */
-	fun requestRip() {
-		mutableRipRequests.tryEmit(Unit)
+	/**
+	 * Requests a rip at the pointer for one area's overlay to execute.
+	 *
+	 * @param String? areaId The dispatch-time resolved viewport area, or null when the pointer is elsewhere.
+	 */
+	fun requestRip(areaId: String?) {
+		mutableRipRequests.tryEmit(areaId)
 	}
 
 	/** Requests that the gizmo overlay confirm the in-flight modal gesture. */
@@ -123,3 +128,19 @@ data class SelectLinkedRequest(val fromSelection: Boolean, val areaId: String?)
  *   was not a UV editor (then no collector matches and the request is a clean no-op).
  */
 data class UvSnapRequest(val kind: UvSnapKind, val areaId: String?)
+
+/**
+ * One world-space snap request: which operation, and which viewport area's overlay executes it.  The area
+ * is resolved ONCE at command dispatch (the hovered surface at that instant) and carried in the payload,
+ * exactly like [SelectLinkedRequest] and [UvSnapRequest].
+ *
+ * The handlers ignore the area - a snap acts on the model, not on one viewport - so its only job here is
+ * ELECTION: every open viewport composes a collector, and without an id in the payload each would have to
+ * read a shared volatile to decide whether it is the one, which can double- or zero-execute when the
+ * pointer crosses areas between resumptions.
+ *
+ * @property SnapKind kind The snap operation to perform.
+ * @property String? areaId The viewport area whose overlay executes, or null when the pointer is not on a
+ *   viewport (then no collector matches and the request is a clean no-op).
+ */
+data class SnapRequest(val kind: SnapKind, val areaId: String?)

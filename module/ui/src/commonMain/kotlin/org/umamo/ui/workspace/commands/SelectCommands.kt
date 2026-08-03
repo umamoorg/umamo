@@ -98,6 +98,6 @@ internal fun selectCommands(
 			editorSession?.requestSelectLinked(fromSelection = true, areaId = routing.hoveredAreaIdAnyKind())
 		},
 		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode) {
-			editorSession?.requestSwitchObjectUnderCursor()
+			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)

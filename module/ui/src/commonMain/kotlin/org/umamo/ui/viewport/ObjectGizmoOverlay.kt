@@ -418,12 +418,13 @@ fun ObjectGizmoOverlay(
 	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' centroids.
 	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
 	// ungated request would commit once per viewport.
+	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
 	LaunchedEffect(session) {
-		session.snapRequests.collect { kind ->
-			if (session.mode.value != EditorMode.Object || service.activeAreaId != areaId) {
+		session.snapRequests.collect { request ->
+			if (session.mode.value != EditorMode.Object || request.areaId != areaId) {
 				return@collect
 			}
-			handleObjectSnapRequest(session, kind)
+			handleObjectSnapRequest(session, request.kind)
 		}
 	}
 

@@ -1415,16 +1415,20 @@ class EditorSession(
 	 * overlays, not here (the same division as [meshConfirmRequests]).  The purely arithmetical snaps
 	 * (cursor to world origin / to grid) never pass through - their command handlers set the cursor
 	 * directly.
+	 *
+	 * The payload carries the dispatch-time resolved area (see [SnapRequest]) purely to elect ONE of the
+	 * open viewports; the handlers themselves ignore it.
 	 */
-	val snapRequests: SharedFlow<SnapKind> = requestBus.snapRequests
+	val snapRequests: SharedFlow<SnapRequest> = requestBus.snapRequests
 
 	/**
 	 * Requests a geometry-dependent snap (see [snapRequests]).
 	 *
 	 * @param SnapKind kind The snap to perform.
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
 	 */
-	fun requestSnap(kind: SnapKind) {
-		requestBus.requestSnap(kind)
+	fun requestSnap(kind: SnapKind, areaId: String?) {
+		requestBus.requestSnap(SnapRequest(kind, areaId))
 	}
 
 	/**
@@ -1468,25 +1472,35 @@ class EditorSession(
 	/**
 	 * Fires "switch the edited mesh to the drawable under the cursor" (Alt+Q) for the Edit overlay to
 	 * execute - the pointer position and the pick live there (the same division as
-	 * [selectLinkedRequests]).
+	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on
+	 * its own id rather than re-reading a pointer-side volatile at collect time.
 	 */
-	val switchObjectRequests: SharedFlow<Unit> = requestBus.switchObjectRequests
+	val switchObjectRequests: SharedFlow<String?> = requestBus.switchObjectRequests
 
-	/** Requests an Alt+Q edited-mesh switch (see [switchObjectRequests]). */
-	fun requestSwitchObjectUnderCursor() {
-		requestBus.requestSwitchObjectUnderCursor()
+	/**
+	 * Requests an Alt+Q edited-mesh switch (see [switchObjectRequests]).
+	 *
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
+	 */
+	fun requestSwitchObjectUnderCursor(areaId: String?) {
+		requestBus.requestSwitchObjectUnderCursor(areaId)
 	}
 
 	/**
 	 * Fires a rip (Blender's V) for the Edit overlay to execute: which side of the fan follows the
 	 * ripped copies depends on the pointer, which lives with the overlay (the same division as
-	 * [selectLinkedRequests]).
+	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on
+	 * its own id rather than re-reading a pointer-side volatile at collect time.
 	 */
-	val ripRequests: SharedFlow<Unit> = requestBus.ripRequests
+	val ripRequests: SharedFlow<String?> = requestBus.ripRequests
 
-	/** Requests a rip at the pointer (see [ripRequests]). */
-	fun requestRip() {
-		requestBus.requestRip()
+	/**
+	 * Requests a rip at the pointer (see [ripRequests]).
+	 *
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
+	 */
+	fun requestRip(areaId: String?) {
+		requestBus.requestRip(areaId)
 	}
 
 	/**

@@ -92,6 +92,9 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Improvements
 	* Search in header.
 
+## Workspace
+* Menu: Add Previous/Next workspace to the main menu.
+
 ## Button UI
 * Needs a click action, either a background color change or movement.
 
@@ -197,6 +200,8 @@ Sketch:
 
 ## Command Palette
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
+* Improvements
+	* Now that the hovered area is tracked everywhere we can filter by what commands are available per area.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.
