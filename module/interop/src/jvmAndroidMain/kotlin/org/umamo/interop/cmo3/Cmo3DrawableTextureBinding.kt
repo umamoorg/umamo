@@ -33,6 +33,14 @@ public class Cmo3DrawableTextureBinding(
  * packer's scale+translate), so a least-squares fit recovers them to float precision; a
  * degenerate mesh falls back to per-axis scale+offset, then to a pure centroid translation.
  *
+ * This fit exists only because a MOC3-origin export has to RECONSTRUCT the placement a CMO3 would
+ * have read straight off its source art - see [Cmo3ImageChainBuilder]'s header for why that whole
+ * reconstruction is a stopgap.  KNOWN GAP: the packing side is written position-only (scale 1,
+ * angle 0 on the ModelImageEntry) while this affine may flip, scale, or shear - true for roughly
+ * 890 of one corpus model's 972 drawables.  For those the crop is an axis-aligned uv bbox
+ * described as if packed upright, so the atlas view mismaps them; only pure-translation packings
+ * are faithful today.  Real source art removes the need for the fit entirely.
+ *
  * @param FloatArray uvs        Interleaved atlas-frame texture coordinates (u then v per vertex).
  * @param FloatArray positions  Interleaved base canvas positions (x then y per vertex).
  * @param Int        pageWidth  The atlas page's pixel width.
@@ -76,9 +84,12 @@ internal fun fitAtlasPageToCanvasTransform(uvs: FloatArray, positions: FloatArra
 	// transform matches the editor's exact-translation shape instead of 0.9999997-style drift.
 	val fittedRowX = rows[0]
 	val fittedRowY = rows[1]
-	if (fittedRowX != null && fittedRowY != null &&
-		kotlin.math.abs(fittedRowX[0] - 1.0) < 1e-3 && kotlin.math.abs(fittedRowX[1]) < 1e-3 &&
-		kotlin.math.abs(fittedRowY[0]) < 1e-3 && kotlin.math.abs(fittedRowY[1] - 1.0) < 1e-3
+	if (fittedRowX != null &&
+		fittedRowY != null &&
+		kotlin.math.abs(fittedRowX[0] - 1.0) < 1e-3 &&
+		kotlin.math.abs(fittedRowX[1]) < 1e-3 &&
+		kotlin.math.abs(fittedRowY[0]) < 1e-3 &&
+		kotlin.math.abs(fittedRowY[1] - 1.0) < 1e-3
 	) {
 		rows[0] = doubleArrayOf(1.0, 0.0, (sumCanvas[0] - sumPageX) / pointCount)
 		rows[1] = doubleArrayOf(0.0, 1.0, (sumCanvas[1] - sumPageY) / pointCount)

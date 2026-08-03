@@ -13,6 +13,20 @@ import kotlin.math.roundToInt
  * through the normal codec, then the ordinary reconcile lowers the whole puppet onto the empty
  * baseline as created entities.  Stateless - each call builds a new graph; the caller writes the
  * result with Cmo3.write.
+ *
+ * KNOWN GAP (2026-08-03): the file this produces LOADS cleanly in the official Cubism Editor -
+ * correct part/deformer hierarchy, parameters, and texture atlas - but the puppet does NOT render
+ * there.  It is a documented functionality gap rather than an open defect, because a .moc3 does
+ * not carry the SOURCE ART a CMO3 is built around: [Cmo3ImageChainBuilder] can only fabricate a
+ * source document by slicing the packed atlas back apart, and that reconstruction is what the
+ * art-sourcing pipeline replaces (docs/plan/art-sourcing-pipeline.md Phase H - an imported MOC3
+ * will reconcile its original PSD/CLIP/KRA before it can emit a valid CMO3).  CMO3.md section
+ * Fresh-Graph Synthesis records what differential testing against Cubism's own golden file and a
+ * third-party converter already RULED OUT (geometry, coordinate-frame sign, element shape, null
+ * coverage, and the source-art web itself), so start there rather than re-deriving it.
+ *
+ * The CMO3-origin path ([Cmo3Export.apply] onto a retained graph) is unaffected - it keeps the
+ * document's real layered art, and its byte-identity gates hold.
  */
 public object Cmo3Conversion {
 	/** One atlas page: the original PNG bytes (model3 texture order) plus its pixel dimensions. */

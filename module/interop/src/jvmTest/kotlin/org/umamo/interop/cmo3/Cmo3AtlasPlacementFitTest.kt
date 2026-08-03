@@ -1,7 +1,6 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.model.type.CAffine
-import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -77,8 +76,12 @@ class Cmo3AtlasPlacementFitTest {
 	fun emptyMeshYieldsIdentity() {
 		val transform = fitAtlasPageToCanvasTransform(FloatArray(0), FloatArray(0), 1024, 1024)
 		assertTrue(
-			transform.m00 == 1f && transform.m01 == 0f && transform.m02 == 0f &&
-				transform.m10 == 0f && transform.m11 == 1f && transform.m12 == 0f,
+			transform.m00 == 1f &&
+				transform.m01 == 0f &&
+				transform.m02 == 0f &&
+				transform.m10 == 0f &&
+				transform.m11 == 1f &&
+				transform.m12 == 0f,
 			"identity for an empty mesh",
 		)
 	}

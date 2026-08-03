@@ -49,15 +49,40 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 
 /*
- * The image chain a fresh CMO3 needs for its atlas pages, mirroring the official ATLAS-MODE
- * shape (EricaTamamo, isTextureInputModelImageMode=false): one CTextureAtlas + ONE SHARED
- * GTexture2D per page that every packed drawable on the page samples with atlas-frame UVs, plus
- * a PER-DRAWABLE model-image web - each drawable's texture patch cropped out of the page as its
- * own CLayer + CModelImage + ModelImageEntry, the entry carrying the patch's packing origin
- * (materialLocalToAtlasTransform) and the drawable's fitted atlas-to-canvas placement
- * (atlasLocalToCanvasTransform).  The per-drawable web is what the editor's texture-atlas and
- * mesh-edit views derive mesh-over-texture placement from - a single whole-page image cannot
- * place hundreds of drawables, which drew every mesh at its assembled canvas position instead.
+ * WHY THIS FILE EXISTS, AND WHY IT CUTS UP THE ATLAS
+ *
+ * A CMO3 is built around SOURCE ART: the editor decomposes an imported PSD/CLIP/KRA into a
+ * CLayeredImage tree of per-layer images, and everything else (model images, atlas entries,
+ * placements) hangs off that.  A .moc3 carries none of it - only the packed atlas pages and UVs.
+ * So a MOC3-origin export has to FABRICATE a source document, and the only raw material available
+ * is the packed page.  That is the whole reason this builder slices each drawable's uv bounding
+ * box back out of the atlas and presents the crop as if it were an imported layer.  None of that
+ * cutting is inherent to the format; it is reconstruction of information the bake threw away.
+ *
+ * The cutting is NOT what makes a file render.  A third-party converter's CMO3 renders in the
+ * official editor with NO source document at all (zero CLayeredImage / CLayer / CModelImage /
+ * ModelImageEntry, drawables carrying only a CTextureInput_TextureAtlasRegion) - and it renders
+ * despite geometry that is offset by a constant from Cubism's own golden file for the same model.
+ * The web here exists for the editor's texture-atlas and mesh-edit VIEWS, which derive
+ * mesh-over-texture placement from the model images; a single whole-page image cannot place
+ * hundreds of drawables and drew every mesh at its assembled canvas position instead.
+ *
+ * KNOWN GAP (2026-08-03): a MOC3-origin export LOADS cleanly in the official editor - correct
+ * hierarchy, parameters, and atlas - but the puppet does NOT render.  This is a documented
+ * functionality gap, not an open defect: the real fix is the art-sourcing pipeline
+ * (docs/plan/art-sourcing-pipeline.md Phase H), where an imported MOC3 reconciles its ORIGINAL
+ * layered art into Umamo and this synthetic web is replaced by real source images.  Before
+ * re-opening the hunt, read CMO3.md section Fresh-Graph Synthesis: geometry (ours matches the
+ * golden to the digit), coordinate-frame sign, element shape, null coverage, and the presence of
+ * the source-art web are ALL ruled out by differential testing.  Do not "fix" this by deleting
+ * the web either - that shape was tested and the editor errors with an empty atlas.
+ *
+ * WHAT IT BUILDS, mirroring the official ATLAS-MODE shape (EricaTamamo,
+ * isTextureInputModelImageMode=false): one CTextureAtlas + ONE SHARED GTexture2D per page that
+ * every packed drawable on the page samples with atlas-frame UVs, plus a PER-DRAWABLE model-image
+ * web - each drawable's texture patch cropped out of the page as its own CLayer + CModelImage +
+ * ModelImageEntry, the entry carrying the patch's packing origin (materialLocalToAtlasTransform)
+ * and the drawable's fitted atlas-to-canvas placement (atlasLocalToCanvasTransform).
  *
  * Every CModelImage carries the editor's layer-filter web (a CLayerSelector feeding a
  * CLayerFilter, connected through per-document shared FilterValue definitions) plus a filtered
@@ -72,10 +97,13 @@ import org.umamo.format.raster.RasterImage
  * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
  * CModelImage's _materialLocalToCanvasTransform.
  *
- * KNOWN GAP: the packing transform is written as position-only (scale 1, angle 0) while the
- * fitted page-to-canvas affine may flip, scale, or shear - true for ~890 of LimeBirb's 972
- * drawables.  For those the crop is an axis-aligned uv bbox described as if packed upright, so
- * the atlas view mismaps them; only pure-translation packings (Erica) are currently faithful.
+ * SECOND, NARROWER GAP (independent of the render gap above, and visible even when a file does
+ * render): the packing transform is written as position-only (scale 1, angle 0) while the fitted
+ * page-to-canvas affine may flip, scale, or shear - true for ~890 of LimeBirb's 972 drawables.
+ * For those the crop is an axis-aligned uv bbox described as if packed upright, so the atlas view
+ * mismaps them; only pure-translation packings (Erica) are currently faithful.  Representing it
+ * honestly would mean un-packing each patch to upright art so the entry can carry the real scale
+ * and rotation - which real source art supplies for free.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
@@ -424,7 +452,8 @@ internal object Cmo3ImageChainBuilder {
 		// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...);
 		// pages claim the first indices and patch crops continue the sequence.
 		var imageFileBufIndex = 0
-		fun nextImageFileBufPath(): String {
+
+				fun nextImageFileBufPath(): String {
 			val path = if (imageFileBufIndex == 0) "imageFileBuf.png" else "imageFileBuf_${imageFileBufIndex - 1}.png"
 			imageFileBufIndex += 1
 			return path

@@ -57,7 +57,6 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
-import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -66,6 +65,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.partByDrawable
 import kotlin.math.abs
 import org.umamo.format.moc3.model.BlendShape as MocBlendShape
 import org.umamo.format.moc3.model.Part as MocPart
