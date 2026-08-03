@@ -12,9 +12,7 @@ import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
-import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
-import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
@@ -99,10 +97,6 @@ internal fun preparePose(
 	// objects per entity purely to probe an empty map.
 	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
 	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
-	// A non-isolated part's opacity has no other home in the render pipeline (an isolated part applies
-	// its own at the composite pass), so cascade the product of each drawable's non-isolated ancestor
-	// part opacities into its drawable opacity below - the general Cubism part-opacity behavior.
-	val partOpacityByDrawable = foldNonIsolatedPartOpacity(model, paramValue, channelOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
 		if (drawable.mesh?.positions == null) {
@@ -177,11 +171,6 @@ internal fun preparePose(
 					screenCompose(screenColor.blue, world.accumulatedScreenColor.blue).coerceIn(0f, 1f),
 				)
 		}
-		// Finally the non-isolated ancestor part opacity (both already in [0,1], so the product stays in
-		// range). Last on purpose: this one is a Umamo fold with no counterpart in the runtime core,
-		// which applies part opacity in the renderer rather than on the drawable - so keeping it at the
-		// end leaves everything before it directly comparable against the oracle.
-		partOpacityByDrawable[drawable.id]?.let { partOpacity -> opacity *= partOpacity }
 		drawables.add(
 			DrawableDeformInputs(
 				drawableId = drawable.id,
@@ -267,58 +256,6 @@ internal fun preparePose(
 	}
 	blendGroupStates(model.renderRoot)
 	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
-}
-
-/**
- * Folds each drawable's NON-ISOLATED ancestor part opacities into one factor, walking the org tree and
- * carrying a running product.  An isolated part is skipped - it applies its own opacity at the composite
- * pass, so cascading it here would apply it twice; a non-isolated part's opacity has no other home, so it
- * multiplies onto its whole subtree.  A drawable under only identity-opacity parts (the common case) is
- * absent from the map, so the caller multiplies by 1 for free.
- *
- * @param PuppetModel model            The rig.
- * @param Function    paramValue       Current value for a given parameter id.
- * @param Map         channelOverrides Pending unkeyed channel edits, which win over a part's stored opacity.
- * @return Map<DrawableId, Float> Per-drawable cascaded part opacity, entries only where it is not 1.
- */
-internal fun foldNonIsolatedPartOpacity(
-	model: PuppetModel,
-	paramValue: (ParameterId) -> Float,
-	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
-): Map<DrawableId, Float> {
-	val partById = model.parts.associateBy { it.id }
-	val result = HashMap<DrawableId, Float>()
-	// Null in the steady state, so the per-part lookup below allocates nothing (see preparePose).
-	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
-
-	// A part's pose-blended opacity: its opacity track when it has one, else the static PartComposite
-	// value (populated from the neutral keyform on ingest, so it holds the authored opacity either way).
-	fun partOpacity(part: Part): Float =
-		part.channelGrids.scalarAt(
-			FormChannel.OPACITY,
-			part.composite.opacity,
-			paramValue,
-			overrides?.get(KeyableTarget(KeyformOwner.Part(part.id), FormChannel.OPACITY)),
-		)
-
-	fun walk(children: List<OrgChild>, inheritedOpacity: Float) {
-		for (child in children) {
-			when (child) {
-				is OrgChild.Drawable ->
-					if (inheritedOpacity != 1f) {
-						result[child.id] = inheritedOpacity
-					}
-
-				is OrgChild.Part -> {
-					val part = partById[child.id] ?: continue
-					val childOpacity = if (part.isIsolated) inheritedOpacity else inheritedOpacity * partOpacity(part)
-					walk(part.children, childOpacity)
-				}
-			}
-		}
-	}
-	walk(model.rootChildren, 1f)
-	return result
 }
 
 /**

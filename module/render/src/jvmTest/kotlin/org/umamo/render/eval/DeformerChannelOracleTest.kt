@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
  * the runtime folds those down the deformer chain into every drawable underneath before exposing
  * `csmGetDrawableOpacities` / `...MultiplyColors` / `...ScreenColors`.  This gate compares that
  * exposed per-drawable result against [preparePose]'s, so it covers the whole chain: the drawable's
- * own keyform channels, its ancestor parts' opacity, and the deformer cascade between them.
+ * own keyform channels and the deformer cascade between them.
  *
  * Poses are DERIVED, not hand-written: for each model the test reads the format layer to find which
  * deformers actually author a non-identity channel, walks those deformers' keyform bindings to the
@@ -86,15 +86,6 @@ class DeformerChannelOracleTest {
 				val dump = runOracleDump(dumpModel, coreLib, mocFile, pose)
 				val parameterValues = pose.entries.associate { ParameterId(it.key) to it.value }
 				val inputs = preparePose(puppet, parameterValues)
-				// The runtime core applies PART opacity in its renderer, not on the drawable, so its
-				// csmGetDrawableOpacities excludes it while ours folds it in. Re-apply the same fold to
-				// the oracle side rather than reimplementing it here, so the two cannot drift.
-				val defaults = puppet.parameters.associate { it.id to it.default }
-				val partOpacity =
-					foldNonIsolatedPartOpacity(
-						puppet,
-						paramValue = { parameterId -> parameterValues[parameterId] ?: defaults[parameterId] ?: 0f },
-					)
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
 					if (wasNeverEvaluated(oracleEntry)) {
@@ -103,8 +94,7 @@ class DeformerChannelOracleTest {
 					}
 					comparedDrawableStates++
 					val label = "${mocFile.name} pose=$pose ${drawableInputs.drawableId.raw}"
-					val expectedOpacity = oracleEntry.opacity * (partOpacity[drawableInputs.drawableId] ?: 1f)
-					checkChannel(mismatches, label, "op", expectedOpacity, drawableInputs.opacity)
+					checkChannel(mismatches, label, "op", oracleEntry.opacity, drawableInputs.opacity)
 					if (oracleEntry.multiplyRgba.size == 4 && oracleEntry.screenRgba.size == 4) {
 						checkChannel(mismatches, label, "mulR", oracleEntry.multiplyRgba[0], drawableInputs.multiplyColor.red)
 						checkChannel(mismatches, label, "mulG", oracleEntry.multiplyRgba[1], drawableInputs.multiplyColor.green)
