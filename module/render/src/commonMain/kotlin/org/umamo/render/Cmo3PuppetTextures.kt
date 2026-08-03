@@ -67,8 +67,9 @@ fun cmo3PuppetTextures(modelSource: CModelSource, readPng: (CImageResource) -> B
 			atlasIndexByDrawableId[drawableId] = pageIndex
 		}
 	}
-	// Skip never yields null; the elvis is the empty-model case, matching what this returned when the
-	// root had no drawable source set.
+	// Skip never returns null, so the fallback is unreachable - it is here only because the shared
+	// builder's return type is nullable to serve the Fail policy.  A root with no drawables is NOT this
+	// case: it walks through normally and yields empty pages and an empty index.
 	return buildPuppetTextures(pageBytes, atlasIndexByDrawableId, premultiplied, UndecodablePagePolicy.Skip)
 		?: PuppetTextures(emptyList(), emptyMap(), premultiplied)
 }

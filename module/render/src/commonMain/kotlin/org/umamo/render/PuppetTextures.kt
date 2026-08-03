@@ -90,9 +90,9 @@ fun buildPuppetTextures(
 		return null
 	}
 
-	// Skip can drop pages, which shifts every later page down one slot, so decoding records where each
-	// surviving page landed and the drawable map is rebuilt against that numbering.  Under Fail nothing
-	// is ever dropped and the remap is an identity copy.
+	// Skip can drop pages, which shifts every later page down by however many preceded it, so decoding
+	// records where each surviving page landed and the drawable map is rebuilt against that numbering.
+	// Under Fail nothing is ever dropped and the remap is an identity copy.
 	val atlases = ArrayList<DecodedImage>(pageBytes.size)
 	val keptIndexBySourceIndex = HashMap<Int, Int>(pageBytes.size)
 	for ((sourceIndex, bytes) in pageBytes.withIndex()) {

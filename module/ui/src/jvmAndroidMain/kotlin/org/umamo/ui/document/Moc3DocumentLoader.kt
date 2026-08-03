@@ -136,9 +136,10 @@ internal fun buildMoc3Document(
 		UmamoLog.warn("cannot import $path: $manifestName lists no textures")
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))
 	}
-	// Validate the moc's page indices against the manifest BEFORE decoding megabytes of PNG: an
-	// out-of-range textureIndex (stale or foreign manifest) would otherwise import fine and then
-	// crash the renderer's direct atlas indexing at first frame.
+	// Validate the moc's page indices against the manifest BEFORE decoding megabytes of PNG.  The
+	// texture build rejects an out-of-range index too, so this is not the correctness guard - it is
+	// what keeps a stale or foreign manifest from costing a full atlas decode first, and what names
+	// the offending mesh and page count instead of the build's generic decode failure.
 	for (artMesh in mocDocument.artMeshes) {
 		if (artMesh.textureIndex !in textureReferences.indices) {
 			UmamoLog.warn(

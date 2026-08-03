@@ -2,10 +2,10 @@
 // (desktop JVM + Android/ART).
 //
 // Some code is JVM-API-bound but must reach BOTH those targets — the JDOM + Kotlin-reflection CMO3
-// serializer in :format above all, and everything layered on it (:interop's export lowering,
-// :render's CMO3 atlas extraction, :ui's document/file layer and app shell). commonMain cannot hold
-// it and duplicating it into jvmMain + androidMain would be two copies of the same file, so it lives
-// in src/jvmAndroidMain and is shared verbatim.
+// serializer in :format above all, and everything layered on it (:interop's export lowering, :ui's
+// document/file layer and app shell). commonMain cannot hold it and duplicating it into jvmMain +
+// androidMain would be two copies of the same file, so it lives in src/jvmAndroidMain and is shared
+// verbatim.
 //
 // This block was copy-pasted across four build scripts and marked "[kmp-jvmandroid] keep identical" —
 // which is the shape of a convention plugin written out longhand. Applied as
