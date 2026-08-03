@@ -57,6 +57,7 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -888,11 +889,15 @@ object Moc3Import {
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
 			)
+		// The org tree is only walkable once the model exists, and the deformer-part inference reads
+		// it, so the placement lands as a copy rather than a constructor argument.
+		val withDeformerParts =
+			model.copy(deformers = inferDeformerParts(deformers, orderedDrawables, model.partByDrawable()))
 		val withRenderRoot =
 			if (renderRoot != null) {
-				model.copy(renderRoot = renderRoot)
+				withDeformerParts.copy(renderRoot = renderRoot)
 			} else {
-				model.copy(renderRoot = model.deriveRenderRoot())
+				withDeformerParts.copy(renderRoot = withDeformerParts.deriveRenderRoot())
 			}
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
@@ -979,6 +984,72 @@ object Moc3Import {
 			root
 		} else {
 			root.copy(children = root.children + missingLeaves)
+		}
+	}
+
+	/**
+	 * Infers each deformer's organisational part from the drawables it deforms.
+	 *
+	 * MOC3 stores NO deformer to part binding - the bake keeps only the deformer's parent DEFORMER
+	 * (§5.2 index 16), because part membership is editor-only organisation the runtime never needs.
+	 * Left unset, every converted deformer lands in the root part and the parts panel is unusable,
+	 * so this reconstructs the grouping from the one signal the bake does keep: a deformer's
+	 * drawables almost always live in the deformer's own part.  The rule is the plurality part of
+	 * the DIRECTLY deformed drawables, falling back to the whole descendant subtree when a deformer
+	 * only deforms other deformers.
+	 *
+	 * This is INFERENCE, not recovery - measured against the corpus twins (each model's editor-written
+	 * CMO3 vs its own bake) it reproduces 81-93% of the original placements, and a deformer whose
+	 * drawables span several parts can land in any of them.  A CMO3-origin document never comes
+	 * through here: it carries the real membership on ACParameterControllableSource.parentGuid.
+	 *
+	 * @param List deformers    The imported deformers, part-less.
+	 * @param List drawables    The imported drawables.
+	 * @param Map  partByDrawable Each drawable's org-tree part (null at the root).
+	 * @return List The deformers with inferred [Deformer.partId] values.
+	 */
+	private fun inferDeformerParts(
+		deformers: List<Deformer>,
+		drawables: List<Drawable>,
+		partByDrawable: Map<DrawableId, PartId?>,
+	): List<Deformer> {
+		if (deformers.isEmpty()) {
+			return deformers
+		}
+		val parentById = deformers.associate { deformer -> deformer.id to deformer.parent }
+		val directParts = HashMap<DeformerId, MutableList<PartId>>()
+		val subtreeParts = HashMap<DeformerId, MutableList<PartId>>()
+		for (drawable in drawables) {
+			val partId = partByDrawable[drawable.id] ?: continue
+			val ownerId = drawable.parentDeformerId ?: continue
+			directParts.getOrPut(ownerId) { ArrayList() }.add(partId)
+			// Walk the deformer chain so an ancestor that deforms no drawable directly still sees the
+			// parts below it; the visited set guards a malformed cyclic chain.
+			var ancestorId: DeformerId? = ownerId
+			val visited = HashSet<DeformerId>()
+			while (ancestorId != null && visited.add(ancestorId)) {
+				subtreeParts.getOrPut(ancestorId) { ArrayList() }.add(partId)
+				ancestorId = parentById[ancestorId]
+			}
+		}
+
+		/**
+		 * The plurality part id of a candidate list, or null when empty.
+		 *
+		 * @param List? candidates The observed part ids.
+		 * @return PartId? The most frequent id.
+		 */
+		fun plurality(candidates: List<PartId>?): PartId? =
+			candidates?.groupingBy { partId -> partId }?.eachCount()?.maxByOrNull { entry -> entry.value }?.key
+
+		return deformers.map { deformer ->
+			val inferred = plurality(directParts[deformer.id]) ?: plurality(subtreeParts[deformer.id])
+			when {
+				inferred == null -> deformer
+				deformer is Deformer.Warp -> deformer.copy(partId = inferred)
+				deformer is Deformer.Rotation -> deformer.copy(partId = inferred)
+				else -> deformer
+			}
 		}
 	}
 
