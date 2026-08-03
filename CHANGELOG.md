@@ -4,6 +4,11 @@ All notable changes to Umamo will be documented in this file.
 
 Umamo is early alpha.
 
+(Unreleased changes)
+
+### Fixed
+* Switch a part composite from isolated to anything else stops rendering composite effects.  Originally for Umamo it was intended that opacity could be applied to have a part and have it cascade down to drawables to make it quick to change the opacity of all drawables in a part.  However, reconciling Cubism behavior with Umamo desires would create too many problems.
+
 ## 0.2.0-dev - 2026-08-03
 
 ### Added
@@ -20,7 +25,7 @@ Umamo is early alpha.
 
 * Properties Panel: Expanded and updated for the Keyform Sheet.  Missing properties implemented and the ability to hover over a property then press a shortcut to key it was added.
 
-### Fixes
+### Fixed
 
 * Dragging a panel splitter gutter no longer lags out and fails to work on slow systems.  This was due to an issue with how the movement input was accumulated.
 * Dragging a panel splitter gutter only writes up the layout settings after a debounce period.

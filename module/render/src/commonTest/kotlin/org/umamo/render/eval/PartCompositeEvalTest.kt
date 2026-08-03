@@ -226,10 +226,12 @@ class PartCompositeEvalTest {
 		preparePose(model, emptyMap()).drawables.first { it.drawableId == DrawableId(id) }.opacity
 
 	@Test
-	fun nonIsolatedPartOpacityCascadesToItsDrawables() {
+	fun nonIsolatedPartOpacityDoesNotCascadeToItsDrawables() {
+		// Cubism only exposes/applies a part's composite opacity while it is Isolated (offscreen drawing);
+		// a Grouped or PassThrough part's latent composite.opacity is stored but never rendered.
 		val part = partWith("grp", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
 		val model = cascadeModel(listOf(part), listOf(drawable("d", ownOpacity = 0.8f)), listOf(OrgChild.Part(PartId("grp"))))
-		assertEquals(0.4f, drawableOpacity(model, "d"), 1e-6f, "own 0.8 x part 0.5")
+		assertEquals(0.8f, drawableOpacity(model, "d"), 1e-6f, "own opacity only; the non-isolated part's composite opacity is inert")
 	}
 
 	@Test
@@ -242,11 +244,11 @@ class PartCompositeEvalTest {
 	}
 
 	@Test
-	fun nestedNonIsolatedPartOpacitiesMultiply() {
+	fun nestedNonIsolatedPartOpacitiesDoNotCascade() {
 		val inner = partWith("inner", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
 		val outer = partWith("outer", PartGroupMode.PassThrough, opacity = 0.5f, children = listOf(OrgChild.Part(PartId("inner"))))
 		val model = cascadeModel(listOf(outer, inner), listOf(drawable("d", ownOpacity = 1f)), listOf(OrgChild.Part(PartId("outer"))))
-		assertEquals(0.25f, drawableOpacity(model, "d"), 1e-6f, "outer 0.5 x inner 0.5")
+		assertEquals(1f, drawableOpacity(model, "d"), 1e-6f, "neither non-isolated part's opacity applies")
 	}
 
 	@Test
@@ -282,12 +284,12 @@ class PartCompositeEvalTest {
 	}
 
 	@Test
-	fun nonIsolatedAncestorCascadesThroughAnIsolatedChild() {
-		// A non-isolated outer part cascades onto every descendant drawable, including one under an isolated
-		// child; the isolated child's own opacity still rides its composite, not the drawable.
+	fun nonIsolatedAncestorOpacityDoesNotReachAnIsolatedChild() {
+		// Neither the non-isolated outer part's opacity nor the isolated inner part's opacity (which rides
+		// its own composite pass) touches the drawable directly.
 		val inner = partWith("fx", PartGroupMode.Isolated, opacity = 0.5f, children = listOf(OrgChild.Drawable(DrawableId("d"))))
 		val outer = partWith("outer", PartGroupMode.Grouped, opacity = 0.5f, children = listOf(OrgChild.Part(PartId("fx"))))
 		val model = cascadeModel(listOf(outer, inner), listOf(drawable("d", ownOpacity = 1f)), listOf(OrgChild.Part(PartId("outer"))))
-		assertEquals(0.5f, drawableOpacity(model, "d"), 1e-6f, "outer 0.5 cascades; inner isolated 0.5 does not")
+		assertEquals(1f, drawableOpacity(model, "d"), 1e-6f, "outer's composite opacity is inert; inner's rides its composite")
 	}
 }
