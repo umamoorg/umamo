@@ -162,8 +162,8 @@ fun EditorShell(
 	// user clicks next - the viewport pick overlay or an outliner row - and cancelled by Escape.
 	val relationPick = remember { RelationPickController() }
 	// The last-touched editor surface (area id + space kind), stamped by every workspace leaf and read by
-	// command handlers at dispatch time - the space-aware generalization of the camera controller's
-	// activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
+	// command handlers at dispatch time - the ONE answer to "which area does the pointer mean" (see
+	// HoveredSurface.kt for the dispatch-time-only contract).
 	val hoveredSurfaces = remember { HoveredSurfaceTracker() }
 	// The keyable property under the pointer, so a keyform insert needs no prior selection.
 	val keyableHover = remember { KeyableHover() }
@@ -184,19 +184,11 @@ fun EditorShell(
 	// on the state its handlers close over, and registerAll returns the matching cleanup so registration
 	// and unregistration can never drift apart.
 	//
-	// ONE routing seam serves every group, remembered for the shell's lifetime and reading the render
-	// service through a live reference.  Building it per effect would bind it to that effect's keys, and
-	// the groups that must NOT re-register on a document swap would then have to choose between holding a
-	// stale service and moving to the tail of the registry (which reorders the command palette).
+	// ONE routing seam serves every group, remembered for the shell's lifetime.  It closes over nothing but
+	// the tracker (itself remembered for the same lifetime), so it cannot go stale across a document swap
+	// and the groups that must NOT re-register on one can hold it safely.
 	val service = LocalPuppetViewportService.current
-	val currentService by rememberUpdatedState(service)
-	val routing =
-		remember {
-			CommandRouting(
-				hoveredSurface = { hoveredSurfaces.lastTouched },
-				activeViewportArea = { currentService?.activeAreaId },
-			)
-		}
+	val routing = remember { CommandRouting { hoveredSurfaces.lastTouched } }
 	DisposableEffect(commandRegistry, dragController) {
 		val cleanup = commandRegistry.registerAll(chromeCommands(overlays, dragController, rowDragCancel, workspaces))
 		onDispose { cleanup() }

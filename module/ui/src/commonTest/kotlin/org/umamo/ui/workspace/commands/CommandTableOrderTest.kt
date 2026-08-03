@@ -31,7 +31,7 @@ class CommandTableOrderTest {
 
 	private fun workspaces(): WorkspaceLayoutController = WorkspaceLayoutController(defaultLayout()) {}
 
-	private fun routing(): CommandRouting = CommandRouting({ null }, { null })
+	private fun routing(): CommandRouting = CommandRouting { null }
 
 	/** The shell-chrome table: overlay toggles, the drag cancels, workspace tab navigation. */
 	@Test

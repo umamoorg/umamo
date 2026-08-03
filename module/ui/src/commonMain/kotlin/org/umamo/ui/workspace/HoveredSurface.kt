@@ -8,12 +8,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * The editor surface the pointer last touched: an opaque workspace-leaf area id plus the space kind
- * hosting it.  The generalization of PuppetViewportService.activeAreaId to non-viewport spaces - the
- * UV editor does not participate in the GPU service, and a panel participates in nothing, but their
- * commands still need "which area does the pointer mean" resolved at dispatch time.
- *
- * ポインタが最後に触れたエディタ面（エリア id とその空間種別）。ビューポート以外の空間にも
- * ディスパッチ時のエリア解決を提供する。
+ * hosting it.  The single answer to "which area does the pointer mean", for every space alike - the UV
+ * editor does not participate in the GPU service and a panel participates in nothing, yet all of them
+ * need that question resolved at dispatch time.
  *
  * @property String areaId The last-touched leaf's area id.
  * @property SpaceKind kind The space kind that leaf hosts.
@@ -23,10 +20,11 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
 /**
  * The shell-wide holder of the last-touched editor surface.
  *
- * DISPATCH-TIME ONLY, exactly like PuppetViewportService.activeAreaId: command handlers read
- * [lastTouched] inside their handler bodies at invocation time, never during composition - it is a
- * non-reactive var, so a composition-time gate would go stale without recomposing.  Composition gates
- * key off a latch's own area id instead (ActiveOperator.areaId, ActiveSelectTool.areaId).
+ * DISPATCH-TIME ONLY: command handlers read [lastTouched] inside their handler bodies at invocation
+ * time, never during composition - it is a non-reactive var, so a composition-time gate would go stale
+ * without recomposing.  Composition gates key off a latch's own area id instead (ActiveOperator.areaId,
+ * ActiveSelectTool.areaId), and a request that must execute in one area carries the id resolved at
+ * dispatch in its payload rather than re-reading this at collect time.
  *
  * It means "the last area touched that still exists": moving off an area deliberately does NOT clear it
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the

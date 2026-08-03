@@ -48,19 +48,6 @@ data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera, va
  * この同じ面を実装する。呼び出しは UI スレッド、公開は実装側の volatile スワップで行う。
  */
 interface PuppetViewportService {
-	/**
-	 * The viewport the pointer last addressed (written by every viewport's navigation loop; never
-	 * cleared, so it means "last touched", null only before any viewport was ever entered).  Keyboard
-	 * view commands (fit / 1:1 / zoom) target it, and latching commands resolve it ONCE as a gesture's
-	 * initiating area.
-	 *
-	 * Contract: DISPATCH-TIME ONLY.  Read it inside command handlers and request-bus collect bodies at
-	 * event time - never during composition.  It is a plain non-reactive var, so a composition-time
-	 * gate would go stale without recomposing; composition gates key off a latch's own area id instead
-	 * (ActiveOperator.areaId, ActiveSelectTool.areaId, zoomRegionArmedArea).
-	 */
-	var activeAreaId: String?
-
 	/** The fine zoom increment in percentage points (one wheel notch / key press), fed from settings. */
 	var zoomStepPercent: Float
 

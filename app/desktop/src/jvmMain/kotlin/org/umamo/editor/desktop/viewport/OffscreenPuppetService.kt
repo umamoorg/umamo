@@ -54,11 +54,6 @@ class OffscreenPuppetService(
 		engine.start()
 	}
 
-	// The viewport the pointer is over, so keyboard view commands (fit / 1:1 / zoom) target it. Dispatch-time
-	// only, UI thread; a plain non-reactive var per the interface contract.
-	@Volatile
-	override var activeAreaId: String? = null
-
 	override var zoomStepPercent: Float
 		get() = registry.zoomStepPercent
 		set(value) {
