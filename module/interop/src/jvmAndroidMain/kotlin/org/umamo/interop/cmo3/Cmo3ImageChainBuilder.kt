@@ -452,6 +452,7 @@ internal object Cmo3ImageChainBuilder {
 		// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...);
 		// pages claim the first indices and patch crops continue the sequence.
 		var imageFileBufIndex = 0
+
 		fun nextImageFileBufPath(): String {
 			val path = if (imageFileBufIndex == 0) "imageFileBuf.png" else "imageFileBuf_${imageFileBufIndex - 1}.png"
 			imageFileBufIndex += 1
