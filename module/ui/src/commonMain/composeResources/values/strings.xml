@@ -48,12 +48,19 @@
 	<string name="area_close">Close Area</string>
 	<string name="area_change_editor">Change Editor Type</string>
 
-	<!-- File menu. -->
+	<!-- File menu.  Open/Save is reserved for the native UMA format; CMO3 and MOC3 are interop
+	     boundaries reached through the Import/Export submenus.  The cmd_* variants carry the full
+	     operation name for the command palette, where the submenu context is absent. -->
 	<string name="menu_file">File</string>
-	<string name="menu_open">Open…</string>
 	<string name="menu_open_recent">Open Recent</string>
-	<string name="menu_import_moc3">Import MOC3…</string>
-	<string name="menu_save_as">Save As…</string>
+	<string name="menu_import">Import</string>
+	<string name="menu_export">Export</string>
+	<string name="menu_import_cmo3">CMO3…</string>
+	<string name="menu_import_moc3">MOC3…</string>
+	<string name="menu_export_cmo3">CMO3…</string>
+	<string name="cmd_import_cmo3">Import CMO3…</string>
+	<string name="cmd_import_moc3">Import MOC3…</string>
+	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="menu_exit">Exit</string>
 
 	<!-- Edit menu. -->
@@ -74,6 +81,11 @@
 	<string name="dialog_cancel">Cancel</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
+	<string name="confirm_discard_unexported">The current document has unexported changes.  Discard them?</string>
+	<!-- CMO3 export report alert (the document.exportReport command).  The body lines carry the
+	     per-item diagnostics; %1$s in the weld line is the affected drawable names. -->
+	<string name="export_report_message">The file was exported, but the following could not be carried into CMO3:</string>
+	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">Could not read %1$s.</string>

@@ -4,6 +4,7 @@ import org.lwjgl.glfw.GLFW
 import org.lwjgl.opengl.GL
 import org.lwjgl.system.MemoryUtil
 import org.umamo.format.moc3.Moc3
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
@@ -11,7 +12,6 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.buildPuppetTextures
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.ingest.Moc3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import java.awt.image.BufferedImage

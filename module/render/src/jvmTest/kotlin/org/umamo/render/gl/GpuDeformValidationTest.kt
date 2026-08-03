@@ -13,6 +13,7 @@ import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
 import org.umamo.render.eval.RotationWorld
@@ -26,7 +27,6 @@ import org.umamo.render.puppet.blendColumnLayout
 import org.umamo.render.puppet.buildDeltaTexelsWithBlend
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.cellsByLinearIndex
-import org.umamo.runtime.ingest.Cmo3Import
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm

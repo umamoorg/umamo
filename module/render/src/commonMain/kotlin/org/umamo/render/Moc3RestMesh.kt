@@ -23,7 +23,7 @@ import kotlin.math.min
  * space.  The deformation eval only ever sees `base + Σ wᵢ·Δᵢ` with weights summing to 1, so the base
  * cancels and this mixed-space encoding is exact, not an approximation.
  *
- * A `.moc3` stores only the parent-space keyforms, so [org.umamo.runtime.ingest.Moc3Import] can give
+ * A `.moc3` stores only the parent-space keyforms, so :interop's `Moc3Import` can give
  * a warp/rotation-parented drawable nothing better than a parent-local base.  This pass finishes the
  * import: it evaluates the default pose through the validated deformer cascade (glue excluded - the
  * weld is a render-time effect, not rest geometry), takes the pre-Y-negation canvas positions as the

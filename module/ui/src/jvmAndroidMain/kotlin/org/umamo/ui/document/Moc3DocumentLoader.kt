@@ -9,9 +9,9 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.buildPuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.ingest.Moc3Import
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.initialLiveParams
 

@@ -4,9 +4,9 @@ import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
+import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
-import org.umamo.runtime.ingest.Cmo3Import
-import org.umamo.runtime.ingest.Moc3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import java.io.File

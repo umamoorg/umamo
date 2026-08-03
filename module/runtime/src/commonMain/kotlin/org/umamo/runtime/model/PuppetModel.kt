@@ -2,8 +2,8 @@ package org.umamo.runtime.model
 
 /**
  * The whole rig as a concrete, in-memory puppet: what `:runtime` evaluates and the editor renders.
- * `:format` maps a parsed `.cmo3` (and later `.moc3`) into this; the deformation core depends only on
- * this model, never on the format's serialization quirks (that mapping lives in `runtime.ingest`).
+ * A parsed `.cmo3` / `.moc3` maps into this; the deformation core depends only on this model, never
+ * on the format's serialization quirks (that mapping lives in `:interop`).
  */
 data class PuppetModel(
 	val parameters: List<Parameter>,

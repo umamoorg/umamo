@@ -18,13 +18,15 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
-import org.umamo.format.cmo3.Cmo3TargetVersion
-import org.umamo.runtime.model.runtimeTargetOfCmo3Target
+import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportNotice
+import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
@@ -53,10 +55,10 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.cmd_export_cmo3
+import org.umamo.ui.resources.cmd_import_cmo3
+import org.umamo.ui.resources.cmd_import_moc3
 import org.umamo.ui.resources.logs_export
-import org.umamo.ui.resources.menu_import_moc3
-import org.umamo.ui.resources.menu_open
-import org.umamo.ui.resources.menu_save_as
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
@@ -169,21 +171,36 @@ fun EditorApp(
 		}
 	}
 
-	fun openStoredPath(path: String) {
-		scope.launch {
-			applyDocumentLoad(loadDocument(platformFileFromSavedPath(path)))
+	// Replacing the document discards its session - the undo history and any unexported edits go with
+	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
+	// keeping its Escape/Enter routing with every other overlay.
+	fun confirmIfDirty(proceed: () -> Unit) {
+		if (session?.dirty?.value == true) {
+			commandRegistry.invoke("document.confirmReplace", proceed)
+		} else {
+			proceed()
 		}
 	}
 
-	fun openViaPicker() {
+	fun openStoredPath(path: String) {
+		confirmIfDirty {
+			scope.launch {
+				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path)))
+			}
+		}
+	}
+
+	fun importCmo3ViaPicker() {
 		// FileKit's native dialog supplies its own (OS-localized) title, so none is passed here.
-		// The filter is CMO3-only: layered-art formats have no document-open path since :reimport is
-		// what would bind them into a session, and that binding doesn't exist yet.  MOC3 is deliberately
-		// not offered here either - Open means the source project format; a baked runtime model comes in
-		// through Import (importMoc3ViaPicker), keeping the open/import distinction visible in the UI.
-		scope.launch {
-			filePicker.openFile(listOf(FileKind.Cmo3.extension))?.let { picked ->
-				applyDocumentLoad(loadDocument(picked))
+		// The filter is CMO3-only: layered-art formats have no import path since :reimport is what
+		// would bind them into a session, and that binding doesn't exist yet.  MOC3 comes in through
+		// its own row (importMoc3ViaPicker), keeping the source-project / baked-runtime distinction
+		// visible in the UI.  Open/Save is reserved for the native UMA format.
+		confirmIfDirty {
+			scope.launch {
+				filePicker.openFile(listOf(FileKind.Cmo3.extension))?.let { picked ->
+					applyDocumentLoad(loadDocument(picked))
+				}
 			}
 		}
 	}
@@ -191,38 +208,43 @@ fun EditorApp(
 	fun importMoc3ViaPicker() {
 		// The picked .moc3 routes through loadDocument's file-level MOC3 branch, which discovers the
 		// model3.json manifest, cdi3 display info, and atlas pages next to the file.
-		scope.launch {
-			filePicker.openFile(listOf(FileKind.Moc3.extension))?.let { picked ->
-				applyDocumentLoad(loadDocument(picked))
+		confirmIfDirty {
+			scope.launch {
+				filePicker.openFile(listOf(FileKind.Moc3.extension))?.let { picked ->
+					applyDocumentLoad(loadDocument(picked))
+				}
 			}
 		}
 	}
 
-	fun saveAs(cmo3Document: Cmo3Document) {
+	fun exportCmo3(cmo3Document: Cmo3Document) {
 		scope.launch {
-			// Suggest the base name without the extension; FileKit re-appends ".cmo3".
-			val suggestedName = cmo3Document.displayName.removeSuffix(".cmo3")
-			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// CMO3: CModelSource field targetVersionNo - written only when the session's target
-				// differs from what the file already decodes to, so an unchanged target keeps the
-				// original bytes verbatim (write-what-the-editor-writes).  Every target encodes:
-				// Cubism targets as their literals, Ayagami as its effective Cubism 5.0 level, and
-				// NoTarget as the SDK(N/A)/Latest sentinel.
-				val sessionTarget = session?.model?.value?.runtimeTarget
-				if (sessionTarget != null) {
-					val decodedCurrent =
-						runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(cmo3Document.cmo3.targetVersionNo))
-					if (decodedCurrent != sessionTarget) {
-						cmo3Document.cmo3.setTargetVersionNo(sessionTarget.cmo3TargetVersionNo())
-					}
+			// Suggest the base name without the extension (case-insensitive); FileKit re-appends ".cmo3".
+			val displayName = cmo3Document.displayName
+			val suggestedName =
+				if (displayName.endsWith(".cmo3", ignoreCase = true)) {
+					displayName.dropLast(".cmo3".length)
+				} else {
+					displayName
 				}
-				// Writes the original CMO3 bytes (with the target field above as the one exception), not
-				// the edited PuppetModel: there is no model -> CMO3 lowering yet, so edits made in the
-				// session are not persisted here. markSaved still moves the dirty baseline so the modified
-				// marker clears, exercising the undo-history save mechanism ahead of that lowering.
+			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
+				// Reconcile the session's CURRENT model onto the retained graph before re-emitting the
+				// container - the document's own puppet is the original import and never sees edits.
+				// The report carries everything the lowering could not persist; it is surfaced, never
+				// silently swallowed.
+				val report =
+					session?.model?.value?.let { edited -> Cmo3Export.apply(edited, cmo3Document.cmo3) }
+						?: Cmo3ExportReport(emptyList())
 				destination.write(Cmo3.write(cmo3Document.cmo3))
-				session?.markSaved()
-				UmamoLog.info("saved ${destination.absolutePath()}")
+				// True export semantics: an export is not a save, so the dirty baseline stays put - the
+				// modified marker clears only once UMA Save exists and owns markSaved.
+				for (notice in report.notices) {
+					UmamoLog.warn("export: ${describeExportNotice(notice)}")
+				}
+				if (!report.isEmpty) {
+					commandRegistry.invoke("document.exportReport", report)
+				}
+				UmamoLog.info("exported ${destination.absolutePath()}")
 			}
 		}
 	}
@@ -283,25 +305,32 @@ fun EditorApp(
 		}
 	}
 
-	// Register the file operations as real commands so the keymap drives them (Ctrl+O / Ctrl+S dispatch
-	// through the shell's registry).  file.saveAs re-registers on a document swap so its handler closes
-	// over the current document; it is a no-op unless a CMO3 is open.
+	// Register the file operations as real commands so the keymap drives them (Ctrl+O / Ctrl+Shift+E
+	// dispatch through the shell's registry).  file.exportCmo3 re-registers on a document swap so its
+	// handler closes over the current document; it is only available while a CMO3 is open (a MOC3
+	// document has no retained graph to reconcile onto).
 	DisposableEffect(commandRegistry) {
-		commandRegistry.register(Command("file.open", title = Res.string.menu_open) { openViaPicker() })
-		commandRegistry.register(Command("file.importMoc3", title = Res.string.menu_import_moc3) { importMoc3ViaPicker() })
+		commandRegistry.register(Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { importCmo3ViaPicker() })
+		commandRegistry.register(Command("file.importMoc3", title = Res.string.cmd_import_moc3) { importMoc3ViaPicker() })
 		// logs.export writes the retained UmamoLog buffer to a file; the Logs panel's Export button and the
 		// command palette both dispatch it (the FilePicker it needs lives here, not in the commonMain panel).
 		commandRegistry.register(Command("logs.export", title = Res.string.logs_export) { exportLog() })
 		onDispose {
-			commandRegistry.unregister("file.open")
+			commandRegistry.unregister("file.importCmo3")
 			commandRegistry.unregister("file.importMoc3")
 			commandRegistry.unregister("logs.export")
 		}
 	}
 	DisposableEffect(commandRegistry, document) {
 		val cmo3Document = document as? Cmo3Document
-		commandRegistry.register(Command("file.saveAs", title = Res.string.menu_save_as) { cmo3Document?.let { saveAs(it) } })
-		onDispose { commandRegistry.unregister("file.saveAs") }
+		commandRegistry.register(
+			Command(
+				"file.exportCmo3",
+				title = Res.string.cmd_export_cmo3,
+				availability = CommandAvailability { cmo3Document != null },
+			) { cmo3Document?.let { exportCmo3(it) } },
+		)
+		onDispose { commandRegistry.unregister("file.exportCmo3") }
 	}
 
 	// key(locale) re-resolves the menu's stringResource() calls against the new catalog when the language
@@ -318,9 +347,9 @@ fun EditorApp(
 				canUndo,
 				canRedo,
 				::openStoredPath,
-				::openViaPicker,
+				::importCmo3ViaPicker,
 				::importMoc3ViaPicker,
-				::saveAs,
+				::exportCmo3,
 				onExit,
 				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
 				// binding, and the palette share the one path; the rows are gated by canUndo / canRedo above.
@@ -360,15 +389,15 @@ fun EditorApp(
  *
  * メニューバーのデータを共有ビルダーから構築する。ラベルはここで翻訳し、アクセラレータはキーマップから解決する。
  *
- * @param Document? document The open document (gates Save As).
+ * @param Document? document The open document (gates Export CMO3).
  * @param List recentFiles The recent file paths for the Open Recent submenu.
  * @param Keymap keymap The keymap accelerators are resolved against.
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
- * @param Function openPicker Opens the file picker.
+ * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
- * @param Function saveAs Saves the given CMO3 document via a picker.
+ * @param Function exportCmo3 Exports the given CMO3 document via a picker.
  * @param Function onExit Closes the application.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).
@@ -391,9 +420,9 @@ private fun buildAppMenu(
 	canUndo: Boolean,
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
-	openPicker: () -> Unit,
+	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
-	saveAs: (Cmo3Document) -> Unit,
+	exportCmo3: (Cmo3Document) -> Unit,
 	onExit: () -> Unit,
 	onUndo: () -> Unit,
 	onRedo: () -> Unit,
@@ -411,17 +440,29 @@ private fun buildAppMenu(
 		fileMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
-			canSaveAs = document is Cmo3Document,
-			onOpen = openPicker,
+			canExportCmo3 = document is Cmo3Document,
+			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,
-			onSaveAs = { (document as? Cmo3Document)?.let { saveAs(it) } },
+			onExportCmo3 = { (document as? Cmo3Document)?.let { exportCmo3(it) } },
 			onExit = onExit,
 		),
 		editMenu(keymap, canUndo, canRedo, onUndo, onRedo, onOpenPreferences),
 		workspaceMenu(keymap, onNewWorkspace, onResetWorkspace, onImportWorkspace, onExportThisWorkspace, onExportAllWorkspaces),
 		helpMenu(keymap, openInBrowser, onOpenCredits, onOpenAbout),
 	)
+
+/**
+ * One log line for an export notice - the headless-visible mirror of the shell's report alert.
+ *
+ * @param ExportNotice notice The notice to describe.
+ * @return String The log text.
+ */
+private fun describeExportNotice(notice: ExportNotice): String =
+	when (notice) {
+		is ExportNotice.UnsupportedChange -> "[${notice.category}] ${notice.subject}: ${notice.detail}"
+		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
+	}
 
 /**
  * Renders the open document inside the editor shell. For a puppet document (CMO3 or MOC3), a per-area

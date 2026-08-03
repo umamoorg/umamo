@@ -96,7 +96,7 @@ class KeymapPersistenceTest {
 		assertNull(keymap.chordFor("view.fit"))
 		assertNull(keymap.commandFor(parseKeyChord("primary+Digit0")!!))
 		// An untouched binding is still present.
-		assertEquals("file.open", keymap.commandFor(parseKeyChord("primary+KeyO")!!))
+		assertEquals("file.importCmo3", keymap.commandFor(parseKeyChord("primary+KeyO")!!))
 	}
 
 	/**

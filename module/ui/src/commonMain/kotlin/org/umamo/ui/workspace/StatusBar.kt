@@ -150,7 +150,7 @@ private fun ContextBindsZone() {
 	val session = LocalEditorSession.current
 	val entries = mutableListOf<String>()
 	if (session == null) {
-		bindEntry(keymap, "file.open", stringResource(Res.string.menu_open))?.let { entry -> entries.add(entry) }
+		bindEntry(keymap, "file.importCmo3", stringResource(Res.string.cmd_import_cmo3))?.let { entry -> entries.add(entry) }
 		bindEntry(keymap, "palette.toggle", stringResource(Res.string.status_bind_palette))?.let { entry -> entries.add(entry) }
 	} else {
 		val editorMode by session.mode.collectAsState()

@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportNotice
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
@@ -430,6 +432,14 @@ fun EditorShell(
 							onDismiss = { overlays.openFailure = null },
 						)
 					}
+					// The CMO3 export report, in the same modal family: advisory only - the export has
+					// already been written when it shows.
+					overlays.exportReport?.let { report ->
+						MessageDialog(
+							message = exportReportMessage(report),
+							onDismiss = { overlays.exportReport = null },
+						)
+					}
 					// A destructive command raised a confirm: a modal scrim over the whole shell, painted last
 					// so it floats above the tabs, the area tree, the palette, and the settings window.
 					overlays.pendingConfirm?.let { request ->
@@ -446,6 +456,29 @@ fun EditorShell(
 			}
 		}
 	}
+}
+
+/**
+ * Builds the export-report alert's text: the localized header, then one line per notice.  The
+ * unsupported-change lines carry the exporter's diagnostic text verbatim (dynamic per-edit data,
+ * like a log line); the weld-divergence line is localized with the affected drawable names.
+ *
+ * @param Cmo3ExportReport report The export's advisory report.
+ * @return String The multiline alert text.
+ */
+@Composable
+private fun exportReportMessage(report: Cmo3ExportReport): String {
+	val lines = ArrayList<String>(report.notices.size + 1)
+	lines.add(stringResource(Res.string.export_report_message))
+	for (notice in report.notices) {
+		when (notice) {
+			is ExportNotice.UnsupportedChange ->
+				lines.add("• [${notice.category}] ${notice.subject}: ${notice.detail}")
+			is ExportNotice.WeldDivergence ->
+				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))
+		}
+	}
+	return lines.joinToString("\n")
 }
 
 /**

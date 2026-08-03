@@ -36,5 +36,53 @@ kotlin {
 				implementation(kotlin("test"))
 			}
 		}
+		jvmTest {
+			dependencies {
+				// The CMO3 export round-trip gate drives real :edit session ops over a corpus model,
+				// then re-reads the re-emitted file through the JVM-only codec. The conversion entry
+				// points (Cmo3Import / Cmo3Export) live in :interop, whose api(:format) also supplies
+				// the jvmAndroidMain codec surface transitively.
+				implementation(kotlin("test"))
+				implementation(project(":interop"))
+			}
+		}
+	}
+}
+
+// Corpus paths for the export round-trip gate, mirroring :runtime's forwarding (see
+// module/runtime/build.gradle.kts for the full rationale): explicit -D wins, the local golden
+// corpus is the default, and CI (no corpus, no flags) self-skips.
+val corpusDirectory: File = rootDir.resolve("test/corpus")
+
+/**
+ * The corpus default for [propertyName], or null when there is none (or no corpus).
+ *
+ * @param String propertyName The system property name.
+ * @return String? The default path value, or null.
+ */
+fun corpusDefaultFor(propertyName: String): String? {
+	if (!corpusDirectory.isDirectory) {
+		return null
+	}
+	return when (propertyName) {
+		"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+		"cmo3.probe" ->
+			corpusDirectory
+				.resolve("cmo3")
+				.listFiles { candidate -> candidate.isFile && candidate.extension == "cmo3" }
+				?.sortedBy { it.name }
+				?.joinToString(",") { it.absolutePath }
+				?.takeIf { it.isNotEmpty() }
+		else -> null
+	}
+}
+
+tasks.withType<Test>().configureEach {
+	// The round-trip gate inflates corpus CMO3s (multi-megabyte JDOM); match :format's test heap.
+	maxHeapSize = "4g"
+	for (property in listOf("cmo3.sample", "cmo3.probe")) {
+		(System.getProperty(property) ?: corpusDefaultFor(property))?.let { value ->
+			systemProperty(property, value)
+		}
 	}
 }

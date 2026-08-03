@@ -20,7 +20,7 @@ kotlin {
 	// expect is `useClipDatabase`, a top-level fun — which needs no opt-in. Do not add the flag back
 	// without a declaration that genuinely requires it.
 
-	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
+	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render, module/interop build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by
 	// the two JVM-based targets (desktop JVM + Android/ART). CMO3 read/write is a JDOM +
 	// Kotlin-reflection XML serializer (NOT Java object serialization — see docs/format/CMO3.md)

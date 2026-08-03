@@ -20,12 +20,12 @@ val buildTarget = extra["umamoBuildTarget"] as String
 kotlin {
 	jvmToolchain(21)
 
-	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render build scripts.
+	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render, module/interop build scripts.
 	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
 	// JVM-based targets (desktop JVM + Android/ART). commonMain cannot see :format's jvmAndroidMain
 	// types (FormatRegistry, Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file
 	// layer and app shell need them — so that code lives in src/jvmAndroidMain and is shared verbatim
-	// by both targets. Promote this block to a convention plugin at the 4th user.
+	// by both targets. Promoting this block to a convention plugin is tracked in TODO.md.
 	applyDefaultHierarchyTemplate {
 		common {
 			group("jvmAndroid") {
@@ -70,6 +70,10 @@ kotlin {
 				implementation(libs.kotlinxSerializationJson)
 				implementation(libs.kotlinxCoroutinesCore)
 				implementation(project(":runtime"))
+				// Format↔runtime conversion: the CMO3/MOC3 import + export entry points the document
+				// layer calls, and the export report/notice types the shell overlays render.
+				// `implementation` — ShellOverlayState is internal, so nothing re-exports them.
+				implementation(project(":interop"))
 				// `api` (not `implementation`): the viewport seam's public surface exposes :render types
 				// (PuppetViewportService returns ViewportCamera / PickCandidate / CheckerboardColors), so
 				// consumers see them transitively.
@@ -142,7 +146,7 @@ compose.resources {
 
 // Forward the MOC3 corpus sample to the test JVM so the sidecar-loader tests can exercise the
 // moc-dependent paths (a decodable .moc3 is needed before texture resolution runs).  Explicit -D
-// wins; otherwise the local (gitignored) corpus is the default, mirroring :runtime and :render.
+// wins; otherwise the local (gitignored) corpus is the default, mirroring :interop and :render.
 // Absent entirely (CI, a fresh clone) → those tests self-skip and the build stays green.
 tasks.withType<Test>().configureEach {
 	// The corpus loader test decodes the 8192² atlas (256MB of RGBA) more than once; the JVM default
