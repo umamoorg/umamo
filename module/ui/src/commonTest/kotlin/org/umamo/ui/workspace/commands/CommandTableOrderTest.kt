@@ -10,6 +10,8 @@ import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.defaultLayout
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Pins every command table's contents AND the order the shell registers them in.
@@ -183,6 +185,31 @@ class CommandTableOrderTest {
 			),
 			commands.map { command -> command.id },
 		)
+	}
+
+	/**
+	 * The app-registered file and log tables, in the order EditorApp concatenates them.  Their actions are
+	 * plain lambdas, which is what lets a commonMain test build them at all - the document layer they
+	 * actually call into is jvmAndroidMain.
+	 */
+	@Test
+	fun fileAndLogTablesAreComplete() {
+		val commands = fileCommands({}, {}) + logCommands {}
+		assertEquals(listOf("file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+		assertEquals(listOf("file.exportCmo3"), fileExportCommands({ true }, {}).map { command -> command.id })
+	}
+
+	/**
+	 * Export hides itself when no puppet document is open, and asks LIVE rather than at registration - the
+	 * palette must not offer an export that would no-op.
+	 */
+	@Test
+	fun exportAvailabilityFollowsTheOpenDocument() {
+		var exportable = false
+		val export = fileExportCommands({ exportable }, {}).single()
+		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
+		exportable = true
+		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")
 	}
 
 	/** The keyform-authoring table. */

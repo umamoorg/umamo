@@ -25,8 +25,6 @@ import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
-import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
@@ -55,16 +53,15 @@ import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
-import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.cmd_export_cmo3
-import org.umamo.ui.resources.cmd_import_cmo3
-import org.umamo.ui.resources.cmd_import_moc3
-import org.umamo.ui.resources.logs_export
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
+import org.umamo.ui.workspace.commands.fileCommands
+import org.umamo.ui.workspace.commands.fileExportCommands
+import org.umamo.ui.workspace.commands.logCommands
+import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.decodeLayout
 import org.umamo.ui.workspace.decodeLayoutText
 import org.umamo.ui.workspace.decodeWorkspaceText
@@ -336,20 +333,16 @@ fun EditorApp(
 		}
 	}
 
-	// Register the file operations as real commands so the keymap drives them (Ctrl+O / Ctrl+Shift+E
-	// dispatch through the shell's registry).  file.exportCmo3 re-registers on a document swap so its
-	// handler closes over the current document; it is available only while a puppet document is open.
+	// Register the file and log operations as real commands so the keymap drives them (Ctrl+O /
+	// Ctrl+Shift+E dispatch through the shell's registry).  The tables themselves live with every other
+	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
+	// picker and document loader are.
 	DisposableEffect(commandRegistry) {
-		commandRegistry.register(Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { importCmo3ViaPicker() })
-		commandRegistry.register(Command("file.importMoc3", title = Res.string.cmd_import_moc3) { importMoc3ViaPicker() })
-		// logs.export writes the retained UmamoLog buffer to a file; the Logs panel's Export button and the
-		// command palette both dispatch it (the FilePicker it needs lives here, not in the commonMain panel).
-		commandRegistry.register(Command("logs.export", title = Res.string.logs_export) { exportLog() })
-		onDispose {
-			commandRegistry.unregister("file.importCmo3")
-			commandRegistry.unregister("file.importMoc3")
-			commandRegistry.unregister("logs.export")
-		}
+		val cleanup =
+			commandRegistry.registerAll(
+				fileCommands({ importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
+			)
+		onDispose { cleanup() }
 	}
 	// Keyed on the session as well as the document: the handler closes over BOTH, so re-registering
 	// on either change keeps the pair the export reconciles from consistent by construction.
@@ -357,14 +350,14 @@ fun EditorApp(
 		// Both puppet document kinds export: CMO3-origin reconciles onto its retained graph,
 		// MOC3-origin synthesizes a fresh one.
 		val exportableDocument = document as? PuppetDocument
-		commandRegistry.register(
-			Command(
-				"file.exportCmo3",
-				title = Res.string.cmd_export_cmo3,
-				availability = CommandAvailability { exportableDocument != null },
-			) { exportableDocument?.let { exportCmo3(it) } },
-		)
-		onDispose { commandRegistry.unregister("file.exportCmo3") }
+		val cleanup =
+			commandRegistry.registerAll(
+				fileExportCommands(
+					canExport = { exportableDocument != null },
+					onExport = { exportableDocument?.let { exportCmo3(it) } },
+				),
+			)
+		onDispose { cleanup() }
 	}
 
 	// key(locale) re-resolves the menu's stringResource() calls against the new catalog when the language

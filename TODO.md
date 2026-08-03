@@ -101,7 +101,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
-* Refactor ShellCommands.kt to split it out.  See KeyformCommands.kt as an example.
 
 ## Format
 
