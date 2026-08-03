@@ -1,0 +1,38 @@
+package org.umamo.ui.workspace.commands
+
+import org.umamo.interop.Cmo3ExportReport
+import org.umamo.ui.action.Command
+import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.ShellOverlayState
+
+/**
+ * The document-report commands the app's document layer dispatches into.
+ *
+ * The reporting lives here rather than in the app because the shell owns the modal chrome: routing a
+ * failure or a confirm through a command means Escape, Enter, the scrim, and focus reclamation behave
+ * exactly as they do for every other overlay, instead of each alert re-implementing them.  All three are
+ * argument-only and untitled, so they never surface in the palette - there is nothing to invoke without
+ * a payload.
+ *
+ * @param ShellOverlayState overlays The overlay state the confirms and the alerts go through.
+ * @return List<Command> The commands to register.
+ */
+internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
+	listOf(
+		Command("document.openFailed", title = null) { argument ->
+			(argument as? DocumentOpenFailure)?.let { failure -> overlays.openFailure = failure }
+		},
+		// The document layer asks before replacing a dirty document (an import discards unexported
+		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
+		Command("document.confirmReplace", title = null) { argument ->
+			(argument as? Function0<*>)?.let { proceed ->
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unexported) { proceed.invoke() }
+			}
+		},
+		// A CMO3 export finished with advisory notices; the shell shows them in a non-blocking alert.
+		Command("document.exportReport", title = null) { argument ->
+			(argument as? Cmo3ExportReport)?.let { report -> overlays.exportReport = report }
+		},
+	)

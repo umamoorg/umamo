@@ -15,11 +15,12 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
-import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.commands.registerAll
+import org.umamo.ui.workspace.commands.viewportChromeCommands
 
 /** How long to coalesce rapid layout edits (structural bursts) before writing to disk. */
 private const val PERSIST_DEBOUNCE_MS = 400L
@@ -33,9 +34,6 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  *
  * Kept separate from [EditorShell] so the shell itself stays Settings-free and unit-testable; this is
  * the thin wrapper apps mount.
- *
- * 設定に連動した EditorShell。起動時にレイアウトを読み込み（初回は既定を種に）、言語を設定から駆動し、
- * レイアウト編集をデバウンスして保存する。
  *
  * @param ViewportHost? viewportHost The platform GL viewport injector, or null for placeholders.
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
@@ -95,24 +93,12 @@ fun PersistentEditorShell(
 		}
 	}
 
-	// The chrome toggles live here rather than in EditorShell because they write settings, and the shell
-	// itself stays Settings-free (its documented contract); the standalone shell simply lacks them, the
-	// same division as the app-registered File commands.
+	// The chrome toggles are registered here rather than in EditorShell because they write settings, and
+	// the shell itself stays Settings-free (its documented contract); the standalone shell simply lacks
+	// them, the same division as the app-registered File commands.
 	DisposableEffect(settings, commandRegistry) {
-		commandRegistry.register(
-			Command("view.toggleToolbar", title = Res.string.cmd_view_toggle_toolbar) {
-				settings.setBoolean(SHOW_TOOLBAR_SETTINGS_KEY, !(settings.getBoolean(SHOW_TOOLBAR_SETTINGS_KEY) ?: true))
-			},
-		)
-		commandRegistry.register(
-			Command("view.toggleSidebar", title = Res.string.cmd_view_toggle_sidebar) {
-				settings.setBoolean(SHOW_SIDEBAR_SETTINGS_KEY, !(settings.getBoolean(SHOW_SIDEBAR_SETTINGS_KEY) ?: false))
-			},
-		)
-		onDispose {
-			commandRegistry.unregister("view.toggleToolbar")
-			commandRegistry.unregister("view.toggleSidebar")
-		}
+		val cleanup = commandRegistry.registerAll(viewportChromeCommands(settings))
+		onDispose { cleanup() }
 	}
 
 	CompositionLocalProvider(LocalViewportChrome provides viewportChrome) {

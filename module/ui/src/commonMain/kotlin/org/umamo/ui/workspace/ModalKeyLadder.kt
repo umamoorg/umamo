@@ -30,9 +30,6 @@ import org.umamo.ui.viewport.pieMenuEntriesFor
  * dispatches through the action registry": the ladder decides WHO owns the key, and everything it
  * does not consume falls through to the keymap dispatch at the bottom.  Order is the contract; add
  * new modal states at the precedence their UI stacking implies.
- *
- * シェルのモーダルキー階梯。キーマップより先に走る Escape/Enter の優先順位で、最前面のモーダルが
- * キーを所有する。消費しなかったキーは末尾でキーマップに落ちる。順序が仕様。
  */
 
 /**

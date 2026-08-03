@@ -1,4 +1,4 @@
-package org.umamo.ui.workspace
+package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
@@ -7,9 +7,10 @@ import org.umamo.edit.removeKeyOnTrack
 import org.umamo.edit.removeTrackKeys
 import org.umamo.edit.removingKeys
 import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.SpaceKind
 
 /*
  * The keyform-authoring command table: insert / delete on the hovered keyable property, and the keyform
@@ -39,20 +40,29 @@ import org.umamo.ui.resources.*
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param Function hoveredKeyable Resolves the hovered keyable property (a sheet lane or a Properties row)
  *   at dispatch time; null when the pointer is over nothing keyable.
- * @param Function hoveredSurface Resolves the last-touched editor surface at dispatch time, which names
- *   the acting sheet when it is a keyform sheet.
+ * @param CommandRouting routing Resolves which area the pointer means, naming the acting sheet when the
+ *   last-touched surface is one.
  * @param KeyformSheetViews keyformSheets The shell's open-sheet registry the sheet commands act through.
+ * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @return List<Command> The commands to register.
  */
-internal fun shellKeyformCommands(
+internal fun keyformCommands(
 	editorSession: EditorSession?,
 	hoveredKeyable: () -> KeyformHover?,
-	hoveredSurface: () -> HoveredSurface?,
+	routing: CommandRouting,
 	keyformSheets: KeyformSheetViews,
+	availability: SessionAvailability,
 ): List<Command> {
-	val hasDocument = CommandAvailability { editorSession != null }
+	/**
+	 * The last-touched keyform-sheet area, or null when the pointer's surface is not a sheet.  Both sheet
+	 * lookups below take this rather than an unconditional area id, so a pointer parked over a viewport
+	 * reads as "no sheet named" and leaves their own fallbacks to decide.
+	 *
+	 * @return String? The hovered sheet's area id, or null.
+	 */
+	fun hoveredSheetArea(): String? = routing.areaOf(SpaceKind.KeyformSheet)
 	return listOf(
-		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = hasDocument) {
+		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = availability.hasDocument) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
 					// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
@@ -61,7 +71,7 @@ internal fun shellKeyformCommands(
 				}
 			}
 		},
-		Command("keyform.delete", title = Res.string.cmd_keyform_delete, availability = hasDocument) {
+		Command("keyform.delete", title = Res.string.cmd_keyform_delete, availability = availability.hasDocument) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
 					// The hovered row goes with it, so the removal re-points the sheet's key selection at what
@@ -70,8 +80,8 @@ internal fun shellKeyformCommands(
 				}
 			}
 		},
-		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = hasDocument) {
-			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))
+		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = availability.hasDocument) {
+			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea())
 			val removals = sheet?.selectedTracks().orEmpty()
 			if (editorSession != null && sheet != null && removals.isNotEmpty()) {
 				// Everything selected is what is going, so the reconciliation lands on an empty selection -
@@ -82,14 +92,14 @@ internal fun shellKeyformCommands(
 				}
 			}
 		},
-		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = hasDocument) {
-			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.nudgeSelection(-KEYFORM_NUDGE_FRACTION)
+		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = availability.hasDocument) {
+			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(-KEYFORM_NUDGE_FRACTION)
 		},
-		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = hasDocument) {
-			keyformSheets.resolveForSelection(hoveredSheetArea(hoveredSurface))?.nudgeSelection(KEYFORM_NUDGE_FRACTION)
+		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = availability.hasDocument) {
+			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(KEYFORM_NUDGE_FRACTION)
 		},
-		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = hasDocument) {
-			keyformSheets.resolve(hoveredSheetArea(hoveredSurface))?.frameAll?.invoke()
+		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = availability.hasDocument) {
+			keyformSheets.resolve(hoveredSheetArea())?.frameAll?.invoke()
 		},
 	)
 }
@@ -119,12 +129,3 @@ private fun aimedKeyable(session: EditorSession, hover: KeyformHover?): KeyformH
  * second.  A hundredth puts a full sweep at a hundred presses, which reads as fine adjustment.
  */
 private const val KEYFORM_NUDGE_FRACTION = 0.01f
-
-/**
- * The last-touched keyform-sheet area id, or null when the last-touched surface is not a sheet.
- *
- * @param Function hoveredSurface The shell's last-touched-surface resolver.
- * @return String? The sheet area id, or null.
- */
-private fun hoveredSheetArea(hoveredSurface: () -> HoveredSurface?): String? =
-	hoveredSurface()?.takeIf { surface -> surface.kind == SpaceKind.KeyformSheet }?.areaId
