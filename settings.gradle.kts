@@ -6,6 +6,11 @@ rootProject.name = "umamo"
 // `pluginManagement` controls plugin resolution. google() is required for the
 // Android Gradle Plugin; gradlePluginPortal() for community plugins (ktlint).
 pluginManagement {
+	// Umamo's own convention plugins (umamo.kmp-jvmandroid, umamo.kmp-ios-gate, umamo.test-corpus),
+	// as an included build rather than buildSrc: a buildSrc change invalidates the whole build's
+	// configuration cache, which is on for this project (see gradle.properties).
+	includeBuild("gradle/build-logic")
+
 	repositories {
 		google()
 		mavenCentral()

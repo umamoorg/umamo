@@ -6,24 +6,19 @@
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
 	alias(libs.plugins.androidKmpLibrary)
+	// Umamo's own conventions (gradle/build-logic): the shared jvmAndroidMain source-set group, the
+	// iosArm64 → `check` wiring, and the corpus/-D forwarding configured by `umamoTestCorpus` below.
+	id("umamo.kmp-jvmandroid")
+	id("umamo.kmp-ios-gate")
+	id("umamo.test-corpus")
 }
 
 kotlin {
 	jvmToolchain(21)
 
-	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render, module/interop
-	// build scripts. Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared
-	// by the two JVM-based targets (desktop JVM + Android/ART). The CMO3 export lowering (Cmo3Export)
-	// mutates a Cmo3Model graph, which lives in :format's jvmAndroidMain (the JDOM-backed codec) — so
-	// it can't sit in commonMain. Promoting this block to a convention plugin is tracked in TODO.md.
-	applyDefaultHierarchyTemplate {
-		common {
-			group("jvmAndroid") {
-				withJvm()
-				withAndroidTarget()
-			}
-		}
-	}
+	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin. This module
+	// needs it because the CMO3 export lowering (Cmo3Export) mutates a Cmo3Model graph, which lives in
+	// :format's own jvmAndroidMain (the JDOM-backed codec) — so it can't sit in commonMain.
 
 	jvm()
 
@@ -31,7 +26,7 @@ kotlin {
 	// rationale). It keeps the commonMain conversions (MOC3 ingest for a future iOS viewer, the CMO3
 	// ingest and model diff) a compiler-checked iOS citizen rather than the root regex gate's
 	// convention. Compiles on Linux/CI (klib only, no Xcode linker); a device target has no runnable
-	// test task, so `check` is wired to the compiles explicitly below.
+	// test task, so `umamo.kmp-ios-gate` wires `check` to the compiles.
 	iosArm64()
 
 	android {
@@ -41,14 +36,6 @@ kotlin {
 	}
 
 	sourceSets {
-		// [kmp-jvmandroid] The hierarchy group's withAndroidTarget() matches the LEGACY android
-		// target, not AGP 9's new KMP android-library target — so androidMain never inherits the
-		// jvmAndroid group and can't see its declarations. Wire the edge explicitly. (withJvm()
-		// does match, which is why the JVM target compiles fine.)
-		val jvmAndroidMain = getByName("jvmAndroidMain")
-		val androidMain = getByName("androidMain")
-		androidMain.dependsOn(jvmAndroidMain)
-
 		commonMain {
 			dependencies {
 				// Both `api` (not `implementation`): the conversion surface exposes both sides —
@@ -77,56 +64,16 @@ kotlin {
 	}
 }
 
-// Wire the iosArm64 compile into `check`, main AND test — neither arrives on its own, because a device
-// target has no runnable test task (see :format's wiring comment for the war story: main compiled green
-// while commonTest was broken, and only CI's explicit compileTestKotlinIosArm64 caught it).
-tasks.named("check") {
-	dependsOn("compileKotlinIosArm64", "compileTestKotlinIosArm64")
-}
-
-// Forward corpus paths to the test JVM so the gated tests can run:
+// Corpus wiring for the gated tests (the `umamo.test-corpus` convention plugin):
 // `./gradlew :interop:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Dmoc3.samples=…`.
-// Absent properties are skipped, so CI (which sets none) self-skips the gated tests — no committed
-// corpus needed. (mirrors the same forwarding + corpus defaulting in :format)
 //
-// cmo3.sample defaults to the corpus's default sample (the golden-count sample) and cmo3.probe to every
-// corpus .cmo3, so Cmo3ImportTest's probe loop exercises the whole corpus by default when the local
-// golden corpus is present (it is gitignored, so CI still self-skips). moc3.sample (singular, read by
-// Moc3ImportTest's golden-count test) has no corpus default and only takes effect when passed as -D.
-val corpusDirectory: File = rootDir.resolve("test/corpus")
-
-/**
- * The corpus default for [propertyName], or null when there is none (or no corpus).
- *
- * @param String propertyName The system property name.
- * @return String? The default path value, or null.
- */
-fun corpusDefaultFor(propertyName: String): String? {
-	if (!corpusDirectory.isDirectory) {
-		return null
-	}
-	return when (propertyName) {
-		"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
-		"cmo3.probe" ->
-			corpusDirectory
-				.resolve("cmo3")
-				.listFiles { candidate -> candidate.isFile && candidate.extension == "cmo3" }
-				?.sortedBy { it.name }
-				?.joinToString(",") { it.absolutePath }
-				?.takeIf { it.isNotEmpty() }
-		// CompositeImportTest joins ingested CMO3s against their baked moc3s from this directory.
-		"moc3.samples" -> corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
-		else -> null
-	}
-}
-
-tasks.withType<Test>().configureEach {
+// cmo3.sample and cmo3.probe take the shared corpus defaults, so Cmo3ImportTest's probe loop exercises
+// the whole corpus by default when the local (gitignored) corpus is present; moc3.samples is where
+// CompositeImportTest joins ingested CMO3s against their baked moc3s. moc3.sample (singular, read by
+// Moc3ImportTest's golden-count test) has no default and only takes effect when passed as -D.
+umamoTestCorpus {
 	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of JDOM); match
 	// :format's test heap so the loop does not OOM.
-	maxHeapSize = "4g"
-	for (property in listOf("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples")) {
-		(System.getProperty(property) ?: corpusDefaultFor(property))?.let { value ->
-			systemProperty(property, value)
-		}
-	}
+	maxHeap("4g")
+	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples")
 }

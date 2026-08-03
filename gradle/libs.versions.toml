@@ -87,6 +87,12 @@ sqldelightAndroidDriver = { module = "app.cash.sqldelight:android-driver", versi
 # so CLIP ingest is the native path that actually matters. Publishes iosArm64 alongside the rest.
 sqldelightNativeDriver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
 
+# The Kotlin Gradle Plugin as a LIBRARY coordinate, not a plugin marker: gradle/build-logic's
+# convention plugins CONFIGURE KMP (KotlinMultiplatformExtension, the source-set hierarchy DSL) rather
+# than applying it, so they need its API on their compile classpath. Same `kotlin` version ref the
+# modules apply, so what build-logic compiles against and what the modules get can never drift.
+kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 # Since Kotlin 2.0 the Compose compiler ships as a Kotlin Gradle plugin, version-locked
