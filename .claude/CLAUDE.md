@@ -180,12 +180,18 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             makes ZERO GL calls — every GPU op goes through `RenderDevice`.  A backend
                             is one `RenderDevice` impl: `GlRenderDevice` (jvmMain, LWJGL/GL 3.3 core)
                             ships; GLES 3.0 (android) + Metal (iOS) are ports of it, stubbed.  `:render`
-                            is zero `expect`/`actual`.  PNG decode goes through :format's `PngCodec`
+                            is zero `expect`/`actual` AND has no jvmAndroidMain — outside the backend
+                            impls it is all commonMain.  PNG decode goes through :format's `PngCodec`
                             (the old `decodePngToRgba` expect/actual is retired).  :format is a
                             direct commonMain api dep (RasterImage sits in the RenderDevice upload
-                            surface, PngCodec behind the MOC3 texture decode); the CMO3 atlas
-                            extraction sits in jvmAndroidMain (takes a `Cmo3Model`).  LWJGL is
-                            DESKTOP-ONLY.
+                            surface, PngCodec behind the atlas decode).  Both texture adapters are
+                            commonMain: `buildPuppetTextures` is the format-agnostic base (page bytes
+                            + a drawable→page map → `PuppetTextures`, with an `UndecodablePagePolicy`
+                            because CMO3 skips a bad page and MOC3 fails the import), over which
+                            `cmo3PuppetTextures` walks the graph and `moc3PuppetTextures` reads the
+                            moc's textureIndex.  The CMO3 one takes a `CModelSource` plus an injected
+                            `(CImageResource) -> ByteArray?` rather than a `Cmo3Model`, which is what
+                            keeps it off jvmAndroidMain.  LWJGL is DESKTOP-ONLY.
                             The CPU eval (`eval/`) depends on nothing in :render and would move to
                             :runtime cleanly — it stays here ON PURPOSE, paired with the GPU deform
                             shaders it mirrors and that the differential oracle diffs it against.
@@ -219,7 +225,7 @@ Keep `:format`, `:reimport`, `:runtime`, `:interop`, `:edit`, `:ui` in `commonMa
 
 **Build logic that more than one module needs is a convention plugin, not a copied block.**  `gradle/build-logic` is an included build (not `buildSrc` — the configuration cache is on, and a `buildSrc` edit invalidates the whole build) exposing three plugins a module opts into by id:
 
-- **`umamo.kmp-jvmandroid`** — creates the `jvmAndroidMain` source-set group shared by the desktop-JVM and Android targets, and wires `androidMain` onto it explicitly (the hierarchy template's `withAndroidTarget()` matches the LEGACY android target, not AGP 9's KMP android-library target, so without the edge Android silently cannot see the group).  Applied by `:format`, `:interop`, `:render`, `:ui`.
+- **`umamo.kmp-jvmandroid`** — creates the `jvmAndroidMain` source-set group shared by the desktop-JVM and Android targets, and wires `androidMain` onto it explicitly (the hierarchy template's `withAndroidTarget()` matches the LEGACY android target, not AGP 9's KMP android-library target, so without the edge Android silently cannot see the group).  Applied by `:format`, `:interop`, and `:ui`.
 - **`umamo.kmp-ios-gate`** — makes `check` depend on `compileKotlinIosArm64` AND `compileTestKotlinIosArm64`.  A device target has no runnable test task, so neither compile joins `check` on its own and the commonMain-purity guarantee silently stops firing.  Applied by every module with an `iosArm64()` target.
 - **`umamo.test-corpus`** — the golden-corpus / `-D` forwarding for sample-gated tests, declared per module in a `umamoTestCorpus { }` block.  Explicit `-D` wins (resolved against the REPO ROOT, and a path that does not exist fails the build); the local gitignored corpus is the default; absent both, the test self-skips and CI stays green.  The shared default table lives in `org.umamo.buildlogic.sharedCorpusDefault` — add a property there only when it means the same thing in every module.
 

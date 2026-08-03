@@ -27,10 +27,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
-## Portability
-* Can we move extractPuppetTextures (module/render/src/jvmAndroidMain/kotlin/org/umamo/render/Cmo3PuppetTextures.kt) into commonMain to sit next to the new Moc3PuppetTextures and inherit from a base?
-	* Potential clean up of Cmo3Document as well.  If there is going to be a new Moc3Document, we should consider having them as separate files next to Document.kt.
-
 ## Read/Write Filing Handling
 * primary+shift+KeyE should not default to file.exportCmo3.
 * Clean up the boolean logic mess in AppMenu->fileMenu().

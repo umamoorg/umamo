@@ -1,6 +1,6 @@
 package org.umamo.render
 
-import org.umamo.format.png.PngCodec
+import org.umamo.format.moc3.MocDocument
 
 /**
  * Builds the [PuppetTextures] for a MOC3-imported puppet from its sidecar atlas pages.  A `.moc3`
@@ -8,37 +8,26 @@ import org.umamo.format.png.PngCodec
  * (in order - a drawable's `textureIndex` indexes that list), so the caller reads those files and
  * hands their bytes here in the same order.
  *
- * Unlike the CMO3 extractor (which skips an undecodable page per drawable), a broken page fails the
- * whole build: a MOC3 import with a missing atlas page is a broken puppet, and the loader surfaces it
- * as an import error rather than silently rendering fallback colors.
+ * Unlike the CMO3 adapter (which skips an undecodable page), a broken page fails the whole build so
+ * the loader surfaces it as an import error rather than silently rendering fallback colors - see
+ * [UndecodablePagePolicy.Fail].
  *
- * @param List<ByteArray>  pageBytes              The PNG bytes per manifest texture, in Textures order.
- * @param Map<String, Int> atlasIndexByDrawableId Drawable id (`ArtMesh…`) → page index (the moc's
- *                                                per-mesh textureIndex).
+ * @param MocDocument     mocDocument The decoded moc, whose art meshes carry the per-mesh textureIndex.
+ * @param List<ByteArray> pageBytes   The PNG bytes per manifest texture, in Textures order.
  * @return PuppetTextures? The decoded pages + index, or null when any page fails to decode or any
  *                         index falls outside the page list.
  */
-fun buildPuppetTextures(pageBytes: List<ByteArray>, atlasIndexByDrawableId: Map<String, Int>): PuppetTextures? {
-	// An index outside the decoded page list must never reach the renderer: PuppetRenderer resolves
-	// pages by direct list indexing (a CMO3-era invariant its extractor upholds by construction), so
-	// broken atlas wiring fails the build here rather than crashing the render thread later.
-	if (atlasIndexByDrawableId.values.any { pageIndex -> pageIndex !in pageBytes.indices }) {
-		return null
-	}
-	val atlases =
-		pageBytes.map { bytes ->
-			val image =
-				try {
-					PngCodec.read(bytes)
-				} catch (_: Exception) {
-					return null
-				}
-			DecodedImage(image.rgba, image.width, image.height)
-		}
-	// Cubism texture files are straight-alpha PNGs (premultiplication is a runtime load option, not a
-	// property of the files), matching the straight-alpha stream PngCodec yields.  The premultiplied-vs-
-	// straight COMPOSITING distinction (legacy vs 5.3+ blend modes) rides BlendMode.isLegacy, not this
-	// flag; see PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs straight
-	// alpha".
-	return PuppetTextures(atlases, atlasIndexByDrawableId, premultipliedAlpha = false)
-}
+fun moc3PuppetTextures(mocDocument: MocDocument, pageBytes: List<ByteArray>): PuppetTextures? =
+	buildPuppetTextures(
+		pageBytes,
+		// MOC3: ArtMesh.textureIndex, decoded from section 41 (Sections.DRAW_TEXTURE) - the mesh's page
+		// slot, indexing model3's Textures list.
+		mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex },
+		// Cubism texture files are straight-alpha PNGs (premultiplication is a runtime load option, not a
+		// property of the files), matching the straight-alpha stream PngCodec yields.  The premultiplied-
+		// vs-straight COMPOSITING distinction (legacy vs 5.3+ blend modes) rides BlendMode.isLegacy, not
+		// this flag; see PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs
+		// straight alpha".
+		premultipliedAlpha = false,
+		undecodablePage = UndecodablePagePolicy.Fail,
+	)
