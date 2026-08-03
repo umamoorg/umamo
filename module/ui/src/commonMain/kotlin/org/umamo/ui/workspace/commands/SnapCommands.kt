@@ -82,27 +82,27 @@ internal fun snapCommands(
 			}
 		},
 		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.CursorToSelected)
+			editorSession?.requestSnap(SnapKind.CursorToSelected, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.CursorToActive)
+			editorSession?.requestSnap(SnapKind.CursorToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.SelectionToGrid)
+			editorSession?.requestSnap(SnapKind.SelectionToGrid, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.SelectionToCursor)
+			editorSession?.requestSnap(SnapKind.SelectionToCursor, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset)
+			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument) {
-			editorSession?.requestSnap(SnapKind.SelectionToActive)
+			editorSession?.requestSnap(SnapKind.SelectionToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
 	)

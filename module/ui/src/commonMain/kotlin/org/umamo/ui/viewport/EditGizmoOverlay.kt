@@ -554,9 +554,10 @@ fun EditGizmoOverlay(
 	}
 
 	// Alt+Q: switch the edited mesh to the drawable under the pointer (or the overlap picker for a stack).
+	// Gated on the payload's area, resolved at dispatch, like Select Linked above.
 	LaunchedEffect(session) {
-		session.switchObjectRequests.collect {
-			if (session.mode.value != EditorMode.Edit || service.activeAreaId != areaId) {
+		session.switchObjectRequests.collect { requestedAreaId ->
+			if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
 				return@collect
 			}
 			handleSwitchEditDrawableRequest(session, service, areaId, gesture.lastPointer, onOverlapRequest)
@@ -564,9 +565,10 @@ fun EditGizmoOverlay(
 	}
 
 	// Rip (Blender's V): duplicate the covered vertices, re-point the pointer-side triangles, auto-grab.
+	// Gated on the payload's area, resolved at dispatch, like Select Linked above.
 	LaunchedEffect(session) {
-		session.ripRequests.collect {
-			if (session.mode.value != EditorMode.Edit || service.activeAreaId != areaId) {
+		session.ripRequests.collect { requestedAreaId ->
+			if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
 				return@collect
 			}
 			handleRipRequest(session, liveGeometryState.value, areaId, gesture.lastPointer, liveCamera.value, liveSize.value)
@@ -575,12 +577,13 @@ fun EditGizmoOverlay(
 
 	// The geometry-dependent Shift+S snaps for Edit mode.  Only the pointer's own area executes: every
 	// open 2D viewport composes this collector, and an ungated request would commit once per viewport.
+	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
 	LaunchedEffect(session) {
-		session.snapRequests.collect { kind ->
-			if (session.mode.value != EditorMode.Edit || service.activeAreaId != areaId) {
+		session.snapRequests.collect { request ->
+			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 				return@collect
 			}
-			handleEditSnapRequest(session, liveGeometryState.value, kind)
+			handleEditSnapRequest(session, liveGeometryState.value, request.kind)
 		}
 	}
 

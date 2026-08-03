@@ -110,10 +110,24 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 		}
 	}
 
+	// Release the pointer claim on the same trigger, so a closed or joined-away area stops being the
+	// answer to "which area does the pointer mean" - the tracker's eviction half, next to the one above.
+	val hoveredTracker = LocalHoveredSurfaceTracker.current
+	if (hoveredTracker != null) {
+		DisposableEffect(hoveredTracker, area.id) {
+			onDispose { hoveredTracker.releaseArea(area.id) }
+		}
+	}
+
 	Box(
 		modifier =
 			modifier
 				.fillMaxSize()
+				// One stamp for every space: the leaf knows its own kind, so a space cannot forget to
+				// report itself and a new SpaceKind is covered the day it is added.  On the leaf rather
+				// than the body so the HEADER counts as hovering the area - the outliner's search field
+				// lives there, and using it has to read as "the pointer is on the outliner".
+				.stampsHoveredSurface(hoveredTracker, area.id, area.space)
 				.onGloballyPositioned { leafCoords ->
 					val content = dragController?.contentCoords
 					if (content != null && content.isAttached && leafCoords.isAttached) {

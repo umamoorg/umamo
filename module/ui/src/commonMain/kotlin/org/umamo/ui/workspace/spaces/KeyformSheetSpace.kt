@@ -31,11 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -92,11 +89,8 @@ import org.umamo.ui.tracks.flattenTrackRows
 import org.umamo.ui.tracks.laneMarkOffsetX
 import org.umamo.ui.tracks.trackWindowGestures
 import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
-import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalKeyformSheetViews
-import org.umamo.ui.workspace.SpaceKind
 
 /**
  * The keyform sheet: for each parameter targeted in the Parameters panel, one track per (item, channel)
@@ -173,10 +167,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	var panningTracks by remember { mutableStateOf(false) }
 	var resizingColumn by remember { mutableStateOf(false) }
 	val horizontalDrag = panningTracks || resizingColumn
-	// Stamp the shell's last-touched surface, exactly like the 2D viewport and the UV editor: the sheet's
-	// shell-level commands (delete/nudge selected keys, frame all) resolve WHICH sheet at dispatch time
-	// from this.  Observed on the Initial pass so the lanes' own gestures keep every event.
-	val hoveredTracker = LocalHoveredSurfaceTracker.current
 	// A Column, not a Box with the window indicator layered on: as an overlay the indicator painted over the
 	// bottom 8dp of the last row and - because it is draggable - swallowed the pointer there, so marks in
 	// that strip were unclickable whenever the sheet was zoomed.  As a sibling it cannot reach the rows.
@@ -187,16 +177,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			Modifier
 				.fillMaxSize()
 				.background(colors.panelBackground)
-				.pointerInput(hoveredTracker, scope.areaId) {
-					awaitPointerEventScope {
-						while (true) {
-							val event = awaitPointerEvent(PointerEventPass.Initial)
-							if (event.type != PointerEventType.Exit) {
-								hoveredTracker?.lastTouched = HoveredSurface(scope.areaId, SpaceKind.KeyformSheet)
-							}
-						}
-					}
-				}
 				.pointerHoverIcon(
 					icon = if (horizontalDrag) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
 					// Only while a drag is live: otherwise the label column's own hover cursors, and the

@@ -1,11 +1,16 @@
 package org.umamo.ui.workspace.commands
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.SnapKind
+import org.umamo.edit.SnapRequest
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -29,10 +34,10 @@ import kotlin.test.assertTrue
  * mode is silent.
  *
  * Every case here is a rule that looks wrong on first reading and is not: a hovered UV editor that
- * refuses a transform outright rather than falling back, an Object-mode duplicate that ignores the
- * hovered surface its Edit-mode twin respects, a Box Select that must not reach for a keyform sheet the
- * pointer is nowhere near.  Each would break invisibly - a key that quietly does nothing, or acts in an
- * area the user is not looking at - so each is pinned rather than left to review.
+ * refuses a transform outright rather than falling back, a duplicate that still copies over a UV editor
+ * but declines to auto-grab there, a Box Select that must not reach for a keyform sheet the pointer is
+ * nowhere near.  Each would break invisibly - a key that quietly does nothing, or acts in an area the
+ * user is not looking at - so each is pinned rather than left to review.
  */
 class CommandDispatchTest {
 	private val viewportArea = "viewport-1"
@@ -74,7 +79,7 @@ class CommandDispatchTest {
 		return session
 	}
 
-	private fun routing(hovered: HoveredSurface?): CommandRouting = CommandRouting({ hovered }, { viewportArea })
+	private fun routing(hovered: HoveredSurface?): CommandRouting = CommandRouting { hovered }
 
 	private fun List<Command>.run(id: String) {
 		first { command -> command.id == id }.handler.run(null)
@@ -167,14 +172,27 @@ class CommandDispatchTest {
 	}
 
 	/**
-	 * C over a keyform sheet arms in the pointer's viewport.  Circle Select has no sheet branch at all,
-	 * unlike Box Select - a sheet has no circle brush, so falling through beats doing nothing.
+	 * C over a keyform sheet arms NOTHING.  A sheet has no circle brush, and there is no longer a
+	 * last-viewport to fall back to - arming one the pointer is not over is the failure the single resolver
+	 * exists to remove.
 	 */
 	@Test
-	fun circleSelectOverASheetArmsTheViewport() {
+	fun circleSelectOverASheetArmsNothing() {
 		val session = session(EditorMode.Edit)
 		val commands =
 			selectCommands(session, routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)), KeyformSheetViews(), SessionAvailability(session))
+
+		commands.run("mesh.circleSelect")
+
+		assertNull(session.activeSelectTool.value, "a sheet hosts no brush and hands the gesture to no one")
+	}
+
+	/** The same press over a viewport does arm, so the refusal above is the routing talking, not a dead command. */
+	@Test
+	fun circleSelectOverAViewportArmsThere() {
+		val session = session(EditorMode.Edit)
+		val commands =
+			selectCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), KeyformSheetViews(), SessionAvailability(session))
 
 		commands.run("mesh.circleSelect")
 
@@ -182,20 +200,134 @@ class CommandDispatchTest {
 	}
 
 	/**
-	 * Shift+D in Object mode auto-grabs in the pointer's viewport even over a hovered UV editor - the
-	 * Edit-mode branch skips its auto-grab there, the Object branch never checked.  Preserved verbatim:
-	 * reconciling the two changes behavior and belongs in its own commit.
+	 * Shift+D in Object mode duplicates wherever the pointer is, but only auto-grabs when the pointer is on
+	 * a viewport.
+	 *
+	 * The duplicate itself needs no area - it is a model edit - so it still runs over a UV editor or a
+	 * panel.  The auto-grab is a viewport gesture, so it is simply skipped rather than started somewhere
+	 * the user is not pointing.
 	 */
 	@Test
-	fun objectDuplicateAutoGrabsInTheViewportEvenOverAUvEditor() {
+	fun objectDuplicateSkipsTheAutoGrabOffAViewport() {
 		val session = session(EditorMode.Object)
 		val commands = topologyCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
+
+		commands.run("mesh.duplicate")
+
+		assertEquals(2, session.model.value.drawables.size, "the duplicate itself still happened")
+		assertNull(session.activeObjectOperator.value, "but nothing was grabbed in a viewport the pointer left")
+	}
+
+	/** Over a viewport it does auto-grab, so the skip above is the routing talking. */
+	@Test
+	fun objectDuplicateAutoGrabsInTheHoveredViewport() {
+		val session = session(EditorMode.Object)
+		val commands = topologyCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
 
 		commands.run("mesh.duplicate")
 
 		assertEquals(MeshOperatorKind.Grab, session.activeObjectOperator.value?.kind)
 		assertEquals(viewportArea, session.activeObjectOperator.value?.areaId)
 	}
+
+	/**
+	 * G with the pointer on a PANEL latches nothing at all.
+	 *
+	 * This is the whole point of retiring the second resolver: there used to be a "last viewport touched"
+	 * to fall back on, so a transform started in a viewport the user had walked away from.  The fixture
+	 * has a live mesh selection, so the refusal is the routing talking and not an ineligible session.
+	 */
+	@Test
+	fun grabOverAPanelLatchesNothing() {
+		val session = session(EditorMode.Edit)
+		session.selectAllMeshElements()
+		val commands =
+			transformCommands(session, routing(HoveredSurface("outliner-1", SpaceKind.Outliner)), SessionAvailability(session))
+
+		commands.run("mesh.grab")
+
+		assertNull(session.activeMeshOperator.value, "no viewport is hovered, so there is nowhere to grab")
+		assertNull(session.activeObjectOperator.value)
+		assertNull(session.activeUvOperator.value)
+	}
+
+	/** The same press over a viewport does latch, so the refusal above is not a dead command. */
+	@Test
+	fun grabOverAViewportLatchesThere() {
+		val session = session(EditorMode.Edit)
+		session.selectAllMeshElements()
+		val commands =
+			transformCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+
+		commands.run("mesh.grab")
+
+		assertEquals(viewportArea, session.activeMeshOperator.value?.areaId)
+	}
+
+	/** Box Select over a panel arms nothing either - same rule, different tool. */
+	@Test
+	fun boxSelectOverAPanelArmsNothing() {
+		val session = session(EditorMode.Edit)
+		val commands =
+			selectCommands(
+				session,
+				routing(HoveredSurface("properties-1", SpaceKind.Properties)),
+				KeyformSheetViews(),
+				SessionAvailability(session),
+			)
+
+		commands.run("mesh.boxSelect")
+
+		assertNull(session.activeSelectTool.value)
+	}
+
+	/**
+	 * A world snap fired over a panel reaches no overlay.
+	 *
+	 * The request still goes out - the session has no idea where the pointer is - but it carries a null
+	 * area, and every collector gates on its own id, so nothing executes.  Pinned at the payload because
+	 * the collectors themselves live in composables this test cannot reach.
+	 */
+	@Test
+	fun aWorldSnapOverAPanelCarriesNoArea() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session))
+			val received = mutableListOf<SnapRequest>()
+			val collector = launch { session.snapRequests.collect { request -> received += request } }
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("snap.selectionToCursor")
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(1, received.size, "the request is still emitted")
+			assertNull(received.single().areaId, "but it names no area, so no overlay collector matches")
+			assertEquals(SnapKind.SelectionToCursor, received.single().kind)
+		}
+
+	/** Over a viewport the same snap carries that viewport, electing exactly one overlay. */
+	@Test
+	fun aWorldSnapOverAViewportCarriesIt() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+			val received = mutableListOf<SnapRequest>()
+			val collector = launch { session.snapRequests.collect { request -> received += request } }
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("snap.selectionToCursor")
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(viewportArea, received.single().areaId)
+		}
 
 	/**
 	 * The camera lookup is kind-agnostic: it resolves whatever controller the hovered area registered,

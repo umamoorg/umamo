@@ -13,15 +13,18 @@ import org.umamo.ui.workspace.SpaceKind
  * reads the pointer's surface lives here, so a change to the routing model is a change to this file
  * rather than an archaeology exercise across the command tables.
  *
- * Two resolvers back it, and they are NOT interchangeable:
- *  - the hovered surface (area id + space kind) is stamped by the 2D viewport, the UV editor, and the
- *    keyform sheet;
- *  - the active viewport area is stamped by 2D viewports ALONE - deliberately not by the UV editor, so
- *    the object and select-tool latches keep meaning "a viewport" (see PuppetViewportService.activeAreaId).
+ * ONE resolver backs it: the hovered surface (area id + space kind), stamped by every workspace leaf, so
+ * it answers "what is the pointer on" for all nine space kinds.  Exactly one, deliberately: a second
+ * resolver scoped to 2D viewports could only mean "the last viewport touched, however long ago" rather
+ * than "the one under the pointer", and the two would disagree the moment the pointer moved to another
+ * space.  Every command resolves a surface the user is actually pointing at, or none at all.
+ *
+ * A command that needs a viewport and finds none does NOTHING; it does not reach back to a viewport the
+ * pointer has left.  That is Blender's rule and it is the whole point of the seam.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
- * same contract HoveredSurfaceTracker and PuppetViewportService.activeAreaId both carry.  Both backing
- * reads are non-reactive vars, so a value captured during composition goes stale without recomposing.
+ * same contract HoveredSurfaceTracker carries.  The backing read is a non-reactive var, so a value
+ * captured during composition goes stale without recomposing.
  */
 
 /**
@@ -46,24 +49,19 @@ internal sealed interface TransformTarget {
 /**
  * A dispatching command's view of where the pointer is.
  *
- * Holds nothing but its two resolvers on purpose.  Folding the per-area registries (the camera hub, the
+ * Holds nothing but its one resolver on purpose.  Folding the per-area registries (the camera hub, the
  * open keyform sheets) in here would look tidier and would be wrong: their lookups carry fallbacks that
  * are correct for some commands and actively harmful for others, and a shared helper cannot express
  * that.  Commands needing a registry take it directly and pick their own lookup, keyed off an area id
  * resolved here.
  *
  * @param Function hoveredSurface Resolves the last-touched editor surface (area id + space kind).
- * @param Function activeViewportArea Resolves the 2D viewport the pointer last addressed.
- * @warning Both resolvers must read LIVE state, not a value captured when the instance was built.  The
- *   render service behind [activeViewportArea] is swapped on a document change, so a lambda closing over
- *   a plain `service` variable would keep answering with the one that existed at first composition -
- *   null before any document opens - and every viewport-targeted command would silently no-op for the
- *   app's lifetime.  One instance serves the whole shell precisely because it holds no such snapshot;
- *   that matters for the groups whose effects deliberately do not re-register on a document swap.
+ * @warning The resolver must read LIVE state, not a value captured when the instance was built - one
+ *   instance serves the whole shell for its lifetime, across document swaps and area-tree edits, so a
+ *   snapshot would answer with wherever the pointer was at first composition forever.
  */
 internal class CommandRouting(
 	private val hoveredSurface: () -> HoveredSurface?,
-	private val activeViewportArea: () -> String?,
 ) {
 	/**
 	 * The editor surface the pointer last touched, or null before any was touched.
@@ -101,52 +99,52 @@ internal class CommandRouting(
 	fun hoveredAreaIdAnyKind(): String? = hoveredSurface()?.areaId
 
 	/**
-	 * The 2D viewport the pointer last addressed, or null before it ever entered one.
+	 * The 2D viewport under the pointer, or null when the pointer is on anything else.
 	 *
-	 * @return String? The active viewport's area id, or null.
+	 * @return String? The hovered viewport's area id, or null.
+	 * @note There is deliberately no "last viewport touched" fallback.  A command that needs a viewport and
+	 *   gets null here must do nothing - acting in a viewport the pointer has left is precisely the failure
+	 *   a single hovered-surface resolver exists to rule out.
 	 */
-	fun viewportArea(): String? = activeViewportArea()
+	fun viewportArea(): String? = areaOf(SpaceKind.Viewport2D)
 
 	/**
 	 * Where a modal Grab / Scale / Rotate runs.
 	 *
-	 * @return TransformTarget? The target surface, or null when the pointer has never touched a viewport
-	 *   and is not over a UV editor - then there is nowhere to run the gesture.
-	 * @warning A hovered UV editor does NOT fall back to the viewport.  Resolving it to
-	 *   [TransformTarget.Viewport] when the UV operator declines (it refuses outside Edit mode) would
-	 *   start a grab in an area the pointer is not over, which is precisely the bug hovered-area routing
-	 *   exists to prevent.
+	 * @return TransformTarget? The hovered surface when it can host a transform, else null - the pointer is
+	 *   on a panel, or on nothing, and there is nowhere to run the gesture.
+	 * @warning Neither branch falls back to the other.  A hovered UV editor resolves to [TransformTarget.Uv]
+	 *   even outside Edit mode (the session refuses it there), and a hovered panel resolves to nothing at
+	 *   all; either fallback would start a gesture in an area the pointer is not over, which is precisely
+	 *   the bug hovered-area routing exists to prevent.
 	 */
 	fun transformTarget(): TransformTarget? {
-		val hovered = hoveredSurface()
-		if (hovered?.kind == SpaceKind.UvEditor) {
-			return TransformTarget.Uv(hovered.areaId)
+		val hovered = hoveredSurface() ?: return null
+		return when (hovered.kind) {
+			SpaceKind.UvEditor -> TransformTarget.Uv(hovered.areaId)
+			SpaceKind.Viewport2D -> TransformTarget.Viewport(hovered.areaId)
+			else -> null
 		}
-		return activeViewportArea()?.let { areaId -> TransformTarget.Viewport(areaId) }
 	}
 
 	/**
-	 * Where a Box / Circle select tool arms: the hovered UV editor in Edit mode, else the pointer's 2D
-	 * viewport.  A hovered UV editor in Object mode resolves to null rather than falling back to a
-	 * viewport the pointer is not over.
+	 * Where a Box / Circle select tool arms: the hovered 2D viewport, or the hovered UV editor in Edit mode.
+	 * Anything else - a panel, a UV editor in Object mode, nothing at all - arms nowhere.
 	 *
 	 * @param EditorSession? session The active session, or null when no document is open.
 	 * @return String? The arming area's id, or null when no surface can host the tool.
-	 * @note The Edit-mode gate is load-bearing, unlike [transformTarget]'s missing one:
+	 * @note The Edit-mode gate on the UV branch is load-bearing, unlike [transformTarget]'s missing one:
 	 *   EditorSession.beginBoxSelect / beginCircleSelect are mode-agnostic and arm unconditionally in
 	 *   Object mode, while the UV editor's overlay only composes in Edit mode.  Arming there in Object
 	 *   mode would latch a tool nothing can drive or cancel by pointer.  Read the session's mode HERE,
 	 *   inside the resolver, so it is sampled at dispatch.
 	 */
 	fun selectToolArea(session: EditorSession?): String? {
-		val hovered = hoveredSurface()
-		if (hovered?.kind == SpaceKind.UvEditor) {
-			return if (session?.mode?.value == EditorMode.Edit) {
-				hovered.areaId
-			} else {
-				null
-			}
+		val hovered = hoveredSurface() ?: return null
+		return when (hovered.kind) {
+			SpaceKind.Viewport2D -> hovered.areaId
+			SpaceKind.UvEditor -> hovered.areaId.takeIf { session?.mode?.value == EditorMode.Edit }
+			else -> null
 		}
-		return activeViewportArea()
 	}
 }
