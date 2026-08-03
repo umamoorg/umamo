@@ -14,10 +14,15 @@ import org.umamo.ui.workspace.SpaceKind
  * rather than an archaeology exercise across the command tables.
  *
  * Two resolvers back it, and they are NOT interchangeable:
- *  - the hovered surface (area id + space kind) is stamped by the 2D viewport, the UV editor, and the
- *    keyform sheet;
- *  - the active viewport area is stamped by 2D viewports ALONE - deliberately not by the UV editor, so
- *    the object and select-tool latches keep meaning "a viewport" (see PuppetViewportService.activeAreaId).
+ *  - the hovered surface (area id + space kind) is stamped by EVERY workspace leaf, panels included, so
+ *    it answers "what is the pointer on" for all nine space kinds;
+ *  - the active viewport area is stamped by 2D viewports ALONE - deliberately not by the UV editor or by
+ *    any panel, so the object and select-tool latches keep meaning "a viewport" (see
+ *    PuppetViewportService.activeAreaId).
+ *
+ * That asymmetry is why a key pressed over a panel does nothing for the view commands (no camera is
+ * registered under a panel's area) while still resolving a viewport for a transform.  Collapsing the two
+ * is a deliberate future step, not an oversight.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
  * same contract HoveredSurfaceTracker and PuppetViewportService.activeAreaId both carry.  Both backing

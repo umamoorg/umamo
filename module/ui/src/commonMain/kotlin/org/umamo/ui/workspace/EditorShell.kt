@@ -161,9 +161,9 @@ fun EditorShell(
 	// The one in-flight relation pick (a Properties field's eyedropper), resolved by whichever surface the
 	// user clicks next - the viewport pick overlay or an outliner row - and cancelled by Escape.
 	val relationPick = remember { RelationPickController() }
-	// The last-touched editor surface (area id + space kind), stamped by the viewport and UV-editor
-	// pointer loops and read by command handlers at dispatch time - the space-aware generalization of
-	// the camera controller's activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
+	// The last-touched editor surface (area id + space kind), stamped by every workspace leaf and read by
+	// command handlers at dispatch time - the space-aware generalization of the camera controller's
+	// activeAreaId (see HoveredSurface.kt for the dispatch-time-only contract).
 	val hoveredSurfaces = remember { HoveredSurfaceTracker() }
 	// The keyable property under the pointer, so a keyform insert needs no prior selection.
 	val keyableHover = remember { KeyableHover() }

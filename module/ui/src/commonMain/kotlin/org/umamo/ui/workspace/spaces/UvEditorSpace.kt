@@ -59,11 +59,7 @@ import org.umamo.ui.viewport.rememberMeshEditColors
 import org.umamo.ui.viewport.uvToDisplay
 import org.umamo.ui.viewport.worldToScreen
 import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.HoveredSurface
-import org.umamo.ui.workspace.HoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalAreaCameraHub
-import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
-import org.umamo.ui.workspace.SpaceKind
 
 /**
  * The UV editor space: the active drawable's atlas page drawn under its UV wireframe, with the
@@ -96,7 +92,6 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val session = LocalEditorSession.current
 	val textures = LocalPuppetTextures.current
 	val service = LocalPuppetViewportService.current
-	val hoveredTracker = LocalHoveredSurfaceTracker.current
 	val gizmoColors = rememberMeshEditColors()
 	if (model == null || session == null) {
 		PlaceholderSpace(stringResource(Res.string.space_uv))
@@ -260,14 +255,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						.clipToBounds()
 						// Navigation lives on the PARENT box, not the drawing canvas.  In Edit mode the gizmo
 						// overlay is a child on top; as the parent, this loop sees the Main pass after the overlay,
-						// so pan / zoom and area stamping work in both modes - the 2D viewport's setup.
+						// so pan / zoom work in both modes - the 2D viewport's setup.
 						.pointerInput(session, scope.areaId) {
-							uvEditorNavigation(
-								session = session,
-								service = service,
-								areaId = scope.areaId,
-								hoveredTracker = hoveredTracker,
-							)
+							uvEditorNavigation(session = session, service = service, areaId = scope.areaId)
 						},
 			) {
 				if (rendered == null) {
@@ -360,37 +350,31 @@ internal fun UvEditorSpace(scope: AreaScope) {
 }
 
 /**
- * The UV editor's navigation pointer loop: middle-mouse drag pans, the wheel zooms toward the cursor
- * (Shift for the coarse step), and any non-Exit pointer activity stamps the shell's hovered-surface
- * tracker so keyboard commands (G / S / R and view commands) target this area at dispatch time.  Pan and
- * zoom drive the SERVICE camera (same as the 2D viewport) and are skipped while this area owns a modal UV
- * operator or an armed select tool - the overlay's controller owns the pointer then (a wheel scroll
- * resizes the proportional radius, not the zoom).  A gesture latched in ANOTHER area does not block: its
- * events never reach here, so this area keeps panning and zooming during it (Blender parity).
+ * The UV editor's navigation pointer loop: middle-mouse drag pans and the wheel zooms toward the cursor
+ * (Shift for the coarse step).  Pan and zoom drive the SERVICE camera (same as the 2D viewport) and are
+ * skipped while this area owns a modal UV operator or an armed select tool - the overlay's controller owns
+ * the pointer then (a wheel scroll resizes the proportional radius, not the zoom).  A gesture latched in
+ * ANOTHER area does not block: its events never reach here, so this area keeps panning and zooming during
+ * it (Blender parity).
  *
- * Unlike the 2D viewport loop this does NOT stamp service.activeAreaId: keyboard UV view commands route
- * through the hovered-surface tracker, and leaving activeAreaId to the 2D viewports keeps the dispatch-time
- * object / select latch contract (which resolves activeViewportArea) intact.
+ * This loop deliberately stamps NEITHER pointer resolver.  The hovered surface is stamped by the hosting
+ * leaf, for every space alike (see stampsHoveredSurface); service.activeAreaId stays a 2D-viewport-only
+ * election, which is what keeps the dispatch-time object / select latch contract intact.
  *
  * @param EditorSession session The session whose latches gate this layer.
  * @param PuppetViewportService service The render service whose per-area camera this drives.
  * @param String areaId The UV editor area this loop serves.
- * @param HoveredSurfaceTracker? hoveredTracker The shell's last-touched-surface tracker, or null.
  */
 private suspend fun PointerInputScope.uvEditorNavigation(
 	session: EditorSession,
 	service: PuppetViewportService,
 	areaId: String,
-	hoveredTracker: HoveredSurfaceTracker?,
 ) {
 	awaitPointerEventScope {
 		var panAnchor: Offset? = null
 		while (true) {
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
-			if (event.type != PointerEventType.Exit) {
-				hoveredTracker?.lastTouched = HoveredSurface(areaId, SpaceKind.UvEditor)
-			}
 			if (session.activeUvOperator.value?.areaId == areaId ||
 				session.activeSelectTool.value?.areaId == areaId
 			) {

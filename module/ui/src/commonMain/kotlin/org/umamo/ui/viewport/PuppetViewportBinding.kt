@@ -52,10 +52,6 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.umamoPointerIcon
-import org.umamo.ui.workspace.HoveredSurface
-import org.umamo.ui.workspace.HoveredSurfaceTracker
-import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
-import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.ViewportHost
 import kotlin.math.roundToInt
 
@@ -247,7 +243,6 @@ fun rememberPuppetViewportHost(
 				override fun Viewport2D(areaId: String, modifier: Modifier) {
 					val imageFlow = remember(areaId) { service.register(areaId) }
 					val cameraFlow = remember(areaId) { service.cameraFlow(areaId) }
-					val hoveredTracker = LocalHoveredSurfaceTracker.current
 					DisposableEffect(areaId) {
 						onDispose { service.unregister(areaId) }
 					}
@@ -294,7 +289,7 @@ fun rememberPuppetViewportHost(
 									.fillMaxSize()
 									.pointerHoverIcon(if (panning) grabCursor else PointerIcon.Default)
 									.pointerInput(areaId) {
-										viewportNavigation(service, areaId, session, hoveredTracker) { panning = it }
+										viewportNavigation(service, areaId, session) { panning = it }
 									},
 						) {
 							image?.let { rendered ->
@@ -443,16 +438,16 @@ fun rememberPuppetViewportHost(
  * @param PuppetViewportService service The render service to drive.
  * @param String areaId The area this viewport hosts.
  * @param EditorSession session The session whose armed tools gate this layer.
- * @param HoveredSurfaceTracker? hoveredTracker The shell's last-touched-surface tracker, or null
- *   outside an editor shell; stamped alongside activeAreaId so space-aware command routing (the UV
- *   editor's G / S / R) resolves this viewport at dispatch time.
  * @param Function setPanning Reports whether a middle-mouse pan is in progress (drives the grab cursor).
+ * @note The space-aware hovered-surface stamp is NOT here - every workspace leaf carries it (see
+ *   stampsHoveredSurface).  What stays here is activeAreaId, whose domain is narrower on purpose: it
+ *   means "the last 2D VIEWPORT the pointer addressed", and the object / select-tool latches resolve
+ *   through it.
  */
 private suspend fun PointerInputScope.viewportNavigation(
 	service: PuppetViewportService,
 	areaId: String,
 	session: EditorSession,
-	hoveredTracker: HoveredSurfaceTracker?,
 	setPanning: (Boolean) -> Unit,
 ) {
 	awaitPointerEventScope {
@@ -460,9 +455,10 @@ private suspend fun PointerInputScope.viewportNavigation(
 		while (true) {
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
+			// The Exit guard belongs to activeAreaId alone now: leaving a viewport must not un-elect it,
+			// since the latches it feeds outlive the pointer wandering onto a panel.
 			if (event.type != PointerEventType.Exit) {
 				service.activeAreaId = areaId
-				hoveredTracker?.lastTouched = HoveredSurface(areaId, SpaceKind.Viewport2D)
 			}
 			// THIS AREA'S modal operator (G / S / R), armed Box / Circle select tool, or armed Zoom Region
 			// - or an in-flight un-armed box drag (area-less: pointer capture pins its events to the

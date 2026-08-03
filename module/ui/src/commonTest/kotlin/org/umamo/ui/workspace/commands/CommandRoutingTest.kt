@@ -89,6 +89,51 @@ class CommandRoutingTest {
 		assertNull(routing(null).hoveredAreaIdAnyKind())
 	}
 
+	/**
+	 * Every space kind resolves, not just the three that happen to stamp the tracker today.
+	 *
+	 * Swept over [SpaceKind.entries] rather than a hand-picked sample so a tenth kind cannot be added
+	 * without deciding what routing does with it: the UV editor is the ONE kind that changes the answer,
+	 * and every other kind - camera-bearing or not, stamped or not - must resolve its own id and fall
+	 * through to the pointer's viewport for a transform.
+	 */
+	@Test
+	fun everySpaceKindResolves() {
+		for (kind in SpaceKind.entries) {
+			val areaId = "area-${kind.key}"
+			val routing = routing(HoveredSurface(areaId, kind))
+
+			assertEquals(areaId, routing.areaOf(kind), "${kind.name} names its own area")
+			assertEquals(areaId, routing.hoveredAreaIdAnyKind(), "${kind.name} is reported kind-agnostically")
+			for (other in SpaceKind.entries.filter { candidate -> candidate != kind }) {
+				assertNull(routing.areaOf(other), "a hovered ${kind.name} must not answer as ${other.name}")
+			}
+
+			val expectedTarget =
+				if (kind == SpaceKind.UvEditor) {
+					TransformTarget.Uv(areaId)
+				} else {
+					TransformTarget.Viewport(viewportArea)
+				}
+			assertEquals(expectedTarget, routing.transformTarget(), "${kind.name} transform target")
+		}
+	}
+
+	/**
+	 * A hovered space with no camera registered resolves no camera, so the view commands no-op rather than
+	 * reaching into whichever viewport the pointer last visited.
+	 *
+	 * The lookup itself lives in ViewCommands (it needs the hub); what is pinned here is the input to it -
+	 * that a panel hover reports the PANEL's area id, which no camera is registered under.
+	 */
+	@Test
+	fun aPanelHoverNamesAnAreaThatOwnsNoCamera() {
+		val overOutliner = routing(HoveredSurface("outliner-1", SpaceKind.Outliner))
+		assertEquals("outliner-1", overOutliner.hovered()?.areaId)
+		assertNull(overOutliner.areaOf(SpaceKind.Viewport2D), "the pointer is on a panel, not on a viewport")
+		assertNull(overOutliner.areaOf(SpaceKind.KeyformSheet))
+	}
+
 	/** A hovered UV editor in Edit mode arms the select tool in itself, not in the pointer's old viewport. */
 	@Test
 	fun selectToolArmsInAHoveredUvEditorInEditMode() {
