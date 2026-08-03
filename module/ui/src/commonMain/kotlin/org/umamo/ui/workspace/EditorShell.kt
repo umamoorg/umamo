@@ -37,7 +37,6 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.ExportNotice
-import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -72,6 +71,24 @@ import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.workspace.commands.CommandRouting
+import org.umamo.ui.workspace.commands.SessionAvailability
+import org.umamo.ui.workspace.commands.chromeCommands
+import org.umamo.ui.workspace.commands.documentCommands
+import org.umamo.ui.workspace.commands.frameCommands
+import org.umamo.ui.workspace.commands.historyCommands
+import org.umamo.ui.workspace.commands.keyformCommands
+import org.umamo.ui.workspace.commands.modeCommands
+import org.umamo.ui.workspace.commands.objectCommands
+import org.umamo.ui.workspace.commands.proportionalCommands
+import org.umamo.ui.workspace.commands.registerAll
+import org.umamo.ui.workspace.commands.selectCommands
+import org.umamo.ui.workspace.commands.snapCommands
+import org.umamo.ui.workspace.commands.topologyCommands
+import org.umamo.ui.workspace.commands.transformCommands
+import org.umamo.ui.workspace.commands.uvCommands
+import org.umamo.ui.workspace.commands.viewCommands
+import org.umamo.ui.workspace.commands.workspaceCommands
 
 /**
  * The whole editor shell: workspace tabs over a recursive, switchable, splittable area tree, with the
@@ -82,13 +99,10 @@ import org.umamo.ui.theme.hiddenPointerIcon
  *
  * The shell is a thin composition over its extracted collaborators: [WorkspaceLayoutController] owns
  * the layout state and its edits (structural edits route through the single [AreaCommand] choke
- * point), [ShellOverlayState] holds the modal chrome flags, the command tables live in
- * ShellCommands.kt (registered per group through registerAll), and the root key handling is the
- * modal ladder in ModalKeyLadder.kt.  The palette and keymap dispatch through the action registry -
- * the input spine.
- *
- * エディタシェル全体。ワークスペースタブ＋再帰的で切替・分割可能なエリアツリー＋コマンドパレット。
- * 単体でも動作し、各協調要素は注入可能。状態と入力処理は分離した協調クラスに委譲する。
+ * point), [ShellOverlayState] holds the modal chrome flags, the command tables live in the
+ * org.umamo.ui.workspace.commands package (registered per group through registerAll), and the root key
+ * handling is the modal ladder in ModalKeyLadder.kt.  The palette and keymap dispatch through the action
+ * registry - the input spine.
  *
  * @param InterfaceLayout initialLayout The starting layout (defaults to the seeded two-workspace layout).
  * @param ViewportHost? viewportHost The platform GL viewport injector, or null for placeholders.
@@ -166,68 +180,83 @@ fun EditorShell(
 	// The split arm distance is in dp; convert it once to the px the controller hit-tests in.
 	dragController.splitThresholdPx = with(LocalDensity.current) { SPLIT_ARM_DISTANCE.toPx() }
 
-	// The shell's command tables (ShellCommands.kt), registered per group: each group's effect keys on
-	// the state its handlers close over, and registerAll returns the matching cleanup so registration
+	// The shell's command tables (the commands/ package), registered per group: each group's effect keys
+	// on the state its handlers close over, and registerAll returns the matching cleanup so registration
 	// and unregistration can never drift apart.
+	//
+	// ONE routing seam serves every group, remembered for the shell's lifetime and reading the render
+	// service through a live reference.  Building it per effect would bind it to that effect's keys, and
+	// the groups that must NOT re-register on a document swap would then have to choose between holding a
+	// stale service and moving to the tail of the registry (which reorders the command palette).
+	val service = LocalPuppetViewportService.current
+	val currentService by rememberUpdatedState(service)
+	val routing =
+		remember {
+			CommandRouting(
+				hoveredSurface = { hoveredSurfaces.lastTouched },
+				activeViewportArea = { currentService?.activeAreaId },
+			)
+		}
 	DisposableEffect(commandRegistry, dragController) {
-		val cleanup = commandRegistry.registerAll(shellChromeCommands(overlays, dragController, rowDragCancel, workspaces))
+		val cleanup = commandRegistry.registerAll(chromeCommands(overlays, dragController, rowDragCancel, workspaces))
 		onDispose { cleanup() }
 	}
 	DisposableEffect(commandRegistry) {
-		val cleanup = commandRegistry.registerAll(shellWorkspaceCommands(workspaces, overlays, newWorkspaceBaseName))
+		val cleanup =
+			commandRegistry.registerAll(
+				workspaceCommands(workspaces, overlays, newWorkspaceBaseName) + documentCommands(overlays),
+			)
 		onDispose { cleanup() }
 	}
 	// Viewport navigation commands dispatch to the hovered surface at invocation time: the hovered
 	// area's camera controller through the hub (2D viewport or UV editor), a no-op when none is
-	// registered. Re-registered when the render service changes (a new document / renderer), which also
+	// registered. Re-registered when the render service changes (a new document / renderer), which
 	// flips the availability gate.
-	val service = LocalPuppetViewportService.current
 	DisposableEffect(commandRegistry, service) {
-		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
-		val cleanup = commandRegistry.registerAll(shellViewportCommands(areaCameras, hoveredSurface, service != null))
+		val cleanup = commandRegistry.registerAll(viewCommands(areaCameras, routing, service != null))
 		onDispose { cleanup() }
 	}
-	// The context-aware frame command - Blender's Home: Frame All in WHICHEVER editor the pointer is over.
-	// Registered here rather than in a command table because it dispatches THROUGH the registry to the
-	// command the hovered surface means, resolved at invocation time.
+	// Frame All resolves the hovered editor to the command that editor means and re-dispatches THAT, so
+	// it keys on the registry alone: it carries no viewport gate (a keyform sheet frames with no renderer
+	// at all), and re-registering it on a renderer change would only shuffle its palette position.
 	DisposableEffect(commandRegistry) {
-		val frameAll =
-			Command("frame.all", title = Res.string.cmd_frame_all) {
-				val target =
-					if (hoveredSurfaces.lastTouched?.kind == SpaceKind.KeyformSheet) "keyform.frameAll" else "view.fit"
-				commandRegistry.invoke(target)
-			}
-		commandRegistry.register(frameAll)
-		onDispose { commandRegistry.unregister(frameAll.id) }
+		val cleanup = commandRegistry.registerAll(frameCommands(commandRegistry, routing))
+		onDispose { cleanup() }
 	}
 	val selection = LocalSelection.current
 	val editorMode = LocalEditorMode.current
 	DisposableEffect(commandRegistry, selection, editorMode) {
-		val cleanup = commandRegistry.registerAll(shellModeCommands(selection, editorMode))
+		val cleanup = commandRegistry.registerAll(modeCommands(selection, editorMode))
 		onDispose { cleanup() }
 	}
-	// Re-registered on a document swap so the handlers close over the current session.  The latching
-	// commands resolve the pointer's viewport at dispatch time from the render service's active area
-	// (the armZoomRegion precedent), so the effect also keys on it.
+	// The document-scoped groups, re-registered on a document swap so their handlers close over the
+	// current session.  They no longer key on the render service: the pointer's area now resolves through
+	// the shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
 	val editorSession = LocalEditorSession.current
-	DisposableEffect(commandRegistry, editorSession, selection, service) {
-		val activeViewportArea: () -> String? = { service?.activeAreaId }
-		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
+	// One tier set shared by every document-scoped group below, so the nine tables hold the same three
+	// availability objects rather than three apiece.  Keyed on the session exactly as their effects are.
+	val availability = remember(editorSession) { SessionAvailability(editorSession) }
+	DisposableEffect(commandRegistry, editorSession, selection) {
 		val cleanup =
 			commandRegistry.registerAll(
-				shellSessionCommands(editorSession, selection, activeViewportArea, hoveredSurface, keyformSheetViews),
+				historyCommands(editorSession, availability) +
+					objectCommands(editorSession, selection, availability) +
+					transformCommands(editorSession, routing, availability) +
+					selectCommands(editorSession, routing, keyformSheetViews, availability) +
+					snapCommands(editorSession, routing, availability) +
+					uvCommands(editorSession, routing, availability) +
+					topologyCommands(editorSession, routing, availability) +
+					proportionalCommands(editorSession, availability),
 			)
 		onDispose { cleanup() }
 	}
-	// The keyform-authoring group (KeyformCommands.kt), its own table because it closes over the hover
-	// seams rather than the session alone: the hovered keyable the insert / delete write to, and the sheet
-	// registry the selection and view ops act through - both resolved at dispatch time.
+	// The keyform-authoring group, its own table because it closes over the hovered KEYABLE rather than
+	// the session alone - the property the insert / delete write to, resolved at dispatch time.
 	DisposableEffect(commandRegistry, editorSession) {
 		val hoveredKeyable: () -> KeyformHover? = { keyableHover.hovered }
-		val hoveredSurface: () -> HoveredSurface? = { hoveredSurfaces.lastTouched }
 		val cleanup =
 			commandRegistry.registerAll(
-				shellKeyformCommands(editorSession, hoveredKeyable, hoveredSurface, keyformSheetViews),
+				keyformCommands(editorSession, hoveredKeyable, routing, keyformSheetViews, availability),
 			)
 		onDispose { cleanup() }
 	}
