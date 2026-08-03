@@ -51,9 +51,10 @@ import org.umamo.runtime.model.PuppetModel
  * and links, and the canvas.  Channel-backed values (statics, keyforms, geometry) dispatch to the
  * shared [Cmo3KeyformLowering]; mesh topology and glue re-binding dispatch to [Cmo3StructureLowering].
  * Entity creation/deletion runs earlier, in Cmo3Export.apply's structural pass.  A Created diff
- * that still reaches this class means that pass could not synthesize the entity, and is reported
- * as a notice rather than lowered here.  Deleted diffs never arrive: the structural pass consumes
- * every deletion and Cmo3Export strips them from the diff it forwards.
+ * that still reaches this class means that pass already tried to synthesize the entity, failed,
+ * and already reported why - this class has nothing to lower for it and skips it silently.
+ * Deleted diffs never arrive: the structural pass consumes every deletion and Cmo3Export strips
+ * them from the diff it forwards.
  *
  * Every assignment that can target an element or attribute the source document omitted pairs with
  * the graph editor's ensure call - the writer replays recorded slots, so a bare assignment on a
@@ -92,7 +93,8 @@ internal class Cmo3PropertyLowering(
 	fun lowerParameters(diffs: List<EntityDiff<ParameterId, ParameterField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("parameter", diff.id.raw, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
@@ -130,7 +132,8 @@ internal class Cmo3PropertyLowering(
 	fun lowerParameterGroups(diffs: List<EntityDiff<ParameterGroupId, ParameterGroupField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("parameter group", diff.id.raw, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
@@ -163,7 +166,8 @@ internal class Cmo3PropertyLowering(
 	fun lowerParts(diffs: List<EntityDiff<PartId, PartField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("part", diff.id.raw, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
@@ -208,7 +212,8 @@ internal class Cmo3PropertyLowering(
 	fun lowerDeformers(diffs: List<EntityDiff<DeformerId, DeformerField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("deformer", diff.id.raw, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
@@ -310,7 +315,8 @@ internal class Cmo3PropertyLowering(
 	fun lowerDrawables(diffs: List<EntityDiff<DrawableId, DrawableField>>) {
 		for (diff in diffs) {
 			when (diff) {
-				is EntityDiff.Created -> unsupported("drawable", diff.id.raw, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is EntityDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is EntityDiff.Deleted -> Unit
 				is EntityDiff.Changed -> {
@@ -561,7 +567,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			val subject = "${diff.meshA.raw}+${diff.meshB.raw}"
 			when (diff) {
-				is GlueDiff.Created -> unsupported("glue", subject, "created; synthesis is not lowered yet")
+				// Structural synthesis already failed and reported why; see the class docblock.
+				is GlueDiff.Created -> Unit
 				// Deletions are consumed by the structural pass and stripped from the forwarded diff.
 				is GlueDiff.Deleted -> Unit
 				is GlueDiff.Changed -> {
