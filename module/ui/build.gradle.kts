@@ -10,6 +10,11 @@ plugins {
 	// kotlinx.serialization codegen: the workspace/area-tree layout is `@Serializable` and persisted
 	// to the `interface.layout` settings key. The plugin generates the serializers at compile time.
 	alias(libs.plugins.kotlinSerialization)
+	// Umamo's own conventions (gradle/build-logic): the shared jvmAndroidMain source-set group, and the
+	// corpus/-D forwarding configured by `umamoTestCorpus` below. (No iOS target here yet, so no
+	// `umamo.kmp-ios-gate` — Compose Multiplatform's iOS story is a separate piece of work.)
+	id("umamo.kmp-jvmandroid")
+	id("umamo.test-corpus")
 }
 
 // Resolve the host "<os>-<arch>" token (see gradle/build-target.gradle.kts) — jvmTest needs the
@@ -20,20 +25,9 @@ val buildTarget = extra["umamoBuildTarget"] as String
 kotlin {
 	jvmToolchain(21)
 
-	// [kmp-jvmandroid] Keep identical across module/format, module/ui, module/render, module/interop build scripts.
-	// Customise the default source-set hierarchy to add a `jvmAndroidMain` group shared by the two
-	// JVM-based targets (desktop JVM + Android/ART). commonMain cannot see :format's jvmAndroidMain
-	// types (FormatRegistry, Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file
-	// layer and app shell need them — so that code lives in src/jvmAndroidMain and is shared verbatim
-	// by both targets. Promoting this block to a convention plugin is tracked in TODO.md.
-	applyDefaultHierarchyTemplate {
-		common {
-			group("jvmAndroid") {
-				withJvm()
-				withAndroidTarget()
-			}
-		}
-	}
+	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin. This module
+	// needs it because commonMain cannot see :format's own jvmAndroidMain types (FormatRegistry,
+	// Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file layer and app shell do.
 
 	jvm()
 
@@ -44,13 +38,9 @@ kotlin {
 	}
 
 	sourceSets {
-		// [kmp-jvmandroid] The hierarchy group's withAndroidTarget() matches the LEGACY android
-		// target, not AGP 9's new KMP android-library target — so androidMain never inherits the
-		// jvmAndroid group and can't see its actuals. Wire the edge explicitly. (withJvm() does
-		// match, which is why the JVM target compiles fine.)
+		// The `umamo.kmp-jvmandroid` convention plugin creates this group and wires androidMain onto it;
+		// it is not a well-known source-set name, so it has no generated accessor and is looked up here.
 		val jvmAndroidMain = getByName("jvmAndroidMain")
-		val androidMain = getByName("androidMain")
-		androidMain.dependsOn(jvmAndroidMain)
 
 		commonMain {
 			dependencies {
@@ -145,36 +135,16 @@ compose.resources {
 }
 
 // Forward the MOC3 corpus sample to the test JVM so the sidecar-loader tests can exercise the
-// moc-dependent paths (a decodable .moc3 is needed before texture resolution runs).  Explicit -D
-// wins; otherwise the local (gitignored) corpus is the default, mirroring :interop and :render.
-// Absent entirely (CI, a fresh clone) → those tests self-skip and the build stays green.
-tasks.withType<Test>().configureEach {
+// moc-dependent paths (a decodable .moc3 is needed before texture resolution runs).  Explicit -D wins;
+// otherwise the local (gitignored) corpus is the default.  Absent entirely (CI, a fresh clone) → those
+// tests self-skip and the build stays green.
+umamoTestCorpus {
 	// The corpus loader test decodes the 8192² atlas (256MB of RGBA) more than once; the JVM default
 	// heap cannot hold that. Same figure :format's tests use.
-	maxHeapSize = "4g"
-	val explicitSample = System.getProperty("moc3.sample")
-	val resolvedSample =
-		if (explicitSample != null) {
-			// An explicit -D resolves against the repo root and must exist: a gated test that cannot
-			// find its sample skips rather than fails, so a typo would silently disable the gate while
-			// reporting PASSED (mirrors :render's resolveSampleProperty).
-			val explicitFile = rootDir.resolve(explicitSample.trim())
-			require(explicitFile.exists()) {
-				"-Dmoc3.sample=$explicitSample resolves to '${explicitFile.absolutePath}', which does not exist. " +
-					"Relative values resolve against the repo root ($rootDir)."
-			}
-			explicitFile.absolutePath
-		} else {
-			// Model A: the corpus family that is COMPLETE on disk (manifest + textures + cdi3 +
-			// physics all resolve). The EricaTamamo corpus copy carries no texture folder, so the
-			// family loader test would fail on it rather than exercise the load path.
-			rootProject.layout.projectDirectory
-				.file("test/corpus/moc3/modelA/modelA.moc3")
-				.asFile
-				.takeIf { it.isFile }
-				?.absolutePath
-		}
-	resolvedSample?.let { value ->
-		systemProperty("moc3.sample", value)
-	}
+	maxHeap("4g")
+	// Model A: the corpus family that is COMPLETE on disk (manifest + textures + cdi3 + physics all
+	// resolve). The EricaTamamo corpus copy carries no texture folder, so the family loader test would
+	// fail on it rather than exercise the load path. Hence a module-specific default rather than the
+	// shared table, which deliberately leaves moc3.sample explicit-only for :interop and :render.
+	sampleWithCorpusDefault("moc3.sample", "moc3/modelA/modelA.moc3")
 }

@@ -217,6 +217,14 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 
 Keep `:format`, `:reimport`, `:runtime`, `:interop`, `:edit`, `:ui` in `commonMain` so Android and desktop share them verbatim.  Platform-specific code (GPU contexts, FFI, pen, windowing) lives in `jvmMain` / `androidMain`.
 
+**Build logic that more than one module needs is a convention plugin, not a copied block.**  `gradle/build-logic` is an included build (not `buildSrc` — the configuration cache is on, and a `buildSrc` edit invalidates the whole build) exposing three plugins a module opts into by id:
+
+- **`umamo.kmp-jvmandroid`** — creates the `jvmAndroidMain` source-set group shared by the desktop-JVM and Android targets, and wires `androidMain` onto it explicitly (the hierarchy template's `withAndroidTarget()` matches the LEGACY android target, not AGP 9's KMP android-library target, so without the edge Android silently cannot see the group).  Applied by `:format`, `:interop`, `:render`, `:ui`.
+- **`umamo.kmp-ios-gate`** — makes `check` depend on `compileKotlinIosArm64` AND `compileTestKotlinIosArm64`.  A device target has no runnable test task, so neither compile joins `check` on its own and the commonMain-purity guarantee silently stops firing.  Applied by every module with an `iosArm64()` target.
+- **`umamo.test-corpus`** — the golden-corpus / `-D` forwarding for sample-gated tests, declared per module in a `umamoTestCorpus { }` block.  Explicit `-D` wins (resolved against the REPO ROOT, and a path that does not exist fails the build); the local gitignored corpus is the default; absent both, the test self-skips and CI stays green.  The shared default table lives in `org.umamo.buildlogic.sharedCorpusDefault` — add a property there only when it means the same thing in every module.
+
+The failure mode these guard against is the same one throughout: a gated test that cannot find its input prints and returns, so it reports PASSED while covering nothing.  Never let a module hand a Test task a sample path by hand.
+
 ## Fidelity contract
 
 Two tiers — conflating them is the classic mistake.

@@ -6,6 +6,8 @@
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
 	alias(libs.plugins.androidKmpLibrary)
+	// Wires the iosArm64 compiles into `check` (a device target has no runnable test task of its own).
+	id("umamo.kmp-ios-gate")
 }
 
 kotlin {
@@ -18,7 +20,7 @@ kotlin {
 	// it is what lets :render declare the same target — :render/commonMain does api(:runtime), so the
 	// renderer the Metal engineer builds against could not compile for iOS until this module did.
 	// Compiles on Linux/CI (klib only, no Xcode linker); a device target has no runnable test task, so
-	// `check` is wired to the compiles explicitly below.
+	// `umamo.kmp-ios-gate` wires `check` to the compiles.
 	iosArm64()
 
 	android {
@@ -34,11 +36,4 @@ kotlin {
 			}
 		}
 	}
-}
-
-// Wire the iosArm64 compile into `check`, main AND test — neither arrives on its own, because a device
-// target has no runnable test task (see :format's wiring comment for the war story: main compiled green
-// while commonTest was broken, and only CI's explicit compileTestKotlinIosArm64 caught it).
-tasks.named("check") {
-	dependsOn("compileKotlinIosArm64", "compileTestKotlinIosArm64")
 }

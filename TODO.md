@@ -38,7 +38,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
-* Promote the [kmp-jvmandroid] source-set block to a convention plugin since there are four spots currently: module/format, module/ui, module/render, module/interop build scripts (:runtime dropped it with the :interop split; its jvmAndroidMain emptied).
 
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
