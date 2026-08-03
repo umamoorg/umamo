@@ -141,12 +141,11 @@ object Moc3Import {
 		val parameterNameById = displayInfo?.parameters?.associate { it.id to it.name } ?: emptyMap()
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
 
-		// Index → runtime id tables, all in FILE order (every cross-reference in the moc is a file-order
+		// Index → runtime id tables, all in FILE order (every cross-reference in the MOC3 is a file-order
 		// index). Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
 		// CMO3 side carries, so a MOC3-origin export writes back the ids the model was authored with.
-		// A blank or duplicated slot (a hand-built document, or a moc written without s11) falls back to
-		// a synthesized id, which identity depends on: two deformers sharing one id would collapse into
-		// a single entity in every id-keyed map downstream.
+		// A blank or duplicated slot (a hand-built document, or a MOC3 written without s11) falls back to
+		// a synthesized id.
 		val parameterIds = mocDocument.parameters.map { ParameterId(it.id) }
 		val partIds = mocDocument.parts.map { PartId(it.id) }
 		val drawableIdsByFileIndex = mocDocument.artMeshes.map { DrawableId(it.id) }
