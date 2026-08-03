@@ -160,16 +160,43 @@ class Moc3ImportTest {
 				"deformer $deformerIndex id",
 			)
 			assertEquals(
-				source.id,
-				puppet.deformers[deformerIndex].name,
-				"deformer $deformerIndex name falls back to its id",
-			)
-			assertEquals(
 				expectedPartId,
 				puppet.deformers[deformerIndex].partId,
 				"deformer $deformerIndex (${source.id}) part membership",
 			)
 		}
+
+		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches. The
+		// anchor is checked for TRUTH rather than by restating the rule - whatever mesh a label names
+		// must really be deformed by that deformer, directly or through its descendants.
+		val subtreeDrawables = HashMap<Int, MutableSet<String>>()
+		for (artMesh in mocDocument.artMeshes) {
+			var ancestorIndex = artMesh.parentDeformerIndex
+			val visited = HashSet<Int>()
+			while (ancestorIndex in mocDocument.deformers.indices && visited.add(ancestorIndex)) {
+				subtreeDrawables.getOrPut(ancestorIndex) { HashSet() }.add(artMesh.id)
+				ancestorIndex = mocDocument.deformers[ancestorIndex].parentDeformerIndex
+			}
+		}
+		val labelPattern = Regex("""^(.*) \((.*)\)$""")
+		for ((deformerIndex, source) in mocDocument.deformers.withIndex()) {
+			val name = puppet.deformers[deformerIndex].name
+			val anchor = labelPattern.matchEntire(name)
+			if (anchor == null) {
+				assertEquals(source.id, name, "deformer $deformerIndex unanchored label is its id")
+				continue
+			}
+			assertEquals(source.id, anchor.groupValues[1], "deformer $deformerIndex anchored label keeps its id")
+			assertTrue(
+				anchor.groupValues[2] in subtreeDrawables[deformerIndex].orEmpty(),
+				"deformer ${source.id} is labelled with ${anchor.groupValues[2]}, which it does not deform",
+			)
+		}
+		val anchoredLabels = puppet.deformers.filter { labelPattern.matches(it.name) }
+		println(
+			"[Umamo][moc3import] deformer labels anchored=${anchoredLabels.size}/${puppet.deformers.size} " +
+				"e.g. ${anchoredLabels.take(3).map { it.name }}",
+		)
 		for (glue in puppet.glues) {
 			assertTrue(glue.meshA in drawableIds, "glue -> unknown mesh A ${glue.meshA.raw}")
 			assertTrue(glue.meshB in drawableIds, "glue -> unknown mesh B ${glue.meshB.raw}")

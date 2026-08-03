@@ -92,8 +92,9 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    default pose (the document loader applies it).
  *  - Names.  The binary stores ids (deformers included, §5.6 s11) but no display names; parameter/part
  *    names come from cdi3.json when present, and everything else falls back to the format id - the same
- *    rule [Cmo3Import] uses for an unnamed source.  A deformer's authored label is lost for good: the
- *    bake drops it and cdi3 carries no deformer entries.
+ *    rule [Cmo3Import] uses for an unnamed source.  A deformer's authored label is lost for good (the
+ *    bake drops it and cdi3 carries no deformer entries), so its name is the id, plus the drawable it
+ *    deforms when exactly one is in reach: "Warp40 (ArtMesh5)".
  *  - Blend shapes.  MOC3 records store per-key DELTAS relative to the object's grid form at the
  *    DEFAULT pose (MOC3.md §5.6), while the runtime [BlendShapeBinding] keeps grid-convention
  *    forms (MeshForm rest-relative; Warp/RotationForm absolute) and the evaluator re-subtracts
@@ -525,6 +526,25 @@ object Moc3Import {
 			}
 		}
 
+		// A bake stores no deformer display name, so the label is the id - readable, but it says nothing
+		// about what the deformer moves.  Where the answer is unambiguous, the drawable it deforms is
+		// appended as an anchor: "Warp40 (ArtMesh5)".  See [soleDrawableByDeformer] for what counts.
+		val soleDrawable = soleDrawableByDeformer(mocDocument)
+
+		/**
+		 * The display name of the deformer at [deformerIndex]: its id, plus the drawable it deforms
+		 * when exactly one is in reach.
+		 *
+		 * @param Int        deformerIndex The deformer's file index.
+		 * @param DeformerId id            The deformer's resolved runtime id.
+		 * @return String The display name.
+		 */
+		fun deformerNameOf(deformerIndex: Int, id: DeformerId): String {
+			val anchorIndex = soleDrawable[deformerIndex] ?: return id.raw
+			val anchorName = mocDocument.artMeshes.getOrNull(anchorIndex)?.id ?: return id.raw
+			return "${id.raw} ($anchorName)"
+		}
+
 		val deformers =
 			mocDocument.deformers.mapIndexed { deformerIndex, source ->
 				val id = deformerIds[deformerIndex]
@@ -549,9 +569,7 @@ object Moc3Import {
 						val warp =
 							Deformer.Warp(
 								id = id,
-								// A bake stores no display name (and cdi3 has no deformer entries), so the name
-								// falls back to the id - the same rule Cmo3Import applies to an unnamed source.
-								name = id.raw,
+								name = deformerNameOf(deformerIndex, id),
 								parent = parent,
 								// MOC3 §5.6 s15: the deformer's own org-tree part; -1 (→ null) at the root.
 								partId = partIds.getOrNull(source.parentPartIndex),
@@ -595,7 +613,7 @@ object Moc3Import {
 						val rotation =
 							Deformer.Rotation(
 								id = id,
-								name = id.raw,
+								name = deformerNameOf(deformerIndex, id),
 								parent = parent,
 								partId = partIds.getOrNull(source.parentPartIndex),
 								baseAngle = source.baseAngle,
@@ -1006,6 +1024,63 @@ object Moc3Import {
 		} else {
 			root.copy(children = root.children + missingLeaves)
 		}
+	}
+
+	/**
+	 * The one drawable each deformer deforms, for the deformers where "the one" is unambiguous.
+	 *
+	 * Used only to label a deformer, whose authored name a bake drops.  A deformer's own drawables
+	 * decide it when it has any; otherwise its whole descendant subtree does, so a rotation that
+	 * only drives a warp still names the mesh at the bottom of the chain.  Either way the answer is
+	 * a CARDINALITY, not a vote: a deformer over several drawables has no single answer and is left
+	 * out, because drawables - unlike parts - are distinct entities rather than a category several
+	 * of them can agree on, so picking a winner would just be naming the deformer after an arbitrary
+	 * one of its meshes.  Being an anchor rather than data, an absent entry costs a label, nothing more.
+	 *
+	 * @param MocDocument mocDocument The decoded document (file indices throughout).
+	 * @return Map Deformer file index → its sole drawable's file index, for the unambiguous ones.
+	 */
+	private fun soleDrawableByDeformer(mocDocument: MocDocument): Map<Int, Int> {
+		val deformerCount = mocDocument.deformers.size
+		if (deformerCount == 0) {
+			return emptyMap()
+		}
+		val ambiguous = -1
+		val direct = HashMap<Int, Int>()
+		val subtree = HashMap<Int, Int>()
+
+		/**
+		 * Records [drawableIndex] against [deformerIndex], marking the slot ambiguous on a second hit.
+		 *
+		 * @param HashMap into          The tally to record into.
+		 * @param Int     deformerIndex The owning deformer's file index.
+		 * @param Int     drawableIndex The drawable's file index.
+		 */
+		fun record(into: HashMap<Int, Int>, deformerIndex: Int, drawableIndex: Int) {
+			into[deformerIndex] = if (deformerIndex in into) ambiguous else drawableIndex
+		}
+		for ((drawableIndex, artMesh) in mocDocument.artMeshes.withIndex()) {
+			var ancestorIndex = artMesh.parentDeformerIndex
+			if (ancestorIndex !in 0 until deformerCount) {
+				continue
+			}
+			record(direct, ancestorIndex, drawableIndex)
+			// Walk to the root so an ancestor that deforms no drawable directly still sees the meshes
+			// below it; the visited set guards a malformed cyclic chain.
+			val visited = HashSet<Int>()
+			while (ancestorIndex in 0 until deformerCount && visited.add(ancestorIndex)) {
+				record(subtree, ancestorIndex, drawableIndex)
+				ancestorIndex = mocDocument.deformers[ancestorIndex].parentDeformerIndex
+			}
+		}
+		val resolved = HashMap<Int, Int>(deformerCount)
+		for (deformerIndex in 0 until deformerCount) {
+			val drawableIndex = direct[deformerIndex] ?: subtree[deformerIndex] ?: continue
+			if (drawableIndex != ambiguous) {
+				resolved[deformerIndex] = drawableIndex
+			}
+		}
+		return resolved
 	}
 
 	/**
