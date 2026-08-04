@@ -2,7 +2,7 @@ package org.umamo.edit.export
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -36,7 +36,7 @@ class Cmo3ExportCreationRoundTripTest {
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
-		val report: Cmo3ExportReport,
+		val report: ExportReport,
 	)
 
 	private fun roundTrip(file: File, edit: (PuppetModel) -> PuppetModel): RoundTrip {
@@ -44,7 +44,8 @@ class Cmo3ExportCreationRoundTripTest {
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
-		val reimportedSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+		val reimportedSource =
+			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -104,7 +105,12 @@ class Cmo3ExportCreationRoundTripTest {
 						isQuadTransform = template.isQuadTransform,
 						geometryGrid =
 							KeyformGrid(
-								listOf(KeyformAxis(axisParameter.id, floatArrayOf(axisParameter.min, axisParameter.max))),
+								listOf(
+									KeyformAxis(
+										axisParameter.id,
+										floatArrayOf(axisParameter.min, axisParameter.max),
+									),
+								),
 								listOf(
 									KeyformCell(intArrayOf(0), WarpLatticeForm(templateForm.controlPoints.copyOf())),
 									KeyformCell(intArrayOf(1), WarpLatticeForm(nudged)),
@@ -131,7 +137,12 @@ class Cmo3ExportCreationRoundTripTest {
 						baseAngle = 15f,
 						geometryGrid =
 							KeyformGrid(
-								listOf(KeyformAxis(axisParameter.id, floatArrayOf(axisParameter.min, axisParameter.max))),
+								listOf(
+									KeyformAxis(
+										axisParameter.id,
+										floatArrayOf(axisParameter.min, axisParameter.max),
+									),
+								),
 								listOf(
 									KeyformCell(intArrayOf(0), RotationPivotForm(100f, 200f, 0f, 1f)),
 									KeyformCell(intArrayOf(1), RotationPivotForm(100f, 200f, 30f, 1.25f)),

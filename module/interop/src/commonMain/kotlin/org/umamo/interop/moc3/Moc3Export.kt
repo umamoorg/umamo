@@ -91,9 +91,17 @@ object Moc3Export {
 		// Which drawables survive is decided BEFORE the index plan, because the plan's indices are the
 		// file's addressing scheme: a drawable dropped after the plan was built would leave every later
 		// index - and every mask reference into them - naming the wrong object.
+		// A SKETCH part is a guide overlay - a scan or a rough the rigger traces over - and the official
+		// bake leaves it out of the moc entirely.  The whole subtree goes: a guide's drawables are the
+		// thing that would otherwise render in the runtime, sitting on top of the puppet.
+		val sketchParts = sketchSubtree(puppet)
+		val exportableParts = puppet.parts.mapNotNullTo(LinkedHashSet()) { part -> part.id.takeIf { it !in sketchParts } }
+		val partByDrawable = puppet.partByDrawable()
 		val dropped = LinkedHashMap<org.umamo.runtime.model.DrawableId, String>()
 		for (drawable in puppet.drawables) {
-			if (drawable.mesh == null) {
+			if (partByDrawable[drawable.id] in sketchParts) {
+				dropped[drawable.id] = "a guide-image (sketch) part is not runtime content"
+			} else if (drawable.mesh == null) {
 				dropped[drawable.id] = "a drawable with no mesh cannot be written"
 			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null && canvasToParentSpace == null) {
 				// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
@@ -105,8 +113,9 @@ object Moc3Export {
 			}
 		}
 		val exportable = puppet.drawables.filter { drawable -> drawable.id !in dropped }
-		val plan = Moc3IndexPlan.of(puppet, exportable)
-		val canvas = MocCanvasMapping(puppet.pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
+		val plan = Moc3IndexPlan.of(puppet, exportable, exportableParts)
+		val pixelsPerUnit = mocPixelsPerUnitFor(puppet)
+		val canvas = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
 		// Per-object multiply/screen colour arrived in Cubism 4.2; below that the tables do not exist and
 		// every keyform must carry null rather than an identity, or the lowering would synthesize
@@ -473,7 +482,7 @@ object Moc3Export {
 				version = version,
 				canvas =
 					CanvasInfo(
-						pixelsPerUnit = puppet.pixelsPerUnit,
+						pixelsPerUnit = pixelsPerUnit,
 						originX = puppet.worldOriginX,
 						// The runtime negates the canvas y into world space; storing it re-negates.
 						originY = -puppet.worldOriginY,
@@ -563,7 +572,9 @@ object Moc3Export {
 	 * Note bit 2 is the INVERSE of culling: the flag means "double sided", so a culled drawable clears
 	 * it.  Getting that backwards silently double-draws every back face.
 	 *
-	 * @param org.umamo.runtime.model.Drawable drawable The drawable.
+	 * @param org.umamo.runtime.model.Drawable drawable             The drawable.
+	 * @param Boolean                          extendedBlendEnabled Whether the target version carries the
+	 *   5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
 	 * @return Int The flag bits.
 	 */
 	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable, extendedBlendEnabled: Boolean): Int {
@@ -578,6 +589,62 @@ object Moc3Export {
 			flags = flags or ConstantFlag.IS_INVERTED_MASK
 		}
 		return flags
+	}
+
+	/**
+	 * The pixels-per-unit a bake of [puppet] should carry.
+	 *
+	 * A moc's canvas scale is a BAKE parameter, not a project property: every corpus `.cmo3` stores
+	 * `CModelInfo.pixelsPerUnit = 1` - a CMO3 works in canvas pixels - while the editor's bake of the
+	 * same project writes a real scale, and the rigger picks it in the export dialog.  Its default there
+	 * is the canvas WIDTH, which 21 of the 25 corpus bakes use exactly (the four that do not chose their
+	 * own: 9000 -> 5000, 9000 -> 3077, 4500 -> 3000, 5134 -> 5000).
+	 *
+	 * So a CMO3-origin export defaults to the canvas width, and a MOC3-origin one keeps the scale its
+	 * file already had.  Writing the project's literal 1 instead is not a smaller choice - it stores the
+	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger who
+	 * picked a different scale at bake time cannot have it recovered from the project; that wants an
+	 * export option, on the same surface an omit-hidden-objects toggle would live on.
+	 *
+	 * @param PuppetModel puppet The rig being exported.
+	 * @return Float The canvas scale to write.
+	 */
+	fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
+		if (puppet.pixelsPerUnit > 1f) {
+			return puppet.pixelsPerUnit
+		}
+		return puppet.canvasWidth.takeIf { width -> width > 0f } ?: 1f
+	}
+
+	/**
+	 * Every part id in a sketch part's subtree, the sketch parts themselves included.
+	 *
+	 * A guide image is usually one part, but nothing stops a rigger from grouping several under it - and
+	 * a child of a guide is still a guide.
+	 *
+	 * @param PuppetModel puppet The rig.
+	 * @return Set The part ids to omit.
+	 */
+	private fun sketchSubtree(puppet: PuppetModel): Set<org.umamo.runtime.model.PartId> {
+		val sketches = puppet.parts.filter { part -> part.isSketch }
+		if (sketches.isEmpty()) {
+			return emptySet()
+		}
+		val partsById = puppet.parts.associateBy { part -> part.id }
+		val omitted = LinkedHashSet<org.umamo.runtime.model.PartId>()
+		val pending = ArrayDeque(sketches.map { part -> part.id })
+		while (pending.isNotEmpty()) {
+			val partId = pending.removeFirst()
+			if (!omitted.add(partId)) {
+				continue
+			}
+			for (child in partsById[partId]?.children.orEmpty()) {
+				if (child is org.umamo.runtime.model.OrgChild.Part) {
+					pending.addLast(child.id)
+				}
+			}
+		}
+		return omitted
 	}
 
 	/**

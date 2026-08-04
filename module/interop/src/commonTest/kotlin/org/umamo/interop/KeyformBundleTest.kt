@@ -20,8 +20,9 @@ import kotlin.test.assertTrue
  * cannot be placed in the bundled grid without inventing values at the keys it never covered.  CMO3
  * declines the whole owner; MOC3 cannot, because a MOC3 object with no keyform produces a file the
  * runtime will not load, so it drops that one channel to its static instead.  Both branches are
- * exercised here because only one of them has a production caller today - the MOC3 export that will
- * use the other does not exist yet, and an untested branch would rot before it arrives.
+ * exercised here because each caller only ever reaches its own - `Cmo3KeyformLowering` never passes
+ * DemoteChannel and `Moc3KeyformLowering` never passes RejectOwner - so neither format's own gates
+ * can catch a regression in the other's policy.
  */
 class KeyformBundleTest {
 	private val angleX = ParameterId("ParamAngleX")

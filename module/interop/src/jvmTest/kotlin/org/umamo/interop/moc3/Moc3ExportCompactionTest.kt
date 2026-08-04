@@ -50,11 +50,11 @@ class Moc3ExportCompactionTest {
 	/**
 	 * Asserts a geometry-less owner's track either kept its shape or collapsed value-preservingly.
 	 *
-	 * @param ArrayList failures    The shared collector.
-	 * @param String    fileName    The model being checked.
-	 * @param String    what        The owner and channel being checked.
-	 * @param FloatArray control    The uncompacted values.
-	 * @param FloatArray collapsed  The compacted values.
+	 * @param ArrayList  failures  The shared collector.
+	 * @param String     fileName  The model being checked.
+	 * @param String     what      The owner and channel being checked.
+	 * @param FloatArray control   The uncompacted values.
+	 * @param FloatArray collapsed The compacted values.
 	 */
 	private fun checkCollapsed(
 		failures: ArrayList<String>,

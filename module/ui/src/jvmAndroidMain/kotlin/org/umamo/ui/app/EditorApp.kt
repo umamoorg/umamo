@@ -393,8 +393,8 @@ fun EditorApp(
 		}
 	}
 
-	// Register the file and log operations as real commands so the keymap drives them (Ctrl+O /
-	// Ctrl+Shift+E dispatch through the shell's registry).  The tables themselves live with every other
+	// Register the file and log operations as real commands so the keymap and the palette drive them
+	// (Ctrl+O dispatches through the shell's registry).  The tables themselves live with every other
 	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
 	// picker and document loader are.
 	DisposableEffect(commandRegistry) {
@@ -407,8 +407,9 @@ fun EditorApp(
 	// Keyed on the session as well as the document: the handler closes over BOTH, so re-registering
 	// on either change keeps the pair the export reconciles from consistent by construction.
 	DisposableEffect(commandRegistry, document, session) {
-		// Both puppet document kinds export: CMO3-origin reconciles onto its retained graph,
-		// MOC3-origin synthesizes a fresh one.
+		// Both puppet document kinds export, to either format: Export CMO3 reconciles onto a CMO3-origin
+		// document's retained graph and synthesizes a fresh one for a MOC3-origin document, while Export
+		// MOC3 bakes fresh from the model whatever the origin.
 		val exportableDocument = document as? PuppetDocument
 		val cleanup =
 			commandRegistry.registerAll(
@@ -478,7 +479,7 @@ fun EditorApp(
  *
  * メニューバーのデータを共有ビルダーから構築する。ラベルはここで翻訳し、アクセラレータはキーマップから解決する。
  *
- * @param Document? document The open document (gates Export CMO3).
+ * @param Document? document The open document (gates both Export rows).
  * @param List recentFiles The recent file paths for the Open Recent submenu.
  * @param Keymap keymap The keymap accelerators are resolved against.
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
@@ -486,9 +487,9 @@ fun EditorApp(
  * @param Function openRecent Opens a recent file by its stored path.
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
- * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
  *                            reconciles; MOC3-origin synthesizes a fresh graph).
+ * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
  * @param Function onExit Closes the application.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).

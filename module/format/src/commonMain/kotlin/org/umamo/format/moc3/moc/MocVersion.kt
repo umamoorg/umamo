@@ -22,10 +22,10 @@ public enum class MocVersion(public val byteValue: Int, public val editorRange: 
 	/** moc 3 - Cubism 4.0. */
 	V40(3, "4.0"),
 
-	/** moc 4 - Cubism 4.2 (+ warp/rotation deformer color & extra groups). */
+	/** moc 4 - Cubism 4.2 (+ warp/rotation deformer color, `Parameter.Types`, art-mesh/warp blend shapes). */
 	V42(4, "4.2"),
 
-	/** moc 5 - Cubism 5.0 (+ blend shapes; `Parameter.Types`). */
+	/** moc 5 - Cubism 5.0 (+ per-form color rows; blend shapes on parts and rotation deformers). */
 	V50(5, "5.0"),
 
 	/** moc 6 - Cubism 5.3 (+ offscreen rendering). */

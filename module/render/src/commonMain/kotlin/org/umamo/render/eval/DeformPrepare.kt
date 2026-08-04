@@ -237,8 +237,9 @@ internal fun preparePose(
 		val channels = group.channelGrids
 		val partOwner = partId?.let { KeyformOwner.Part(it) }
 		if (partId != null && partOwner != null) {
-			// Left ABSENT when the part has no draw-order track or the pose is out of its range, so the
-			// renderer keeps the part's static slot - the map's sparseness is the signal.
+			// Null when the part has no draw-order track or the pose is out of its range; with no blend
+			// record contributing either, the map entry is then left ABSENT so the renderer keeps the
+			// part's static slot - the map's sparseness is the signal.
 			val tracked =
 				channels.scalarOrNull(
 					FormChannel.DRAW_ORDER,

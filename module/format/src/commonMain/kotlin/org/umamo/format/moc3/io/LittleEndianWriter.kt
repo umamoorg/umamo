@@ -107,8 +107,8 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 	 * Writes [value] as a fixed-width [width]-byte NUL-terminated record, zero-padded to width.
 	 *
 	 * Inverse of [LittleEndianReader.readFixedString].  MOC3 IDs are 64-byte records holding
-	 * plain ASCII, so the encoded form must fit in `width - 1` bytes to leave room for the
-	 * terminator; the corpus's longest id is well inside that.
+	 * plain ASCII (MOC3 §5.4), so the encoded form must fit in `width - 1` bytes to leave room for
+	 * the terminator; the corpus's longest id is well inside that.
 	 *
 	 * @param String value The identifier to write.
 	 * @param Int    width Record width in bytes (e.g. 64).

@@ -55,15 +55,15 @@ internal class BlendOwner(val target: BlendShapeTarget, val localIndex: Int)
  * per-kind cursor over the value tables, so a value carried here would be ignored at best and stale at
  * worst.
  *
- * @param List          drawables    The drawables in file order.
- * @param List          deformers    The deformers in file order.
- * @param List          parts        The parts in file order.
- * @param List          parameters   The parameters in file order.
- * @param Moc3IndexPlan plan         The index plan.
- * @param MocCanvasMapping canvas    The canvas mapping, for un-converting positional deltas.
- * @param Map           spaceOf      Each drawable/deformer id's stored point space.
- * @param Map           scaleFactorOf The px→model factor per rotation deformer id.
- * @param Boolean       colorsEnabled Whether the target version carries colour tables.
+ * @param List             drawables     The drawables in file order.
+ * @param List             deformers     The deformers in file order.
+ * @param List             parts         The parts in file order.
+ * @param List             parameters    The parameters in file order.
+ * @param Moc3IndexPlan    plan          The index plan.
+ * @param MocCanvasMapping canvas        The canvas mapping, for un-converting positional deltas.
+ * @param Function         spaceOf       A drawable/deformer id's stored point space.
+ * @param Function         scaleFactorOf The px→model factor for a rotation deformer.
+ * @param Boolean          colorsEnabled Whether the target version carries colour tables.
  * @return List<BlendShape> The records, in no particular order (the lowering orders them).
  */
 internal fun lowerBlendShapes(

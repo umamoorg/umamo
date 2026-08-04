@@ -198,11 +198,4 @@ class BlendShapeOracleTest {
 		}
 		return pairs
 	}
-
-	/**
-	 * The file [property] points at, skipping the test when absent (Assume, so it reports SKIPPED).
-	 *
-	 * @param String property The system property naming the input.
-	 * @return File The existing file.
-	 */
 }

@@ -40,9 +40,9 @@ import org.umamo.runtime.model.screenColor
  * file can hold: [RuntimeTarget] follows the official editor's target dialog, which gates the reversed
  * mask at Cubism 4.0 and the parameter repeat at Cubism 5.3 even though both are carried by every MOC3 version back
  * to v1.  Stripping on the editor's ladder would make a v5 file that uses either one round-trip
- * LOSSILY through a v5 export - which is what the corpus showed the moment this was tried
- * (LimeBirb's repeating parameters).  RuntimeTarget's own docblock anticipates this and says so: edit
- * gating is editor parity, the section-level nuances belong to export lowering.
+ * LOSSILY through a v5 export - LimeBirb's repeating parameters are exactly that case in the corpus.
+ * RuntimeTarget's own docblock anticipates this and says so: edit gating is editor parity, the
+ * section-level nuances belong to export lowering.
  *
  * The consequence is that a pre-export confirmation built on
  * [org.umamo.runtime.model.unsupportedFeaturesInUse] can name a feature this does not strip.  That is
@@ -386,7 +386,10 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(parts = parts)
 	}
 
-	/** The wrapping-axis flag cleared (moc 5.3 introduced it). */
+	/**
+	 * The wrapping-axis flag cleared.  Cubism 5.3's toggle, but section 54 carries it in every moc
+	 * version, so no target version reaches this strip.
+	 */
 	private fun stripParameterRepeat(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val parameters =

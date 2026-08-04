@@ -151,12 +151,12 @@ public enum class Section(
 	/**
 	 * Warp interpolation mode (0 = triangle split, non-zero = bilinear quad).
 	 *
-	 * Gated from MOC3 v2 (Cubism 3.3), which is where slot 101 first exists at all - [MocEncoder]'s own
-	 * table gives v1 101 slots and v2 102.
-	 * This entry previously claimed moc 3, which left slot 101 unmodeled on v2 and was caught by
-	 * `SectionRegistryTest.everyTableSlotIsModeledForEveryVersion`.  UNVERIFIED against a sample: the
-	 * corpus has no v2 file (v1, v3, v4, v5, v6 only), so this rests on the two agreeing sources
-	 * rather than on bytes.  Harmless if wrong - an absent section reads as absent.
+	 * Gated from MOC3 v2 (Cubism 3.3), which is where slot 101 first exists at all -
+	 * [org.umamo.format.moc3.encode.MocEncoder.sectionCount] gives v1 101 slots and v2 102.  A v3 gate
+	 * would leave v2's slot 101 modeled by nothing, which
+	 * `SectionRegistryTest.everyTableSlotIsModeledForEveryVersion` rejects.  UNVERIFIED against a
+	 * sample: the corpus has no v2 file (v1, v3, v4, v5, v6 only), so this rests on the two agreeing
+	 * sources rather than on bytes.  Harmless if wrong - an absent section reads as absent.
 	 */
 	WARP_MODE(ElementType.I32, Sizing.PER_WARP, -1, 101, 101, 101, 101, 101),
 	WARP_COLOR_BASE(ElementType.I32, Sizing.PER_WARP, -1, -1, -1, 105, 105, 105),
@@ -479,8 +479,9 @@ public enum class Section(
 	OFFSCREEN_BY_PART(ElementType.I32, Sizing.PER_PART, -1, -1, -1, -1, -1, 152),
 
 	/**
-	 * Per-offscreen cumulative base into the offscreen mask suffix of MASK_INDEX_DATA (successive
-	 * diffs equal [OFFSCREEN_MASK_COUNT]; Model A probe, OffscreenKeyformProbeTest).
+	 * Per-offscreen cumulative base into the offscreen mask PREFIX of [MASK_INDEX_DATA], offset from
+	 * the block start (successive diffs equal [OFFSCREEN_MASK_COUNT]; Model A probe,
+	 * OffscreenKeyformProbeTest).
 	 */
 	OFFSCREEN_MASK_BASE(ElementType.I32, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 158),
 
@@ -498,8 +499,11 @@ public enum class Section(
 	OFFSCREEN_RUNTIME_SLOT(ElementType.U64, Sizing.PER_OFFSCREEN, -1, -1, -1, -1, -1, 154),
 
 	/**
-	 * A second per-part offscreen-index map, BYTE-IDENTICAL to [OFFSCREEN_BY_PART] on every corpus
-	 * sample.  Why the runtime wants the same array twice is unknown; a writer emits the same bytes.
+	 * A second per-part offscreen-index map, byte-identical to [OFFSCREEN_BY_PART] on every corpus
+	 * sample BUT Model A, where 152 is the exact inverse of [OFFSCREEN_OWNER_PART] while 160 names a
+	 * larger set of parts matching no owner - so 152 is the reconstructible column and 160 an
+	 * editor-internal artifact whose rule is unknown (OffscreenSectionAliasProbeTest guards the
+	 * divergence).  A writer emits the derivable inverse in both.
 	 */
 	OFFSCREEN_BY_PART_ALIAS(ElementType.I32, Sizing.PER_PART, -1, -1, -1, -1, -1, 160),
 

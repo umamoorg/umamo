@@ -50,9 +50,9 @@ object Moc3Sidecars {
 	 * and reference parameters and parts by id, which the export preserves - so re-emitting the
 	 * original text is both lossless and the only honest option, since Umamo does not model them.
 	 *
-	 * @property String kind      Which sidecar this is, for the manifest wiring below.
-	 * @property String fileName  The name to write it under.
-	 * @property String text      The original file's text.
+	 * @property SidecarKind kind     Which sidecar this is, for the manifest wiring below.
+	 * @property String      fileName The name to write it under.
+	 * @property String      text     The original file's text.
 	 */
 	class PassThroughSidecar(val kind: SidecarKind, val fileName: String, val text: String)
 
