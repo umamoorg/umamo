@@ -366,6 +366,9 @@ object Cmo3Import {
 							channelGrids = fanned?.channels ?: ChannelGrids.Empty,
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
+							// CMO3: ACParameterControllableSource.isVisible - the deformer's own eyeball.  CMO3 has
+							// no analogue of the moc's second flag, so isEnabled keeps its default.
+							isVisible = source.isVisible,
 							blendShapes =
 								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::warpForm),
 						)
@@ -382,6 +385,9 @@ object Cmo3Import {
 							channelGrids = fanned?.channels ?: ChannelGrids.Empty,
 							// CMO3: ACParameterControllableSource.isLocked (inverted: Cubism lock = not selectable).
 							isSelectable = !source.isLocked,
+							// CMO3: ACParameterControllableSource.isVisible - the deformer's own eyeball.  CMO3 has
+							// no analogue of the moc's second flag, so isEnabled keeps its default.
+							isVisible = source.isVisible,
 							blendShapes =
 								blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid, ::rotationForm),
 						)

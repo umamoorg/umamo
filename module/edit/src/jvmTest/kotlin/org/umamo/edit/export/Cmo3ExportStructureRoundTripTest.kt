@@ -12,10 +12,10 @@ import org.umamo.edit.withParameterGroupCreated
 import org.umamo.edit.withPartDeleted
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -43,7 +43,7 @@ class Cmo3ExportStructureRoundTripTest {
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
-		val report: Cmo3ExportReport,
+		val report: ExportReport,
 	)
 
 	private fun roundTrip(file: File, edit: (PuppetModel) -> PuppetModel): RoundTrip {
@@ -51,7 +51,8 @@ class Cmo3ExportStructureRoundTripTest {
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
-		val reimportedSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+		val reimportedSource =
+			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -92,7 +93,10 @@ class Cmo3ExportStructureRoundTripTest {
 				assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
 				for (component in cell.form.positionDeltas.indices) {
 					maxComponentDifference =
-						maxOf(maxComponentDifference, abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]))
+						maxOf(
+							maxComponentDifference,
+							abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]),
+						)
 				}
 			}
 			assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
@@ -110,7 +114,11 @@ class Cmo3ExportStructureRoundTripTest {
 				residual.glues.isEmpty() &&
 				residual.document.isEmpty() &&
 				residual.drawables.all { entityDiff ->
-					entityDiff is EntityDiff.Changed && entityDiff.id == drawableId && tolerated.containsAll(entityDiff.fields)
+					entityDiff is EntityDiff.Changed &&
+						entityDiff.id == drawableId &&
+						tolerated.containsAll(
+							entityDiff.fields,
+						)
 				}
 		assertTrue(onlyToleratedResidue, "$label: unexpected residual $residual")
 	}

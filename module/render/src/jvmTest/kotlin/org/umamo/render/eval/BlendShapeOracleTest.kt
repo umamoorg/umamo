@@ -41,8 +41,8 @@ class BlendShapeOracleTest {
 
 	@Test
 	fun posedBlendShapesMatchOracle() {
-		val dumpModel = requireInput("relive.dumpModel")
-		val coreLib = requireInput("relive.coreLib")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 		val pairs = resolvePairs()
 		Assume.assumeTrue("[oracle] no blend-shape corpus pairs resolvable", pairs.isNotEmpty())
 
@@ -197,17 +197,5 @@ class BlendShapeOracleTest {
 			)
 		}
 		return pairs
-	}
-
-	/**
-	 * The file [property] points at, skipping the test when absent (Assume, so it reports SKIPPED).
-	 *
-	 * @param String property The system property naming the input.
-	 * @return File The existing file.
-	 */
-	private fun requireInput(property: String): File {
-		val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-		Assume.assumeTrue("[oracle] absent -D$property", file != null)
-		return file!!
 	}
 }

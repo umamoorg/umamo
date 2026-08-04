@@ -1,7 +1,6 @@
 package org.umamo.format.moc3.decode
 
 import org.umamo.format.moc3.MocDocument
-import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.MocSections
 import org.umamo.format.moc3.moc.Section
@@ -34,7 +33,7 @@ import org.umamo.format.moc3.model.WarpKeyform
  *
  * EN: Reads the typed Layer-1 sections and follows the base/index tables - it does not evaluate the
  *     model (no interpolation/cascade). Blend shapes (moc 4+) and offscreens (moc 6) are assembled
- *     too; only the residual unknown sections (154, 160) are left to raw access.
+ *     too.  Every section index is modeled in [Section], so nothing is left to raw access.
  * JA: Layer-1 を意味モデルへ組み立てる（評価は行わない）。
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
@@ -155,6 +154,9 @@ public object MocDecoder {
 		val partKeyformBinding = sections.intArray(Section.PART_KEYFORM_BINDING)
 		val partKeyformBase = sections.intArray(Section.PART_KEYFORM_BASE)
 		val partDrawOrder = sections.floatArray(Section.PART_DRAW_ORDER)
+		// s7/s8 are a pair whose split is unpinned (both are 1 corpus-wide); take s7 and default to
+		// visible when a stripped file omits it.
+		val partVisible = sections.intArray(Section.PART_VISIBLE_ARTMESHES)
 		val partList =
 			model.parts().mapIndexed { partIndex, part ->
 				val keyformBinding = partKeyformBinding[partIndex] // for parts, 0 means static (no binding)
@@ -164,6 +166,7 @@ public object MocDecoder {
 					part.parentPartIndex,
 					keyformBinding,
 					FloatArray(gridSize) { keyIndex -> partDrawOrder[partKeyformBase[partIndex] + keyIndex] },
+					isVisible = partVisible.getOrElse(partIndex) { 1 } != 0,
 				)
 			}
 
@@ -173,6 +176,12 @@ public object MocDecoder {
 		// The block's common head (MOC3 §5.6 s11-s15).  Read defensively: a stripped or synthesized
 		// moc can omit these, and an absent id/flag must not fail the whole decode.
 		val deformerId = sections.idArray(Section.DEFORMER_ID)
+		// s12 is the same binding the per-type sections 19/25 carry, and the deformers below take the
+		// per-type value.  Read but deliberately unused: the runtime raises a MOC3 validation error when
+		// the two disagree, so the model holds ONE binding per deformer and the lowering projects both
+		// columns from it (MocDeformerBindingTest / MocDeformerBindingCorpusTest pin all of that).
+		// Whether an input divergence should surface as a notice rather than resolve silently to the
+		// per-type value is still open - this read is where that would hook in.
 		val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
 		val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
 		val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
@@ -279,11 +288,15 @@ public object MocDecoder {
 		// MOC3 v6 §5.6 s153: per-drawable packed extended blend (0 = legacy constant-flags blend).
 		val artMeshExtendedBlend =
 			if (sections.isPresent(Section.ARTMESH_EXTENDED_BLEND)) sections.intArray(Section.ARTMESH_EXTENDED_BLEND) else null
+		// s37 is the visibility toggle (pinned by joining miku_verycursed against its CMO3 twin); s38 is
+		// 1 on every drawable of every corpus sample and is carried only so a bake reproduces it.
+		val artMeshIsVisible = sections.intArray(Section.ARTMESH_IS_VISIBLE)
+		val artMeshIsEnabled = sections.intArray(Section.ARTMESH_IS_ENABLED)
 		val artMeshOpacity = sections.floatArray(Section.ARTMESH_OPACITY)
 		val artMeshDrawOrder = sections.floatArray(Section.ARTMESH_DRAW_ORDER)
-		val uvData = floatsOf(model, Sections.UV_DATA)
-		val indexData = shortsOf(model, Sections.INDEX_DATA)
-		val maskData = intsOf(model, Sections.MASK_INDEX_DATA)
+		val uvData = sections.floatArray(Section.ARTMESH_UV_DATA)
+		val indexData = sections.shortArray(Section.ARTMESH_INDEX_DATA)
+		val maskData = sections.intArray(Section.MASK_INDEX_DATA)
 		// MOC3 v6 §5.6 section 80: the OFFSCREEN mask entries are the block's PREFIX and the
 		// drawables' masks follow (pinned on Model A against the CMO3 ground truth + the runtime's
 		// s158 addressing, which offsets from the block start).  Pre-v6 there is no prefix.
@@ -324,6 +337,9 @@ public object MocDecoder {
 					drawable.textureIndex,
 					drawable.constantFlags,
 					artMeshExtendedBlend?.get(drawableIndex) ?: 0,
+					// Default to visible: a stripped file omitting the flags means "nothing is hidden".
+					artMeshIsVisible.getOrElse(drawableIndex) { 1 } != 0,
+					artMeshIsEnabled.getOrElse(drawableIndex) { 1 } != 0,
 					drawable.parentPartIndex,
 					artMeshParentDeformer[drawableIndex],
 					uvs,
@@ -942,6 +958,7 @@ public object MocDecoder {
 			return emptyList()
 		}
 		val meshB = sections.intArray(Section.GLUE_MESH_B)
+		val glueId = sections.idArray(Section.GLUE_ID)
 		val keyformBinding = sections.intArray(Section.GLUE_KEYFORM_BINDING)
 		val glueVertexStart = sections.intArray(Section.GLUE_VERTEX_START)
 		val glueVertexCount = sections.intArray(Section.GLUE_VERTEX_COUNT)
@@ -963,6 +980,8 @@ public object MocDecoder {
 					)
 				}
 			Glue(
+				// A stripped file without s90 leaves the id blank rather than failing the decode.
+				glueId.getOrElse(glueIndex) { "" },
 				meshA[glueIndex],
 				meshB[glueIndex],
 				keyformBinding[glueIndex],
@@ -1003,44 +1022,5 @@ public object MocDecoder {
 			childBase += childCount[groupIndex]
 			RenderOrderGroup(children)
 		}
-	}
-
-	/**
-	 * Reads section [index] of [model] as a packed `f32[]` (whole-slice), or empty when absent.
-	 *
-	 * @param MocModel model A parsed container.
-	 * @param Int      index A structural section index (a [Sections] constant).
-	 * @return FloatArray The decoded values.
-	 */
-	private fun floatsOf(model: MocModel, index: Int): FloatArray {
-		val raw = model.section(index) ?: return FloatArray(0)
-		val reader = LittleEndianReader(raw)
-		return FloatArray(raw.size / 4) { reader.readFloat32() }
-	}
-
-	/**
-	 * Reads section [index] of [model] as a packed `i32[]` (whole-slice), or empty when absent.
-	 *
-	 * @param MocModel model A parsed container.
-	 * @param Int      index A structural section index (a [Sections] constant).
-	 * @return IntArray The decoded values.
-	 */
-	private fun intsOf(model: MocModel, index: Int): IntArray {
-		val raw = model.section(index) ?: return IntArray(0)
-		val reader = LittleEndianReader(raw)
-		return IntArray(raw.size / 4) { reader.readInt32() }
-	}
-
-	/**
-	 * Reads section [index] of [model] as a packed `i16[]` (whole-slice), or empty when absent.
-	 *
-	 * @param MocModel model A parsed container.
-	 * @param Int      index A structural section index (a [Sections] constant).
-	 * @return ShortArray The decoded values.
-	 */
-	private fun shortsOf(model: MocModel, index: Int): ShortArray {
-		val raw = model.section(index) ?: return ShortArray(0)
-		val reader = LittleEndianReader(raw)
-		return ShortArray(raw.size / 2) { reader.readU16().toShort() }
 	}
 }

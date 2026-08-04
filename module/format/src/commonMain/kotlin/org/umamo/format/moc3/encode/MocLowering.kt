@@ -2,7 +2,7 @@ package org.umamo.format.moc3.encode
 
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.io.LittleEndianWriter
-import org.umamo.format.moc3.moc.ElementType
+import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
@@ -16,14 +16,19 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 
 /**
- * Lowers a [MocDocument] back to section byte-arrays (the semantic half of the bake). This covers
- * the structural + topology sections - those that map directly from object fields and therefore
- * reconstruct byte-for-byte: counts, canvas, IDs, parameter ranges/types, drawable attributes,
- * UV/triangle/mask data, deformer parent/type/grid dims, and the object→keyform-binding references.
+ * Lowers a [MocDocument] back to section byte-arrays (the semantic half of the bake).
  *
- * The layout-dependent sections (per-object keyform bases and the packed keyform value tables /
- * binding grid) are not synthesized here - they require reproducing a value-table packing and are
- * the remaining bake work; until then a full bake carries them through from a decoded model.
+ * The producers split by what a section needs to be built, not by what it means: [structuralSections]
+ * for the fields that map straight off an object (canvas, IDs, parameter ranges/types, drawable
+ * attributes, UV/triangle/mask data, deformer parent/type/grid dims, the object→keyform-binding
+ * references), [valueTableSections] for the packed keyform tables and the per-object bases into them,
+ * [keyformGridSections] for the parameter-binding dedup grid and the per-parameter run columns,
+ * [auxiliarySections] for the color, glue, render-order, and offscreen tables, [blendShapeSections]
+ * for the blend records, and [countInfoSection] for section 0.  Every packing here is derived rather
+ * than carried, and deterministic, so one document always lowers to one set of bytes.
+ *
+ * The self-contained derived columns and the zero-filled runtime slots are produced beside this in
+ * [MocDerivedIndexes] and [MocRuntimeSlots]; [MocEncoder] merges all of it into one section map.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5, §7</a>
  */
@@ -48,47 +53,55 @@ public object MocLowering {
 
 		doc.canvas?.let { canvas ->
 			put(
-				Sections.CANVAS,
+				Section.CANVAS,
 				floats(canvas.pixelsPerUnit, canvas.originX, canvas.originY, canvas.width, canvas.height, 0f),
 			)
 		}
 
 		// parameters
-		put(Sections.PARAM_ID, idRecords(doc.parameters.map { it.id }))
-		put(Sections.PARAM_MAX, floatList(doc.parameters.map { it.maximumValue }))
-		put(Sections.PARAM_MIN, floatList(doc.parameters.map { it.minimumValue }))
-		put(Sections.PARAM_DEFAULT, floatList(doc.parameters.map { it.defaultValue }))
-		put(Sections.PARAM_REPEAT, intList(doc.parameters.map { if (it.repeats) 1 else 0 }))
+		put(Section.PARAM_ID, idRecords(doc.parameters.map { it.id }))
+		put(Section.PARAM_MAX, floatList(doc.parameters.map { it.maximumValue }))
+		put(Section.PARAM_MIN, floatList(doc.parameters.map { it.minimumValue }))
+		put(Section.PARAM_DEFAULT, floatList(doc.parameters.map { it.defaultValue }))
+		put(Section.PARAM_REPEAT, intList(doc.parameters.map { if (it.repeats) 1 else 0 }))
 		if (doc.parameters.any { it.type != null }) {
 			put(
-				Sections.PARAM_TYPE,
+				Section.PARAM_TYPE,
 				intList(doc.parameters.map { it.type!!.number }),
 			)
 		}
 
 		// parts
-		put(Sections.PART_ID, idRecords(doc.parts.map { it.id }))
-		put(Sections.PART_PARENT, intList(doc.parts.map { it.parentPartIndex }))
+		put(Section.PART_ID, idRecords(doc.parts.map { it.id }))
+		// One model field feeds both columns: their split is unpinned and they are 1 together on every
+		// corpus sample, so writing them independently would be inventing a distinction we cannot read.
+		put(Section.PART_VISIBLE_ARTMESHES, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
+		put(Section.PART_VISIBLE_DEFORMERS, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
+		put(Section.PART_PARENT, intList(doc.parts.map { it.parentPartIndex }))
 		put(Section.PART_KEYFORM_BINDING, intList(doc.parts.map { it.keyformBindingIndex }))
 
 		// drawables (art meshes) + topology
-		put(Sections.DRAW_ID, idRecords(doc.artMeshes.map { it.id }))
-		put(Sections.DRAW_TEXTURE, intList(doc.artMeshes.map { it.textureIndex }))
-		put(Sections.DRAW_CONSTANT_FLAG, ByteArray(doc.artMeshes.size) { doc.artMeshes[it].constantFlags.toByte() })
+		put(Section.ARTMESH_ID, idRecords(doc.artMeshes.map { it.id }))
+		put(Section.ARTMESH_TEXTURE, intList(doc.artMeshes.map { it.textureIndex }))
+		put(Section.ARTMESH_CONSTANT_FLAGS, ByteArray(doc.artMeshes.size) { doc.artMeshes[it].constantFlags.toByte() })
 		// MOC3 v6 §5.6 s153: per-drawable packed extended blend (v6-only; put drops it below v6).
 		put(Section.ARTMESH_EXTENDED_BLEND, intList(doc.artMeshes.map { it.extendedBlend }))
-		put(Sections.DRAW_VERTEX_COUNT, intList(doc.artMeshes.map { it.vertexCount }))
-		put(Sections.DRAW_INDEX_COUNT, intList(doc.artMeshes.map { it.triangleIndices.size }))
-		put(Sections.DRAW_MASK_COUNT, intList(doc.artMeshes.map { it.maskDrawableIndices.size }))
-		put(Sections.DRAW_PARENT, intList(doc.artMeshes.map { it.parentPartIndex }))
+		// Hidden art meshes are CARRIED with the flag clear, never dropped - the official editor deletes
+		// them by default, but Umamo has no option to and doing it silently would be destructive.
+		put(Section.ARTMESH_IS_VISIBLE, intList(doc.artMeshes.map { if (it.isVisible) 1 else 0 }))
+		put(Section.ARTMESH_IS_ENABLED, intList(doc.artMeshes.map { if (it.isEnabled) 1 else 0 }))
+		put(Section.ARTMESH_VERTEX_COUNT, intList(doc.artMeshes.map { it.vertexCount }))
+		put(Section.ARTMESH_INDEX_COUNT, intList(doc.artMeshes.map { it.triangleIndices.size }))
+		put(Section.ARTMESH_MASK_COUNT, intList(doc.artMeshes.map { it.maskDrawableIndices.size }))
+		put(Section.ARTMESH_PARENT_PART, intList(doc.artMeshes.map { it.parentPartIndex }))
 		put(Section.ARTMESH_PARENT_DEFORMER, intList(doc.artMeshes.map { it.parentDeformerIndex }))
 		put(Section.ARTMESH_KEYFORM_BINDING, intList(doc.artMeshes.map { it.keyformBindingIndex }))
 		put(
 			Section.ARTMESH_KEYFORM_COUNT,
 			intList(doc.artMeshes.map { doc.keyformBinding(it.keyformBindingIndex)?.gridSize ?: 1 }),
 		)
-		put(Sections.UV_DATA, floatConcat(doc.artMeshes) { it.vertexUvs })
-		put(Sections.INDEX_DATA, u16Concat(doc.artMeshes) { it.triangleIndices })
+		put(Section.ARTMESH_UV_DATA, floatConcat(doc.artMeshes) { it.vertexUvs })
+		put(Section.ARTMESH_INDEX_DATA, u16Concat(doc.artMeshes) { it.triangleIndices })
 		// The mask-index block holds (moc 6) the offscreens' mask lists as a PREFIX, then the
 		// drawables' mask lists (MOC3 §5.6 section 80; s158 offsets from the block start - pinned on
 		// Model A against the CMO3 clip lists).  The prefix synthesizes from the typed
@@ -102,13 +115,11 @@ public object MocLowering {
 			for (mesh in doc.artMeshes) {
 				mesh.maskDrawableIndices.forEach { maskIndexValues.add(it) }
 			}
-			put(Sections.MASK_INDEX_DATA, intList(maskIndexValues))
+			put(Section.MASK_INDEX_DATA, intList(maskIndexValues))
 		}
 
-		// deformers (unified list + per-type)
-		// The runtime slot is written zero-filled at the deformer count: the runtime owns its contents,
-		// but the array must be as long as the deformer list or an added deformer reads past it.
-		put(Section.DEFORMER_RUNTIME_SLOT, ByteArray(doc.deformers.size * ElementType.U64.size))
+		// deformers (unified list + per-type).  The block's leading runtime slot is sized by
+		// [MocRuntimeSlots] along with every other object block's, so it is not written here.
 		put(Section.DEFORMER_ID, idRecords(doc.deformers.map { it.id }))
 		put(Section.DEFORMER_KEYFORM_BINDING, intList(doc.deformers.map { it.keyformBindingIndex }))
 		put(Section.DEFORMER_IS_VISIBLE, intList(doc.deformers.map { if (it.isVisible) 1 else 0 }))
@@ -401,25 +412,45 @@ public object MocLowering {
 			for (offscreen in doc.offscreens) {
 				offscreen.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
 			}
+			// Per-FORM color-row references (137-142), one entry per form SLOT of each object kind, in
+			// that kind's own form order.  They are what the runtime dereferences to reach a form's color
+			// row, so a kind whose table is short or absent sends it reading past the end - which is a
+			// segfault inside the official core, not a rejected file.
+			//
+			// The tail of each table covers that kind's BLEND-SHAPE record rows: the runtime reaches a
+			// record's color delta through the same indirection, at the record base rather than the
+			// object base, so the delta rows have to be addressable here too.
+			val warpColorRefs = ArrayList<Int>()
+			val rotationColorRefs = ArrayList<Int>()
+			val meshColorRefs = ArrayList<Int>()
 			val warpColorBase = ArrayList<Int>()
 			val rotationColorBase = ArrayList<Int>()
 			for (deformer in doc.deformers) {
 				when (deformer) {
 					is WarpDeformer -> {
 						warpColorBase.add(multiplyRed.size)
-						deformer.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
+						deformer.keyforms.forEach {
+							warpColorRefs.add(multiplyRed.size)
+							appendColors(it.multiplyColor, it.screenColor)
+						}
 					}
 
 					is RotationDeformer -> {
 						rotationColorBase.add(multiplyRed.size)
-						deformer.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
+						deformer.keyforms.forEach {
+							rotationColorRefs.add(multiplyRed.size)
+							appendColors(it.multiplyColor, it.screenColor)
+						}
 					}
 				}
 			}
 			val meshColorBase = ArrayList<Int>()
 			for (mesh in doc.artMeshes) {
 				meshColorBase.add(multiplyRed.size)
-				mesh.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
+				mesh.keyforms.forEach {
+					meshColorRefs.add(multiplyRed.size)
+					appendColors(it.multiplyColor, it.screenColor)
+				}
 			}
 			// A 4.2-era bake carries no delta region (see hasColorDeltaRows) - mirror its absence so
 			// the re-synthesized tables end at the base rows and stay byte-exact both ways.
@@ -431,14 +462,35 @@ public object MocLowering {
 					}
 					for (keyform in record.keyforms) {
 						when (keyform) {
-							is BlendShapeKeyform.Warp -> appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
-							is BlendShapeKeyform.Mesh -> appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
-							is BlendShapeKeyform.Rotation -> appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
+							is BlendShapeKeyform.Warp -> {
+								warpColorRefs.add(multiplyRed.size)
+								appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
+							}
+
+							is BlendShapeKeyform.Mesh -> {
+								meshColorRefs.add(multiplyRed.size)
+								appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
+							}
+
+							is BlendShapeKeyform.Rotation -> {
+								rotationColorRefs.add(multiplyRed.size)
+								appendDeltaColors(keyform.form.multiplyColor, keyform.form.screenColor)
+							}
+
+							// A part owns no color rows at all, so it contributes no reference either.
 							is BlendShapeKeyform.Part -> Unit
 						}
 					}
 				}
 			}
+			// The multiply and screen tables of each pair are bit-identical corpus-wide (the reference is to
+			// a ROW, and a row carries both colors), so one list feeds both.
+			put(Section.WARP_FORM_MULTIPLY_ROW, intList(warpColorRefs))
+			put(Section.WARP_FORM_SCREEN_ROW, intList(warpColorRefs))
+			put(Section.ROTATION_FORM_MULTIPLY_ROW, intList(rotationColorRefs))
+			put(Section.ROTATION_FORM_SCREEN_ROW, intList(rotationColorRefs))
+			put(Section.ARTMESH_FORM_MULTIPLY_ROW, intList(meshColorRefs))
+			put(Section.ARTMESH_FORM_SCREEN_ROW, intList(meshColorRefs))
 			put(Section.WARP_COLOR_BASE, intList(warpColorBase))
 			put(Section.ROTATION_COLOR_BASE, intList(rotationColorBase))
 			put(Section.ARTMESH_COLOR_BASE, intList(meshColorBase))
@@ -574,6 +626,16 @@ public object MocLowering {
 				}
 			}
 			put(Section.OFFSCREEN_BY_PART, intList(offscreenByPart.toList()))
+			// 160 gets the SAME inverse map, and it must be written: the runtime reads it as a per-part
+			// offscreen index, so leaving it empty makes it read the neighbouring section's bytes as part
+			// indices and take the core down (not a rejected file - a segfault inside it).
+			//
+			// The two columns are byte-identical in every corpus file but modelA, where 152 is the exact
+			// inverse of the offscreen owner column (155) and 160 names a different, larger set of parts
+			// that matches no owner.  Which makes 152 the reconstructible one and 160 an editor-internal
+			// artifact, in the same class as the keyform-binding numbering: we write the consistent
+			// inverse in both rather than reproduce a divergence we cannot derive.
+			put(Section.OFFSCREEN_BY_PART_ALIAS, intList(offscreenByPart.toList()))
 			// 158: cumulative mask base (the scan of 159; MOC3 §5.6, OffscreenKeyformProbeTest).
 			val maskBases = ArrayList<Int>()
 			var maskBaseCursor = 0
@@ -664,24 +726,56 @@ public object MocLowering {
 		}
 
 		put(Section.PARAMETER_BINDING_COUNT, intList(parameterBindingCount.toList()))
+		// The matching START column, which the runtime uses to find each parameter's binding run.  Written
+		// here rather than beside the other prefix sums because it needs the pool this function builds.
+		//
+		// The empty-slot filler is NOT arbitrary: a parameter with no bindings stores -1 when it is NORMAL
+		// and 0 when it is BLEND_SHAPE.  Both values occur within one file (LimeBirb, modelF), so the
+		// parameter type is the only thing that tells the two fillers apart.
+		val parameterBindingStart = IntArray(parameterCount)
+		run {
+			var cursor = 0
+			for (parameterIndex in 0 until parameterCount) {
+				parameterBindingStart[parameterIndex] =
+					if (parameterBindingCount[parameterIndex] > 0) {
+						val start = cursor
+						cursor += parameterBindingCount[parameterIndex]
+						start
+					} else if (doc.parameters.getOrNull(parameterIndex)?.type == ParameterType.BLEND_SHAPE) {
+						0
+					} else {
+						-1
+					}
+			}
+		}
+		put(Section.PARAM_BINDING_START, intList(parameterBindingStart.toList()))
 		put(Section.BINDING_KEY_OFFSET, intList(keyOffset))
 		put(Section.BINDING_KEY_COUNT, intList(keyCount))
 		if (doc.blendShapes.isEmpty()) {
-			// Blend-free path: the main-grid dedup keys, optionally followed by the per-parameter
-			// sorted-union region that some v1/v3 editor builds append (carried on the document as
-			// keyPositionsHasParameterUnion; MOC3 §5.6).  Section 104 (PARAM_KEY_COUNT) is NOT written
-			// on these older files, so - unlike the blend branch below - it is not emitted here.
+			// Blend-free path: the main-grid dedup keys, followed by the per-parameter sorted-union
+			// region (MOC3 §5.6).  On moc 4+ that region is ALWAYS present and sections 103/104 address
+			// it; on v1/v3 it appears only in the editor builds that wrote it, carried on the document
+			// as keyPositionsHasParameterUnion, and 103/104 do not exist to address it.
+			//
+			// Omitting 104 on a v4+ file is not a smaller file, it is an unloadable one: the runtime
+			// reads it unconditionally to SIZE its parameter key store, and an absent section still
+			// resolves to a pointer - so it sizes the arena from whatever bytes follow.
 			val allKeyPositions = ArrayList(keyPositions)
-			if (doc.keyPositionsHasParameterUnion) {
+			val unionKeyCounts = ArrayList<Int>()
+			val unionBase = allKeyPositions.size
+			if (doc.keyPositionsHasParameterUnion || version.byteValue >= 4) {
 				for (parameterIndex in 0 until parameterCount) {
 					val unionKeys = mutableSetOf<Float>()
 					for (keys in keySetsByParameter[parameterIndex]) {
 						unionKeys.addAll(keys)
 					}
+					unionKeyCounts.add(unionKeys.size)
 					allKeyPositions.addAll(unionKeys.sorted())
 				}
 			}
 			put(Section.KEY_POSITIONS, floatList(allKeyPositions))
+			putParameterKeyRuns(::put, version, unionKeyCounts, unionBase)
+			putBlendParameterRuns(::put, version, doc, List(parameterCount) { 0 })
 		} else {
 			// MOC3 §5.6: on a blend model KEY_POSITIONS is THREE regions - the main-grid dedup keys,
 			// the blend bindings' key runs (binding order; section 117 offsets point here), and per
@@ -693,6 +787,7 @@ public object MocLowering {
 				bindingKeys.forEach { allKeyPositions.add(it) }
 			}
 			val parameterKeyCounts = ArrayList<Int>()
+			val unionBase = allKeyPositions.size
 			for (parameterIndex in 0 until parameterCount) {
 				val unionKeys = mutableSetOf<Float>()
 				for (keys in keySetsByParameter[parameterIndex]) {
@@ -707,12 +802,91 @@ public object MocLowering {
 				allKeyPositions.addAll(unionKeys.sorted())
 			}
 			put(Section.KEY_POSITIONS, floatList(allKeyPositions))
-			out[Sections.PARAM_KEY_COUNT] = intList(parameterKeyCounts)
+			putParameterKeyRuns(::put, version, parameterKeyCounts, unionBase)
+			val blendBindingCounts = IntArray(parameterCount)
+			for (ownerParameter in blendLayout.bindingOwnerParameter) {
+				if (ownerParameter in 0 until parameterCount) {
+					blendBindingCounts[ownerParameter]++
+				}
+			}
+			putBlendParameterRuns(::put, version, doc, blendBindingCounts.toList())
 		}
 		put(Section.KEYFORM_BINDING_SLOT, intList(keyformBindingSlot))
 		put(Section.KEYFORM_BINDING_START, intList(keyformBindingStart))
 		put(Section.KEYFORM_BINDING_COUNT, intList(keyformBindingCount))
 		return out
+	}
+
+	/**
+	 * Writes the per-parameter key run columns (103 start, 104 count) over the key-position union region.
+	 *
+	 * @param Function2 put         The section sink of the calling producer.
+	 * @param MocVersion version     The target version (the columns are moc 4+).
+	 * @param List      counts      Each parameter's union key count, in parameter order.
+	 * @param Int       regionStart Where the union region begins inside KEY_POSITIONS.
+	 */
+	private fun putParameterKeyRuns(
+		put: (Section, ByteArray) -> Unit,
+		version: MocVersion,
+		counts: List<Int>,
+		regionStart: Int,
+	) {
+		if (version.byteValue < 4 || counts.isEmpty()) {
+			return
+		}
+		// The start column is an OFFSET INTO KEY_POSITIONS, not a running count from zero: the union
+		// region sits after the main-grid keys (and, on a blend model, the blend binding keys), so a
+		// prefix sum based at 0 would point every parameter at the wrong run.
+		var cursor = regionStart
+		val starts =
+			counts.map { count ->
+				val start = cursor
+				cursor += count
+				start
+			}
+		put(Section.PARAM_KEY_START, intList(starts))
+		put(Section.PARAM_KEY_COUNT, intList(counts))
+	}
+
+	/**
+	 * Writes the per-parameter blend-binding run columns (115 begin, 116 count).
+	 *
+	 * Present on every moc 4+ file, blend shapes or not - a blend-free model writes zeros rather than
+	 * nothing, and an absent section is read as garbage by the runtime rather than as an empty one.
+	 *
+	 * @param Function2   put            The section sink of the calling producer.
+	 * @param MocVersion  version        The target version (the columns are moc 4+).
+	 * @param MocDocument doc            The document, for the parameter types.
+	 * @param List        bindingCounts  Blend bindings owned by each parameter, in parameter order.
+	 */
+	private fun putBlendParameterRuns(
+		put: (Section, ByteArray) -> Unit,
+		version: MocVersion,
+		doc: MocDocument,
+		bindingCounts: List<Int>,
+	) {
+		if (version.byteValue < 4 || bindingCounts.isEmpty()) {
+			return
+		}
+		// The empty-slot filler mirrors PARAM_BINDING_START's, with the two types SWAPPED: here a
+		// BLEND_SHAPE parameter that owns no binding stores -1 and a normal one stores 0 (LimeBirb and
+		// modelF carry both).  The pairing is easy to "tidy" into agreement with the other column, which
+		// would silently corrupt every blend-shape parameter's run on those files.
+		var cursor = 0
+		val begins =
+			bindingCounts.mapIndexed { parameterIndex, count ->
+				if (count > 0) {
+					val begin = cursor
+					cursor += count
+					begin
+				} else if (doc.parameters.getOrNull(parameterIndex)?.type == ParameterType.BLEND_SHAPE) {
+					-1
+				} else {
+					0
+				}
+			}
+		put(Section.BLENDSHAPE_PARAMETER_BEGIN, intList(begins))
+		put(Section.BLENDSHAPE_PARAMETER_COUNT, intList(bindingCounts))
 	}
 
 	/**
@@ -752,7 +926,10 @@ public object MocLowering {
 					} ?: 0
 				)
 		val bindingGrid = ParameterBindingGrid(doc)
-		val fieldCount = if (doc.version.byteValue >= 6) 64 else 32
+		// The block widens to 64 words at moc 5, NOT at moc 6: every v5 corpus file's section 0 is 256
+		// bytes, and a v5 model with rotation blend shapes writes field 33 (LimeBirb).  Capping v5 at 32
+		// would silently drop that field, and the re-decode would then find zero blend-shape rotations.
+		val fieldCount = if (doc.version.byteValue >= 5) 64 else 32
 		val countInfo = IntArray(fieldCount)
 		countInfo[0] = doc.parts.size
 		countInfo[1] = doc.deformers.size
@@ -1227,10 +1404,7 @@ public object MocLowering {
 	private fun idRecords(ids: List<String>): ByteArray {
 		val writer = LittleEndianWriter(ids.size * Sections.ID_STRIDE)
 		for (id in ids) {
-			val bytes = id.encodeToByteArray()
-			require(bytes.size < Sections.ID_STRIDE) { "id too long for 64-byte record: $id" }
-			writer.writeBytes(bytes)
-			writer.zeroPad(Sections.ID_STRIDE - bytes.size)
+			writer.writeFixedString(id, Sections.ID_STRIDE)
 		}
 		return writer.toByteArray()
 	}
