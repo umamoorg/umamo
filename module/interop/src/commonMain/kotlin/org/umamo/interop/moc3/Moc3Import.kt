@@ -13,6 +13,7 @@ import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.alphaBlendOfPacked
 import org.umamo.interop.colorBlendOfPacked
 import org.umamo.interop.runtimeTargetOfMocVersion
+import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
@@ -361,6 +362,26 @@ object Moc3Import {
 			}
 
 		/**
+		 * Adds a colour delta row onto its grid-at-default reference, the colour analogue of
+		 * [addReference].
+		 *
+		 * A blend record's colour rows are ADDITIVE, so a zero row is the identity and a null row (a
+		 * model whose colour tables are absent entirely, pre-4.2) contributes nothing.  Not clamped
+		 * here: the evaluator subtracts this same reference back out and clamps only after summing every
+		 * contribution, so clamping now would bias a record whose neighbours pull the other way.
+		 *
+		 * @param ColorRgb reference The channel's value at the default pose.
+		 * @param Rgb?     delta     The record's stored delta row, or null when the model has no colours.
+		 * @return ColorRgb The referenced colour this key blends toward.
+		 */
+		fun addColorDelta(reference: ColorRgb, delta: Rgb?): ColorRgb =
+			if (delta == null) {
+				reference
+			} else {
+				ColorRgb(reference.red + delta.r, reference.green + delta.g, reference.blue + delta.b)
+			}
+
+		/**
 		 * Maps a record's limit curves to the runtime's min-combined [BlendWeightLimit] list.
 		 *
 		 * @param MocBlendShape record The record whose limits to map.
@@ -422,6 +443,10 @@ object Moc3Import {
 			val referenceDrawOrder =
 				drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
 			val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
+			val referenceMultiply =
+				drawable.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, defaultValue)
+			val referenceScreen =
+				drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -439,6 +464,11 @@ object Moc3Import {
 							),
 						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						// Colour delta rows are ADDITIVE like the scalars, so their identity is zero rather
+						// than Cubism's white multiply / black screen; a record without colour tables has no
+						// row at all and contributes nothing.
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
 					)
 				}
 			}
@@ -446,8 +476,9 @@ object Moc3Import {
 
 		/**
 		 * Maps [records] onto [warp] as lattice blend bindings: each stored control-point delta row
-		 * plus the lattice's grid-at-default reference.  The warp opacity delta rows have no runtime
-		 * channel and are dropped at ingest (typed at the format layer).
+		 * plus the lattice's grid-at-default reference, and the same treatment for the deformer's own
+		 * render channels (opacity, multiply / screen colour), which CASCADE onto every drawable
+		 * underneath.
 		 *
 		 * @param Deformer.Warp       warp    The constructed runtime warp (its grid is the reference source).
 		 * @param PointSpace          space   The warp's stored point space.
@@ -460,6 +491,10 @@ object Moc3Import {
 			records: List<MocBlendShape>,
 		): List<BlendShapeBinding<WarpForm>> {
 			val reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(0)
+			val referenceOpacity = warp.channelGrids.scalarAt(FormChannel.OPACITY, warp.opacity, defaultValue)
+			val referenceMultiply =
+				warp.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, warp.multiplyColor, defaultValue)
+			val referenceScreen = warp.channelGrids.colorAt(FormChannel.SCREEN_COLOR, warp.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -469,7 +504,12 @@ object Moc3Import {
 					return@mapNotNull null
 				}
 				bindingOfRecord(record) { keyIndex ->
-					WarpForm(addReference(reference, convertDeltas(space, payloads[keyIndex].controlPoints)))
+					WarpForm(
+						addReference(reference, convertDeltas(space, payloads[keyIndex].controlPoints)),
+						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
+					)
 				}
 			}
 		}
@@ -478,10 +518,8 @@ object Moc3Import {
 		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
 		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
 		 * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
-		 * fills the form.  The blend-shape rows for the deformer's own opacity/color channels are NOT
-		 * applied: the form's channels stay at their identity defaults here, and only the keyform grid
-		 * drives them (see `DeformerCascade`).  Blending deformer channels through blend shapes is a
-		 * v5+ feature of its own and would need the same reference-subtraction the control points get.
+		 * fills the form.  The deformer's own opacity/colour rows get the same reference treatment as
+		 * the geometry and CASCADE onto every drawable underneath (see `DeformerCascade`).
 		 *
 		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
 		 * @param PointSpace          space       The rotation's stored point space.
@@ -500,6 +538,11 @@ object Moc3Import {
 			val reference =
 				rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
+			val referenceOpacity = rotation.channelGrids.scalarAt(FormChannel.OPACITY, rotation.opacity, defaultValue)
+			val referenceMultiply =
+				rotation.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, rotation.multiplyColor, defaultValue)
+			val referenceScreen =
+				rotation.channelGrids.colorAt(FormChannel.SCREEN_COLOR, rotation.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -523,6 +566,9 @@ object Moc3Import {
 						// so reading rotation.flipX here would be constant false and drop the reflection.
 						flipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, defaultValue),
 						flipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, defaultValue),
+						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
 					)
 				}
 			}

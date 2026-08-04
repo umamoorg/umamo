@@ -128,16 +128,6 @@ internal fun preparePose(
 				paramValue,
 				overrides?.get(KeyableTarget(drawableOwner, FormChannel.OPACITY)),
 			)
-		// Blend shapes: additive scalar deltas (opacity clamps to [0,1] AFTER summing; the Umamo C++
-		// Runtime rounds draw order (int)(0.001+v) at sort time - Umamo sorts floats, recorded in
-		// MOC3.md §5.6).
-		if (blend != null) {
-			for (contribution in blend.contributions) {
-				drawOrder += contribution.weight * (contribution.form.drawOrder - blend.referenceDrawOrder)
-				opacity += contribution.weight * (contribution.form.opacity - blend.referenceOpacity)
-			}
-			opacity = opacity.coerceIn(0f, 1f)
-		}
 		var multiplyColor =
 			drawable.channelGrids.colorAt(
 				FormChannel.MULTIPLY_COLOR,
@@ -152,6 +142,36 @@ internal fun preparePose(
 				paramValue,
 				overrides?.get(KeyableTarget(drawableOwner, FormChannel.SCREEN_COLOR)),
 			)
+		// Blend shapes: additive deltas on every channel the record carries, not just the scalars.  Each
+		// contribution's form holds its stored delta plus the grid-at-default reference (added at import),
+		// so subtracting that reference back out here recovers the delta exactly.  Opacity and the colours
+		// clamp to [0,1] only AFTER summing - clamping per contribution would bias a record whose
+		// neighbours pull the other way.  Draw order is left unrounded (the Umamo C++ Runtime rounds
+		// (int)(0.001+v) at sort time; Umamo sorts floats - MOC3.md §5.6).
+		if (blend != null) {
+			for (contribution in blend.contributions) {
+				val form = contribution.form
+				drawOrder += contribution.weight * (form.drawOrder - blend.referenceDrawOrder)
+				opacity += contribution.weight * (form.opacity - blend.referenceOpacity)
+				multiplyColor =
+					ColorRgb(
+						multiplyColor.red + contribution.weight * (form.multiplyColor.red - blend.referenceMultiplyColor.red),
+						multiplyColor.green +
+							contribution.weight * (form.multiplyColor.green - blend.referenceMultiplyColor.green),
+						multiplyColor.blue +
+							contribution.weight * (form.multiplyColor.blue - blend.referenceMultiplyColor.blue),
+					)
+				screenColor =
+					ColorRgb(
+						screenColor.red + contribution.weight * (form.screenColor.red - blend.referenceScreenColor.red),
+						screenColor.green + contribution.weight * (form.screenColor.green - blend.referenceScreenColor.green),
+						screenColor.blue + contribution.weight * (form.screenColor.blue - blend.referenceScreenColor.blue),
+					)
+			}
+			opacity = opacity.coerceIn(0f, 1f)
+			multiplyColor = multiplyColor.coerceToUnit()
+			screenColor = screenColor.coerceToUnit()
+		}
 		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
 		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped

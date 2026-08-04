@@ -48,8 +48,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireInput("relive.dumpModel")
-		val coreLib = requireInput("relive.coreLib")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -88,7 +88,7 @@ class DeformerChannelOracleTest {
 				val inputs = preparePose(puppet, parameterValues)
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
-					if (wasNeverEvaluated(oracleEntry)) {
+					if (oracleNeverEvaluated(oracleEntry)) {
 						skippedNeverEvaluated++
 						continue
 					}
@@ -230,23 +230,10 @@ class DeformerChannelOracleTest {
 	 * @param OracleEntry entry The dumped drawable.
 	 * @return Boolean True when the oracle never evaluated it.
 	 */
-	private fun wasNeverEvaluated(entry: OracleEntry): Boolean =
-		entry.vposH == 0.0 &&
-			entry.opacity == 0f &&
-			entry.multiplyRgba.size == 4 &&
-			entry.multiplyRgba[0] == 0f &&
-			entry.multiplyRgba[1] == 0f &&
-			entry.multiplyRgba[2] == 0f
 
 	private fun checkChannel(mismatches: ArrayList<String>, label: String, channel: String, oracle: Float, ours: Float) {
 		if (!oracleCloseEnough(oracle.toDouble(), ours.toDouble())) {
 			mismatches.add("$label $channel: oracle=$oracle ours=$ours")
 		}
-	}
-
-	private fun requireInput(property: String): File {
-		val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-		Assume.assumeTrue("[oracle] absent -D$property", file != null)
-		return file!!
 	}
 }

@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.junit.Assume
 import java.io.File
 import kotlin.math.abs
 
@@ -148,3 +149,38 @@ internal fun oracleCloseEnough(a: Double, b: Double): Boolean {
 	val scale = maxOf(1.0, abs(a), abs(b))
 	return abs(a - b) <= 1e-5 * scale
 }
+
+/**
+ * Resolves a `-D`-supplied oracle input, skipping the calling test when it is absent.
+ *
+ * Every oracle gate needs the same two inputs and each had grown its own private copy of this; one
+ * definition keeps the skip MESSAGE identical too, which is what makes an absent harness legible in
+ * the test log rather than looking like a silent pass.
+ *
+ * @param String property The system property naming the file.
+ * @return File The existing file (the test is skipped before this returns otherwise).
+ */
+internal fun requireOracleInput(property: String): File {
+	val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
+	Assume.assumeTrue("[oracle] absent -D$property", file != null)
+	return file!!
+}
+
+/**
+ * Whether the oracle never evaluated [entry] - an all-zero row rather than a real result.
+ *
+ * The core leaves a drawable untouched when nothing drives it at this pose, and the zeroed row is
+ * indistinguishable from a legitimately transparent one by value alone; the combination of a zero
+ * position hash AND zero opacity AND a zero (not white) multiply is what separates them, since an
+ * evaluated drawable still reports real geometry and a white multiply.
+ *
+ * @param OracleEntry entry The dumped drawable.
+ * @return Boolean True when the oracle never evaluated it.
+ */
+internal fun oracleNeverEvaluated(entry: OracleEntry): Boolean =
+	entry.vposH == 0.0 &&
+		entry.opacity == 0f &&
+		entry.multiplyRgba.size == 4 &&
+		entry.multiplyRgba[0] == 0f &&
+		entry.multiplyRgba[1] == 0f &&
+		entry.multiplyRgba[2] == 0f

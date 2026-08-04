@@ -47,8 +47,8 @@ class CompositeOracleTest {
 
 	@Test
 	fun compositeChannelsMatchOracle() {
-		val dumpModel = requireInput("relive.dumpModel")
-		val coreLib = requireInput("relive.coreLib")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 		val samplesByName =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -127,11 +127,5 @@ class CompositeOracleTest {
 		if (!oracleCloseEnough(oracle.toDouble(), ours.toDouble())) {
 			mismatches.add("$label $channel: oracle=$oracle ours=$ours")
 		}
-	}
-
-	private fun requireInput(property: String): File {
-		val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-		Assume.assumeTrue("[oracle] absent -D$property", file != null)
-		return file!!
 	}
 }
