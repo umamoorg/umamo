@@ -49,11 +49,18 @@ sealed interface ExportNotice {
 }
 
 /**
- * The advisory outcome of one CMO3 export: what the written file does not carry.
+ * The advisory outcome of one export: what the written file does not carry.
+ *
+ * Format-neutral because the contract is: an export ALWAYS writes, and notices only say what the
+ * written file does not carry.  That holds identically for CMO3 and MOC3, so both report through this
+ * rather than through parallel types the UI would have to handle twice.
  *
  * @property List notices The findings, empty for a fully-lowered export.
  */
-data class Cmo3ExportReport(val notices: List<ExportNotice>) {
+data class ExportReport(val notices: List<ExportNotice>) {
 	/** True when the export lowered everything with nothing to warn about. */
 	val isEmpty: Boolean get() = notices.isEmpty()
 }
+
+/** The former name, kept so the CMO3 call sites and their tests do not all move in one commit. */
+typealias Cmo3ExportReport = ExportReport

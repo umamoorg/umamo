@@ -669,6 +669,29 @@ public object MocLowering {
 		}
 
 		put(Section.PARAMETER_BINDING_COUNT, intList(parameterBindingCount.toList()))
+		// The matching START column, which the runtime uses to find each parameter's binding run.  Written
+		// here rather than beside the other prefix sums because it needs the pool this function builds.
+		//
+		// The empty-slot filler is NOT arbitrary: a parameter with no bindings stores -1 when it is NORMAL
+		// and 0 when it is BLEND_SHAPE.  Both values occur in a single file (LimeBirb, modelF), which is
+		// what made this column look unreproducible until the parameter type explained it.
+		val parameterBindingStart = IntArray(parameterCount)
+		run {
+			var cursor = 0
+			for (parameterIndex in 0 until parameterCount) {
+				parameterBindingStart[parameterIndex] =
+					if (parameterBindingCount[parameterIndex] > 0) {
+						val start = cursor
+						cursor += parameterBindingCount[parameterIndex]
+						start
+					} else if (doc.parameters.getOrNull(parameterIndex)?.type == ParameterType.BLEND_SHAPE) {
+						0
+					} else {
+						-1
+					}
+			}
+		}
+		put(Section.PARAM_BINDING_START, intList(parameterBindingStart.toList()))
 		put(Section.BINDING_KEY_OFFSET, intList(keyOffset))
 		put(Section.BINDING_KEY_COUNT, intList(keyCount))
 		if (doc.blendShapes.isEmpty()) {

@@ -43,6 +43,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
+* Clean Up:
+	* Remove duplicated DEFAULT_DRAW_ORDER in Moc3Export.kt.
+	* Rename all Cmo3ExportReport to ExportReport.
+	* Comment clean up.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements

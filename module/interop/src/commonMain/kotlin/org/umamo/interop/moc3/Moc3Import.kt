@@ -140,6 +140,8 @@ object Moc3Import {
 		val canvasOriginX = canvas?.originX ?: 0f
 		val canvasOriginY = canvas?.originY ?: 0f
 
+		val canvasMapping = MocCanvasMapping(pixelsPerUnit, canvasOriginX, canvasOriginY)
+
 		val parameterNameById = displayInfo?.parameters?.associate { it.id to it.name } ?: emptyMap()
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
 
@@ -283,47 +285,16 @@ object Moc3Import {
 		 * @param FloatArray points Interleaved x,y positions as stored in the moc.
 		 * @return FloatArray The converted positions (always a fresh array).
 		 */
-		fun convertPoints(space: PointSpace, points: FloatArray): FloatArray {
-			val converted = FloatArray(points.size)
-			var coordIndex = 0
-			while (coordIndex + 1 < points.size) {
-				when (space) {
-					// MOC3 §5.3 CanvasInfo: canvas px = origin + ppu·model, same Y-down orientation.
-					PointSpace.ModelRoot -> {
-						converted[coordIndex] = canvasOriginX + pixelsPerUnit * points[coordIndex]
-						converted[coordIndex + 1] = canvasOriginY + pixelsPerUnit * points[coordIndex + 1]
-					}
-					// Warp-lattice (u, v) and pixel-scale rotation-local frames match the runtime verbatim.
-					PointSpace.WarpLattice, PointSpace.RotationLocal -> {
-						converted[coordIndex] = points[coordIndex]
-						converted[coordIndex + 1] = points[coordIndex + 1]
-					}
-				}
-				coordIndex += 2
-			}
-			return converted
-		}
+		fun convertPoints(space: PointSpace, points: FloatArray): FloatArray =
+			convertPointsToRuntime(space, points, canvasMapping)
 
-		// Whether a rotation deformer sits anywhere on each deformer's ancestor chain.  This locates
-		// the px->model unit seam: along every root path, the FIRST rotation is where the accumulated
-		// scale chain converts pixel-scale local space into model units, so only that rotation's
-		// stored scale carries the 1/ppu factor.  Every rotation below it (whatever its direct parent's
-		// kind) inherits the factor through the accumulator and stores its scale verbatim.
+		// The px->model unit seam; see Moc3SpaceSeam for why only the first rotation on a path carries it.
 		val hasRotationAncestor =
-			BooleanArray(mocDocument.deformers.size) { deformerIndex ->
-				var currentIndex = mocDocument.deformers[deformerIndex].parentDeformerIndex
-				var found = false
-				var chainSteps = 0
-				while (currentIndex >= 0 && currentIndex < mocDocument.deformers.size && chainSteps <= mocDocument.deformers.size) {
-					if (mocDocument.deformers[currentIndex] is RotationDeformer) {
-						found = true
-						break
-					}
-					currentIndex = mocDocument.deformers[currentIndex].parentDeformerIndex
-					chainSteps++
-				}
-				found
-			}
+			rotationAncestorFlags(
+				mocDocument.deformers.size,
+				{ index -> mocDocument.deformers[index].parentDeformerIndex },
+				{ index -> mocDocument.deformers[index] is RotationDeformer },
+			)
 
 		// ---- blend shapes (MOC3 v4+ §5.6) ----
 		// Records pre-indexed per target object; targetIndex is a deformer index for WARP/ROTATION
@@ -343,10 +314,7 @@ object Moc3Import {
 		 * @return FloatArray The converted deltas (always a fresh array).
 		 */
 		fun convertDeltas(space: PointSpace, deltas: FloatArray): FloatArray =
-			when (space) {
-				PointSpace.ModelRoot -> FloatArray(deltas.size) { componentIndex -> pixelsPerUnit * deltas[componentIndex] }
-				PointSpace.WarpLattice, PointSpace.RotationLocal -> deltas.copyOf()
-			}
+			convertDeltasToRuntime(space, deltas, canvasMapping)
 
 		/**
 		 * Elementwise sum of [reference] and [deltas] (sized like [deltas]; a size-mismatched
@@ -640,7 +608,7 @@ object Moc3Import {
 					}
 
 					is RotationDeformer -> {
-						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
+						val scaleFactor = rotationScaleFactor(hasRotationAncestor[deformerIndex], canvasMapping)
 						// One bundled grid, then split into the pivot geometry, the render tracks that cascade
 						// down onto every drawable under this deformer, and the two reflection flags.
 						val fannedRotation =
@@ -1070,18 +1038,6 @@ object Moc3Import {
 			disambiguator++
 		}
 		return candidate
-	}
-
-	/** The coordinate space a moc object's positions are stored in, selected by its parent deformer. */
-	private enum class PointSpace {
-		/** MOC3 model space (a root object): canvas = CanvasInfo origin + ppu·model, Y-down like the canvas. */
-		ModelRoot,
-
-		/** A warp parent's normalized lattice (u, v) - identical in both conventions. */
-		WarpLattice,
-
-		/** A rotation parent's pixel-scale local frame - identical in both conventions. */
-		RotationLocal,
 	}
 
 	/**

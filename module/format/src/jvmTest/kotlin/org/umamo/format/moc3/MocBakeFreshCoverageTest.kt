@@ -33,9 +33,14 @@ class MocBakeFreshCoverageTest {
 	 * The sections still carried rather than synthesized, corpus-wide.
 	 *
 	 * All of them need an intermediate another producer already computes - the per-form color rows need
-	 * the object color bases, the offscreen alias needs the offscreen-by-part map, and the parameter
-	 * binding/key starts need the binding pool - so each belongs beside that producer rather than in a
-	 * file of its own that would recompute (and eventually contradict) the same inputs.
+	 * the object color bases, the offscreen alias needs the offscreen-by-part map, and the parameter key
+	 * start needs the binding pool - so each belongs beside that producer rather than in a file of its
+	 * own that would recompute (and eventually contradict) the same inputs.
+	 *
+	 * They are also not equivalent in consequence, which this list deliberately does not encode: the
+	 * binding-set start (56) was on it until a fresh bake proved the runtime cannot load without it,
+	 * while the rest are only reached by versions the export does not cover yet.  Treat an entry here as
+	 * "unproven", not "safe".
 	 */
 	private val knownUnproduced =
 		setOf(
@@ -46,7 +51,6 @@ class MocBakeFreshCoverageTest {
 			Section.ARTMESH_FORM_MULTIPLY_ROW,
 			Section.ARTMESH_FORM_SCREEN_ROW,
 			Section.OFFSCREEN_BY_PART_ALIAS,
-			Section.PARAM_BINDING_START,
 			Section.PARAM_KEY_START,
 			Section.PARAM_KEY_COUNT,
 			Section.BLENDSHAPE_PARAMETER_BEGIN,

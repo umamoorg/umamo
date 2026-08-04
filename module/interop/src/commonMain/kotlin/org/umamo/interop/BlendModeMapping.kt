@@ -2,6 +2,7 @@ package org.umamo.interop
 
 import org.umamo.format.cmo3.model.gen.AlphaComposition
 import org.umamo.format.cmo3.model.gen.ColorComposition
+import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 
@@ -153,4 +154,24 @@ internal fun alphaBlendOfPacked(packed: Int): AlphaBlendMode =
 		3 -> AlphaBlendMode.Conjoint
 		4 -> AlphaBlendMode.Disjoint
 		else -> AlphaBlendMode.Over
+	}
+
+/**
+ * The LEGACY 2-bit constant-flag encoding of [mode] - the only blend a moc below v6 can express.
+ *
+ * The pre-5.3 fixed-function set is just Normal / Add / Multiply, so every 5.3+ mode has to fall back
+ * to its nearest premultiplied ancestor: the 5.3 additive family reads as Add and the multiply family
+ * as Multiply, and anything with no fixed-function equivalent reads as Normal.  A v6 export writes the
+ * packed extended blend instead and leaves these bits at Normal, so this is only reached when the
+ * target version genuinely cannot carry the authored mode.
+ *
+ * @param BlendMode mode The runtime blend mode.
+ * @return Int The constant-flag bits (0 for Normal).
+ */
+internal fun legacyBlendFlagOf(mode: BlendMode): Int =
+	when (mode) {
+		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow ->
+			ConstantFlag.BLEND_ADDITIVE
+		BlendMode.MultiplyPremultiplied, BlendMode.Multiply -> ConstantFlag.BLEND_MULTIPLICATIVE
+		else -> 0
 	}
