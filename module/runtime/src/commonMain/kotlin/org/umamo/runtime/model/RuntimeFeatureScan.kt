@@ -1,9 +1,10 @@
 package org.umamo.runtime.model
 
 /**
- * The restricted features this document ACTUALLY USES under [target] - the strip diff a MOC3
- * export's "features will be stripped" confirmation lists.  A feature the target supports is never
- * reported, and neither is a restricted feature the document does not use.
+ * The restricted features this document ACTUALLY USES under [target] - the decision aid the
+ * Properties Document tab marks its per-target restricted list with.  A feature the target supports
+ * is never reported, and neither is a restricted feature the document does not use.  A MOC3
+ * export's own "was removed" notices come from the version-downgrade pass, not from here.
  *
  * [RuntimeFeature.MotionSync] and [RuntimeFeature.ArtPath] are never reported: they are not
  * representable in [PuppetModel] (motion-sync is a sidecar family, an art path survives only as CMO3
@@ -68,8 +69,9 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: L
 	}
 
 /**
- * Whether any drawable, deformer, or isolated part tints through [channel] - a non-identity static
- * or a keyform track on that channel.
+ * Whether any drawable, deformer, or isolated part tints through [channel] - a non-identity static,
+ * or a keyform track holding some non-identity cell.  A track of pure identity cells is not use, so
+ * the track side goes through [ChannelGrids.varies] rather than a mere presence check.
  *
  * @param FormChannel channel The color channel (multiply or screen).
  * @param ColorRgb identity That channel's identity color (leaves pixels unchanged).

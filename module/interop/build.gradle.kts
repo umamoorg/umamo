@@ -1,5 +1,6 @@
 // :interop — format↔runtime conversion. CMO3/MOC3 ingest into the PuppetModel, the CMO3 export
-// reconcile, the model diff, and the RuntimeTarget↔format-version mapping. Depends on BOTH
+// reconcile, the MOC3 export lowering, the model diff, and the RuntimeTarget↔format-version
+// mapping. Depends on BOTH
 // :format and :runtime so that neither has to know the other: :format stays a standalone codec
 // library and :runtime stays a pure puppet runtime.
 
@@ -68,9 +69,10 @@ kotlin {
 // `./gradlew :interop:jvmTest -Dcmo3.sample=… -Dmoc3.sample=… -Dmoc3.samples=…`.
 //
 // cmo3.sample and cmo3.probe take the shared corpus defaults, so Cmo3ImportTest's probe loop exercises
-// the whole corpus by default when the local (gitignored) corpus is present; moc3.samples is where
-// CompositeImportTest joins ingested CMO3s against their baked moc3s. moc3.sample (singular, read by
-// Moc3ImportTest's golden-count test) has no default and only takes effect when passed as -D.
+// the whole corpus by default when the local (gitignored) corpus is present; moc3.samples points at the
+// whole moc3 tree, which CompositeImportTest joins against ingested CMO3s and the MOC3 export/downgrade
+// round-trip gates walk in full. moc3.sample (singular, read by Moc3ImportTest's golden-count test) has
+// no default and only takes effect when passed as -D.
 umamoTestCorpus {
 	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of JDOM).  Raised
 	// from 4g when modelF joined the corpus: at 57.8 MB and ~6.5 M keyform vertex positions its

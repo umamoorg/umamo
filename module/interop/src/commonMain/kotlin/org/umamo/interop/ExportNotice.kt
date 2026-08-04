@@ -3,18 +3,19 @@ package org.umamo.interop
 import org.umamo.runtime.model.RuntimeFeature
 
 /**
- * One advisory finding from a CMO3 export.
+ * One advisory finding from an export, CMO3 or MOC3.
  *
  * An export ALWAYS writes; notices only tell the user what the written file does not carry or what
- * a Cubism-side edit could do to it.  Nothing is ever silently dropped: every edit the lowering
- * cannot yet (or can never) express in CMO3 surfaces as an [UnsupportedChange].
+ * a Cubism-side edit could do to it.  Nothing is ever silently dropped: every edit a lowering cannot
+ * yet (or can never) express in the target format surfaces as an [UnsupportedChange], and every
+ * feature the chosen target version predates surfaces as a [FeatureStripped].
  */
 sealed interface ExportNotice {
 	/**
-	 * An edit the export lowering did not persist into the CMO3 graph.
+	 * An edit the export lowering did not persist into the written file.
 	 *
-	 * @property String category The entity category ("parameter", "part", "deformer", "drawable",
-	 *                           "glue", "document", "keyform").
+	 * @property String category The entity category ("parameter", "parameter group", "part",
+	 *                           "deformer", "drawable", "glue", "document", "keyform").
 	 * @property String subject  The affected entity's id, or the document field name.
 	 * @property String detail   Diagnostic English text describing what was not lowered.
 	 */
@@ -79,6 +80,3 @@ data class ExportReport(val notices: List<ExportNotice>) {
 	/** True when the export lowered everything with nothing to warn about. */
 	val isEmpty: Boolean get() = notices.isEmpty()
 }
-
-/** The former name, kept so the CMO3 call sites and their tests do not all move in one commit. */
-typealias Cmo3ExportReport = ExportReport

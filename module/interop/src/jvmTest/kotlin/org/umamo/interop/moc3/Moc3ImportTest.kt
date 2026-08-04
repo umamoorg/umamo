@@ -23,9 +23,12 @@ import kotlin.test.assertTrue
  * Reads a real `.moc3` corpus sample (plus its sibling cdi3.json when present), maps it to a
  * `PuppetModel`, and checks the structural tree - the MOC3 counterpart of [Cmo3ImportTest].
  *
- * Self-contained; skips when the sample is absent. Pass `-Dmoc3.sample=/path/to/Model.moc3` (the
- * build supplies the local corpus Erica by default). The assertions verify referential integrity
- * (every index cross-reference resolves to a real entity) plus Erica-pinned golden counts.
+ * Self-contained; skips when the sample is absent.  `moc3.sample` (singular) has no default in this
+ * module, so the test only runs when `-Dmoc3.sample=/path/to/Model.moc3` is passed explicitly.  The
+ * assertions verify referential integrity (every index cross-reference resolves to a real entity),
+ * that deformer ids and part membership come from the file rather than being synthesized or inferred,
+ * that every anchored deformer label names a mesh the deformer really reaches, plus golden counts
+ * pinned per corpus model.
  */
 class Moc3ImportTest {
 	private val sample: File? = System.getProperty("moc3.sample")?.let(::File)?.takeIf { it.isFile }

@@ -46,9 +46,11 @@
 	<string name="menu_import_cmo3">CMO3…</string>
 	<string name="menu_import_moc3">MOC3…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
+	<string name="menu_export_moc3">MOC3…</string>
 	<string name="cmd_import_cmo3">CMO3をインポート…</string>
 	<string name="cmd_import_moc3">MOC3をインポート…</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
+	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
 
 	<string name="menu_edit">編集</string>

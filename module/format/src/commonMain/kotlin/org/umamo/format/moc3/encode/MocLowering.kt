@@ -16,14 +16,19 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 
 /**
- * Lowers a [MocDocument] back to section byte-arrays (the semantic half of the bake). This covers
- * the structural + topology sections - those that map directly from object fields and therefore
- * reconstruct byte-for-byte: counts, canvas, IDs, parameter ranges/types, drawable attributes,
- * UV/triangle/mask data, deformer parent/type/grid dims, and the object→keyform-binding references.
+ * Lowers a [MocDocument] back to section byte-arrays (the semantic half of the bake).
  *
- * The layout-dependent sections (per-object keyform bases and the packed keyform value tables /
- * binding grid) are not synthesized here - they require reproducing a value-table packing and are
- * the remaining bake work; until then a full bake carries them through from a decoded model.
+ * The producers split by what a section needs to be built, not by what it means: [structuralSections]
+ * for the fields that map straight off an object (canvas, IDs, parameter ranges/types, drawable
+ * attributes, UV/triangle/mask data, deformer parent/type/grid dims, the object→keyform-binding
+ * references), [valueTableSections] for the packed keyform tables and the per-object bases into them,
+ * [keyformGridSections] for the parameter-binding dedup grid and the per-parameter run columns,
+ * [auxiliarySections] for the color, glue, render-order, and offscreen tables, [blendShapeSections]
+ * for the blend records, and [countInfoSection] for section 0.  Every packing here is derived rather
+ * than carried, and deterministic, so one document always lowers to one set of bytes.
+ *
+ * The self-contained derived columns and the zero-filled runtime slots are produced beside this in
+ * [MocDerivedIndexes] and [MocRuntimeSlots]; [MocEncoder] merges all of it into one section map.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5, §7</a>
  */
@@ -725,8 +730,8 @@ public object MocLowering {
 		// here rather than beside the other prefix sums because it needs the pool this function builds.
 		//
 		// The empty-slot filler is NOT arbitrary: a parameter with no bindings stores -1 when it is NORMAL
-		// and 0 when it is BLEND_SHAPE.  Both values occur in a single file (LimeBirb, modelF), which is
-		// what made this column look unreproducible until the parameter type explained it.
+		// and 0 when it is BLEND_SHAPE.  Both values occur within one file (LimeBirb, modelF), so the
+		// parameter type is the only thing that tells the two fillers apart.
 		val parameterBindingStart = IntArray(parameterCount)
 		run {
 			var cursor = 0
@@ -923,7 +928,7 @@ public object MocLowering {
 		val bindingGrid = ParameterBindingGrid(doc)
 		// The block widens to 64 words at moc 5, NOT at moc 6: every v5 corpus file's section 0 is 256
 		// bytes, and a v5 model with rotation blend shapes writes field 33 (LimeBirb).  Capping v5 at 32
-		// silently dropped that field, and the re-decode then found zero blend-shape rotations.
+		// would silently drop that field, and the re-decode would then find zero blend-shape rotations.
 		val fieldCount = if (doc.version.byteValue >= 5) 64 else 32
 		val countInfo = IntArray(fieldCount)
 		countInfo[0] = doc.parts.size

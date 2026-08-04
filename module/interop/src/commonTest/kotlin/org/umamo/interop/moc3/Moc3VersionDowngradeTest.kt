@@ -38,9 +38,9 @@ import kotlin.test.assertTrue
  * The version strip removes exactly what the target cannot load, and says what it removed.
  *
  * Built on one kitchen-sink rig rather than a model per feature, because the interesting property is
- * that the strips COMPOSE: a Cubism 3.0 export runs all ten of them over the same model in sequence, and a
- * strip that rebuilt a list from the original instead of from the running copy would silently undo
- * whichever strip ran before it.
+ * that the strips COMPOSE: a Cubism 3.0 export runs eight of them over the same model in sequence,
+ * and a strip that rebuilt a list from the original instead of from the running copy would silently
+ * undo whichever strip ran before it.
  *
  * The corpus-backed half of this lives in `Moc3DowngradeOracleTest`, which proves the stripped files
  * actually load; this half proves the model-level rules without needing a corpus or a C core.
