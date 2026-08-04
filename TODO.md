@@ -382,3 +382,36 @@ Erica's main.xml) during a six-module concurrent run, and has not reproduced in 
 (isolated, whole-:format twice, six-module twice, plus four repeats of the CMO3 classes).  If it
 returns, suspect nondeterministic iteration order in the CMO3 writer's slot replay rather than
 anything in the MOC3 work - the byte-identity claim is only as strong as that ordering.
+
+## MOC3 export wrote every CMO3-origin model at pixel scale (found 2026-08-05, Phase 10)
+
+**What.** A moc's `pixelsPerUnit` is a BAKE parameter, not a project property.  Every corpus `.cmo3`
+stores `CModelInfo.pixelsPerUnit = 1` - a CMO3 works in canvas pixels - so the export was writing 1,
+and the whole rig went out at pixel scale, hundreds of times too large for any runtime.  It loaded, it
+self-round-tripped, and every gate stayed green: only comparing against the editor's own bake showed it.
+`Moc3Export.mocPixelsPerUnitFor` now defaults to the canvas WIDTH (the export dialog's own default,
+which 21 of 25 corpus bakes use exactly) and keeps a MOC3-origin model's own scale.  A rigger who chose
+a different bake scale cannot have it recovered from the project - that wants an export option, like the
+hidden-object toggle.
+
+**How it showed up.** `Cmo3ToMoc3OracleTest` reported 0 of 1046 drawables within the oracle's geometry
+tolerance.  After the fix: 935 (89%), spread evenly across models, which is the authoring skew between
+a project and its bake.  The floor is pinned at 85%.
+
+**Sketch parts are dropped now**, as the editor's bake drops them - a guide image is a tracing
+reference, not runtime content, and the whole subtree goes.  That plus the hidden-object rule (we KEEP
+hidden objects; the editor deletes them unless the export option is ticked) accounts for every
+structural difference between our lowering and the editor's bake across 21 twins - the remaining count
+is zero.
+
+**modelE's twin pair is not the same revision.**  Its `.cmo3` and `.moc3` disagree about 44 of 178 art
+meshes, the parameter list, and the deformer tree - the moc was baked from a different edit.  Both
+cross-format gates detect that structurally and skip the pair rather than naming it, so a future corpus
+change is handled the same way; the count of skipped pairs is printed and asserted to stay a minority.
+
+**Docs.** `MOC3.md` gained §5.7 (all 167 slots, per-version, generated from `SectionLayout.kt` - the
+enum is the authority and the table follows it), §8 Export, and §9 stating the three ways this document
+relates to the third-party spec (where it corrects us, where we resolve its unknowns, where we are ahead
+and must not be "corrected" toward it).  `Hierarchies.md` §3's four stale claims are fixed: deformers DO
+carry ids (s11), section 15 IS the deformer→part link in every version, `inferDeformerParts` is a
+fallback rather than the path, and only the GLUE→part link is genuinely absent.
