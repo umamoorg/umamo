@@ -9,9 +9,9 @@ import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocModel
+import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import java.io.File
 import kotlin.test.Test
@@ -24,10 +24,9 @@ import kotlin.test.assertEquals
  * Three object classes store two adjacent `Bool32` columns whose split has never been pinned:
  * parts (s7, s8), deformers (s13, s14), and art meshes (s37, s38).
  *
- * The corpus says the opposite of their guess.  Only the FIRST column of each pair ever deviates
- * from 1 - Azxiana hides 7 of 623 deformers in s13, miku_verycursed hides 3 of 100 art meshes in
- * s37 - while s14 and s38 are 1 on every object of every sample.  A column that is never anything
- * but 1 cannot be the toggle that hides things.
+ * Only the FIRST column of each pair ever deviates from 1 - Azxiana hides 7 of 623 deformers in
+ * s13, miku_verycursed hides 3 of 100 art meshes in s37 - while s14 and s38 are 1 on every object
+ * of every sample.  A column that is never anything but 1 cannot be the toggle that hides things.
  *
  * The join is one-directional on purpose, because a bake normally DELETES what the editor hides:
  * across the twins, a CMO3-hidden object is simply absent from the moc (EricaTamamo drops 3 art
@@ -43,6 +42,12 @@ import kotlin.test.assertEquals
  * proven shape, not a join result.  Parts: no twin keeps a hidden part, so s7 and s8 are both
  * all-1 and nothing distinguishes which is `visible_artmeshes` and which is `visible_deformers`.
  *
+ * NOTE for the export: the drop-on-bake behavior above is the official editor's default, NOT the
+ * one Umamo adopts.  We have no "omit hidden objects" option, and deleting something the user can
+ * still see in the outliner would be a silent destructive edit, so an Umamo export writes a hidden
+ * art mesh, part, or deformer out with its first flag set to 0 rather than omitting it.  TODO: when
+ * an export-options surface exists, add an "omit hidden objects" toggle there, defaulting to OFF.
+ *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
 class PairedVisibilityFlagProbeTest {
@@ -51,57 +56,32 @@ class PairedVisibilityFlagProbeTest {
 	private val moc3SamplesDir: File? =
 		System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
 
-	/** One paired-flag column group: the two section indices and the CountInfo field sizing them. */
+	/** One paired-flag column group: its id column, its two flag columns, and the object count. */
 	private data class FlagPair(
 		val label: String,
 		val countInfoField: Int,
-		val idSection: Int,
-		val firstFlagSection: Int,
-		val secondFlagSection: Int,
+		val idSection: Section,
+		val firstFlagSection: Section,
+		val secondFlagSection: Section,
 	)
 
 	private val flagPairs =
 		listOf(
-			FlagPair("part", Sections.CI_PARTS, Sections.PART_ID, 7, 8),
-			FlagPair("deformer", Sections.CI_DEFORMERS, 11, 13, 14),
-			FlagPair("artMesh", Sections.CI_DRAWABLES, Sections.DRAW_ID, 37, 38),
+			FlagPair("part", Sections.CI_PARTS, Section.PART_ID, Section.PART_VISIBLE_ARTMESHES, Section.PART_VISIBLE_DEFORMERS),
+			FlagPair("deformer", Sections.CI_DEFORMERS, Section.DEFORMER_ID, Section.DEFORMER_IS_VISIBLE, Section.DEFORMER_IS_ENABLED),
+			FlagPair("artMesh", Sections.CI_DRAWABLES, Section.ARTMESH_ID, Section.ARTMESH_IS_VISIBLE, Section.ARTMESH_IS_ENABLED),
 		)
 
 	/**
-	 * Reads a raw section as an [IntArray] of [count] entries, or null when the section is absent.
-	 *
-	 * These indices are not all in the typed `Section` enum yet, so the probe reads them positionally.
+	 * Reads a flag column, or null when the file does not carry it for this object kind.
 	 *
 	 * @param MocModel model   The parsed container.
-	 * @param Int      index   The section-table index.
-	 * @param Int      count   How many `i32` entries to read.
-	 * @return IntArray? The values, or null when the section is absent or short.
+	 * @param Section  section The flag column.
+	 * @param Int      count   The object count the column should cover.
+	 * @return IntArray? The values, or null when absent or short.
 	 */
-	private fun rawInts(model: MocModel, index: Int, count: Int): IntArray? {
-		val bytes = model.section(index) ?: return null
-		if (bytes.size < count * 4) {
-			return null
-		}
-		val reader = LittleEndianReader(bytes)
-		return IntArray(count) { reader.readInt32() }
-	}
-
-	/**
-	 * Reads a raw ID section as fixed 64-byte records.
-	 *
-	 * @param MocModel model The parsed container.
-	 * @param Int      index The section-table index.
-	 * @param Int      count How many records to read.
-	 * @return List<String>? The identifiers, or null when the section is absent or short.
-	 */
-	private fun rawIds(model: MocModel, index: Int, count: Int): List<String>? {
-		val bytes = model.section(index) ?: return null
-		if (bytes.size < count * Sections.ID_STRIDE) {
-			return null
-		}
-		val reader = LittleEndianReader(bytes)
-		return List(count) { reader.readFixedString(Sections.ID_STRIDE) }
-	}
+	private fun flagColumn(model: MocModel, section: Section, count: Int): IntArray? =
+		model.sections.intArray(section).takeIf { it.size == count }
 
 	/**
 	 * Flattens a serializer collection payload into its elements.
@@ -166,9 +146,9 @@ class PairedVisibilityFlagProbeTest {
 				if (count == 0) {
 					continue
 				}
-				val ids = rawIds(model, pair.idSection, count) ?: continue
-				val firstFlag = rawInts(model, pair.firstFlagSection, count) ?: continue
-				val secondFlag = rawInts(model, pair.secondFlagSection, count) ?: continue
+				val ids = model.sections.idArray(pair.idSection).takeIf { it.size == count } ?: continue
+				val firstFlag = flagColumn(model, pair.firstFlagSection, count) ?: continue
+				val secondFlag = flagColumn(model, pair.secondFlagSection, count) ?: continue
 
 				// The second column has never been observed carrying anything but 1, on any object of any
 				// sample.  If a future sample breaks this, the split is genuinely more complex than
@@ -177,7 +157,7 @@ class PairedVisibilityFlagProbeTest {
 				assertEquals(
 					0,
 					secondDeviations,
-					"${moc3File.name}: ${pair.label} s${pair.secondFlagSection} is not constant 1",
+					"${moc3File.name}: ${pair.label} ${pair.secondFlagSection} is not constant 1",
 				)
 
 				val flaggedHidden = ids.filterIndexed { index, _ -> firstFlag[index] == 0 }.toSet()
@@ -189,13 +169,13 @@ class PairedVisibilityFlagProbeTest {
 				assertEquals(
 					emptySet(),
 					flaggedHidden - cmo3Hidden,
-					"${moc3File.name}: ${pair.label} s${pair.firstFlagSection} flags an object the CMO3 shows",
+					"${moc3File.name}: ${pair.label} ${pair.firstFlagSection} flags an object the CMO3 shows",
 				)
 				joinedDeviations += flaggedHidden.size
 				if (flaggedHidden.isNotEmpty() || cmo3Hidden.isNotEmpty()) {
 					println(
 						"[flag-probe] ${moc3File.name} ${pair.label}: mocCount=$count " +
-							"s${pair.firstFlagSection}Zero=${flaggedHidden.size} " +
+							"${pair.firstFlagSection}Zero=${flaggedHidden.size} " +
 							"cmo3Hidden=${cmo3Hidden.size} " +
 							"keptInMoc=${cmo3Hidden.intersect(mocIds).size} " +
 							"droppedByBake=${(cmo3Hidden - mocIds).size}",
@@ -245,17 +225,17 @@ class PairedVisibilityFlagProbeTest {
 				if (count == 0) {
 					continue
 				}
-				val firstFlag = rawInts(model, pair.firstFlagSection, count) ?: continue
-				val secondFlag = rawInts(model, pair.secondFlagSection, count) ?: continue
+				val firstFlag = flagColumn(model, pair.firstFlagSection, count) ?: continue
+				val secondFlag = flagColumn(model, pair.secondFlagSection, count) ?: continue
 				assertEquals(
 					0,
 					secondFlag.count { it != 1 },
-					"${file.name}: ${pair.label} s${pair.secondFlagSection} is not constant 1",
+					"${file.name}: ${pair.label} ${pair.secondFlagSection} is not constant 1",
 				)
 				val zeros = firstFlag.count { it == 0 }
 				if (zeros > 0) {
-					firstColumnDeviations["${file.name} ${pair.label} s${pair.firstFlagSection}"] = zeros
-					println("[flag-census] ${file.name} ${pair.label}: s${pair.firstFlagSection} zero on $zeros/$count")
+					firstColumnDeviations["${file.name} ${pair.label} ${pair.firstFlagSection}"] = zeros
+					println("[flag-census] ${file.name} ${pair.label}: ${pair.firstFlagSection} zero on $zeros/$count")
 				}
 			}
 		}
@@ -263,8 +243,8 @@ class PairedVisibilityFlagProbeTest {
 		// evidence that the deformer pair splits the same way the art-mesh pair provably does.
 		assertEquals(
 			mapOf(
-				"Azxiana.moc3 deformer s13" to 7,
-				"miku_verycursed.moc3 artMesh s37" to 3,
+				"Azxiana.moc3 deformer DEFORMER_IS_VISIBLE" to 7,
+				"miku_verycursed.moc3 artMesh ARTMESH_IS_VISIBLE" to 3,
 			),
 			firstColumnDeviations,
 			"corpus flag deviations changed",

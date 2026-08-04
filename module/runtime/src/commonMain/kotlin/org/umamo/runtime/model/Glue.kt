@@ -2,8 +2,9 @@ package org.umamo.runtime.model
 
 /**
  * One glued vertex pair: vertex [indexA] of the glue's mesh A welded to vertex [indexB] of mesh B, each
- * pulled toward the other by its per-side weight. Indices are into the meshes' deformed position arrays
- * (resolved from the CMO3's stable vertex UIDs at import).
+ * pulled toward the other by its per-side weight. Indices are into the meshes' deformed position arrays,
+ * so each importer has to land them in that space: a CMO3 import resolves that format's stable vertex
+ * UIDs, while MOC3 (§5.6 s99) already stores them mesh-local.
  */
 class GluePair(
 	val indexA: Int,
@@ -36,4 +37,13 @@ class Glue(
 	val pairs: List<GluePair>,
 	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	val intensity: Float = 1f,
+	/**
+	 * The source's authored identifier (MOC3 §5.6 s90, e.g. "Glue__ArtMesh48__ArtMesh49"), or null
+	 * when the source carried none.
+	 *
+	 * A plain string rather than a typed id because nothing REFERENCES a glue - it is addressed only by
+	 * list position, so there is no lookup for an id type to make safe.  It is carried purely so a
+	 * round trip writes back the name the model was authored with instead of a synthesized one.
+	 */
+	val id: String? = null,
 )

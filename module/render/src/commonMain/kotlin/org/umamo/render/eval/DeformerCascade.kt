@@ -284,15 +284,31 @@ private fun buildWarpWorld(
 		}
 	val channels =
 		cascadeDeformerChannels(
-			DeformerChannels(
-				warp.channelGrids.scalarAt(FormChannel.OPACITY, warp.opacity, paramValue, warpOverride(FormChannel.OPACITY)),
-				warp.channelGrids.colorAt(
-					FormChannel.MULTIPLY_COLOR,
-					warp.multiplyColor,
-					paramValue,
-					warpOverride(FormChannel.MULTIPLY_COLOR),
+			withBlendChannelDeltas(
+				DeformerChannels(
+					warp.channelGrids.scalarAt(FormChannel.OPACITY, warp.opacity, paramValue, warpOverride(FormChannel.OPACITY)),
+					warp.channelGrids.colorAt(
+						FormChannel.MULTIPLY_COLOR,
+						warp.multiplyColor,
+						paramValue,
+						warpOverride(FormChannel.MULTIPLY_COLOR),
+					),
+					warp.channelGrids.colorAt(
+						FormChannel.SCREEN_COLOR,
+						warp.screenColor,
+						paramValue,
+						warpOverride(FormChannel.SCREEN_COLOR),
+					),
 				),
-				warp.channelGrids.colorAt(FormChannel.SCREEN_COLOR, warp.screenColor, paramValue, warpOverride(FormChannel.SCREEN_COLOR)),
+				deformerBlendChannelDeltas(
+					warp.blendShapes,
+					warp.channelGrids,
+					warp.opacity,
+					warp.multiplyColor,
+					warp.screenColor,
+					paramValue,
+					defaultValue,
+				) { form -> DeformerBlendChannelDeltas(form.opacity, form.multiplyColor, form.screenColor) },
 			),
 			parentWorld,
 		)
@@ -358,20 +374,36 @@ private fun buildRotationWorld(
 		}
 	val channels =
 		cascadeDeformerChannels(
-			DeformerChannels(
-				rotation.channelGrids.scalarAt(FormChannel.OPACITY, rotation.opacity, paramValue, rotationOverride(FormChannel.OPACITY)),
-				rotation.channelGrids.colorAt(
-					FormChannel.MULTIPLY_COLOR,
-					rotation.multiplyColor,
-					paramValue,
-					rotationOverride(FormChannel.MULTIPLY_COLOR),
+			withBlendChannelDeltas(
+				DeformerChannels(
+					rotation.channelGrids.scalarAt(
+						FormChannel.OPACITY,
+						rotation.opacity,
+						paramValue,
+						rotationOverride(FormChannel.OPACITY),
+					),
+					rotation.channelGrids.colorAt(
+						FormChannel.MULTIPLY_COLOR,
+						rotation.multiplyColor,
+						paramValue,
+						rotationOverride(FormChannel.MULTIPLY_COLOR),
+					),
+					rotation.channelGrids.colorAt(
+						FormChannel.SCREEN_COLOR,
+						rotation.screenColor,
+						paramValue,
+						rotationOverride(FormChannel.SCREEN_COLOR),
+					),
 				),
-				rotation.channelGrids.colorAt(
-					FormChannel.SCREEN_COLOR,
+				deformerBlendChannelDeltas(
+					rotation.blendShapes,
+					rotation.channelGrids,
+					rotation.opacity,
+					rotation.multiplyColor,
 					rotation.screenColor,
 					paramValue,
-					rotationOverride(FormChannel.SCREEN_COLOR),
-				),
+					defaultValue,
+				) { form -> DeformerBlendChannelDeltas(form.opacity, form.multiplyColor, form.screenColor) },
 			),
 			parentWorld,
 		)
@@ -509,4 +541,37 @@ internal fun deformMeshWorldFromCorners(
 		world[vertexIndex * 2 + 1] = -world[vertexIndex * 2 + 1]
 	}
 	return world
+}
+
+/**
+ * Applies a deformer's blend-shape channel offsets onto its grid-blended channels.
+ *
+ * Additive like every other blend contribution, clamped to 0..1 only AFTER the sum so a record whose
+ * neighbours pull the other way is not biased.  Returns [local] untouched when nothing contributes,
+ * which keeps the blend-free path allocation-identical to before.
+ *
+ * @param DeformerChannels            local  The deformer's own grid-blended channels.
+ * @param DeformerBlendChannelDeltas? deltas The summed blend offsets, or null when none apply.
+ * @return DeformerChannels The channels to cascade.
+ */
+internal fun withBlendChannelDeltas(
+	local: DeformerChannels,
+	deltas: DeformerBlendChannelDeltas?,
+): DeformerChannels {
+	if (deltas == null) {
+		return local
+	}
+	return DeformerChannels(
+		(local.opacity + deltas.opacity).coerceIn(0f, 1f),
+		ColorRgb(
+			local.multiplyColor.red + deltas.multiplyColor.red,
+			local.multiplyColor.green + deltas.multiplyColor.green,
+			local.multiplyColor.blue + deltas.multiplyColor.blue,
+		).coerceToUnit(),
+		ColorRgb(
+			local.screenColor.red + deltas.screenColor.red,
+			local.screenColor.green + deltas.screenColor.green,
+			local.screenColor.blue + deltas.screenColor.blue,
+		).coerceToUnit(),
+	)
 }

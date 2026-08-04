@@ -13,6 +13,7 @@ import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.alphaBlendOfPacked
 import org.umamo.interop.colorBlendOfPacked
 import org.umamo.interop.runtimeTargetOfMocVersion
+import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
@@ -105,11 +106,11 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    geometry converts like the grid keyforms minus the origin term (a delta in root space scales
  *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
  *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
- *    PART-owned records (Model C carries one) are skipped, matching the CMO3 path's CPartSource
- *    exclusion.  Offscreens ingest into [org.umamo.runtime.model.PartComposite] per owner part
- *    (packed blend int, flags, mask indices) - the part's group mode becomes Isolated - with the
- *    keyformed opacity/color channels merged into the part's [PartForm] grid (they ride the same
- *    cells, MOC3 §5.6).
+ *    PART-owned records carry only a draw-order delta (a part has no other blendable channel) and
+ *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into
+ *    [org.umamo.runtime.model.PartComposite] per owner part (packed blend int, flags, mask indices)
+ *    - the part's group mode becomes Isolated - with the keyformed opacity/color channels merged
+ *    into the part's [PartForm] grid (they ride the same cells, MOC3 §5.6).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>
  */
@@ -139,8 +140,12 @@ object Moc3Import {
 		val canvasOriginX = canvas?.originX ?: 0f
 		val canvasOriginY = canvas?.originY ?: 0f
 
+		val canvasMapping = MocCanvasMapping(pixelsPerUnit, canvasOriginX, canvasOriginY)
+
 		val parameterNameById = displayInfo?.parameters?.associate { it.id to it.name } ?: emptyMap()
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
+		// The Umamo cdi3 extension: art-mesh display names, which a moc alone cannot carry.
+		val drawableNameById = displayInfo?.drawables?.associate { it.id to it.name } ?: emptyMap()
 
 		// Index → runtime id tables, all in FILE order (every cross-reference in the MOC3 is a file-order
 		// index).  Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
@@ -169,6 +174,8 @@ object Moc3Import {
 					default = source.defaultValue,
 					// MOC3 v4+ section 114 Parameter types (null on moc < 4 = all normal).
 					kind = if (source.type == ParameterType.BLEND_SHAPE) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
+					// MOC3 §5.5 s54: wrap rather than clamp at the limits.
+					repeat = source.repeats,
 				)
 			}
 		val knownParameterIds = parameterIds.toSet()
@@ -280,52 +287,21 @@ object Moc3Import {
 		 * @param FloatArray points Interleaved x,y positions as stored in the moc.
 		 * @return FloatArray The converted positions (always a fresh array).
 		 */
-		fun convertPoints(space: PointSpace, points: FloatArray): FloatArray {
-			val converted = FloatArray(points.size)
-			var coordIndex = 0
-			while (coordIndex + 1 < points.size) {
-				when (space) {
-					// MOC3 §5.3 CanvasInfo: canvas px = origin + ppu·model, same Y-down orientation.
-					PointSpace.ModelRoot -> {
-						converted[coordIndex] = canvasOriginX + pixelsPerUnit * points[coordIndex]
-						converted[coordIndex + 1] = canvasOriginY + pixelsPerUnit * points[coordIndex + 1]
-					}
-					// Warp-lattice (u, v) and pixel-scale rotation-local frames match the runtime verbatim.
-					PointSpace.WarpLattice, PointSpace.RotationLocal -> {
-						converted[coordIndex] = points[coordIndex]
-						converted[coordIndex + 1] = points[coordIndex + 1]
-					}
-				}
-				coordIndex += 2
-			}
-			return converted
-		}
+		fun convertPoints(space: PointSpace, points: FloatArray): FloatArray =
+			convertPointsToRuntime(space, points, canvasMapping)
 
-		// Whether a rotation deformer sits anywhere on each deformer's ancestor chain.  This locates
-		// the px->model unit seam: along every root path, the FIRST rotation is where the accumulated
-		// scale chain converts pixel-scale local space into model units, so only that rotation's
-		// stored scale carries the 1/ppu factor.  Every rotation below it (whatever its direct parent's
-		// kind) inherits the factor through the accumulator and stores its scale verbatim.
+		// The px->model unit seam; see Moc3SpaceSeam for why only the first rotation on a path carries it.
 		val hasRotationAncestor =
-			BooleanArray(mocDocument.deformers.size) { deformerIndex ->
-				var currentIndex = mocDocument.deformers[deformerIndex].parentDeformerIndex
-				var found = false
-				var chainSteps = 0
-				while (currentIndex >= 0 && currentIndex < mocDocument.deformers.size && chainSteps <= mocDocument.deformers.size) {
-					if (mocDocument.deformers[currentIndex] is RotationDeformer) {
-						found = true
-						break
-					}
-					currentIndex = mocDocument.deformers[currentIndex].parentDeformerIndex
-					chainSteps++
-				}
-				found
-			}
+			rotationAncestorFlags(
+				mocDocument.deformers.size,
+				{ index -> mocDocument.deformers[index].parentDeformerIndex },
+				{ index -> mocDocument.deformers[index] is RotationDeformer },
+			)
 
 		// ---- blend shapes (MOC3 v4+ §5.6) ----
 		// Records pre-indexed per target object; targetIndex is a deformer index for WARP/ROTATION
-		// (already remapped by the decoder) and a drawable file index for ART_MESH. PART records are
-		// left unclaimed here on purpose - see the class docblock.
+		// (already remapped by the decoder), a drawable file index for ART_MESH, and a part file index
+		// for PART.
 		val blendRecordsByTarget = mocDocument.blendShapes.groupBy { record -> record.target to record.targetIndex }
 		val defaultByParameterId = parameters.associate { parameter -> parameter.id to parameter.default }
 		val defaultValue: (ParameterId) -> Float = { parameterId -> defaultByParameterId[parameterId] ?: 0f }
@@ -340,10 +316,7 @@ object Moc3Import {
 		 * @return FloatArray The converted deltas (always a fresh array).
 		 */
 		fun convertDeltas(space: PointSpace, deltas: FloatArray): FloatArray =
-			when (space) {
-				PointSpace.ModelRoot -> FloatArray(deltas.size) { componentIndex -> pixelsPerUnit * deltas[componentIndex] }
-				PointSpace.WarpLattice, PointSpace.RotationLocal -> deltas.copyOf()
-			}
+			convertDeltasToRuntime(space, deltas, canvasMapping)
 
 		/**
 		 * Elementwise sum of [reference] and [deltas] (sized like [deltas]; a size-mismatched
@@ -356,6 +329,26 @@ object Moc3Import {
 		fun addReference(reference: FloatArray, deltas: FloatArray): FloatArray =
 			FloatArray(deltas.size) { componentIndex ->
 				deltas[componentIndex] + (reference.getOrNull(componentIndex) ?: 0f)
+			}
+
+		/**
+		 * Adds a colour delta row onto its grid-at-default reference, the colour analogue of
+		 * [addReference].
+		 *
+		 * A blend record's colour rows are ADDITIVE, so a zero row is the identity and a null row (a
+		 * model whose colour tables are absent entirely, pre-4.2) contributes nothing.  Not clamped
+		 * here: the evaluator subtracts this same reference back out and clamps only after summing every
+		 * contribution, so clamping now would bias a record whose neighbours pull the other way.
+		 *
+		 * @param ColorRgb reference The channel's value at the default pose.
+		 * @param Rgb?     delta     The record's stored delta row, or null when the model has no colours.
+		 * @return ColorRgb The referenced colour this key blends toward.
+		 */
+		fun addColorDelta(reference: ColorRgb, delta: Rgb?): ColorRgb =
+			if (delta == null) {
+				reference
+			} else {
+				ColorRgb(reference.red + delta.r, reference.green + delta.g, reference.blue + delta.b)
 			}
 
 		/**
@@ -420,6 +413,10 @@ object Moc3Import {
 			val referenceDrawOrder =
 				drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
 			val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
+			val referenceMultiply =
+				drawable.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, defaultValue)
+			val referenceScreen =
+				drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -437,6 +434,11 @@ object Moc3Import {
 							),
 						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						// Colour delta rows are ADDITIVE like the scalars, so their identity is zero rather
+						// than Cubism's white multiply / black screen; a record without colour tables has no
+						// row at all and contributes nothing.
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
 					)
 				}
 			}
@@ -444,8 +446,9 @@ object Moc3Import {
 
 		/**
 		 * Maps [records] onto [warp] as lattice blend bindings: each stored control-point delta row
-		 * plus the lattice's grid-at-default reference.  The warp opacity delta rows have no runtime
-		 * channel and are dropped at ingest (typed at the format layer).
+		 * plus the lattice's grid-at-default reference, and the same treatment for the deformer's own
+		 * render channels (opacity, multiply / screen colour), which CASCADE onto every drawable
+		 * underneath.
 		 *
 		 * @param Deformer.Warp       warp    The constructed runtime warp (its grid is the reference source).
 		 * @param PointSpace          space   The warp's stored point space.
@@ -458,6 +461,10 @@ object Moc3Import {
 			records: List<MocBlendShape>,
 		): List<BlendShapeBinding<WarpForm>> {
 			val reference = warpControlPointsAt(warp.geometryGrid, defaultValue) ?: FloatArray(0)
+			val referenceOpacity = warp.channelGrids.scalarAt(FormChannel.OPACITY, warp.opacity, defaultValue)
+			val referenceMultiply =
+				warp.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, warp.multiplyColor, defaultValue)
+			val referenceScreen = warp.channelGrids.colorAt(FormChannel.SCREEN_COLOR, warp.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -467,7 +474,12 @@ object Moc3Import {
 					return@mapNotNull null
 				}
 				bindingOfRecord(record) { keyIndex ->
-					WarpForm(addReference(reference, convertDeltas(space, payloads[keyIndex].controlPoints)))
+					WarpForm(
+						addReference(reference, convertDeltas(space, payloads[keyIndex].controlPoints)),
+						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
+					)
 				}
 			}
 		}
@@ -476,10 +488,8 @@ object Moc3Import {
 		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
 		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
 		 * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
-		 * fills the form.  The blend-shape rows for the deformer's own opacity/color channels are NOT
-		 * applied: the form's channels stay at their identity defaults here, and only the keyform grid
-		 * drives them (see `DeformerCascade`).  Blending deformer channels through blend shapes is a
-		 * v5+ feature of its own and would need the same reference-subtraction the control points get.
+		 * fills the form.  The deformer's own opacity/colour rows get the same reference treatment as
+		 * the geometry and CASCADE onto every drawable underneath (see `DeformerCascade`).
 		 *
 		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).
 		 * @param PointSpace          space       The rotation's stored point space.
@@ -498,6 +508,11 @@ object Moc3Import {
 			val reference =
 				rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
+			val referenceOpacity = rotation.channelGrids.scalarAt(FormChannel.OPACITY, rotation.opacity, defaultValue)
+			val referenceMultiply =
+				rotation.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, rotation.multiplyColor, defaultValue)
+			val referenceScreen =
+				rotation.channelGrids.colorAt(FormChannel.SCREEN_COLOR, rotation.screenColor, defaultValue)
 			return records.mapNotNull { record ->
 				val payloads =
 					record.keyforms.map { keyform ->
@@ -521,6 +536,9 @@ object Moc3Import {
 						// so reading rotation.flipX here would be constant false and drop the reflection.
 						flipX = rotation.channelGrids.flagAt(FormChannel.FLIP_X, rotation.flipX, defaultValue),
 						flipY = rotation.channelGrids.flagAt(FormChannel.FLIP_Y, rotation.flipY, defaultValue),
+						opacity = referenceOpacity + payloads[keyIndex].opacity,
+						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
+						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
 					)
 				}
 			}
@@ -573,6 +591,9 @@ object Moc3Import {
 								parent = parent,
 								// MOC3 §5.6 s15: the deformer's own org-tree part; -1 (→ null) at the root.
 								partId = partIds.getOrNull(source.parentPartIndex),
+								// MOC3 §5.6 s13/s14: the editor's eye toggle and its unpinned partner.
+								isVisible = source.isVisible,
+								isEnabled = source.isEnabled,
 								rows = source.rows,
 								columns = source.columns,
 								// MOC3 §5.6 warp mode: 0 = triangle split, non-zero = bilinear (quad).
@@ -589,7 +610,7 @@ object Moc3Import {
 					}
 
 					is RotationDeformer -> {
-						val scaleFactor = if (hasRotationAncestor[deformerIndex]) 1f else pixelsPerUnit
+						val scaleFactor = rotationScaleFactor(hasRotationAncestor[deformerIndex], canvasMapping)
 						// One bundled grid, then split into the pivot geometry, the render tracks that cascade
 						// down onto every drawable under this deformer, and the two reflection flags.
 						val fannedRotation =
@@ -616,6 +637,8 @@ object Moc3Import {
 								name = deformerNameOf(deformerIndex, id),
 								parent = parent,
 								partId = partIds.getOrNull(source.parentPartIndex),
+								isVisible = source.isVisible,
+								isEnabled = source.isEnabled,
 								baseAngle = source.baseAngle,
 								geometryGrid = fannedRotation?.geometry,
 								channelGrids = fannedRotation?.channels ?: ChannelGrids.Empty,
@@ -680,8 +703,9 @@ object Moc3Import {
 				val drawable =
 					Drawable(
 						id = DrawableId(source.id),
-						// cdi3 carries no drawable names; the format id is all a baked model has.
-						name = source.id,
+						// The MOC3 itself carries no drawable names; only the cdi3 Meshes extension does, so a
+						// file the official editor wrote falls back to the format id.
+						name = drawableNameById[source.id] ?: source.id,
 						parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
 						// MOC3 v6 §5.6 s153: a nonzero packed extended blend overrides the legacy 2-bit
 						// constant-flags field (which then only carries the old-runtime approximation).
@@ -699,9 +723,14 @@ object Moc3Import {
 						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
 						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
-						// Visibility/lock are editor-only authoring state; a baked model shows everything.
-						isVisible = true,
+						// MOC3 §5.6 s37: the editor's eye toggle.  A bake normally deletes what is hidden, so
+						// this is true for almost every imported drawable - but a file exported with hidden
+						// meshes kept carries the flag, and Umamo's own export always does.
+						isVisible = source.isVisible,
+						// Lock IS editor-only authoring state the bake drops, so everything imports unlocked.
 						isSelectable = true,
+						// MOC3 §5.6 s41: the atlas page this mesh samples, so a detached model can still say.
+						texturePage = source.textureIndex,
 						mesh = mesh,
 						geometryGrid = fannedMesh?.geometry,
 						channelGrids = fannedMesh?.channels ?: ChannelGrids.Empty,
@@ -742,7 +771,15 @@ object Moc3Import {
 						)
 					}?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
 				// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
-				Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
+				Glue(
+					meshA,
+					meshB,
+					pairs,
+					channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack),
+					intensity = 1f,
+					// MOC3 §5.6 s90: the authored name, so a round trip does not synthesize a new one.
+					id = source.id.takeIf { it.isNotEmpty() },
+				)
 			}
 
 		// The draw-order tree: moc3 stores it explicitly (MOC3 §5.6 render-order groups, group 0 = root),
@@ -809,6 +846,59 @@ object Moc3Import {
 				multiplyColor = colorRgbOf(staticKeyform?.multiplyColor) ?: ColorRgb.MultiplyIdentity,
 				screenColor = colorRgbOf(staticKeyform?.screenColor) ?: ColorRgb.ScreenIdentity,
 			)
+		}
+
+		/**
+		 * Maps [records] onto a part as draw-order blend bindings.
+		 *
+		 * A part's only blendable channel is its draw order, so a record carries a single scalar delta
+		 * per key.  It gets the same reference treatment as every other blend payload - the stored delta
+		 * plus the channel's value at the DEFAULT pose - so the evaluator's subtraction cancels exactly.
+		 *
+		 * @param MocPart             source       The moc part.
+		 * @param Float               staticOrder  The part's static draw order.
+		 * @param ChannelGrids        channelGrids The part's own keyform tracks (the reference source).
+		 * @param List<MocBlendShape> records      The part's records.
+		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings.
+		 */
+		fun partBlendShapesOf(
+			source: MocPart,
+			staticOrder: Float,
+			channelGrids: ChannelGrids,
+			records: List<MocBlendShape>,
+		): List<BlendShapeBinding<PartForm>> {
+			val referenceDrawOrder = channelGrids.scalarAt(FormChannel.DRAW_ORDER, staticOrder, defaultValue)
+			return records.mapNotNull { record ->
+				val payloads =
+					record.keyforms.map { keyform ->
+						(keyform as? BlendShapeKeyform.Part)?.drawOrderDelta ?: return@mapNotNull null
+					}
+				if (payloads.size != record.keyPositions.size) {
+					return@mapNotNull null
+				}
+				bindingOfRecord(record) { keyIndex ->
+					PartForm(drawOrder = referenceDrawOrder + payloads[keyIndex])
+				}
+			}
+		}
+
+		/**
+		 * [partBlendShapesOf] with this part's records looked up, the shape [buildOrgTree] consumes.
+		 *
+		 * @param MocPart      source       The moc part.
+		 * @param ChannelGrids channelGrids The part's tracks, already built by the caller.
+		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings, empty when the part has none.
+		 */
+		fun partBlendShapesOfBound(source: MocPart, channelGrids: ChannelGrids): List<BlendShapeBinding<PartForm>> {
+			val partIndex = mocDocument.parts.indexOfFirst { part -> part.id == source.id }
+			if (partIndex < 0) {
+				return emptyList()
+			}
+			val records = blendRecordsByTarget[BlendShapeTarget.PART to partIndex].orEmpty()
+			if (records.isEmpty()) {
+				return emptyList()
+			}
+			return partBlendShapesOf(source, partStaticDrawOrder(source).toFloat(), channelGrids, records)
 		}
 
 		/**
@@ -882,6 +972,7 @@ object Moc3Import {
 				drawOrderGroupPartIndices,
 				::partStaticDrawOrder,
 				::partChannelsOf,
+				::partBlendShapesOfBound,
 				::partCompositeOf,
 			)
 
@@ -908,6 +999,9 @@ object Moc3Import {
 				canvasHeight = canvas?.height ?: 0f,
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
+				// Retained purely so an export can invert this import's space conversions; the evaluator and
+				// the renderer never read it.
+				pixelsPerUnit = pixelsPerUnit,
 				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
@@ -936,8 +1030,8 @@ object Moc3Import {
 	 * The result joins [claimedIds], so it collides neither with an id the file already uses nor with
 	 * another synthesized one.
 	 *
-	 * @param Int deformerIndex  The deformer's file index.
-	 * @param MutableSet claimedIds Every id already spoken for; the returned id is added to it.
+	 * @param Int        deformerIndex The deformer's file index.
+	 * @param MutableSet claimedIds    Every id already spoken for; the returned id is added to it.
 	 * @return String The synthesized id.
 	 */
 	private fun synthesizedDeformerId(deformerIndex: Int, claimedIds: MutableSet<String>): String {
@@ -948,18 +1042,6 @@ object Moc3Import {
 			disambiguator++
 		}
 		return candidate
-	}
-
-	/** The coordinate space a moc object's positions are stored in, selected by its parent deformer. */
-	private enum class PointSpace {
-		/** MOC3 model space (a root object): canvas = CanvasInfo origin + ppu·model, Y-down like the canvas. */
-		ModelRoot,
-
-		/** A warp parent's normalized lattice (u, v) - identical in both conventions. */
-		WarpLattice,
-
-		/** A rotation parent's pixel-scale local frame - identical in both conventions. */
-		RotationLocal,
 	}
 
 	/**
@@ -1189,6 +1271,7 @@ object Moc3Import {
 	 * @param Set         drawOrderGroupPartIndices Part file indices referenced as render-order groups.
 	 * @param Function    partStaticDrawOrder       Static draw order of a moc part.
 	 * @param Function    partChannelsOf            Per-channel keyform tracks of a moc part.
+	 * @param Function    partBlendShapesOf         Draw-order blend bindings of a moc part, given its tracks.
 	 * @param Function    partCompositeOf           Compositing settings of a moc part (null when not isolated).
 	 * @return Pair<List<Part>, List<OrgChild>> The runtime parts (file order) and the root children.
 	 */
@@ -1201,6 +1284,7 @@ object Moc3Import {
 		drawOrderGroupPartIndices: Set<Int>,
 		partStaticDrawOrder: (MocPart) -> Int,
 		partChannelsOf: (MocPart) -> ChannelGrids,
+		partBlendShapesOf: (MocPart, ChannelGrids) -> List<BlendShapeBinding<PartForm>>,
 		partCompositeOf: (MocPart) -> PartComposite?,
 	): Pair<List<Part>, List<OrgChild>> {
 		val partCount = mocDocument.parts.size
@@ -1296,13 +1380,15 @@ object Moc3Import {
 				// MOC3 (runtime format) only records composite data for offscreen parts, so this is null for
 				// the rest; the composite is stored latently and applied only while the part is Isolated.
 				val offscreenComposite = partCompositeOf(source)
+				val partChannels = partChannelsOf(source)
 				Part(
 					id = partIds[partIndex],
 					// cdi3: DisplayPart.name is the display label; fall back to the id.
 					name = partNameById[source.id] ?: source.id,
 					children = childrenOf(partIndex),
-					// Visibility/lock/sketch are editor authoring state the bake drops; import everything shown.
-					isVisible = true,
+					// MOC3 §5.6 s7/s8 carry the part's visibility (both flags, split unpinned).  Sketch and
+					// lock ARE editor-only state the bake drops, so those still default to shown/unlocked.
+					isVisible = source.isVisible,
 					isSketch = false,
 					isSelectable = true,
 					// An owned offscreen wins over render-order-group membership (an isolated part is
@@ -1314,8 +1400,10 @@ object Moc3Import {
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
-					channelGrids = partChannelsOf(source),
+					channelGrids = partChannels,
 					composite = offscreenComposite ?: PartComposite(),
+					// MOC3 v5+ §5.6: a part-target blend record, whose only channel is the draw order.
+					blendShapes = partBlendShapesOf(source, partChannels),
 				)
 			}
 		return parts to childrenOf(-1)
