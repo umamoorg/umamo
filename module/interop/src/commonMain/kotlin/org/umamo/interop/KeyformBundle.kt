@@ -119,10 +119,31 @@ fun <TGeometry> buildKeyformBundle(
 	if (unionKeys.isEmpty()) {
 		// No parameter keys anywhere.  An axis-less grid (one static cell) is a real shape in both
 		// formats and keeps its single cell; a grid-less, channel-less owner is fully unkeyed (empty).
+		//
+		// AXIS-LESS IS NOT VALUE-LESS.  A channel track can be a single cell with no axes - an authored
+		// constant that was never lifted into the owner's static - and that value must win over the
+		// static, which in that state still holds its untouched constructor default.  Falling straight
+		// back to the statics here silently replaced every such value.
+		val channelValues =
+			buildMap {
+				for ((channel, staticValue) in statics) {
+					put(channel, channels.gridsByChannel[channel]?.cells?.firstOrNull()?.form ?: staticValue)
+				}
+			}
 		val staticCell = geometryGrid?.cells?.firstOrNull()
 		if (staticCell != null) {
 			return KeyformBundleResult.Bundled(
-				KeyformBundle(emptyList(), listOf(KeyformBundleCell(IntArray(0), emptyMap(), staticCell.form, statics))),
+				KeyformBundle(
+					emptyList(),
+					listOf(KeyformBundleCell(IntArray(0), emptyMap(), staticCell.form, channelValues)),
+				),
+			)
+		}
+		// A geometry-less owner whose channels are all axis-less still has one cell's worth of values;
+		// emitting nothing would make the caller fall back to the same statics this just corrected.
+		if (channels.gridsByChannel.isNotEmpty()) {
+			return KeyformBundleResult.Bundled(
+				KeyformBundle(emptyList(), listOf(KeyformBundleCell(IntArray(0), emptyMap(), null, channelValues))),
 			)
 		}
 		return KeyformBundleResult.Bundled(KeyformBundle(emptyList(), emptyList()))

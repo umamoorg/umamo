@@ -175,6 +175,37 @@ class KeyformBundleTest {
 		assertTrue(result is KeyformBundleResult.Unrepresentable, "geometry-less is an error when required")
 	}
 
+	/**
+	 * An AXIS-LESS channel track still carries its value, and that value beats the owner's static.
+	 *
+	 * A track can be a single cell with no axes - an authored constant that was never lifted into the
+	 * static - and the static in that state still holds an untouched default.  The early return for
+	 * "no keys anywhere" used to fill channels straight from the statics, which silently replaced every
+	 * such value; a MOC3 export of an uncompacted import wrote 1.0 opacity over an authored 0.66.
+	 */
+	@Test
+	fun anAxisLessChannelTrackBeatsTheStatic() {
+		val authored: ChannelValue = ChannelValue.Scalar(0.66f)
+		val axisLessTrack = KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(IntArray(0), authored)))
+		val result =
+			buildKeyformBundle(
+				KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(IntArray(0), 0f))),
+				floatBlend,
+				ChannelGrids(mapOf(FormChannel.OPACITY to axisLessTrack)),
+				// The static is the constructor default the import leaves behind when nothing lifted it.
+				mapOf(FormChannel.OPACITY to ChannelValue.Scalar(1f)),
+				requireGeometry = false,
+				outOfSpanPolicy = OutOfSpanPolicy.DemoteChannel,
+			)
+		assertTrue(result is KeyformBundleResult.Bundled, "an axis-less owner still bundles")
+		assertEquals(1, result.bundle.cells.size, "one static cell")
+		assertEquals(
+			authored,
+			result.bundle.cells.single().channels[FormChannel.OPACITY],
+			"the track's authored value wins over the static",
+		)
+	}
+
 	/** Guards the interpolator the other cases lean on, so a failure there reads as its own cause. */
 	@Test
 	fun channelValueInterpolatorBlendsScalars() {
