@@ -17,8 +17,8 @@ import kotlin.test.assertTrue
  * one", so the gap is tracked as a number rather than discovered later by a runtime that will not
  * load the result.
  *
- * The expectation below is a ratchet, not a target: it records what is still missing so the set can
- * only shrink.  Removing a name from it means a producer now covers that section.
+ * The expectation below is a ratchet, not a target: it names the sections no producer covers, and it
+ * is empty, so the gate fails the moment a fresh bake stops producing a section a corpus model carries.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -32,26 +32,12 @@ class MocBakeFreshCoverageTest {
 	/**
 	 * The sections still carried rather than synthesized, corpus-wide.
 	 *
-	 * All of them need an intermediate another producer already computes - the per-form color rows need
-	 * the object color bases, the offscreen alias needs the offscreen-by-part map, and the parameter
-	 * binding/key starts need the binding pool - so each belongs beside that producer rather than in a
-	 * file of its own that would recompute (and eventually contradict) the same inputs.
+	 * Empty, and that is the point: every section any corpus model carries is now produced by a fresh
+	 * bake.  An entry added here is a claim that some index cannot be derived - state which model shows
+	 * it and why, because the last four entries all turned out to be derivable, and two of them
+	 * (the parameter key runs, the offscreen alias) were load-breaking while they sat here.
 	 */
-	private val knownUnproduced =
-		setOf(
-			Section.WARP_FORM_MULTIPLY_ROW,
-			Section.WARP_FORM_SCREEN_ROW,
-			Section.ROTATION_FORM_MULTIPLY_ROW,
-			Section.ROTATION_FORM_SCREEN_ROW,
-			Section.ARTMESH_FORM_MULTIPLY_ROW,
-			Section.ARTMESH_FORM_SCREEN_ROW,
-			Section.OFFSCREEN_BY_PART_ALIAS,
-			Section.PARAM_BINDING_START,
-			Section.PARAM_KEY_START,
-			Section.PARAM_KEY_COUNT,
-			Section.BLENDSHAPE_PARAMETER_BEGIN,
-			Section.BLENDSHAPE_PARAMETER_COUNT,
-		)
+	private val knownUnproduced = emptySet<Section>()
 
 	@Test
 	fun freshBakeCoversEverySectionExceptTheKnownGaps() {

@@ -1,6 +1,6 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportReport
 import org.umamo.ui.action.Command
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.resources.*
@@ -31,8 +31,8 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unexported) { proceed.invoke() }
 			}
 		},
-		// A CMO3 export finished with advisory notices; the shell shows them in a non-blocking alert.
+		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a non-blocking alert.
 		Command("document.exportReport", title = null) { argument ->
-			(argument as? Cmo3ExportReport)?.let { report -> overlays.exportReport = report }
+			(argument as? ExportReport)?.let { report -> overlays.exportReport = report }
 		},
 	)

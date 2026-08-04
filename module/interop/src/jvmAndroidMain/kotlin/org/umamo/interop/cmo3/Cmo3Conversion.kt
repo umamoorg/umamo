@@ -2,8 +2,8 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.roundToInt
@@ -40,7 +40,7 @@ public object Cmo3Conversion {
 	/** The conversion outcome: the fresh model plus the reconcile's advisory report. */
 	public class Result(
 		public val model: Cmo3Model,
-		public val report: Cmo3ExportReport,
+		public val report: ExportReport,
 	)
 
 	/**
@@ -94,7 +94,12 @@ public object Cmo3Conversion {
 			Cmo3.read(
 				Cmo3FreshFile.assemble(
 					skeleton.root,
-					skeleton.iconEntries.map { icon -> Cmo3FreshFile.PngEntry(icon.path, icon.pngBytes) } + chain.pngEntries,
+					skeleton.iconEntries.map { icon ->
+						Cmo3FreshFile.PngEntry(
+							icon.path,
+							icon.pngBytes,
+						)
+					} + chain.pngEntries,
 					obfuscateKey,
 				),
 			)
@@ -110,6 +115,6 @@ public object Cmo3Conversion {
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
 		// per-entity findings.  It is the one finding that explains why the file will not render in
 		// the official editor, which no amount of per-drawable detail would tell the user.
-		return Result(model, Cmo3ExportReport(listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
+		return Result(model, ExportReport(listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
 	}
 }

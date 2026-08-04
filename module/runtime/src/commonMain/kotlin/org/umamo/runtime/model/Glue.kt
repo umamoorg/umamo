@@ -2,8 +2,9 @@ package org.umamo.runtime.model
 
 /**
  * One glued vertex pair: vertex [indexA] of the glue's mesh A welded to vertex [indexB] of mesh B, each
- * pulled toward the other by its per-side weight. Indices are into the meshes' deformed position arrays
- * (resolved from the CMO3's stable vertex UIDs at import).
+ * pulled toward the other by its per-side weight. Indices are into the meshes' deformed position arrays,
+ * so each importer has to land them in that space: a CMO3 import resolves that format's stable vertex
+ * UIDs, while MOC3 (§5.6 s99) already stores them mesh-local.
  */
 class GluePair(
 	val indexA: Int,
