@@ -2,7 +2,6 @@ package org.umamo.format.moc3.encode
 
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.io.LittleEndianWriter
-import org.umamo.format.moc3.moc.ElementType
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
@@ -113,10 +112,8 @@ public object MocLowering {
 			put(Section.MASK_INDEX_DATA, intList(maskIndexValues))
 		}
 
-		// deformers (unified list + per-type)
-		// The runtime slot is written zero-filled at the deformer count: the runtime owns its contents,
-		// but the array must be as long as the deformer list or an added deformer reads past it.
-		put(Section.DEFORMER_RUNTIME_SLOT, ByteArray(doc.deformers.size * ElementType.U64.size))
+		// deformers (unified list + per-type).  The block's leading runtime slot is sized by
+		// [MocRuntimeSlots] along with every other object block's, so it is not written here.
 		put(Section.DEFORMER_ID, idRecords(doc.deformers.map { it.id }))
 		put(Section.DEFORMER_KEYFORM_BINDING, intList(doc.deformers.map { it.keyformBindingIndex }))
 		put(Section.DEFORMER_IS_VISIBLE, intList(doc.deformers.map { if (it.isVisible) 1 else 0 }))
@@ -762,7 +759,10 @@ public object MocLowering {
 					} ?: 0
 				)
 		val bindingGrid = ParameterBindingGrid(doc)
-		val fieldCount = if (doc.version.byteValue >= 6) 64 else 32
+		// The block widens to 64 words at moc 5, NOT at moc 6: every v5 corpus file's section 0 is 256
+		// bytes, and a v5 model with rotation blend shapes writes field 33 (LimeBirb).  Capping v5 at 32
+		// silently dropped that field, and the re-decode then found zero blend-shape rotations.
+		val fieldCount = if (doc.version.byteValue >= 5) 64 else 32
 		val countInfo = IntArray(fieldCount)
 		countInfo[0] = doc.parts.size
 		countInfo[1] = doc.deformers.size

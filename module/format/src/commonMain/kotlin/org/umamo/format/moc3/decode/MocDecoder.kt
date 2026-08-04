@@ -958,6 +958,7 @@ public object MocDecoder {
 			return emptyList()
 		}
 		val meshB = sections.intArray(Section.GLUE_MESH_B)
+		val glueId = sections.idArray(Section.GLUE_ID)
 		val keyformBinding = sections.intArray(Section.GLUE_KEYFORM_BINDING)
 		val glueVertexStart = sections.intArray(Section.GLUE_VERTEX_START)
 		val glueVertexCount = sections.intArray(Section.GLUE_VERTEX_COUNT)
@@ -979,6 +980,8 @@ public object MocDecoder {
 					)
 				}
 			Glue(
+				// A stripped file without s90 leaves the id blank rather than failing the decode.
+				glueId.getOrElse(glueIndex) { "" },
 				meshA[glueIndex],
 				meshB[glueIndex],
 				keyformBinding[glueIndex],

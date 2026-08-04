@@ -44,6 +44,8 @@ public data class GlueVertexPair(
  * over [keyformBindingIndex]'s grid (a single value when static).
  */
 public data class Glue(
+	/** MOC3 §5.6 s90: the authored id, e.g. "Glue__ArtMesh48__ArtMesh49" (older bakes: "Glue_0_1_"). */
+	val id: String,
 	val meshAIndex: Int,
 	val meshBIndex: Int,
 	val keyformBindingIndex: Int,
@@ -54,6 +56,7 @@ public data class Glue(
 		this === other ||
 			(
 				other is Glue &&
+					id == other.id &&
 					meshAIndex == other.meshAIndex &&
 					meshBIndex == other.meshBIndex &&
 					keyformBindingIndex == other.keyformBindingIndex &&

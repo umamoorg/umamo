@@ -1,6 +1,8 @@
 package org.umamo.format.moc3
 
+import org.umamo.format.moc3.encode.MocDerivedIndexes
 import org.umamo.format.moc3.encode.MocLowering
+import org.umamo.format.moc3.encode.MocRuntimeSlots
 import org.umamo.format.moc3.moc.MocCodec
 import java.io.File
 import kotlin.test.Test
@@ -36,8 +38,10 @@ class MocLoweringTest {
 			val auxiliary = MocLowering.auxiliarySections(doc)
 			val grid = MocLowering.keyformGridSections(doc)
 			val blend = MocLowering.blendShapeSections(doc)
+			val runtimeSlots = MocRuntimeSlots.runtimeSlotSections(doc)
+			val derived = MocDerivedIndexes.derivedIndexSections(doc)
 			assertTrue(structural.isNotEmpty(), "${file.name}: lowered some sections")
-			for ((index, bytes) in structural + valueTables + auxiliary + grid + blend) {
+			for ((index, bytes) in structural + valueTables + auxiliary + grid + blend + runtimeSlots + derived) {
 				val original = model.section(index)
 				if (original == null || original.size < bytes.size) {
 					failures.add("${file.name}: section $index present & sized (need ${bytes.size}, have ${original?.size})")
@@ -58,14 +62,23 @@ class MocLoweringTest {
 				}
 			}
 			// Full CountInfo synthesis, including the blend-shape/offscreen totals (fields 23-36).
+			// Compared at the ORIGINAL's width, not the synthesized one: comparing only the synthesized
+			// prefix let a too-narrow block pass while dropping the fields past its end (v5 carries 64
+			// words and a rotation-blend model writes field 33, which a 32-word cap silently lost).
 			val ci = MocLowering.countInfoSection(doc)
-			val originalCi = model.section(0)!!.copyOf(ci.size)
+			val originalCi = model.section(0)!!
 			if (!originalCi.contentEquals(ci)) {
-				val firstMismatch = ci.indices.first { originalCi[it] != ci[it] }
-				failures.add("${file.name}: CountInfo not byte-exact (first mismatch at byte $firstMismatch, field ${firstMismatch / 4})")
+				val firstMismatch =
+					(0 until maxOf(originalCi.size, ci.size)).first {
+						originalCi.getOrNull(it) != ci.getOrNull(it)
+					}
+				failures.add(
+					"${file.name}: CountInfo not byte-exact (${ci.size} bytes vs ${originalCi.size}; " +
+						"first mismatch at byte $firstMismatch, field ${firstMismatch / 4})",
+				)
 			}
-			val total = structural.size + valueTables.size + auxiliary.size + grid.size + blend.size
-			println("${file.name}: v${model.versionByte} ${structural.size}+${valueTables.size}+${auxiliary.size}+${grid.size}+${blend.size} = $total sections lowered")
+			val total = structural.size + valueTables.size + auxiliary.size + grid.size + blend.size + runtimeSlots.size + derived.size
+			println("${file.name}: v${model.versionByte} ${structural.size}+${valueTables.size}+${auxiliary.size}+${grid.size}+${blend.size}+${runtimeSlots.size}+${derived.size} = $total sections lowered")
 		}
 		failures.forEach { failureMessage -> println("[lowering] FAIL $failureMessage") }
 		assertTrue(failures.isEmpty(), "lowering not byte-exact:\n" + failures.joinToString("\n"))
