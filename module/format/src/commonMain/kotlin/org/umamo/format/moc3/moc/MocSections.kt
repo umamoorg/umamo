@@ -7,11 +7,10 @@ import org.umamo.format.moc3.io.LittleEndianWriter
  * Typed read access to every [Section] of a [MocModel] (the "Layer-1" view): each section as a flat
  * array of its element type, sized per its [Sizing] rule.
  *
- * EN: Per-object sections (`PER_*`) are read for exactly their CountInfo count; `TABLE` sections are
- *     read across the whole section slice (lossless - trailing padding becomes trailing zero
- *     elements the semantic layer never dereferences). Reading is non-destructive; the container's
- *     byte-identical write is unaffected.
- * JA: 各セクションを型付き配列として読み出す（Layer-1）。
+ * Per-object sections (`PER_*`) are read for their CountInfo count, capped at what the slice holds
+ * (see [elementCount]); `TABLE` sections are read across the whole section slice (lossless -
+ * trailing padding becomes trailing zero elements the semantic layer never dereferences).  Reading
+ * is non-destructive; the container's byte-identical write is unaffected.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -87,6 +86,9 @@ public class MocSections internal constructor(private val model: MocModel) {
 	 * whole decode, which [org.umamo.format.moc3.decode.MocDecoder] promises not to do for an
 	 * absent or partial id/flag section.  Clamping yields a short array instead, which every
 	 * caller already tolerates (they index through `getOrElse`).
+	 *
+	 * @param Section section The section to size.
+	 * @return Int The element count, 0 when the section is absent.
 	 */
 	public fun elementCount(section: Section): Int {
 		val slice = rawSlice(section) ?: return 0

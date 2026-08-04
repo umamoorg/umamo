@@ -169,11 +169,28 @@ internal fun alphaBlendOfPacked(packed: Int): AlphaBlendMode =
  * @return Int The constant-flag bits (0 for Normal).
  */
 internal fun legacyBlendFlagOf(mode: BlendMode): Int =
+	when (nearestLegacyBlendMode(mode)) {
+		BlendMode.AdditivePremultiplied -> ConstantFlag.BLEND_ADDITIVE
+		BlendMode.MultiplyPremultiplied -> ConstantFlag.BLEND_MULTIPLICATIVE
+		else -> 0
+	}
+
+/**
+ * The pre-5.3 mode [mode] degrades to when the target version cannot carry it.
+ *
+ * The same nearest-ancestor rule [legacyBlendFlagOf] encodes, as a runtime mode rather than as flag
+ * bits, so a version downgrade rewrites the MODEL to what the file will actually say instead of
+ * leaving the two to disagree about what "additive" means.
+ *
+ * @param BlendMode mode The authored blend mode.
+ * @return BlendMode The nearest mode a pre-5.3 runtime understands.
+ */
+internal fun nearestLegacyBlendMode(mode: BlendMode): BlendMode =
 	when (mode) {
 		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow ->
-			ConstantFlag.BLEND_ADDITIVE
-		BlendMode.MultiplyPremultiplied, BlendMode.Multiply -> ConstantFlag.BLEND_MULTIPLICATIVE
-		else -> 0
+			BlendMode.AdditivePremultiplied
+		BlendMode.MultiplyPremultiplied, BlendMode.Multiply -> BlendMode.MultiplyPremultiplied
+		else -> BlendMode.Normal
 	}
 
 /**
