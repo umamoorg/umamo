@@ -45,12 +45,11 @@ public data class MocDrawable(
 /**
  * A parsed `.moc3`: the 64-byte header, the section-offset table, and each section's raw bytes.
  *
- * EN: The model retains every section verbatim (the slice `[offset[k], offset[k+1])`, last → EOF,
- *     including padding) so [org.umamo.format.moc3.moc.MocCodec.write] reproduces an unedited file
- *     byte identical.  Structural sections (counts, canvas, IDs, parameters, parts, drawables) are
- *     exposed as typed accessors; the deformer/keyform/glue/ blend-shape/offscreen sections
- *     (per-frame math) are out of scope and read only as raw bytes.
- * JA: 全セクションをそのまま保持し、未編集ファイルはバイト単位で再生成可能。
+ * The model retains every section verbatim (the slice `[offset[k], offset[k+1])`, last → EOF,
+ * including padding) so [org.umamo.format.moc3.moc.MocCodec.write] reproduces an unedited file
+ * byte identical.  A handful of structural sections (counts, canvas, IDs, parameters, parts,
+ * drawables) are exposed here as typed accessors for callers that need only the shape of a model;
+ * every section, deformation payload included, is reachable typed through [sections].
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -80,7 +79,7 @@ public class MocModel internal constructor(
 	/**
 	 * Returns the raw bytes of section [index] (including its trailing padding), or null if absent.
 	 *
-	 * @param Int index A section-table index (e.g. a [Sections] constant).
+	 * @param Int index A section-table index (a [Section]'s [Section.indexIn] for this version).
 	 * @return ByteArray? The section bytes, or null when the section is not present.
 	 */
 	public fun section(index: Int): ByteArray? = rawSections.getOrNull(index)

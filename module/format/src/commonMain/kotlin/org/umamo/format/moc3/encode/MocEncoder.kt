@@ -121,10 +121,12 @@ public object MocEncoder {
 		encode(model.versionByte, model.isBigEndian, model.sectionBytesInOrder())
 
 	/**
-	 * Bakes a (possibly-edited) [doc] to `.moc3` bytes, synthesizing every section [MocLowering] can
-	 * produce from the object model and carrying the rest (CountInfo, runtime-filled pointer arrays,
-	 * blend-shape / offscreen value tables) from [reference]. The result is runtime-valid; for an
-	 * unedited document the synthesized sections are byte-exact, so it matches the original data.
+	 * Bakes a (possibly-edited) [doc] to `.moc3` bytes, synthesizing every section [synthesize]'s
+	 * producers cover and carrying anything they do not from [reference].  That carry-through is empty
+	 * for every corpus model (`MocBakeFreshCoverageTest` pins the carried set at nothing), so it stands
+	 * against a section some later format version adds rather than against one we cannot derive.  The
+	 * result is runtime-valid; for an unedited document the synthesized sections are byte-exact, so it
+	 * matches the original data.
 	 *
 	 * @param MocModel reference The decoded source providing the carried sections + version.
 	 * @param MocDocument doc The (editable) semantic model to bake.
@@ -194,8 +196,8 @@ public object MocEncoder {
 	 * table by fixed section index and never reads its length, so this only needs to be ≥ the highest
 	 * index used; matching the editor keeps the file shape conventional.
 	 *
-	 * EN: Confirmed against samples for v3 (102), v4 (137), v6 (167); v1/v2/v5 follow the editor's
-	 *     version gates (+1 at 3.3, +35 at 4.2, +15 at 5.0) and are unsampled.
+	 * Confirmed against samples for v1 (101), v3 (102), v4 (137), v5 (152), and v6 (167); v2 (102) is
+	 * the one unsampled version and follows the editor's version gates (+1 at 3.3, +35 at 4.2, +15 at 5.0).
 	 *
 	 * @param MocVersion version The moc version.
 	 * @return Int The section count.

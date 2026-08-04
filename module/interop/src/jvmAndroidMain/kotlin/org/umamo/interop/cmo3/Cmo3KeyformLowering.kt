@@ -25,13 +25,14 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportNotice
-import org.umamo.runtime.eval.EPS_KEY
-import org.umamo.runtime.keyform.ChannelValueInterpolator
+import org.umamo.interop.KeyformBundle
+import org.umamo.interop.KeyformBundleResult
+import org.umamo.interop.OutOfSpanPolicy
+import org.umamo.interop.buildKeyformBundle
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
-import org.umamo.runtime.keyform.refinedToUnion
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -40,7 +41,6 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
-import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
@@ -58,11 +58,12 @@ import org.umamo.runtime.model.WarpLatticeForm
  * keyform cells, and rebuilding the grid web (KeyformGridSource / KeyformBindingSource /
  * KeyformOnGrid / KeyOnParameter / the forms pool) that encodes it.
  *
- * The bundle axes are the union of the geometry axes and every channel track's axes; geometry and
- * channels refine onto that union through the SAME grid algebra compaction verifies itself against
- * (refinedToUnion), so a track that came from an import compaction refines back bit-identically.
- * A track whose own span does not cover the union of its parameter's keys cannot be represented in
- * a bundled cell without inventing out-of-span values, so the owner is left untouched and reported.
+ * The re-bundling itself is the format-neutral buildKeyformBundle (KeyformBundle.kt), shared with the
+ * MOC3 export so both formats union the axes and re-interpolate through the same grid algebra.  What
+ * stays here is CMO3's half: the RejectOwner policy and the graph writing.  So a track whose own span
+ * does not cover the union of its parameter's keys cannot be represented in a bundled cell without
+ * inventing out-of-span values, and its owner is left untouched and reported rather than partially
+ * written.
  *
  * Object reuse is the byte-diff minimizer: surviving bindings, forms, and set objects are mutated
  * in place (their recorded child slots replay), so an untouched value re-emits byte-identically;
@@ -112,22 +113,12 @@ internal class Cmo3KeyformLowering(
 		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
 	}
 
-	/** One re-bundled cell: its coordinate, per-parameter key values, geometry, and channel values. */
-	private class BundleCell(
-		val coordinate: IntArray,
-		val values: Map<ParameterId, Float>,
-		val geometry: Any?,
-		val channels: Map<FormChannel, ChannelValue>,
-	)
-
-	private class Bundle(
-		val axes: List<KeyformAxis>,
-		val cells: List<BundleCell>,
-	)
-
 	/**
-	 * Re-bundles a split representation onto union axes, or null (with a notice) when the split
-	 * state cannot be expressed as one grid.
+	 * [buildKeyformBundle] with CMO3's policy applied: an owner whose split state cannot be expressed
+	 * as one grid is REJECTED and reported, rather than partially written.
+	 *
+	 * CMO3 can decline to write an object's grid; MOC3 cannot (every object needs a keyform), which is
+	 * why the shared bundler takes the policy as a parameter instead of assuming one.
 	 *
 	 * @param String           category         The notice category.
 	 * @param String           subject          The owner's id for notices.
@@ -136,8 +127,7 @@ internal class Cmo3KeyformLowering(
 	 * @param ChannelGrids     channels         The owner's channel tracks.
 	 * @param Map              statics          Fallback value per relevant channel.
 	 * @param Boolean          requireGeometry  Whether a geometry-less bundle is an error (warp/rotation).
-	 * @return Bundle? The bundle - possibly with empty axes when fully unkeyed - or null when
-	 *                 unrepresentable (reported).
+	 * @return KeyformBundle? The bundle, or null when unrepresentable (reported).
 	 */
 	private fun <TGeometry> buildBundle(
 		category: String,
@@ -147,130 +137,24 @@ internal class Cmo3KeyformLowering(
 		channels: ChannelGrids,
 		statics: Map<FormChannel, ChannelValue>,
 		requireGeometry: Boolean,
-	): Bundle? {
-		// Union keys per parameter, geometry axes first so the bundled axis order follows the
-		// geometry grid (the order the import's fan-out preserved).
-		val unionKeys = LinkedHashMap<ParameterId, FloatArray>()
-
-		fun mergeAxis(axis: KeyformAxis) {
-			val existing = unionKeys[axis.parameterId]
-			unionKeys[axis.parameterId] =
-				if (existing == null) axis.keys.copyOf() else mergedKeys(existing, axis.keys)
-		}
-		geometryGrid?.axes?.forEach(::mergeAxis)
-		for (grid in channels.gridsByChannel.values) {
-			grid.axes.forEach(::mergeAxis)
-		}
-		if (unionKeys.isEmpty()) {
-			// No parameter keys anywhere.  An axis-less grid (one static cell) is a real CMO3 shape
-			// and keeps its single cell; a grid-less, channel-less owner is fully unkeyed (empty).
-			val staticCell = geometryGrid?.cells?.firstOrNull()
-			if (staticCell != null) {
-				return Bundle(emptyList(), listOf(BundleCell(IntArray(0), emptyMap(), staticCell.form, statics)))
-			}
-			return Bundle(emptyList(), emptyList())
-		}
-
-		// Refine geometry over its own axes only (empty ranges suppresses the append path); every
-		// axis must then carry exactly the union keys - a span that does not cover them means an
-		// out-of-span key the bundle cannot represent without inventing values.
-		var axes: List<KeyformAxis>
-		var geometryByCoordinate: Map<List<Int>, TGeometry>
-		if (geometryGrid != null) {
-			val refined = geometryGrid.refinedToUnion(unionKeys, emptyMap(), geometryBlend)
-			for (axis in refined.axes) {
-				if (!axis.keys.contentEquals(unionKeys.getValue(axis.parameterId))) {
-					unsupported(category, subject, "keys outside the geometry span cannot bundle into CMO3")
-					return null
-				}
-			}
-			axes = refined.axes
-			geometryByCoordinate = refined.cells.associate { cell -> cell.coordinate.toList() to cell.form }
-			// Replicate across parameters only channels key (the value is constant along them).
-			for ((parameterId, keys) in unionKeys) {
-				if (axes.none { it.parameterId == parameterId }) {
-					axes = axes + KeyformAxis(parameterId, keys)
-					geometryByCoordinate =
-						buildMap {
-							for (keyIndex in keys.indices) {
-								for ((coordinate, form) in geometryByCoordinate) {
-									put(coordinate + keyIndex, form)
-								}
-							}
-						}
-				}
-			}
-		} else {
-			if (requireGeometry) {
-				unsupported(category, subject, "channel keys without geometry cannot bundle into CMO3")
-				return null
-			}
-			axes = unionKeys.map { (parameterId, keys) -> KeyformAxis(parameterId, keys) }
-			geometryByCoordinate = emptyMap()
-		}
-
-		// Refine each channel over its own axes; a final-coordinate lookup then projects onto the
-		// channel's axis subset (the channel is constant along axes it does not key).
-		val channelLookups = HashMap<FormChannel, (IntArray) -> ChannelValue?>()
-		val finalAxisPosition = axes.mapIndexed { position, axis -> axis.parameterId to position }.toMap()
-		for ((channel, track) in channels.gridsByChannel) {
-			val refined = track.refinedToUnion(unionKeys, emptyMap(), ChannelValueInterpolator)
-			for (axis in refined.axes) {
-				if (!axis.keys.contentEquals(unionKeys.getValue(axis.parameterId))) {
-					unsupported(category, subject, "keys outside the $channel track span cannot bundle into CMO3")
-					return null
-				}
-			}
-			val subPositions =
-				refined.axes.map { axis -> finalAxisPosition.getValue(axis.parameterId) }.toIntArray()
-			channelLookups[channel] =
-				{ coordinate ->
-					val subCoordinate = IntArray(subPositions.size) { axisIndex -> coordinate[subPositions[axisIndex]] }
-					refined.cellsByLinearIndex[refined.linearIndexOf(subCoordinate)]?.form
-				}
-		}
-
-		// Assemble every cell of the dense final grid.
-		val keyCounts = axes.map { it.keys.size }
-		val totalCells = keyCounts.fold(1) { product, count -> product * count }
-		val cells = ArrayList<BundleCell>(totalCells)
-		val coordinate = IntArray(axes.size)
-		for (cellOrdinal in 0 until totalCells) {
-			var remainder = cellOrdinal
-			for (axisIndex in axes.indices) {
-				coordinate[axisIndex] = remainder % keyCounts[axisIndex]
-				remainder /= keyCounts[axisIndex]
-			}
-			val cellCoordinate = coordinate.copyOf()
-			val values =
-				buildMap {
-					for (axisIndex in axes.indices) {
-						put(axes[axisIndex].parameterId, axes[axisIndex].keys[cellCoordinate[axisIndex]])
-					}
-				}
-			val channelValues =
-				buildMap {
-					for ((channel, staticValue) in statics) {
-						put(channel, channelLookups[channel]?.invoke(cellCoordinate) ?: staticValue)
-					}
-				}
-			cells.add(BundleCell(cellCoordinate, values, geometryByCoordinate[cellCoordinate.toList()], channelValues))
-		}
-		return Bundle(axes, cells)
-	}
-
-	/** The two key arrays merged ascending with evaluator-tolerance duplicates dropped. */
-	private fun mergedKeys(first: FloatArray, second: FloatArray): FloatArray {
-		val sorted = (first + second).sortedArray()
-		val kept = ArrayList<Float>(sorted.size)
-		for (candidate in sorted) {
-			// The evaluator's own key-snap tolerance: two keys it cannot tell apart stay one key.
-			if (kept.isEmpty() || candidate - kept.last() >= EPS_KEY) {
-				kept.add(candidate)
+	): KeyformBundle? =
+		when (
+			val result =
+				buildKeyformBundle(
+					geometryGrid,
+					geometryBlend,
+					channels,
+					statics,
+					requireGeometry,
+					OutOfSpanPolicy.RejectOwner,
+				)
+		) {
+			is KeyformBundleResult.Bundled -> result.bundle
+			is KeyformBundleResult.Unrepresentable -> {
+				unsupported(category, subject, "${result.reason} (CMO3 stores one grid per object)")
+				null
 			}
 		}
-		return kept.toFloatArray()
-	}
 
 	/**
 	 * The forms of the CURRENT graph grid keyed by their per-parameter key values, for reuse.
@@ -341,12 +225,12 @@ internal class Cmo3KeyformLowering(
 	 * Rebuilds the grid web from [bundle]: bindings reused per parameter (keys rewritten), fresh
 	 * cell records, and the given per-cell forms.
 	 *
-	 * @param Any      owner           The source object owning keyformGridSource.
-	 * @param String   subject         The owner's id for notices.
-	 * @param Any?     currentGrid     The current keyformGridSource.
-	 * @param Function assignGrid      Assigns a fresh grid source.
-	 * @param Bundle   bundle          The re-bundled grid.
-	 * @param List     cellForms       One form object per bundle cell, in cell order.
+	 * @param Any           owner       The source object owning keyformGridSource.
+	 * @param String        subject     The owner's id for notices.
+	 * @param Any?          currentGrid The current keyformGridSource.
+	 * @param Function      assignGrid  Assigns a fresh grid source.
+	 * @param KeyformBundle bundle      The re-bundled grid.
+	 * @param List          cellForms   One form object per bundle cell, in cell order.
 	 * @return Boolean True on success.
 	 */
 	private fun writeGridWeb(
@@ -354,7 +238,7 @@ internal class Cmo3KeyformLowering(
 		subject: String,
 		currentGrid: Any?,
 		assignGrid: (Any?) -> Unit,
-		bundle: Bundle,
+		bundle: KeyformBundle,
 		cellForms: List<ACForm>,
 	): Boolean {
 		if (bundle.axes.isEmpty() && bundle.cells.isEmpty()) {
@@ -498,7 +382,7 @@ internal class Cmo3KeyformLowering(
 	private fun flagOf(value: ChannelValue?): Boolean? = (value as? ChannelValue.Flag)?.flag
 
 	/** True when every DRAW_ORDER value in [bundle] is integral (CMO3 stores draw order as Int). */
-	private fun drawOrdersAreIntegral(bundle: Bundle): Boolean =
+	private fun drawOrdersAreIntegral(bundle: KeyformBundle): Boolean =
 		bundle.cells.all { cell ->
 			val drawOrder = scalarOf(cell.channels[FormChannel.DRAW_ORDER]) ?: return@all true
 			drawOrder == drawOrder.toInt().toFloat()

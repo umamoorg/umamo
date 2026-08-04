@@ -37,20 +37,34 @@ internal fun fileCommands(onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): L
 	)
 
 /**
- * The CMO3 export command, available only while a puppet document is open.
+ * The export commands, one per target format, available only while a puppet document is open.
  *
- * @param Function canExport Whether the open document can be exported, queried live.
- * @param Function onExport Runs the export (picker, reconcile, write, report).
+ * Neither carries a default chord.  With two formats there is no honest meaning for one "export"
+ * accelerator, and the pair is one keystroke away in the palette and one row apart in the File menu -
+ * a shortcut that silently favours whichever format was implemented first is worse than none.
+ *
+ * @param Function canExport      Whether the open document can be exported, queried live.
+ * @param Function onExportCmo3   Runs the CMO3 export (picker, reconcile, write, report).
+ * @param Function onExportMoc3   Runs the MOC3 export (picker, lower, write the family, report).
  * @return List<Command> The commands to register.
  * @note Registered in its own effect keyed on the document AND the session, so the handler always closes
  *   over the pair the export reconciles from - a mismatched pair would write one model's rig onto
  *   another's atlas pages.
  */
-internal fun fileExportCommands(canExport: () -> Boolean, onExport: () -> Unit): List<Command> =
+internal fun fileExportCommands(
+	canExport: () -> Boolean,
+	onExportCmo3: () -> Unit,
+	onExportMoc3: () -> Unit,
+): List<Command> =
 	listOf(
 		Command(
 			"file.exportCmo3",
 			title = Res.string.cmd_export_cmo3,
 			availability = CommandAvailability { canExport() },
-		) { onExport() },
+		) { onExportCmo3() },
+		Command(
+			"file.exportMoc3",
+			title = Res.string.cmd_export_moc3,
+			availability = CommandAvailability { canExport() },
+		) { onExportMoc3() },
 	)
