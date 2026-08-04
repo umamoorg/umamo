@@ -10,6 +10,7 @@ import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.PuppetTextures
@@ -35,6 +36,17 @@ class Moc3Document(
 	override val textures: PuppetTextures,
 	override val liveParams: LiveParams,
 	val atlasPages: List<ByteArray>,
+	/** The parsed manifest, whose texture names and non-file sections a MOC3 export re-emits. */
+	val manifest: Model3Json,
+	/**
+	 * Every sidecar the manifest referenced and the loader could read, keyed by its manifest-relative
+	 * name (`Erica.physics3.json`, `motion/idle.motion3.json`).
+	 *
+	 * Retained as TEXT, unparsed: Umamo models none of these, so a MOC3 export re-emits them verbatim
+	 * rather than rebuilding them from a model that never held them.  Reading them at import is what
+	 * makes that possible at all - a picker-driven export has no access to the source directory.
+	 */
+	val sidecarTexts: Map<String, String>,
 ) : PuppetDocument
 
 /**
@@ -81,7 +93,8 @@ suspend fun loadMoc3Document(file: PlatformFile, mocBytes: ByteArray): DocumentL
  *    fails as MissingTexture: a puppet without its atlas wiring is broken, not degraded.
  *  - cdi3 (display names) is OPTIONAL - the manifest's DisplayInfo reference first, then the
  *    basename fallback; absent or unparseable degrades to raw format ids.
- *  - physics3/pose3/userdata3 are not read - nothing consumes them yet.
+ *  - physics3/pose3/userdata3/exp3/motion3 are read as TEXT and retained for a MOC3 export to
+ *    re-emit; each is optional, and a missing one degrades that export rather than the open.
  *  - No failure escapes as an exception: like the byte-level CMO3 loader, anything thrown by the
  *    import/assembly is caught and reported as ParseFailed, never propagated to the caller.
  *
@@ -163,6 +176,10 @@ internal fun buildMoc3Document(
 				return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))
 			}
 
+	// Pass-through sidecars: read now, re-emitted verbatim by a MOC3 export.  Every one is optional -
+	// an unreadable physics file degrades the export's fidelity, never the open.
+	val sidecarTexts = readPassThroughSidecars(manifest, readRelative)
+
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
 	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
 
@@ -181,12 +198,46 @@ internal fun buildMoc3Document(
 				textures = textures,
 				liveParams = initialLiveParams(puppet),
 				atlasPages = pageBytes,
+				manifest = manifest,
+				sidecarTexts = sidecarTexts,
 			),
 		)
 	}.getOrElse { failure ->
 		UmamoLog.error("failed to import $path", failure)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}
+}
+
+/**
+ * Reads every sidecar the manifest references, as text, keyed by its manifest-relative name.
+ *
+ * The cdi3 is deliberately NOT among them: it is the one sidecar the export synthesizes from the
+ * model (display names are model data), so carrying the imported one through would overwrite the
+ * names the rigger has since changed.
+ *
+ * @param Model3Json manifest     The parsed manifest.
+ * @param Function   readRelative Reads a manifest-directory-relative reference, or null when missing.
+ * @return Map Each readable sidecar's text by relative name.
+ */
+private fun readPassThroughSidecars(manifest: Model3Json, readRelative: (String) -> ByteArray?): Map<String, String> {
+	val references = ArrayList<String>()
+	manifest.fileReferences.physics?.let(references::add)
+	manifest.fileReferences.pose?.let(references::add)
+	manifest.fileReferences.userData?.let(references::add)
+	manifest.fileReferences.expressions?.forEach { expression -> references.add(expression.file) }
+	manifest.fileReferences.motions?.values?.forEach { motions ->
+		motions.forEach { motion -> references.add(motion.file) }
+	}
+	val texts = LinkedHashMap<String, String>(references.size)
+	for (reference in references.distinct()) {
+		val bytes = readRelative(reference)
+		if (bytes == null) {
+			UmamoLog.warn("sidecar $reference is missing; a MOC3 export will not carry it")
+			continue
+		}
+		texts[reference] = bytes.decodeToString()
+	}
+	return texts
 }
 
 /**

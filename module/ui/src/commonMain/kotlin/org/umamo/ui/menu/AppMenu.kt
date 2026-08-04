@@ -16,6 +16,7 @@ import org.umamo.ui.resources.menu_edit
 import org.umamo.ui.resources.menu_exit
 import org.umamo.ui.resources.menu_export
 import org.umamo.ui.resources.menu_export_cmo3
+import org.umamo.ui.resources.menu_export_moc3
 import org.umamo.ui.resources.menu_file
 import org.umamo.ui.resources.menu_help
 import org.umamo.ui.resources.menu_import
@@ -47,11 +48,12 @@ import org.umamo.ui.resources.workspace_new
  *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean canExportCmo3 Whether an exportable puppet document is open (gates the Export CMO3 row).
+ * @param Boolean canExportCmo3 Whether an exportable puppet document is open (gates both Export rows).
  * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
  * @param Function onExportCmo3 Exports the open document via a picker (routes through file.exportCmo3).
+ * @param Function onExportMoc3 Exports the open document's moc family (routes through file.exportMoc3).
  * @param Function onExit Closes the application.
  * @return TopLevelMenu The File menu.
  */
@@ -64,6 +66,7 @@ fun fileMenu(
 	onOpenRecent: (String) -> Unit,
 	onImportMoc3: () -> Unit,
 	onExportCmo3: () -> Unit,
+	onExportMoc3: () -> Unit,
 	onExit: () -> Unit,
 ): TopLevelMenu =
 	TopLevelMenu(
@@ -99,6 +102,12 @@ fun fileMenu(
 								label = stringResource(Res.string.menu_export_cmo3),
 								onSelect = onExportCmo3,
 								shortcut = keymap.chordFor("file.exportCmo3")?.let { chord -> formatAccelerator(chord) },
+								enabled = canExportCmo3,
+							),
+							MenuItem.Action(
+								label = stringResource(Res.string.menu_export_moc3),
+								onSelect = onExportMoc3,
+								shortcut = keymap.chordFor("file.exportMoc3")?.let { chord -> formatAccelerator(chord) },
 								enabled = canExportCmo3,
 							),
 						),

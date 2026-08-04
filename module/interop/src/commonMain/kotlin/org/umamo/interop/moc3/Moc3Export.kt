@@ -74,9 +74,15 @@ object Moc3Export {
 	 *
 	 * @param PuppetModel puppet  The rig to export.
 	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
+	 * @param CanvasToParentSpace? canvasToParentSpace Inverts the deformer chain for an unkeyed
+	 *   drawable; null drops those drawables with a notice instead (see [CanvasToParentSpace]).
 	 * @return Lowered The document and its notices.
 	 */
-	fun toMocDocument(puppet: PuppetModel, version: MocVersion = puppet.runtimeTarget.mocVersion()): Lowered {
+	fun toMocDocument(
+		puppet: PuppetModel,
+		version: MocVersion = puppet.runtimeTarget.mocVersion(),
+		canvasToParentSpace: CanvasToParentSpace? = null,
+	): Lowered {
 		val notices = ArrayList<ExportNotice>()
 		val downgraded = Moc3VersionDowngrade.strip(puppet, version)
 		notices.addAll(downgraded.notices)
@@ -89,10 +95,12 @@ object Moc3Export {
 		for (drawable in puppet.drawables) {
 			if (drawable.mesh == null) {
 				dropped[drawable.id] = "a drawable with no mesh cannot be written"
-			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
+			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null && canvasToParentSpace == null) {
 				// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
 				// with no grid there are no deltas to recover the parent-local form from.  Inverting the
-				// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach.
+				// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach -
+				// so without the injected seam the drawable is dropped rather than written at the wrong
+				// scale, which is what a canvas-space value under a warp would be.
 				dropped[drawable.id] = "an unkeyed drawable under a deformer has no parent-space geometry to write"
 			}
 		}
@@ -338,6 +346,25 @@ object Moc3Export {
 			plan.drawables.map { drawable ->
 				val mesh = drawable.mesh!!
 				val space = spaceOfParent(plan, drawable.parentDeformerId)
+				// An unkeyed drawable under a deformer stores its rest mesh in CANVAS space, so the base
+				// every keyform is written relative to has to be inverted through the chain first.  A keyed
+				// one is already parent-local (the import's rest-mesh pass guarantees base + delta is the
+				// absolute parent-space position), so the seam is asked only where it is needed.
+				val basePositions =
+					if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
+						canvasToParentSpace?.invoke(drawable.id, mesh.positions)?.also { converted ->
+							if (converted.size != mesh.positions.size) {
+								unsupported(
+									"drawable",
+									drawable.id.raw,
+									"the canvas-to-parent conversion returned ${converted.size} coordinates for " +
+										"${mesh.positions.size}; the rest mesh was written unconverted",
+								)
+							}
+						}?.takeIf { converted -> converted.size == mesh.positions.size } ?: mesh.positions
+					} else {
+						mesh.positions
+					}
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
@@ -378,8 +405,8 @@ object Moc3Export {
 								(bundle?.cells?.getOrNull(cellIndex)?.geometry as? org.umamo.runtime.model.MeshDeltaForm)
 									?.positionDeltas
 							val absolute =
-								FloatArray(mesh.positions.size) { coordinate ->
-									mesh.positions[coordinate] + (deltas?.getOrNull(coordinate) ?: 0f)
+								FloatArray(basePositions.size) { coordinate ->
+									basePositions[coordinate] + (deltas?.getOrNull(coordinate) ?: 0f)
 								}
 							ArtMeshKeyform(
 								vertexPositions = convertPointsToMoc(space, absolute, canvas),
@@ -500,10 +527,15 @@ object Moc3Export {
 	 *
 	 * @param PuppetModel puppet  The rig to export.
 	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
+	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
 	 * @return Pair The bytes and the advisory report.
 	 */
-	fun write(puppet: PuppetModel, version: MocVersion = puppet.runtimeTarget.mocVersion()): Pair<ByteArray, ExportReport> {
-		val lowered = toMocDocument(puppet, version)
+	fun write(
+		puppet: PuppetModel,
+		version: MocVersion = puppet.runtimeTarget.mocVersion(),
+		canvasToParentSpace: CanvasToParentSpace? = null,
+	): Pair<ByteArray, ExportReport> {
+		val lowered = toMocDocument(puppet, version, canvasToParentSpace)
 		return MocEncoder.bakeFresh(version, lowered.document) to lowered.report
 	}
 
@@ -641,3 +673,20 @@ internal fun org.umamo.runtime.model.ChannelGrids.onlyChannels(
 		gridsByChannel.filterKeys { channel -> channel in keep },
 	)
 }
+
+/**
+ * Inverts a drawable's canvas-space rest mesh into its parent deformer's space.
+ *
+ * An injected seam rather than a call, because the inverse lives in `:render` (a closed-form rotation
+ * inverse and a damped-Newton warp inverse over the evaluated chain) and `:interop` is its sibling
+ * over `:runtime`, not its dependent - the same shape as the atlas decode's injected byte reader.
+ *
+ * Only reached for a drawable with no keyform grid under a deformer: everything else already stores
+ * parent-local values.  Returning null (or a differently-sized array) leaves the rest mesh as authored
+ * and raises a notice, which is the honest outcome when the chain cannot be inverted at all.
+ *
+ * @param DrawableId drawable  The drawable being written.
+ * @param FloatArray positions Its interleaved canvas-space rest positions.
+ * @return FloatArray? The interleaved parent-space positions, or null when the chain cannot invert.
+ */
+typealias CanvasToParentSpace = (drawable: org.umamo.runtime.model.DrawableId, positions: FloatArray) -> FloatArray?

@@ -204,7 +204,10 @@ class CommandTableOrderTest {
 	fun fileAndLogTablesAreComplete() {
 		val commands = fileCommands({}, {}) + logCommands {}
 		assertEquals(listOf("file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
-		assertEquals(listOf("file.exportCmo3"), fileExportCommands({ true }, {}).map { command -> command.id })
+		assertEquals(
+			listOf("file.exportCmo3", "file.exportMoc3"),
+			fileExportCommands({ true }, {}, {}).map { command -> command.id },
+		)
 	}
 
 	/**
@@ -214,7 +217,7 @@ class CommandTableOrderTest {
 	@Test
 	fun exportAvailabilityFollowsTheOpenDocument() {
 		var exportable = false
-		val export = fileExportCommands({ exportable }, {}).single()
+		val export = fileExportCommands({ exportable }, {}, {}).first()
 		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
 		exportable = true
 		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")

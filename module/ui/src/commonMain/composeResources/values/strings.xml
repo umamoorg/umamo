@@ -58,9 +58,11 @@
 	<string name="menu_import_cmo3">CMO3…</string>
 	<string name="menu_import_moc3">MOC3…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
+	<string name="menu_export_moc3">MOC3…</string>
 	<string name="cmd_import_cmo3">Import CMO3…</string>
 	<string name="cmd_import_moc3">Import MOC3…</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
+	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
 
 	<!-- Edit menu. -->

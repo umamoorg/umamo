@@ -144,6 +144,8 @@ object Moc3Import {
 
 		val parameterNameById = displayInfo?.parameters?.associate { it.id to it.name } ?: emptyMap()
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
+		// The Umamo cdi3 extension: art-mesh display names, which a moc alone cannot carry.
+		val drawableNameById = displayInfo?.drawables?.associate { it.id to it.name } ?: emptyMap()
 
 		// Index → runtime id tables, all in FILE order (every cross-reference in the MOC3 is a file-order
 		// index).  Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
@@ -701,8 +703,9 @@ object Moc3Import {
 				val drawable =
 					Drawable(
 						id = DrawableId(source.id),
-						// cdi3 carries no drawable names; the format id is all a baked model has.
-						name = source.id,
+						// The MOC3 itself carries no drawable names; only the cdi3 Meshes extension does, so a
+						// file the official editor wrote falls back to the format id.
+						name = drawableNameById[source.id] ?: source.id,
 						parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
 						// MOC3 v6 §5.6 s153: a nonzero packed extended blend overrides the legacy 2-bit
 						// constant-flags field (which then only carries the old-runtime approximation).
