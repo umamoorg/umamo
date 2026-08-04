@@ -12,17 +12,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the on-disk identity of the section indices the codec does not model yet, so they can be
- * folded into the typed `Section` enum knowing what they hold rather than guessing.
+ * Pins the on-disk identity of the section indices a bake once had to carry verbatim from a
+ * reference container, so they can be folded into the typed `Section` enum knowing what they hold
+ * rather than guessing.
  *
- * These indices survive a bake today only because `MocEncoder.bake` carries them verbatim from
- * the reference container, which is exactly why a fresh synthesis is impossible while they stay
- * unidentified.
+ * Every index below is typed and synthesized now - `MocRuntimeSlots` sizes the runtime slots,
+ * `MocDerivedIndexes` rebuilds the drawable and render-order start columns, and `MocLowering` writes
+ * the part keyform base, the per-form color rows, and the parameter start columns - which is what
+ * makes `MocEncoder.bakeFresh` possible without a reference file.  The identities pinned here are
+ * the evidence those writers are derived from, so the probe stays as the gate that catches a corpus
+ * sample contradicting one.
  *
- * Sections 137-142 are per-FORM color * row references, not blend-shape sections as that table says - and their multiply and screen
- * arrays are bit-identical, the same shape the offscreen keyform rows (162/163) already have.
- * Section 56's empty-slot filler is not arbitrary either: it is -1 for a NORMAL parameter and 0
- * for a BLEND_SHAPE one, which is what makes the column reproducible.
+ * Sections 137-142 are per-FORM color row references, not blend-shape sections, and their multiply
+ * and screen arrays are bit-identical, the same shape the offscreen keyform rows (162/163) already
+ * have.  Section 56's empty-slot filler is not arbitrary either: it is -1 for a NORMAL parameter and
+ * 0 for a BLEND_SHAPE one, which is what makes the column reproducible.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -172,9 +176,10 @@ class UnmodeledSectionIdentityProbeTest {
 	 * Sections 137-142 are per-FORM color row references, `colorBase[object] + gridIndex`, and each
 	 * pair's multiply and screen arrays are bit-identical.
 	 *
-	 * Our `MOC3.md` §5.6 currently lumps 115-148 together as blend-shape sections, which is wrong for
-	 * these six: they belong to WarpForm / RotForm / ArtMeshForm and arrived in moc 5.  Both halves of
-	 * the claim are checked here, per form of every object of every v5+ sample.
+	 * An earlier revision of `MOC3.md` §5.6 lumped 115-148 together as blend-shape sections, which is
+	 * wrong for these six: they belong to WarpForm / RotForm / ArtMeshForm and arrived in Cubism 5.
+	 * Both halves of the claim are checked here, per form of every object of every v5+ sample, and the
+	 * table now names the six individually.
 	 */
 	@Test
 	fun perFormColorReferencesAreBasePlusGridIndex() {

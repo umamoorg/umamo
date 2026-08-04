@@ -53,24 +53,37 @@ class Moc3IndexPlan private constructor(
 		/**
 		 * Resolves the file order of every object list in [puppet].
 		 *
-		 * @param PuppetModel puppet The rig to export.
+		 * @param PuppetModel puppet              The rig to export.
+		 * @param List        exportableDrawables The drawables that will actually be written.
+		 * @param Set         exportableParts     The parts that will actually be written.
 		 * @return Moc3IndexPlan The resolved plan.
 		 */
-		fun of(puppet: PuppetModel): Moc3IndexPlan {
-			val orderedParts = partsParentFirst(puppet)
+		fun of(
+			puppet: PuppetModel,
+			exportableDrawables: List<Drawable> = puppet.drawables,
+			exportableParts: Set<PartId> = puppet.parts.mapTo(HashSet()) { part -> part.id },
+		): Moc3IndexPlan {
+			// Same reason the drawable list is filtered: a part the export omits must not hold an index,
+			// or every part after it - and every drawable's owning-part reference - names the wrong one.
+			val orderedParts = partsParentFirst(puppet).filter { part -> part.id in exportableParts }
 			val orderedDeformers = deformersParentFirst(puppet.deformers)
 			return Moc3IndexPlan(
 				parts = orderedParts,
 				deformers = orderedDeformers,
 				// Drawables and parameters carry no intra-list dependency, so their runtime order is
 				// already a valid file order and keeping it makes the export's output stable.
-				drawables = puppet.drawables,
+				//
+				// The list is the drawables that will ACTUALLY be written, not every drawable the rig has.
+				// A moc addresses drawables by position, so if the export drops one - a mesh-less drawable,
+				// say - and the plan still counted it, every index after it would name the wrong drawable
+				// and every mask reference would silently shift.
+				drawables = exportableDrawables,
 				parameters = puppet.parameters,
 				partIndexById = orderedParts.withIndex().associate { (index, part) -> part.id to index },
 				deformerIndexById =
 					orderedDeformers.withIndex().associate { (index, deformer) -> deformer.id to index },
 				drawableIndexById =
-					puppet.drawables.withIndex().associate { (index, drawable) -> drawable.id to index },
+					exportableDrawables.withIndex().associate { (index, drawable) -> drawable.id to index },
 				parameterIndexById =
 					puppet.parameters.withIndex().associate { (index, parameter) -> parameter.id to index },
 			)

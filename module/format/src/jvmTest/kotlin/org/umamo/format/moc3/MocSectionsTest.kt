@@ -12,8 +12,9 @@ import kotlin.test.assertTrue
 
 /**
  * Layer-1 typed-section decode: every present section re-encodes to its exact on-disk element
- * region (lossless decode), plus structural invariants that tie sections to CountInfo. Skips
- * gracefully without samples.
+ * region (lossless decode), plus structural invariants that tie sections to CountInfo and to each
+ * other (the deformer head columns, and the unified keyform binding against its per-type columns).
+ * Skips gracefully without samples.
  */
 class MocSectionsTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }

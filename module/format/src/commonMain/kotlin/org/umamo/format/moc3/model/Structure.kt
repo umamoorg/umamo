@@ -12,8 +12,9 @@ public data class Part(
 	/**
 	 * MOC3 §5.6 s7/s8: the part's visibility.  The file stores TWO flags here: Lina's research
 	 * lists them as visible_artmeshes and visible_deformers, but without defining what they do.
-	 * Both are 1 on every part of every corpus sample and no CMO3 twin keeps a hidden part, so which is which is unpinned.  One
-	 * field carries them: a decode takes s7, and a bake writes the same value to both.
+	 * Both are 1 on every part of every corpus sample and no CMO3 twin keeps a hidden part, so
+	 * which is which is unpinned.  One field carries them: a decode takes s7, and a bake writes
+	 * the same value to both.
 	 */
 	val isVisible: Boolean = true,
 ) {

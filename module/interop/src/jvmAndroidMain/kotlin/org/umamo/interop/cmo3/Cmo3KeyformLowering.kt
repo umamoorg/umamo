@@ -58,11 +58,12 @@ import org.umamo.runtime.model.WarpLatticeForm
  * keyform cells, and rebuilding the grid web (KeyformGridSource / KeyformBindingSource /
  * KeyformOnGrid / KeyOnParameter / the forms pool) that encodes it.
  *
- * The bundle axes are the union of the geometry axes and every channel track's axes; geometry and
- * channels refine onto that union through the SAME grid algebra compaction verifies itself against
- * (refinedToUnion), so a track that came from an import compaction refines back bit-identically.
- * A track whose own span does not cover the union of its parameter's keys cannot be represented in
- * a bundled cell without inventing out-of-span values, so the owner is left untouched and reported.
+ * The re-bundling itself is the format-neutral buildKeyformBundle (KeyformBundle.kt), shared with the
+ * MOC3 export so both formats union the axes and re-interpolate through the same grid algebra.  What
+ * stays here is CMO3's half: the RejectOwner policy and the graph writing.  So a track whose own span
+ * does not cover the union of its parameter's keys cannot be represented in a bundled cell without
+ * inventing out-of-span values, and its owner is left untouched and reported rather than partially
+ * written.
  *
  * Object reuse is the byte-diff minimizer: surviving bindings, forms, and set objects are mutated
  * in place (their recorded child slots replay), so an untouched value re-emits byte-identically;
@@ -224,12 +225,12 @@ internal class Cmo3KeyformLowering(
 	 * Rebuilds the grid web from [bundle]: bindings reused per parameter (keys rewritten), fresh
 	 * cell records, and the given per-cell forms.
 	 *
-	 * @param Any      owner           The source object owning keyformGridSource.
-	 * @param String   subject         The owner's id for notices.
-	 * @param Any?     currentGrid     The current keyformGridSource.
-	 * @param Function assignGrid      Assigns a fresh grid source.
-	 * @param KeyformBundle   bundle          The re-bundled grid.
-	 * @param List     cellForms       One form object per bundle cell, in cell order.
+	 * @param Any           owner       The source object owning keyformGridSource.
+	 * @param String        subject     The owner's id for notices.
+	 * @param Any?          currentGrid The current keyformGridSource.
+	 * @param Function      assignGrid  Assigns a fresh grid source.
+	 * @param KeyformBundle bundle      The re-bundled grid.
+	 * @param List          cellForms   One form object per bundle cell, in cell order.
 	 * @return Boolean True on success.
 	 */
 	private fun writeGridWeb(

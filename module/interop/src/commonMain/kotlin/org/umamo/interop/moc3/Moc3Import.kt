@@ -107,10 +107,10 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
  *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
  *    PART-owned records carry only a draw-order delta (a part has no other blendable channel) and
- *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into [org.umamo.runtime.model.PartComposite] per owner part
- *    (packed blend int, flags, mask indices) - the part's group mode becomes Isolated - with the
- *    keyformed opacity/color channels merged into the part's [PartForm] grid (they ride the same
- *    cells, MOC3 §5.6).
+ *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into
+ *    [org.umamo.runtime.model.PartComposite] per owner part (packed blend int, flags, mask indices)
+ *    - the part's group mode becomes Isolated - with the keyformed opacity/color channels merged
+ *    into the part's [PartForm] grid (they ride the same cells, MOC3 §5.6).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5</a>
  */
@@ -144,6 +144,8 @@ object Moc3Import {
 
 		val parameterNameById = displayInfo?.parameters?.associate { it.id to it.name } ?: emptyMap()
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
+		// The Umamo cdi3 extension: art-mesh display names, which a moc alone cannot carry.
+		val drawableNameById = displayInfo?.drawables?.associate { it.id to it.name } ?: emptyMap()
 
 		// Index → runtime id tables, all in FILE order (every cross-reference in the MOC3 is a file-order
 		// index).  Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
@@ -298,8 +300,8 @@ object Moc3Import {
 
 		// ---- blend shapes (MOC3 v4+ §5.6) ----
 		// Records pre-indexed per target object; targetIndex is a deformer index for WARP/ROTATION
-		// (already remapped by the decoder) and a drawable file index for ART_MESH. PART records are
-		// left unclaimed here on purpose - see the class docblock.
+		// (already remapped by the decoder), a drawable file index for ART_MESH, and a part file index
+		// for PART.
 		val blendRecordsByTarget = mocDocument.blendShapes.groupBy { record -> record.target to record.targetIndex }
 		val defaultByParameterId = parameters.associate { parameter -> parameter.id to parameter.default }
 		val defaultValue: (ParameterId) -> Float = { parameterId -> defaultByParameterId[parameterId] ?: 0f }
@@ -701,8 +703,9 @@ object Moc3Import {
 				val drawable =
 					Drawable(
 						id = DrawableId(source.id),
-						// cdi3 carries no drawable names; the format id is all a baked model has.
-						name = source.id,
+						// The MOC3 itself carries no drawable names; only the cdi3 Meshes extension does, so a
+						// file the official editor wrote falls back to the format id.
+						name = drawableNameById[source.id] ?: source.id,
 						parentDeformerId = deformerIds.getOrNull(source.parentDeformerIndex),
 						// MOC3 v6 §5.6 s153: a nonzero packed extended blend overrides the legacy 2-bit
 						// constant-flags field (which then only carries the old-runtime approximation).
@@ -720,11 +723,11 @@ object Moc3Import {
 						invertMask = source.constantFlags and ConstantFlag.IS_INVERTED_MASK != 0,
 						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
 						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
-						// Visibility/lock are editor-only authoring state; a baked model shows everything.
 						// MOC3 §5.6 s37: the editor's eye toggle.  A bake normally deletes what is hidden, so
 						// this is true for almost every imported drawable - but a file exported with hidden
 						// meshes kept carries the flag, and Umamo's own export always does.
 						isVisible = source.isVisible,
+						// Lock IS editor-only authoring state the bake drops, so everything imports unlocked.
 						isSelectable = true,
 						// MOC3 §5.6 s41: the atlas page this mesh samples, so a detached model can still say.
 						texturePage = source.textureIndex,
@@ -852,10 +855,10 @@ object Moc3Import {
 		 * per key.  It gets the same reference treatment as every other blend payload - the stored delta
 		 * plus the channel's value at the DEFAULT pose - so the evaluator's subtraction cancels exactly.
 		 *
-		 * @param MocPart             source        The moc part.
-		 * @param Int                 staticOrder   The part's static draw order.
-		 * @param ChannelGrids        channelGrids  The part's own keyform tracks (the reference source).
-		 * @param List<MocBlendShape> records       The part's records.
+		 * @param MocPart             source       The moc part.
+		 * @param Float               staticOrder  The part's static draw order.
+		 * @param ChannelGrids        channelGrids The part's own keyform tracks (the reference source).
+		 * @param List<MocBlendShape> records      The part's records.
 		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings.
 		 */
 		fun partBlendShapesOf(
@@ -996,7 +999,8 @@ object Moc3Import {
 				canvasHeight = canvas?.height ?: 0f,
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
-				// Retained purely so an export can invert the conversions below; nothing reads it at runtime.
+				// Retained purely so an export can invert this import's space conversions; the evaluator and
+				// the renderer never read it.
 				pixelsPerUnit = pixelsPerUnit,
 				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
 				// starts at the matching Cubism target rather than NoTarget.
@@ -1026,8 +1030,8 @@ object Moc3Import {
 	 * The result joins [claimedIds], so it collides neither with an id the file already uses nor with
 	 * another synthesized one.
 	 *
-	 * @param Int deformerIndex  The deformer's file index.
-	 * @param MutableSet claimedIds Every id already spoken for; the returned id is added to it.
+	 * @param Int        deformerIndex The deformer's file index.
+	 * @param MutableSet claimedIds    Every id already spoken for; the returned id is added to it.
 	 * @return String The synthesized id.
 	 */
 	private fun synthesizedDeformerId(deformerIndex: Int, claimedIds: MutableSet<String>): String {
@@ -1267,6 +1271,7 @@ object Moc3Import {
 	 * @param Set         drawOrderGroupPartIndices Part file indices referenced as render-order groups.
 	 * @param Function    partStaticDrawOrder       Static draw order of a moc part.
 	 * @param Function    partChannelsOf            Per-channel keyform tracks of a moc part.
+	 * @param Function    partBlendShapesOf         Draw-order blend bindings of a moc part, given its tracks.
 	 * @param Function    partCompositeOf           Compositing settings of a moc part (null when not isolated).
 	 * @return Pair<List<Part>, List<OrgChild>> The runtime parts (file order) and the root children.
 	 */

@@ -18,10 +18,10 @@ import kotlin.test.assertTrue
  * Pins every command table's contents AND the order the shell registers them in.
  *
  * Two things ride on this.  A command silently dropped by a refactor is otherwise invisible until a user
- * presses the key that no longer does anything - nothing else in the tree enumerates the tables.  And
- * [CommandRegistry] is insertion-ordered, which the command palette shows verbatim for a blank query, so
- * the order here IS the order the user reads; a regrouping that shuffles it should be a deliberate edit
- * to these lists, not a surprise.
+ * reaches for it - a menu row, a palette entry, or a chord that does nothing at all - because nothing else
+ * in the tree enumerates the tables.  And [CommandRegistry] is insertion-ordered, which the command palette
+ * shows verbatim for a blank query, so the order here IS the order the user reads; a regrouping that
+ * shuffles it should be a deliberate edit to these lists, not a surprise.
  *
  * Every builder takes its collaborators as plain values and resolves the rest at dispatch time, so a
  * table builds with no document, no renderer, and no composition - which is what makes this test
@@ -204,7 +204,10 @@ class CommandTableOrderTest {
 	fun fileAndLogTablesAreComplete() {
 		val commands = fileCommands({}, {}) + logCommands {}
 		assertEquals(listOf("file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
-		assertEquals(listOf("file.exportCmo3"), fileExportCommands({ true }, {}).map { command -> command.id })
+		assertEquals(
+			listOf("file.exportCmo3", "file.exportMoc3"),
+			fileExportCommands({ true }, {}, {}).map { command -> command.id },
+		)
 	}
 
 	/**
@@ -214,7 +217,7 @@ class CommandTableOrderTest {
 	@Test
 	fun exportAvailabilityFollowsTheOpenDocument() {
 		var exportable = false
-		val export = fileExportCommands({ exportable }, {}).single()
+		val export = fileExportCommands({ exportable }, {}, {}).first()
 		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
 		exportable = true
 		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")

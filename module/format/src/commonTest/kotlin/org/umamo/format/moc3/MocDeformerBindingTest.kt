@@ -18,12 +18,12 @@ import kotlin.test.assertEquals
  * Pins that a lowered deformer's keyform binding is written identically to the unified column
  * (MOC3 §5.6 s12) and to its per-type column (s19 for a warp, s25 for a rotation).
  *
- * The two columns are the same datum stored twice and the official runtime may raises a MOC3
- * validation error if they disagree.  [org.umamo.format.moc3.model.Deformer] therefore carries ONE `keyformBindingIndex` and the
- * lowering projects both columns from it, which makes divergence unrepresentable rather than
- * merely unlikely.  This test is what keeps it that way: a refactor that walked the unified list
- * and the per-type lists separately would still compile and still pass every corpus gate, because
- * the corpus never diverges - it would only break on a file we emitted.
+ * The two columns are the same datum stored twice and the official runtime may raise a MOC3
+ * validation error if they disagree.  [org.umamo.format.moc3.model.Deformer] therefore carries ONE
+ * `keyformBindingIndex` and the lowering projects both columns from it, which makes divergence
+ * unrepresentable rather than merely unlikely.  This test is what keeps it that way: a refactor that
+ * walked the unified list and the per-type lists separately would still compile and still pass every
+ * corpus gate, because the corpus never diverges - it would only break on a file we emitted.
  *
  * The deformers below deliberately interleave warps and rotations with distinct binding indices,
  * so a lowering that confused a type-local index for a unified one cannot pass by coincidence.
