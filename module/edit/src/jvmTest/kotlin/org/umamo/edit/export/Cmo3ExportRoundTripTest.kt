@@ -34,9 +34,9 @@ import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DocumentField
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -65,7 +65,7 @@ class Cmo3ExportRoundTripTest {
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
-		val report: Cmo3ExportReport,
+		val report: ExportReport,
 	)
 
 	/**
@@ -81,7 +81,8 @@ class Cmo3ExportRoundTripTest {
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
-		val reimportedSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+		val reimportedSource =
+			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -343,7 +344,10 @@ class Cmo3ExportRoundTripTest {
 					val extensions = (source._extensions as? Iterable<*>) ?: emptyList<Any?>()
 					val hasRegion =
 						extensions.filterIsInstance<CTextureInputExtension>().any { extension ->
-							((extension._textureInputs as? Iterable<*>) ?: emptyList<Any?>()).any { it is CTextureInput_TextureAtlasRegion }
+							(
+								(extension._textureInputs as? Iterable<*>)
+									?: emptyList<Any?>()
+							).any { it is CTextureInput_TextureAtlasRegion }
 						}
 					if (hasRegion) {
 						(source.id as? Id)?.idstr?.let { idStr -> add(DrawableId(idStr)) }
@@ -380,7 +384,8 @@ class Cmo3ExportRoundTripTest {
 	@Test
 	fun worldOriginEditReportsInsteadOfSilentlyDropping() {
 		val file = skipMessageOrNull() ?: return
-		val result = roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginY) }
+		val result =
+			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginY) }
 		assertTrue(
 			result.report.notices.any { notice -> notice is ExportNotice.UnsupportedChange && notice.subject == "world origin" },
 			"world origin edit must surface as a notice",

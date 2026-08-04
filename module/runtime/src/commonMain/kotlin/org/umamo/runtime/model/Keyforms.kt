@@ -30,8 +30,9 @@ data class Parameter(
 	/**
 	 * Whether the axis WRAPS at its limits instead of clamping - a value past [max] re-enters at [min].
 	 *
-	 * Used for continuously-cycling rigs (a spinning wheel, a looping tail).  MOC3 §5.5 s54; the
-	 * evaluator does not honour it yet, so this is carried for round-trip fidelity rather than read.
+	 * Used for continuously-cycling rigs (a spinning wheel, a looping tail).  MOC3 §5.5 s54.  The
+	 * evaluator does not honor it yet, so it feeds the runtime-target feature scan and MOC3
+	 * round-trip fidelity rather than driving deformation.
 	 */
 	val repeat: Boolean = false,
 )
