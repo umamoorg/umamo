@@ -1,5 +1,7 @@
 package org.umamo.interop
 
+import org.umamo.runtime.model.RuntimeFeature
+
 /**
  * One advisory finding from a CMO3 export.
  *
@@ -31,6 +33,22 @@ sealed interface ExportNotice {
 	 * @property List drawableNames The affected drawables' display names.
 	 */
 	data class WeldDivergence(val drawableNames: List<String>) : ExportNotice
+
+	/**
+	 * A feature the export target's runtime cannot load, removed from the written file.
+	 *
+	 * Distinct from [UnsupportedChange], which reports what the lowering could not express: this one
+	 * reports what the lowering deliberately took OUT because the chosen version predates it.  The
+	 * document itself keeps the feature - the strip runs on a copy - so re-exporting at a higher
+	 * version brings it back.
+	 *
+	 * @property RuntimeFeature feature  The stripped feature.
+	 * @property List           subjects The affected entities' display names, in document order.
+	 */
+	data class FeatureStripped(
+		val feature: RuntimeFeature,
+		val subjects: List<String>,
+	) : ExportNotice
 
 	/**
 	 * The document has no source artwork, so the CMO3 was built around a fabricated one.

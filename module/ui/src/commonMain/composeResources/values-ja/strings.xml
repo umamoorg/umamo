@@ -71,6 +71,8 @@
 	<string name="export_report_message">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamoでは正しく開けますが、Cubism Editor では表示されません。Cubismで表示できるファイルを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
+	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
+	<string name="export_more_subjects">(ほか %1$d 件)</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">%1$s を読み込めませんでした。</string>

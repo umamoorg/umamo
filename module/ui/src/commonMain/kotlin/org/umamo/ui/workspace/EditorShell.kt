@@ -66,6 +66,7 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
+import org.umamo.ui.properties.runtimeFeatureLabelRes
 import org.umamo.ui.resources.*
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
@@ -511,10 +512,41 @@ private fun exportReportMessage(report: Cmo3ExportReport): String {
 				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))
 			is ExportNotice.MissingSourceArt ->
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
+			is ExportNotice.FeatureStripped ->
+				lines.add(
+					"• " +
+						stringResource(
+							Res.string.export_feature_stripped,
+							stringResource(runtimeFeatureLabelRes(notice.feature)),
+							abbreviatedSubjects(notice.subjects),
+						),
+				)
 		}
 	}
 	return lines.joinToString("\n")
 }
+
+/**
+ * A subject list short enough for an alert: the first few names, then how many were left out.
+ *
+ * Stripping a 5.3 feature out of a large rig names every drawable that carried it - a thousand-name
+ * line in a dialog nobody can dismiss past.  The report itself keeps the full list; only this display
+ * abbreviates, so a caller that wants them all (a log, a future report panel) still has them.
+ *
+ * @param List subjects The affected entities' names.
+ * @return String The display text.
+ */
+@Composable
+private fun abbreviatedSubjects(subjects: List<String>): String {
+	val shown = subjects.take(SUBJECTS_SHOWN)
+	if (shown.size == subjects.size) {
+		return shown.joinToString()
+	}
+	return shown.joinToString() + " " + stringResource(Res.string.export_more_subjects, subjects.size - shown.size)
+}
+
+/** How many affected entities an export notice spells out before counting the rest. */
+private const val SUBJECTS_SHOWN: Int = 8
 
 /**
  * Resolves a document-open failure to its localized alert message resource.  Every message takes the

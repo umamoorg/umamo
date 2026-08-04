@@ -16,6 +16,7 @@ import org.umamo.format.moc3.model.WarpKeyform
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.legacyBlendFlagOf
+import org.umamo.interop.mocVersion
 import org.umamo.interop.packedBlendOf
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
@@ -65,14 +66,22 @@ object Moc3Export {
 	class Lowered(val document: MocDocument, val report: ExportReport)
 
 	/**
-	 * Lowers [puppet] into a [MocDocument] at [version].
+	 * Lowers [puppet] into a [MocDocument] at [version], stripping whatever that version cannot carry.
+	 *
+	 * The strip runs FIRST, on the model (see [Moc3VersionDowngrade]), so everything below this line
+	 * works on a rig the target version can express completely - and the loss is reported against
+	 * entities the rigger recognises rather than against section indices.
 	 *
 	 * @param PuppetModel puppet  The rig to export.
-	 * @param MocVersion  version The moc version to target.
+	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
 	 * @return Lowered The document and its notices.
 	 */
-	fun toMocDocument(puppet: PuppetModel, version: MocVersion): Lowered {
+	fun toMocDocument(puppet: PuppetModel, version: MocVersion = puppet.runtimeTarget.mocVersion()): Lowered {
 		val notices = ArrayList<ExportNotice>()
+		val downgraded = Moc3VersionDowngrade.strip(puppet, version)
+		notices.addAll(downgraded.notices)
+		@Suppress("NAME_SHADOWING")
+		val puppet = downgraded.puppet
 		// Which drawables survive is decided BEFORE the index plan, because the plan's indices are the
 		// file's addressing scheme: a drawable dropped after the plan was built would leave every later
 		// index - and every mask reference into them - naming the wrong object.
@@ -490,10 +499,10 @@ object Moc3Export {
 	 * Lowers [puppet] and bakes it to `.moc3` bytes.
 	 *
 	 * @param PuppetModel puppet  The rig to export.
-	 * @param MocVersion  version The moc version to target.
+	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
 	 * @return Pair The bytes and the advisory report.
 	 */
-	fun write(puppet: PuppetModel, version: MocVersion): Pair<ByteArray, ExportReport> {
+	fun write(puppet: PuppetModel, version: MocVersion = puppet.runtimeTarget.mocVersion()): Pair<ByteArray, ExportReport> {
 		val lowered = toMocDocument(puppet, version)
 		return MocEncoder.bakeFresh(version, lowered.document) to lowered.report
 	}

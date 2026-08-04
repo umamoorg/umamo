@@ -103,6 +103,22 @@ class ChannelGrids(val gridsByChannel: Map<FormChannel, KeyformGrid<ChannelValue
 	 */
 	operator fun get(channel: FormChannel): KeyformGrid<ChannelValue>? = gridsByChannel[channel]
 
+	/**
+	 * Whether this owner's [channel] track holds any value other than [identity].
+	 *
+	 * A track's mere PRESENCE is not use.  A MOC3 import fans every channel out of one bundled grid, so a
+	 * drawable that was never tinted still gets a colour track of pure identity cells - and compaction
+	 * deliberately leaves it alone when its axis does not bracket the parameter's range, since an
+	 * out-of-span pose has to fall back to the static.  Counting that as "the document uses colour"
+	 * makes an export warn about losing a tint that does not exist.
+	 *
+	 * @param FormChannel channel  The channel to inspect.
+	 * @param ChannelValue identity The channel's neutral value.
+	 * @return Boolean True when some cell differs from the identity.
+	 */
+	fun varies(channel: FormChannel, identity: ChannelValue): Boolean =
+		this[channel]?.cells?.any { cell -> cell.form != identity } ?: false
+
 	companion object {
 		/** The shared no-tracks instance - every property falls back to its owner's static value. */
 		val Empty: ChannelGrids = ChannelGrids(emptyMap())

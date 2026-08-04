@@ -15,7 +15,7 @@ import org.umamo.runtime.model.flattenedMasks
  * Lowers every isolated part into a MOC3 v6 offscreen record.
  *
  * An offscreen is a part rendered into its own buffer and composited back as one layer, which is what
- * gives a part an opacity and a blend mode of its own.  The MOC models it as a separate object list
+ * gives a part an opacity and a blend mode of its own.  The MOC3 models it as a separate object list
  * keyed by owner part index rather than as fields on the part, so this walks the parts once and emits a
  * record per [org.umamo.runtime.model.PartGroupMode.Isolated] one, in ascending part-index order (the
  * corpus-confirmed ordering invariant).

@@ -5,10 +5,9 @@ package org.umamo.runtime.model
  * export's "features will be stripped" confirmation lists.  A feature the target supports is never
  * reported, and neither is a restricted feature the document does not use.
  *
- * [RuntimeFeature.MotionSync], [RuntimeFeature.ParameterRepeat], and [RuntimeFeature.ArtPath] are
- * never reported: they are not representable in [PuppetModel] (motion-sync is a sidecar family,
- * the other two survive only as CMO3 round-trip payload), so an export dialog cannot warn about
- * them from the model alone.
+ * [RuntimeFeature.MotionSync] and [RuntimeFeature.ArtPath] are never reported: they are not
+ * representable in [PuppetModel] (motion-sync is a sidecar family, an art path survives only as CMO3
+ * round-trip payload), so an export dialog cannot warn about them from the model alone.
  *
  * Latent state does not count as use: a non-isolated part's stored [Part.composite] is invisible
  * to both renderer and runtime, so only isolated parts' composites are scanned.
@@ -61,8 +60,9 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: L
 
 		RuntimeFeature.PartComposite -> parts.any { part -> part.isIsolated }
 
+		RuntimeFeature.ParameterRepeat -> parameters.any { parameter -> parameter.repeat }
+
 		RuntimeFeature.MotionSync,
-		RuntimeFeature.ParameterRepeat,
 		RuntimeFeature.ArtPath,
 		-> false
 	}
@@ -77,22 +77,23 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: L
  */
 private fun PuppetModel.usesColorChannel(channel: FormChannel, identity: ColorRgb): Boolean {
 	val isMultiply = channel == FormChannel.MULTIPLY_COLOR
+	val identityValue = ChannelValue.Color(identity)
 	val drawableUses =
 		drawables.any { drawable ->
 			val staticColor = if (isMultiply) drawable.multiplyColor else drawable.screenColor
-			staticColor != identity || drawable.channelGrids[channel] != null
+			staticColor != identity || drawable.channelGrids.varies(channel, identityValue)
 		}
 	val deformerUses =
 		deformers.any { deformer ->
 			val staticColor = if (isMultiply) deformer.multiplyColor else deformer.screenColor
-			staticColor != identity || deformer.channelGrids[channel] != null
+			staticColor != identity || deformer.channelGrids.varies(channel, identityValue)
 		}
 	// A part's color track keys its composite, so it only counts while the part is isolated.
 	val compositeUses =
 		parts.any { part ->
 			val composite = part.activeComposite ?: return@any false
 			val staticColor = if (isMultiply) composite.multiplyColor else composite.screenColor
-			staticColor != identity || part.channelGrids[channel] != null
+			staticColor != identity || part.channelGrids.varies(channel, identityValue)
 		}
 	return drawableUses || deformerUses || compositeUses
 }
