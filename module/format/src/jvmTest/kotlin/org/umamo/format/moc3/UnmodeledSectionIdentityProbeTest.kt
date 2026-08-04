@@ -4,6 +4,7 @@ import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.ParameterType
+import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import java.io.File
 import kotlin.test.Test
@@ -252,7 +253,7 @@ class UnmodeledSectionIdentityProbeTest {
 			val bindingCounts = rawInts(model, 57, parameters) ?: continue
 			val starts = rawInts(model, 56, parameters) ?: continue
 			// s114 (Parameter.Types) only exists from moc 4; before that every parameter is NORMAL.
-			val types = rawInts(model, Sections.PARAM_TYPE, parameters)
+			val types = rawInts(model, Section.PARAM_TYPE.indexIn(model.version), parameters)
 
 			var running = 0
 			for (parameterIndex in 0 until parameters) {

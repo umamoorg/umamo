@@ -20,7 +20,7 @@ import org.umamo.format.moc3.MocDocument
 fun moc3PuppetTextures(mocDocument: MocDocument, pageBytes: List<ByteArray>): PuppetTextures? =
 	buildPuppetTextures(
 		pageBytes,
-		// MOC3: ArtMesh.textureIndex, decoded from section 41 (Sections.DRAW_TEXTURE) - the mesh's page
+		// MOC3: ArtMesh.textureIndex, decoded from section 41 (Section.ARTMESH_TEXTURE) - the mesh's page
 		// slot, indexing model3's Textures list.
 		mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex },
 		// Cubism texture files are straight-alpha PNGs (premultiplication is a runtime load option, not a

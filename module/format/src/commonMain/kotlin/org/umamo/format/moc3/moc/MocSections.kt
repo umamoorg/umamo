@@ -35,11 +35,18 @@ public class MocSections internal constructor(private val model: MocModel) {
 			Sizing.PER_PARAMETER -> ci(Sections.CI_PARAMETERS)
 			Sizing.PER_GLUE -> ci(Sections.CI_GLUES)
 			Sizing.PER_RENDER_ORDER_GROUP -> ci(Sections.CI_RENDER_ORDER_GROUPS)
+			Sizing.PER_RENDER_ORDER_CHILD -> ci(Sections.CI_RENDER_ORDER_CHILDREN)
 			Sizing.PER_OFFSCREEN -> ci(Sections.CI_OFFSCREENS)
 			Sizing.PER_BLENDSHAPE_WARP -> ci(Sections.CI_BLENDSHAPE_WARPS)
 			Sizing.PER_BLENDSHAPE_MESH -> ci(Sections.CI_BLENDSHAPE_MESHES)
 			Sizing.PER_BLENDSHAPE_ROTATION -> ci(Sections.CI_BLENDSHAPE_ROTATIONS)
 			Sizing.PER_BLENDSHAPE_PART -> ci(Sections.CI_BLENDSHAPE_PARTS)
+			Sizing.PER_BLENDSHAPE_GLUE -> ci(Sections.CI_BLENDSHAPE_GLUES)
+			Sizing.PER_PART_FORM -> ci(Sections.CI_PART_FORMS)
+			Sizing.PER_WARP_FORM -> ci(Sections.CI_WARP_FORMS)
+			Sizing.PER_ROTATION_FORM -> ci(Sections.CI_ROTATION_FORMS)
+			Sizing.PER_ARTMESH_FORM -> ci(Sections.CI_ARTMESH_FORMS)
+			Sizing.PER_OFFSCREEN_FORM -> ci(Sections.CI_OFFSCREEN_KEYFORMS)
 			Sizing.TABLE -> -1
 		}
 

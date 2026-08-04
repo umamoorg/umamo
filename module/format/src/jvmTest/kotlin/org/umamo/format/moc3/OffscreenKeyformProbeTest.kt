@@ -93,7 +93,7 @@ class OffscreenKeyformProbeTest {
 			runningMaskBase += maskCounts[offscreenIndex]
 		}
 		val drawableMaskTotal = model.drawables().sumOf { it.maskCount }
-		val maskBytes = model.section(Sections.MASK_INDEX_DATA)!!
+		val maskBytes = model.section(Section.MASK_INDEX_DATA.indexIn(model.version))!!
 		val maskReader = org.umamo.format.moc3.io.LittleEndianReader(maskBytes)
 		val maskTable = IntArray(maskBytes.size / 4) { maskReader.readInt32() }
 		// The raw element region is 64-byte padded, so compare the meaningful rows and require

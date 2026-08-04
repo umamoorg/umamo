@@ -48,47 +48,55 @@ public object MocLowering {
 
 		doc.canvas?.let { canvas ->
 			put(
-				Sections.CANVAS,
+				Section.CANVAS,
 				floats(canvas.pixelsPerUnit, canvas.originX, canvas.originY, canvas.width, canvas.height, 0f),
 			)
 		}
 
 		// parameters
-		put(Sections.PARAM_ID, idRecords(doc.parameters.map { it.id }))
-		put(Sections.PARAM_MAX, floatList(doc.parameters.map { it.maximumValue }))
-		put(Sections.PARAM_MIN, floatList(doc.parameters.map { it.minimumValue }))
-		put(Sections.PARAM_DEFAULT, floatList(doc.parameters.map { it.defaultValue }))
-		put(Sections.PARAM_REPEAT, intList(doc.parameters.map { if (it.repeats) 1 else 0 }))
+		put(Section.PARAM_ID, idRecords(doc.parameters.map { it.id }))
+		put(Section.PARAM_MAX, floatList(doc.parameters.map { it.maximumValue }))
+		put(Section.PARAM_MIN, floatList(doc.parameters.map { it.minimumValue }))
+		put(Section.PARAM_DEFAULT, floatList(doc.parameters.map { it.defaultValue }))
+		put(Section.PARAM_REPEAT, intList(doc.parameters.map { if (it.repeats) 1 else 0 }))
 		if (doc.parameters.any { it.type != null }) {
 			put(
-				Sections.PARAM_TYPE,
+				Section.PARAM_TYPE,
 				intList(doc.parameters.map { it.type!!.number }),
 			)
 		}
 
 		// parts
-		put(Sections.PART_ID, idRecords(doc.parts.map { it.id }))
-		put(Sections.PART_PARENT, intList(doc.parts.map { it.parentPartIndex }))
+		put(Section.PART_ID, idRecords(doc.parts.map { it.id }))
+		// One model field feeds both columns: their split is unpinned and they are 1 together on every
+		// corpus sample, so writing them independently would be inventing a distinction we cannot read.
+		put(Section.PART_VISIBLE_ARTMESHES, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
+		put(Section.PART_VISIBLE_DEFORMERS, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
+		put(Section.PART_PARENT, intList(doc.parts.map { it.parentPartIndex }))
 		put(Section.PART_KEYFORM_BINDING, intList(doc.parts.map { it.keyformBindingIndex }))
 
 		// drawables (art meshes) + topology
-		put(Sections.DRAW_ID, idRecords(doc.artMeshes.map { it.id }))
-		put(Sections.DRAW_TEXTURE, intList(doc.artMeshes.map { it.textureIndex }))
-		put(Sections.DRAW_CONSTANT_FLAG, ByteArray(doc.artMeshes.size) { doc.artMeshes[it].constantFlags.toByte() })
+		put(Section.ARTMESH_ID, idRecords(doc.artMeshes.map { it.id }))
+		put(Section.ARTMESH_TEXTURE, intList(doc.artMeshes.map { it.textureIndex }))
+		put(Section.ARTMESH_CONSTANT_FLAGS, ByteArray(doc.artMeshes.size) { doc.artMeshes[it].constantFlags.toByte() })
 		// MOC3 v6 §5.6 s153: per-drawable packed extended blend (v6-only; put drops it below v6).
 		put(Section.ARTMESH_EXTENDED_BLEND, intList(doc.artMeshes.map { it.extendedBlend }))
-		put(Sections.DRAW_VERTEX_COUNT, intList(doc.artMeshes.map { it.vertexCount }))
-		put(Sections.DRAW_INDEX_COUNT, intList(doc.artMeshes.map { it.triangleIndices.size }))
-		put(Sections.DRAW_MASK_COUNT, intList(doc.artMeshes.map { it.maskDrawableIndices.size }))
-		put(Sections.DRAW_PARENT, intList(doc.artMeshes.map { it.parentPartIndex }))
+		// Hidden art meshes are CARRIED with the flag clear, never dropped - the official editor deletes
+		// them by default, but Umamo has no option to and doing it silently would be destructive.
+		put(Section.ARTMESH_IS_VISIBLE, intList(doc.artMeshes.map { if (it.isVisible) 1 else 0 }))
+		put(Section.ARTMESH_IS_ENABLED, intList(doc.artMeshes.map { if (it.isEnabled) 1 else 0 }))
+		put(Section.ARTMESH_VERTEX_COUNT, intList(doc.artMeshes.map { it.vertexCount }))
+		put(Section.ARTMESH_INDEX_COUNT, intList(doc.artMeshes.map { it.triangleIndices.size }))
+		put(Section.ARTMESH_MASK_COUNT, intList(doc.artMeshes.map { it.maskDrawableIndices.size }))
+		put(Section.ARTMESH_PARENT_PART, intList(doc.artMeshes.map { it.parentPartIndex }))
 		put(Section.ARTMESH_PARENT_DEFORMER, intList(doc.artMeshes.map { it.parentDeformerIndex }))
 		put(Section.ARTMESH_KEYFORM_BINDING, intList(doc.artMeshes.map { it.keyformBindingIndex }))
 		put(
 			Section.ARTMESH_KEYFORM_COUNT,
 			intList(doc.artMeshes.map { doc.keyformBinding(it.keyformBindingIndex)?.gridSize ?: 1 }),
 		)
-		put(Sections.UV_DATA, floatConcat(doc.artMeshes) { it.vertexUvs })
-		put(Sections.INDEX_DATA, u16Concat(doc.artMeshes) { it.triangleIndices })
+		put(Section.ARTMESH_UV_DATA, floatConcat(doc.artMeshes) { it.vertexUvs })
+		put(Section.ARTMESH_INDEX_DATA, u16Concat(doc.artMeshes) { it.triangleIndices })
 		// The mask-index block holds (moc 6) the offscreens' mask lists as a PREFIX, then the
 		// drawables' mask lists (MOC3 §5.6 section 80; s158 offsets from the block start - pinned on
 		// Model A against the CMO3 clip lists).  The prefix synthesizes from the typed
@@ -102,7 +110,7 @@ public object MocLowering {
 			for (mesh in doc.artMeshes) {
 				mesh.maskDrawableIndices.forEach { maskIndexValues.add(it) }
 			}
-			put(Sections.MASK_INDEX_DATA, intList(maskIndexValues))
+			put(Section.MASK_INDEX_DATA, intList(maskIndexValues))
 		}
 
 		// deformers (unified list + per-type)
@@ -707,7 +715,9 @@ public object MocLowering {
 				allKeyPositions.addAll(unionKeys.sorted())
 			}
 			put(Section.KEY_POSITIONS, floatList(allKeyPositions))
-			out[Sections.PARAM_KEY_COUNT] = intList(parameterKeyCounts)
+			// Through put(), so the moc 4+ gate applies: this branch only runs for a blend model, which
+			// is already v4+, but writing the section by raw index would bypass the version check.
+			put(Section.PARAM_KEY_COUNT, intList(parameterKeyCounts))
 		}
 		put(Section.KEYFORM_BINDING_SLOT, intList(keyformBindingSlot))
 		put(Section.KEYFORM_BINDING_START, intList(keyformBindingStart))
