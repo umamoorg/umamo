@@ -3,11 +3,11 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.edit
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.interop.GlueDiff
 import org.umamo.interop.GlueField
 import org.umamo.interop.ParameterField
@@ -85,18 +85,18 @@ object Cmo3Export {
 	 * @param Cmo3Model   target The retained CMO3 model whose graph receives the edits.
 	 * @param Map         drawableTextureBindings Per-drawable-id texture webs for created drawables
 	 *                           without a texture source; empty for CMO3-origin exports.
-	 * @return Cmo3ExportReport The notices for everything not (yet) lowered.
+	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(
 		edited: PuppetModel,
 		target: Cmo3Model,
 		drawableTextureBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
-	): Cmo3ExportReport {
+	): ExportReport {
 		val modelSource = target.root as? CModelSource ?: error("CMO3 model root is not a CModelSource")
 		val baseline = Cmo3Import.fromModelSource(modelSource)
 		val diff = diffPuppetModels(baseline, edited)
 		if (diff.isEmpty) {
-			return Cmo3ExportReport(emptyList())
+			return ExportReport(emptyList())
 		}
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
@@ -106,7 +106,15 @@ object Cmo3Export {
 		// and deformers, then the drawables that bind to them, then the glues that bind drawables),
 		// and the structural index is REBUILT between categories so same-export creations resolve.
 		var anyDeleted = false
-		var structural = Cmo3StructureLowering(modelSource, Cmo3GraphIndex(modelSource), editor, edited, notices, drawableTextureBindings)
+		var structural =
+			Cmo3StructureLowering(
+				modelSource,
+				Cmo3GraphIndex(modelSource),
+				editor,
+				edited,
+				notices,
+				drawableTextureBindings,
+			)
 
 		/**
 		 * Rolls the structural lowering onto a fresh index, carrying the deletion flag forward.
@@ -115,7 +123,14 @@ object Cmo3Export {
 		 */
 		fun refreshedStructural(): Cmo3StructureLowering {
 			anyDeleted = anyDeleted || structural.deletedAnything
-			return Cmo3StructureLowering(modelSource, Cmo3GraphIndex(modelSource), editor, edited, notices, drawableTextureBindings)
+			return Cmo3StructureLowering(
+				modelSource,
+				Cmo3GraphIndex(modelSource),
+				editor,
+				edited,
+				notices,
+				drawableTextureBindings,
+			)
 		}
 
 		val editedParameterById = edited.parameters.associateBy(Parameter::id)
@@ -136,6 +151,7 @@ object Cmo3Export {
 							synthesizedParameters.add(entityDiff.id)
 						}
 					}
+
 				is EntityDiff.Deleted -> structural.deleteParameter(entityDiff.id)
 				is EntityDiff.Changed -> Unit
 			}
@@ -146,6 +162,7 @@ object Cmo3Export {
 					if (structural.synthesizeParameterGroup(entityDiff.id)) {
 						synthesizedGroups.add(entityDiff.id)
 					}
+
 				is EntityDiff.Deleted -> structural.deleteParameterGroup(entityDiff.id)
 				is EntityDiff.Changed -> Unit
 			}
@@ -158,6 +175,7 @@ object Cmo3Export {
 							synthesizedParts.add(entityDiff.id)
 						}
 					}
+
 				is EntityDiff.Deleted -> structural.deletePart(entityDiff.id.raw)
 				is EntityDiff.Changed -> Unit
 			}
@@ -170,6 +188,7 @@ object Cmo3Export {
 							synthesizedDeformers.add(entityDiff.id)
 						}
 					}
+
 				is EntityDiff.Deleted -> structural.deleteDeformer(entityDiff.id.raw)
 				is EntityDiff.Changed -> Unit
 			}
@@ -183,6 +202,7 @@ object Cmo3Export {
 							synthesizedDrawables.add(entityDiff.id)
 						}
 					}
+
 				is EntityDiff.Deleted -> structural.deleteDrawable(entityDiff.id)
 				is EntityDiff.Changed -> Unit
 			}
@@ -197,6 +217,7 @@ object Cmo3Export {
 							synthesizedGlues.add(Triple(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal))
 						}
 					}
+
 				is GlueDiff.Deleted -> structural.deleteGlue(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal)
 				is GlueDiff.Changed -> Unit
 			}
@@ -212,6 +233,7 @@ object Cmo3Export {
 						when {
 							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedParameters ->
 								EntityDiff.Changed(entityDiff.id, setOf(ParameterField.NAME, ParameterField.RANGE))
+
 							entityDiff is EntityDiff.Deleted -> null
 							else -> entityDiff
 						}
@@ -222,8 +244,13 @@ object Cmo3Export {
 							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedGroups ->
 								EntityDiff.Changed(
 									entityDiff.id,
-									setOf(ParameterGroupField.NAME, ParameterGroupField.INITIALLY_OPEN, ParameterGroupField.CHILDREN),
+									setOf(
+										ParameterGroupField.NAME,
+										ParameterGroupField.INITIALLY_OPEN,
+										ParameterGroupField.CHILDREN,
+									),
 								)
+
 							entityDiff is EntityDiff.Deleted -> null
 							else -> entityDiff
 						}
@@ -233,6 +260,7 @@ object Cmo3Export {
 						when {
 							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedParts ->
 								EntityDiff.Changed(entityDiff.id, ALL_PART_FIELDS)
+
 							entityDiff is EntityDiff.Deleted -> null
 							else -> entityDiff
 						}
@@ -245,6 +273,7 @@ object Cmo3Export {
 									entityDiff.id,
 									if (editedDeformerById[entityDiff.id] is Deformer.Warp) ALL_WARP_FIELDS else ALL_ROTATION_FIELDS,
 								)
+
 							entityDiff is EntityDiff.Deleted -> null
 							else -> entityDiff
 						}
@@ -254,6 +283,7 @@ object Cmo3Export {
 						when {
 							entityDiff is EntityDiff.Created && entityDiff.id in synthesizedDrawables ->
 								EntityDiff.Changed(entityDiff.id, ALL_DRAWABLE_FIELDS)
+
 							entityDiff is EntityDiff.Deleted -> null
 							else -> entityDiff
 						}
@@ -262,8 +292,13 @@ object Cmo3Export {
 					diff.glues.mapNotNull { glueDiff ->
 						when {
 							glueDiff is GlueDiff.Created &&
-								Triple<Any, Any, Int>(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal) in synthesizedGlues ->
+								Triple<Any, Any, Int>(
+									glueDiff.meshA,
+									glueDiff.meshB,
+									glueDiff.ordinal,
+								) in synthesizedGlues ->
 								GlueDiff.Changed(glueDiff.meshA, glueDiff.meshB, glueDiff.ordinal, ALL_GLUE_FIELDS)
+
 							glueDiff is GlueDiff.Deleted -> null
 							else -> glueDiff
 						}
@@ -296,6 +331,6 @@ object Cmo3Export {
 		if (anyDeleted) {
 			editor.pruneUnreachableShared()
 		}
-		return Cmo3ExportReport(notices)
+		return ExportReport(notices)
 	}
 }

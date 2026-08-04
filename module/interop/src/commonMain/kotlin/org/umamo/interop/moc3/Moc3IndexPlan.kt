@@ -53,11 +53,19 @@ class Moc3IndexPlan private constructor(
 		/**
 		 * Resolves the file order of every object list in [puppet].
 		 *
-		 * @param PuppetModel puppet The rig to export.
+		 * @param PuppetModel puppet              The rig to export.
+		 * @param List        exportableDrawables The drawables that will actually be written.
+		 * @param Set         exportableParts     The parts that will actually be written.
 		 * @return Moc3IndexPlan The resolved plan.
 		 */
-		fun of(puppet: PuppetModel, exportableDrawables: List<Drawable> = puppet.drawables): Moc3IndexPlan {
-			val orderedParts = partsParentFirst(puppet)
+		fun of(
+			puppet: PuppetModel,
+			exportableDrawables: List<Drawable> = puppet.drawables,
+			exportableParts: Set<PartId> = puppet.parts.mapTo(HashSet()) { part -> part.id },
+		): Moc3IndexPlan {
+			// Same reason the drawable list is filtered: a part the export omits must not hold an index,
+			// or every part after it - and every drawable's owning-part reference - names the wrong one.
+			val orderedParts = partsParentFirst(puppet).filter { part -> part.id in exportableParts }
 			val orderedDeformers = deformersParentFirst(puppet.deformers)
 			return Moc3IndexPlan(
 				parts = orderedParts,

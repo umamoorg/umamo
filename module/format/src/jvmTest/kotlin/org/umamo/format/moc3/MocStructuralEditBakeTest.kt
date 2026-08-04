@@ -15,8 +15,8 @@ import kotlin.test.assertTrue
  * This is the case that was broken until CountInfo was synthesized rather than carried from the
  * reference container: adding an object grew the per-object arrays while section 0 still declared the
  * old count, so the re-decode either dropped the new object or read past an array it had just sized.
- * Nothing exercised it - every existing bake test re-bakes an UNEDITED document, where a stale
- * CountInfo happens to be correct.
+ * Nothing else exercises it - the other bake tests re-bake a document with the SAME object counts,
+ * where a stale CountInfo happens to be correct.
  *
  * Parts are the vehicle because a part is the cheapest object to synthesize honestly: an id, a parent,
  * a keyform binding, and one draw-order value per grid cell.  Adding one moves CountInfo fields 0

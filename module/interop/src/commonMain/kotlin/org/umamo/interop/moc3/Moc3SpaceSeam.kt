@@ -158,7 +158,7 @@ fun rotationScaleFactor(hasRotationAncestor: Boolean, canvas: MocCanvasMapping):
 /**
  * Whether a rotation deformer sits anywhere on each deformer's ancestor chain, by FILE index.
  *
- * @param List     deformerCount   How many deformers there are.
+ * @param Int      deformerCount   How many deformers there are.
  * @param Function parentIndexOf   Each deformer's parent index (-1 at the root).
  * @param Function isRotationAt    Whether the deformer at an index is a rotation.
  * @return BooleanArray Indexed like the deformer list.

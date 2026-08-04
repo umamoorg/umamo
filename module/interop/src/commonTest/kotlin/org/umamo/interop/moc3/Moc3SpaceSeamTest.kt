@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The MOC3 coordinate seam round-trips exactly.
+ * The MOC3 coordinate seam round-trips to float precision.
  *
  * Every value an export writes goes through one of these inverses, so a discrepancy here is a
  * discrepancy in every exported position at once - and one that a semantic round trip cannot see,
@@ -61,7 +61,7 @@ class Moc3SpaceSeamTest {
 		assertEquals(450f + 900f, asPoint[0], "a root point also translates by the origin")
 	}
 
-	/** A canvas-less document maps identically in both directions rather than dividing by zero. */
+	/** A zero pixels-per-unit substitutes a unit scale, so the stored values stay finite rather than infinite. */
 	@Test
 	fun aDegenerateCanvasIsTheIdentity() {
 		val degenerate = MocCanvasMapping(pixelsPerUnit = 0f, originX = 0f, originY = 0f)

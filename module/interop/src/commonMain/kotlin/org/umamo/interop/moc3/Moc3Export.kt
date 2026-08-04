@@ -16,6 +16,8 @@ import org.umamo.format.moc3.model.WarpKeyform
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.legacyBlendFlagOf
+import org.umamo.interop.mocVersion
+import org.umamo.interop.packedBlendOf
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -64,36 +66,66 @@ object Moc3Export {
 	class Lowered(val document: MocDocument, val report: ExportReport)
 
 	/**
-	 * Lowers [puppet] into a [MocDocument] at [version].
+	 * Lowers [puppet] into a [MocDocument] at [version], stripping whatever that version cannot carry.
+	 *
+	 * The strip runs FIRST, on the model (see [Moc3VersionDowngrade]), so everything below this line
+	 * works on a rig the target version can express completely - and the loss is reported against
+	 * entities the rigger recognises rather than against section indices.
 	 *
 	 * @param PuppetModel puppet  The rig to export.
-	 * @param MocVersion  version The moc version to target.
+	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
+	 * @param CanvasToParentSpace? canvasToParentSpace Inverts the deformer chain for an unkeyed
+	 *   drawable; null drops those drawables with a notice instead (see [CanvasToParentSpace]).
 	 * @return Lowered The document and its notices.
 	 */
-	fun toMocDocument(puppet: PuppetModel, version: MocVersion): Lowered {
+	fun toMocDocument(
+		puppet: PuppetModel,
+		version: MocVersion = puppet.runtimeTarget.mocVersion(),
+		canvasToParentSpace: CanvasToParentSpace? = null,
+	): Lowered {
 		val notices = ArrayList<ExportNotice>()
+		val downgraded = Moc3VersionDowngrade.strip(puppet, version)
+		notices.addAll(downgraded.notices)
+		@Suppress("NAME_SHADOWING")
+		val puppet = downgraded.puppet
 		// Which drawables survive is decided BEFORE the index plan, because the plan's indices are the
 		// file's addressing scheme: a drawable dropped after the plan was built would leave every later
 		// index - and every mask reference into them - naming the wrong object.
+		// A SKETCH part is a guide overlay - a scan or a rough the rigger traces over - and the official
+		// bake leaves it out of the moc entirely.  The whole subtree goes: a guide's drawables are the
+		// thing that would otherwise render in the runtime, sitting on top of the puppet.
+		val sketchParts = sketchSubtree(puppet)
+		val exportableParts = puppet.parts.mapNotNullTo(LinkedHashSet()) { part -> part.id.takeIf { it !in sketchParts } }
+		val partByDrawable = puppet.partByDrawable()
 		val dropped = LinkedHashMap<org.umamo.runtime.model.DrawableId, String>()
 		for (drawable in puppet.drawables) {
-			if (drawable.mesh == null) {
+			if (partByDrawable[drawable.id] in sketchParts) {
+				dropped[drawable.id] = "a guide-image (sketch) part is not runtime content"
+			} else if (drawable.mesh == null) {
 				dropped[drawable.id] = "a drawable with no mesh cannot be written"
-			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
+			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null && canvasToParentSpace == null) {
 				// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
 				// with no grid there are no deltas to recover the parent-local form from.  Inverting the
-				// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach.
+				// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach -
+				// so without the injected seam the drawable is dropped rather than written at the wrong
+				// scale, which is what a canvas-space value under a warp would be.
 				dropped[drawable.id] = "an unkeyed drawable under a deformer has no parent-space geometry to write"
 			}
 		}
 		val exportable = puppet.drawables.filter { drawable -> drawable.id !in dropped }
-		val plan = Moc3IndexPlan.of(puppet, exportable)
-		val canvas = MocCanvasMapping(puppet.pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
+		val plan = Moc3IndexPlan.of(puppet, exportable, exportableParts)
+		val pixelsPerUnit = mocPixelsPerUnitFor(puppet)
+		val canvas = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
-		// Per-object multiply/screen colour arrived in moc 4.2; below that the tables do not exist and
+		// Per-object multiply/screen colour arrived in Cubism 4.2; below that the tables do not exist and
 		// every keyform must carry null rather than an identity, or the lowering would synthesize
 		// sections the version cannot address.
 		val colorsEnabled = version.byteValue >= 4
+		// Offscreen rendering (an isolated part composited as one layer) arrived in Cubism 5.3, as did the
+		// extended blend surface.  Two names for one gate: they are separate features that happen to
+		// share a version, and a later version bump should be able to move one without the other.
+		val offscreensEnabled = version.byteValue >= 6
+		val extendedBlendEnabled = version.byteValue >= 6
 		val rotationAncestors = rotationAncestorsById(plan.deformers)
 
 		/**
@@ -144,19 +176,45 @@ object Moc3Export {
 				)
 			}
 
+		val renderOrderGroups = lowerRenderOrder(puppet, plan)
+
 		// ---- parts ----
+		// An offscreen's keyforms ride its OWNER PART'S grid - Σ of the owner grid sizes is CountInfo 36 -
+		// so the part's bundle is built once here and the offscreen lowering reads the same one.  Building
+		// it twice would let the two disagree about the grid an offscreen is indexed against.
+		val partKeyformsById = HashMap<org.umamo.runtime.model.PartId, Moc3ObjectKeyforms?>()
 		val parts =
 			plan.parts.map { part ->
+				// An isolated part's composite channels ride the same cells as its draw order, so they are
+				// bundled together; a non-isolated part has no composite to key.
+				val compositeChannels =
+					if (offscreensEnabled && part.isIsolated) {
+						renderChannels(colorsEnabled)
+					} else {
+						emptyArray()
+					}
+				val compositeStatics =
+					if (offscreensEnabled && part.isIsolated) {
+						renderStatics(
+							part.composite.opacity,
+							part.composite.multiplyColor,
+							part.composite.screenColor,
+							colorsEnabled,
+						)
+					} else {
+						emptyMap()
+					}
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
 						null as org.umamo.runtime.model.KeyformGrid<Unit>?,
 						UnitInterpolator,
-						part.channelGrids.onlyChannels(FormChannel.DRAW_ORDER),
-						mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
+						part.channelGrids.onlyChannels(*(compositeChannels + arrayOf(FormChannel.DRAW_ORDER))),
+						compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
 						requireGeometry = false,
 					)
 				reportDemotions("part", part.id.raw, keyforms)
+				partKeyformsById[part.id] = keyforms
 				val bundle = keyforms?.bundle
 				val cellCount = bundle?.cells?.size ?: 0
 				MocPart(
@@ -297,6 +355,25 @@ object Moc3Export {
 			plan.drawables.map { drawable ->
 				val mesh = drawable.mesh!!
 				val space = spaceOfParent(plan, drawable.parentDeformerId)
+				// An unkeyed drawable under a deformer stores its rest mesh in CANVAS space, so the base
+				// every keyform is written relative to has to be inverted through the chain first.  A keyed
+				// one is already parent-local (the import's rest-mesh pass guarantees base + delta is the
+				// absolute parent-space position), so the seam is asked only where it is needed.
+				val basePositions =
+					if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
+						canvasToParentSpace?.invoke(drawable.id, mesh.positions)?.also { converted ->
+							if (converted.size != mesh.positions.size) {
+								unsupported(
+									"drawable",
+									drawable.id.raw,
+									"the canvas-to-parent conversion returned ${converted.size} coordinates for " +
+										"${mesh.positions.size}; the rest mesh was written unconverted",
+								)
+							}
+						}?.takeIf { converted -> converted.size == mesh.positions.size } ?: mesh.positions
+					} else {
+						mesh.positions
+					}
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
@@ -317,8 +394,10 @@ object Moc3Export {
 				ArtMesh(
 					id = drawable.id.raw,
 					textureIndex = maxOf(drawable.texturePage, 0),
-					constantFlags = constantFlagsOf(drawable),
-					extendedBlend = 0,
+					constantFlags = constantFlagsOf(drawable, extendedBlendEnabled),
+					// The 5.3 blend surface; below v6 the mode falls back to the legacy constant-flag bits.
+					extendedBlend =
+						if (extendedBlendEnabled) packedBlendOf(drawable.blendMode, drawable.alphaBlendMode) else 0,
 					isVisible = drawable.isVisible,
 					isEnabled = true,
 					parentPartIndex = plan.partIndex(drawablePartOf(puppet, drawable.id)),
@@ -335,8 +414,8 @@ object Moc3Export {
 								(bundle?.cells?.getOrNull(cellIndex)?.geometry as? org.umamo.runtime.model.MeshDeltaForm)
 									?.positionDeltas
 							val absolute =
-								FloatArray(mesh.positions.size) { coordinate ->
-									mesh.positions[coordinate] + (deltas?.getOrNull(coordinate) ?: 0f)
+								FloatArray(basePositions.size) { coordinate ->
+									basePositions[coordinate] + (deltas?.getOrNull(coordinate) ?: 0f)
 								}
 							ArtMeshKeyform(
 								vertexPositions = convertPointsToMoc(space, absolute, canvas),
@@ -403,7 +482,7 @@ object Moc3Export {
 				version = version,
 				canvas =
 					CanvasInfo(
-						pixelsPerUnit = puppet.pixelsPerUnit,
+						pixelsPerUnit = pixelsPerUnit,
 						originX = puppet.worldOriginX,
 						// The runtime negates the canvas y into world space; storing it re-negates.
 						originY = -puppet.worldOriginY,
@@ -416,8 +495,14 @@ object Moc3Export {
 				deformers = deformers,
 				artMeshes = artMeshes,
 				glues = glues,
-				renderOrderGroups = lowerRenderOrder(puppet, plan),
-				// Blend shapes arrived in moc 4.2; a lower target simply carries none.
+				renderOrderGroups = renderOrderGroups,
+				offscreens =
+					if (offscreensEnabled) {
+						lowerOffscreens(puppet, plan, partKeyformsById, colorsEnabled, ::unsupported)
+					} else {
+						emptyList()
+					},
+				// Blend shapes arrived in Cubism 4.2; a lower target simply carries none.
 				blendShapes =
 					if (version.byteValue < 4) {
 						emptyList()
@@ -450,11 +535,16 @@ object Moc3Export {
 	 * Lowers [puppet] and bakes it to `.moc3` bytes.
 	 *
 	 * @param PuppetModel puppet  The rig to export.
-	 * @param MocVersion  version The moc version to target.
+	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
+	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
 	 * @return Pair The bytes and the advisory report.
 	 */
-	fun write(puppet: PuppetModel, version: MocVersion): Pair<ByteArray, ExportReport> {
-		val lowered = toMocDocument(puppet, version)
+	fun write(
+		puppet: PuppetModel,
+		version: MocVersion = puppet.runtimeTarget.mocVersion(),
+		canvasToParentSpace: CanvasToParentSpace? = null,
+	): Pair<ByteArray, ExportReport> {
+		val lowered = toMocDocument(puppet, version, canvasToParentSpace)
 		return MocEncoder.bakeFresh(version, lowered.document) to lowered.report
 	}
 
@@ -482,11 +572,16 @@ object Moc3Export {
 	 * Note bit 2 is the INVERSE of culling: the flag means "double sided", so a culled drawable clears
 	 * it.  Getting that backwards silently double-draws every back face.
 	 *
-	 * @param org.umamo.runtime.model.Drawable drawable The drawable.
+	 * @param org.umamo.runtime.model.Drawable drawable             The drawable.
+	 * @param Boolean                          extendedBlendEnabled Whether the target version carries the
+	 *   5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
 	 * @return Int The flag bits.
 	 */
-	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable): Int {
-		var flags = legacyBlendFlagOf(drawable.blendMode)
+	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable, extendedBlendEnabled: Boolean): Int {
+		// On moc 6 the extended-blend section is authoritative and the editor leaves the legacy 2-bit pair
+		// CLEAR even for an additive or multiply mesh - writing both would state the mode twice, and the
+		// legacy pair cannot express the other sixteen modes anyway.
+		var flags = if (extendedBlendEnabled) 0 else legacyBlendFlagOf(drawable.blendMode)
 		if (!drawable.culling) {
 			flags = flags or ConstantFlag.IS_DOUBLE_SIDED
 		}
@@ -494,6 +589,62 @@ object Moc3Export {
 			flags = flags or ConstantFlag.IS_INVERTED_MASK
 		}
 		return flags
+	}
+
+	/**
+	 * The pixels-per-unit a bake of [puppet] should carry.
+	 *
+	 * A moc's canvas scale is a BAKE parameter, not a project property: every corpus `.cmo3` stores
+	 * `CModelInfo.pixelsPerUnit = 1` - a CMO3 works in canvas pixels - while the editor's bake of the
+	 * same project writes a real scale, and the rigger picks it in the export dialog.  Its default there
+	 * is the canvas WIDTH, which 21 of the 25 corpus bakes use exactly (the four that do not chose their
+	 * own: 9000 -> 5000, 9000 -> 3077, 4500 -> 3000, 5134 -> 5000).
+	 *
+	 * So a CMO3-origin export defaults to the canvas width, and a MOC3-origin one keeps the scale its
+	 * file already had.  Writing the project's literal 1 instead is not a smaller choice - it stores the
+	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger who
+	 * picked a different scale at bake time cannot have it recovered from the project; that wants an
+	 * export option, on the same surface an omit-hidden-objects toggle would live on.
+	 *
+	 * @param PuppetModel puppet The rig being exported.
+	 * @return Float The canvas scale to write.
+	 */
+	fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
+		if (puppet.pixelsPerUnit > 1f) {
+			return puppet.pixelsPerUnit
+		}
+		return puppet.canvasWidth.takeIf { width -> width > 0f } ?: 1f
+	}
+
+	/**
+	 * Every part id in a sketch part's subtree, the sketch parts themselves included.
+	 *
+	 * A guide image is usually one part, but nothing stops a rigger from grouping several under it - and
+	 * a child of a guide is still a guide.
+	 *
+	 * @param PuppetModel puppet The rig.
+	 * @return Set The part ids to omit.
+	 */
+	private fun sketchSubtree(puppet: PuppetModel): Set<org.umamo.runtime.model.PartId> {
+		val sketches = puppet.parts.filter { part -> part.isSketch }
+		if (sketches.isEmpty()) {
+			return emptySet()
+		}
+		val partsById = puppet.parts.associateBy { part -> part.id }
+		val omitted = LinkedHashSet<org.umamo.runtime.model.PartId>()
+		val pending = ArrayDeque(sketches.map { part -> part.id })
+		while (pending.isNotEmpty()) {
+			val partId = pending.removeFirst()
+			if (!omitted.add(partId)) {
+				continue
+			}
+			for (child in partsById[partId]?.children.orEmpty()) {
+				if (child is org.umamo.runtime.model.OrgChild.Part) {
+					pending.addLast(child.id)
+				}
+			}
+		}
+		return omitted
 	}
 
 	/**
@@ -589,3 +740,20 @@ internal fun org.umamo.runtime.model.ChannelGrids.onlyChannels(
 		gridsByChannel.filterKeys { channel -> channel in keep },
 	)
 }
+
+/**
+ * Inverts a drawable's canvas-space rest mesh into its parent deformer's space.
+ *
+ * An injected seam rather than a call, because the inverse lives in `:render` (a closed-form rotation
+ * inverse and a damped-Newton warp inverse over the evaluated chain) and `:interop` is its sibling
+ * over `:runtime`, not its dependent - the same shape as the atlas decode's injected byte reader.
+ *
+ * Only reached for a drawable with no keyform grid under a deformer: everything else already stores
+ * parent-local values.  Returning null (or a differently-sized array) leaves the rest mesh as authored
+ * and raises a notice, which is the honest outcome when the chain cannot be inverted at all.
+ *
+ * @param DrawableId drawable  The drawable being written.
+ * @param FloatArray positions Its interleaved canvas-space rest positions.
+ * @return FloatArray? The interleaved parent-space positions, or null when the chain cannot invert.
+ */
+typealias CanvasToParentSpace = (drawable: org.umamo.runtime.model.DrawableId, positions: FloatArray) -> FloatArray?
