@@ -71,10 +71,20 @@ public class MocSections internal constructor(private val model: MocModel) {
 	/** Whether [section] is present in this model's version and has a section slice. */
 	public fun isPresent(section: Section): Boolean = rawSlice(section) != null
 
-	/** Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables). */
+	/**
+	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables).
+	 *
+	 * A per-object count is clamped to what the slice can actually hold.  CountInfo and the
+	 * section bytes are independent on disk, so a stripped or truncated file can claim more
+	 * objects than it stores; reading the claim would run off the end of the slice and fail the
+	 * whole decode, which [org.umamo.format.moc3.decode.MocDecoder] promises not to do for an
+	 * absent or partial id/flag section.  Clamping yields a short array instead, which every
+	 * caller already tolerates (they index through `getOrElse`).
+	 */
 	public fun elementCount(section: Section): Int {
 		val slice = rawSlice(section) ?: return 0
-		return if (section.sizing == Sizing.TABLE) slice.size / section.element.size else count(section.sizing)
+		val sliceCapacity = slice.size / section.element.size
+		return if (section.sizing == Sizing.TABLE) sliceCapacity else minOf(count(section.sizing), sliceCapacity)
 	}
 
 	/**
@@ -138,7 +148,9 @@ public class MocSections internal constructor(private val model: MocModel) {
 		require(section.element == ElementType.ID) { "$section is not an id section" }
 		val slice = rawSlice(section) ?: return emptyList()
 		val reader = LittleEndianReader(slice)
-		return List(elementCount(section)) { reader.readFixedString(Sections.ID_STRIDE) }
+		// One source of truth for the record width: ElementType.ID.size IS the id stride, and sizing the
+		// walk from anything else lets the two drift and silently misread every id after the first.
+		return List(elementCount(section)) { reader.readFixedString(section.element.size) }
 	}
 
 	/**
@@ -160,10 +172,17 @@ public class MocSections internal constructor(private val model: MocModel) {
 					writer.writeU8((shortValue.toInt() shr 8) and 0xFF)
 				}
 			ElementType.U8 -> writer.writeBytes(byteArray(section))
-			// ID and U64 sections have no typed decode to re-serialize from (an id is a fixed-width
-			// record, a runtime slot is opaque), so their element region round-trips as raw bytes.
-			ElementType.ID, ElementType.U64 ->
-				writer.writeBytes(rawSlice(section)!!.copyOf(elementCount * section.element.size))
+			// Re-encoded from the decoded strings, so this genuinely exercises the id-record walk and the
+			// NUL-terminate-then-zero-pad convention rather than comparing raw bytes to themselves.  Every
+			// id record in the corpus pads cleanly with zeros after its terminator, which is what makes the
+			// round trip byte-exact; a file that padded with garbage would fail here, and should.
+			ElementType.ID ->
+				idArray(section).forEach { identifier ->
+					writer.writeFixedString(identifier, section.element.size)
+				}
+			// A runtime slot is opaque (zero on disk, filled after the memory-cast), so there is no typed
+			// decode to re-serialize from and its element region round-trips as raw bytes.
+			ElementType.U64 -> writer.writeBytes(rawElementRegion(section))
 		}
 		return writer.toByteArray()
 	}

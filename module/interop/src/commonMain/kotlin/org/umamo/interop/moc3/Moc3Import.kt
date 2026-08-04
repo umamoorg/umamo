@@ -65,6 +65,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.partByDrawable
 import kotlin.math.abs
 import org.umamo.format.moc3.model.BlendShape as MocBlendShape
 import org.umamo.format.moc3.model.Part as MocPart
@@ -142,7 +143,7 @@ object Moc3Import {
 		val partNameById = displayInfo?.parts?.associate { it.id to it.name } ?: emptyMap()
 
 		// Index → runtime id tables, all in FILE order (every cross-reference in the MOC3 is a file-order
-		// index). Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
+		// index).  Deformer ids come from MOC3 §5.6 s11 - the editor's own identifiers, the same ones the
 		// CMO3 side carries, so a MOC3-origin export writes back the ids the model was authored with.
 		// A blank or duplicated slot (a hand-built document, or a MOC3 written without s11) falls back to
 		// a synthesized id.
@@ -911,11 +912,20 @@ object Moc3Import {
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
 			)
+		// Section 15 is authoritative when it places anything.  When it places NOTHING - a stripped or
+		// synthesized MOC3 that omits or zeroes the section, which MocDecoder reads defensively for - the
+		// org tree would be a flat root, so fall back to inferring membership from the drawables.
+		val withDeformerParts =
+			if (deformers.isNotEmpty() && deformers.all { deformer -> deformer.partId == null }) {
+				model.copy(deformers = inferDeformerParts(deformers, orderedDrawables, model.partByDrawable()))
+			} else {
+				model
+			}
 		val withRenderRoot =
 			if (renderRoot != null) {
-				model.copy(renderRoot = renderRoot)
+				withDeformerParts.copy(renderRoot = renderRoot)
 			} else {
-				model.copy(renderRoot = model.deriveRenderRoot())
+				withDeformerParts.copy(renderRoot = withDeformerParts.deriveRenderRoot())
 			}
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
 	}
@@ -1080,6 +1090,73 @@ object Moc3Import {
 			}
 		}
 		return resolved
+	}
+
+	/**
+	 * Infers each deformer's organisational part from the drawables it deforms.  A FALLBACK only: MOC3
+	 * §5.6 s15 carries real deformer→part membership, and this runs solely when that section placed
+	 * nothing at all.
+	 *
+	 * A MOC3 whose s15 is absent or entirely -1 - a stripped or synthesized file, or one that
+	 * genuinely puts every deformer at the root - converts to a flat org tree with an unusable
+	 * parts panel.  The two cases are indistinguishable in a bake, and inference is the better
+	 * outcome for both, so this reconstructs the grouping from the one signal that is still
+	 * present: a deformer's drawables almost always live in the deformer's own part.  The rule is
+	 * the plurality part of the DIRECTLY deformed drawables, falling back to the whole descendant
+	 * subtree for a deformer that only deforms other deformers.
+	 *
+	 * This is INFERENCE, not recovery.  Measured against the corpus twins (each model's
+	 * editor-written CMO3 against its own bake) it reproduced 81-93% of the original placements,
+	 * and a deformer whose drawables span several parts can land in any of them - which is why it
+	 * never overrides s15.  A CMO3-origin document never reaches here: it carries the real
+	 * membership on ACParameterControllableSource.parentGuid.
+	 *
+	 * @param List deformers      The imported deformers, none of which resolved a part.
+	 * @param List drawables      The imported drawables.
+	 * @param Map  partByDrawable Each drawable's org-tree part (null at the root).
+	 * @return List The deformers with inferred [Deformer.partId] values.
+	 * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6 s15</a>
+	 */
+	private fun inferDeformerParts(
+		deformers: List<Deformer>,
+		drawables: List<Drawable>,
+		partByDrawable: Map<DrawableId, PartId?>,
+	): List<Deformer> {
+		val parentById = deformers.associate { deformer -> deformer.id to deformer.parent }
+		val directParts = HashMap<DeformerId, MutableList<PartId>>()
+		val subtreeParts = HashMap<DeformerId, MutableList<PartId>>()
+		for (drawable in drawables) {
+			val partId = partByDrawable[drawable.id] ?: continue
+			val ownerId = drawable.parentDeformerId ?: continue
+			directParts.getOrPut(ownerId) { ArrayList() }.add(partId)
+			// Walk the deformer chain so an ancestor that deforms no drawable directly still sees the
+			// parts below it; the visited set guards a malformed cyclic chain.
+			var ancestorId: DeformerId? = ownerId
+			val visited = HashSet<DeformerId>()
+			while (ancestorId != null && visited.add(ancestorId)) {
+				subtreeParts.getOrPut(ancestorId) { ArrayList() }.add(partId)
+				ancestorId = parentById[ancestorId]
+			}
+		}
+
+		/**
+		 * The plurality part id of a candidate list, or null when empty.
+		 *
+		 * @param List? candidates The observed part ids.
+		 * @return PartId? The most frequent id.
+		 */
+		fun plurality(candidates: List<PartId>?): PartId? =
+			candidates?.groupingBy { partId -> partId }?.eachCount()?.maxByOrNull { entry -> entry.value }?.key
+
+		return deformers.map { deformer ->
+			val inferred = plurality(directParts[deformer.id]) ?: plurality(subtreeParts[deformer.id])
+			when {
+				inferred == null -> deformer
+				deformer is Deformer.Warp -> deformer.copy(partId = inferred)
+				deformer is Deformer.Rotation -> deformer.copy(partId = inferred)
+				else -> deformer
+			}
+		}
 	}
 
 	/**

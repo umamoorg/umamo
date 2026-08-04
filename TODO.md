@@ -40,6 +40,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Glue
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
+	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements

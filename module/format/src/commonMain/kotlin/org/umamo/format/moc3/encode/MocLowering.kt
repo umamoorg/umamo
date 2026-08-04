@@ -1227,10 +1227,7 @@ public object MocLowering {
 	private fun idRecords(ids: List<String>): ByteArray {
 		val writer = LittleEndianWriter(ids.size * Sections.ID_STRIDE)
 		for (id in ids) {
-			val bytes = id.encodeToByteArray()
-			require(bytes.size < Sections.ID_STRIDE) { "id too long for 64-byte record: $id" }
-			writer.writeBytes(bytes)
-			writer.zeroPad(Sections.ID_STRIDE - bytes.size)
+			writer.writeFixedString(id, Sections.ID_STRIDE)
 		}
 		return writer.toByteArray()
 	}

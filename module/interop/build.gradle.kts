@@ -72,8 +72,11 @@ kotlin {
 // CompositeImportTest joins ingested CMO3s against their baked moc3s. moc3.sample (singular, read by
 // Moc3ImportTest's golden-count test) has no default and only takes effect when passed as -D.
 umamoTestCorpus {
-	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of JDOM); match
-	// :format's test heap so the loop does not OOM.
-	maxHeap("4g")
+	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of JDOM).  Raised
+	// from 4g when modelF joined the corpus: at 57.8 MB and ~6.5 M keyform vertex positions its
+	// MOC3→CMO3 conversion in Cmo3ConversionRoundTripTest OOMs at 4g and passes at 8g, because the
+	// conversion holds the PuppetModel and the whole synthesized JDOM graph at once.  Do not trim this
+	// back without re-running that test against modelF.
+	maxHeap("8g")
 	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples")
 }

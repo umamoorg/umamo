@@ -2,6 +2,7 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.RotationDeformer
@@ -125,8 +126,8 @@ class MocDecodeTest {
 			// Warp keyforms have the right control-point lattice size, and the block's common head
 			// lands on the right deformer - the decode walks the unified list while the geometry comes
 			// from the per-type sections, so a head field is the place an index slip would show up.
-			val deformerIds = model.sections.idArray(org.umamo.format.moc3.moc.Section.DEFORMER_ID)
-			val deformerParentParts = model.sections.intArray(org.umamo.format.moc3.moc.Section.DEFORMER_PARENT_PART)
+			val deformerIds = model.sections.idArray(Section.DEFORMER_ID)
+			val deformerParentParts = model.sections.intArray(Section.DEFORMER_PARENT_PART)
 			for ((deformerIndex, deformer) in doc.deformers.withIndex()) {
 				if (deformer is WarpDeformer) {
 					val cp = (deformer.rows + 1) * (deformer.columns + 1) * 2

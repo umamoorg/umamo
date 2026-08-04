@@ -104,6 +104,24 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 	}
 
 	/**
+	 * Writes [value] as a fixed-width [width]-byte NUL-terminated record, zero-padded to width.
+	 *
+	 * Inverse of [LittleEndianReader.readFixedString].  MOC3 IDs are 64-byte records holding
+	 * plain ASCII, so the encoded form must fit in `width - 1` bytes to leave room for the
+	 * terminator; the corpus's longest id is well inside that.
+	 *
+	 * @param String value The identifier to write.
+	 * @param Int    width Record width in bytes (e.g. 64).
+	 * @pre The UTF-8 encoding of [value] is shorter than [width].
+	 */
+	public fun writeFixedString(value: String, width: Int) {
+		val encoded = value.encodeToByteArray()
+		require(encoded.size < width) { "id \"$value\" (${encoded.size} bytes) does not fit a $width-byte record" }
+		writeBytes(encoded)
+		zeroPad(width - encoded.size)
+	}
+
+	/**
 	 * Overwrites an already-written little-endian int32 at an absolute offset (back-patching).
 	 *
 	 * @param Int offset Absolute byte offset of the 4-byte slot.

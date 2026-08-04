@@ -173,6 +173,12 @@ public object MocDecoder {
 		// The block's common head (MOC3 §5.6 s11-s15).  Read defensively: a stripped or synthesized
 		// moc can omit these, and an absent id/flag must not fail the whole decode.
 		val deformerId = sections.idArray(Section.DEFORMER_ID)
+		// s12 is the same binding the per-type sections 19/25 carry, and the deformers below take the
+		// per-type value.  Read but deliberately unused: the runtime raises a MOC3 validation error when
+		// the two disagree, so the model holds ONE binding per deformer and the lowering projects both
+		// columns from it (MocDeformerBindingTest / MocDeformerBindingCorpusTest pin all of that).
+		// Whether an input divergence should surface as a notice rather than resolve silently to the
+		// per-type value is still open - this read is where that would hook in.
 		val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
 		val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
 		val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
