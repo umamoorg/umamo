@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The core Phase 5 gate: `moc3 -> PuppetModel -> moc3` preserves the rig.
+ * The core reference-free export gate: `moc3 -> PuppetModel -> moc3` preserves the rig.
  *
  * This is the test that says whether a reference-free export actually works.  It imports a corpus
  * MOC3, exports the resulting [org.umamo.runtime.model.PuppetModel] back to a document with NO

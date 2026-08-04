@@ -45,14 +45,14 @@ enum class FormChannel(val valueKind: ChannelValueKind) {
 	// CMO3: CArtMeshForm / CPartForm / ACDeformerForm field screenColor; MOC3 color-table rows 108-113.
 	SCREEN_COLOR(ChannelValueKind.COLOR),
 
-	// CMO3: CRotationDeformerForm field isReflectX - the Umamo C++ Runtime snaps this per grid cell into
-	// the affine's flipX, so it is NOT interpolable.
+	// CMO3: CRotationDeformerForm field isReflectX; MOC3 §5.6 s66 rotation reflect x.  The Umamo C++
+	// Runtime snaps this per grid cell into the affine's flipX, so it is NOT interpolable.
 	FLIP_X(ChannelValueKind.FLAG),
 
-	// CMO3: CRotationDeformerForm field isReflectY.
+	// CMO3: CRotationDeformerForm field isReflectY; MOC3 §5.6 s67 rotation reflect y.
 	FLIP_Y(ChannelValueKind.FLAG),
 
-	// CMO3: CGlueForm field intensity.
+	// CMO3: CGlueForm field intensity; MOC3 §5.6 s100 glue intensities.
 	GLUE_INTENSITY(ChannelValueKind.SCALAR),
 }
 

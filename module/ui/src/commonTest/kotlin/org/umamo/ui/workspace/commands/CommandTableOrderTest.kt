@@ -18,10 +18,10 @@ import kotlin.test.assertTrue
  * Pins every command table's contents AND the order the shell registers them in.
  *
  * Two things ride on this.  A command silently dropped by a refactor is otherwise invisible until a user
- * presses the key that no longer does anything - nothing else in the tree enumerates the tables.  And
- * [CommandRegistry] is insertion-ordered, which the command palette shows verbatim for a blank query, so
- * the order here IS the order the user reads; a regrouping that shuffles it should be a deliberate edit
- * to these lists, not a surprise.
+ * reaches for it - a menu row, a palette entry, or a chord that does nothing at all - because nothing else
+ * in the tree enumerates the tables.  And [CommandRegistry] is insertion-ordered, which the command palette
+ * shows verbatim for a blank query, so the order here IS the order the user reads; a regrouping that
+ * shuffles it should be a deliberate edit to these lists, not a surprise.
  *
  * Every builder takes its collaborators as plain values and resolves the rest at dispatch time, so a
  * table builds with no document, no renderer, and no composition - which is what makes this test

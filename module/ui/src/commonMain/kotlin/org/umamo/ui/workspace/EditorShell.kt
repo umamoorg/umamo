@@ -232,8 +232,8 @@ fun EditorShell(
 		onDispose { cleanup() }
 	}
 	// The document-scoped groups, re-registered on a document swap so their handlers close over the
-	// current session.  They no longer key on the render service: the pointer's area now resolves through
-	// the shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
+	// current session.  They do not key on the render service: the pointer's area resolves through the
+	// shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
 	val editorSession = LocalEditorSession.current
 	// One tier set shared by every document-scoped group below, so the nine tables hold the same three
 	// availability objects rather than three apiece.  Keyed on the session exactly as their effects are.
@@ -270,8 +270,9 @@ fun EditorShell(
 	//  - structuralEditCount: area-tree edits and popup-invoked workspace CRUD;
 	//  - selfFocusedOverlayOpen / inline edit: reclaim when the palette, preferences, Help dialogs, or an
 	//    inline rename CLOSE (while one is open it owns focus, so the effect waits);
-	//  - modalAlertOpen: the confirm dialog and the file-open alert do NOT own focus - root focus is
-	//    (re)claimed on open too, so their Escape/Enter route through the modal ladder while open;
+	//  - modalAlertOpen: the confirm dialog, the file-open alert, and the export report do NOT own focus -
+	//    root focus is (re)claimed on open too, so their Escape/Enter route through the modal ladder while
+	//    open;
 	//  - menu-bar close: an open menu's popup holds focus and its teardown takes it along.
 	// The two-frame wait lets a closing popup's teardown finish stealing focus first - an immediate
 	// request would be nulled right back out (the menu bar demonstrably needs this; it is harmless for
@@ -439,8 +440,9 @@ fun EditorShell(
 					// Modal overlays are siblings of the Column (Surface stacks its content in a Box), so their
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
-					// (so the palette can no longer be left open under a menu-bar-launched window).  Painted
-					// bottom-to-top: palette, then settings, then the confirm dialog (the topmost modal).
+					// (so the palette cannot be left open under a menu-bar-launched window).  Painted
+					// bottom-to-top: palette, preferences, the Help dialogs, the file-open alert, the export
+					// report, then the confirm dialog (the topmost modal).
 					if (overlays.paletteVisible) {
 						// title == null marks a command as not-a-palette-entry (internal toggles like
 						// palette.toggle / area.dragCancel, and argument-only import commands), and an
@@ -475,8 +477,8 @@ fun EditorShell(
 							onDismiss = { overlays.openFailure = null },
 						)
 					}
-					// The CMO3 export report, in the same modal family: advisory only - the export has
-					// already been written when it shows.
+					// The export report, in the same modal family: advisory only - the export has already
+					// been written when it shows.
 					overlays.exportReport?.let { report ->
 						MessageDialog(
 							message = exportReportMessage(report),
@@ -504,7 +506,8 @@ fun EditorShell(
 /**
  * Builds the export-report alert's text: the localized header, then one line per notice.  The
  * unsupported-change lines carry the exporter's diagnostic text verbatim (dynamic per-edit data,
- * like a log line); the weld-divergence line is localized with the affected drawable names.
+ * like a log line); every other notice kind is localized from its structured fields - the affected
+ * drawable names, the missing page count, or the stripped feature and the entities that carried it.
  *
  * @param ExportReport report The export's advisory report.
  * @return String The multiline alert text.

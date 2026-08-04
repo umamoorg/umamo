@@ -140,7 +140,7 @@ class Cmo3ToMoc3OracleTest {
 
 	private companion object {
 		/**
-		 * The measured share of drawables whose evaluated geometry matches the editor's bake.
+		 * The floor under the share of drawables whose evaluated geometry matches the editor's bake.
 		 *
 		 * A FLOOR rather than 100%: the bake is the editor's own derivation from the same project, so the
 		 * two agree only to within its authoring skew - measured at 89% over 1046 drawables of 21 twins,

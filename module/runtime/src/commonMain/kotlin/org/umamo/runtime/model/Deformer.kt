@@ -35,8 +35,8 @@ sealed interface Deformer {
 
 	/**
 	 * Blender-style selectable toggle: an unselectable deformer cannot be picked in the viewport.
-	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
-	 * emit isLocked = !isSelectable.
+	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), which the CMO3 export
+	 * lowering emits as isLocked = !isSelectable.
 	 */
 	val isSelectable: Boolean
 

@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
  * lists, parameter ranges.  Those are decisions, not arithmetic - if the editor put a drawable under a
  * warp, so must we.
  *
- * The TEXTURE PAGE is not compared either, and cannot be: a CMO3 has no atlas.  Its pixels are
+ * The TEXTURE PAGE is not compared, and cannot be: a CMO3 has no atlas.  Its pixels are
  * embedded per drawable, and the packed pages a moc indexes into are produced BY the bake - so the
  * editor's page numbers describe a packing this file does not contain.  What the export writes is its
  * own page set (one per embedded image, or the retained atlas for a MOC3-origin document), and the
@@ -39,7 +39,8 @@ import kotlin.test.assertTrue
  * the official core instead, which is the question that actually matters and the only one with a
  * defensible tolerance.
  *
- * Gated on `cmo3.probe` + `moc3.samples`, joined by base name; self-skips when neither is present.
+ * Gated on `cmo3.probe` + `moc3.samples`, joined by base name; self-skips whenever the two sets share
+ * no base name, which includes either property being absent.
  */
 class Cmo3ToMoc3CrossFormatTest {
 	/**
@@ -148,9 +149,10 @@ class Cmo3ToMoc3CrossFormatTest {
 			 * Dumping both sets whole is what a plain equality assert does, and on a real model that is a
 			 * thousand ids of which two matter.
 			 *
-			 * @param String what     The object category.
-			 * @param Set    expected The editor's ids.
-			 * @param Set    actual   Ours.
+			 * @param String what           The object category.
+			 * @param Set    expected       The editor's ids.
+			 * @param Set    actual         Ours.
+			 * @param Set    keptWhenHidden Ids ours may carry that the bake drops for being hidden.
 			 */
 			fun checkIds(what: String, expected: Set<String>, actual: Set<String>, keptWhenHidden: Set<String>) {
 				val missing = (expected - actual).sorted()

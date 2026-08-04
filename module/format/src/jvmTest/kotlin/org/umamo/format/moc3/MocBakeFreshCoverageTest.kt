@@ -17,8 +17,8 @@ import kotlin.test.assertTrue
  * one", so the gap is tracked as a number rather than discovered later by a runtime that will not
  * load the result.
  *
- * The expectation below is a ratchet, not a target: it records what is still missing so the set can
- * only shrink.  Removing a name from it means a producer now covers that section.
+ * The expectation below is a ratchet, not a target: it names the sections no producer covers, and it
+ * is empty, so the gate fails the moment a fresh bake stops producing a section a corpus model carries.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */

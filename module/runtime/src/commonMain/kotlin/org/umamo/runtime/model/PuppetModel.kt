@@ -122,8 +122,8 @@ data class Part(
 	val isSketch: Boolean = false,
 	/**
 	 * Blender-style selectable toggle: an unselectable part cannot be picked in the viewport.
-	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
-	 * emit isLocked = !isSelectable.
+	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), which the CMO3 export
+	 * lowering emits as isLocked = !isSelectable.
 	 */
 	val isSelectable: Boolean = true,
 	/**
@@ -227,8 +227,8 @@ data class Drawable(
 	val isVisible: Boolean = true,
 	/**
 	 * Blender-style selectable toggle: an unselectable drawable cannot be picked in the viewport.
-	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
-	 * emit isLocked = !isSelectable.
+	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), which the CMO3 export
+	 * lowering emits as isLocked = !isSelectable.
 	 */
 	val isSelectable: Boolean = true,
 	/**

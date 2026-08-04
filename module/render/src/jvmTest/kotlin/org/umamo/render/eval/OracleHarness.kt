@@ -67,7 +67,7 @@ internal data class OracleDump(
 
 /**
  * Runs dump_model against [coreLib] and [moc3] at [pose] (empty = default pose) and parses the
- * canvas header + `D` lines.
+ * canvas header plus the `T` (part), `O` (offscreen), and `D` (drawable) lines.
  *
  * @param File dumpModel The dump_model binary.
  * @param File coreLib   .so to dlopen - Must be compatible with the official Cubism API.

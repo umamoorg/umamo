@@ -31,7 +31,7 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unexported) { proceed.invoke() }
 			}
 		},
-		// A CMO3 export finished with advisory notices; the shell shows them in a non-blocking alert.
+		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a non-blocking alert.
 		Command("document.exportReport", title = null) { argument ->
 			(argument as? ExportReport)?.let { report -> overlays.exportReport = report }
 		},

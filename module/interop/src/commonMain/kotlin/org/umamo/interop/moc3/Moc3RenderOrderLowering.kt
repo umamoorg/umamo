@@ -17,8 +17,10 @@ import org.umamo.runtime.model.RenderNode
  *
  * The format has one hard rule worth stating: EVERY art mesh must appear exactly once across the
  * whole tree.  A runtime that finds a drawable referenced twice, or not at all, is documented as
- * free to behave erratically - so the caller validates rather than assuming, and the render tree
- * the import builds already guarantees it through its own append-the-missing safety net.
+ * free to behave erratically - so the guarantee has to arrive with the tree rather than be checked
+ * here: the render tree the import builds supplies it through its own append-the-missing safety
+ * net, and this walk preserves that shape, skipping only a child whose drawable or part could not
+ * be written at all.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -44,7 +46,7 @@ internal fun lowerRenderOrder(puppet: PuppetModel, plan: Moc3IndexPlan): List<Re
 				is RenderDrawable -> {
 					val drawableIndex = plan.drawableIndex(child.id)
 					if (drawableIndex >= 0) {
-						// Kind 0: an art-mesh leaf.  groupIndex is unused for a leaf.
+						// MOC3 §5.6 render-order child kind 0: an art-mesh leaf.  groupIndex is unused for a leaf.
 						children.add(RenderOrderChild(kind = 0, index = drawableIndex, groupIndex = 0))
 					}
 				}

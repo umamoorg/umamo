@@ -23,10 +23,12 @@ import org.umamo.ui.viewport.initialLiveParams
 
 /**
  * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
- * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
- * reference container).  The original atlas page PNGs are retained too ([atlasPages], in model3
- * texture order): Export CMO3 for a MOC3-origin document synthesizes a fresh graph whose image
- * chain embeds those exact bytes, higher-fidelity than re-encoding the decoded RGBA.
+ * the decoded document are kept alongside the puppet as the file's undigested form; the MOC3 export
+ * reads neither, because it bakes every section fresh from the model with no reference container
+ * involved (docs/format/MOC3.md § 8).  The original atlas page PNGs are retained too ([atlasPages], in
+ * model3 texture order): both exports write those exact bytes rather than re-encoding the decoded
+ * RGBA, Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3 writing them
+ * beside the moc.
  */
 class Moc3Document(
 	override val path: String,

@@ -51,10 +51,10 @@ internal class ShellOverlayState {
 	var openFailure: DocumentOpenFailure? by mutableStateOf(null)
 
 	/**
-	 * The CMO3 export report alert's payload - set by the document.exportReport command when an
-	 * export finished with advisory notices (edits not carried into CMO3, weld divergence), cleared
-	 * like the open-failure alert.  Null while none shows.  Non-blocking: the export has already
-	 * been written when this shows.
+	 * The export report alert's payload - set by the document.exportReport command when a CMO3 or MOC3
+	 * export finished with advisory notices (edits the target format could not carry, features stripped
+	 * for an older runtime target, weld divergence), cleared like the open-failure alert.  Null while
+	 * none shows.  Non-blocking: the export has already been written when this shows.
 	 */
 	var exportReport: ExportReport? by mutableStateOf(null)
 
@@ -69,9 +69,9 @@ internal class ShellOverlayState {
 	/**
 	 * Closes the topmost open self-focused overlay, if any - what Escape does to this family.
 	 *
-	 * The order is the stacking order the modal key ladder used to spell out as four consecutive arms,
-	 * kept here so the flags and the precedence over them cannot drift apart.  It only matters when two
-	 * are somehow open at once; with one open, any order closes it.
+	 * The order is the four overlays' stacking order.  It lives here rather than as four consecutive
+	 * modal-ladder arms, so the flags and the precedence over them cannot drift apart.  It only matters
+	 * when two are somehow open at once; with one open, any order closes it.
 	 */
 	fun closeTopmostSelfFocused() {
 		when {

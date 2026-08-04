@@ -25,7 +25,10 @@ import kotlin.test.assertTrue
  *  - Section 152 (OFFSCREEN_BY_PART) is the inverse of 155 (OFFSCREEN_OWNER_PART).
  *
  * Refuted along the way: 158 is NOT a shared-binding index (Σ gridSize over its values far
- * exceeds CountInfo 36). Sections 154/160 remain unmodeled (mostly-zero on the corpus).
+ * exceeds CountInfo 36).  Sections 154 and 160 are both typed now, for different reasons: 154 is the
+ * per-offscreen runtime slot, all-zero on disk and only sized on write (UnmodeledSectionIdentityProbeTest),
+ * while 160 is a second per-part offscreen-index map whose meaning stays open - it coincides with 152
+ * on the small samples and diverges on Model A (OffscreenSectionAliasProbeTest).
  */
 class OffscreenKeyformProbeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }

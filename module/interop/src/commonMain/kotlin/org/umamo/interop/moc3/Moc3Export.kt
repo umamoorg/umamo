@@ -572,7 +572,9 @@ object Moc3Export {
 	 * Note bit 2 is the INVERSE of culling: the flag means "double sided", so a culled drawable clears
 	 * it.  Getting that backwards silently double-draws every back face.
 	 *
-	 * @param org.umamo.runtime.model.Drawable drawable The drawable.
+	 * @param org.umamo.runtime.model.Drawable drawable             The drawable.
+	 * @param Boolean                          extendedBlendEnabled Whether the target version carries the
+	 *   5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
 	 * @return Int The flag bits.
 	 */
 	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable, extendedBlendEnabled: Boolean): Int {
@@ -602,7 +604,7 @@ object Moc3Export {
 	 * file already had.  Writing the project's literal 1 instead is not a smaller choice - it stores the
 	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger who
 	 * picked a different scale at bake time cannot have it recovered from the project; that wants an
-	 * export option, like the hidden-object toggle.
+	 * export option, on the same surface an omit-hidden-objects toggle would live on.
 	 *
 	 * @param PuppetModel puppet The rig being exported.
 	 * @return Float The canvas scale to write.

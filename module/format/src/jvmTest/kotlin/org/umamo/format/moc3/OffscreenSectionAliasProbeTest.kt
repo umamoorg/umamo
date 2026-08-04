@@ -16,9 +16,10 @@ import kotlin.test.assertTrue
  * the owner part's index, while 160 holds ONE MORE value at slots shifted off the owner parts.
  *
  * Its real meaning stays open.  The extra value hints at the render-order rule that gives a sub-group
- * part owning an offscreen its own render slot, but nothing in the corpus pins that, so the fresh bake
- * carries 160 rather than synthesizing it - and this test exists so the refuted identity is not
- * re-derived from the small samples a third time.
+ * part owning an offscreen its own render slot, but nothing in the corpus pins that, so a bake writes
+ * the derivable inverse map into 160 as well rather than reproducing a divergence it cannot derive
+ * (`MocLowering`, section 160) - and this test exists so the refuted identity is not re-derived from
+ * the small samples a third time.
  */
 class OffscreenSectionAliasProbeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }

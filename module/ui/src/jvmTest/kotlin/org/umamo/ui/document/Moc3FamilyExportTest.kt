@@ -18,8 +18,9 @@ import kotlin.test.assertTrue
  * sidecars an import retained come back out.  Those are exactly the parts a runtime needs and the moc
  * itself says nothing about.
  *
- * Runs entirely in memory: the bundle is a list of named byte arrays, so the loader's injected
- * `readRelative` reads it directly and no temporary directory is involved.
+ * The round trip runs entirely in memory once the sample is read: the bundle is a list of named byte
+ * arrays, so the loader's injected `readRelative` reads it directly and no temporary directory is
+ * involved.
  *
  * Gated on `-Dmoc3.sample` (defaulted to the local corpus by the build); self-skips without it.
  */
