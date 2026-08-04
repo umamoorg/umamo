@@ -22,14 +22,13 @@ import kotlin.test.assertTrue
  * order, unrecoverable from a runtime model, so the pool is semantically equivalent rather than
  * identically numbered.
  *
- * Scoped to v1-v5; offscreens (v6) are still out of the export's
- * scope; the higher versions join as those land.
+ * Scoped to v1-v6 - every version the format models.
  */
 class Moc3ExportRoundTripTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
 
 	/** The versions the export currently covers in full. */
-	private val supportedVersions = setOf(1, 2, 3, 4, 5)
+	private val supportedVersions = setOf(1, 2, 3, 4, 5, 6)
 
 	private fun samples(): List<File> =
 		samplesDir
@@ -133,6 +132,37 @@ class Moc3ExportRoundTripTest {
 				check("mesh ${mesh.id} index count", expected.triangleIndices.size, mesh.triangleIndices.size)
 			}
 
+			// Offscreens (moc 6), by owner part id: the export renumbers parts, so the owner INDEX is not
+			// comparable across the two files - and a keyform row count that disagrees with the owner
+			// part's grid desynchronizes the runtime's per-offscreen base for every later offscreen.
+			val sourceOffscreensByOwner =
+				source.offscreens.mapNotNull { offscreen ->
+					source.parts.getOrNull(offscreen.ownerPartIndex)?.id?.to(offscreen)
+				}.toMap()
+			val exportedOffscreensByOwner =
+				exported.offscreens.mapNotNull { offscreen ->
+					exported.parts.getOrNull(offscreen.ownerPartIndex)?.id?.to(offscreen)
+				}.toMap()
+			check("offscreen owners", sourceOffscreensByOwner.keys.sorted(), exportedOffscreensByOwner.keys.sorted())
+			for ((ownerId, expected) in sourceOffscreensByOwner) {
+				val actual = exportedOffscreensByOwner[ownerId] ?: continue
+				val exportedOwnerPart = exported.parts.first { it.id == ownerId }
+				check("offscreen($ownerId) blend", expected.blendMode, actual.blendMode)
+				check("offscreen($ownerId) flags", expected.constantFlags, actual.constantFlags)
+				check("offscreen($ownerId) mask count", expected.maskCount, actual.maskIndices.size)
+				// The invariant evalOffscreens depends on: one row per cell of the OWNER PART's grid.
+				check(
+					"offscreen($ownerId) keyform rows",
+					exportedOwnerPart.drawOrderKeyforms.size,
+					actual.keyforms.size,
+				)
+				check(
+					"offscreen($ownerId) mask ids",
+					expected.maskIndices.toList().mapNotNull { source.artMeshes.getOrNull(it)?.id }.toSet(),
+					actual.maskIndices.toList().mapNotNull { exported.artMeshes.getOrNull(it)?.id }.toSet(),
+				)
+			}
+
 			val sourceDeformersById = source.deformers.associateBy { it.id }
 			for (deformer in exported.deformers) {
 				val expected = sourceDeformersById[deformer.id]
@@ -144,8 +174,8 @@ class Moc3ExportRoundTripTest {
 				check("deformer ${deformer.id} visibility", expected.isVisible, deformer.isVisible)
 			}
 		}
-		assertTrue(covered > 0, "no v1-v5 corpus model to round trip")
-		println("[export] round-tripped $covered v1-v5 models, ${failures.size} mismatches")
+		assertTrue(covered > 0, "no v1-v6 corpus model to round trip")
+		println("[export] round-tripped $covered v1-v6 models, ${failures.size} mismatches")
 		assertEquals(emptyList(), failures.take(25), "export round trip diverged")
 	}
 }

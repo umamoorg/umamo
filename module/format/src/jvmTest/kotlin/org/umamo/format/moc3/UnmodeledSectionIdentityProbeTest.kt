@@ -173,7 +173,7 @@ class UnmodeledSectionIdentityProbeTest {
 	 * pair's multiply and screen arrays are bit-identical.
 	 *
 	 * Our `MOC3.md` §5.6 currently lumps 115-148 together as blend-shape sections, which is wrong for
-	 * these six: they belong to WarpForm / RotForm / ArtMeshForm and arrived in moc 5.  Both halves of
+	 * these six: they belong to WarpForm / RotForm / ArtMeshForm and arrived in Cubism 5.  Both halves of
 	 * the claim are checked here, per form of every object of every v5+ sample.
 	 */
 	@Test

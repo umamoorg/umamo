@@ -46,13 +46,23 @@ internal data class OracleOffscreen(
 	val screenRgba: List<Float>,
 )
 
-/** A parsed dump: the model-space canvas header plus the per-drawable entries by id. */
+/**
+ * A parsed dump: the model-space canvas header plus the per-drawable entries by id.
+ *
+ * The two index->id lists exist because a moc addresses parts and drawables positionally while the
+ * export re-derives its own ordering, so ANY cross-file comparison of an index (an offscreen's owner,
+ * a mask list) has to travel through the id or it compares two different numbering schemes.
+ */
 internal data class OracleDump(
 	val pixelsPerUnit: Float,
 	val originX: Float,
 	val originY: Float,
 	val entries: Map<String, OracleEntry>,
 	val offscreens: List<OracleOffscreen> = emptyList(),
+	/** Part ids in file-index order, from the `T` lines. */
+	val partIds: List<String> = emptyList(),
+	/** Drawable ids in file-index order, from the `D` lines. */
+	val drawableIds: List<String> = emptyList(),
 )
 
 /**
@@ -81,7 +91,9 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val process = ProcessBuilder(command).redirectErrorStream(true).start()
 	val output = process.inputStream.bufferedReader().readText()
 	val exit = process.waitFor()
-	check(exit == 0) { "dump_model failed (exit $exit): ${output.take(300)}" }
+	// The file is named because a non-zero exit IS the "does it even load" gate: without it a rejected
+	// export reads as an unattributable crash in whichever model happened to be next.
+	check(exit == 0) { "dump_model failed on ${moc3.path} (exit $exit): ${output.take(300)}" }
 
 	val canvasRegex = Regex("""# canvas size=(\S+),(\S+) origin=(\S+),(\S+) ppu=(\S+)""")
 	val canvas = canvasRegex.find(output) ?: error("no canvas header in dump")
@@ -101,7 +113,15 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		Regex("""O \d+ owner=(-?\d+) blend=(-?\d+) cflag=0x([0-9a-fA-F]+) masks=\d+:(\S*) op=(\S+) mul=(\S+) scr=(\S+)""")
 	val entries = HashMap<String, OracleEntry>()
 	val offscreens = ArrayList<OracleOffscreen>()
+	val partIds = ArrayList<String>()
+	val drawableIds = ArrayList<String>()
+	// T <index> id=<partId> parent=<index>
+	val partRegex = Regex("""T \d+ id=(\S+)""")
 	for (line in output.lineSequence()) {
+		if (line.startsWith("T ")) {
+			partRegex.find(line)?.let { partIds.add(it.groupValues[1]) }
+			continue
+		}
 		if (line.startsWith("O ")) {
 			val match = offscreenRegex.find(line) ?: continue
 			offscreens.add(
@@ -121,6 +141,9 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 			continue
 		}
 		val id = idRegex.find(line)?.groupValues?.get(1) ?: continue
+		// Recorded before the geometry parse: the id list is the file's INDEX ordering, so a line this
+		// parser gives up on would silently shift every later index.
+		drawableIds.add(id)
 		val vtx = vtxRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: continue
 		// Non-finite hashes are kept rather than skipped, for the same reason: a dropped entry reads as
 		// "the exported file has no such drawable", which points at the wrong thing entirely.
@@ -146,6 +169,8 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		originY = canvas.groupValues[4].toFloat(),
 		entries = entries,
 		offscreens = offscreens,
+		partIds = partIds,
+		drawableIds = drawableIds,
 	)
 }
 

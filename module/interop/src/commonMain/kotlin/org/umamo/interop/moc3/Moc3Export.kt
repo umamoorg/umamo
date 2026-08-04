@@ -16,6 +16,7 @@ import org.umamo.format.moc3.model.WarpKeyform
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.legacyBlendFlagOf
+import org.umamo.interop.packedBlendOf
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -90,10 +91,15 @@ object Moc3Export {
 		val plan = Moc3IndexPlan.of(puppet, exportable)
 		val canvas = MocCanvasMapping(puppet.pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
-		// Per-object multiply/screen colour arrived in moc 4.2; below that the tables do not exist and
+		// Per-object multiply/screen colour arrived in Cubism 4.2; below that the tables do not exist and
 		// every keyform must carry null rather than an identity, or the lowering would synthesize
 		// sections the version cannot address.
 		val colorsEnabled = version.byteValue >= 4
+		// Offscreen rendering (an isolated part composited as one layer) arrived in Cubism 5.3, as did the
+		// extended blend surface.  Two names for one gate: they are separate features that happen to
+		// share a version, and a later version bump should be able to move one without the other.
+		val offscreensEnabled = version.byteValue >= 6
+		val extendedBlendEnabled = version.byteValue >= 6
 		val rotationAncestors = rotationAncestorsById(plan.deformers)
 
 		/**
@@ -144,19 +150,45 @@ object Moc3Export {
 				)
 			}
 
+		val renderOrderGroups = lowerRenderOrder(puppet, plan)
+
 		// ---- parts ----
+		// An offscreen's keyforms ride its OWNER PART'S grid - Σ of the owner grid sizes is CountInfo 36 -
+		// so the part's bundle is built once here and the offscreen lowering reads the same one.  Building
+		// it twice would let the two disagree about the grid an offscreen is indexed against.
+		val partKeyformsById = HashMap<org.umamo.runtime.model.PartId, Moc3ObjectKeyforms?>()
 		val parts =
 			plan.parts.map { part ->
+				// An isolated part's composite channels ride the same cells as its draw order, so they are
+				// bundled together; a non-isolated part has no composite to key.
+				val compositeChannels =
+					if (offscreensEnabled && part.isIsolated) {
+						renderChannels(colorsEnabled)
+					} else {
+						emptyArray()
+					}
+				val compositeStatics =
+					if (offscreensEnabled && part.isIsolated) {
+						renderStatics(
+							part.composite.opacity,
+							part.composite.multiplyColor,
+							part.composite.screenColor,
+							colorsEnabled,
+						)
+					} else {
+						emptyMap()
+					}
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
 						null as org.umamo.runtime.model.KeyformGrid<Unit>?,
 						UnitInterpolator,
-						part.channelGrids.onlyChannels(FormChannel.DRAW_ORDER),
-						mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
+						part.channelGrids.onlyChannels(*(compositeChannels + arrayOf(FormChannel.DRAW_ORDER))),
+						compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
 						requireGeometry = false,
 					)
 				reportDemotions("part", part.id.raw, keyforms)
+				partKeyformsById[part.id] = keyforms
 				val bundle = keyforms?.bundle
 				val cellCount = bundle?.cells?.size ?: 0
 				MocPart(
@@ -317,8 +349,10 @@ object Moc3Export {
 				ArtMesh(
 					id = drawable.id.raw,
 					textureIndex = maxOf(drawable.texturePage, 0),
-					constantFlags = constantFlagsOf(drawable),
-					extendedBlend = 0,
+					constantFlags = constantFlagsOf(drawable, extendedBlendEnabled),
+					// The 5.3 blend surface; below v6 the mode falls back to the legacy constant-flag bits.
+					extendedBlend =
+						if (extendedBlendEnabled) packedBlendOf(drawable.blendMode, drawable.alphaBlendMode) else 0,
 					isVisible = drawable.isVisible,
 					isEnabled = true,
 					parentPartIndex = plan.partIndex(drawablePartOf(puppet, drawable.id)),
@@ -416,8 +450,14 @@ object Moc3Export {
 				deformers = deformers,
 				artMeshes = artMeshes,
 				glues = glues,
-				renderOrderGroups = lowerRenderOrder(puppet, plan),
-				// Blend shapes arrived in moc 4.2; a lower target simply carries none.
+				renderOrderGroups = renderOrderGroups,
+				offscreens =
+					if (offscreensEnabled) {
+						lowerOffscreens(puppet, plan, partKeyformsById, colorsEnabled, ::unsupported)
+					} else {
+						emptyList()
+					},
+				// Blend shapes arrived in Cubism 4.2; a lower target simply carries none.
 				blendShapes =
 					if (version.byteValue < 4) {
 						emptyList()
@@ -485,8 +525,11 @@ object Moc3Export {
 	 * @param org.umamo.runtime.model.Drawable drawable The drawable.
 	 * @return Int The flag bits.
 	 */
-	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable): Int {
-		var flags = legacyBlendFlagOf(drawable.blendMode)
+	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable, extendedBlendEnabled: Boolean): Int {
+		// On moc 6 the extended-blend section is authoritative and the editor leaves the legacy 2-bit pair
+		// CLEAR even for an additive or multiply mesh - writing both would state the mode twice, and the
+		// legacy pair cannot express the other sixteen modes anyway.
+		var flags = if (extendedBlendEnabled) 0 else legacyBlendFlagOf(drawable.blendMode)
 		if (!drawable.culling) {
 			flags = flags or ConstantFlag.IS_DOUBLE_SIDED
 		}
