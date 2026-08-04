@@ -14,6 +14,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.RotationPivotForm
 
 /*
@@ -371,4 +372,45 @@ internal fun <F : Any> deformerBlendChannelDeltas(
 		ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
 		ColorRgb(screenRed, screenGreen, screenBlue),
 	)
+}
+
+/**
+ * A part's summed weighted blend-shape draw-order delta at the current pose, or null when nothing
+ * contributes.
+ *
+ * Draw order is a part's only blendable channel, so unlike the drawable and deformer paths there is
+ * one scalar to sum.  The reference is the channel's value at the DEFAULT pose - sampled from the
+ * part's own track, falling back to its static - which is exactly what the import added, so the two
+ * cancel.
+ *
+ * @param Part     part         The part.
+ * @param Function paramValue   Current value per parameter id.
+ * @param Function defaultValue Default value per parameter id (the neutral pose).
+ * @return Float? The summed delta, or null when the part has no active contribution.
+ */
+internal fun partBlendDrawOrderDelta(
+	part: Part,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+): Float? {
+	if (part.blendShapes.isEmpty()) {
+		return null
+	}
+	var delta = 0f
+	var contributed = false
+	var reference: Float? = null
+	for (binding in part.blendShapes) {
+		val active =
+			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+		for (key in active) {
+			val form = binding.forms[key.keyIndex] ?: continue
+			if (reference == null) {
+				reference =
+					part.channelGrids.scalarAt(FormChannel.DRAW_ORDER, part.drawOrder.toFloat(), defaultValue)
+			}
+			contributed = true
+			delta += key.weight * (form.drawOrder - reference)
+		}
+	}
+	return if (contributed) delta else null
 }

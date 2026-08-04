@@ -106,8 +106,8 @@ import org.umamo.format.moc3.model.Part as MocPart
  *    geometry converts like the grid keyforms minus the origin term (a delta in root space scales
  *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
  *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
- *    PART-owned records (Model C carries one) are skipped, matching the CMO3 path's CPartSource
- *    exclusion.  Offscreens ingest into [org.umamo.runtime.model.PartComposite] per owner part
+ *    PART-owned records carry only a draw-order delta (a part has no other blendable channel) and
+ *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into [org.umamo.runtime.model.PartComposite] per owner part
  *    (packed blend int, flags, mask indices) - the part's group mode becomes Isolated - with the
  *    keyformed opacity/color channels merged into the part's [PartForm] grid (they ride the same
  *    cells, MOC3 §5.6).
@@ -878,6 +878,59 @@ object Moc3Import {
 		}
 
 		/**
+		 * Maps [records] onto a part as draw-order blend bindings.
+		 *
+		 * A part's only blendable channel is its draw order, so a record carries a single scalar delta
+		 * per key.  It gets the same reference treatment as every other blend payload - the stored delta
+		 * plus the channel's value at the DEFAULT pose - so the evaluator's subtraction cancels exactly.
+		 *
+		 * @param MocPart             source        The moc part.
+		 * @param Int                 staticOrder   The part's static draw order.
+		 * @param ChannelGrids        channelGrids  The part's own keyform tracks (the reference source).
+		 * @param List<MocBlendShape> records       The part's records.
+		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings.
+		 */
+		fun partBlendShapesOf(
+			source: MocPart,
+			staticOrder: Float,
+			channelGrids: ChannelGrids,
+			records: List<MocBlendShape>,
+		): List<BlendShapeBinding<PartForm>> {
+			val referenceDrawOrder = channelGrids.scalarAt(FormChannel.DRAW_ORDER, staticOrder, defaultValue)
+			return records.mapNotNull { record ->
+				val payloads =
+					record.keyforms.map { keyform ->
+						(keyform as? BlendShapeKeyform.Part)?.drawOrderDelta ?: return@mapNotNull null
+					}
+				if (payloads.size != record.keyPositions.size) {
+					return@mapNotNull null
+				}
+				bindingOfRecord(record) { keyIndex ->
+					PartForm(drawOrder = referenceDrawOrder + payloads[keyIndex])
+				}
+			}
+		}
+
+		/**
+		 * [partBlendShapesOf] with this part's records looked up, the shape [buildOrgTree] consumes.
+		 *
+		 * @param MocPart      source       The moc part.
+		 * @param ChannelGrids channelGrids The part's tracks, already built by the caller.
+		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings, empty when the part has none.
+		 */
+		fun partBlendShapesOfBound(source: MocPart, channelGrids: ChannelGrids): List<BlendShapeBinding<PartForm>> {
+			val partIndex = mocDocument.parts.indexOfFirst { part -> part.id == source.id }
+			if (partIndex < 0) {
+				return emptyList()
+			}
+			val records = blendRecordsByTarget[BlendShapeTarget.PART to partIndex].orEmpty()
+			if (records.isEmpty()) {
+				return emptyList()
+			}
+			return partBlendShapesOf(source, partStaticDrawOrder(source).toFloat(), channelGrids, records)
+		}
+
+		/**
 		 * The parameter-driven per-channel tracks of a moc part, empty when the part is static.  Carries
 		 * the draw order always; for an isolated part the offscreen's keyformed opacity/color
 		 * channels merge in, riding the same grid cells (MOC3 §5.6: Σ owner grid == CountInfo 36).
@@ -948,6 +1001,7 @@ object Moc3Import {
 				drawOrderGroupPartIndices,
 				::partStaticDrawOrder,
 				::partChannelsOf,
+				::partBlendShapesOfBound,
 				::partCompositeOf,
 			)
 
@@ -1269,6 +1323,7 @@ object Moc3Import {
 		drawOrderGroupPartIndices: Set<Int>,
 		partStaticDrawOrder: (MocPart) -> Int,
 		partChannelsOf: (MocPart) -> ChannelGrids,
+		partBlendShapesOf: (MocPart, ChannelGrids) -> List<BlendShapeBinding<PartForm>>,
 		partCompositeOf: (MocPart) -> PartComposite?,
 	): Pair<List<Part>, List<OrgChild>> {
 		val partCount = mocDocument.parts.size
@@ -1364,6 +1419,7 @@ object Moc3Import {
 				// MOC3 (runtime format) only records composite data for offscreen parts, so this is null for
 				// the rest; the composite is stored latently and applied only while the part is Isolated.
 				val offscreenComposite = partCompositeOf(source)
+				val partChannels = partChannelsOf(source)
 				Part(
 					id = partIds[partIndex],
 					// cdi3: DisplayPart.name is the display label; fall back to the id.
@@ -1383,8 +1439,10 @@ object Moc3Import {
 							else -> PartGroupMode.PassThrough
 						},
 					drawOrder = partStaticDrawOrder(source),
-					channelGrids = partChannelsOf(source),
+					channelGrids = partChannels,
 					composite = offscreenComposite ?: PartComposite(),
+					// MOC3 v5+ §5.6: a part-target blend record, whose only channel is the draw order.
+					blendShapes = partBlendShapesOf(source, partChannels),
 				)
 			}
 		return parts to childrenOf(-1)

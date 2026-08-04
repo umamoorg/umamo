@@ -151,6 +151,15 @@ data class Part(
 	 * applied while the part is Isolated - see [activeComposite], the accessor the render pipeline reads.
 	 */
 	val composite: PartComposite = PartComposite(),
+	/**
+	 * Additive blend-shape bindings on this part's channels, applied on top of [channelGrids]; empty
+	 * when the part has none.
+	 *
+	 * A part owns only ONE blendable channel - its draw order - so unlike a drawable or a deformer
+	 * these records carry no geometry and no colour.  The effect is on stacking: a record can lift a
+	 * grouped part's whole subtree in front of its siblings for the span of a parameter.
+	 */
+	val blendShapes: List<BlendShapeBinding<PartForm>> = emptyList(),
 ) {
 	/** True when this part composites its subtree as one layer. */
 	val isIsolated: Boolean

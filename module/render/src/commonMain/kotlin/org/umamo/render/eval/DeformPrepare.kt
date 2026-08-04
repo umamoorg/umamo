@@ -7,6 +7,7 @@ import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.scalarOrNull
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
@@ -227,6 +228,9 @@ internal fun preparePose(
 	// out of range.
 	val partDrawOrders = HashMap<PartId, Float>()
 	val partCompositeStates = HashMap<PartId, PartRenderState>()
+	// The render tree carries a group's tracks but not its part's blend records, so the blend pass
+	// needs the part itself.  Built once rather than searched per group.
+	val partsById = model.parts.associateBy { part -> part.id }
 
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
@@ -235,12 +239,20 @@ internal fun preparePose(
 		if (partId != null && partOwner != null) {
 			// Left ABSENT when the part has no draw-order track or the pose is out of its range, so the
 			// renderer keeps the part's static slot - the map's sparseness is the signal.
-			channels
-				.scalarOrNull(
+			val tracked =
+				channels.scalarOrNull(
 					FormChannel.DRAW_ORDER,
 					paramValue,
 					overrides?.get(KeyableTarget(partOwner, FormChannel.DRAW_ORDER)),
-				)?.let { partDrawOrders[partId] = it }
+				)
+			// A part-target blend record moves the slot too, and it can do so on a part with no track at
+			// all - so an entry appears whenever EITHER contributes, with the static standing in as the
+			// base when only the record does.
+			val blendDelta = partsById[partId]?.let { part -> partBlendDrawOrderDelta(part, paramValue, defaultValue) }
+			if (tracked != null || blendDelta != null) {
+				val base = tracked ?: partsById[partId]?.drawOrder?.toFloat() ?: DEFAULT_DRAW_ORDER.toFloat()
+				partDrawOrders[partId] = base + (blendDelta ?: 0f)
+			}
 		}
 		val composite = group.composite
 		if (partId != null && composite != null) {

@@ -26,6 +26,10 @@ internal data class OracleEntry(
 	val opacity: Float,
 	val multiplyRgba: List<Float>,
 	val screenRgba: List<Float>,
+	/** The core's post-update draw order (its rounded integer form of the blended float). */
+	val drawOrder: Int = 0,
+	/** The core's post-update RENDER order - the drawable's slot after draw-group depth sorting. */
+	val renderOrder: Int = 0,
 )
 
 /**
@@ -88,6 +92,8 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
 	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
 	val opacityRegex = Regex(""" op=(\S+)""")
+	val drawOrderRegex = Regex(""" draw=(-?\d+)""")
+	val renderOrderRegex = Regex(""" render=(-?\d+)""")
 	val multiplyRegex = Regex(""" mul=(\S+)""")
 	val screenRegex = Regex(""" scr=(\S+)""")
 	// O <i> owner=<d> blend=<d> cflag=0x<hex> masks=<n>:<i0>,<i1>,… op=<g> mul=<r>,<g>,<b>,<a> scr=<r>,<g>,<b>,<a>
@@ -121,7 +127,9 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
 		val multiplyRgba = multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
 		val screenRgba = screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
-		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba)
+		val drawOrder = drawOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+		val renderOrder = renderOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba, drawOrder, renderOrder)
 	}
 	return OracleDump(
 		pixelsPerUnit = canvas.groupValues[5].toFloat(),
