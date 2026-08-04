@@ -48,8 +48,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireInput("relive.dumpModel")
-		val coreLib = requireInput("relive.coreLib")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -88,7 +88,16 @@ class DeformerChannelOracleTest {
 				val inputs = preparePose(puppet, parameterValues)
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
-					if (wasNeverEvaluated(oracleEntry)) {
+					/*
+					 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor
+					 * deformer's - is out of its keyed parameter range, skipping it entirely during the
+					 * update, so every computed field stays at the zero it was allocated with. Umamo
+					 * instead evaluates such a drawable live, and that difference spans geometry as well
+					 * as these channels (the oracle reports `vpos_h=0` for them), so it is a separate gap
+					 * from the channel cascade this test gates - see TODO § Puppet Model, CMO3, MOC3.
+					 * Excluded here so this gate keeps measuring one thing.
+					 */
+					if (oracleNeverEvaluated(oracleEntry)) {
 						skippedNeverEvaluated++
 						continue
 					}
@@ -213,40 +222,9 @@ class DeformerChannelOracleTest {
 		return poses
 	}
 
-	/**
-	 * Whether the oracle left this drawable at its zero-initialized state instead of evaluating it.
-	 *
-	 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor deformer's - is
-	 * out of its keyed parameter range, skipping it entirely during the update, so every computed
-	 * field stays at the zero it was allocated with. Umamo instead evaluates such a drawable live, and
-	 * that difference spans geometry as well as these channels (the oracle reports `vpos_h=0` for
-	 * them), so it is a separate gap from the channel cascade this test gates - see TODO
-	 * § Puppet Model, CMO3, MOC3. Excluded here so this gate keeps measuring one thing.
-	 *
-	 * The signature is unambiguous and cannot arise from a real evaluation: a position hash of exactly
-	 * zero AND a fully black multiply color AND zero opacity, all at once. A legitimately invisible
-	 * drawable still reports real geometry and a white multiply.
-	 *
-	 * @param OracleEntry entry The dumped drawable.
-	 * @return Boolean True when the oracle never evaluated it.
-	 */
-	private fun wasNeverEvaluated(entry: OracleEntry): Boolean =
-		entry.vposH == 0.0 &&
-			entry.opacity == 0f &&
-			entry.multiplyRgba.size == 4 &&
-			entry.multiplyRgba[0] == 0f &&
-			entry.multiplyRgba[1] == 0f &&
-			entry.multiplyRgba[2] == 0f
-
 	private fun checkChannel(mismatches: ArrayList<String>, label: String, channel: String, oracle: Float, ours: Float) {
 		if (!oracleCloseEnough(oracle.toDouble(), ours.toDouble())) {
 			mismatches.add("$label $channel: oracle=$oracle ours=$ours")
 		}
-	}
-
-	private fun requireInput(property: String): File {
-		val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-		Assume.assumeTrue("[oracle] absent -D$property", file != null)
-		return file!!
 	}
 }

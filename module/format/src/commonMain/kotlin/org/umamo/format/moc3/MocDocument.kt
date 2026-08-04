@@ -17,7 +17,7 @@ import org.umamo.format.moc3.model.RenderOrderGroup
  * reconstruction and (later) the bake.
  *
  * Objects reference each other and parameters by index (their position in these lists). Each
- * deformable object names a [keyformBindingIndex]; look the binding up with [keyformBinding] to
+ * deformable object names a `keyformBindingIndex`; look the binding up with [keyformBinding] to
  * learn the controlling parameters and key positions for its keyforms. The per-frame
  * interpolation/deformation math is intentionally not modelled - this is the stored data.
  * Blend shapes (moc 4+) and offscreens (moc 6) are assembled into [blendShapes]/[offscreens];

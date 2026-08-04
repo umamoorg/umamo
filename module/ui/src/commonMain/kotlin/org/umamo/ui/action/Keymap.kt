@@ -170,7 +170,6 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		// Ctrl+O drives CMO3 import while it is the only way in; it moves to UMA Open when that
 		// lands.  Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
 		"primary+KeyO" to "file.importCmo3",
-		"primary+shift+KeyE" to "file.exportCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
@@ -233,7 +232,6 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		// Ctrl+O drives CMO3 import while it is the only way in (the format Cubism migrants bring);
 		// Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
 		"primary+KeyO" to "file.importCmo3",
-		"primary+shift+KeyE" to "file.exportCmo3",
 		// Undo / redo: Ctrl+Z plus both redo conventions Cubism migrants carry (Ctrl+Shift+Z and Ctrl+Y).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
@@ -264,7 +262,6 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		// Ctrl+O drives CMO3 import while it is the only way in; it moves to UMA Open when that
 		// lands.  Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
 		"primary+KeyO" to "file.importCmo3",
-		"primary+shift+KeyE" to "file.exportCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"KeyH" to "object.toggleVisibility",
