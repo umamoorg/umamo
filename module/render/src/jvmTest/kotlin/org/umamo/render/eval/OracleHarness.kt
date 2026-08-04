@@ -122,11 +122,20 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		}
 		val id = idRegex.find(line)?.groupValues?.get(1) ?: continue
 		val vtx = vtxRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: continue
-		val vposH = vposRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-		val vuvH = vuvRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
-		val multiplyRgba = multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
-		val screenRgba = screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
+		// Non-finite hashes are kept rather than skipped, for the same reason: a dropped entry reads as
+		// "the exported file has no such drawable", which points at the wrong thing entirely.
+		val vposH = vposRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
+		val vuvH = vuvRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
+		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: Float.NaN
+		// A non-finite channel is DATA, not a parse error: the core prints "-nan" for a drawable whose
+		// inputs went bad, and that is exactly the kind of thing a differential gate exists to catch.
+		// Throwing here would turn a reportable mismatch into an unattributable test crash.
+		val multiplyRgba =
+			multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloatOrNull() ?: Float.NaN }
+				?: emptyList()
+		val screenRgba =
+			screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloatOrNull() ?: Float.NaN }
+				?: emptyList()
 		val drawOrder = drawOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 		val renderOrder = renderOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba, drawOrder, renderOrder)

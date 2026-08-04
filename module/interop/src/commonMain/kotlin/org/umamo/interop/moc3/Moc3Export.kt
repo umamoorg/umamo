@@ -72,9 +72,28 @@ object Moc3Export {
 	 */
 	fun toMocDocument(puppet: PuppetModel, version: MocVersion): Lowered {
 		val notices = ArrayList<ExportNotice>()
-		val plan = Moc3IndexPlan.of(puppet)
+		// Which drawables survive is decided BEFORE the index plan, because the plan's indices are the
+		// file's addressing scheme: a drawable dropped after the plan was built would leave every later
+		// index - and every mask reference into them - naming the wrong object.
+		val dropped = LinkedHashMap<org.umamo.runtime.model.DrawableId, String>()
+		for (drawable in puppet.drawables) {
+			if (drawable.mesh == null) {
+				dropped[drawable.id] = "a drawable with no mesh cannot be written"
+			} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
+				// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
+				// with no grid there are no deltas to recover the parent-local form from.  Inverting the
+				// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach.
+				dropped[drawable.id] = "an unkeyed drawable under a deformer has no parent-space geometry to write"
+			}
+		}
+		val exportable = puppet.drawables.filter { drawable -> drawable.id !in dropped }
+		val plan = Moc3IndexPlan.of(puppet, exportable)
 		val canvas = MocCanvasMapping(puppet.pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
+		// Per-object multiply/screen colour arrived in moc 4.2; below that the tables do not exist and
+		// every keyform must carry null rather than an identity, or the lowering would synthesize
+		// sections the version cannot address.
+		val colorsEnabled = version.byteValue >= 4
 		val rotationAncestors = rotationAncestorsById(plan.deformers)
 
 		/**
@@ -167,8 +186,13 @@ object Moc3Export {
 								pool,
 								deformer.geometryGrid,
 								WarpLatticeInterpolator,
-								deformer.channelGrids.onlyChannels(FormChannel.OPACITY),
-								mapOf(FormChannel.OPACITY to ChannelValue.Scalar(deformer.opacity)),
+								deformer.channelGrids.onlyChannels(*renderChannels(colorsEnabled)),
+								renderStatics(
+									deformer.opacity,
+									deformer.multiplyColor,
+									deformer.screenColor,
+									colorsEnabled,
+								),
 								requireGeometry = true,
 							)
 						reportDemotions("deformer", deformer.id.raw, keyforms)
@@ -197,9 +221,8 @@ object Moc3Export {
 									WarpKeyform(
 										convertPointsToMoc(space, lattice?.controlPoints ?: FloatArray(0), canvas),
 										scalarOf(bundle, cellIndex, FormChannel.OPACITY, deformer.opacity),
-										// Colours are moc 4+ and out of scope here; the tables stay absent.
-										null,
-										null,
+										colorOf(bundle, cellIndex, FormChannel.MULTIPLY_COLOR, deformer.multiplyColor, colorsEnabled),
+										colorOf(bundle, cellIndex, FormChannel.SCREEN_COLOR, deformer.screenColor, colorsEnabled),
 									)
 								},
 						)
@@ -211,15 +234,13 @@ object Moc3Export {
 								deformer.geometryGrid,
 								RotationPivotInterpolator,
 								deformer.channelGrids.onlyChannels(
-									FormChannel.OPACITY,
-									FormChannel.FLIP_X,
-									FormChannel.FLIP_Y,
+									*(renderChannels(colorsEnabled) + arrayOf(FormChannel.FLIP_X, FormChannel.FLIP_Y)),
 								),
-								mapOf(
-									FormChannel.OPACITY to ChannelValue.Scalar(deformer.opacity),
-									FormChannel.FLIP_X to ChannelValue.Flag(deformer.flipX),
-									FormChannel.FLIP_Y to ChannelValue.Flag(deformer.flipY),
-								),
+								renderStatics(deformer.opacity, deformer.multiplyColor, deformer.screenColor, colorsEnabled) +
+									mapOf(
+										FormChannel.FLIP_X to ChannelValue.Flag(deformer.flipX),
+										FormChannel.FLIP_Y to ChannelValue.Flag(deformer.flipY),
+									),
 								requireGeometry = true,
 							)
 						reportDemotions("deformer", deformer.id.raw, keyforms)
@@ -260,8 +281,10 @@ object Moc3Export {
 										reflectX = flagOf(bundle, cellIndex, FormChannel.FLIP_X, deformer.flipX),
 										reflectY = flagOf(bundle, cellIndex, FormChannel.FLIP_Y, deformer.flipY),
 										opacity = scalarOf(bundle, cellIndex, FormChannel.OPACITY, deformer.opacity),
-										multiplyColor = null,
-										screenColor = null,
+										multiplyColor =
+											colorOf(bundle, cellIndex, FormChannel.MULTIPLY_COLOR, deformer.multiplyColor, colorsEnabled),
+										screenColor =
+											colorOf(bundle, cellIndex, FormChannel.SCREEN_COLOR, deformer.screenColor, colorsEnabled),
 									)
 								},
 						)
@@ -271,34 +294,19 @@ object Moc3Export {
 
 		// ---- art meshes ----
 		val artMeshes =
-			plan.drawables.mapNotNull { drawable ->
-				val mesh = drawable.mesh
-				if (mesh == null) {
-					unsupported("drawable", drawable.id.raw, "a drawable with no mesh cannot be written")
-					return@mapNotNull null
-				}
+			plan.drawables.map { drawable ->
+				val mesh = drawable.mesh!!
 				val space = spaceOfParent(plan, drawable.parentDeformerId)
-				if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
-					// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
-					// with no grid there are no deltas to recover the parent-local form from.  Inverting the
-					// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach.
-					unsupported(
-						"drawable",
-						drawable.id.raw,
-						"an unkeyed drawable under a deformer has no parent-space geometry to write",
-					)
-					return@mapNotNull null
-				}
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
 						drawable.geometryGrid,
 						MeshDeltaInterpolator,
-						drawable.channelGrids.onlyChannels(FormChannel.DRAW_ORDER, FormChannel.OPACITY),
-						mapOf(
-							FormChannel.DRAW_ORDER to ChannelValue.Scalar(drawable.drawOrder),
-							FormChannel.OPACITY to ChannelValue.Scalar(drawable.opacity),
+						drawable.channelGrids.onlyChannels(
+							*(renderChannels(colorsEnabled) + arrayOf(FormChannel.DRAW_ORDER)),
 						),
+						renderStatics(drawable.opacity, drawable.multiplyColor, drawable.screenColor, colorsEnabled) +
+							mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(drawable.drawOrder)),
 						requireGeometry = false,
 					)
 				reportDemotions("drawable", drawable.id.raw, keyforms)
@@ -338,8 +346,10 @@ object Moc3Export {
 								drawOrder =
 									bundle?.let { scalarOf(it, cellIndex, FormChannel.DRAW_ORDER, drawable.drawOrder) }
 										?: drawable.drawOrder,
-								multiplyColor = null,
-								screenColor = null,
+								multiplyColor =
+									colorOf(bundle, cellIndex, FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, colorsEnabled),
+								screenColor =
+									colorOf(bundle, cellIndex, FormChannel.SCREEN_COLOR, drawable.screenColor, colorsEnabled),
 							)
 						},
 				)
@@ -384,6 +394,10 @@ object Moc3Export {
 				)
 			}
 
+		for ((drawableId, reason) in dropped) {
+			unsupported("drawable", drawableId.raw, reason)
+		}
+
 		val document =
 			MocDocument(
 				version = version,
@@ -403,6 +417,31 @@ object Moc3Export {
 				artMeshes = artMeshes,
 				glues = glues,
 				renderOrderGroups = lowerRenderOrder(puppet, plan),
+				// Blend shapes arrived in moc 4.2; a lower target simply carries none.
+				blendShapes =
+					if (version.byteValue < 4) {
+						emptyList()
+					} else {
+						lowerBlendShapes(
+							plan.drawables,
+							plan.deformers,
+							plan.parts,
+							plan.parameters,
+							plan,
+							canvas,
+							{ ownerId ->
+								when (ownerId) {
+									is org.umamo.runtime.model.DrawableId ->
+										spaceOfParent(plan, plan.drawables.first { it.id == ownerId }.parentDeformerId)
+									is org.umamo.runtime.model.DeformerId ->
+										spaceOfParent(plan, plan.deformers.first { it.id == ownerId }.parent)
+									else -> PointSpace.ModelRoot
+								}
+							},
+							{ rotation -> rotationScaleFactor(rotationAncestors[rotation.id] ?: false, canvas) },
+							colorsEnabled,
+						)
+					},
 			)
 		return Lowered(document, ExportReport(notices))
 	}
@@ -484,6 +523,47 @@ object Moc3Export {
 			candidate.children.any { child -> child is org.umamo.runtime.model.OrgChild.Part && child.id == partId }
 		}?.id
 }
+
+/**
+ * The render channels an object's grid should bundle, gated on whether the version carries colours.
+ *
+ * @param Boolean colorsEnabled Whether the target version has colour tables.
+ * @return Array<FormChannel> The channels to bundle.
+ */
+internal fun renderChannels(colorsEnabled: Boolean): Array<FormChannel> =
+	if (colorsEnabled) {
+		arrayOf(FormChannel.OPACITY, FormChannel.MULTIPLY_COLOR, FormChannel.SCREEN_COLOR)
+	} else {
+		arrayOf(FormChannel.OPACITY)
+	}
+
+/**
+ * The static fallbacks for [renderChannels].
+ *
+ * Colours are omitted entirely below moc 4 rather than defaulted, so the bundle never manufactures a
+ * colour cell the version has nowhere to store.
+ *
+ * @param Float    opacity       The owner's static opacity.
+ * @param ColorRgb multiplyColor The owner's static multiply colour.
+ * @param ColorRgb screenColor   The owner's static screen colour.
+ * @param Boolean  colorsEnabled Whether the target version has colour tables.
+ * @return Map The statics per channel.
+ */
+internal fun renderStatics(
+	opacity: Float,
+	multiplyColor: org.umamo.runtime.model.ColorRgb,
+	screenColor: org.umamo.runtime.model.ColorRgb,
+	colorsEnabled: Boolean,
+): Map<FormChannel, ChannelValue> =
+	if (colorsEnabled) {
+		mapOf(
+			FormChannel.OPACITY to ChannelValue.Scalar(opacity),
+			FormChannel.MULTIPLY_COLOR to ChannelValue.Color(multiplyColor),
+			FormChannel.SCREEN_COLOR to ChannelValue.Color(screenColor),
+		)
+	} else {
+		mapOf(FormChannel.OPACITY to ChannelValue.Scalar(opacity))
+	}
 
 /** A geometry interpolator for owners that have no geometry at all (parts, glues). */
 internal object UnitInterpolator : org.umamo.runtime.keyform.FormInterpolator<Unit> {

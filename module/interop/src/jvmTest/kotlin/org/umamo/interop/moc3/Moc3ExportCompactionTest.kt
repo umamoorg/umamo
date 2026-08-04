@@ -37,7 +37,7 @@ class Moc3ExportCompactionTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
 
 	/** The versions the export currently covers in full. */
-	private val supportedVersions = setOf(1, 2, 3)
+	private val supportedVersions = setOf(1, 2, 3, 4, 5)
 
 	private fun samples(): List<File> =
 		samplesDir
@@ -165,8 +165,8 @@ class Moc3ExportCompactionTest {
 				check("binding[$index]", uncompacted.bindings.getOrNull(index), compacted.bindings.getOrNull(index))
 			}
 		}
-		assertTrue(covered > 0, "no v1/v3 corpus model to compare")
-		println("[export] compaction-invariant across $covered v1/v3 models, ${failures.size} divergences")
+		assertTrue(covered > 0, "no v1-v5 corpus model to compare")
+		println("[export] compaction-invariant across $covered v1-v5 models, ${failures.size} divergences")
 		assertEquals(emptyList(), failures.take(15), "compaction changed the exported document")
 	}
 }

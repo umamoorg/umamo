@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  */
 class Moc3ExportOracleTest {
 	/** The versions the export currently covers in full. */
-	private val supportedVersions = setOf(1, 2, 3)
+	private val supportedVersions = setOf(1, 2, 3, 4, 5)
 
 	@Test
 	fun exportedFilesEvaluateLikeTheirSources() {

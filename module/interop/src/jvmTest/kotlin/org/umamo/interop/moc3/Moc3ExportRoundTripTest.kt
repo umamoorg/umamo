@@ -22,14 +22,14 @@ import kotlin.test.assertTrue
  * order, unrecoverable from a runtime model, so the pool is semantically equivalent rather than
  * identically numbered.
  *
- * Scoped to v1/v3 while blend shapes, colours, and offscreens are still out of the export's
+ * Scoped to v1-v5; offscreens (v6) are still out of the export's
  * scope; the higher versions join as those land.
  */
 class Moc3ExportRoundTripTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
 
 	/** The versions the export currently covers in full. */
-	private val supportedVersions = setOf(1, 2, 3)
+	private val supportedVersions = setOf(1, 2, 3, 4, 5)
 
 	private fun samples(): List<File> =
 		samplesDir
@@ -93,7 +93,22 @@ class Moc3ExportRoundTripTest {
 					failures.add("${file.name}: exported an unknown part ${part.id}")
 					continue
 				}
-				check("part ${part.id} draw-order keyform count", expected.drawOrderKeyforms.size, part.drawOrderKeyforms.size)
+				// A part has no geometry, so its only axes come from its draw-order track - and compaction
+				// lifts a CONSTANT track into the static, collapsing the grid to one cell.  That is
+				// value-preserving, so the invariant is that the collapse says the same thing, not that the
+				// cell count survived.
+				if (part.drawOrderKeyforms.size != expected.drawOrderKeyforms.size) {
+					val collapsedToConstant =
+						part.drawOrderKeyforms.size == 1 &&
+							expected.drawOrderKeyforms.all { value -> value == part.drawOrderKeyforms[0] }
+					if (!collapsedToConstant) {
+						failures.add(
+							"${file.name}: part ${part.id} draw order collapsed lossily " +
+								"(source=${expected.drawOrderKeyforms.toList().take(4)} " +
+								"exported=${part.drawOrderKeyforms.toList().take(4)})",
+						)
+					}
+				}
 				check("part ${part.id} visibility", expected.isVisible, part.isVisible)
 			}
 
@@ -108,7 +123,13 @@ class Moc3ExportRoundTripTest {
 				check("mesh ${mesh.id} texture", expected.textureIndex, mesh.textureIndex)
 				check("mesh ${mesh.id} constant flags", expected.constantFlags, mesh.constantFlags)
 				check("mesh ${mesh.id} keyform count", expected.keyforms.size, mesh.keyforms.size)
-				check("mesh ${mesh.id} mask count", expected.maskDrawableIndices.size, mesh.maskDrawableIndices.size)
+				// A moc mask column can carry -1 placeholders alongside real references; the import drops
+				// them and the export does not invent them back, so compare against the VALID count.
+				check(
+					"mesh ${mesh.id} mask count",
+					expected.maskDrawableIndices.count { index -> index >= 0 },
+					mesh.maskDrawableIndices.size,
+				)
 				check("mesh ${mesh.id} index count", expected.triangleIndices.size, mesh.triangleIndices.size)
 			}
 
@@ -123,8 +144,8 @@ class Moc3ExportRoundTripTest {
 				check("deformer ${deformer.id} visibility", expected.isVisible, deformer.isVisible)
 			}
 		}
-		assertTrue(covered > 0, "no v1/v3 corpus model to round trip")
-		println("[export] round-tripped $covered v1/v3 models, ${failures.size} mismatches")
+		assertTrue(covered > 0, "no v1-v5 corpus model to round trip")
+		println("[export] round-tripped $covered v1-v5 models, ${failures.size} mismatches")
 		assertEquals(emptyList(), failures.take(25), "export round trip diverged")
 	}
 }
