@@ -27,6 +27,13 @@ data class Parameter(
 	val max: Float,
 	val default: Float,
 	val kind: ParameterKind = ParameterKind.NORMAL,
+	/**
+	 * Whether the axis WRAPS at its limits instead of clamping - a value past [max] re-enters at [min].
+	 *
+	 * Used for continuously-cycling rigs (a spinning wheel, a looping tail).  MOC3 §5.5 s54; the
+	 * evaluator does not honour it yet, so this is carried for round-trip fidelity rather than read.
+	 */
+	val repeat: Boolean = false,
 )
 
 /**

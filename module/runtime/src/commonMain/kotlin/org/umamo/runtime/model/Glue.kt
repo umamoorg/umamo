@@ -36,4 +36,13 @@ class Glue(
 	val pairs: List<GluePair>,
 	val channelGrids: ChannelGrids = ChannelGrids.Empty,
 	val intensity: Float = 1f,
+	/**
+	 * The source's authored identifier (MOC3 §5.6 s90, e.g. "Glue__ArtMesh48__ArtMesh49"), or null
+	 * when the source carried none.
+	 *
+	 * A plain string rather than a typed id because nothing REFERENCES a glue - it is addressed only by
+	 * list position, so there is no lookup for an id type to make safe.  It is carried purely so a
+	 * round trip writes back the name the model was authored with instead of a synthesized one.
+	 */
+	val id: String? = null,
 )

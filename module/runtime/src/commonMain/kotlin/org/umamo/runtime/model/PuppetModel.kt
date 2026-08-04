@@ -57,6 +57,17 @@ data class PuppetModel(
 	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
 	val worldOriginY: Float = 0f,
 	/**
+	 * Canvas pixels per model unit - the scale factor between the source's model space and the world
+	 * space everything here is expressed in.
+	 *
+	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it; CMO3
+	 * authors directly in canvas pixels, so a CMO3-origin document carries 1.  Nothing in the editor or
+	 * the evaluator reads it - both work purely in world space - but an EXPORT cannot invert the import
+	 * without it: the root-space affine and the scale of every root-path rotation deformer both fold it
+	 * in, and a model that has forgotten it can only be written back at the wrong scale.
+	 */
+	val pixelsPerUnit: Float = 1f,
+	/**
 	 * The document's runtime-compatibility target; [RuntimeTarget.NoTarget] restricts nothing.  Gates
 	 * editing controls only - never rendering or saving.  See [RuntimeTarget].
 	 */
@@ -219,6 +230,16 @@ data class Drawable(
 	 * format persists it.
 	 */
 	val textureSourceId: DrawableId? = null,
+	/**
+	 * Which atlas page this drawable samples (MOC3 §5.6 s41), or -1 when the source carried none.
+	 *
+	 * Distinct from [textureSourceId], which says WHOSE binding to use; this is the binding itself.
+	 * The renderer does not read it - it resolves pages through the source document's own map, keyed by
+	 * drawable id - but a detached [PuppetModel] otherwise has no texture binding at all, so an export
+	 * could not say which page a drawable belongs to.  CMO3 has no equivalent field (it binds through
+	 * the layered-art web instead), so a CMO3-origin drawable leaves this at -1.
+	 */
+	val texturePage: Int = -1,
 	/**
 	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [geometryGrid]
 	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)

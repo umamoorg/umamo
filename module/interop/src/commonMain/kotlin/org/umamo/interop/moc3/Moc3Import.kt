@@ -169,6 +169,8 @@ object Moc3Import {
 					default = source.defaultValue,
 					// MOC3 v4+ section 114 Parameter types (null on moc < 4 = all normal).
 					kind = if (source.type == ParameterType.BLEND_SHAPE) ParameterKind.BLEND_SHAPE else ParameterKind.NORMAL,
+					// MOC3 §5.5 s54: wrap rather than clamp at the limits.
+					repeat = source.repeats,
 				)
 			}
 		val knownParameterIds = parameterIds.toSet()
@@ -573,6 +575,9 @@ object Moc3Import {
 								parent = parent,
 								// MOC3 §5.6 s15: the deformer's own org-tree part; -1 (→ null) at the root.
 								partId = partIds.getOrNull(source.parentPartIndex),
+								// MOC3 §5.6 s13/s14: the editor's eye toggle and its unpinned partner.
+								isVisible = source.isVisible,
+								isEnabled = source.isEnabled,
 								rows = source.rows,
 								columns = source.columns,
 								// MOC3 §5.6 warp mode: 0 = triangle split, non-zero = bilinear (quad).
@@ -616,6 +621,8 @@ object Moc3Import {
 								name = deformerNameOf(deformerIndex, id),
 								parent = parent,
 								partId = partIds.getOrNull(source.parentPartIndex),
+								isVisible = source.isVisible,
+								isEnabled = source.isEnabled,
 								baseAngle = source.baseAngle,
 								geometryGrid = fannedRotation?.geometry,
 								channelGrids = fannedRotation?.channels ?: ChannelGrids.Empty,
@@ -700,8 +707,13 @@ object Moc3Import {
 						// MOC3 §5.5: constant-flags bit 2 is IS_DOUBLE_SIDED; culling is its inverse.
 						culling = source.constantFlags and ConstantFlag.IS_DOUBLE_SIDED == 0,
 						// Visibility/lock are editor-only authoring state; a baked model shows everything.
-						isVisible = true,
+						// MOC3 §5.6 s37: the editor's eye toggle.  A bake normally deletes what is hidden, so
+						// this is true for almost every imported drawable - but a file exported with hidden
+						// meshes kept carries the flag, and Umamo's own export always does.
+						isVisible = source.isVisible,
 						isSelectable = true,
+						// MOC3 §5.6 s41: the atlas page this mesh samples, so a detached model can still say.
+						texturePage = source.textureIndex,
 						mesh = mesh,
 						geometryGrid = fannedMesh?.geometry,
 						channelGrids = fannedMesh?.channels ?: ChannelGrids.Empty,
@@ -742,7 +754,15 @@ object Moc3Import {
 						)
 					}?.asChannelTrack { form -> ChannelValue.Scalar(form.intensity) }
 				// A glue with no keyed intensity welds fully, which is the runtime's long-standing fallback.
-				Glue(meshA, meshB, pairs, channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack), intensity = 1f)
+				Glue(
+					meshA,
+					meshB,
+					pairs,
+					channelGridsOf(FormChannel.GLUE_INTENSITY to intensityTrack),
+					intensity = 1f,
+					// MOC3 §5.6 s90: the authored name, so a round trip does not synthesize a new one.
+					id = source.id.takeIf { it.isNotEmpty() },
+				)
 			}
 
 		// The draw-order tree: moc3 stores it explicitly (MOC3 §5.6 render-order groups, group 0 = root),
@@ -908,6 +928,8 @@ object Moc3Import {
 				canvasHeight = canvas?.height ?: 0f,
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
+				// Retained purely so an export can invert the conversions below; nothing reads it at runtime.
+				pixelsPerUnit = pixelsPerUnit,
 				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
@@ -1301,8 +1323,9 @@ object Moc3Import {
 					// cdi3: DisplayPart.name is the display label; fall back to the id.
 					name = partNameById[source.id] ?: source.id,
 					children = childrenOf(partIndex),
-					// Visibility/lock/sketch are editor authoring state the bake drops; import everything shown.
-					isVisible = true,
+					// MOC3 §5.6 s7/s8 carry the part's visibility (both flags, split unpinned).  Sketch and
+					// lock ARE editor-only state the bake drops, so those still default to shown/unlocked.
+					isVisible = source.isVisible,
 					isSketch = false,
 					isSelectable = true,
 					// An owned offscreen wins over render-order-group membership (an isolated part is

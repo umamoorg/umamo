@@ -38,6 +38,8 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
 * Glue
+* CMO3
+	* ACParameterControllableSource.isVisible was wired up so now the outliner needs this toggle as well.  Deformer editing is not implemented yet so this is minor.
 * MOC3
 	* CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.

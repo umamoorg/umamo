@@ -41,6 +41,25 @@ sealed interface Deformer {
 	val isSelectable: Boolean
 
 	/**
+	 * The editor's eye toggle - a hidden deformer and everything under it does not render.
+	 *
+	 * MOC3 §5.6 s13; CMO3 ACParameterControllableSource.isVisible.  A bake normally DELETES what the
+	 * editor hides, so almost every imported deformer is visible; Azxiana is the one corpus model that
+	 * keeps 7 hidden ones.  Umamo's own export always carries hidden objects rather than dropping them,
+	 * which is what makes this round-trip rather than decay to true.
+	 */
+	val isVisible: Boolean
+
+	/**
+	 * The deformer's second MOC3 flag (§5.6 s14), carried so a bake reproduces it.
+	 *
+	 * It is 1 on every deformer of every corpus model, so its meaning is unpinned - it is NOT the
+	 * visibility toggle ([isVisible] is, by analogy with the art-mesh pair that a CMO3 join proved).
+	 * Nothing reads it; it exists so the value survives a round trip instead of being invented.
+	 */
+	val isEnabled: Boolean
+
+	/**
 	 * Warp deformer - a free-form-deformation (FFD) lattice: a [rows] × [columns] grid of control
 	 * points whose displacement bends the bound geometry. The control-point positions are animated
 	 * per keyform; only the lattice dimensions are static.
@@ -73,6 +92,8 @@ sealed interface Deformer {
 		/** Static screen color used when [channelGrids] has no screen track. */
 		val screenColor: ColorRgb = ColorRgb.ScreenIdentity,
 		override val isSelectable: Boolean = true,
+		override val isVisible: Boolean = true,
+		override val isEnabled: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the lattice control points, applied on top of the
 		 * [geometryGrid] result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
@@ -110,6 +131,8 @@ sealed interface Deformer {
 		/** Static vertical reflection used when [channelGrids] has no flip-Y track. */
 		val flipY: Boolean = false,
 		override val isSelectable: Boolean = true,
+		override val isVisible: Boolean = true,
+		override val isEnabled: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the pivot transform, applied on top of the [geometryGrid]
 		 * result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
