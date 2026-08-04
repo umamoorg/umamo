@@ -12,7 +12,7 @@ import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportReport
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -61,7 +61,12 @@ class ModalKeyLadderTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+			mesh =
+				DrawableMesh(
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					intArrayOf(0, 1, 2),
+				),
 			geometryGrid = null,
 		)
 
@@ -209,7 +214,8 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theOpenFailureAlertTakesEscapeOrEnter() {
-		val overlays = ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
+		val overlays =
+			ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(press(Key.Spacebar, state))
@@ -221,7 +227,7 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theExportReportAlertTakesEscapeOrEnter() {
-		val overlays = ShellOverlayState().apply { exportReport = Cmo3ExportReport(emptyList()) }
+		val overlays = ShellOverlayState().apply { exportReport = ExportReport(emptyList()) }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(escape(state))

@@ -79,6 +79,3 @@ data class ExportReport(val notices: List<ExportNotice>) {
 	/** True when the export lowered everything with nothing to warn about. */
 	val isEmpty: Boolean get() = notices.isEmpty()
 }
-
-/** The former name, kept so the CMO3 call sites and their tests do not all move in one commit. */
-typealias Cmo3ExportReport = ExportReport

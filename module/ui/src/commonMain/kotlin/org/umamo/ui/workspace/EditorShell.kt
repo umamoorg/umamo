@@ -35,8 +35,8 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -139,13 +139,15 @@ fun EditorShell(
 	// persistence hook rather than capturing the first composition's lambda.
 	val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
 	val currentOnLayoutDragChange by rememberUpdatedState(onLayoutDragChange)
-	val workspaces = remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
+	val workspaces =
+		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	val overlays = remember { ShellOverlayState() }
 	// The localized base name new and imported workspaces are named from (deduped) - the same string the "+"
 	// button passes to onCreate, so the menu's New Workspace and the tab strip agree.
 	val newWorkspaceBaseName = stringResource(Res.string.workspace_new_name)
 	val spaceRegistry = remember(spaceOverrides) { defaultSpaceRegistry().withOverrides(spaceOverrides) }
-	val propertyTabRegistry = remember(propertyTabOverrides) { defaultPropertyTabRegistry().withOverrides(propertyTabOverrides) }
+	val propertyTabRegistry =
+		remember(propertyTabOverrides) { defaultPropertyTabRegistry().withOverrides(propertyTabOverrides) }
 	val focusRequester = remember { FocusRequester() }
 	val dragController = remember { AreaDragController() }
 	// Shared with the menu bar so this shell's root key handler can dismiss an open menu before the keymap
@@ -388,7 +390,12 @@ fun EditorShell(
 								activeId = workspaces.layout.activeWorkspaceId,
 								onSelect = { workspaceId -> workspaces.setActiveWorkspace(workspaceId) },
 								onCreate = { suggestedName -> workspaces.create(suggestedName) },
-								onDuplicate = { sourceId, suggestedName -> workspaces.duplicate(sourceId, suggestedName) },
+								onDuplicate = { sourceId, suggestedName ->
+									workspaces.duplicate(
+										sourceId,
+										suggestedName,
+									)
+								},
 								onDelete = { targetId -> workspaces.delete(targetId) },
 								onReorder = { fromIndex, toIndex -> workspaces.reorder(fromIndex, toIndex) },
 								onRename = { workspaceId, newName -> workspaces.rename(workspaceId, newName) },
@@ -440,7 +447,9 @@ fun EditorShell(
 						// unavailable command is hidden, so the palette only offers titled operations that
 						// apply in the current context (mode, armed tool, open document).
 						CommandPalette(
-							commands = commandRegistry.all().filter { command -> command.title != null && command.availability.isAvailable() },
+							commands =
+								commandRegistry.all()
+									.filter { command -> command.title != null && command.availability.isAvailable() },
 							onDismiss = { overlays.paletteVisible = false },
 							onInvoke = { command ->
 								overlays.paletteVisible = false
@@ -497,21 +506,24 @@ fun EditorShell(
  * unsupported-change lines carry the exporter's diagnostic text verbatim (dynamic per-edit data,
  * like a log line); the weld-divergence line is localized with the affected drawable names.
  *
- * @param Cmo3ExportReport report The export's advisory report.
+ * @param ExportReport report The export's advisory report.
  * @return String The multiline alert text.
  */
 @Composable
-private fun exportReportMessage(report: Cmo3ExportReport): String {
+private fun exportReportMessage(report: ExportReport): String {
 	val lines = ArrayList<String>(report.notices.size + 1)
 	lines.add(stringResource(Res.string.export_report_message))
 	for (notice in report.notices) {
 		when (notice) {
 			is ExportNotice.UnsupportedChange ->
 				lines.add("• [${notice.category}] ${notice.subject}: ${notice.detail}")
+
 			is ExportNotice.WeldDivergence ->
 				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))
+
 			is ExportNotice.MissingSourceArt ->
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
+
 			is ExportNotice.FeatureStripped ->
 				lines.add(
 					"• " +

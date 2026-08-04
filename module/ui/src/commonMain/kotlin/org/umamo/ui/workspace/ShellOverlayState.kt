@@ -4,7 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.StringResource
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
 
 /**
@@ -56,7 +56,7 @@ internal class ShellOverlayState {
 	 * like the open-failure alert.  Null while none shows.  Non-blocking: the export has already
 	 * been written when this shows.
 	 */
-	var exportReport: Cmo3ExportReport? by mutableStateOf(null)
+	var exportReport: ExportReport? by mutableStateOf(null)
 
 	/**
 	 * True while an overlay that holds its own focus is open (the palette's search field, the
