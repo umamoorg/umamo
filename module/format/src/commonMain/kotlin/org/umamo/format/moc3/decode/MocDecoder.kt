@@ -31,10 +31,9 @@ import org.umamo.format.moc3.model.WarpKeyform
  * Resolves a parsed [MocModel] into the semantic [MocDocument]: the keyform-binding grid and each
  * object's per-keyform values (vertex positions, opacity, draw-order, color, deformer transforms).
  *
- * EN: Reads the typed Layer-1 sections and follows the base/index tables - it does not evaluate the
- *     model (no interpolation/cascade). Blend shapes (moc 4+) and offscreens (moc 6) are assembled
- *     too.  Every section index is modeled in [Section], so nothing is left to raw access.
- * JA: Layer-1 を意味モデルへ組み立てる（評価は行わない）。
+ * Reads the typed Layer-1 sections and follows the base/index tables - it does not evaluate the
+ * model (no interpolation/cascade). Blend shapes (moc 4+) and offscreens (moc 6) are assembled
+ * too.  Every section index is modeled in [Section], so nothing is left to raw access.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */

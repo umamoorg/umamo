@@ -45,8 +45,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 * Clean Up:
 	* Remove duplicated DEFAULT_DRAW_ORDER in Moc3Export.kt.
-	* Rename all ExportReport to ExportReport.
-	* Comment clean up.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
@@ -311,7 +309,7 @@ is still ahead.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 
-## MOC3 export: section 160 keys the runtime's offscreen walk (found 2026-08-04, Phase 7)
+## MOC3 export: section 160 keys the runtime's offscreen walk (found 2026-08-04)
 
 **What.** Section 160 - not 155 (owner) and not 152 - is what drives offscreen evaluation in the official
 core.  Proven by patching an exported file: blank 160 and every offscreen stays at opacity 0 / multiply
@@ -335,7 +333,7 @@ and `pipeline.c`'s render-index rule gives a sub-group part owning an offscreen 
 render traversal instead of owner index was tried and made it worse (26 → 31 divergences), so the fix is in
 the MAP, not the order.  A v6 corpus model with many offscreens and an unedited part order would settle it.
 
-## MOC3 export: the strip follows the SECTION table, not the target ladder (found 2026-08-04, Phase 8)
+## MOC3 export: the strip follows the SECTION table, not the target ladder (found 2026-08-04)
 
 **What.** `RuntimeTarget.supports` gates EDITING, and it follows the official editor's target dialog -
 which places the reversed mask at 4.0 and the parameter repeat at 5.3.  Both are carried by every moc
@@ -355,7 +353,7 @@ import fans every channel out of one bundled grid, and compaction deliberately l
 when its axis does not bracket the parameter's range (modelE's ArtMesh120) - so a v3 model with no
 colour data at all was reporting that the export stripped its multiply and screen colour.
 
-## MOC3 export writes a FAMILY, and the picker only picks one file (Phase 9, 2026-08-04)
+## MOC3 export writes a FAMILY, and the picker only picks one file (found 2026-08-04)
 
 **What.** `file.exportMoc3` writes the moc through the picker's own handle and every other family
 member (`model3.json`, `cdi3.json`, the atlas pages, and every retained sidecar) beside it with okio,
@@ -383,7 +381,7 @@ Erica's main.xml) during a six-module concurrent run, and has not reproduced in 
 returns, suspect nondeterministic iteration order in the CMO3 writer's slot replay rather than
 anything in the MOC3 work - the byte-identity claim is only as strong as that ordering.
 
-## MOC3 export wrote every CMO3-origin model at pixel scale (found 2026-08-05, Phase 10)
+## MOC3 export wrote every CMO3-origin model at pixel scale (found 2026-08-05)
 
 **What.** A moc's `pixelsPerUnit` is a BAKE parameter, not a project property.  Every corpus `.cmo3`
 stores `CModelInfo.pixelsPerUnit = 1` - a CMO3 works in canvas pixels - so the export was writing 1,
