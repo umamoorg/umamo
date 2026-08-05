@@ -95,7 +95,7 @@ class Cmo3ExportStructureRoundTripTest {
 					maxComponentDifference =
 						maxOf(
 							maxComponentDifference,
-							abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]),
+							abs(cell.form.positionDeltas[component] - reimportedDeltas[component]),
 						)
 				}
 			}

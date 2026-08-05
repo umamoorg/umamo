@@ -95,16 +95,16 @@ class Cmo3ExportKeyformRoundTripTest {
 		val reimportedGrid = result.reimported.drawables.first { it.id == drawableId }.geometryGrid
 		assertTrue(editedGrid != null && reimportedGrid != null, "$label: geometry grid vanished")
 		val reimportedByCoordinate =
-			reimportedGrid!!.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
+			reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
 		var maxComponentDifference = 0f
-		for (cell in editedGrid!!.cells) {
+		for (cell in editedGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
 			assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
 			for (component in cell.form.positionDeltas.indices) {
 				maxComponentDifference =
 					maxOf(
 						maxComponentDifference,
-						abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]),
+						abs(cell.form.positionDeltas[component] - reimportedDeltas[component]),
 					)
 			}
 		}
@@ -512,7 +512,7 @@ class Cmo3ExportKeyformRoundTripTest {
 					maxDeltaDrift =
 						maxOf(
 							maxDeltaDrift,
-							abs(editedForm.positionDeltas[component] - reimportedForm!!.positionDeltas[component]),
+							abs(editedForm.positionDeltas[component] - reimportedForm.positionDeltas[component]),
 						)
 				}
 			}
