@@ -46,6 +46,23 @@ class MocCanvasMapping(
 )
 
 /**
+ * The scale every conversion in this file actually applies.
+ *
+ * A degenerate canvas (ppu 0) has no invertible scale: dividing by it is a division by zero, and
+ * multiplying by it collapses the whole rig onto the canvas origin.  Both directions therefore
+ * substitute the identity, which is also how the import treats a canvas-less document.
+ *
+ * Shared rather than written out per direction because a guard applied on only one side is exactly
+ * how the two stop being inverses - the moc direction would map a degenerate canvas as the identity
+ * while the runtime direction flattened every point onto one spot, and nothing here would say so.
+ *
+ * @param MocCanvasMapping canvas The document's canvas mapping.
+ * @return Float The scale factor to apply.
+ */
+private fun effectiveScale(canvas: MocCanvasMapping): Float =
+	if (canvas.pixelsPerUnit != 0f) canvas.pixelsPerUnit else 1f
+
+/**
  * Converts interleaved x,y [points] from the moc's stored [space] to the runtime's convention.
  *
  * Warp-lattice and rotation-local values are already in the runtime's convention (corpus-verified) and
@@ -58,13 +75,14 @@ class MocCanvasMapping(
  */
 fun convertPointsToRuntime(space: PointSpace, points: FloatArray, canvas: MocCanvasMapping): FloatArray {
 	val converted = FloatArray(points.size)
+	val scale = effectiveScale(canvas)
 	var coordIndex = 0
 	while (coordIndex + 1 < points.size) {
 		when (space) {
 			// MOC3 §5.3 CanvasInfo: canvas px = origin + ppu·model, same Y-down orientation.
 			PointSpace.ModelRoot -> {
-				converted[coordIndex] = canvas.originX + canvas.pixelsPerUnit * points[coordIndex]
-				converted[coordIndex + 1] = canvas.originY + canvas.pixelsPerUnit * points[coordIndex + 1]
+				converted[coordIndex] = canvas.originX + scale * points[coordIndex]
+				converted[coordIndex + 1] = canvas.originY + scale * points[coordIndex + 1]
 			}
 			// Warp-lattice (u, v) and pixel-scale rotation-local frames match the runtime verbatim.
 			PointSpace.WarpLattice, PointSpace.RotationLocal -> {
@@ -87,9 +105,7 @@ fun convertPointsToRuntime(space: PointSpace, points: FloatArray, canvas: MocCan
  */
 fun convertPointsToMoc(space: PointSpace, points: FloatArray, canvas: MocCanvasMapping): FloatArray {
 	val converted = FloatArray(points.size)
-	// A degenerate canvas (ppu 0) would divide by zero; the import treats a canvas-less document as
-	// identity, so the inverse has to agree rather than produce infinities.
-	val scale = if (canvas.pixelsPerUnit != 0f) canvas.pixelsPerUnit else 1f
+	val scale = effectiveScale(canvas)
 	var coordIndex = 0
 	while (coordIndex + 1 < points.size) {
 		when (space) {
@@ -120,7 +136,10 @@ fun convertPointsToMoc(space: PointSpace, points: FloatArray, canvas: MocCanvasM
  */
 fun convertDeltasToRuntime(space: PointSpace, deltas: FloatArray, canvas: MocCanvasMapping): FloatArray =
 	when (space) {
-		PointSpace.ModelRoot -> FloatArray(deltas.size) { index -> canvas.pixelsPerUnit * deltas[index] }
+		PointSpace.ModelRoot -> {
+			val scale = effectiveScale(canvas)
+			FloatArray(deltas.size) { index -> scale * deltas[index] }
+		}
 		PointSpace.WarpLattice, PointSpace.RotationLocal -> deltas.copyOf()
 	}
 
@@ -133,7 +152,7 @@ fun convertDeltasToRuntime(space: PointSpace, deltas: FloatArray, canvas: MocCan
  * @return FloatArray The values to store (always a fresh array).
  */
 fun convertDeltasToMoc(space: PointSpace, deltas: FloatArray, canvas: MocCanvasMapping): FloatArray {
-	val scale = if (canvas.pixelsPerUnit != 0f) canvas.pixelsPerUnit else 1f
+	val scale = effectiveScale(canvas)
 	return when (space) {
 		PointSpace.ModelRoot -> FloatArray(deltas.size) { index -> deltas[index] / scale }
 		PointSpace.WarpLattice, PointSpace.RotationLocal -> deltas.copyOf()
@@ -153,7 +172,7 @@ fun convertDeltasToMoc(space: PointSpace, deltas: FloatArray, canvas: MocCanvasM
  * @return Float The multiplier taking a stored scale to the runtime's, 1 when a rotation is above.
  */
 fun rotationScaleFactor(hasRotationAncestor: Boolean, canvas: MocCanvasMapping): Float =
-	if (hasRotationAncestor) 1f else canvas.pixelsPerUnit
+	if (hasRotationAncestor) 1f else effectiveScale(canvas)
 
 /**
  * Whether a rotation deformer sits anywhere on each deformer's ancestor chain, by FILE index.

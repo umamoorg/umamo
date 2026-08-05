@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.CanvasInfo
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.ParameterType
+import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.model.ArtMesh
 import org.umamo.format.moc3.model.ArtMeshKeyform
 import org.umamo.format.moc3.model.GlueVertexPair
@@ -54,9 +55,6 @@ import org.umamo.format.moc3.model.Part as MocPart
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
 object Moc3Export {
-	/** The Cubism draw-order default, used when a drawable or part carries no track. */
-	private const val DEFAULT_DRAW_ORDER: Float = 500f
-
 	/**
 	 * The lowered document plus whatever the lowering could not express.
 	 *
@@ -97,6 +95,16 @@ object Moc3Export {
 		val sketchParts = sketchSubtree(puppet)
 		val exportableParts = puppet.parts.mapNotNullTo(LinkedHashSet()) { part -> part.id.takeIf { it !in sketchParts } }
 		val partByDrawable = puppet.partByDrawable()
+		// The org tree's part->parent link, inverted ONCE.  Both of these are asked per object further
+		// down, and re-deriving either there turns its pass into a quadratic rescan of the whole tree.
+		val partParentById = HashMap<org.umamo.runtime.model.PartId, org.umamo.runtime.model.PartId>()
+		for (part in puppet.parts) {
+			for (child in part.children) {
+				if (child is org.umamo.runtime.model.OrgChild.Part) {
+					partParentById[child.id] = part.id
+				}
+			}
+		}
 		val dropped = LinkedHashMap<org.umamo.runtime.model.DrawableId, String>()
 		for (drawable in puppet.drawables) {
 			if (partByDrawable[drawable.id] in sketchParts) {
@@ -127,6 +135,10 @@ object Moc3Export {
 		val offscreensEnabled = version.byteValue >= 6
 		val extendedBlendEnabled = version.byteValue >= 6
 		val rotationAncestors = rotationAncestorsById(plan.deformers)
+		// Id -> object, for the blend-shape pass's owner lookup.  That lookup runs once per blend-shape
+		// owner, so resolving it by scanning the plan's lists would make the pass quadratic in rig size.
+		val drawableById = plan.drawables.associateBy { drawable -> drawable.id }
+		val deformerById = plan.deformers.associateBy { deformer -> deformer.id }
 
 		/**
 		 * Records a notice for something the lowering could not express.
@@ -137,6 +149,38 @@ object Moc3Export {
 		 */
 		fun unsupported(category: String, subject: String, detail: String) {
 			notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
+		}
+
+		/**
+		 * The ID as a MOC3 can actually store it, reporting anything that had to be cut.
+		 *
+		 * MOC3 §5.4 makes every id a fixed 64-byte record, so an id whose UTF-8 form does not fit with
+		 * room for the terminator cannot be written.  The writer's own precondition rejects one, and an
+		 * export that let that reach the caller would throw straight past the report and out of the file
+		 * write - a crash where every other unrepresentable condition here produces a notice and a file.
+		 * CMO3 places no width limit on these ids, and 22 CJK characters already exceed the record.
+		 *
+		 * @param String category The entity category, for the notice.
+		 * @param String id       The id the model carries.
+		 * @return String The id to write.
+		 */
+		fun mocId(category: String, id: String): String {
+			if (id.encodeToByteArray().size < Sections.ID_STRIDE) {
+				return id
+			}
+			// Trimmed by CHARACTER so the result stays valid UTF-8; cutting at a byte offset could land
+			// mid-sequence and write a broken code point into the record.
+			var fitted = id
+			while (fitted.isNotEmpty() && fitted.encodeToByteArray().size >= Sections.ID_STRIDE) {
+				fitted = fitted.substring(0, fitted.length - 1)
+			}
+			unsupported(
+				category,
+				id,
+				"the id does not fit a moc's ${Sections.ID_STRIDE}-byte id record, so it was written " +
+					"truncated to \"$fitted\"; shorten it if another object now shares that name",
+			)
+			return fitted
 		}
 
 		/**
@@ -161,7 +205,7 @@ object Moc3Export {
 		val parameters =
 			plan.parameters.map { parameter ->
 				MocParameter(
-					id = parameter.id.raw,
+					id = mocId("parameter", parameter.id.raw),
 					minimumValue = parameter.min,
 					maximumValue = parameter.max,
 					defaultValue = parameter.default,
@@ -218,8 +262,8 @@ object Moc3Export {
 				val bundle = keyforms?.bundle
 				val cellCount = bundle?.cells?.size ?: 0
 				MocPart(
-					id = part.id.raw,
-					parentPartIndex = plan.partIndex(partParentOf(puppet, part.id)),
+					id = mocId("part", part.id.raw),
+					parentPartIndex = plan.partIndex(partParentById[part.id]),
 					// A static part points at binding 0, which is what the import's `> 0` static test expects.
 					keyformBindingIndex = if (cellCount > 1) keyforms!!.bindingIndex else 0,
 					drawOrderKeyforms =
@@ -258,12 +302,24 @@ object Moc3Export {
 							unsupported(
 								"deformer",
 								deformer.id.raw,
-								"a warp deformer with no control-point grid has no lattice to write",
+								"a warp deformer with no control-point grid has no lattice to write; one empty " +
+									"lattice was written in its place so the file stays readable, and everything " +
+									"bound to this deformer collapses to the origin",
 							)
 						}
 						val bundle = keyforms?.bundle
+						// A MOC3 addresses an object's forms as `gridSize` rows from its own keyform base, and
+						// the static binding 0 still declares ONE row - so an object that writes zero rows puts
+						// its base on top of the next object's, and the last one sends the reader off the end of
+						// the table.  Every object kind writes at least one form for that reason.
+						val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
+						// Unlike a drawable, which falls back to its rest mesh, a grid-less warp has no lattice
+						// anywhere in the model - so the form it is obliged to write is a correctly SIZED empty
+						// one.  The reader slices (rows + 1) x (columns + 1) control points back out by that
+						// arithmetic, and a short array would desynchronize every warp block after it.
+						val controlPointFloats = (deformer.rows + 1) * (deformer.columns + 1) * 2
 						WarpDeformer(
-							id = deformer.id.raw,
+							id = mocId("deformer", deformer.id.raw),
 							keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 							isVisible = deformer.isVisible,
 							isEnabled = deformer.isEnabled,
@@ -273,12 +329,18 @@ object Moc3Export {
 							columns = deformer.columns,
 							mode = if (deformer.isQuadTransform) 1 else 0,
 							keyforms =
-								(0 until (bundle?.cells?.size ?: 0)).map { cellIndex ->
+								(0 until cellCount).map { cellIndex ->
 									val lattice =
-										bundle!!.cells[cellIndex].geometry as? org.umamo.runtime.model.WarpLatticeForm
+										bundle?.cells?.getOrNull(cellIndex)?.geometry
+											as? org.umamo.runtime.model.WarpLatticeForm
 									WarpKeyform(
-										convertPointsToMoc(space, lattice?.controlPoints ?: FloatArray(0), canvas),
-										scalarOf(bundle, cellIndex, FormChannel.OPACITY, deformer.opacity),
+										convertPointsToMoc(
+											space,
+											lattice?.controlPoints ?: FloatArray(controlPointFloats),
+											canvas,
+										),
+										bundle?.let { scalarOf(it, cellIndex, FormChannel.OPACITY, deformer.opacity) }
+											?: deformer.opacity,
 										colorOf(bundle, cellIndex, FormChannel.MULTIPLY_COLOR, deformer.multiplyColor, colorsEnabled),
 										colorOf(bundle, cellIndex, FormChannel.SCREEN_COLOR, deformer.screenColor, colorsEnabled),
 									)
@@ -306,15 +368,20 @@ object Moc3Export {
 							unsupported(
 								"deformer",
 								deformer.id.raw,
-								"a rotation deformer with no pivot grid has no transform to write",
+								"a rotation deformer with no pivot grid has no transform to write; the identity " +
+									"transform was written in its place",
 							)
 						}
 						val bundle = keyforms?.bundle
+						// One form minimum, for the same base-collision reason as the warp branch above.  A
+						// pivot-less rotation has a well-defined fallback the warp does not: the identity
+						// transform, which is what `pivot == null` already resolves to below.
+						val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 						// Only the FIRST rotation on each root path carries the px->model factor.
 						val scaleFactor =
 							rotationScaleFactor(rotationAncestors[deformer.id] ?: false, canvas)
 						RotationDeformer(
-							id = deformer.id.raw,
+							id = mocId("deformer", deformer.id.raw),
 							keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 							isVisible = deformer.isVisible,
 							isEnabled = deformer.isEnabled,
@@ -322,9 +389,10 @@ object Moc3Export {
 							parentDeformerIndex = parentDeformerIndex,
 							baseAngle = deformer.baseAngle,
 							keyforms =
-								(0 until (bundle?.cells?.size ?: 0)).map { cellIndex ->
+								(0 until cellCount).map { cellIndex ->
 									val pivot =
-										bundle!!.cells[cellIndex].geometry as? org.umamo.runtime.model.RotationPivotForm
+										bundle?.cells?.getOrNull(cellIndex)?.geometry
+											as? org.umamo.runtime.model.RotationPivotForm
 									val origin =
 										convertPointsToMoc(
 											space,
@@ -336,9 +404,15 @@ object Moc3Export {
 										originY = origin[1],
 										angle = pivot?.angle ?: 0f,
 										scale = (pivot?.scale ?: 1f) / (if (scaleFactor != 0f) scaleFactor else 1f),
-										reflectX = flagOf(bundle, cellIndex, FormChannel.FLIP_X, deformer.flipX),
-										reflectY = flagOf(bundle, cellIndex, FormChannel.FLIP_Y, deformer.flipY),
-										opacity = scalarOf(bundle, cellIndex, FormChannel.OPACITY, deformer.opacity),
+										reflectX =
+											bundle?.let { flagOf(it, cellIndex, FormChannel.FLIP_X, deformer.flipX) }
+												?: deformer.flipX,
+										reflectY =
+											bundle?.let { flagOf(it, cellIndex, FormChannel.FLIP_Y, deformer.flipY) }
+												?: deformer.flipY,
+										opacity =
+											bundle?.let { scalarOf(it, cellIndex, FormChannel.OPACITY, deformer.opacity) }
+												?: deformer.opacity,
 										multiplyColor =
 											colorOf(bundle, cellIndex, FormChannel.MULTIPLY_COLOR, deformer.multiplyColor, colorsEnabled),
 										screenColor =
@@ -391,8 +465,39 @@ object Moc3Export {
 				val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 				val triangleIndices =
 					ShortArray(mesh.indices.size) { index -> mesh.indices[index].toShort() }
+				// -1 is the "no atlas page bound" sentinel and a moc has no way to spell it, so the write
+				// clamps to page 0.  On a multi-page rig that is the WRONG texture rather than a near miss,
+				// which is worth a notice even though the file it produces is structurally valid.
+				if (drawable.texturePage < 0) {
+					unsupported(
+						"drawable",
+						drawable.id.raw,
+						"no atlas page is bound to this drawable, so it was written pointing at page 0",
+					)
+				}
+				// A mask naming a drawable this export dropped has no file index to reference.  Filtering it
+				// is the only option, but doing so silently would leave the mesh rendering unclipped with
+				// nothing in the report to explain why.
+				val maskIndices = ArrayList<Int>(drawable.maskedBy.size)
+				val unresolvedMasks = ArrayList<String>()
+				for (maskId in drawable.maskedBy) {
+					val maskIndex = plan.drawableIndex(maskId)
+					if (maskIndex >= 0) {
+						maskIndices.add(maskIndex)
+					} else {
+						unresolvedMasks.add(maskId.raw)
+					}
+				}
+				if (unresolvedMasks.isNotEmpty()) {
+					unsupported(
+						"drawable",
+						drawable.id.raw,
+						"the clipping mask ${unresolvedMasks.joinToString()} is not in this export, so the mesh " +
+							"was written unclipped by it",
+					)
+				}
 				ArtMesh(
-					id = drawable.id.raw,
+					id = mocId("drawable", drawable.id.raw),
 					textureIndex = maxOf(drawable.texturePage, 0),
 					constantFlags = constantFlagsOf(drawable, extendedBlendEnabled),
 					// The 5.3 blend surface; below v6 the mode falls back to the legacy constant-flag bits.
@@ -400,12 +505,11 @@ object Moc3Export {
 						if (extendedBlendEnabled) packedBlendOf(drawable.blendMode, drawable.alphaBlendMode) else 0,
 					isVisible = drawable.isVisible,
 					isEnabled = true,
-					parentPartIndex = plan.partIndex(drawablePartOf(puppet, drawable.id)),
+					parentPartIndex = plan.partIndex(partByDrawable[drawable.id]),
 					parentDeformerIndex = plan.deformerIndex(drawable.parentDeformerId),
 					vertexUvs = mesh.uvs.copyOf(),
 					triangleIndices = triangleIndices,
-					maskDrawableIndices =
-						drawable.maskedBy.map { maskId -> plan.drawableIndex(maskId) }.filter { it >= 0 }.toIntArray(),
+					maskDrawableIndices = maskIndices.toIntArray(),
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 					keyforms =
 						(0 until cellCount).map { cellIndex ->
@@ -452,12 +556,16 @@ object Moc3Export {
 						mapOf(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(glue.intensity)),
 						requireGeometry = false,
 					)
-				val subject = glue.id ?: "Glue$glueIndex"
-				reportDemotions("glue", subject, keyforms)
+				// ONE fallback, computed once: a notice naming a subject the file does not contain sends the
+				// reader searching the export for an object that was never written under that name.  The
+				// drop notice above is the exception on purpose - a dropped glue has no written id to cite,
+				// so its ordinal is the only handle left.
+				val glueId = glue.id ?: "Glue_${meshA}_${meshB}_"
+				reportDemotions("glue", glueId, keyforms)
 				val bundle = keyforms?.bundle
 				val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 				MocGlue(
-					id = glue.id ?: "Glue_${meshA}_${meshB}_",
+					id = mocId("glue", glueId),
 					meshAIndex = meshA,
 					meshBIndex = meshB,
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
@@ -515,11 +623,14 @@ object Moc3Export {
 							plan,
 							canvas,
 							{ ownerId ->
+								// An owner missing from the plan resolves to root space rather than throwing: it
+								// means the export dropped the object, and a blend shape on something that was
+								// never written is not worth failing the whole file over.
 								when (ownerId) {
 									is org.umamo.runtime.model.DrawableId ->
-										spaceOfParent(plan, plan.drawables.first { it.id == ownerId }.parentDeformerId)
+										spaceOfParent(plan, drawableById[ownerId]?.parentDeformerId)
 									is org.umamo.runtime.model.DeformerId ->
-										spaceOfParent(plan, plan.deformers.first { it.id == ownerId }.parent)
+										spaceOfParent(plan, deformerById[ownerId]?.parent)
 									else -> PointSpace.ModelRoot
 								}
 							},
@@ -606,13 +717,15 @@ object Moc3Export {
 	 * picked a different scale at bake time cannot have it recovered from the project; that wants an
 	 * export option, on the same surface an omit-hidden-objects toggle would live on.
 	 *
+	 * The two cases are told apart by [PuppetModel.pixelsPerUnit] being NULL, never by the value's
+	 * magnitude: 1 is a legitimate bake scale, so a `> 1` test would silently rescale a moc that baked
+	 * at 1 - or at any scale below it - by the canvas width and shrink the rig by that whole factor.
+	 *
 	 * @param PuppetModel puppet The rig being exported.
 	 * @return Float The canvas scale to write.
 	 */
 	fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
-		if (puppet.pixelsPerUnit > 1f) {
-			return puppet.pixelsPerUnit
-		}
+		puppet.pixelsPerUnit?.let { recorded -> return recorded }
 		return puppet.canvasWidth.takeIf { width -> width > 0f } ?: 1f
 	}
 
@@ -646,33 +759,6 @@ object Moc3Export {
 		}
 		return omitted
 	}
-
-	/**
-	 * The part a drawable belongs to, from the org tree.
-	 *
-	 * @param PuppetModel puppet     The rig.
-	 * @param DrawableId  drawableId The drawable.
-	 * @return PartId? The owning part, or null at the root.
-	 */
-	private fun drawablePartOf(
-		puppet: PuppetModel,
-		drawableId: org.umamo.runtime.model.DrawableId,
-	): org.umamo.runtime.model.PartId? = puppet.partByDrawable()[drawableId]
-
-	/**
-	 * The parent of a part, from the org tree.
-	 *
-	 * @param PuppetModel puppet The rig.
-	 * @param PartId      partId The part.
-	 * @return PartId? The parent, or null at the root.
-	 */
-	private fun partParentOf(
-		puppet: PuppetModel,
-		partId: org.umamo.runtime.model.PartId,
-	): org.umamo.runtime.model.PartId? =
-		puppet.parts.firstOrNull { candidate ->
-			candidate.children.any { child -> child is org.umamo.runtime.model.OrgChild.Part && child.id == partId }
-		}?.id
 }
 
 /**

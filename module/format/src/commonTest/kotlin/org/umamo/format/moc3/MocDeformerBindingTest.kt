@@ -25,8 +25,11 @@ import kotlin.test.assertEquals
  * walked the unified list and the per-type lists separately would still compile and still pass every
  * corpus gate, because the corpus never diverges - it would only break on a file we emitted.
  *
- * The deformers below deliberately interleave warps and rotations with distinct binding indices,
- * so a lowering that confused a type-local index for a unified one cannot pass by coincidence.
+ * The deformers below deliberately interleave warps and rotations AND give each its own binding
+ * index, so a lowering that confused a type-local index for a unified one cannot pass by
+ * coincidence.  Both halves are load-bearing: interleaving alone still leaves every column reading
+ * the same value if the deformers share a binding, and identical columns agree no matter which
+ * index was used to build them.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6 s12</a>
  */
@@ -107,16 +110,20 @@ class MocDeformerBindingTest {
 				version = version,
 				canvas = CanvasInfo(pixelsPerUnit = 1f, originX = 0f, originY = 0f, width = 10f, height = 10f),
 				parameters = emptyList(),
-				keyformBindings = mapOf(0 to KeyformBinding(index = 0, axes = emptyList())),
+				// One binding per deformer, so every value in the columns below is DISTINCT.  Sharing one
+				// binding would make all three columns read as zeros, and a lowering that indexed the
+				// per-type column with the unified index would produce byte-identical output to a correct
+				// one - the assertions would hold while testing nothing.
+				keyformBindings = (0..4).associateWith { index -> KeyformBinding(index = index, axes = emptyList()) },
 				parts = listOf(Part("Part0", -1, 0, floatArrayOf(0f))),
 				// Interleaved on purpose: type-local indices (0,0,1,1,2) diverge from file indices here.
 				deformers =
 					listOf(
 						warp("Warp0", binding = 0),
-						rotation("Rotation0", binding = 0),
-						warp("Warp1", binding = 0),
-						rotation("Rotation1", binding = 0),
-						warp("Warp2", binding = 0),
+						rotation("Rotation0", binding = 1),
+						warp("Warp1", binding = 2),
+						rotation("Rotation1", binding = 3),
+						warp("Warp2", binding = 4),
 					),
 				artMeshes = emptyList(),
 				glues = emptyList(),

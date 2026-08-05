@@ -173,7 +173,7 @@ public object MocDecoder {
 		val deformerType = sections.intArray(Section.DEFORMER_TYPE)
 		val deformerParent = sections.intArray(Section.DEFORMER_PARENT)
 		// The block's common head (MOC3 §5.6 s11-s15).  Read defensively: a stripped or synthesized
-		// moc can omit these, and an absent id/flag must not fail the whole decode.
+		// MOC3 can omit these, and an absent id/flag must not fail the whole decode.
 		val deformerId = sections.idArray(Section.DEFORMER_ID)
 		// s12 is the same binding the per-type sections 19/25 carry, and the deformers below take the
 		// per-type value.  Read but deliberately unused: the runtime raises a MOC3 validation error when
@@ -498,7 +498,7 @@ public object MocDecoder {
 	)
 
 	/**
-	 * Decodes the blend-shape records (moc 4+ for meshes/warps, moc 5+ for rotations and parts):
+	 * Decodes the blend-shape records (MOC3 v4+ for meshes/warps, MOC3 v5+ for rotations and parts):
 	 * the binding structure, each record's blend-weight limits expanded from the deduplicated
 	 * sub-binding pool, and the typed per-key delta payloads lifted from [deltaTables].
 	 *
@@ -551,7 +551,7 @@ public object MocDecoder {
 		val subWeights = if (hasSubTables) sections.floatArray(Section.BLENDSHAPE_SUB_WEIGHT_VALUES) else FloatArray(0)
 
 		// MOC3 §5.6 sections 108-113: the color tables' delta region follows the base rows (and, on
-		// moc 6, the offscreen keyform prefix), holding one row per (record, key) for warp, mesh,
+		// MOC3 v6, the offscreen keyform prefix), holding one row per (record, key) for warp, mesh,
 		// and rotation records in global record order - part records own no color rows.  The region
 		// anchors at the content-derived base-row total (BlendDeltaTables.colorDeltaRowStart);
 		// anchoring at table length minus the delta total drifts by the element region's 64-byte

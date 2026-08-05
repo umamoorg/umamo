@@ -229,8 +229,10 @@ internal fun preparePose(
 	val partDrawOrders = HashMap<PartId, Float>()
 	val partCompositeStates = HashMap<PartId, PartRenderState>()
 	// The render tree carries a group's tracks but not its part's blend records, so the blend pass
-	// needs the part itself.  Built once rather than searched per group.
-	val partsById = model.parts.associateBy { part -> part.id }
+	// needs the part itself.  Taken from the model, which memoizes it: this runs once per rendered
+	// frame, so building the map here would allocate one entry per part per frame for data that is
+	// immutable across all of them.
+	val partsById = model.partById
 
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId

@@ -83,16 +83,23 @@ class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.Par
 /**
  * One object's lowered keyforms: the binding it points at and its dense cell list.
  *
- * @property Int            bindingIndex     The pool index this object's grid uses.
- * @property KeyformBundle  bundle           The bundled grid, whose cells are already in the moc's
- *                                           first-axis-fastest order.
- * @property List           demotedChannels  Channels dropped to their static (reported as notices).
+ * @property Int           bindingIndex The pool index this object's grid uses.
+ * @property KeyformBundle bundle       The bundled grid, whose cells are already in the moc's
+ *                                      first-axis-fastest order.
  */
 class Moc3ObjectKeyforms(
 	val bindingIndex: Int,
 	val bundle: KeyformBundle,
-	val demotedChannels: List<FormChannel>,
-)
+) {
+	/**
+	 * Channels the bundling dropped to their static, which the caller turns into notices.
+	 *
+	 * Delegated rather than copied into a field of its own: two stores of one fact let a later change
+	 * filter the demotions in one place and leave the other reading the unfiltered list, with nothing
+	 * in the type system to catch the divergence.
+	 */
+	val demotedChannels: List<FormChannel> get() = bundle.demotedChannels
+}
 
 /**
  * Re-bundles one object and interns its binding.
@@ -131,7 +138,7 @@ fun <TGeometry> lowerObjectKeyforms(
 		return null
 	}
 	val bundle = result.bundle
-	return Moc3ObjectKeyforms(pool.indexOf(bundle), bundle, bundle.demotedChannels)
+	return Moc3ObjectKeyforms(pool.indexOf(bundle), bundle)
 }
 
 /**

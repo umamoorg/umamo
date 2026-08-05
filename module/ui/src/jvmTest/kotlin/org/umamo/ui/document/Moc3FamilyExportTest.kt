@@ -107,7 +107,14 @@ class Moc3FamilyExportTest {
 	@Test
 	fun retainedSidecarsAreReemittedVerbatim() {
 		val (source, reimported) = roundTrip("Exported") ?: return
-		assertEquals(source.sidecarTexts, reimported.sidecarTexts, "the sidecars must come back byte-identical")
+		// Keyed by (kind, name) rather than compared directly: PassThroughSidecar has no value equality,
+		// and the KIND is half of what this asserts.  A sidecar that returns with the right bytes filed
+		// under the wrong manifest section is written beside the moc but no longer wired to the rig.
+		assertEquals(
+			source.sidecars.associate { sidecar -> (sidecar.kind to sidecar.fileName) to sidecar.text },
+			reimported.sidecars.associate { sidecar -> (sidecar.kind to sidecar.fileName) to sidecar.text },
+			"the sidecars must come back byte-identical, under the same manifest sections",
+		)
 	}
 
 	@Test

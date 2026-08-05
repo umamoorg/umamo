@@ -12,8 +12,8 @@ public data class CanvasInfo(
 )
 
 /**
- * A model parameter (slider). [type] is null on moc versions without `Parameter.Types` (< 4).
- * [repeats] is the moc 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
+ * A model parameter (slider). [type] is null on MOC3 versions without `Parameter.Types` (< 4).
+ * [repeats] is the Cubism 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
  * `[minimumValue, maximumValue)` instead of clamping.
  */
 public data class MocParameter(

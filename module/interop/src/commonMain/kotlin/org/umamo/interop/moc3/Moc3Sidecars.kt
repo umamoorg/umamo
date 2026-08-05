@@ -79,7 +79,7 @@ object Moc3Sidecars {
 	 * @property List         files  The family, moc first.
 	 * @property ExportReport report The notices from the moc lowering.
 	 */
-	class Bundle(val files: List<BundleFile>, val report: ExportReport)
+	class Bundle(val files: List<BundleFile>, val mocFileName: String, val report: ExportReport)
 
 	/**
 	 * Builds the family for [puppet].
@@ -91,7 +91,7 @@ object Moc3Sidecars {
 	 * @param List        sidecars The retained sidecars to carry through.
 	 * @param Model3Json? source   The imported manifest, whose non-file sections carry through.
 	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
-	 * @return Bundle The files to write and the report.
+	 * @return Bundle The files to write, which of them is the moc, and the report.
 	 */
 	fun bundle(
 		puppet: PuppetModel,
@@ -138,7 +138,7 @@ object Moc3Sidecars {
 				hitAreas = source?.hitAreas,
 			)
 		files.add(BundleFile("$basename.model3.json", Moc3.writeModel3(manifest).encodeToByteArray()))
-		return Bundle(files, report)
+		return Bundle(files, mocFileName, report)
 	}
 
 	/**

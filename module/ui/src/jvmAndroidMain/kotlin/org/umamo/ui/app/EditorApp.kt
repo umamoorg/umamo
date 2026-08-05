@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.vinceglb.filekit.absolutePath
+import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
@@ -300,8 +301,16 @@ fun EditorApp(
 				val edited =
 					withTexturePagesFrom(documentSession?.model?.value ?: puppetDocument.puppet, puppetDocument.textures)
 				// FileKit appends the extension, so the destination's own name is the family's base name.
+				// The strip ignores CASE: a destination spelled `.MOC3` would otherwise keep its extension
+				// in the base name, and every generated sibling - the manifest included - would be named
+				// after a `X.MOC3.moc3` that no write ever produces.
+				val destinationName = destination.name
 				val basename =
-					destination.absolutePath().substringAfterLast('/').substringAfterLast('\\').removeSuffix(".moc3")
+					if (destinationName.endsWith(".moc3", ignoreCase = true)) {
+						destinationName.dropLast(".moc3".length)
+					} else {
+						destinationName
+					}
 				val moc3Document = puppetDocument as? Moc3Document
 				// Page names come from the SOURCE manifest when there is one, so a re-export lands the
 				// family in the shape (and the subdirectory) the model already used.  A CMO3-origin

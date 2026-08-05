@@ -29,13 +29,13 @@ import kotlin.test.assertEquals
  * of every sample.  A column that is never anything but 1 cannot be the toggle that hides things.
  *
  * The join is one-directional on purpose, because a bake normally DELETES what the editor hides:
- * across the twins, a CMO3-hidden object is simply absent from the moc (EricaTamamo drops 3 art
+ * across the twins, a CMO3-hidden object is simply absent from the MOC3 (EricaTamamo drops 3 art
  * meshes, modelD drops 4 plus 2 parts, miku drops 5 plus a part).  Only miku_verycursed keeps
  * them - the editor's "export invisible ArtMesh" option - and there all 3 hidden meshes are
  * present with s37 = 0 and nothing else is.  So the provable direction is `s37 == 0` implies
  * hidden, and that is what this asserts; "hidden implies s37 == 0" is NOT assertable, both
  * because the object is usually gone and because the twins can drift (modelE hides ArtMesh153 in
- * a CMO3 saved after its bake, so the moc still has it visible).
+ * a CMO3 saved after its bake, so the MOC3 still has it visible).
  *
  * Two things stay deliberately unpinned.  Deformers: Azxiana is the only sample with an s13
  * deviation and it has no CMO3 twin, so s13 = visible is an inference from the art-mesh pair's
@@ -210,8 +210,15 @@ class PairedVisibilityFlagProbeTest {
 			println("moc3.samples not present; skipping paired flag census")
 			return
 		}
+		// work/ holds our own bake outputs, excluded like every other corpus walk does.  This census
+		// pins what the EDITOR writes; including our bakes would let the export's own output vouch for
+		// the invariant it is supposed to be measured against.
 		val files =
-			samplesDir.walkTopDown().filter { it.isFile && it.extension == "moc3" }.sortedBy { it.name }.toList()
+			samplesDir
+				.walkTopDown()
+				.filter { it.isFile && it.extension == "moc3" && it.parentFile?.name != "work" }
+				.sortedBy { it.name }
+				.toList()
 		if (files.isEmpty()) {
 			println("no corpus moc3 files; skipping paired flag census")
 			return

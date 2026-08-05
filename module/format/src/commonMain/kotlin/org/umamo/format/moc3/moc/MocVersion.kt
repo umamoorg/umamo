@@ -5,30 +5,29 @@ import org.umamo.format.FormatVersion
 /**
  * The `.moc3` format version, stored as a single byte at file offset `0x04`.
  *
- * EN: The byte (1..6) gates which sections are present; each value corresponds to a Cubism editor
- *     release.  Newer versions only add sections at higher table indices, so a reader for a high
- *     version transparently reads lower ones.
- * JA: バージョンバイト（1〜6）。新しいほどセクションが増える。
+ * The byte (1..6) gates which sections are present; each value corresponds to a Cubism editor
+ * release.  Newer versions only add sections at higher table indices, so a reader for a high
+ * version transparently reads lower ones.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §version gating</a>
  */
 public enum class MocVersion(public val byteValue: Int, public val editorRange: String) : FormatVersion {
-	/** moc 1 - Cubism 3.0-3.2 (base section set). */
+	/** MOC3 v1 - Cubism 3.0-3.2 (base section set). */
 	V30(1, "3.0-3.2"),
 
-	/** moc 2 - Cubism 3.3. */
+	/** MOC3 v2 - Cubism 3.3. */
 	V33(2, "3.3"),
 
-	/** moc 3 - Cubism 4.0. */
+	/** MOC3 v3 - Cubism 4.0. */
 	V40(3, "4.0"),
 
-	/** moc 4 - Cubism 4.2 (+ warp/rotation deformer color, `Parameter.Types`, art-mesh/warp blend shapes). */
+	/** MOC3 v4 - Cubism 4.2 (+ warp/rotation deformer color, `Parameter.Types`, art-mesh/warp blend shapes). */
 	V42(4, "4.2"),
 
-	/** moc 5 - Cubism 5.0 (+ per-form color rows; blend shapes on parts and rotation deformers). */
+	/** MOC3 v5 - Cubism 5.0 (+ per-form color rows; blend shapes on parts and rotation deformers). */
 	V50(5, "5.0"),
 
-	/** moc 6 - Cubism 5.3 (+ offscreen rendering). */
+	/** MOC3 v6 - Cubism 5.3 (+ offscreen rendering). */
 	V53(6, "5.3"),
 	;
 

@@ -35,7 +35,7 @@ public object DynamicFlag {
 }
 
 /**
- * Parameter kind (`SEC_PARAM_TYPE`, section index 114; present from moc 4 / `Parameter.Types`).
+ * Parameter kind (`SEC_PARAM_TYPE`, section index 114; present from MOC3 v4 / `Parameter.Types`).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */

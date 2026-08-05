@@ -131,10 +131,9 @@ class Moc3DowngradeOracleTest {
 				?.sortedBy { it.name }
 				?.toList()
 				.orEmpty()
-		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping downgrade report test")
-			return
-		}
+		// Assume, not println-and-return: a bare return reports PASSED, so an absent corpus would leave
+		// this gate green while covering nothing.  Its sibling above gates the same way.
+		Assume.assumeTrue("[oracle] absent -Dmoc3.samples", samples.isNotEmpty())
 		val failures = ArrayList<String>()
 		val seenFeatures = linkedSetOf<RuntimeFeature>()
 		for (mocFile in samples) {

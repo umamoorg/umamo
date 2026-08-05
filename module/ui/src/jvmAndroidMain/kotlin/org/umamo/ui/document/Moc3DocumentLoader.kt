@@ -13,6 +13,7 @@ import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
 import org.umamo.render.moc3PuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
@@ -41,14 +42,19 @@ class Moc3Document(
 	/** The parsed manifest, whose texture names and non-file sections a MOC3 export re-emits. */
 	val manifest: Model3Json,
 	/**
-	 * Every sidecar the manifest referenced and the loader could read, keyed by its manifest-relative
-	 * name (`Erica.physics3.json`, `motion/idle.motion3.json`).
+	 * Every sidecar the manifest referenced and the loader could read, each carrying the manifest
+	 * section it came from and its manifest-relative name (`Erica.physics3.json`,
+	 * `motion/idle.motion3.json`).
 	 *
 	 * Retained as TEXT, unparsed: Umamo models none of these, so a MOC3 export re-emits them verbatim
 	 * rather than rebuilding them from a model that never held them.  Reading them at import is what
 	 * makes that possible at all - a picker-driven export has no access to the source directory.
+	 *
+	 * The KIND travels with the text because only the manifest knows it.  A rigger is free to name the
+	 * physics file anything, and re-deriving the kind from the file name later would drop such a file
+	 * into the motion catch-all - written beside the moc, but no longer wired into the manifest.
 	 */
-	val sidecarTexts: Map<String, String>,
+	val sidecars: List<Moc3Sidecars.PassThroughSidecar>,
 ) : PuppetDocument
 
 /**
@@ -180,7 +186,7 @@ internal fun buildMoc3Document(
 
 	// Pass-through sidecars: read now, re-emitted verbatim by a MOC3 export.  Every one is optional -
 	// an unreadable physics file degrades the export's fidelity, never the open.
-	val sidecarTexts = readPassThroughSidecars(manifest, readRelative)
+	val sidecars = readPassThroughSidecars(manifest, readRelative)
 
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
 	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
@@ -201,7 +207,7 @@ internal fun buildMoc3Document(
 				liveParams = initialLiveParams(puppet),
 				atlasPages = pageBytes,
 				manifest = manifest,
-				sidecarTexts = sidecarTexts,
+				sidecars = sidecars,
 			),
 		)
 	}.getOrElse { failure ->
@@ -211,7 +217,12 @@ internal fun buildMoc3Document(
 }
 
 /**
- * Reads every sidecar the manifest references, as text, keyed by its manifest-relative name.
+ * Reads every sidecar the manifest references, as text, tagged with the section it came from.
+ *
+ * The kind is taken from WHICH manifest field named the file, which is the only place it is stated:
+ * the names themselves are the rigger's to choose, so a physics file called `custom.json` is
+ * indistinguishable from a motion by its name alone.  Classifying here rather than at export time is
+ * what keeps such a file wired into the manifest the export writes.
  *
  * The cdi3 is deliberately NOT among them: it is the one sidecar the export synthesizes from the
  * model (display names are model data), so carrying the imported one through would overwrite the
@@ -219,27 +230,36 @@ internal fun buildMoc3Document(
  *
  * @param Model3Json manifest     The parsed manifest.
  * @param Function   readRelative Reads a manifest-directory-relative reference, or null when missing.
- * @return Map Each readable sidecar's text by relative name.
+ * @return List Each readable sidecar, with its kind and relative name.
  */
-private fun readPassThroughSidecars(manifest: Model3Json, readRelative: (String) -> ByteArray?): Map<String, String> {
-	val references = ArrayList<String>()
-	manifest.fileReferences.physics?.let(references::add)
-	manifest.fileReferences.pose?.let(references::add)
-	manifest.fileReferences.userData?.let(references::add)
-	manifest.fileReferences.expressions?.forEach { expression -> references.add(expression.file) }
-	manifest.fileReferences.motions?.values?.forEach { motions ->
-		motions.forEach { motion -> references.add(motion.file) }
+private fun readPassThroughSidecars(
+	manifest: Model3Json,
+	readRelative: (String) -> ByteArray?,
+): List<Moc3Sidecars.PassThroughSidecar> {
+	val references = LinkedHashMap<String, Moc3Sidecars.SidecarKind>()
+	manifest.fileReferences.physics?.let { reference ->
+		references[reference] = Moc3Sidecars.SidecarKind.Physics
 	}
-	val texts = LinkedHashMap<String, String>(references.size)
-	for (reference in references.distinct()) {
+	manifest.fileReferences.pose?.let { reference -> references[reference] = Moc3Sidecars.SidecarKind.Pose }
+	manifest.fileReferences.userData?.let { reference ->
+		references[reference] = Moc3Sidecars.SidecarKind.UserData
+	}
+	manifest.fileReferences.expressions?.forEach { expression ->
+		references[expression.file] = Moc3Sidecars.SidecarKind.Expression
+	}
+	manifest.fileReferences.motions?.values?.forEach { motions ->
+		motions.forEach { motion -> references[motion.file] = Moc3Sidecars.SidecarKind.Motion }
+	}
+	val sidecars = ArrayList<Moc3Sidecars.PassThroughSidecar>(references.size)
+	for ((reference, kind) in references) {
 		val bytes = readRelative(reference)
 		if (bytes == null) {
 			UmamoLog.warn("sidecar $reference is missing; a MOC3 export will not carry it")
 			continue
 		}
-		texts[reference] = bytes.decodeToString()
+		sidecars.add(Moc3Sidecars.PassThroughSidecar(kind, reference, bytes.decodeToString()))
 	}
-	return texts
+	return sidecars
 }
 
 /**

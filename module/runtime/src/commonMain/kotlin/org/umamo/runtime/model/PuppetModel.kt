@@ -58,21 +58,36 @@ data class PuppetModel(
 	val worldOriginY: Float = 0f,
 	/**
 	 * Canvas pixels per model unit - the scale factor between the source's model space and the world
-	 * space everything here is expressed in.
+	 * space everything here is expressed in - or null when the document has no bake scale of its own.
 	 *
-	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it; CMO3
-	 * authors directly in canvas pixels, so a CMO3-origin document carries 1.  Nothing in the editor or
-	 * the evaluator reads it - both work purely in world space - but an EXPORT cannot invert the import
-	 * without it: the root-space affine and the scale of every root-path rotation deformer both fold it
-	 * in, and a model that has forgotten it can only be written back at the wrong scale.
+	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it, so a
+	 * MOC3-origin document carries the value its file recorded.  A CMO3 authors directly in canvas
+	 * pixels and its `CModelInfo.pixelsPerUnit` is 1 on every corpus model, which describes the project
+	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.
+	 * Nothing in the editor or the evaluator reads it - both work purely in world space - but an EXPORT
+	 * cannot invert the import without it: the root-space affine and the scale of every root-path
+	 * rotation deformer both fold it in.
+	 *
+	 * NULLABLE rather than a sentinel because 1 is a legitimate bake scale.  Inferring the origin from
+	 * the magnitude instead would rescale a moc whose own scale happens to be 1 by the canvas width.
 	 */
-	val pixelsPerUnit: Float = 1f,
+	val pixelsPerUnit: Float? = null,
 	/**
 	 * The document's runtime-compatibility target; [RuntimeTarget.NoTarget] restricts nothing.  Gates
 	 * editing controls only - never rendering or saving.  See [RuntimeTarget].
 	 */
 	val runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
-)
+) {
+	/**
+	 * Every part by id, built once per model instance.
+	 *
+	 * The model is immutable, so this cannot go stale, and the pose evaluation runs it every frame -
+	 * rebuilding the map there allocates one entry per part per frame for data that never changes.
+	 * Outside the primary constructor deliberately: it is derived, not state, and must stay out of
+	 * `equals`, `hashCode`, and `copy`.
+	 */
+	val partById: Map<PartId, Part> by lazy { parts.associateBy { part -> part.id } }
+}
 
 /**
  * Cubism's neutral draw order: the midpoint of the 0-1000 scale a part's slot and an art mesh's stacking

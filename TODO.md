@@ -34,6 +34,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
 * MOC3 export should check the destination folder for safety.  If there are existing matching files for any of the possible files then a warning is required.
+* Runtime export dialog.
 
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
@@ -44,7 +45,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 * Clean Up:
-	* Remove duplicated DEFAULT_DRAW_ORDER in Moc3Export.kt.
+	* pixelsPerUnit probably should be on the document model.  Later it will be used in the runtime export window.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements

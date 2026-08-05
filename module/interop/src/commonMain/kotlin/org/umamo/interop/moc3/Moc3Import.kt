@@ -885,15 +885,21 @@ object Moc3Import {
 		/**
 		 * [partBlendShapesOf] with this part's records looked up, the shape [buildOrgTree] consumes.
 		 *
+		 * Takes the part's file index rather than searching for it by id.  A moc addresses blend records
+		 * by index and nothing guarantees the id strings are unique, so resolving the index from the id
+		 * would give two same-named parts the SAME records - the first part's, applied twice, with the
+		 * second part's own records never read.  The caller is iterating by index already.
+		 *
 		 * @param MocPart      source       The moc part.
+		 * @param Int          partIndex    The part's file index.
 		 * @param ChannelGrids channelGrids The part's tracks, already built by the caller.
 		 * @return List<BlendShapeBinding<PartForm>> The runtime bindings, empty when the part has none.
 		 */
-		fun partBlendShapesOfBound(source: MocPart, channelGrids: ChannelGrids): List<BlendShapeBinding<PartForm>> {
-			val partIndex = mocDocument.parts.indexOfFirst { part -> part.id == source.id }
-			if (partIndex < 0) {
-				return emptyList()
-			}
+		fun partBlendShapesOfBound(
+			source: MocPart,
+			partIndex: Int,
+			channelGrids: ChannelGrids,
+		): List<BlendShapeBinding<PartForm>> {
 			val records = blendRecordsByTarget[BlendShapeTarget.PART to partIndex].orEmpty()
 			if (records.isEmpty()) {
 				return emptyList()
@@ -1000,8 +1006,10 @@ object Moc3Import {
 				worldOriginX = canvasOriginX,
 				worldOriginY = -canvasOriginY,
 				// Retained purely so an export can invert this import's space conversions; the evaluator and
-				// the renderer never read it.
-				pixelsPerUnit = pixelsPerUnit,
+				// the renderer never read it.  The CANVAS's own value, not the 1f identity a canvas-less
+				// model falls back to above - an export has to be able to tell "this moc baked at 1" from
+				// "this document never had a bake scale" and pick its own default for the second.
+				pixelsPerUnit = canvas?.pixelsPerUnit,
 				// MOC3 §3 Version Gating: the version byte is a hard fact of the baked file, so the import
 				// starts at the matching Cubism target rather than NoTarget.
 				runtimeTarget = runtimeTargetOfMocVersion(mocDocument.version),
@@ -1271,7 +1279,8 @@ object Moc3Import {
 	 * @param Set         drawOrderGroupPartIndices Part file indices referenced as render-order groups.
 	 * @param Function    partStaticDrawOrder       Static draw order of a moc part.
 	 * @param Function    partChannelsOf            Per-channel keyform tracks of a moc part.
-	 * @param Function    partBlendShapesOf         Draw-order blend bindings of a moc part, given its tracks.
+	 * @param Function    partBlendShapesOf         Draw-order blend bindings of a moc part, given its file
+	 *                                              index and its tracks.
 	 * @param Function    partCompositeOf           Compositing settings of a moc part (null when not isolated).
 	 * @return Pair<List<Part>, List<OrgChild>> The runtime parts (file order) and the root children.
 	 */
@@ -1284,7 +1293,7 @@ object Moc3Import {
 		drawOrderGroupPartIndices: Set<Int>,
 		partStaticDrawOrder: (MocPart) -> Int,
 		partChannelsOf: (MocPart) -> ChannelGrids,
-		partBlendShapesOf: (MocPart, ChannelGrids) -> List<BlendShapeBinding<PartForm>>,
+		partBlendShapesOf: (MocPart, Int, ChannelGrids) -> List<BlendShapeBinding<PartForm>>,
 		partCompositeOf: (MocPart) -> PartComposite?,
 	): Pair<List<Part>, List<OrgChild>> {
 		val partCount = mocDocument.parts.size
@@ -1403,7 +1412,7 @@ object Moc3Import {
 					channelGrids = partChannels,
 					composite = offscreenComposite ?: PartComposite(),
 					// MOC3 v5+ §5.6: a part-target blend record, whose only channel is the draw order.
-					blendShapes = partBlendShapesOf(source, partChannels),
+					blendShapes = partBlendShapesOf(source, partIndex, partChannels),
 				)
 			}
 		return parts to childrenOf(-1)

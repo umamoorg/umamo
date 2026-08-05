@@ -197,12 +197,15 @@ internal fun lowerBlendShapes(
 
 	// ---- deformers ----
 	for (deformer in deformers) {
-		val space = spaceOf(deformer.id)
 		when (deformer) {
 			is Deformer.Warp -> {
 				if (deformer.blendShapes.isEmpty()) {
 					continue
 				}
+				// Resolved only once the deformer is known to carry blend shapes: `spaceOf` is a lookup the
+				// caller supplies, and asking it for every deformer in the rig would pay for a result that
+				// is discarded on all of them in a model with no blend shapes.
+				val space = spaceOf(deformer.id)
 				// The UNIFIED deformer index, not the kind-local one: `MocLowering` maps it through
 				// `warpLocalByDeformer` itself, so handing it a kind-local index would re-map an already
 				// -mapped value and name a different deformer.  The decoder produces the same convention.
@@ -245,6 +248,8 @@ internal fun lowerBlendShapes(
 				if (deformer.blendShapes.isEmpty()) {
 					continue
 				}
+				// Resolved after the guard; see the warp branch.
+				val space = spaceOf(deformer.id)
 				// Unified, not kind-local; see the warp branch.
 				val localIndex = plan.deformerIndex(deformer.id)
 				val reference =

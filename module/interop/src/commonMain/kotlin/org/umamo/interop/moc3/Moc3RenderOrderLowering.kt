@@ -52,8 +52,18 @@ internal fun lowerRenderOrder(puppet: PuppetModel, plan: Moc3IndexPlan): List<Re
 				}
 				is RenderGroup -> {
 					val partIndex = plan.partIndex(child.partId)
-					val childRecord = allocate(child)
+					// The part check comes BEFORE the record is allocated.  Allocating first and then
+					// declining to reference it leaves a group in the table that no child names - an
+					// unreachable record still counted by CI_RENDER_ORDER_GROUPS and still consuming a slot
+					// in the child-start prefix sum.
+					//
+					// Skipping the record takes its whole subtree with it, which is only sound because the
+					// sole reason a part is unwritable is that it is a sketch, and the export drops every
+					// drawable under a sketch part too.  A future rule that drops a part while KEEPING its
+					// drawables would strand those art meshes outside the render tree, which the format
+					// says leaves the runtime free to behave erratically.
 					if (partIndex >= 0) {
+						val childRecord = allocate(child)
 						// Kind 1: a "group by draw order" part, whose members live in the named record.
 						children.add(RenderOrderChild(kind = 1, index = partIndex, groupIndex = childRecord))
 					}

@@ -73,10 +73,13 @@ public object MocLowering {
 
 		// parts
 		put(Section.PART_ID, idRecords(doc.parts.map { it.id }))
-		// One model field feeds both columns: their split is unpinned and they are 1 together on every
-		// corpus sample, so writing them independently would be inventing a distinction we cannot read.
+		// MOC3 §5.6 s7/s8: a paired flag column, the same shape as the deformer (s13/s14) and art-mesh
+		// (s37/s38) pairs.  The FIRST carries visibility; the SECOND is 1 on every part of every corpus
+		// sample and its meaning is unpinned, which `PairedVisibilityFlagProbeTest` pins as an invariant.
+		// Projecting isVisible into both would put a 0 in a column the editor has never been observed
+		// writing one into - a hidden part would make our bake the only file in existence that deviates.
 		put(Section.PART_VISIBLE_ARTMESHES, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
-		put(Section.PART_VISIBLE_DEFORMERS, intList(doc.parts.map { if (it.isVisible) 1 else 0 }))
+		put(Section.PART_VISIBLE_DEFORMERS, intList(doc.parts.map { 1 }))
 		put(Section.PART_PARENT, intList(doc.parts.map { it.parentPartIndex }))
 		put(Section.PART_KEYFORM_BINDING, intList(doc.parts.map { it.keyformBindingIndex }))
 
@@ -408,7 +411,7 @@ public object MocLowering {
 				appendColors(multiplyColor ?: Rgb(0f, 0f, 0f), screenColor ?: Rgb(0f, 0f, 0f))
 			}
 
-			// moc 6: the offscreen keyform rows prefix the tables, shifting every base below.
+			// MOC3 v6: the offscreen keyform rows prefix the tables, shifting every base below.
 			for (offscreen in doc.offscreens) {
 				offscreen.keyforms.forEach { appendColors(it.multiplyColor, it.screenColor) }
 			}
@@ -753,7 +756,7 @@ public object MocLowering {
 		put(Section.BINDING_KEY_COUNT, intList(keyCount))
 		if (doc.blendShapes.isEmpty()) {
 			// Blend-free path: the main-grid dedup keys, followed by the per-parameter sorted-union
-			// region (MOC3 §5.6).  On moc 4+ that region is ALWAYS present and sections 103/104 address
+			// region (MOC3 §5.6).  On MOC3 v4+ that region is ALWAYS present and sections 103/104 address
 			// it; on v1/v3 it appears only in the editor builds that wrote it, carried on the document
 			// as keyPositionsHasParameterUnion, and 103/104 do not exist to address it.
 			//
@@ -821,7 +824,7 @@ public object MocLowering {
 	 * Writes the per-parameter key run columns (103 start, 104 count) over the key-position union region.
 	 *
 	 * @param Function2 put         The section sink of the calling producer.
-	 * @param MocVersion version     The target version (the columns are moc 4+).
+	 * @param MocVersion version     The target version (the columns are MOC3 v4+).
 	 * @param List      counts      Each parameter's union key count, in parameter order.
 	 * @param Int       regionStart Where the union region begins inside KEY_POSITIONS.
 	 */
@@ -851,11 +854,11 @@ public object MocLowering {
 	/**
 	 * Writes the per-parameter blend-binding run columns (115 begin, 116 count).
 	 *
-	 * Present on every moc 4+ file, blend shapes or not - a blend-free model writes zeros rather than
+	 * Present on every MOC3 v4+ file, blend shapes or not - a blend-free model writes zeros rather than
 	 * nothing, and an absent section is read as garbage by the runtime rather than as an empty one.
 	 *
 	 * @param Function2   put            The section sink of the calling producer.
-	 * @param MocVersion  version        The target version (the columns are moc 4+).
+	 * @param MocVersion  version        The target version (the columns are MOC3 v4+).
 	 * @param MocDocument doc            The document, for the parameter types.
 	 * @param List        bindingCounts  Blend bindings owned by each parameter, in parameter order.
 	 */
@@ -926,7 +929,7 @@ public object MocLowering {
 					} ?: 0
 				)
 		val bindingGrid = ParameterBindingGrid(doc)
-		// The block widens to 64 words at moc 5, NOT at moc 6: every v5 corpus file's section 0 is 256
+		// The block widens to 64 words at MOC3 v5, NOT at MOC3 v6: every v5 corpus file's section 0 is 256
 		// bytes, and a v5 model with rotation blend shapes writes field 33 (LimeBirb).  Capping v5 at 32
 		// would silently drop that field, and the re-decode would then find zero blend-shape rotations.
 		val fieldCount = if (doc.version.byteValue >= 5) 64 else 32
@@ -978,7 +981,7 @@ public object MocLowering {
 		}
 		countInfo[15] = 2 * doc.artMeshes.sumOf { it.vertexCount }
 		countInfo[16] = doc.artMeshes.sumOf { it.triangleIndices.size }
-		// 17 sizes MASK_INDEX_DATA, which on moc 6 includes the offscreens' mask prefix (§5.6).
+		// 17 sizes MASK_INDEX_DATA, which on MOC3 v6 includes the offscreens' mask prefix (§5.6).
 		countInfo[17] = doc.artMeshes.sumOf { it.maskDrawableIndices.size } + doc.offscreens.sumOf { it.maskCount }
 		countInfo[18] = doc.renderOrderGroups.size
 		countInfo[19] = doc.renderOrderGroups.sumOf { it.children.size }

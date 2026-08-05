@@ -38,8 +38,10 @@ import org.umamo.storage.UmamoLog
  * @return Int How many files were written, including the moc.
  */
 suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bundle): Int {
-	val mocName = destination.absolutePath().substringAfterLast('/').substringAfterLast('\\')
-	val mocFile = bundle.files.firstOrNull { file -> file.name == mocName } ?: bundle.files.first()
+	// The bundle names its own moc rather than being matched against the picked file's name.  Matching
+	// by name silently degrades to "whatever is first" the moment the two disagree - which they do as
+	// soon as the picked extension differs in case from the one the bundle generated.
+	val mocFile = bundle.files.first { file -> file.name == bundle.mocFileName }
 	destination.write(mocFile.bytes)
 
 	val directory = runCatching { destination.absolutePath().toPath().parent }.getOrNull()
@@ -67,27 +69,18 @@ suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bund
 }
 
 /**
- * The pass-through sidecars of [document], classified by file name.
+ * The pass-through sidecars of [document], already classified by the manifest section that named
+ * them (see `Moc3Document.sidecars`).
  *
- * Classification is by SUFFIX because that is what the format family guarantees: the manifest's own
- * shape says which reference is the physics file, but the motion and expression entries carry names
- * the rigger chose, and the suffix is the only thing common to both routes.
+ * Nothing is re-derived here.  Classifying by file name instead would drop any sidecar the rigger
+ * named off-convention into the motion catch-all, and the export's manifest would stop pointing at
+ * it - the file copied beside the moc, but silently unwired from the rig.
  *
  * @param Moc3Document? document The imported document, or null for a non-MOC3 origin.
  * @return List The sidecars to re-emit, empty when there are none.
  */
 fun passThroughSidecars(document: Moc3Document?): List<Moc3Sidecars.PassThroughSidecar> =
-	document?.sidecarTexts.orEmpty().map { (fileName, text) ->
-		val kind =
-			when {
-				fileName.endsWith(".physics3.json", ignoreCase = true) -> Moc3Sidecars.SidecarKind.Physics
-				fileName.endsWith(".pose3.json", ignoreCase = true) -> Moc3Sidecars.SidecarKind.Pose
-				fileName.endsWith(".userdata3.json", ignoreCase = true) -> Moc3Sidecars.SidecarKind.UserData
-				fileName.endsWith(".exp3.json", ignoreCase = true) -> Moc3Sidecars.SidecarKind.Expression
-				else -> Moc3Sidecars.SidecarKind.Motion
-			}
-		Moc3Sidecars.PassThroughSidecar(kind, fileName, text)
-	}
+	document?.sidecars.orEmpty()
 
 /**
  * Re-encodes a decoded atlas page as PNG, for a document that has no original page bytes.

@@ -91,7 +91,6 @@ object Moc3VersionDowngrade {
 			stripped =
 				when (feature) {
 					RuntimeFeature.WarpQuadTransform -> stripQuadTransform(stripped, ::report)
-					RuntimeFeature.ReversedMask -> stripReversedMask(stripped, ::report)
 					RuntimeFeature.MeshWarpBlendShapes -> stripMeshWarpBlendShapes(stripped, ::report)
 					RuntimeFeature.BlendShapeParameters -> stripBlendShapeParameters(stripped, ::report)
 					RuntimeFeature.MultiplyColor ->
@@ -103,7 +102,13 @@ object Moc3VersionDowngrade {
 					RuntimeFeature.ExtendedBlendShapes -> stripExtendedBlendShapes(stripped, ::report)
 					RuntimeFeature.ExtendedBlendModes -> stripExtendedBlendModes(stripped, ::report)
 					RuntimeFeature.PartComposite -> stripPartComposites(stripped, ::report)
-					RuntimeFeature.ParameterRepeat -> stripParameterRepeat(stripped, ::report)
+					// Carried by EVERY moc version, so `carries` is unconditionally true for both and neither
+					// ever reaches this loop: the reversed mask is a bit in the constant-flag byte and
+					// parameter repeat is section 54, and both go back to v1.  The arm exists to keep the
+					// `when` exhaustive, not because there is work to do.  If a future version gate ever
+					// drops one of them, this has to grow a real strip - returning the model unchanged would
+					// write the feature into a file with nowhere to put it.
+					RuntimeFeature.ReversedMask, RuntimeFeature.ParameterRepeat -> stripped
 					// Neither is representable in PuppetModel, so there is nothing here to remove: motion
 					// sync is a sidecar family and an art path survives only as CMO3 round-trip payload.
 					RuntimeFeature.MotionSync, RuntimeFeature.ArtPath -> stripped
@@ -154,32 +159,6 @@ object Moc3VersionDowngrade {
 			}
 		report(RuntimeFeature.WarpQuadTransform, affected)
 		return if (affected.isEmpty()) puppet else puppet.copy(deformers = deformers)
-	}
-
-	/** Inverted clipping cleared on drawables and on isolated parts' composites. */
-	private fun stripReversedMask(puppet: PuppetModel, report: Reporter): PuppetModel {
-		val affected = ArrayList<String>()
-		val drawables =
-			puppet.drawables.map { drawable ->
-				if (drawable.invertMask) {
-					affected.add(drawable.name)
-					drawable.copy(invertMask = false)
-				} else {
-					drawable
-				}
-			}
-		val parts =
-			puppet.parts.map { part ->
-				// Latent state is not a use: a non-isolated part's composite never reaches the runtime.
-				if (part.isIsolated && part.composite.invertMask) {
-					affected.add(part.name)
-					part.copy(composite = part.composite.copy(invertMask = false))
-				} else {
-					part
-				}
-			}
-		report(RuntimeFeature.ReversedMask, affected)
-		return if (affected.isEmpty()) puppet else puppet.copy(drawables = drawables, parts = parts)
 	}
 
 	/** Every mesh and warp blend-shape binding dropped (moc 4.2 introduced them). */
@@ -384,25 +363,6 @@ object Moc3VersionDowngrade {
 			}
 		report(RuntimeFeature.PartComposite, affected)
 		return if (affected.isEmpty()) puppet else puppet.copy(parts = parts)
-	}
-
-	/**
-	 * The wrapping-axis flag cleared.  Cubism 5.3's toggle, but section 54 carries it in every moc
-	 * version, so no target version reaches this strip.
-	 */
-	private fun stripParameterRepeat(puppet: PuppetModel, report: Reporter): PuppetModel {
-		val affected = ArrayList<String>()
-		val parameters =
-			puppet.parameters.map { parameter ->
-				if (parameter.repeat) {
-					affected.add(parameter.id.raw)
-					parameter.copy(repeat = false)
-				} else {
-					parameter
-				}
-			}
-		report(RuntimeFeature.ParameterRepeat, affected)
-		return if (affected.isEmpty()) puppet else puppet.copy(parameters = parameters)
 	}
 }
 
