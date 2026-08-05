@@ -97,13 +97,17 @@ import org.umamo.format.raster.RasterImage
  * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
  * CModelImage's _materialLocalToCanvasTransform.
  *
- * SECOND, NARROWER GAP (independent of the render gap above, and visible even when a file does
- * render): the packing transform is written as position-only (scale 1, angle 0) while the fitted
- * page-to-canvas affine may flip, scale, or shear - true for ~890 of LimeBirb's 972 drawables.
- * For those the crop is an axis-aligned uv bbox described as if packed upright, so the atlas view
- * mismaps them; only pure-translation packings (Erica) are currently faithful.  Representing it
- * honestly would mean un-packing each patch to upright art so the entry can carry the real scale
- * and rotation - which real source art supplies for free.
+ * WHERE THE PACKING'S SCALE AND ROTATION LIVE: not on the ModelImageEntry.  Each crop is an
+ * axis-aligned rect of page pixels lifted at scale 1, so position-only IS the honest
+ * materialLocalToAtlasTransform for it; whatever the packer did to the art - rotate, mirror, scale
+ * - is carried by the page fit, which both atlasLocalToCanvasTransform and the model image's
+ * _materialLocalToCanvasTransform compose (see fitAtlasPageToCanvasTransform, and note the
+ * mean-centering there is what lets a rotated packing survive the fit at all).
+ *
+ * The reconstruction's own cost is that a rotated patch's uv bounding box is bigger than the art:
+ * the crop encloses whatever page pixels the packer tucked into the corners, so a neighbouring
+ * drawable's art can ride along in the combined-layer view.  Cropping tighter means un-packing each
+ * patch back to upright art, which is what real source art supplies for free.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
