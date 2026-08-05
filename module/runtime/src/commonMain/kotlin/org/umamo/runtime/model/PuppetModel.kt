@@ -57,6 +57,9 @@ data class PuppetModel(
 	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
 	val worldOriginY: Float = 0f,
 	/**
+	 * Pixels per unit is used only for runtime export.  It is stored inside of UMA and CMO3, but it is
+	 * not used for anything internal to Umamo.
+	 *
 	 * Canvas pixels per model unit - the scale factor between the source's model space and the world
 	 * space everything here is expressed in - or null when the document has no bake scale of its own.
 	 *
