@@ -25,7 +25,7 @@ import org.umamo.runtime.model.screenColor
 /**
  * Removes from a copy of the rig everything the export target's runtime cannot load.
  *
- * A MOC3 version is a hard capability boundary: a Cubism 3.0 MOC3 has nowhere to put a blend shape, a colour
+ * A MOC3 version is a hard capability boundary: a Cubism 3.0 MOC3 has nowhere to put a blend shape, a color
  * table, or an offscreen, and the sections that would carry them do not exist in its table.  Dropping
  * them at the SECTION level is not enough - the CountInfo would still count the keyforms a stripped
  * section no longer holds - so the removal happens here, on the [PuppetModel], before any lowering
@@ -227,7 +227,7 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(parameters = parameters)
 	}
 
-	/** One colour channel reset to its identity everywhere - statics and tracks alike. */
+	/** One color channel reset to its identity everywhere - statics and tracks alike. */
 	private fun stripColorChannel(
 		puppet: PuppetModel,
 		channel: FormChannel,
@@ -241,7 +241,7 @@ object Moc3VersionDowngrade {
 		/**
 		 * Whether an owner tints through this channel - a non-identity static or a track.
 		 *
-		 * @param ColorRgb     staticColor The owner's static colour.
+		 * @param ColorRgb     staticColor The owner's static color.
 		 * @param ChannelGrids grids       The owner's tracks.
 		 * @return Boolean True when the channel is in use.
 		 */

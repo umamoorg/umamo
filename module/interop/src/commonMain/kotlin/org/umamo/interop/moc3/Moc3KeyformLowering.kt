@@ -166,19 +166,19 @@ fun flagOf(bundle: KeyformBundle, cellIndex: Int, channel: FormChannel, fallback
 	(bundle.cells.getOrNull(cellIndex)?.channels?.get(channel) as? ChannelValue.Flag)?.flag ?: fallback
 
 /**
- * The colour of [channel] in [cellIndex] as the format's [Rgb], or null when the target version has no
- * colour tables.
+ * The color of [channel] in [cellIndex] as the format's [Rgb], or null when the target version has no
+ * color tables.
  *
- * A null return is meaningful rather than a failure: the lowering writes the colour sections only when
- * some object carries a colour, so a pre-4.2 export must produce nulls throughout or it would
+ * A null return is meaningful rather than a failure: the lowering writes the color sections only when
+ * some object carries a color, so a pre-4.2 export must produce nulls throughout or it would
  * synthesize tables the version cannot address.
  *
  * @param KeyformBundle? bundle    The bundled grid, or null for an unkeyed owner.
  * @param Int            cellIndex The cell ordinal.
- * @param FormChannel    channel   The colour channel to read.
- * @param ColorRgb       fallback  The owner's static colour.
- * @param Boolean        enabled   Whether the target version carries colour tables.
- * @return Rgb? The cell's colour, or null when colours are not written.
+ * @param FormChannel    channel   The color channel to read.
+ * @param ColorRgb       fallback  The owner's static color.
+ * @param Boolean        enabled   Whether the target version carries color tables.
+ * @return Rgb? The cell's color, or null when colours are not written.
  */
 fun colorOf(
 	bundle: KeyformBundle?,

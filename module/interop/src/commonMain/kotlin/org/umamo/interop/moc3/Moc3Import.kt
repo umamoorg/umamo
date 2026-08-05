@@ -332,17 +332,17 @@ object Moc3Import {
 			}
 
 		/**
-		 * Adds a colour delta row onto its grid-at-default reference, the colour analogue of
+		 * Adds a color delta row onto its grid-at-default reference, the color analogue of
 		 * [addReference].
 		 *
-		 * A blend record's colour rows are ADDITIVE, so a zero row is the identity and a null row (a
-		 * model whose colour tables are absent entirely, pre-4.2) contributes nothing.  Not clamped
+		 * A blend record's color rows are ADDITIVE, so a zero row is the identity and a null row (a
+		 * model whose color tables are absent entirely, pre-4.2) contributes nothing.  Not clamped
 		 * here: the evaluator subtracts this same reference back out and clamps only after summing every
 		 * contribution, so clamping now would bias a record whose neighbours pull the other way.
 		 *
 		 * @param ColorRgb reference The channel's value at the default pose.
 		 * @param Rgb?     delta     The record's stored delta row, or null when the model has no colours.
-		 * @return ColorRgb The referenced colour this key blends toward.
+		 * @return ColorRgb The referenced color this key blends toward.
 		 */
 		fun addColorDelta(reference: ColorRgb, delta: Rgb?): ColorRgb =
 			if (delta == null) {
@@ -435,7 +435,7 @@ object Moc3Import {
 						drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 						opacity = referenceOpacity + payloads[keyIndex].opacity,
 						// Colour delta rows are ADDITIVE like the scalars, so their identity is zero rather
-						// than Cubism's white multiply / black screen; a record without colour tables has no
+						// than Cubism's white multiply / black screen; a record without color tables has no
 						// row at all and contributes nothing.
 						multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
 						screenColor = addColorDelta(referenceScreen, payloads[keyIndex].screenColor),
@@ -447,7 +447,7 @@ object Moc3Import {
 		/**
 		 * Maps [records] onto [warp] as lattice blend bindings: each stored control-point delta row
 		 * plus the lattice's grid-at-default reference, and the same treatment for the deformer's own
-		 * render channels (opacity, multiply / screen colour), which CASCADE onto every drawable
+		 * render channels (opacity, multiply / screen color), which CASCADE onto every drawable
 		 * underneath.
 		 *
 		 * @param Deformer.Warp       warp    The constructed runtime warp (its grid is the reference source).
@@ -488,7 +488,7 @@ object Moc3Import {
 		 * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
 		 * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
 		 * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
-		 * fills the form.  The deformer's own opacity/colour rows get the same reference treatment as
+		 * fills the form.  The deformer's own opacity/color rows get the same reference treatment as
 		 * the geometry and CASCADE onto every drawable underneath (see `DeformerCascade`).
 		 *
 		 * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).

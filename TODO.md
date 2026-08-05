@@ -349,10 +349,10 @@ still uses the editor ladder, so it can name a feature the export does not actua
 conservative direction and it is pinned in `Moc3VersionDowngradeTest`; if the confirmation ever needs to
 be exact, give it the same section-derived predicate rather than moving the strip onto the editor's.
 
-**Also fixed here.** A colour TRACK of pure identity cells no longer counts as "uses colour".  A moc
+**Also fixed here.** A color TRACK of pure identity cells no longer counts as "uses color".  A moc
 import fans every channel out of one bundled grid, and compaction deliberately leaves the track alone
 when its axis does not bracket the parameter's range (modelE's ArtMesh120) - so a v3 model with no
-colour data at all was reporting that the export stripped its multiply and screen colour.
+color data at all was reporting that the export stripped its multiply and screen color.
 
 ## MOC3 export writes a FAMILY, and the picker only picks one file (found 2026-08-04)
 

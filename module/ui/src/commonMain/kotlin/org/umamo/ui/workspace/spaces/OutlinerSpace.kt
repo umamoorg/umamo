@@ -957,7 +957,7 @@ private fun OutlinerRowBody(
  * @param Boolean visible Whether to draw the chevron (false for a childless node).
  * @param Boolean expanded Whether the node is expanded.
  * @param Function onToggle Toggle callback.
- * @param Color tint The chevron colour.
+ * @param Color tint The chevron color.
  */
 @Composable
 private fun ChevronSlot(visible: Boolean, expanded: Boolean, onToggle: () -> Unit, tint: Color) {
@@ -1043,7 +1043,7 @@ private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean) {
  * mirroring the chevron.
  *
  * @param Boolean hidden Whether the row is dimmed (hidden or sketch).
- * @param Color tint The indicator colour.
+ * @param Color tint The indicator color.
  * @param Function onToggle Flips the visibility; the argument reports whether Shift was held (subtree).
  */
 @Composable
@@ -1084,7 +1084,7 @@ private fun VisibilityIndicator(hidden: Boolean, tint: Color, onToggle: (shiftHe
  * the eye.
  *
  * @param Boolean selectable Whether the entity is viewport-selectable (plain vs struck-through pointer).
- * @param Color tint The base glyph colour.
+ * @param Color tint The base glyph color.
  * @param Function onToggle Flips the selectability; the argument reports whether Shift was held (subtree).
  */
 @Composable

@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 /**
  * Posed differential validation of the DEFORMER channel cascade against the Umamo C++ runtime.
  *
- * A warp or rotation deformer carries its own opacity and multiply/screen colour per keyform, and
+ * A warp or rotation deformer carries its own opacity and multiply/screen color per keyform, and
  * the runtime folds those down the deformer chain into every drawable underneath before exposing
  * `csmGetDrawableOpacities` / `...MultiplyColors` / `...ScreenColors`.  This gate compares that
  * exposed per-drawable result against [preparePose]'s, so it covers the whole chain: the drawable's
@@ -130,7 +130,7 @@ class DeformerChannelOracleTest {
 	}
 
 	/**
-	 * Finds the parameters driving any deformer that authors a non-identity opacity or colour.
+	 * Finds the parameters driving any deformer that authors a non-identity opacity or color.
 	 *
 	 * @param MocDocument mocDocument The decoded model.
 	 * @return Map<String, FloatArray> Parameter id → the key positions of the axes that drive one.
@@ -162,7 +162,7 @@ class DeformerChannelOracleTest {
 	 * Whether any of this deformer's keyforms departs from the identity channels.
 	 *
 	 * @param Deformer deformer The warp or rotation deformer.
-	 * @return Boolean True when it authors an opacity or colour worth sweeping.
+	 * @return Boolean True when it authors an opacity or color worth sweeping.
 	 */
 	private fun authorsAChannel(deformer: Deformer): Boolean {
 		val channels =

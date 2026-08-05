@@ -101,7 +101,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 				photometric == TiffConstants.PHOTOMETRIC_PALETTE ||
 				(photometric == TiffConstants.PHOTOMETRIC_YCBCR && compression == TiffConstants.COMPRESSION_JPEG),
 		) { "Unsupported TIFF photometric interpretation $photometric" }
-		// The two tags are validated independently above, so a file may still pair a colour photometric
+		// The two tags are validated independently above, so a file may still pair a color photometric
 		// with too few samples.  assembleRgba reads three samples per pixel for those, which would run
 		// off the end of a one-sample buffer, so require the pairing to be coherent up front.
 		if (photometric == TiffConstants.PHOTOMETRIC_RGB || photometric == TiffConstants.PHOTOMETRIC_YCBCR) {
@@ -135,7 +135,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 			decodeUnit(bytes, unit, width, samplesInPlane, samplesPerPixel, bitsPerSample, coding, samples)
 		}
 
-		// A JPEG-compressed YCbCr image is colour-converted by the JPEG decoder, so it assembles as RGB.
+		// A JPEG-compressed YCbCr image is color-converted by the JPEG decoder, so it assembles as RGB.
 		val assemblyPhotometric = if (photometric == TiffConstants.PHOTOMETRIC_YCBCR) TiffConstants.PHOTOMETRIC_RGB else photometric
 		return RasterImage(width, height, assembleRgba(samples, width, height, samplesPerPixel, bitsPerSample, assemblyPhotometric, extraSamples, colorMap))
 	}
@@ -154,7 +154,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 
 	/**
 	 * Gathers the compression-specific parameters for the image: the CCITT variant and options, and
-	 * the JPEG tables and colour transform.
+	 * the JPEG tables and color transform.
 	 *
 	 * @param TiffDirectory directory The parsed directory.
 	 * @param ByteArray bytes         The complete file.
@@ -192,7 +192,7 @@ public object TiffReader : ReadOnlyRasterCodec {
 			}
 
 		// TIFF's photometric interpretation is authoritative for JPEG-in-TIFF, overriding the JPEG's
-		// own JFIF/Adobe colour-space signalling (TIFF Technical Note 2).
+		// own JFIF/Adobe color-space signalling (TIFF Technical Note 2).
 		val jpegColorTransform =
 			when {
 				compression != TiffConstants.COMPRESSION_JPEG -> null

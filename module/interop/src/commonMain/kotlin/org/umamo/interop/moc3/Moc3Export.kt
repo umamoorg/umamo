@@ -125,7 +125,7 @@ object Moc3Export {
 		val pixelsPerUnit = mocPixelsPerUnitFor(puppet)
 		val canvas = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
-		// Per-object multiply/screen colour arrived in Cubism 4.2; below that the tables do not exist and
+		// Per-object multiply/screen color arrived in Cubism 4.2; below that the tables do not exist and
 		// every keyform must carry null rather than an identity, or the lowering would synthesize
 		// sections the version cannot address.
 		val colorsEnabled = version.byteValue >= 4
@@ -764,7 +764,7 @@ object Moc3Export {
 /**
  * The render channels an object's grid should bundle, gated on whether the version carries colours.
  *
- * @param Boolean colorsEnabled Whether the target version has colour tables.
+ * @param Boolean colorsEnabled Whether the target version has color tables.
  * @return Array<FormChannel> The channels to bundle.
  */
 internal fun renderChannels(colorsEnabled: Boolean): Array<FormChannel> =
@@ -778,12 +778,12 @@ internal fun renderChannels(colorsEnabled: Boolean): Array<FormChannel> =
  * The static fallbacks for [renderChannels].
  *
  * Colours are omitted entirely below moc 4 rather than defaulted, so the bundle never manufactures a
- * colour cell the version has nowhere to store.
+ * color cell the version has nowhere to store.
  *
  * @param Float    opacity       The owner's static opacity.
- * @param ColorRgb multiplyColor The owner's static multiply colour.
- * @param ColorRgb screenColor   The owner's static screen colour.
- * @param Boolean  colorsEnabled Whether the target version has colour tables.
+ * @param ColorRgb multiplyColor The owner's static multiply color.
+ * @param ColorRgb screenColor   The owner's static screen color.
+ * @param Boolean  colorsEnabled Whether the target version has color tables.
  * @return Map The statics per channel.
  */
 internal fun renderStatics(
@@ -812,7 +812,7 @@ internal object UnitInterpolator : org.umamo.runtime.keyform.FormInterpolator<Un
 /**
  * This channel set restricted to [channels] - the tracks the owner's moc block can actually store.
  *
- * A runtime entity may carry tracks a given moc version has no field for (a colour track on a v3
+ * A runtime entity may carry tracks a given moc version has no field for (a color track on a v3
  * export), and bundling those in would widen the grid with axes nothing reads.
  *
  * @param FormChannel channels The channels to keep.

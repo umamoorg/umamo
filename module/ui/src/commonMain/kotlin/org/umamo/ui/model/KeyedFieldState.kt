@@ -10,7 +10,7 @@ import org.umamo.runtime.model.channelGridsOf
 import org.umamo.ui.theme.UmamoColors
 
 /*
- * The keyed state of one editable field, and the colour that expresses it - Blender's keyframe tinting.
+ * The keyed state of one editable field, and the color that expresses it - Blender's keyframe tinting.
  *
  * What it communicates is not decoration: BetweenKeys says "edit here and it is lost unless you key it",
  * and ModifiedUnkeyed says "that is exactly what has happened".  Without them, manual keying silently

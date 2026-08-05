@@ -82,7 +82,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	command.add(moc3.absolutePath)
 	command.add("--update")
 	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
-	// alternative is two dump invocations for tests that want geometry AND colour.
+	// alternative is two dump invocations for tests that want geometry AND color.
 	command.add("--channels")
 	for ((parameterId, value) in pose) {
 		command.add("--param")
