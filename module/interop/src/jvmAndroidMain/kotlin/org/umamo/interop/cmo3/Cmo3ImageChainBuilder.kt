@@ -97,20 +97,27 @@ import org.umamo.format.raster.RasterImage
  * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
  * CModelImage's _materialLocalToCanvasTransform.
  *
- * WHERE THE PACKING'S SCALE AND ROTATION LIVE: not on the ModelImageEntry.  Each crop is an
- * axis-aligned rect of page pixels lifted at scale 1, so position-only IS the honest
- * materialLocalToAtlasTransform for it; whatever the packer did to the art - rotate, mirror, scale
- * - is carried by the page fit, which both atlasLocalToCanvasTransform and the model image's
- * _materialLocalToCanvasTransform compose (see fitAtlasPageToCanvasTransform, and note the
- * mean-centering there is what lets a rotated packing survive the fit at all).
+ * A CModelImage IS UPRIGHT CANVAS-SPACE ART, and that is a hard invariant of the format, not a
+ * stylistic choice: across every atlas-bearing corpus file, all 1046 model images carry a PURE
+ * TRANSLATION in _materialLocalToCanvasTransform - including the ones the packer rotated or scaled.
+ * The packing lives entirely on the ModelImageEntry (materialLocalToAtlasTransform's position,
+ * scale, and eulerAngle in DEGREES), and atlasLocalToCanvasTransform is its inverse, so the two
+ * compose back to that pure translation.  Verified to the digit on haruto's "Shin R": a 90 degree
+ * packing whose 143x274 crop is UPRIGHT while its atlas footprint is 294x172 (swapped), whose
+ * atlas-to-canvas is [0,1;-1,0], and whose entry position (292.0, 409.0863) composes to exactly the
+ * written canvas origin (554.0, 1668.0).
  *
- * A patch rect is a uv BOUNDING BOX, so unless the mesh is itself a page-aligned rectangle the rect
- * also spans page pixels the packer nested into the leftover corners - a neighbour's artwork.  The
- * crop is therefore masked to the mesh's own triangles (coverageMaskOf) rather than copied
- * verbatim: the rect stays exactly as computed, so every placement transform is untouched, but a
- * drawable's CModelImage carries only pixels its mesh actually samples.  Un-masked, the editor
- * takes the foreign pixels for this drawable's artwork - they follow the patch when the atlas is
- * rearranged, and a repack stamps them back into the page.
+ * So this builder RESAMPLES rather than copies.  The crop is the mesh's canvas bounding box, its
+ * pixels pulled back through the packing (resampleCrop) so the art comes out upright at canvas
+ * resolution; an axis-aligned unit-scale packing still lands on exact page pixel centers, as does a
+ * quarter turn, so the common cases stay lossless.  Handing the editor an atlas-shaped crop instead
+ * - the atlas uv bounding box, with the rotation left in _materialLocalToCanvasTransform - is a
+ * shape no Cubism-authored file has, and it costs the drawable its texture.
+ *
+ * The crop is also masked to the mesh's own triangles (coverageMaskOf).  A bounding box catches
+ * whatever the packer nested against the silhouette, and un-masked the editor takes those foreign
+ * pixels for this drawable's artwork: they follow the patch when the atlas is rearranged, and a
+ * repack stamps them back into the page.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
@@ -359,40 +366,114 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * A drawable's pixel-aligned texture-patch rect on its page, from its atlas-frame uv bounds.
+	 * A drawable's UPRIGHT layer-art rect, in canvas pixels, from its base mesh bounds.
 	 *
-	 * Mesh margins may reach slightly outside [0,1]; the rect is clamped to the page and forced to
-	 * at least one pixel.
+	 * This is the frame a CModelImage lives in.  Every corpus model image places itself on the
+	 * canvas by PURE TRANSLATION - 1046 of 1046 across every atlas-bearing file, including the ones
+	 * whose packings rotate and scale - because the image IS upright canvas-resolution art and the
+	 * transform is just its canvas origin.  So the image's own extent is the mesh's canvas bounding
+	 * box, never the atlas footprint, which for a rotated packing is a different shape entirely.
 	 *
-	 * @param FloatArray uvs        Interleaved atlas-frame uvs.
-	 * @param Int        pageWidth  The page's pixel width.
-	 * @param Int        pageHeight The page's pixel height.
-	 * @return IntArray? [x0, y0, x1, y1] (exclusive max), or null when there are no uvs.
+	 * @param FloatArray positions Interleaved base canvas positions.
+	 * @return IntArray? [x0, y0, width, height], or null when the mesh has no finite extent.
 	 */
-	private fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
-		if (uvs.size < 2) {
+	private fun canvasRectOf(positions: FloatArray): IntArray? {
+		if (positions.size < 2) {
 			return null
 		}
-		var minU = Float.POSITIVE_INFINITY
-		var minV = Float.POSITIVE_INFINITY
-		var maxU = Float.NEGATIVE_INFINITY
-		var maxV = Float.NEGATIVE_INFINITY
+		var minX = Float.POSITIVE_INFINITY
+		var minY = Float.POSITIVE_INFINITY
+		var maxX = Float.NEGATIVE_INFINITY
+		var maxY = Float.NEGATIVE_INFINITY
 		var componentIndex = 0
-		while (componentIndex + 1 < uvs.size) {
-			minU = minOf(minU, uvs[componentIndex])
-			maxU = maxOf(maxU, uvs[componentIndex])
-			minV = minOf(minV, uvs[componentIndex + 1])
-			maxV = maxOf(maxV, uvs[componentIndex + 1])
+		while (componentIndex + 1 < positions.size) {
+			minX = minOf(minX, positions[componentIndex])
+			maxX = maxOf(maxX, positions[componentIndex])
+			minY = minOf(minY, positions[componentIndex + 1])
+			maxY = maxOf(maxY, positions[componentIndex + 1])
 			componentIndex += 2
 		}
-		if (!minU.isFinite() || !minV.isFinite() || !maxU.isFinite() || !maxV.isFinite()) {
+		if (!minX.isFinite() || !minY.isFinite() || !maxX.isFinite() || !maxY.isFinite()) {
 			return null
 		}
-		val x0 = kotlin.math.floor(minU * pageWidth).toInt().coerceIn(0, pageWidth - 1)
-		val y0 = kotlin.math.floor(minV * pageHeight).toInt().coerceIn(0, pageHeight - 1)
-		val x1 = kotlin.math.ceil(maxU * pageWidth).toInt().coerceIn(x0 + 1, pageWidth)
-		val y1 = kotlin.math.ceil(maxV * pageHeight).toInt().coerceIn(y0 + 1, pageHeight)
-		return intArrayOf(x0, y0, x1, y1)
+		val x0 = kotlin.math.floor(minX.toDouble()).toInt()
+		val y0 = kotlin.math.floor(minY.toDouble()).toInt()
+		val width = (kotlin.math.ceil(maxX.toDouble()).toInt() - x0).coerceAtLeast(1)
+		val height = (kotlin.math.ceil(maxY.toDouble()).toInt() - y0).coerceAtLeast(1)
+		if (width > MAX_CROP_EXTENT || height > MAX_CROP_EXTENT) {
+			return null
+		}
+		return intArrayOf(x0, y0, width, height)
+	}
+
+	/** Guards against a runaway mesh extent turning one crop into a multi-gigabyte allocation. */
+	private const val MAX_CROP_EXTENT = 32768
+
+	/**
+	 * The packing transform: upright layer pixels to atlas page pixels, as [a, b, tx, c, d, ty].
+	 *
+	 * CMO3: ModelImageEntry field materialLocalToAtlasTransform.  The corpus pins the algebra
+	 * exactly - `atlasLocalToCanvasTransform . materialLocalToAtlasTransform` reproduces the model
+	 * image's `_materialLocalToCanvasTransform`, whose linear part is the identity.  So the packing
+	 * is the page fit INVERTED, re-anchored on the layer's canvas origin (verified on haruto's
+	 * "Shin R": a 90 degree packing whose atlas-to-canvas is [0,1;-1,0] and whose entry position
+	 * (292.0, 409.0863) composes to exactly the written canvas origin (554.0, 1668.0)).
+	 *
+	 * @param CAffine pageFit The atlas-page-to-canvas fit.
+	 * @param Int     canvasX0 The layer's canvas origin x.
+	 * @param Int     canvasY0 The layer's canvas origin y.
+	 * @return DoubleArray? The packing, or null when the fit is not invertible.
+	 */
+	private fun packingOf(pageFit: CAffine, canvasX0: Int, canvasY0: Int): DoubleArray? {
+		val a = pageFit.m00.toDouble()
+		val b = pageFit.m01.toDouble()
+		val c = pageFit.m10.toDouble()
+		val d = pageFit.m11.toDouble()
+		val determinant = a * d - b * c
+		if (!determinant.isFinite() || kotlin.math.abs(determinant) < 1e-12) {
+			return null
+		}
+		val inverseA = d / determinant
+		val inverseB = -b / determinant
+		val inverseC = -c / determinant
+		val inverseD = a / determinant
+		val offsetX = canvasX0 - pageFit.m02.toDouble()
+		val offsetY = canvasY0 - pageFit.m12.toDouble()
+		return doubleArrayOf(
+			inverseA,
+			inverseB,
+			inverseA * offsetX + inverseB * offsetY,
+			inverseC,
+			inverseD,
+			inverseC * offsetX + inverseD * offsetY,
+		)
+	}
+
+	/**
+	 * Splits a packing's linear part into the rotation and scale a GTransform2 can hold.
+	 *
+	 * CMO3: GTransform2 fields eulerAngle (DEGREES - haruto's -1.0002398 matches its atlas-to-canvas
+	 * cosine 0.9998477) and scale.  A GTransform2 has no shear term, so a sheared fit loses that
+	 * component; the fits this builder produces are rotation-and-scale to well under a pixel.
+	 *
+	 * @param DoubleArray packing The packing as [a, b, tx, c, d, ty].
+	 * @return DoubleArray [angleDegrees, scaleX, scaleY].
+	 */
+	private fun decomposePacking(packing: DoubleArray): DoubleArray {
+		val a = packing[0]
+		val b = packing[1]
+		val c = packing[3]
+		val d = packing[4]
+		val scaleX = kotlin.math.sqrt(a * a + c * c)
+		if (scaleX < 1e-12) {
+			return doubleArrayOf(0.0, 1.0, 1.0)
+		}
+		// Gram-Schmidt: the first column fixes the rotation and its own length; the determinant then
+		// gives the second column's signed length, so a mirrored packing keeps a negative scale
+		// rather than folding into a bogus rotation.
+		val angleDegrees = kotlin.math.atan2(c, a) * 180.0 / kotlin.math.PI
+		val scaleY = (a * d - b * c) / scaleX
+		return doubleArrayOf(angleDegrees, scaleX, scaleY)
 	}
 
 	/**
@@ -413,21 +494,23 @@ internal object Cmo3ImageChainBuilder {
 		}
 
 	/**
-	 * The model image's material-local-to-canvas placement: the page fit composed with the patch
-	 * origin, so patch pixel (0,0) maps to the canvas point the page fit sends (x0, y0) to.
+	 * The model image's material-local-to-canvas placement: a PURE TRANSLATION to the layer's canvas
+	 * origin.
 	 *
 	 * CMO3: CModelImage field _materialLocalToCanvasTransform (official layers carry their canvas
-	 * origin here - translate(144, 222) in ModelWithOffscreenPartClipping).
+	 * origin here - translate(144, 222) in ModelWithOffscreenPartClipping).  Pure translation is not
+	 * a simplification, it is the format's invariant: every one of the corpus's 1046 model images
+	 * has an identity linear part, INCLUDING those whose packing rotates or scales, because whatever
+	 * the packer did lives on the entry and is undone by atlasLocalToCanvasTransform.
 	 *
-	 * @param CAffine pageFit The atlas-page-to-canvas fit.
-	 * @param Int     x0      The patch origin x on the page.
-	 * @param Int     y0      The patch origin y on the page.
+	 * @param Int x0 The layer's canvas origin x.
+	 * @param Int y0 The layer's canvas origin y.
 	 * @return CAffine The material-local placement.
 	 */
-	private fun materialLocalToCanvas(pageFit: CAffine, x0: Int, y0: Int): CAffine =
-		copyAffine(pageFit).apply {
-			m02 = pageFit.m00 * x0 + pageFit.m01 * y0 + pageFit.m02
-			m12 = pageFit.m10 * x0 + pageFit.m11 * y0 + pageFit.m12
+	private fun materialLocalToCanvas(x0: Int, y0: Int): CAffine =
+		CAffine().apply {
+			m02 = x0.toFloat()
+			m12 = y0.toFloat()
 		}
 
 	/**
@@ -455,31 +538,27 @@ internal object Cmo3ImageChainBuilder {
 	 * at all, not when its center happens to land inside one.  Cubism meshes carry long sliver
 	 * triangles along a silhouette, and center sampling drops the ones thinner than a pixel.
 	 *
-	 * @param FloatArray uvs        Interleaved atlas-frame uvs.
-	 * @param IntArray   indices    Triangle indices, three per triangle.
-	 * @param Int        pageWidth  The page's pixel width.
-	 * @param Int        pageHeight The page's pixel height.
-	 * @param Int        patchX0    The patch rect's origin x on the page.
-	 * @param Int        patchY0    The patch rect's origin y on the page.
-	 * @param Int        cropWidth  The patch rect's width.
-	 * @param Int        cropHeight The patch rect's height.
+	 * @param FloatArray positions Interleaved base canvas positions.
+	 * @param IntArray   indices   Triangle indices, three per triangle.
+	 * @param Int        canvasX0  The layer's canvas origin x.
+	 * @param Int        canvasY0  The layer's canvas origin y.
+	 * @param Int        cropWidth  The layer rect's width.
+	 * @param Int        cropHeight The layer rect's height.
 	 * @return BooleanArray One flag per crop pixel in row-major order, or null when the mesh carries
-	 *         no triangles to mask with (the whole rect is then kept, as before).
+	 *         no triangles to mask with (the whole rect is then kept).
 	 */
 	private fun coverageMaskOf(
-		uvs: FloatArray,
+		positions: FloatArray,
 		indices: IntArray,
-		pageWidth: Int,
-		pageHeight: Int,
-		patchX0: Int,
-		patchY0: Int,
+		canvasX0: Int,
+		canvasY0: Int,
 		cropWidth: Int,
 		cropHeight: Int,
 	): BooleanArray? {
 		if (indices.size < 3) {
 			return null
 		}
-		val vertexCount = uvs.size / 2
+		val vertexCount = positions.size / 2
 		val covered = BooleanArray(cropWidth * cropHeight)
 		var triangleStart = 0
 		while (triangleStart + 2 < indices.size) {
@@ -490,12 +569,14 @@ internal object Cmo3ImageChainBuilder {
 			if (indexA !in 0 until vertexCount || indexB !in 0 until vertexCount || indexC !in 0 until vertexCount) {
 				continue
 			}
-			val cornerAx = uvs[2 * indexA].toDouble() * pageWidth - patchX0
-			val cornerAy = uvs[2 * indexA + 1].toDouble() * pageHeight - patchY0
-			val cornerBx = uvs[2 * indexB].toDouble() * pageWidth - patchX0
-			val cornerBy = uvs[2 * indexB + 1].toDouble() * pageHeight - patchY0
-			val cornerCx = uvs[2 * indexC].toDouble() * pageWidth - patchX0
-			val cornerCy = uvs[2 * indexC + 1].toDouble() * pageHeight - patchY0
+			// Material-local pixels are canvas pixels shifted to the layer origin, which is exactly
+			// what makes the placement a pure translation.
+			val cornerAx = positions[2 * indexA].toDouble() - canvasX0
+			val cornerAy = positions[2 * indexA + 1].toDouble() - canvasY0
+			val cornerBx = positions[2 * indexB].toDouble() - canvasX0
+			val cornerBy = positions[2 * indexB + 1].toDouble() - canvasY0
+			val cornerCx = positions[2 * indexC].toDouble() - canvasX0
+			val cornerCy = positions[2 * indexC + 1].toDouble() - canvasY0
 			val doubledArea = (cornerBx - cornerAx) * (cornerCy - cornerAy) - (cornerCx - cornerAx) * (cornerBy - cornerAy)
 			if (!doubledArea.isFinite() || doubledArea == 0.0) {
 				continue
@@ -617,41 +698,79 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * Encodes the patch rect of a decoded page as its own PNG, clearing pixels outside [coverage].
+	 * Resamples the page through [packing] into UPRIGHT layer art, clearing pixels outside
+	 * [coverage].
+	 *
+	 * The packing carries the rotation and scale the packer applied, so this un-does it: crop pixel
+	 * centers map back into the page and sample bilinearly.  An axis-aligned unit-scale packing -
+	 * the common case - lands exactly on page pixel centers, so it stays a lossless copy; a quarter
+	 * turn is likewise exact.  Only an oblique or non-unit packing actually interpolates, which is
+	 * the price of handing the editor art in the frame it expects.
 	 *
 	 * @param RasterImage  decodedPage The decoded page pixels.
-	 * @param Int          x0          Patch origin x.
-	 * @param Int          y0          Patch origin y.
-	 * @param Int          cropWidth   Patch width.
-	 * @param Int          cropHeight  Patch height.
+	 * @param DoubleArray  packing     Material-local to page, as [a, b, tx, c, d, ty].
+	 * @param Int          cropWidth   Layer rect width.
+	 * @param Int          cropHeight  Layer rect height.
 	 * @param BooleanArray coverage    The mesh coverage mask, or null to keep the whole rect.
 	 * @return ByteArray The encoded PNG bytes.
 	 */
-	private fun cropPng(
+	private fun resampleCrop(
 		decodedPage: RasterImage,
-		x0: Int,
-		y0: Int,
+		packing: DoubleArray,
 		cropWidth: Int,
 		cropHeight: Int,
 		coverage: BooleanArray?,
 	): ByteArray {
 		val cropRgba = ByteArray(cropWidth * cropHeight * 4)
 		for (rowIndex in 0 until cropHeight) {
-			val sourceOffset = ((y0 + rowIndex) * decodedPage.width + x0) * 4
-			val targetOffset = rowIndex * cropWidth * 4
-			decodedPage.rgba.copyInto(cropRgba, targetOffset, sourceOffset, sourceOffset + cropWidth * 4)
-			if (coverage == null) {
-				continue
-			}
+			val materialY = rowIndex + 0.5
+			val rowOffset = rowIndex * cropWidth * 4
 			for (columnIndex in 0 until cropWidth) {
-				if (coverage[rowIndex * cropWidth + columnIndex]) {
+				if (coverage != null && !coverage[rowIndex * cropWidth + columnIndex]) {
 					continue
 				}
-				val pixelOffset = targetOffset + columnIndex * 4
-				cropRgba.fill(0, pixelOffset, pixelOffset + 4)
+				val materialX = columnIndex + 0.5
+				val pageX = packing[0] * materialX + packing[1] * materialY + packing[2]
+				val pageY = packing[3] * materialX + packing[4] * materialY + packing[5]
+				sampleBilinear(decodedPage, pageX, pageY, cropRgba, rowOffset + columnIndex * 4)
 			}
 		}
 		return PngCodec.write(RasterImage(cropWidth, cropHeight, cropRgba))
+	}
+
+	/**
+	 * Samples a page bilinearly at a continuous pixel-center coordinate, edge-clamped.
+	 *
+	 * @param RasterImage page    The decoded page.
+	 * @param Double      pageX   Sample x, in pixel-center coordinates.
+	 * @param Double      pageY   Sample y.
+	 * @param ByteArray   target  Destination RGBA buffer.
+	 * @param Int         offset  Destination byte offset.
+	 */
+	private fun sampleBilinear(page: RasterImage, pageX: Double, pageY: Double, target: ByteArray, offset: Int) {
+		if (!pageX.isFinite() || !pageY.isFinite()) {
+			return
+		}
+		val leftEdge = pageX - 0.5
+		val topEdge = pageY - 0.5
+		val leftColumn = kotlin.math.floor(leftEdge).toInt()
+		val topRow = kotlin.math.floor(topEdge).toInt()
+		val fractionX = leftEdge - leftColumn
+		val fractionY = topEdge - topRow
+		for (channel in 0 until 4) {
+			var accumulated = 0.0
+			for (cornerRow in 0 until 2) {
+				val row = (topRow + cornerRow).coerceIn(0, page.height - 1)
+				val rowWeight = if (cornerRow == 0) 1.0 - fractionY else fractionY
+				for (cornerColumn in 0 until 2) {
+					val column = (leftColumn + cornerColumn).coerceIn(0, page.width - 1)
+					val columnWeight = if (cornerColumn == 0) 1.0 - fractionX else fractionX
+					val sample = page.rgba[(row * page.width + column) * 4 + channel].toInt() and 0xFF
+					accumulated += sample * rowWeight * columnWeight
+				}
+			}
+			target[offset + channel] = (accumulated + 0.5).toInt().coerceIn(0, 255).toByte()
+		}
 	}
 
 	/**
@@ -805,19 +924,20 @@ internal object Cmo3ImageChainBuilder {
 			val imageGuidByWebKey = HashMap<PatchWebKey, Guid>()
 			for (region in regions) {
 				val pageFit = fitAtlasPageToCanvasTransform(region.uvs, region.positions, page.width, page.height)
-				val patch = patchRectOf(region.uvs, page.width, page.height)
-				if (patch == null || decodedPage == null) {
+				val layerRect = canvasRectOf(region.positions)
+				val packing = layerRect?.let { rect -> packingOf(pageFit, rect[0], rect[1]) }
+				if (layerRect == null || packing == null || decodedPage == null) {
 					bindingByDrawableId[region.drawableIdStr] =
 						Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, null, pageFit)
 					continue
 				}
-				val patchX0 = patch[0]
-				val patchY0 = patch[1]
-				val cropWidth = patch[2] - patch[0]
-				val cropHeight = patch[3] - patch[1]
+				val canvasX0 = layerRect[0]
+				val canvasY0 = layerRect[1]
+				val cropWidth = layerRect[2]
+				val cropHeight = layerRect[3]
 				val webKey =
 					PatchWebKey(
-						patch,
+						layerRect,
 						intArrayOf(
 							pageFit.m00.toRawBits(),
 							pageFit.m01.toRawBits(),
@@ -831,9 +951,8 @@ internal object Cmo3ImageChainBuilder {
 					)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
-						val coverage =
-							coverageMaskOf(region.uvs, region.indices, page.width, page.height, patchX0, patchY0, cropWidth, cropHeight)
-						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
+						val coverage = coverageMaskOf(region.positions, region.indices, canvasX0, canvasY0, cropWidth, cropHeight)
+						val cropBytes = resampleCrop(decodedPage, packing, cropWidth, cropHeight, coverage)
 						val cropPath = nextImageFileBufPath()
 						pngEntries.add(Cmo3FreshFile.PngEntry(cropPath, cropBytes))
 						val cropResource =
@@ -858,10 +977,20 @@ internal object Cmo3ImageChainBuilder {
 								_optionOfIOption = sharedOptions
 								_layeredImage = layeredImage
 								imageResource = cropResource
-								// CMO3: CLayer field boundsOnImageDoc - ALL ZERO on every corpus layer
-								// (883 of 883, every file and era).  The layer's placement lives on
-								// its CModelImage's _materialLocalToCanvasTransform, not here.
-								boundsOnImageDoc = CRect()
+								// CMO3: CLayer field boundsOnImageDoc - the layer's rect within its source
+								// doc.  Corpus-wide its width/height ALWAYS equal the layer image's own
+								// dimensions (905 of 905 layers across 20 files, none all-zero) and its
+								// origin repeats the CModelImage's _materialLocalToCanvasTransform
+								// translation - Erica's layer "1" is 309x439 at bounds (2197, 535, 309, 439)
+								// with the same (2197, 535) placement.  A zero rect describes a zero-size
+								// layer, so the composite the editor builds from it comes out empty.
+								boundsOnImageDoc =
+									CRect().apply {
+										x = canvasX0
+										y = canvasY0
+										width = cropWidth
+										height = cropHeight
+									}
 								layerIdentifier =
 									CLayerIdentifier().apply {
 										layerName = region.drawableIdStr
@@ -926,7 +1055,7 @@ internal object Cmo3ImageChainBuilder {
 								icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
 								// CMO3: CModelImage field _materialLocalToCanvasTransform - the patch's
 								// canvas placement (official layers carry their canvas origin here).
-								_materialLocalToCanvasTransform = materialLocalToCanvas(pageFit, patchX0, patchY0)
+								_materialLocalToCanvasTransform = materialLocalToCanvas(canvasX0, canvasY0)
 								_group = group
 								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
 								cachedImageManager = identityCacheManager(cropResource, cropWidth, cropHeight)
@@ -946,16 +1075,18 @@ internal object Cmo3ImageChainBuilder {
 								atlasLocalToCanvasTransform = copyAffine(pageFit)
 								materialLocalToAtlasTransform =
 									GTransform2().apply {
+										val decomposed = decomposePacking(packing)
 										position =
 											GVector2().apply {
-												x = patchX0.toFloat()
-												y = patchY0.toFloat()
+												x = packing[2].toFloat()
+												y = packing[5].toFloat()
 											}
 										scale =
 											GVector2().apply {
-												x = 1f
-												y = 1f
+												x = decomposed[1].toFloat()
+												y = decomposed[2].toFloat()
 											}
+										eulerAngle = decomposed[0].toFloat()
 									}
 							},
 						)
