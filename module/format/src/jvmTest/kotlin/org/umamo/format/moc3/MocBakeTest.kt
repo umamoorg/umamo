@@ -11,8 +11,8 @@ import kotlin.test.assertEquals
  * confirm a re-decode yields the identical semantic model. This validates the offset table / section
  * ordering / alignment independent of the semantic lowering. Covers all three framings - the raw
  * repack, the reference-carrying [Moc3.bake], and the reference-free [Moc3.write] that is the
- * registered codec's own write. Baked files are also written to `work/` for a manual runtime check.
- * Skips gracefully without samples.
+ * registered codec's own write. Baked files are also written to `build/moc3-bake/` for a manual
+ * runtime check. Skips gracefully without samples.
  */
 class MocBakeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
@@ -28,7 +28,10 @@ class MocBakeTest {
 			println("moc3.samples not present; skipping bake test")
 			return
 		}
-		val workDir = samplesDir!!.parentFile.resolve("work").apply { mkdirs() }
+		// Build output, never beside the corpus.  A `work/` that lands inside the samples tree is picked
+		// up by this test's OWN walkTopDown on the next run - which is how `baked-baked-*.moc3` came to
+		// exist - and by every other gate that walks the corpus for models.
+		val workDir = File("build/moc3-bake").apply { mkdirs() }
 		for (file in files) {
 			val original = MocCodec.read(file.readBytes())
 			val baked = MocEncoder.repack(original)
