@@ -49,7 +49,7 @@ class BlendBindingParityTest {
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$name: root is not a CModelSource")
 			// Both sides through the same canvas-space rewrite so mesh form deltas share a base.
 			val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
-			val fromMoc3 = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null))
+			val fromMoc3 = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), null))
 
 			var meshBindingPairs = 0
 			var maxMeshDelta = 0f

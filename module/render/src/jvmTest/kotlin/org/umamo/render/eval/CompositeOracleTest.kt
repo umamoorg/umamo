@@ -67,7 +67,7 @@ class CompositeOracleTest {
 				println("[oracle] ${compositeCase.fileName} not in corpus; skipping")
 				continue
 			}
-			val mocDocument = Moc3.decode(mocFile.readBytes())
+			val mocDocument = Moc3.read(mocFile.readBytes())
 			val puppet = Moc3Import.fromMocDocument(mocDocument, null)
 			// Part/drawable FILE order (oracle indices) - puppet.parts preserves it, puppet.drawables
 			// does not (panel reorder), so drawable joins go through the decoded artMesh list.

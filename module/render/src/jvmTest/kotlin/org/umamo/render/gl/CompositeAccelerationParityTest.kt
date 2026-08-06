@@ -43,7 +43,7 @@ class CompositeAccelerationParityTest {
 			return
 		}
 		requireHeadlessGl("[composite-accel-parity]")
-		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(mocFile.readBytes()), null))
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
 		// The plain full-viewport composite path is the reference (the pre-optimization behavior the
 		// oracle + composite suites already pin).  Each optimization is asserted against it alone and
 		// combined, so a failure names which one diverged.
