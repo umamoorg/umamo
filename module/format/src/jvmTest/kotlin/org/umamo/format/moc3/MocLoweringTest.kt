@@ -36,7 +36,7 @@ class MocLoweringTest {
 			val doc = Moc3.decode(model)
 			// `MocLowering.lower` merges the producers strictly - a section claimed by two of them throws
 			// there rather than resolving by merge order - so this test consumes the merged map directly
-			// and the disjointness it used to check is now enforced in production.
+			// and leaves producer disjointness to that production check.
 			val merged = MocLowering.lower(doc)
 			assertTrue(merged.isNotEmpty(), "${file.name}: lowered some sections")
 

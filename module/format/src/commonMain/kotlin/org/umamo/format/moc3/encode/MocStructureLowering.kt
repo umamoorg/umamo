@@ -3,6 +3,12 @@ package org.umamo.format.moc3.encode
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.WarpDeformer
 
+/**
+ * Synthesizes the structural/topology sections from [context], keyed by section-table index.
+ *
+ * @param MocLoweringContext context The shared lowering derivations.
+ * @return Map Section index → element-region bytes (no trailing padding).
+ */
 internal fun structuralSections(context: MocLoweringContext): Map<Int, ByteArray> {
 	val doc = context.doc
 	val sink = SectionSink(doc.version)

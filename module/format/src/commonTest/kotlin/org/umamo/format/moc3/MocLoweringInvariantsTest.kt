@@ -61,8 +61,9 @@ class MocLoweringInvariantsTest {
 	/**
 	 * Builds a document around [keyformBindings], with no deformers, meshes, or blend records.
 	 *
-	 * @param Map<Int, KeyformBinding> keyformBindings The binding map, sparse or dense.
-	 * @param List<MocParameter>       parameters      The parameter list.
+	 * @param Map<Int, KeyformBinding>  keyformBindings   The binding map, sparse or dense.
+	 * @param List<MocParameter>        parameters        The parameter list.
+	 * @param List<RenderOrderGroup>    renderOrderGroups The render-order groups, empty by default.
 	 * @return MocDocument The document.
 	 */
 	private fun documentWith(

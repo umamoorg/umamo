@@ -16,6 +16,8 @@ import org.umamo.format.moc3.model.WarpDeformer
  * color delta rows - and sections 137-142 are what the runtime dereferences to reach a given form's
  * row, so a kind whose reference table is short sends it reading past the pool.
  *
+ * @param MocLoweringContext context The shared lowering derivations.
+ * @return Map Section index → element-region bytes (empty when the document carries no color data).
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
 internal fun colorSections(context: MocLoweringContext): Map<Int, ByteArray> {

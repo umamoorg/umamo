@@ -9,9 +9,9 @@ import org.umamo.format.moc3.moc.Sections
 /**
  * Collects a lowering producer's output as section index → element-region bytes.
  *
- * Owns the two things every producer used to repeat: resolving a [Section] to its table index for the
- * target version, and skipping a section the version does not define (a negative index).  The typed
- * putters encode as they store, so a call site names the section and the values and nothing else.
+ * Owns the two things every producer would otherwise repeat: resolving a [Section] to its table index
+ * for the target version, and skipping a section the version does not define (a negative index).  The
+ * typed putters encode as they store, so a call site names the section and the values and nothing else.
  *
  * Each typed putter checks the section's declared [ElementType], which is what stops an `i32[]` column
  * from being written into an `f32[]` section - the section table is the only record of a section's

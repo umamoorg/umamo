@@ -14,7 +14,7 @@ import org.umamo.format.moc3.model.WarpKeyform
 
 /**
  * The per-object payload sizes and row anchor a blend-shape record's delta rows need, over the
- * shared [KeyformValueTables]. Bundled so [decodeBlendShapes] can lift the per-key delta payloads
+ * shared [KeyformValueTables]. Bundled so [BlendShapeDecoder] can lift the per-key delta payloads
  * without a dozen loose parameters.
  */
 internal class BlendDeltaTables(

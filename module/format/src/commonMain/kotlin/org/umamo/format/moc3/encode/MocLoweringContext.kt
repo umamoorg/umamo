@@ -13,11 +13,11 @@ import org.umamo.format.moc3.model.WarpDeformer
 /**
  * Everything the lowering producers derive from a [MocDocument] before any of them writes a byte.
  *
- * The producers used to each rebuild what they needed - the blend-shape file layout five times over,
- * the parameter-binding dedup grid twice, the per-parameter key union three times, each from its own
- * traversal.  That was not just repeated work: CountInfo has to declare the exact extent of tables the
- * other producers write, so two traversals drifting apart produces a file whose header disagrees with
- * its own body.  Deriving once and sharing is what makes them unable to disagree.
+ * Each producer could rebuild what it needs on its own - the blend-shape file layout, the
+ * parameter-binding dedup grid, the per-parameter key union - and that would not be merely repeated
+ * work: CountInfo has to declare the exact extent of tables the other producers write, so two
+ * traversals drifting apart produces a file whose header disagrees with its own body.  Deriving once
+ * and sharing is what makes them unable to disagree.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -29,16 +29,16 @@ internal class MocLoweringContext(val doc: MocDocument) {
 	/**
 	 * The blend-shape layout, built even when the document has no records.
 	 *
-	 * An empty layout reproduces exactly what the blend-free path used to write by hand (no bindings,
-	 * no records, every per-parameter column at its empty-slot filler), so one code path covers both
-	 * kinds of document instead of two that have to be kept in agreement.
+	 * An empty layout is exactly what a blend-free document has to write (no bindings, no records,
+	 * every per-parameter column at its empty-slot filler), so one code path covers both kinds of
+	 * document instead of two that have to be kept in agreement.
 	 */
 	val blendLayout: BlendShapeLayout = BlendShapeLayout(doc)
 
 	/** Whether the document carries any blend-shape record at all. */
 	val hasBlendShapes: Boolean = doc.blendShapes.isNotEmpty()
 
-	/** Whether the color tables carry the blend delta region; see [hasColorDeltaRows]. */
+	/** Whether the color tables carry the blend delta region, probed from the records' delta colors. */
 	val hasColorDeltaRows: Boolean = hasColorDeltaRows(doc)
 
 	/**
@@ -79,7 +79,7 @@ internal class MocLoweringContext(val doc: MocDocument) {
 	 * Per parameter, the sorted union of its main-grid axis keys and its blend bindings' keys.
 	 *
 	 * One computation for both kinds of document: on a blend-free one the layout contributes nothing,
-	 * so the union collapses to the main-grid keys the blend-free path used to compute separately.
+	 * so the union collapses to the main-grid keys.
 	 */
 	val unionKeysByParameter: List<List<Float>> =
 		doc.parameters.indices.map { parameterIndex ->
@@ -105,8 +105,8 @@ internal class MocLoweringContext(val doc: MocDocument) {
 	 * ONE predicate answers both "is the region written" and "does CountInfo field 14 count it",
 	 * because those are the same question: field 14 declares section 77's extent and 103/104 address
 	 * runs inside it, so a document that writes the region without counting it points the runtime past
-	 * the buffer field 14 just sized.  Splitting the two is what let a v4+ blend-free export declare
-	 * only its main-grid keys while carrying the union region as well.
+	 * the buffer field 14 just sized.  Splitting the two would let a v4+ blend-free export declare only
+	 * its main-grid keys while carrying the union region as well.
 	 */
 	val writesUnionRegion: Boolean =
 		hasBlendShapes || doc.keyPositionsHasParameterUnion || version.byteValue >= 4

@@ -7,6 +7,8 @@ import org.umamo.format.moc3.model.RenderOrderChild
  * Synthesizes the glue, render-order, and offscreen tables - the object kinds whose packing is
  * deterministic but which own no keyform value tables of their own.
  *
+ * @param MocLoweringContext context The shared lowering derivations.
+ * @return Map Section index → element-region bytes.
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
 internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray> {
@@ -64,8 +66,7 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 		sink.putInts(Section.RENDER_ORDER_CHILD_INDEX, childIndex)
 		sink.putInts(Section.RENDER_ORDER_GROUP_INDEX, childGroupIndex)
 
-		// Per-group render count (83) and child draw-order extent (84/85), which the runtime reads
-		// (the Umamo C++ Runtime recomputes them, so they are absent from its map). A kind-0 child's draw order is its
+		// Per-group render count (83) and child draw-order extent (84/85), which the runtime reads.  A kind-0 child's draw order is its
 		// mesh's; a kind-1 child's is its sub-group part's; the render count recurses into sub-groups and
 		// counts an extra slot for a sub-group part that owns an offscreen. Draw order = floor(0.001+value).
 		val ownerParts = doc.offscreens.map { it.ownerPartIndex }.toHashSet()

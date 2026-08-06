@@ -5,14 +5,16 @@ import org.umamo.format.moc3.model.BlendShape
 import org.umamo.format.moc3.model.BlendShapeTarget
 
 /**
- * Synthesizes the blend-shape record/binding/limit sections from [doc] (MOC3 v4+ §5.6:
+ * Synthesizes the blend-shape record/binding/limit sections from [context] (MOC3 v4+ §5.6:
  * 115-136 plus the per-kind object trios 125-130/143-148).  Bindings and the limit sub-binding
  * pool are re-deduplicated from the per-record expansions (the decoder expands the pool per
  * record); RECORD_BASE is recomputed as the per-kind running cursor after the base keyforms,
  * which reproduces the decoded values for an unedited document.
  *
- * @param MocDocument doc The semantic model.
- * @return Map Section index → element-region bytes (empty map when the doc has no blend shapes).
+ * @param MocLoweringContext context The shared lowering derivations.
+ * @return Map Section index → element-region bytes.  A document with no blend records still yields
+ *             the per-parameter binding ranges 115/116, which a v4+ file carries either way; only a
+ *             document with no parameters at all yields an empty map.
  */
 internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray> {
 	val doc = context.doc

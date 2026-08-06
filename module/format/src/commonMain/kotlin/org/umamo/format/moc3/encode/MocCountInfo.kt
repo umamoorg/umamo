@@ -5,12 +5,16 @@ import org.umamo.format.moc3.model.BlendShape
 import org.umamo.format.moc3.model.BlendShapeKeyform
 
 /**
- * Synthesizes the CountInfo block (section 0) from [doc]: the per-object-kind counts and the
+ * Synthesizes the CountInfo block (section 0) from [context]: the per-object-kind counts and the
  * cumulative totals the runtime allocates its working buffers from.  The per-kind keyform
  * totals (6-10, 14) INCLUDE the blend-shape delta rows (MOC3 §5.6: CountInfo counts the full
  * shared tables, base plus delta), and fields 23-36 carry the blend-shape and offscreen totals.
  *
- * @param MocDocument doc The semantic model.
+ * Every total is taken from the shared context rather than recomputed, because CountInfo declares
+ * the extent of tables the other producers write - a second traversal here could disagree with them.
+ *
+ * @param MocLoweringContext context The shared lowering derivations (document, per-kind deformer
+ *                                   lists, blend layout, and the keyform-grid totals).
  * @return ByteArray The CountInfo element-region bytes (`u32[fieldCount]`).
  */
 internal fun countInfoSection(context: MocLoweringContext): ByteArray {

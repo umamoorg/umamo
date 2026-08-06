@@ -5,13 +5,13 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeKeyform
 
 /**
- * Synthesizes the keyform value tables from [doc], keyed by section-table index. These are
+ * Synthesizes the keyform value tables from [context], keyed by section-table index. These are
  * the layout-dependent geometry/scalar tables; the packing is deterministic (warp keyform blocks
  * then mesh blocks in `POS_VALUES`, each padded to 16 floats; bases are cumulative), so they
  * reconstruct byte-for-byte. The keyform-binding grid (param-binding dedup) is not synthesized
  * here.
  *
- * @param MocDocument doc The semantic model.
+ * @param MocLoweringContext context The shared lowering derivations.
  * @return Map Section index → element-region bytes.
  */
 internal fun valueTableSections(context: MocLoweringContext): Map<Int, ByteArray> {

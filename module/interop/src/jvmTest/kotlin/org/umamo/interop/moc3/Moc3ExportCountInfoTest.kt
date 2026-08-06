@@ -23,8 +23,10 @@ import kotlin.test.assertTrue
  * declared extent is invisible to every reader we own.  The official core is not: it sizes its
  * parameter key store from field 14 and then reads the section-103/104 runs out of that buffer.
  *
- * Exported at V53 as well as at each model's own version, because that is what
- * `Moc3Export.write` defaults to and therefore what a real export emits.  Skips without samples.
+ * Exported at each model's own version and at V53.  A MOC3-imported puppet's runtime target mirrors
+ * its source version, so the former is what `Moc3Export.write` defaults to for these documents; the
+ * latter is the newest table layout, which a re-target or a target-less document bakes.  Skips
+ * without samples.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */

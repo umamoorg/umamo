@@ -12,13 +12,13 @@ import org.umamo.format.moc3.model.KeyformBinding
  * This is deliberately an accumulator, not merely a cache: the set it has resolved BECOMES
  * [MocDocument.keyformBindings], so registering a binding is how it reaches the document.  Callers
  * therefore resolve through [binding] even when they only want the grid size, and the glue pass
- * resolves bindings purely to register them.  Read [collected] and [mainGridKeyTotal] only after
- * every object kind has been decoded, or the tail of the binding table goes missing.
+ * resolves bindings purely to register them.  Call [collected] and [hasParameterUnionRegion] only
+ * after every object kind has been decoded, or the tail of the binding table goes missing.
  */
 internal class MocBindingResolver(sections: MocSections) {
 	/**
 	 * Owning parameter per binding slot, expanded from the per-parameter slot counts (MOC3 §5.6
-	 * section 76): the slot table is a flat concatenation, so the parameter is positional.
+	 * section 57): the slot table is a flat concatenation, so the parameter is positional.
 	 */
 	private val owningParameter: IntArray
 

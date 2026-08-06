@@ -5,12 +5,12 @@ import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 
 /**
- * Synthesizes the keyform-binding grid sections from [doc] (byte-exact). Reproduces the
+ * Synthesizes the keyform-binding grid sections from [context] (byte-exact). Reproduces the
  * editor's parameter-binding dedup: a parameter-binding is a unique `(parameter, key positions)`
  * pair; they are grouped by owning parameter and, within a parameter, ordered by first occurrence
  * scanning keyform-bindings in index order.
  *
- * @param MocDocument doc The semantic model.
+ * @param MocLoweringContext context The shared lowering derivations.
  * @return Map Section index → element-region bytes.
  */
 internal fun keyformGridSections(context: MocLoweringContext): Map<Int, ByteArray> {
