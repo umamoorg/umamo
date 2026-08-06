@@ -14,7 +14,7 @@ import org.umamo.edit.SelectionTarget
  * both know which clicks to honour and which to ignore.
  */
 enum class PickKind {
-	/** An organisational tree part. */
+	/** An organizational tree part. */
 	Part,
 
 	/** A textured drawable mesh. */

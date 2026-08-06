@@ -19,7 +19,7 @@ sealed interface KeyformOwner {
 	/** A textured drawable mesh. */
 	data class Drawable(val id: DrawableId) : KeyformOwner
 
-	/** An organisational tree part. */
+	/** An organizational tree part. */
 	data class Part(val id: PartId) : KeyformOwner
 
 	/** A warp or rotation deformer. */

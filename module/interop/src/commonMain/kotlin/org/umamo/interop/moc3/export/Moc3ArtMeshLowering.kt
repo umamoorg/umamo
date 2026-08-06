@@ -17,12 +17,14 @@ import org.umamo.runtime.model.MeshDeltaForm
  *
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every art mesh claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations, demotions, unresolvable masks.
+ * @param Moc3ExportIds     ids        Claimed from: each drawable's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions and unresolvable masks.
  * @return List<ArtMesh> The records, in plan order.
  */
 internal fun lowerArtMeshes(
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): List<ArtMesh> {
 	val plan = context.plan
@@ -41,7 +43,7 @@ internal fun lowerArtMeshes(
 						noticeSink.unsupported(
 							"drawable",
 							drawable.id.raw,
-							"the context.canvas-to-parent conversion returned ${converted.size} coordinates for " +
+							"the canvas-to-parent conversion returned ${converted.size} coordinates for " +
 								"${mesh.positions.size}; the rest mesh was written unconverted",
 						)
 					}
@@ -98,7 +100,7 @@ internal fun lowerArtMeshes(
 			)
 		}
 		ArtMesh(
-			id = noticeSink.mocId("drawable", drawable.id.raw),
+			id = ids.drawableId(drawable.id),
 			textureIndex = maxOf(drawable.texturePage, 0),
 			constantFlags = constantFlagsOf(drawable, context.extendedBlendEnabled),
 			// The 5.3 blend surface; below v6 the mode falls back to the legacy constant-flag bits.
@@ -147,7 +149,9 @@ internal fun lowerArtMeshes(
  * it.  Getting that backwards silently double-draws every back face.
  *
  * @param Drawable drawable             The drawable.
- * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
+ * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend
+ *                                      section, which then states the blend mode instead of the
+ *                                      legacy bits.
  * @return Int The flag bits.
  */
 private fun constantFlagsOf(drawable: Drawable, extendedBlendEnabled: Boolean): Int {

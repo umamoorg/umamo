@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
  * any-vertex-touching).
  */
 class RegionPickTest {
-	// A small square drawable centred at (1, 1).
+	// A small square drawable centerd at (1, 1).
 	private fun square(): FloatArray = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f, 2f, 2f)
 
 	// A full-canvas layer spanning (-100, -100)..(100, 100); its centroid is the origin.
@@ -33,7 +33,7 @@ class RegionPickTest {
 		val centroids = drawableCentroids(mapOf(DrawableId("in") to square(), DrawableId("out") to canvasLayer()))
 		// A box around (1,1) that does NOT contain the origin.
 		val enclosed = drawablesInBox(centroids, minX = 0.5f, minY = 0.5f, maxX = 1.5f, maxY = 1.5f)
-		assertEquals(setOf(DrawableId("in")), enclosed, "only the drawable centred in the box is selected")
+		assertEquals(setOf(DrawableId("in")), enclosed, "only the drawable centerd in the box is selected")
 	}
 
 	/** A box grazing a full-canvas layer's edge does not grab it - its centroid (the origin) is far outside. */
@@ -51,7 +51,7 @@ class RegionPickTest {
 		// "near" centroid (1,1) sits at distance sqrt(2) ~= 1.41 from (1,1)'s... the canvas centroid is the origin.
 		val centroids = drawableCentroids(mapOf(DrawableId("near") to square(), DrawableId("far") to canvasLayer()))
 
-		// Centre at (1,1), radius 0.5: the square's centroid (1,1) is inside, the origin (distance ~1.41) is not.
+		// Center at (1,1), radius 0.5: the square's centroid (1,1) is inside, the origin (distance ~1.41) is not.
 		assertEquals(setOf(DrawableId("near")), drawablesInCircle(centroids, centerX = 1f, centerY = 1f, radius = 0.5f))
 
 		// A radius of 1.5 (> the ~1.41 distance to the origin) also encloses the canvas layer's centroid.

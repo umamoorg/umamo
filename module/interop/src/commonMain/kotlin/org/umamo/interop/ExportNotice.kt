@@ -68,15 +68,31 @@ sealed interface ExportNotice {
 }
 
 /**
+ * The format one export wrote, naming which file family a report's findings are about.
+ *
+ * Deliberately narrower than [org.umamo.format.FileKind], which spans every family Umamo reads
+ * (art sources, sidecars, raster pages) - only the ones an export path writes belong here, so a
+ * `when` over an [ExportReport]'s format stays exhaustive without an `else` that would silently
+ * swallow a new export target.
+ */
+enum class ExportFormat {
+	Cmo3,
+	Moc3,
+}
+
+/**
  * The advisory outcome of one export: what the written file does not carry.
  *
- * Format-neutral because the contract is: an export ALWAYS writes, and notices only say what the
- * written file does not carry.  That holds identically for CMO3 and MOC3, so both report through this
- * rather than through parallel types the UI would have to handle twice.
+ * The notice kinds are format-neutral because the contract is: an export ALWAYS writes, and notices
+ * only say what the written file does not carry.  That holds identically for CMO3 and MOC3, so both
+ * report through this rather than through parallel types the UI would have to handle twice.  The
+ * [format] is what keeps the report attributable: a reader (the alert's header, a log line) has to
+ * name the file family the findings are about, and no notice carries that on its own.
  *
- * @property List notices The findings, empty for a fully-lowered export.
+ * @property ExportFormat format  The format the export wrote.
+ * @property List         notices The findings, empty for a fully-lowered export.
  */
-data class ExportReport(val notices: List<ExportNotice>) {
+data class ExportReport(val format: ExportFormat, val notices: List<ExportNotice>) {
 	/** True when the export lowered everything with nothing to warn about. */
 	val isEmpty: Boolean get() = notices.isEmpty()
 }

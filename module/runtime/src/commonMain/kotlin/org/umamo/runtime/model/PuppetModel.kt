@@ -11,12 +11,12 @@ data class PuppetModel(
 	val deformers: List<Deformer>,
 	val drawables: List<Drawable>,
 	/**
-	 * The organisational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
+	 * The organizational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
 	 * same ordered child list as [Part.children]. Single source of truth for top-level structure and
 	 * order; [parts] / [drawables] are flat lookup lists. Draw order derives from this (deriveRenderRoot).
 	 */
 	val rootChildren: List<OrgChild>,
-	/** The organisational tree root (the Parts panel's top), or null if the model is flat. */
+	/** The organizational tree root (the Parts panel's top), or null if the model is flat. */
 	val rootPartId: PartId?,
 	/** Glue affecters - seam-weld pairs of drawables' shared vertices after deformation. */
 	val glues: List<Glue> = emptyList(),
@@ -103,7 +103,7 @@ data class PuppetModel(
 const val DEFAULT_DRAW_ORDER = 500
 
 /**
- * One ordered child of the organisational tree: a sub-part or a drawable. Cubism's parts panel keeps
+ * One ordered child of the organizational tree: a sub-part or a drawable. Cubism's parts panel keeps
  * sub-parts and drawables in one interleaved sibling order per level (a loose mesh can sit between two
  * folders), and that order is also the draw-order tiebreak. This sealed type is how [Part.children] and
  * [PuppetModel.rootChildren] express that single order, instead of splitting parts and drawables apart.
@@ -124,7 +124,7 @@ sealed interface OrgChild {
 	data class Drawable(val id: DrawableId) : OrgChild
 }
 
-/** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
+/** A node in the parts tree - the organizational hierarchy shown in the Parts panel. */
 data class Part(
 	val id: PartId,
 	val name: String,
@@ -193,7 +193,7 @@ data class Part(
 }
 
 /**
- * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organisational
+ * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organizational
  * tree) and [parentDeformerId] (the deformer chain that deforms it) - these are independent
  * hierarchies in Cubism.
  */

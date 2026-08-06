@@ -50,7 +50,7 @@ sealed interface Change {
 	val labelKey: String
 }
 
-/** Changes to a part (the organisational tree node). */
+/** Changes to a part (the organizational tree node). */
 sealed interface PartChange : Change {
 	/**
 	 * Toggles a part's Parts-panel eyeball. Cascades at render time (hiding a part hides its subtree),
@@ -196,7 +196,7 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Moves a drawable in the organisational tree: to a new owning part (null = the root level) and / or a
+	 * Moves a drawable in the organizational tree: to a new owning part (null = the root level) and / or a
 	 * new position among its siblings. Because the parts-panel order is also the draw-order tiebreak, this
 	 * can change draw order, so the viewport follows.
 	 *
@@ -446,7 +446,7 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Binds a deformer to the organisational part that owns it (or clears the binding).  A loose reference
+	 * Binds a deformer to the organizational part that owns it (or clears the binding).  A loose reference
 	 * into the org tree - no [org.umamo.runtime.model.Part.children] entry corresponds to it - so this is a
 	 * flat field write, not tree surgery.
 	 *

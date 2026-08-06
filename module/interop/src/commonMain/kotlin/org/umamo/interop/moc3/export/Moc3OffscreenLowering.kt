@@ -20,11 +20,11 @@ import org.umamo.runtime.model.flattenedMasks
  * record per [org.umamo.runtime.model.PartGroupMode.Isolated] one, in ascending part-index order (the
  * corpus-confirmed ordering invariant).
  *
- * @param PuppetModel   puppet           The rig being exported.
- * @param Moc3IndexPlan plan             The file's addressing scheme.
- * @param Map           keyformsByPartId The part bundles the part lowering already built.
- * @param Boolean       colorsEnabled    Whether the target version has color tables.
- * @param Moc3ExportNotices noticeSink    Where anything unrepresentable is reported.
+ * @param PuppetModel       puppet           The rig being exported.
+ * @param Moc3IndexPlan     plan             The file's addressing scheme.
+ * @param Map               keyformsByPartId The part bundles the part lowering already built.
+ * @param Boolean           colorsEnabled    Whether the target version has color tables.
+ * @param Moc3ExportNotices noticeSink       Where anything unrepresentable is reported.
  * @return List<Offscreen> The records, owner-index ascending.
  */
 internal fun lowerOffscreens(

@@ -69,35 +69,37 @@ internal class Moc3ImportContext(
 	val drawableNameById: Map<String, String> = displayInfo?.drawables?.associate { it.id to it.name } ?: emptyMap()
 
 	/**
-	 * Parameter file index → runtime id.
+	 * Parameter file index → runtime id, with blank and duplicate slots synthesized.
 	 *
 	 * This and the three tables below are all in FILE order, because every cross-reference in a MOC3 is
-	 * a file-order index.
+	 * a file-order index - and all four are DE-DUPLICATED, because the runtime addresses by id instead.
+	 * A moc names nothing by id, so nothing in the format stops two records from carrying the same one;
+	 * Umamo's own export can even mint the pair, since an id too wide for the 64-byte record is written
+	 * shortened.  Mapping both records onto one runtime id would merge the two objects - one drawable's
+	 * masks, part membership, and keyforms landing on the other - so the first claimant keeps the file's
+	 * id and every later one falls back to a synthesized id.
 	 */
-	val parameterIds: List<ParameterId> = mocDocument.parameters.map { ParameterId(it.id) }
+	val parameterIds: List<ParameterId> =
+		distinctIdsOf(mocDocument.parameters.map { parameter -> parameter.id }, "Parameter").map(::ParameterId)
 
-	/** Part file index → runtime id. */
-	val partIds: List<PartId> = mocDocument.parts.map { PartId(it.id) }
+	/** Part file index → runtime id, with blank and duplicate slots synthesized. */
+	val partIds: List<PartId> =
+		distinctIdsOf(mocDocument.parts.map { part -> part.id }, "Part").map(::PartId)
 
-	/** Drawable file index → runtime id. */
-	val drawableIdsByFileIndex: List<DrawableId> = mocDocument.artMeshes.map { DrawableId(it.id) }
+	/** Drawable file index → runtime id, with blank and duplicate slots synthesized. */
+	val drawableIdsByFileIndex: List<DrawableId> =
+		distinctIdsOf(mocDocument.artMeshes.map { artMesh -> artMesh.id }, "ArtMesh").map(::DrawableId)
 
 	/**
 	 * Deformer file index → runtime id, with blank and duplicate slots synthesized.
 	 *
 	 * MOC3 §5.6 s11 carries the editor's own identifiers, the same ones the CMO3 side carries, so a
-	 * MOC3-origin export writes back the ids the model was authored with.  A blank or duplicated slot -
-	 * a hand-built document, or a MOC3 written without s11 - falls back to a synthesized id.
+	 * MOC3-origin export writes back the ids the model was authored with.  A blank slot - a hand-built
+	 * document, or a MOC3 written without s11 - is the case this table reaches most often; the other
+	 * three are blank only in a malformed file.
 	 */
 	val deformerIds: List<DeformerId> =
-		mocDocument.deformers.let { sources ->
-			val claimedIds = sources.filter { it.id.isNotEmpty() }.mapTo(HashSet()) { it.id }
-			val usedIds = HashSet<String>()
-			sources.mapIndexed { deformerIndex, source ->
-				val fileId = source.id.takeIf { it.isNotEmpty() && usedIds.add(it) }
-				DeformerId(fileId ?: synthesizedDeformerId(deformerIndex, claimedIds))
-			}
-		}
+		distinctIdsOf(mocDocument.deformers.map { deformer -> deformer.id }, "Deformer").map(::DeformerId)
 
 	/**
 	 * Per deformer file index, whether a rotation ancestor already applied the px→model factor.
@@ -121,13 +123,14 @@ internal class Moc3ImportContext(
 	val blendRecordsByTarget: Map<Pair<BlendShapeTarget, Int>, List<MocBlendShape>> =
 		mocDocument.blendShapes.groupBy { record -> record.target to record.targetIndex }
 
-	// The two default-value lookups are deliberately NOT one map.  The keyform grid resolves an axis by
-	// its parameter INDEX and the blend-shape pass resolves a driving parameter by its ID; on a document
-	// carrying the same parameter id twice those disagree, because an id-keyed map keeps only the last.
-	// Folding them together compiles, passes the corpus, and quietly changes what a malformed file
-	// imports as.
+	// Keyed by the DE-DUPLICATED id, never by the raw file id: on a document carrying the same parameter
+	// id twice, a raw-keyed map keeps only the last, so the first parameter's blend records would read
+	// the second's default.  Keying by parameterIds makes this lookup and the index-addressed one below
+	// two views of the same table rather than two answers.
 	private val defaultValueById: Map<ParameterId, Float> =
-		mocDocument.parameters.associate { source -> ParameterId(source.id) to source.defaultValue }
+		parameterIds.withIndex().associate { (parameterIndex, parameterId) ->
+			parameterId to mocDocument.parameters[parameterIndex].defaultValue
+		}
 
 	/**
 	 * The default value of the parameter at [parameterIndex], as a keyform axis names it.
@@ -146,17 +149,18 @@ internal class Moc3ImportContext(
 	fun defaultValueOf(parameterId: ParameterId): Float = defaultValueById[parameterId] ?: 0f
 
 	/**
-	 * Offscreen records by their owner part's id.
+	 * Offscreen records by their owner part's FILE INDEX.
 	 *
 	 * MOC3 v6 §5.6 s155: each offscreen names its owner part by index, and both the part import and the
 	 * render-order import need to look one up from a part they already hold - so the relation is
-	 * inverted once here rather than scanned per part.  Part ids are unique in a moc, which is what
-	 * makes the id a usable key.
+	 * inverted once here rather than scanned per part.  Keyed by the index the record itself stores,
+	 * not by the owner's id: two parts carrying the same id would otherwise both read whichever
+	 * offscreen came last, isolating a part the file never isolated.
 	 */
-	val offscreenByPartId: Map<String, Offscreen> =
+	val offscreenByPartIndex: Map<Int, Offscreen> =
 		mocDocument.offscreens
 			.filter { offscreen -> offscreen.ownerPartIndex in mocDocument.parts.indices }
-			.associateBy { offscreen -> mocDocument.parts[offscreen.ownerPartIndex].id }
+			.associateBy { offscreen -> offscreen.ownerPartIndex }
 
 	/**
 	 * Resolves the keyform binding for [bindingIndex], or null when the document carries none.
@@ -225,23 +229,52 @@ internal class Moc3ImportContext(
 internal fun colorRgbOf(color: Rgb?): ColorRgb? = color?.let { ColorRgb(it.r, it.g, it.b) }
 
 /**
- * Synthesizes an id for a deformer slot the file leaves blank (or duplicates).
+ * Maps one section's file ids onto distinct runtime ids, in file order.
+ *
+ * The first record to carry a given id keeps it verbatim; a blank or repeated one falls back to a
+ * synthesized id.  A file id always outranks a synthesized one, even when the synthesizer would have
+ * wanted it first - every file id is claimed before the walk starts - so what the file says survives
+ * and only what it leaves ambiguous is invented.
+ *
+ * @param List<String> fileIds        The section's ids, in file order.
+ * @param String       fallbackPrefix The stem a synthesized id is built from ("Deformer", "Part", …).
+ * @return List<String> One distinct id per file index.
+ */
+private fun distinctIdsOf(
+	fileIds: List<String>,
+	fallbackPrefix: String,
+): List<String> {
+	val claimedIds = fileIds.filterTo(HashSet()) { fileId -> fileId.isNotEmpty() }
+	val usedIds = HashSet<String>()
+	return fileIds.mapIndexed { fileIndex, fileId ->
+		if (fileId.isNotEmpty() && usedIds.add(fileId)) {
+			fileId
+		} else {
+			synthesizedId(fallbackPrefix, fileIndex, claimedIds)
+		}
+	}
+}
+
+/**
+ * Synthesizes an id for a slot the file leaves blank (or duplicates).
  *
  * The result joins [claimedIds], so it collides neither with an id the file already uses nor with
  * another synthesized one.
  *
- * @param Int        deformerIndex The deformer's file index.
- * @param MutableSet claimedIds    Every id already spoken for; the returned id is added to it.
+ * @param String     fallbackPrefix The stem to build from.
+ * @param Int        fileIndex      The record's file index.
+ * @param MutableSet claimedIds     Every id already spoken for; the returned id is added to it.
  * @return String The synthesized id.
  */
-private fun synthesizedDeformerId(
-	deformerIndex: Int,
+private fun synthesizedId(
+	fallbackPrefix: String,
+	fileIndex: Int,
 	claimedIds: MutableSet<String>,
 ): String {
-	var candidate = "Deformer$deformerIndex"
+	var candidate = "$fallbackPrefix$fileIndex"
 	var disambiguator = 2
 	while (!claimedIds.add(candidate)) {
-		candidate = "Deformer$deformerIndex-$disambiguator"
+		candidate = "$fallbackPrefix$fileIndex-$disambiguator"
 		disambiguator++
 	}
 	return candidate

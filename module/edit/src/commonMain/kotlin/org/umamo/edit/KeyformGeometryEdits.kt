@@ -59,7 +59,7 @@ fun PuppetModel.geometryGridOf(owner: KeyformOwner): KeyformGrid<*>? =
 				is Deformer.Rotation -> deformer.geometryGrid
 				null -> null
 			}
-		// A part is organisational and a glue welds two meshes; neither carries geometry of its own.
+		// A part is organizational and a glue welds two meshes; neither carries geometry of its own.
 		is KeyformOwner.Part, is KeyformOwner.Glue -> null
 	}
 

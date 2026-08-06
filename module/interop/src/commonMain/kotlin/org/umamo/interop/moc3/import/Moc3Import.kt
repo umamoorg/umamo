@@ -22,13 +22,13 @@ import org.umamo.runtime.model.partByDrawable
  *    the root space differs - the MOC stores model units around CanvasInfo's origin, same Y-down
  *    orientation - so root-space values map through the affine canvas = origin + ppu·model (see
  *    [Moc3ImportContext.pointSpaceOf]).  The one unit seam: a rotation parented to the root or a warp
- *    carries the px→model factor in its keyform scale, so
- *    those scales multiply by ppu to land in the runtime's pixel world; rotation-parented rotations
- *    keep their scale verbatim.  One caveat: the runtime's rest mesh (Drawable.mesh.positions) is
- *    canvas-space EDITING geometry in the CMO3 convention, which a MOC does not store - this import
- *    leaves the rest mesh in parent space (exact for evaluation, since the base cancels out of the
- *    keyform blend), and `:render`'s restMeshesToCanvasSpace finishes the job by evaluating the
- *    default pose (the document loader applies it).
+ *    carries the px→model factor in its keyform scale, so those scales multiply by ppu to land in the
+ *    runtime's pixel world; rotation-parented rotations keep their scale verbatim.  One caveat: the
+ *    runtime's rest mesh (Drawable.mesh.positions) is canvas-space EDITING geometry in the CMO3
+ *    convention, which a MOC does not store - this import leaves the rest mesh in parent space (exact
+ *    for evaluation, since the base cancels out of the keyform blend), and `:render`'s
+ *    restMeshesToCanvasSpace finishes the job by evaluating the default pose (the document loader
+ *    applies it).
  *  - Names.  The binary stores ids (deformers included, §5.6 s11) but no display names; parameter/part
  *    names come from cdi3.json when present, and everything else falls back to the format id - the same
  *    rule `Cmo3Import` uses for an unnamed source.  A deformer's authored label is lost for good (the

@@ -435,7 +435,7 @@ fun PuppetModel.withDrawableMaskedBy(id: DrawableId, maskedBy: List<DrawableId>)
 }
 
 /**
- * Returns a copy of [this] with the deformer [id] bound to the organisational part [partId] (null clears
+ * Returns a copy of [this] with the deformer [id] bound to the organizational part [partId] (null clears
  * it), sharing every other entity. A no-op id (no such deformer, or the binding already matches) returns
  * the same instance. The part reference is loose - no Part.children entry corresponds to it - so this is a
  * flat field write; the copy is per-subtype because Deformer is a sealed interface.

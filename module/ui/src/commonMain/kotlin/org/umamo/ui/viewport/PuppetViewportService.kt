@@ -146,7 +146,7 @@ interface PuppetViewportService {
 	fun zoomAtCursor(areaId: String, zoomIn: Boolean, coarse: Boolean, cursorXpx: Float, cursorYpx: Float)
 
 	/**
-	 * Zooms [areaId] one step about its centre (the keyboard/menu gesture).
+	 * Zooms [areaId] one step about its center (the keyboard/menu gesture).
 	 *
 	 * @param String areaId The zoomed area.
 	 * @param Boolean zoomIn True to zoom in, false to zoom out.
@@ -167,21 +167,21 @@ interface PuppetViewportService {
 	fun zoomToRegion(areaId: String, leftPx: Float, topPx: Float, rightPx: Float, bottomPx: Float)
 
 	/**
-	 * Sets [areaId]'s camera to 1:1 (one content unit per pixel), centred.
+	 * Sets [areaId]'s camera to 1:1 (one content unit per pixel), centerd.
 	 *
 	 * @param String areaId The area to reset.
 	 */
 	fun actualSize(areaId: String)
 
 	/**
-	 * Fits the puppet's content bounds inside [areaId], centred.
+	 * Fits the puppet's content bounds inside [areaId], centerd.
 	 *
 	 * @param String areaId The area to fit.
 	 */
 	fun fit(areaId: String)
 
 	/**
-	 * Fits a world-space rectangle inside [areaId], centred - the Frame Selected camera move (the
+	 * Fits a world-space rectangle inside [areaId], centerd - the Frame Selected camera move (the
 	 * caller computes the selection's world bounds; this only frames them).
 	 *
 	 * @param String areaId The area to frame in.

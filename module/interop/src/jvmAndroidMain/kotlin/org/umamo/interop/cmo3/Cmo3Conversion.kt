@@ -115,6 +115,6 @@ public object Cmo3Conversion {
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
 		// per-entity findings.  It is the one finding that explains why the file will not render in
 		// the official editor, which no amount of per-drawable detail would tell the user.
-		return Result(model, ExportReport(listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
+		return Result(model, report.copy(notices = listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
 	}
 }

@@ -2,7 +2,9 @@ package org.umamo.interop.moc3
 
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.moc.CanvasInfo
+import org.umamo.format.moc3.moc.MocParameter
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.model.ArtMesh
 import org.umamo.format.moc3.model.ArtMeshKeyform
 import org.umamo.format.moc3.model.Deformer
@@ -18,15 +20,15 @@ import kotlin.test.assertTrue
 
 /**
  * Hand-built-document tests for the two identity fallbacks [Moc3Import] applies when a MOC3 does not
- * carry what the corpus always carries: a blank or duplicated deformer id (MOC3 §5.6 s11) and an
- * absent deformer→part column (s15).
+ * carry what the corpus always carries: a blank or duplicated id (MOC3 §5.4) and an absent
+ * deformer→part column (s15).
  *
- * The corpus cannot reach either path - every sample has unique non-empty deformer ids and an
- * s15 that places something - so these are synthetic documents rather than corpus gates.  The
- * inputs are exactly the shapes a stripped, third-party, or synthesized MOC3 produces, which is
- * the case `MocDecoder` reads the block's common head defensively for.
+ * The corpus cannot reach either path - every sample has unique non-empty ids and an s15 that places
+ * something - so these are synthetic documents rather than corpus gates.  The inputs are exactly the
+ * shapes a stripped, third-party, or synthesized MOC3 produces, which is the case `MocDecoder` reads
+ * the block's common head defensively for.
  *
- * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
+ * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.4</a>
  */
 class Moc3ImportIdentityTest {
 	/**
@@ -85,20 +87,22 @@ class Moc3ImportIdentityTest {
 	 * Assembles a document around the given deformers and meshes.  Binding 0 is the zero-axis static
 	 * binding every corpus file reserves, which is what makes every object here static.
 	 *
-	 * @param List deformers The deformer list, in file order.
-	 * @param List artMeshes The drawable list, in file order.
-	 * @param List parts     The part list, in file order.
+	 * @param List deformers  The deformer list, in file order.
+	 * @param List artMeshes  The drawable list, in file order.
+	 * @param List parts      The part list, in file order.
+	 * @param List parameters The parameter list, in file order.
 	 * @return MocDocument The assembled document.
 	 */
 	private fun documentOf(
 		deformers: List<Deformer>,
 		artMeshes: List<ArtMesh>,
 		parts: List<Part> = listOf(part("PartHead"), part("PartBody")),
+		parameters: List<MocParameter> = emptyList(),
 	): MocDocument =
 		MocDocument(
 			version = MocVersion.V50,
 			canvas = CanvasInfo(pixelsPerUnit = 1f, originX = 0f, originY = 0f, width = 100f, height = 100f),
-			parameters = emptyList(),
+			parameters = parameters,
 			keyformBindings = mapOf(0 to KeyformBinding(index = 0, axes = emptyList())),
 			parts = parts,
 			deformers = deformers,
@@ -115,6 +119,25 @@ class Moc3ImportIdentityTest {
 	 */
 	private fun part(id: String): Part =
 		Part(id = id, parentPartIndex = -1, keyformBindingIndex = 0, drawOrderKeyforms = floatArrayOf(0f))
+
+	/**
+	 * Builds a plain parameter axis.
+	 *
+	 * @param String id           The parameter id.
+	 * @param Float  defaultValue Its default, which is also what the keyform grid samples at rest.
+	 * @return MocParameter The parameter.
+	 */
+	private fun parameter(
+		id: String,
+		defaultValue: Float,
+	): MocParameter =
+		MocParameter(
+			id = id,
+			minimumValue = -30f,
+			maximumValue = 30f,
+			defaultValue = defaultValue,
+			type = ParameterType.NORMAL,
+		)
 
 	/**
 	 * A blank id, a duplicate id, and a file id that collides with what the synthesizer would have
@@ -147,6 +170,51 @@ class Moc3ImportIdentityTest {
 		// A real file id always outranks a synthesized one, even when the synthesizer wanted it first.
 		assertEquals("Deformer0", ids[3], "a file id is kept verbatim")
 		assertTrue(ids[0] != "Deformer0", "the synthesized id dodges the file id it would have collided with")
+	}
+
+	/**
+	 * The same rule holds for the other three id spaces, which a moc leaves just as unconstrained.
+	 *
+	 * Reachable through Umamo's own export, not only through a hand-built file: an id too wide for the
+	 * 64-byte record is written shortened, so two names differing past the 63rd byte can arrive here as
+	 * one.  Merging them would put both meshes' masks, part membership, and keyforms on one drawable and
+	 * leave the other with none - a silent identity merge on a round trip, which is why every id space
+	 * de-duplicates rather than only the deformers'.
+	 */
+	@Test
+	fun duplicateParameterPartAndDrawableIdsResolveDistinctly() {
+		val document =
+			documentOf(
+				deformers = emptyList(),
+				artMeshes =
+					listOf(
+						staticMesh("Mesh", parentPartIndex = 0, parentDeformerIndex = -1),
+						staticMesh("Mesh", parentPartIndex = 1, parentDeformerIndex = -1),
+					),
+				parts = listOf(part("Part"), part("Part")),
+				parameters = listOf(parameter("ParamAngleX", defaultValue = 0f), parameter("ParamAngleX", defaultValue = 30f)),
+			)
+
+		val puppet = Moc3Import.fromMocDocument(document, displayInfo = null)
+
+		val parameterIds = puppet.parameters.map { it.id.raw }
+		assertEquals(2, parameterIds.toSet().size, "every parameter id is distinct: $parameterIds")
+		assertEquals("ParamAngleX", parameterIds[0], "the first claimant keeps its file id")
+		// Both defaults survive: an id-keyed lookup over the raw file ids would give the first parameter
+		// the second's default, which is what a blend record on it would then be resolved against.
+		assertEquals(listOf(0f, 30f), puppet.parameters.map { it.default }, "each parameter keeps its own default")
+		val drawableIds = puppet.drawables.map { it.id.raw }
+		assertEquals(2, drawableIds.toSet().size, "every drawable id is distinct: $drawableIds")
+		assertTrue("Mesh" in drawableIds, "the first claimant keeps its file id")
+		val partIds = puppet.parts.map { it.id.raw }
+		assertEquals(2, partIds.toSet().size, "every part id is distinct: $partIds")
+		assertEquals("Part", partIds[0], "the first claimant keeps its file id")
+		// Each part keeps its OWN drawable rather than both landing in one: the merge this guards against
+		// is invisible in an id list, but it shows up here as an empty part.
+		assertTrue(
+			puppet.parts.all { part -> part.children.size == 1 },
+			"each part keeps its own drawable: ${puppet.parts.map { part -> part.children.size }}",
+		)
 	}
 
 	/**

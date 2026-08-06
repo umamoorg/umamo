@@ -95,7 +95,7 @@ class MaskCoverageBlendTest {
 		)
 	}
 
-	/** Renders [source] and returns how many columns of the centre row carry drawn (non-black) art. */
+	/** Renders [source] and returns how many columns of the center row carry drawn (non-black) art. */
 	private fun renderAndCountArtColumns(source: PuppetModel): Int {
 		val device = GlRenderDevice()
 		val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)

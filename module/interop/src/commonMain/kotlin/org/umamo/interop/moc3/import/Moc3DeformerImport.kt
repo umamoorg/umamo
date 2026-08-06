@@ -155,7 +155,7 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
 }
 
 /**
- * Infers each deformer's organisational part from the drawables it deforms.  A FALLBACK only: MOC3
+ * Infers each deformer's organizational part from the drawables it deforms.  A FALLBACK only: MOC3
  * §5.6 s15 carries real deformer→part membership, and this runs solely when that section placed
  * nothing at all.
  *

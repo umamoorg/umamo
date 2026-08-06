@@ -32,7 +32,7 @@ import org.umamo.runtime.model.screenColor
  * runs.  The lowering then sees one shape it can express completely.
  *
  * Reporting is the other half of the reason: a notice raised here names entities the rigger
- * recognises ("Warp40", "ParamAngleX"), while the same loss detected after lowering could only name
+ * recognizes ("Warp40", "ParamAngleX"), while the same loss detected after lowering could only name
  * section indices.
  *
  * What can be carried is asked of the SECTION TABLE, not of [RuntimeTarget.supports].  The two ladders

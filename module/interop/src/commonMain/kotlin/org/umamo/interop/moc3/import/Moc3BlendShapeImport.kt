@@ -85,7 +85,7 @@ internal fun meshBlendShapesOf(
 					),
 				drawOrder = referenceDrawOrder + payloads[keyIndex].drawOrder,
 				opacity = referenceOpacity + payloads[keyIndex].opacity,
-				// Colour delta rows are ADDITIVE like the scalars, so their identity is zero rather
+				// Color delta rows are ADDITIVE like the scalars, so their identity is zero rather
 				// than Cubism's white multiply / black screen; a record without color tables has no
 				// row at all and contributes nothing.
 				multiplyColor = addColorDelta(referenceMultiply, payloads[keyIndex].multiplyColor),
@@ -305,10 +305,10 @@ private fun addReference(
  * A blend record's color rows are ADDITIVE, so a zero row is the identity and a null row (a
  * model whose color tables are absent entirely, pre-4.2) contributes nothing.  Not clamped
  * here: the evaluator subtracts this same reference back out and clamps only after summing every
- * contribution, so clamping now would bias a record whose neighbours pull the other way.
+ * contribution, so clamping now would bias a record whose neighbors pull the other way.
  *
  * @param ColorRgb reference The channel's value at the default pose.
- * @param Rgb?     delta     The record's stored delta row, or null when the model has no colours.
+ * @param Rgb?     delta     The record's stored delta row, or null when the model has no colors.
  * @return ColorRgb The referenced color this key blends toward.
  */
 private fun addColorDelta(

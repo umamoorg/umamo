@@ -82,7 +82,7 @@ internal fun lowerBlendShapes(
 	val records = ArrayList<BlendShape>()
 
 	/**
-	 * The delta of a color channel against its reference, or null when colours are not written.
+	 * The delta of a color channel against its reference, or null when colors are not written.
 	 *
 	 * @param ColorRgb form      The form's color (reference + delta).
 	 * @param ColorRgb reference The channel's value at the default pose.

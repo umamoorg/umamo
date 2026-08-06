@@ -375,12 +375,12 @@ fun facesInBox(
 }
 
 /**
- * The set of vertices whose screen projection lies within [radiusPx] of the brush centre - the
+ * The set of vertices whose screen projection lies within [radiusPx] of the brush center - the
  * Circle-select brush.
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
- * @param Float centerX The brush centre x in screen pixels.
- * @param Float centerY The brush centre y in screen pixels.
+ * @param Float centerX The brush center x in screen pixels.
+ * @param Float centerY The brush center y in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
@@ -409,13 +409,13 @@ fun verticesInCircle(
 }
 
 /**
- * The set of edges the brush touches: an edge is included when the brush centre is within [radiusPx] of
+ * The set of edges the brush touches: an edge is included when the brush center is within [radiusPx] of
  * the edge segment in screen space (Blender's circle brush paints any edge the disc overlaps).
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
  * @param IntArray edgeEndpoints The edges as interleaved endpoint vertex indices (two per edge).
- * @param Float centerX The brush centre x in screen pixels.
- * @param Float centerY The brush centre y in screen pixels.
+ * @param Float centerX The brush center x in screen pixels.
+ * @param Float centerY The brush center y in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
@@ -453,14 +453,14 @@ fun edgesInCircle(
 }
 
 /**
- * The set of triangles whose screen centroid lies within [radiusPx] of the brush centre - matching the
+ * The set of triangles whose screen centroid lies within [radiusPx] of the brush center - matching the
  * centroid dot the face-mode overlay draws, so the brush paints the dots it covers (consistent with box
  * select).
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
  * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
- * @param Float centerX The brush centre x in screen pixels.
- * @param Float centerY The brush centre y in screen pixels.
+ * @param Float centerX The brush center x in screen pixels.
+ * @param Float centerY The brush center y in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.

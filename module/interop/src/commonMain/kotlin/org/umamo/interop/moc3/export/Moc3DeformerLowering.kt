@@ -23,12 +23,14 @@ import org.umamo.format.moc3.model.Deformer as MocDeformer
  *
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every deformer claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations, demotions, unrepresentable grids.
+ * @param Moc3ExportIds     ids        Claimed from: each deformer's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions and unrepresentable grids.
  * @return List<MocDeformer> The records, in plan order.
  */
 internal fun lowerDeformers(
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): List<MocDeformer> {
 	val plan = context.plan
@@ -74,7 +76,7 @@ internal fun lowerDeformers(
 				// arithmetic, and a short array would desynchronize every warp block after it.
 				val controlPointFloats = (deformer.rows + 1) * (deformer.columns + 1) * 2
 				WarpDeformer(
-					id = noticeSink.mocId("deformer", deformer.id.raw),
+					id = ids.deformerId(deformer.id),
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 					isVisible = deformer.isVisible,
 					isEnabled = deformer.isEnabled,
@@ -136,7 +138,7 @@ internal fun lowerDeformers(
 				val scaleFactor =
 					context.rotationScaleFactorFor(deformer)
 				RotationDeformer(
-					id = noticeSink.mocId("deformer", deformer.id.raw),
+					id = ids.deformerId(deformer.id),
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 					isVisible = deformer.isVisible,
 					isEnabled = deformer.isEnabled,
