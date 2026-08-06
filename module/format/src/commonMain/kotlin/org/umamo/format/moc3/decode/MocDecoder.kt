@@ -657,6 +657,215 @@ public object MocDecoder {
 	)
 
 	/**
+	 * The deduplicated blend-weight limit pool (MOC3 v4+ §5.6 sections 123/124 + 131-136).
+	 *
+	 * A record ranges into SUB_INDEX, whose entries name a shared pool of (parameter, keys, weights)
+	 * curves; records commonly point at the same pool entry, so the pool is stored once and expanded
+	 * per record here.  Absent tables decode as no limits, like any absent section.
+	 */
+	private class BlendLimitPool(sections: MocSections) {
+		private val recordSubstart = sections.intArray(Section.BLENDSHAPE_RECORD_SUBSTART)
+		private val recordCornerCount = sections.intArray(Section.BLENDSHAPE_RECORD_CORNER_COUNT)
+		private val hasSubTables = sections.isPresent(Section.BLENDSHAPE_SUB_INDEX)
+		private val subIndex = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_INDEX) else IntArray(0)
+		private val subParameter = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_PARAMETER) else IntArray(0)
+		private val subKeyOffset = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_KEY_OFFSET) else IntArray(0)
+		private val subKeyCount = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_KEY_COUNT) else IntArray(0)
+		private val subKeys = if (hasSubTables) sections.floatArray(Section.BLENDSHAPE_SUB_KEYS) else FloatArray(0)
+		private val subWeights = if (hasSubTables) sections.floatArray(Section.BLENDSHAPE_SUB_WEIGHT_VALUES) else FloatArray(0)
+
+		/**
+		 * Expands one record's sub-binding refs into its limit curves (empty when uncapped).
+		 *
+		 * @param Int recordIndex The record's index in the record tables.
+		 * @return List<BlendShapeLimit> The record's limits, pool entries expanded per record.
+		 */
+		fun limitsFor(recordIndex: Int): List<BlendShapeLimit> {
+			if (!hasSubTables || recordIndex >= recordCornerCount.size) {
+				return emptyList()
+			}
+			val cornerCount = recordCornerCount[recordIndex]
+			if (cornerCount == 0) {
+				return emptyList()
+			}
+			val cornerStart = recordSubstart[recordIndex]
+			return (cornerStart until cornerStart + cornerCount).map { cornerIndex ->
+				val subBinding = subIndex[cornerIndex]
+				val keyOffset = subKeyOffset[subBinding]
+				val keyCount = subKeyCount[subBinding]
+				BlendShapeLimit(
+					parameterIndex = subParameter[subBinding],
+					keyPositions = subKeys.copyOfRange(keyOffset, keyOffset + keyCount),
+					weights = subWeights.copyOfRange(keyOffset, keyOffset + keyCount),
+				)
+			}
+		}
+	}
+
+	/**
+	 * Per-record addressing into the color tables' blend-delta region (MOC3 §5.6 sections 108-113).
+	 *
+	 * The delta region follows the base rows (and, on MOC3 v6, the offscreen keyform prefix), holding
+	 * one row per (record, key) for warp, mesh, and rotation records in global record order - part
+	 * records own no color rows.  It anchors at the content-derived base-row total
+	 * ([BlendDeltaTables.colorDeltaRowStart]); anchoring at table length minus the delta total drifts
+	 * by the element region's 64-byte zero padding (2 rows on Model A, 10 on Model C - caught by
+	 * their authored color morphs).
+	 *
+	 * The region is also a later format addition, so presence is probed rather than assumed: a
+	 * 4.2-era bake with blend shapes carries the base rows only (corpus: Azxiana.moc3, V42 - CountInfo
+	 * 23/24 there count base + prefix rows while fields 7-9 still include the deltas).  When the
+	 * tables do not cover the read extent, every record resolves to the absent sentinel and the deltas
+	 * decode as null colors.
+	 */
+	private class BlendColorDeltas(
+		sections: MocSections,
+		recordCount: Int,
+		recordBinding: IntArray,
+		bindingKeyCount: IntArray,
+		deltaTables: BlendDeltaTables,
+	) {
+		private val colorTables: ColorTables = deltaTables.colorTables
+
+		/** Each record's first delta row, or -1 when it owns none (part-owned, or the region absent). */
+		private val recordColorRow: IntArray
+
+		init {
+			val partOwnedRecord = partOwnedRecords(sections, recordCount)
+			val colorReadRecord = colorReadRecords(sections, recordCount)
+			// Measure the read extent over exactly the rows that will be dereferenced: the record
+			// tables carry a few TRAILING records referenced by no group on every blend corpus model,
+			// and the stored region ends at the referenced records' rows (modelA: table 1808 = read
+			// extent 1806 + 2 rows padding; modelC: 2208 = 2198 + 10).
+			var requiredRowEnd = deltaTables.colorDeltaRowStart
+			var rowProbeCursor = deltaTables.colorDeltaRowStart
+			for (recordIndex in 0 until recordCount) {
+				if (!partOwnedRecord[recordIndex]) {
+					val rowEnd = rowProbeCursor + bindingKeyCount[recordBinding[recordIndex]]
+					if (colorReadRecord[recordIndex] && rowEnd > requiredRowEnd) {
+						requiredRowEnd = rowEnd
+					}
+					rowProbeCursor = rowEnd
+				}
+			}
+			val rows = IntArray(recordCount) { -1 }
+			if (colorTables.isPresent && requiredRowEnd <= colorTables.rowCount) {
+				var colorRowCursor = deltaTables.colorDeltaRowStart
+				for (recordIndex in 0 until recordCount) {
+					if (!partOwnedRecord[recordIndex]) {
+						rows[recordIndex] = colorRowCursor
+						colorRowCursor += bindingKeyCount[recordBinding[recordIndex]]
+					}
+				}
+			}
+			recordColorRow = rows
+		}
+
+		/**
+		 * Marks the records owned by a part object group, which carry no color rows.
+		 *
+		 * @param MocSections sections    The model's typed sections.
+		 * @param Int         recordCount Total blend-shape records.
+		 * @return BooleanArray One flag per record.
+		 */
+		private fun partOwnedRecords(sections: MocSections, recordCount: Int): BooleanArray {
+			val owned = BooleanArray(recordCount)
+			if (!sections.isPresent(Section.BLENDSHAPE_PART_OBJECT)) {
+				return owned
+			}
+			val partRecordStarts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_START)
+			val partRecordCounts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_COUNT)
+			for (groupIndex in partRecordStarts.indices) {
+				val partRecordEnd = partRecordStarts[groupIndex] + partRecordCounts[groupIndex]
+				for (recordIndex in partRecordStarts[groupIndex] until partRecordEnd) {
+					owned[recordIndex] = true
+				}
+			}
+			return owned
+		}
+
+		/**
+		 * Marks the records a warp, mesh, or rotation object group references - the only ones whose
+		 * color rows are ever dereferenced.
+		 *
+		 * @param MocSections sections    The model's typed sections.
+		 * @param Int         recordCount Total blend-shape records.
+		 * @return BooleanArray One flag per record.
+		 */
+		private fun colorReadRecords(sections: MocSections, recordCount: Int): BooleanArray {
+			val referenced = BooleanArray(recordCount)
+			val groups =
+				listOf(
+					Triple(
+						Section.BLENDSHAPE_WARP_OBJECT,
+						Section.BLENDSHAPE_WARP_RECORD_START,
+						Section.BLENDSHAPE_WARP_RECORD_COUNT,
+					),
+					Triple(
+						Section.BLENDSHAPE_MESH_OBJECT,
+						Section.BLENDSHAPE_MESH_RECORD_START,
+						Section.BLENDSHAPE_MESH_RECORD_COUNT,
+					),
+					Triple(
+						Section.BLENDSHAPE_ROTATION_OBJECT,
+						Section.BLENDSHAPE_ROTATION_RECORD_START,
+						Section.BLENDSHAPE_ROTATION_RECORD_COUNT,
+					),
+				)
+			for ((objectSection, startSection, countSection) in groups) {
+				if (!sections.isPresent(objectSection)) {
+					continue
+				}
+				val recordStarts = sections.intArray(startSection)
+				val recordCounts = sections.intArray(countSection)
+				for (groupIndex in recordStarts.indices) {
+					for (recordIndex in recordStarts[groupIndex] until recordStarts[groupIndex] + recordCounts[groupIndex]) {
+						if (recordIndex in 0 until recordCount) {
+							referenced[recordIndex] = true
+						}
+					}
+				}
+			}
+			return referenced
+		}
+
+		/**
+		 * Multiply-color delta at key [keyIndex] of record [recordIndex].
+		 *
+		 * @param Int recordIndex The record's index in the record tables.
+		 * @param Int keyIndex    The key's index within the record's binding.
+		 * @return Rgb? The multiply-color delta row, or null when the record owns no color rows.
+		 */
+		fun multiplyDelta(recordIndex: Int, keyIndex: Int): Rgb? {
+			val colorRow = recordColorRow[recordIndex]
+			// Guarded here rather than folded into the row accessor: a negative row is the "no delta
+			// rows" sentinel, and offsetting it by keyIndex would land on a real row.
+			return if (colorRow < 0) {
+				null
+			} else {
+				colorTables.multiplyAtRow(colorRow + keyIndex)
+			}
+		}
+
+		/**
+		 * Screen-color delta at key [keyIndex] of record [recordIndex].
+		 *
+		 * @param Int recordIndex The record's index in the record tables.
+		 * @param Int keyIndex    The key's index within the record's binding.
+		 * @return Rgb? The screen-color delta row, or null when the record owns no color rows.
+		 */
+		fun screenDelta(recordIndex: Int, keyIndex: Int): Rgb? {
+			val colorRow = recordColorRow[recordIndex]
+			// Same sentinel guard as multiplyDelta above.
+			return if (colorRow < 0) {
+				null
+			} else {
+				colorTables.screenAtRow(colorRow + keyIndex)
+			}
+		}
+	}
+
+	/**
 	 * Decodes the blend-shape records (MOC3 v4+ for meshes/warps, MOC3 v5+ for rotations and parts):
 	 * the binding structure, each record's blend-weight limits expanded from the deduplicated
 	 * sub-binding pool, and the typed per-key delta payloads lifted from [deltaTables].
@@ -696,137 +905,9 @@ public object MocDecoder {
 		val recordBinding = sections.intArray(Section.BLENDSHAPE_RECORD_BINDING)
 		val recordBase = sections.intArray(Section.BLENDSHAPE_RECORD_BASE)
 
-		// MOC3 v4+ §5.6 sections 123/124 + 131-136: blend-weight limit sub-bindings. Records range
-		// into SUB_INDEX, whose entries reference a deduplicated pool of (parameter, keys, weights)
-		// curves; the decoder expands the pool per record. Absent tables decode as no limits.
-		val recordSubstart = sections.intArray(Section.BLENDSHAPE_RECORD_SUBSTART)
-		val recordCornerCount = sections.intArray(Section.BLENDSHAPE_RECORD_CORNER_COUNT)
-		val hasSubTables = sections.isPresent(Section.BLENDSHAPE_SUB_INDEX)
-		val subIndex = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_INDEX) else IntArray(0)
-		val subParameter = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_PARAMETER) else IntArray(0)
-		val subKeyOffset = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_KEY_OFFSET) else IntArray(0)
-		val subKeyCount = if (hasSubTables) sections.intArray(Section.BLENDSHAPE_SUB_KEY_COUNT) else IntArray(0)
-		val subKeys = if (hasSubTables) sections.floatArray(Section.BLENDSHAPE_SUB_KEYS) else FloatArray(0)
-		val subWeights = if (hasSubTables) sections.floatArray(Section.BLENDSHAPE_SUB_WEIGHT_VALUES) else FloatArray(0)
-
-		// MOC3 §5.6 sections 108-113: the color tables' delta region follows the base rows (and, on
-		// MOC3 v6, the offscreen keyform prefix), holding one row per (record, key) for warp, mesh,
-		// and rotation records in global record order - part records own no color rows.  The region
-		// anchors at the content-derived base-row total (BlendDeltaTables.colorDeltaRowStart);
-		// anchoring at table length minus the delta total drifts by the element region's 64-byte
-		// zero padding (2 rows on Model A, 10 on Model C - caught by their authored color morphs).
+		val limitPool = BlendLimitPool(sections)
 		val recordCount = recordBinding.size
-		val partOwnedRecord = BooleanArray(recordCount)
-		if (sections.isPresent(Section.BLENDSHAPE_PART_OBJECT)) {
-			val partRecordStarts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_START)
-			val partRecordCounts = sections.intArray(Section.BLENDSHAPE_PART_RECORD_COUNT)
-			for (groupIndex in partRecordStarts.indices) {
-				val partRecordEnd = partRecordStarts[groupIndex] + partRecordCounts[groupIndex]
-				for (recordIndex in partRecordStarts[groupIndex] until partRecordEnd) {
-					partOwnedRecord[recordIndex] = true
-				}
-			}
-		}
-		// Only records referenced by a warp/mesh/rotation object group have their color rows read
-		// (and stored): the record tables carry a few TRAILING records referenced by no group on
-		// every blend corpus model, and the stored region ends at the referenced records' rows
-		// (modelA: table 1808 = read extent 1806 + 2 rows padding; modelC: 2208 = 2198 + 10).
-		val colorReadRecord = BooleanArray(recordCount)
-
-		/**
-		 * Marks the records one object group's ranges reference, so the delta-region presence check
-		 * below can measure the read extent over exactly the rows that will be dereferenced.
-		 *
-		 * @param Section objectSection The group's per-object index section.
-		 * @param Section startSection  The group's per-object record-start section.
-		 * @param Section countSection  The group's per-object record-count section.
-		 */
-		fun markColorReadRecords(objectSection: Section, startSection: Section, countSection: Section) {
-			if (!sections.isPresent(objectSection)) {
-				return
-			}
-			val recordStarts = sections.intArray(startSection)
-			val recordCounts = sections.intArray(countSection)
-			for (groupIndex in recordStarts.indices) {
-				for (recordIndex in recordStarts[groupIndex] until recordStarts[groupIndex] + recordCounts[groupIndex]) {
-					if (recordIndex in 0 until recordCount) {
-						colorReadRecord[recordIndex] = true
-					}
-				}
-			}
-		}
-		markColorReadRecords(Section.BLENDSHAPE_WARP_OBJECT, Section.BLENDSHAPE_WARP_RECORD_START, Section.BLENDSHAPE_WARP_RECORD_COUNT)
-		markColorReadRecords(Section.BLENDSHAPE_MESH_OBJECT, Section.BLENDSHAPE_MESH_RECORD_START, Section.BLENDSHAPE_MESH_RECORD_COUNT)
-		markColorReadRecords(
-			Section.BLENDSHAPE_ROTATION_OBJECT,
-			Section.BLENDSHAPE_ROTATION_RECORD_START,
-			Section.BLENDSHAPE_ROTATION_RECORD_COUNT,
-		)
-
-		// The delta region is a later format addition: a 4.2-era bake with blend shapes carries the
-		// base rows only (corpus: Azxiana.moc3, V42 - CountInfo 23/24 there count base + prefix rows
-		// while fields 7-9 still include the deltas).  Detect presence by whether the tables cover
-		// the referenced records' read extent, and decode absent deltas as null colors, like any
-		// absent section.
-		var requiredRowEnd = deltaTables.colorDeltaRowStart
-		var rowProbeCursor = deltaTables.colorDeltaRowStart
-		for (recordIndex in 0 until recordCount) {
-			if (!partOwnedRecord[recordIndex]) {
-				val rowEnd = rowProbeCursor + bindingKeyCount[recordBinding[recordIndex]]
-				if (colorReadRecord[recordIndex] && rowEnd > requiredRowEnd) {
-					requiredRowEnd = rowEnd
-				}
-				rowProbeCursor = rowEnd
-			}
-		}
-		val colorDeltasPresent = deltaTables.colorTables.isPresent && requiredRowEnd <= deltaTables.colorTables.rowCount
-		val recordColorRow = IntArray(recordCount) { -1 }
-		if (colorDeltasPresent) {
-			var colorRowCursor = deltaTables.colorDeltaRowStart
-			for (recordIndex in 0 until recordCount) {
-				if (!partOwnedRecord[recordIndex]) {
-					recordColorRow[recordIndex] = colorRowCursor
-					colorRowCursor += bindingKeyCount[recordBinding[recordIndex]]
-				}
-			}
-		}
-
-		/**
-		 * Multiply-color delta at key [keyIndex] of record [recordIndex], or null when the model
-		 * carries no color tables (or the record is part-owned).
-		 *
-		 * @param Int recordIndex The record's index in the record tables.
-		 * @param Int keyIndex    The key's index within the record's binding.
-		 * @return Rgb? The multiply-color delta row, or null.
-		 */
-		fun deltaMultiply(recordIndex: Int, keyIndex: Int): Rgb? {
-			val colorRow = recordColorRow[recordIndex]
-			// Guarded here rather than folded into the row accessor: a negative row is the "no delta
-			// rows" sentinel, and offsetting it by keyIndex would land on a real row.
-			return if (colorRow < 0) {
-				null
-			} else {
-				deltaTables.colorTables.multiplyAtRow(colorRow + keyIndex)
-			}
-		}
-
-		/**
-		 * Screen-color delta at key [keyIndex] of record [recordIndex], or null when the model
-		 * carries no color tables (or the record is part-owned).
-		 *
-		 * @param Int recordIndex The record's index in the record tables.
-		 * @param Int keyIndex    The key's index within the record's binding.
-		 * @return Rgb? The screen-color delta row, or null.
-		 */
-		fun deltaScreen(recordIndex: Int, keyIndex: Int): Rgb? {
-			val colorRow = recordColorRow[recordIndex]
-			// Same sentinel guard as deltaMultiply above.
-			return if (colorRow < 0) {
-				null
-			} else {
-				deltaTables.colorTables.screenAtRow(colorRow + keyIndex)
-			}
-		}
+		val colorDeltas = BlendColorDeltas(sections, recordCount, recordBinding, bindingKeyCount, deltaTables)
 
 		/**
 		 * Lifts one record's per-key delta payloads out of the shared value tables, at rows
@@ -859,8 +940,8 @@ public object MocDecoder {
 									positionOffset + controlPointCount * 2,
 								),
 								deltaTables.keyformValues.warpOpacity[deltaRow],
-								deltaMultiply(recordIndex, keyIndex),
-								deltaScreen(recordIndex, keyIndex),
+								colorDeltas.multiplyDelta(recordIndex, keyIndex),
+								colorDeltas.screenDelta(recordIndex, keyIndex),
 							),
 						)
 					}
@@ -876,8 +957,8 @@ public object MocDecoder {
 								),
 								deltaTables.keyformValues.artMeshOpacity[deltaRow],
 								deltaTables.keyformValues.artMeshDrawOrder[deltaRow],
-								deltaMultiply(recordIndex, keyIndex),
-								deltaScreen(recordIndex, keyIndex),
+								colorDeltas.multiplyDelta(recordIndex, keyIndex),
+								colorDeltas.screenDelta(recordIndex, keyIndex),
 							),
 						)
 					}
@@ -892,8 +973,8 @@ public object MocDecoder {
 								deltaTables.keyformValues.rotationReflectX[deltaRow] != 0,
 								deltaTables.keyformValues.rotationReflectY[deltaRow] != 0,
 								deltaTables.keyformValues.rotationOpacity[deltaRow],
-								deltaMultiply(recordIndex, keyIndex),
-								deltaScreen(recordIndex, keyIndex),
+								colorDeltas.multiplyDelta(recordIndex, keyIndex),
+								colorDeltas.screenDelta(recordIndex, keyIndex),
 							),
 						)
 					}
@@ -901,33 +982,6 @@ public object MocDecoder {
 					BlendShapeTarget.PART -> BlendShapeKeyform.Part(deltaTables.keyformValues.partDrawOrder[deltaRow])
 				}
 			}
-
-		/**
-		 * Expands one record's sub-binding refs into its limit curves (empty when uncapped).
-		 *
-		 * @param Int recordIndex The record's index in the record tables.
-		 * @return List<BlendShapeLimit> The record's limits, pool entries expanded per record.
-		 */
-		fun limitsFor(recordIndex: Int): List<BlendShapeLimit> {
-			if (!hasSubTables || recordIndex >= recordCornerCount.size) {
-				return emptyList()
-			}
-			val cornerCount = recordCornerCount[recordIndex]
-			if (cornerCount == 0) {
-				return emptyList()
-			}
-			val cornerStart = recordSubstart[recordIndex]
-			return (cornerStart until cornerStart + cornerCount).map { cornerIndex ->
-				val subBinding = subIndex[cornerIndex]
-				val keyOffset = subKeyOffset[subBinding]
-				val keyCount = subKeyCount[subBinding]
-				BlendShapeLimit(
-					parameterIndex = subParameter[subBinding],
-					keyPositions = subKeys.copyOfRange(keyOffset, keyOffset + keyCount),
-					weights = subWeights.copyOfRange(keyOffset, keyOffset + keyCount),
-				)
-			}
-		}
 
 		val blendShapes = ArrayList<BlendShape>()
 
@@ -962,7 +1016,7 @@ public object MocDecoder {
 						keys,
 						bindingNeutral[bindingIndex],
 						recordBase[recordIndex],
-						limitsFor(recordIndex),
+						limitPool.limitsFor(recordIndex),
 						keyformsFor(target, localObjectIndex, recordIndex, bindingKeyCount[bindingIndex]),
 					),
 				)
