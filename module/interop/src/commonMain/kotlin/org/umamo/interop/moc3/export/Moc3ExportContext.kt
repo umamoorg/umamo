@@ -7,7 +7,6 @@ import org.umamo.interop.moc3.rotationAncestorsById
 import org.umamo.interop.moc3.rotationScaleFactor
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
-import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -63,11 +62,6 @@ internal class Moc3ExportContext(
 	/** Per rotation deformer, whether a rotation ancestor already applied the px→model factor. */
 	private val rotationAncestors: Map<DeformerId, Boolean> = rotationAncestorsById(plan.deformers)
 
-	// Id -> object, for the blend-shape pass's owner lookup.  That lookup runs once per blend-shape
-	// owner, so resolving it by scanning the plan's lists would make the pass quadratic in rig size.
-	private val drawableById: Map<DrawableId, Drawable> = plan.drawables.associateBy { drawable -> drawable.id }
-	private val deformerById: Map<DeformerId, Deformer> = plan.deformers.associateBy { deformer -> deformer.id }
-
 	/** Each drawable's owning part, null when unparented. */
 	val partByDrawable: Map<DrawableId, PartId?> get() = eligibility.partByDrawable
 
@@ -93,22 +87,6 @@ internal class Moc3ExportContext(
 			null -> PointSpace.ModelRoot
 		}
 	}
-
-	/**
-	 * The space the blend-shape pass should un-convert an owner's deltas from.
-	 *
-	 * @param Any ownerId A drawable or deformer id.
-	 * @return PointSpace The owner's stored point space, root when the export dropped it.
-	 */
-	fun spaceOfOwner(ownerId: Any): PointSpace =
-		// An owner missing from the plan resolves to root space rather than throwing: it means the
-		// export dropped the object, and a blend shape on something that was never written is not
-		// worth failing the whole file over.
-		when (ownerId) {
-			is DrawableId -> spaceOfParent(drawableById[ownerId]?.parentDeformerId)
-			is DeformerId -> spaceOfParent(deformerById[ownerId]?.parent)
-			else -> PointSpace.ModelRoot
-		}
 
 	/**
 	 * The px→model factor a rotation deformer's pivot scale divides by.

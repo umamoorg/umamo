@@ -19,6 +19,7 @@ import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.MeshForm
@@ -61,7 +62,7 @@ import org.umamo.runtime.model.WarpForm
  * @param List             parameters    The parameters in file order.
  * @param Moc3IndexPlan    plan          The index plan.
  * @param MocCanvasMapping canvas        The canvas mapping, for un-converting positional deltas.
- * @param Function         spaceOf       A drawable/deformer id's stored point space.
+ * @param Function         spaceOfParent The space a child of the given parent deformer stores its positions in.
  * @param Function         scaleFactorOf The px→model factor for a rotation deformer.
  * @param Boolean          colorsEnabled Whether the target version carries color tables.
  * @return List<BlendShape> The records, in no particular order (the lowering orders them).
@@ -73,7 +74,7 @@ internal fun lowerBlendShapes(
 	parameters: List<Parameter>,
 	plan: Moc3IndexPlan,
 	canvas: MocCanvasMapping,
-	spaceOf: (Any) -> PointSpace,
+	spaceOfParent: (DeformerId?) -> PointSpace,
 	scaleFactorOf: (Deformer.Rotation) -> Float,
 	colorsEnabled: Boolean,
 ): List<BlendShape> {
@@ -148,7 +149,7 @@ internal fun lowerBlendShapes(
 			continue
 		}
 		val localIndex = plan.drawableIndex(drawable.id)
-		val space = spaceOf(drawable.id)
+		val space = spaceOfParent(drawable.parentDeformerId)
 		val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
 		val referenceDrawOrder =
 			drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
@@ -202,10 +203,10 @@ internal fun lowerBlendShapes(
 				if (deformer.blendShapes.isEmpty()) {
 					continue
 				}
-				// Resolved only once the deformer is known to carry blend shapes: `spaceOf` is a lookup the
-				// caller supplies, and asking it for every deformer in the rig would pay for a result that
-				// is discarded on all of them in a model with no blend shapes.
-				val space = spaceOf(deformer.id)
+				// Resolved only once the deformer is known to carry blend shapes: `spaceOfParent` is a
+				// lookup the caller supplies, and asking it for every deformer in the rig would pay for a
+				// result that is discarded on all of them in a model with no blend shapes.
+				val space = spaceOfParent(deformer.parent)
 				// The UNIFIED deformer index, not the kind-local one: `MocLowering` maps it through
 				// `warpLocalByDeformer` itself, so handing it a kind-local index would re-map an already
 				// -mapped value and name a different deformer.  The decoder produces the same convention.
@@ -249,7 +250,7 @@ internal fun lowerBlendShapes(
 					continue
 				}
 				// Resolved after the guard; see the warp branch.
-				val space = spaceOf(deformer.id)
+				val space = spaceOfParent(deformer.parent)
 				// Unified, not kind-local; see the warp branch.
 				val localIndex = plan.deformerIndex(deformer.id)
 				val reference =

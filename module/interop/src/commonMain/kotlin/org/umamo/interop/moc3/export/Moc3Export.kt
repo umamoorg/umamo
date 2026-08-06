@@ -146,7 +146,7 @@ object Moc3Export {
 							plan.parameters,
 							plan,
 							context.canvas,
-							{ ownerId -> context.spaceOfOwner(ownerId) },
+							{ parentId -> context.spaceOfParent(parentId) },
 							{ rotation -> context.rotationScaleFactorFor(rotation) },
 							context.colorsEnabled,
 						)
