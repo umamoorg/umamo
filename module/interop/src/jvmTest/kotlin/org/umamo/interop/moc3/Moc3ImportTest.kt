@@ -2,6 +2,7 @@ package org.umamo.interop.moc3
 
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel

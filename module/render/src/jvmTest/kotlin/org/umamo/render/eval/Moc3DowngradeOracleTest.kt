@@ -5,8 +5,8 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.interop.ExportNotice
-import org.umamo.interop.moc3.Moc3Import
 import org.umamo.interop.moc3.export.Moc3Export
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.RuntimeFeature
 import java.io.File
 import kotlin.test.Test

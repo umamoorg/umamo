@@ -1,7 +1,7 @@
 package org.umamo.render.gl
 
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface

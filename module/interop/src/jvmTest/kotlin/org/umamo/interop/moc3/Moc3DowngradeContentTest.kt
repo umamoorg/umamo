@@ -8,6 +8,7 @@ import org.umamo.format.moc3.model.ArtMesh
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.export.Moc3Export
+import org.umamo.interop.moc3.import.Moc3Import
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -10,8 +10,8 @@ import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
-import org.umamo.interop.moc3.Moc3Import
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.moc3PuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
