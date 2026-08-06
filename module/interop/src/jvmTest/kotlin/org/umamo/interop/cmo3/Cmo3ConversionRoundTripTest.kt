@@ -7,6 +7,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.interop.DocumentField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
 import org.umamo.interop.moc3.import.Moc3Import
 import java.io.File
@@ -101,8 +102,9 @@ class Cmo3ConversionRoundTripTest {
 				(
 					notice is ExportNotice.UnsupportedChange &&
 						(
-							(notice.category == "document" && "origin" in notice.detail) ||
-								(notice.category == "part" && "shadowed" in notice.detail)
+							notice.reason == ExportNoticeReason.NoAuthoredWorldOrigin ||
+								notice.reason == ExportNoticeReason.StaticDrawOrderShadowedByKeyforms ||
+								notice.reason == ExportNoticeReason.CompositeStaticsShadowedByKeyforms
 						)
 				)
 		}.forEach { notice ->

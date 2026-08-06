@@ -20,7 +20,9 @@ import org.umamo.interop.DeformerField
 import org.umamo.interop.DocumentField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.GlueDiff
 import org.umamo.interop.GlueField
 import org.umamo.interop.ParameterField
@@ -86,8 +88,12 @@ internal class Cmo3PropertyLowering(
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
 	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices)
 
-	private fun unsupported(category: String, subject: String, detail: String) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
+	private fun unsupported(
+		category: ExportEntityCategory,
+		subject: String?,
+		reason: ExportNoticeReason,
+	) {
+		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
 	fun lowerParameters(diffs: List<EntityDiff<ParameterId, ParameterField>>) {
@@ -101,7 +107,7 @@ internal class Cmo3PropertyLowering(
 					val source = index.parameterByIdStr[diff.id.raw]
 					val editedParameter = editedParameterById[diff.id]
 					if (source == null || editedParameter == null) {
-						unsupported("parameter", diff.id.raw, "no matching CMO3 source to reconcile")
+						unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					for (field in diff.fields) {
@@ -121,7 +127,7 @@ internal class Cmo3PropertyLowering(
 								editor.ensureChildSlot(source, "CParameterSource", "defaultValue", "isRepeat")
 							}
 							ParameterField.KIND ->
-								unsupported("parameter", diff.id.raw, "kind change (normal/blend-shape) is not lowered")
+								unsupported(ExportEntityCategory.Parameter, diff.id.raw, ExportNoticeReason.ParameterKindChangeNotLowered)
 						}
 					}
 				}
@@ -140,7 +146,7 @@ internal class Cmo3PropertyLowering(
 					val group = index.groupByIdStr[diff.id.raw]
 					val editedGroup = findEditedGroup(diff.id)
 					if (group == null || editedGroup == null) {
-						unsupported("parameter group", diff.id.raw, "no matching CMO3 group to reconcile")
+						unsupported(ExportEntityCategory.ParameterGroup, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					for (field in diff.fields) {
@@ -177,7 +183,7 @@ internal class Cmo3PropertyLowering(
 					// lowering diffs the edited state against defaults (the shell's own values).
 					val baselinePart = baselinePartById[diff.id] ?: Part(id = diff.id, name = "", children = emptyList())
 					if (source == null || editedPart == null) {
-						unsupported("part", diff.id.raw, "no matching CMO3 source to reconcile")
+						unsupported(ExportEntityCategory.Part, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					for (field in diff.fields) {
@@ -220,12 +226,12 @@ internal class Cmo3PropertyLowering(
 					val source = index.deformerByIdStr[diff.id.raw]
 					val editedDeformer = editedDeformerById[diff.id]
 					if (source == null || editedDeformer == null) {
-						unsupported("deformer", diff.id.raw, "no matching CMO3 source to reconcile")
+						unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					for (field in diff.fields) {
 						when (field) {
-							DeformerField.KIND -> unsupported("deformer", diff.id.raw, "kind change is not lowerable")
+							DeformerField.KIND -> unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerKindChangeNotLowered)
 							DeformerField.NAME -> lowerLocalName(source, editedDeformer.name)
 							DeformerField.SELECTABLE -> lowerIsLocked(source, editedDeformer.isSelectable)
 							DeformerField.PARENT -> {
@@ -242,7 +248,7 @@ internal class Cmo3PropertyLowering(
 							DeformerField.QUAD_TRANSFORM -> {
 								val warpSource = source as? CWarpDeformerSource
 								if (warpSource == null) {
-									unsupported("deformer", diff.id.raw, "quad-transform on a non-warp source")
+									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								} else {
 									// CMO3: CWarpDeformerSource field isQuadTransform - the FFD interpolation mode.
 									warpSource.isQuadTransform = (editedDeformer as Deformer.Warp).isQuadTransform
@@ -252,7 +258,7 @@ internal class Cmo3PropertyLowering(
 							DeformerField.BASE_ANGLE -> {
 								val rotationSource = source as? CRotationDeformerSource
 								if (rotationSource == null) {
-									unsupported("deformer", diff.id.raw, "base angle on a non-rotation source")
+									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
 								} else {
 									// CMO3: CRotationDeformerSource field baseAngle - the static editor reference angle.
 									rotationSource.baseAngle = (editedDeformer as Deformer.Rotation).baseAngle
@@ -269,7 +275,7 @@ internal class Cmo3PropertyLowering(
 									editor.ensureChildSlot(warpSource, "CWarpDeformerSource", "col", "row")
 									editor.ensureChildSlot(warpSource, "CWarpDeformerSource", "row", "isQuadTransform")
 								} else {
-									unsupported("deformer", diff.id.raw, "lattice change on a non-warp source")
+									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								}
 							}
 							// Handled once per deformer by the keyform rebuild below.
@@ -291,7 +297,7 @@ internal class Cmo3PropertyLowering(
 							is Deformer.Warp -> {
 								val warpSource = source as? CWarpDeformerSource
 								if (warpSource == null) {
-									unsupported("deformer", diff.id.raw, "keyform change on a non-warp source")
+									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsWarpSource)
 								} else {
 									keyforms.lowerWarp(warpSource, editedDeformer, rebuildGrid, rebuildMorphs)
 								}
@@ -300,7 +306,7 @@ internal class Cmo3PropertyLowering(
 							is Deformer.Rotation -> {
 								val rotationSource = source as? CRotationDeformerSource
 								if (rotationSource == null) {
-									unsupported("deformer", diff.id.raw, "keyform change on a non-rotation source")
+									unsupported(ExportEntityCategory.Deformer, diff.id.raw, ExportNoticeReason.DeformerEditNeedsRotationSource)
 								} else {
 									keyforms.lowerRotation(rotationSource, editedDeformer, rebuildGrid, rebuildMorphs)
 								}
@@ -323,7 +329,7 @@ internal class Cmo3PropertyLowering(
 					val source = index.drawableByIdStr[diff.id.raw]
 					val editedDrawable = editedDrawableById[diff.id]
 					if (source == null || editedDrawable == null) {
-						unsupported("drawable", diff.id.raw, "no matching CMO3 source to reconcile")
+						unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					for (field in diff.fields) {
@@ -374,7 +380,7 @@ internal class Cmo3PropertyLowering(
 								editor.ensureChildSlot(source, "CArtMeshSource", "culling", "textureState")
 							}
 							DrawableField.TEXTURE_SOURCE ->
-								unsupported("drawable", diff.id.raw, "texture-source rebinding is editor-only state")
+								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.TextureSourceRebindingIsEditorOnly)
 							DrawableField.MESH_TOPOLOGY -> {
 								// The weld notice means "the base left the IMPORTED weld" - a drawable
 								// with no baseline was never welded, so synthesis stays notice-free.
@@ -452,7 +458,7 @@ internal class Cmo3PropertyLowering(
 		val origBase = source.positions as? FloatArray
 		val newBase = editedDrawable.mesh?.positions
 		if (origBase == null || newBase == null || origBase.size != newBase.size) {
-			unsupported("drawable", drawableId.raw, "base geometry does not match the CMO3 source vertex count")
+			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.BaseGeometryVertexCountMismatch)
 			return
 		}
 		// Rebase the forms BEFORE swapping the base: CMO3 stores absolutes, so every form follows
@@ -499,7 +505,7 @@ internal class Cmo3PropertyLowering(
 	private fun lowerMeshUvs(source: CArtMeshSource, drawableId: DrawableId, editedDrawable: Drawable) {
 		val newUvs = editedDrawable.mesh?.uvs
 		if (newUvs == null) {
-			unsupported("drawable", drawableId.raw, "no UVs to reconcile")
+			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.NoUvsToReconcile)
 			return
 		}
 		val storedUvs = source.uvs as? FloatArray
@@ -576,7 +582,7 @@ internal class Cmo3PropertyLowering(
 					val glueSource = sourcesByPair[pairKey as Pair<String?, String?>]?.getOrNull(diff.ordinal)
 					val editedGlue = editedByPair[pairKey]?.getOrNull(diff.ordinal)
 					if (glueSource == null || editedGlue == null) {
-						unsupported("glue", subject, "no matching CMO3 source to reconcile")
+						unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
 						continue
 					}
 					if (GlueField.PAIRS in diff.fields) {
@@ -608,18 +614,14 @@ internal class Cmo3PropertyLowering(
 						edited.worldOriginX == edited.canvasWidth / 2f &&
 							edited.worldOriginY == -(edited.canvasHeight / 2f)
 					if (!atDerivedCenter) {
-						unsupported(
-							"document",
-							"world origin",
-							"CMO3 carries no authored origin; a reopen derives the canvas center",
-						)
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAuthoredWorldOrigin)
 					}
 				}
 				DocumentField.PARAMETER_ORDER, DocumentField.PARAMETER_LINKS -> Unit
 				DocumentField.PARAMETER_TREE -> {
 					val rootGroup = index.rootParameterGroup
 					if (rootGroup == null) {
-						unsupported("document", "parameter tree", "model has no root parameter group to reconcile")
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootParameterGroup)
 					} else {
 						rebuildGroupChildren(rootGroup, edited.parameterTree)
 					}
@@ -627,7 +629,7 @@ internal class Cmo3PropertyLowering(
 				DocumentField.ROOT_CHILDREN -> {
 					val rootPart = index.rootPartSource
 					if (rootPart == null) {
-						unsupported("document", "root children", "model has no root part to reconcile")
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoRootPart)
 					} else {
 						rebuildOrgChildren(rootPart, edited.rootChildren)
 					}
@@ -669,7 +671,7 @@ internal class Cmo3PropertyLowering(
 			// track's head cell survives on its own; only a disagreeing static is actually lost.
 			val headDrawOrder = (drawOrderTrack.cells.firstOrNull()?.form as? ChannelValue.Scalar)?.value?.toInt()
 			if (headDrawOrder != editedPart.drawOrder) {
-				unsupported("part", editedPart.id.raw, "static draw order is shadowed by its keyform track")
+				unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.StaticDrawOrderShadowedByKeyforms)
 			}
 			return
 		}
@@ -711,11 +713,7 @@ internal class Cmo3PropertyLowering(
 			baselineComposite.maskedByParts != editedComposite.maskedByParts
 		) {
 			if (editedComposite.maskedByParts.isNotEmpty()) {
-				unsupported(
-					"part",
-					partId.raw,
-					"part-typed composite masks flatten to their descendant drawables in CMO3",
-				)
+				unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.PartMasksFlattenToDrawables)
 			}
 			// CMO3: CPartSource field clipGuidList - always drawable GUIDs, so part-typed masks are
 			// expanded to the part's descendant drawables (the same expansion the render tree applies).
@@ -753,7 +751,7 @@ internal class Cmo3PropertyLowering(
 				val screenSurvives =
 					(screenTrack?.cells?.firstOrNull()?.form as? ChannelValue.Color)?.color == editedComposite.screenColor
 				if (!opacitySurvives || !multiplySurvives || !screenSurvives) {
-					unsupported("part", partId.raw, "composite statics are shadowed by the part's keyform tracks")
+					unsupported(ExportEntityCategory.Part, partId.raw, ExportNoticeReason.CompositeStaticsShadowedByKeyforms)
 				}
 			} else {
 				keyforms.writePartCompositeStatics(source, editedPart)
@@ -777,7 +775,7 @@ internal class Cmo3PropertyLowering(
 		val oldPartSource = oldPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
 		val newPartSource = newPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
 		if (newPartSource == null) {
-			unsupported("deformer", deformerId.raw, "no CMO3 part to move to")
+			unsupported(ExportEntityCategory.Deformer, deformerId.raw, ExportNoticeReason.DeformerHasNoPartToMoveTo)
 			return
 		}
 		// CMO3: ACParameterControllableSource field parentGuid - the org-tree owner; the synthetic
@@ -838,7 +836,7 @@ internal class Cmo3PropertyLowering(
 				}
 			if (childGuid == null) {
 				val childId = if (child is OrgChild.Drawable) child.id.raw else (child as OrgChild.Part).id.raw
-				unsupported("part", childId, "created child has no CMO3 source yet; left out of the panel order")
+				unsupported(ExportEntityCategory.Part, childId, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 				continue
 			}
 			newEntries.add(childGuid)
@@ -876,7 +874,7 @@ internal class Cmo3PropertyLowering(
 				is ParameterNode.Param -> {
 					val parameterSource = index.parameterByIdStr[node.id.raw]
 					if (parameterSource == null) {
-						unsupported("parameter", node.id.raw, "created parameter has no CMO3 source yet; left out of the panel")
+						unsupported(ExportEntityCategory.Parameter, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 						continue
 					}
 					newEntries.add(parameterSource.guid)
@@ -887,7 +885,7 @@ internal class Cmo3PropertyLowering(
 				is ParameterNode.Group -> {
 					val childGroup = index.groupByIdStr[node.id.raw]
 					if (childGroup == null) {
-						unsupported("parameter group", node.id.raw, "created group has no CMO3 source yet; left out of the panel")
+						unsupported(ExportEntityCategory.ParameterGroup, node.id.raw, ExportNoticeReason.CreatedEntityHasNoSourceYet)
 						continue
 					}
 					newEntries.add(childGroup.guid)
@@ -918,7 +916,7 @@ internal class Cmo3PropertyLowering(
 	private fun lowerParameterOrderAndLinks() {
 		val sourceSet = index.modelSource.parameterSourceSet as? CParameterSourceSet
 		if (sourceSet == null) {
-			unsupported("document", "parameter order", "model has no parameter source set")
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoParameterSourceSet)
 			return
 		}
 		val orderedSources = ArrayList<Any?>()
@@ -955,9 +953,9 @@ internal class Cmo3PropertyLowering(
 			val anchorIndex = orderedSources.indexOfFirst { it === horizontalSource }
 			orderedSources.add(anchorIndex + 1, verticalSource)
 			unsupported(
-				"document",
-				"parameter order",
-				"order adjusted so combined pair ${link.horizontal.raw}+${link.vertical.raw} stays adjacent",
+				ExportEntityCategory.Document,
+				null,
+				ExportNoticeReason.CombinedPairReordered(link.horizontal.raw, link.vertical.raw),
 			)
 		}
 		writeListField(
@@ -975,13 +973,13 @@ internal class Cmo3PropertyLowering(
 	private fun lowerCanvasSize() {
 		val canvas = index.modelSource.canvas as? CImageCanvas
 		if (canvas == null) {
-			unsupported("document", "canvas size", "model has no canvas to reconcile")
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoCanvasToReconcile)
 			return
 		}
 		val width = edited.canvasWidth
 		val height = edited.canvasHeight
 		if (width != width.toInt().toFloat() || height != height.toInt().toFloat()) {
-			unsupported("document", "canvas size", "CMO3 stores integer canvas pixels; fractional size not written")
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.FractionalCanvasSizeNotStorable)
 			return
 		}
 		canvas.pixelWidth = width.toInt()

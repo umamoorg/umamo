@@ -76,9 +76,34 @@ sealed interface KeyformBundleResult {
 	/**
 	 * The split state cannot be expressed as one grid, and the caller must report it.
 	 *
-	 * @property String reason Format-neutral diagnostic text.
+	 * @property KeyformBundleRejection rejection Which bundling rule the keyforms broke.
 	 */
-	class Unrepresentable(val reason: String) : KeyformBundleResult
+	data class Unrepresentable(val rejection: KeyformBundleRejection) : KeyformBundleResult
+}
+
+/**
+ * Why a bundling attempt failed, for the caller to lower into an export notice.
+ *
+ * The bundler owns this vocabulary rather than [ExportNoticeReason] because the rule that was broken
+ * is a fact about bundling, not about any one format - the CMO3 lowering wraps it in
+ * [ExportNoticeReason.KeyformCannotBundle], and a future format would wrap the same cases its own way.
+ * Format-neutral for the same reason: the "one grid per object" clause a reader sees is supplied by
+ * the wrapping notice, not baked in here.
+ */
+sealed interface KeyformBundleRejection {
+	/** Geometry keys fall outside the union span, and geometry is never demotable. */
+	data object KeysOutsideGeometrySpan : KeyformBundleRejection
+
+	/** Channels key but there is no geometry to hang them on, where the caller requires geometry. */
+	data object ChannelKeysWithoutGeometry : KeyformBundleRejection
+
+	/**
+	 * A channel keys outside its track span, under a policy that rejects the owner rather than
+	 * demoting the channel.
+	 *
+	 * @property FormChannel channel The offending channel.
+	 */
+	data class KeysOutsideChannelSpan(val channel: FormChannel) : KeyformBundleRejection
 }
 
 /**
@@ -160,7 +185,7 @@ fun <TGeometry> buildKeyformBundle(
 		for (axis in refined.axes) {
 			if (!axis.keys.contentEquals(unionKeys.getValue(axis.parameterId))) {
 				// Geometry is never demotable - it is the thing being exported.
-				return KeyformBundleResult.Unrepresentable("keys outside the geometry span cannot bundle into one grid")
+				return KeyformBundleResult.Unrepresentable(KeyformBundleRejection.KeysOutsideGeometrySpan)
 			}
 		}
 		axes = refined.axes
@@ -181,7 +206,7 @@ fun <TGeometry> buildKeyformBundle(
 		}
 	} else {
 		if (requireGeometry) {
-			return KeyformBundleResult.Unrepresentable("channel keys without geometry cannot bundle into one grid")
+			return KeyformBundleResult.Unrepresentable(KeyformBundleRejection.ChannelKeysWithoutGeometry)
 		}
 		axes = unionKeys.map { (parameterId, keys) -> KeyformAxis(parameterId, keys) }
 		geometryByCoordinate = emptyMap()
@@ -199,7 +224,7 @@ fun <TGeometry> buildKeyformBundle(
 		if (outOfSpan) {
 			if (outOfSpanPolicy == OutOfSpanPolicy.RejectOwner) {
 				return KeyformBundleResult.Unrepresentable(
-					"keys outside the $channel track span cannot bundle into one grid",
+					KeyformBundleRejection.KeysOutsideChannelSpan(channel),
 				)
 			}
 			// Demoted: no lookup is registered, so every cell falls back to the channel's static below.

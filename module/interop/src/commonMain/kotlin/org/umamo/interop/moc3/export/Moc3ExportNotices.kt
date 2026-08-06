@@ -1,7 +1,9 @@
 package org.umamo.interop.moc3.export
 
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.runtime.model.DrawableId
 
@@ -42,29 +44,28 @@ internal class Moc3ExportNotices {
 	/**
 	 * Records a notice for something the lowering could not express.
 	 *
-	 * @param String category The entity category.
-	 * @param String subject  The entity's id.
-	 * @param String detail   What was not lowered.
+	 * @param ExportEntityCategory category The entity category.
+	 * @param String               subject  The entity's id.
+	 * @param ExportNoticeReason   reason   Why it was not lowered.
 	 */
-	fun unsupported(category: String, subject: String, detail: String) {
-		collected.add(ExportNotice.UnsupportedChange(category, subject, detail))
+	fun unsupported(category: ExportEntityCategory, subject: String, reason: ExportNoticeReason) {
+		collected.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
 	/**
 	 * Reports every channel a bundle had to drop to its static.
 	 *
-	 * @param String              category The entity category.
-	 * @param String              subject  The entity's id.
-	 * @param Moc3ObjectKeyforms? keyforms The lowered keyforms, or null when unrepresentable.
+	 * @param ExportEntityCategory category The entity category.
+	 * @param String               subject  The entity's id.
+	 * @param Moc3ObjectKeyforms?  keyforms The lowered keyforms, or null when unrepresentable.
 	 */
-	fun reportDemotions(category: String, subject: String, keyforms: Moc3ObjectKeyforms?) {
+	fun reportDemotions(
+		category: ExportEntityCategory,
+		subject: String,
+		keyforms: Moc3ObjectKeyforms?,
+	) {
 		for (channel in keyforms?.demotedChannels.orEmpty()) {
-			unsupported(
-				category,
-				subject,
-				"$channel is keyed over a narrower span than the object's grid, so it was written " +
-					"as a constant (MOC3 stores one grid per object)",
-			)
+			unsupported(category, subject, ExportNoticeReason.ChannelDemotedToStatic(channel))
 		}
 	}
 
@@ -74,11 +75,11 @@ internal class Moc3ExportNotices {
 	 * Called LAST by the orchestrator, so drop notices trail the per-object findings rather than
 	 * leading them - the eligibility pass runs first, but its findings read better after the rest.
 	 *
-	 * @param Map<DrawableId, String> droppedDrawables Each omitted drawable and why.
+	 * @param Map<DrawableId, ExportNoticeReason> droppedDrawables Each omitted drawable and why.
 	 */
-	fun reportDroppedDrawables(droppedDrawables: Map<DrawableId, String>) {
+	fun reportDroppedDrawables(droppedDrawables: Map<DrawableId, ExportNoticeReason>) {
 		for ((drawableId, reason) in droppedDrawables) {
-			unsupported("drawable", drawableId.raw, reason)
+			unsupported(ExportEntityCategory.Drawable, drawableId.raw, reason)
 		}
 	}
 }

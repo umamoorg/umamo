@@ -1,5 +1,6 @@
 package org.umamo.interop.moc3.export
 
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
@@ -70,7 +71,7 @@ internal fun lowerParts(
 					compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
 					requireGeometry = false,
 				)
-			noticeSink.reportDemotions("part", part.id.raw, keyforms)
+			noticeSink.reportDemotions(ExportEntityCategory.Part, part.id.raw, keyforms)
 			partKeyformsById[part.id] = keyforms
 			val bundle = keyforms?.bundle
 			val cellCount = bundle?.cells?.size ?: 0

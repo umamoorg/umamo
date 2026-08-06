@@ -3,6 +3,8 @@ package org.umamo.interop.moc3.export
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.model.ArtMesh
 import org.umamo.format.moc3.model.ArtMeshKeyform
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.legacyBlendFlagOf
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.interop.packedBlendOf
@@ -41,10 +43,12 @@ internal fun lowerArtMeshes(
 				canvasToParentSpace?.invoke(drawable.id, mesh.positions)?.also { converted ->
 					if (converted.size != mesh.positions.size) {
 						noticeSink.unsupported(
-							"drawable",
+							ExportEntityCategory.Drawable,
 							drawable.id.raw,
-							"the canvas-to-parent conversion returned ${converted.size} coordinates for " +
-								"${mesh.positions.size}; the rest mesh was written unconverted",
+							ExportNoticeReason.RestMeshConversionSizeMismatch(
+								converted.size,
+								mesh.positions.size,
+							),
 						)
 					}
 				}?.takeIf { converted -> converted.size == mesh.positions.size } ?: mesh.positions
@@ -63,7 +67,7 @@ internal fun lowerArtMeshes(
 					mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(drawable.drawOrder)),
 				requireGeometry = false,
 			)
-		noticeSink.reportDemotions("drawable", drawable.id.raw, keyforms)
+		noticeSink.reportDemotions(ExportEntityCategory.Drawable, drawable.id.raw, keyforms)
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		val triangleIndices =
@@ -73,9 +77,9 @@ internal fun lowerArtMeshes(
 		// which is worth a notice even though the file it produces is structurally valid.
 		if (drawable.texturePage < 0) {
 			noticeSink.unsupported(
-				"drawable",
+				ExportEntityCategory.Drawable,
 				drawable.id.raw,
-				"no atlas page is bound to this drawable, so it was written pointing at page 0",
+				ExportNoticeReason.NoAtlasPageBound,
 			)
 		}
 		// A mask naming a drawable this export dropped has no file index to reference.  Filtering it
@@ -93,10 +97,9 @@ internal fun lowerArtMeshes(
 		}
 		if (unresolvedMasks.isNotEmpty()) {
 			noticeSink.unsupported(
-				"drawable",
+				ExportEntityCategory.Drawable,
 				drawable.id.raw,
-				"the clipping mask ${unresolvedMasks.joinToString()} is not in this export, so the mesh " +
-					"was written unclipped by it",
+				ExportNoticeReason.ClippingMaskNotInExport(unresolvedMasks.toList()),
 			)
 		}
 		ArtMesh(
