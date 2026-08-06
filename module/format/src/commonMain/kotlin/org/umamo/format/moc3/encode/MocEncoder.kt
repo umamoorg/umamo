@@ -176,20 +176,12 @@ public object MocEncoder {
 	public fun bakeFreshCoverage(doc: MocDocument): Set<Int> = synthesize(doc).keys
 
 	/**
-	 * Merges every lowering producer into one section map.
-	 *
-	 * CountInfo goes LAST and therefore wins: it is derived from the same object lists the other
-	 * producers just wrote, so it must never be a stale value carried from elsewhere.
+	 * Every section the lowering can synthesize for [doc], keyed by section-table index.
 	 *
 	 * @param MocDocument doc The semantic model.
 	 * @return Map Section index → element-region bytes.
 	 */
-	private fun synthesize(doc: MocDocument): Map<Int, ByteArray> =
-		MocLowering.structuralSections(doc) + MocLowering.valueTableSections(doc) +
-			MocLowering.auxiliarySections(doc) + MocLowering.keyformGridSections(doc) +
-			MocLowering.blendShapeSections(doc) + MocRuntimeSlots.runtimeSlotSections(doc) +
-			MocDerivedIndexes.derivedIndexSections(doc) +
-			mapOf(Section.COUNT_INFO.indexIn(doc.version) to MocLowering.countInfoSection(doc))
+	private fun synthesize(doc: MocDocument): Map<Int, ByteArray> = MocLowering.lower(doc)
 
 	/**
 	 * The number of section-table entries the editor emits for a moc [version]. The runtime indexes the
@@ -199,16 +191,20 @@ public object MocEncoder {
 	 * Confirmed against samples for v1 (101), v3 (102), v4 (137), v5 (152), and v6 (167); v2 (102) is
 	 * the one unsampled version and follows the editor's version gates (+1 at 3.3, +35 at 4.2, +15 at 5.0).
 	 *
+	 * Matched exhaustively over [MocVersion] on purpose: with an `else` branch a newly added version
+	 * would silently inherit the previous one's table length, which is a wrong file rather than a
+	 * build error.
+	 *
 	 * @param MocVersion version The moc version.
 	 * @return Int The section count.
 	 */
 	public fun sectionCount(version: MocVersion): Int =
-		when (version.byteValue) {
-			1 -> 101
-			2, 3 -> 102
-			4 -> 137
-			5 -> 152
-			else -> 167 // v6
+		when (version) {
+			MocVersion.V30 -> 101
+			MocVersion.V33, MocVersion.V40 -> 102
+			MocVersion.V42 -> 137
+			MocVersion.V50 -> 152
+			MocVersion.V53 -> 167
 		}
 }
 
