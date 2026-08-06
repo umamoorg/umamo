@@ -1,14 +1,13 @@
 package org.umamo.format.moc3
 
+import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.model.ArtMeshKeyform
 import org.umamo.format.moc3.model.BlendShapeKeyform
-import org.umamo.format.moc3.model.Deformer
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.RotationKeyform
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
-import org.umamo.format.moc3.moc.MocCodec
 import java.io.File
 import kotlin.test.Test
 
