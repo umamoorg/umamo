@@ -105,51 +105,9 @@ public object MocDecoder {
 		val warpPositionIndex =
 			sections.intArray(Section.WARP_KEYFORM_INDEX) // warp keyform -> packed-position offset (distinct table)
 		val positionValues = sections.floatArray(Section.KEYFORM_POSITION_VALUES)
-		val colorPresent = sections.isPresent(Section.COLOR_MULTIPLY_R)
-		val multiplyR = sections.floatArray(Section.COLOR_MULTIPLY_R)
-		val multiplyG = sections.floatArray(Section.COLOR_MULTIPLY_G)
-		val multiplyB = sections.floatArray(Section.COLOR_MULTIPLY_B)
-		val screenR = sections.floatArray(Section.COLOR_SCREEN_R)
-		val screenG = sections.floatArray(Section.COLOR_SCREEN_G)
-		val screenB = sections.floatArray(Section.COLOR_SCREEN_B)
+		val colorTables = ColorTables(sections)
 
-		/**
-		 * Multiply-color at keyform [gridIndex] of an object whose color table starts at [colorBase].
-		 *
-		 * @param Int? colorBase The object's base index into the color tables (null/-1 when uncolored).
-		 * @param Int  gridIndex The keyform's grid index.
-		 * @return Rgb? The multiply color, or null when color is absent.
-		 */
-		fun multiply(colorBase: Int?, gridIndex: Int): Rgb? =
-			if (colorPresent && colorBase != null && colorBase >= 0) {
-				Rgb(
-					multiplyR[colorBase + gridIndex],
-					multiplyG[colorBase + gridIndex],
-					multiplyB[colorBase + gridIndex],
-				)
-			} else {
-				null
-			}
-
-		/**
-		 * Screen-color at keyform [gridIndex] of an object whose color table starts at [colorBase].
-		 *
-		 * @param Int? colorBase The object's base index into the color tables (null/-1 when uncolored).
-		 * @param Int  gridIndex The keyform's grid index.
-		 * @return Rgb? The screen color, or null when color is absent.
-		 */
-		fun screen(colorBase: Int?, gridIndex: Int): Rgb? =
-			if (colorPresent && colorBase != null && colorBase >= 0) {
-				Rgb(
-					screenR[colorBase + gridIndex],
-					screenG[colorBase + gridIndex],
-					screenB[colorBase + gridIndex],
-				)
-			} else {
-				null
-			}
-
-		// ---- parts ----
+		// PARTS
 		val partKeyformBinding = sections.intArray(Section.PART_KEYFORM_BINDING)
 		val partKeyformBase = sections.intArray(Section.PART_KEYFORM_BASE)
 		val partDrawOrder = sections.floatArray(Section.PART_DRAW_ORDER)
@@ -169,18 +127,17 @@ public object MocDecoder {
 				)
 			}
 
-		// ---- deformers ----
+		// Deformers
 		val deformerType = sections.intArray(Section.DEFORMER_TYPE)
 		val deformerParent = sections.intArray(Section.DEFORMER_PARENT)
-		// The block's common head (MOC3 §5.6 s11-s15).  Read defensively: a stripped or synthesized
-		// MOC3 can omit these, and an absent id/flag must not fail the whole decode.
+
+		// The block's common head (MOC3 §5.6 S11-S15).
 		val deformerId = sections.idArray(Section.DEFORMER_ID)
-		// s12 is the same binding the per-type sections 19/25 carry, and the deformers below take the
-		// per-type value.  Read but deliberately unused: the runtime raises a MOC3 validation error when
-		// the two disagree, so the model holds ONE binding per deformer and the lowering projects both
-		// columns from it (MocDeformerBindingTest / MocDeformerBindingCorpusTest pin all of that).
-		// Whether an input divergence should surface as a notice rather than resolve silently to the
-		// per-type value is still open - this read is where that would hook in.
+
+		// Section 12 is the same binding that the warp/rotation sections 19/25 have.
+		// Warp and Rotation have their own keyform binding which duplicates the deformer binding.
+		// We don't necessarily need it, but we read and write it since there is a chance it might cause a MOC3
+		// validation error in the runtime.
 		val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
 		val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
 		val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
@@ -225,8 +182,8 @@ public object MocDecoder {
 						WarpKeyform(
 							positionValues.copyOfRange(positionOffset, positionOffset + controlPointCount * 2),
 							warpOpacity[keyformBase + gridIndex],
-							multiply(warpColorBase?.get(warpLocalIndex), gridIndex),
-							screen(warpColorBase?.get(warpLocalIndex), gridIndex),
+							colorTables.multiplyForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
+							colorTables.screenForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
 						)
 					}
 				deformerList.add(
@@ -259,8 +216,8 @@ public object MocDecoder {
 							rotationReflectX[keyformBase + gridIndex] != 0,
 							rotationReflectY[keyformBase + gridIndex] != 0,
 							rotationOpacity[keyformBase + gridIndex],
-							multiply(rotationColorBase?.get(rotationLocalIndex), gridIndex),
-							screen(rotationColorBase?.get(rotationLocalIndex), gridIndex),
+							colorTables.multiplyForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
+							colorTables.screenForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
 						)
 					}
 				deformerList.add(
@@ -327,8 +284,8 @@ public object MocDecoder {
 							positionValues.copyOfRange(positionOffset, positionOffset + vertexCount * 2),
 							artMeshOpacity[keyformBase + gridIndex],
 							artMeshDrawOrder[keyformBase + gridIndex],
-							multiply(artMeshColorBase?.get(drawableIndex), gridIndex),
-							screen(artMeshColorBase?.get(drawableIndex), gridIndex),
+							colorTables.multiplyForKeyform(artMeshColorBase?.get(drawableIndex), gridIndex),
+							colorTables.screenForKeyform(artMeshColorBase?.get(drawableIndex), gridIndex),
 						)
 					}
 				ArtMesh(
@@ -383,13 +340,7 @@ public object MocDecoder {
 				rotationReflectX = rotationReflectX,
 				rotationReflectY = rotationReflectY,
 				rotationOpacity = rotationOpacity,
-				colorPresent = colorPresent,
-				multiplyR = multiplyR,
-				multiplyG = multiplyG,
-				multiplyB = multiplyB,
-				screenR = screenR,
-				screenG = screenG,
-				screenB = screenB,
+				colorTables = colorTables,
 				warpControlPointCounts =
 					IntArray(warpRows.size) { warpLocalIndex ->
 						(warpRows[warpLocalIndex] + 1) * (warpColumns[warpLocalIndex] + 1)
@@ -414,13 +365,7 @@ public object MocDecoder {
 				sections,
 				model.countInfo.getOrElse(Sections.CI_OFFSCREENS) { 0 },
 				partList,
-				colorPresent,
-				multiplyR,
-				multiplyG,
-				multiplyB,
-				screenR,
-				screenG,
-				screenB,
+				colorTables,
 				maskData,
 			)
 
@@ -460,6 +405,92 @@ public object MocDecoder {
 	}
 
 	/**
+	 * The shared per-keyform color tables (MOC3 §5.6 sections 108-113) and their row addressing.
+	 *
+	 * Every consumer reaches the same six tables by a different route - a base keyform as
+	 * `colorBase + gridIndex`, an offscreen as one of the block's prefix rows, a blend-shape delta as
+	 * a delta row - so the addressing is expressed once as [multiplyAtRow] / [screenAtRow] and the
+	 * keyform form layers on top.  An absent color section yields a null color from every accessor,
+	 * which is what keeps the presence check off the call sites.
+	 */
+	private class ColorTables(sections: MocSections) {
+		/** Whether the model carries color tables at all; absent on a model with no color animation. */
+		val isPresent: Boolean = sections.isPresent(Section.COLOR_MULTIPLY_R)
+
+		private val multiplyR: FloatArray = sections.floatArray(Section.COLOR_MULTIPLY_R)
+		private val multiplyG: FloatArray = sections.floatArray(Section.COLOR_MULTIPLY_G)
+		private val multiplyB: FloatArray = sections.floatArray(Section.COLOR_MULTIPLY_B)
+		private val screenR: FloatArray = sections.floatArray(Section.COLOR_SCREEN_R)
+		private val screenG: FloatArray = sections.floatArray(Section.COLOR_SCREEN_G)
+		private val screenB: FloatArray = sections.floatArray(Section.COLOR_SCREEN_B)
+
+		/**
+		 * Rows the tables hold, which the blend path probes against to decide whether the delta region
+		 * was baked at all (a 4.2-era bake carries the base rows only).
+		 */
+		val rowCount: Int get() = multiplyR.size
+
+		/**
+		 * Multiply-color at absolute table row [row].
+		 *
+		 * @param Int row The absolute row index; negative means "this object has no color row".
+		 * @return Rgb? The multiply color, or null when the tables are absent or [row] is negative.
+		 */
+		fun multiplyAtRow(row: Int): Rgb? =
+			if (isPresent && row >= 0) {
+				Rgb(multiplyR[row], multiplyG[row], multiplyB[row])
+			} else {
+				null
+			}
+
+		/**
+		 * Screen-color at absolute table row [row].
+		 *
+		 * @param Int row The absolute row index; negative means "this object has no color row".
+		 * @return Rgb? The screen color, or null when the tables are absent or [row] is negative.
+		 */
+		fun screenAtRow(row: Int): Rgb? =
+			if (isPresent && row >= 0) {
+				Rgb(screenR[row], screenG[row], screenB[row])
+			} else {
+				null
+			}
+
+		/**
+		 * Multiply-color at keyform [gridIndex] of an object whose color table starts at [colorBase].
+		 *
+		 * @param Int? colorBase The object's base row (null or -1 when the object is uncolored).
+		 * @param Int  gridIndex The keyform's grid index.
+		 * @return Rgb? The multiply color, or null when color is absent.
+		 */
+		fun multiplyForKeyform(colorBase: Int?, gridIndex: Int): Rgb? = multiplyAtRow(keyformRow(colorBase, gridIndex))
+
+		/**
+		 * Screen-color at keyform [gridIndex] of an object whose color table starts at [colorBase].
+		 *
+		 * @param Int? colorBase The object's base row (null or -1 when the object is uncolored).
+		 * @param Int  gridIndex The keyform's grid index.
+		 * @return Rgb? The screen color, or null when color is absent.
+		 */
+		fun screenForKeyform(colorBase: Int?, gridIndex: Int): Rgb? = screenAtRow(keyformRow(colorBase, gridIndex))
+
+		/**
+		 * Resolves an object's keyform row, collapsing "uncolored" to the negative sentinel the
+		 * row accessors already treat as absent.
+		 *
+		 * @param Int? colorBase The object's base row (null or -1 when the object is uncolored).
+		 * @param Int  gridIndex The keyform's grid index.
+		 * @return Int The absolute row, or -1 when the object carries no color.
+		 */
+		private fun keyformRow(colorBase: Int?, gridIndex: Int): Int =
+			if (colorBase == null || colorBase < 0) {
+				-1
+			} else {
+				colorBase + gridIndex
+			}
+	}
+
+	/**
 	 * The shared keyform value tables (plus per-object payload sizes) a blend-shape record's delta
 	 * rows are read from. Bundled so [decodeBlendShapes] can lift the per-key delta payloads
 	 * without a dozen loose parameters; every array is the same instance [decode] read for the
@@ -480,13 +511,7 @@ public object MocDecoder {
 		val rotationReflectX: IntArray,
 		val rotationReflectY: IntArray,
 		val rotationOpacity: FloatArray,
-		val colorPresent: Boolean,
-		val multiplyR: FloatArray,
-		val multiplyG: FloatArray,
-		val multiplyB: FloatArray,
-		val screenR: FloatArray,
-		val screenG: FloatArray,
-		val screenB: FloatArray,
+		val colorTables: ColorTables,
 		val warpControlPointCounts: IntArray,
 		val drawableVertexCounts: IntArray,
 		/**
@@ -620,7 +645,7 @@ public object MocDecoder {
 				rowProbeCursor = rowEnd
 			}
 		}
-		val colorDeltasPresent = deltaTables.colorPresent && requiredRowEnd <= deltaTables.multiplyR.size
+		val colorDeltasPresent = deltaTables.colorTables.isPresent && requiredRowEnd <= deltaTables.colorTables.rowCount
 		val recordColorRow = IntArray(recordCount) { -1 }
 		if (colorDeltasPresent) {
 			var colorRowCursor = deltaTables.colorDeltaRowStart
@@ -642,14 +667,12 @@ public object MocDecoder {
 		 */
 		fun deltaMultiply(recordIndex: Int, keyIndex: Int): Rgb? {
 			val colorRow = recordColorRow[recordIndex]
+			// Guarded here rather than folded into the row accessor: a negative row is the "no delta
+			// rows" sentinel, and offsetting it by keyIndex would land on a real row.
 			return if (colorRow < 0) {
 				null
 			} else {
-				Rgb(
-					deltaTables.multiplyR[colorRow + keyIndex],
-					deltaTables.multiplyG[colorRow + keyIndex],
-					deltaTables.multiplyB[colorRow + keyIndex],
-				)
+				deltaTables.colorTables.multiplyAtRow(colorRow + keyIndex)
 			}
 		}
 
@@ -663,14 +686,11 @@ public object MocDecoder {
 		 */
 		fun deltaScreen(recordIndex: Int, keyIndex: Int): Rgb? {
 			val colorRow = recordColorRow[recordIndex]
+			// Same sentinel guard as deltaMultiply above.
 			return if (colorRow < 0) {
 				null
 			} else {
-				Rgb(
-					deltaTables.screenR[colorRow + keyIndex],
-					deltaTables.screenG[colorRow + keyIndex],
-					deltaTables.screenB[colorRow + keyIndex],
-				)
+				deltaTables.colorTables.screenAtRow(colorRow + keyIndex)
 			}
 		}
 
@@ -882,30 +902,19 @@ public object MocDecoder {
 	 * keyform-binding section exists; MOC3 §5.6, OffscreenKeyformProbeTest): opacity rows in
 	 * section 161 and the color tables' PREFIX rows are laid out per offscreen in offscreen order.
 	 *
-	 * @param MocSections sections          The model's typed sections.
-	 * @param Int         count             Number of offscreens from CountInfo.
-	 * @param List<Part>  parts             The decoded parts (their grids size the keyform runs).
-	 * @param Boolean     colorPresent      Whether the shared color tables exist.
-	 * @param FloatArray  multiplyR         Shared multiply-color red rows (§5.6 section 108).
-	 * @param FloatArray  multiplyG         Shared multiply-color green rows (109).
-	 * @param FloatArray  multiplyB         Shared multiply-color blue rows (110).
-	 * @param FloatArray  screenR           Shared screen-color red rows (111).
-	 * @param FloatArray  screenG           Shared screen-color green rows (112).
-	 * @param FloatArray  screenB           Shared screen-color blue rows (113).
-	 * @param IntArray    maskData          The full MASK_INDEX_DATA table (§5.6 section 80).
+	 * @param MocSections sections    The model's typed sections.
+	 * @param Int         count       Number of offscreens from CountInfo.
+	 * @param List<Part>  parts       The decoded parts (their grids size the keyform runs).
+	 * @param ColorTables colorTables The shared color tables (§5.6 sections 108-113); an offscreen's
+	 *                                rows are the block's prefix, so they address it by row directly.
+	 * @param IntArray    maskData    The full MASK_INDEX_DATA table (§5.6 section 80).
 	 * @return List<Offscreen> The decoded offscreens (empty when absent).
 	 */
 	private fun decodeOffscreens(
 		sections: MocSections,
 		count: Int,
 		parts: List<Part>,
-		colorPresent: Boolean,
-		multiplyR: FloatArray,
-		multiplyG: FloatArray,
-		multiplyB: FloatArray,
-		screenR: FloatArray,
-		screenG: FloatArray,
-		screenB: FloatArray,
+		colorTables: ColorTables,
 		maskData: IntArray,
 	): List<Offscreen> {
 		if (count == 0 || !sections.isPresent(Section.OFFSCREEN_OWNER_PART)) {
@@ -925,8 +934,8 @@ public object MocDecoder {
 					val keyformRow = keyformRowCursor + keyIndex
 					OffscreenKeyform(
 						opacity[keyformRow],
-						if (colorPresent) Rgb(multiplyR[keyformRow], multiplyG[keyformRow], multiplyB[keyformRow]) else null,
-						if (colorPresent) Rgb(screenR[keyformRow], screenG[keyformRow], screenB[keyformRow]) else null,
+						colorTables.multiplyAtRow(keyformRow),
+						colorTables.screenAtRow(keyformRow),
 					)
 				}
 			keyformRowCursor += keyformCount
