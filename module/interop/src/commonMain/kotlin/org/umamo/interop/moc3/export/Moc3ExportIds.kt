@@ -94,6 +94,79 @@ internal class Moc3ExportIds(
 	 * @return String The id to write.
 	 */
 	fun glueId(id: String): String = glueSpace.writtenId(id)
+
+	/**
+	 * What every object asked about so far was written as, frozen for the sidecars to read.
+	 *
+	 * Called after the lowering, when each producer has asked once per record it wrote - so the result
+	 * covers exactly the objects the file contains.
+	 *
+	 * @return Moc3WrittenIds The model-id → written-id mapping, by space.
+	 */
+	fun writtenIds(): Moc3WrittenIds =
+		Moc3WrittenIds(
+			parameters = parameterSpace.writtenIds(),
+			parts = partSpace.writtenIds(),
+			deformers = deformerSpace.writtenIds(),
+			drawables = drawableSpace.writtenIds(),
+		)
+}
+
+/**
+ * What an export actually wrote each object's id as.
+ *
+ * The moc is not the only file in a bake: the `cdi3.json` beside it names parameters, parts, and art
+ * meshes BY ID to carry their display names, and the runtime joins the two on that string.  So a
+ * sidecar built from the model's own ids silently unpairs itself from the moc for every id the record
+ * width forced short - the name, the parameter's group placement, and its combined-parameter pairing
+ * all address an object the moc does not contain under that name.  Handing this back with the document
+ * is what lets the family agree with itself.
+ *
+ * An id the export never wrote (a dropped drawable) maps to itself, which is the only honest answer:
+ * there is no written form to report.
+ *
+ * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.4</a>
+ */
+class Moc3WrittenIds internal constructor(
+	private val parameters: Map<String, String>,
+	private val parts: Map<String, String>,
+	private val deformers: Map<String, String>,
+	private val drawables: Map<String, String>,
+) {
+	/**
+	 * The id [id] was written under.
+	 *
+	 * @param ParameterId id The parameter's model id.
+	 * @return String The written id.
+	 */
+	fun parameterId(id: ParameterId): String = parameters[id.raw] ?: id.raw
+
+	/**
+	 * The id [id] was written under.
+	 *
+	 * @param PartId id The part's model id.
+	 * @return String The written id.
+	 */
+	fun partId(id: PartId): String = parts[id.raw] ?: id.raw
+
+	/**
+	 * The id [id] was written under.
+	 *
+	 * Carried for completeness rather than for a reader that exists today: a moc names its deformers
+	 * and nothing else does, since cdi3 has no deformer entries.
+	 *
+	 * @param DeformerId id The deformer's model id.
+	 * @return String The written id.
+	 */
+	fun deformerId(id: DeformerId): String = deformers[id.raw] ?: id.raw
+
+	/**
+	 * The id [id] was written under.
+	 *
+	 * @param DrawableId id The drawable's model id.
+	 * @return String The written id.
+	 */
+	fun drawableId(id: DrawableId): String = drawables[id.raw] ?: id.raw
 }
 
 /**
@@ -124,6 +197,13 @@ private class Moc3IdSpace(
 	 * @return String The id to write.
 	 */
 	fun writtenId(modelId: String): String = writtenIdByModelId.getOrPut(modelId) { claim(modelId) }
+
+	/**
+	 * A snapshot of what this space has written so far.
+	 *
+	 * @return Map<String, String> Model id → written id.
+	 */
+	fun writtenIds(): Map<String, String> = writtenIdByModelId.toMap()
 
 	/**
 	 * Resolves and claims the written form of [modelId], reporting whatever had to be cut.

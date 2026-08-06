@@ -44,10 +44,16 @@ object Moc3Export {
 	/**
 	 * The lowered document plus whatever the lowering could not express.
 	 *
-	 * @property MocDocument document The document to bake.
-	 * @property ExportReport report  The advisory findings; empty for a fully-lowered export.
+	 * @property MocDocument     document   The document to bake.
+	 * @property ExportReport    report     The advisory findings; empty for a fully-lowered export.
+	 * @property Moc3WrittenIds  writtenIds What each object's id was written as, for the sidecars that
+	 *                                      have to name the same objects (see [Moc3WrittenIds]).
 	 */
-	class Lowered(val document: MocDocument, val report: ExportReport)
+	class Lowered(
+		val document: MocDocument,
+		val report: ExportReport,
+		val writtenIds: Moc3WrittenIds,
+	)
 
 	/**
 	 * Lowers [puppet] into a [MocDocument] at [version], stripping whatever that version cannot carry.
@@ -146,7 +152,7 @@ object Moc3Export {
 						)
 					},
 			)
-		return Lowered(document, noticeSink.report())
+		return Lowered(document, noticeSink.report(), ids.writtenIds())
 	}
 
 	/**

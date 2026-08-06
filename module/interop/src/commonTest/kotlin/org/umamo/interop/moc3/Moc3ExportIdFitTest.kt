@@ -1,9 +1,11 @@
 package org.umamo.interop.moc3
 
+import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.moc3.export.Moc3Export
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -133,6 +135,44 @@ class Moc3ExportIdFitTest {
 		val writtenIds = lowered.document.artMeshes.map { artMesh -> artMesh.id }
 		assertEquals(truncated, writtenIds[1], "the id that fits was written verbatim")
 		assertTrue(writtenIds[0] != truncated, "the shortened id took a name that was already spoken for")
+	}
+
+	/**
+	 * The cdi3 beside the moc names the objects by the ids the MOC got, not the ones the model carries.
+	 *
+	 * The two files are joined on that string by every runtime and by Umamo's own import: a cdi3 built
+	 * from the model's ids would name an object the moc does not contain under that name, so the display
+	 * name - the one thing the moc cannot carry, which is the entire reason the cdi3 is written - is lost
+	 * on exactly the objects whose ids had to be shortened.
+	 */
+	@Test
+	fun theCdi3NamesTheIdsTheMocWasWrittenWith() {
+		val bundle =
+			Moc3Sidecars.bundle(
+				puppetWithDrawableIds(listOf(overlongStem + "左", overlongStem + "右")),
+				basename = "rig",
+				version = MocVersion.V50,
+				pages = emptyList(),
+			)
+
+		val mocFile = bundle.files.first { file -> file.name == bundle.mocFileName }
+		val displayInfoFile = bundle.files.first { file -> file.name == "rig.cdi3.json" }
+		val writtenIds = Moc3.read(mocFile.bytes).artMeshes.map { artMesh -> artMesh.id }
+		val displayInfo = Moc3.readCdi3(displayInfoFile.bytes.decodeToString())
+
+		assertEquals(
+			writtenIds,
+			displayInfo.drawables.orEmpty().map { drawable -> drawable.id },
+			"the cdi3 names drawables the moc does not contain",
+		)
+		// And the pairing survives a round trip: each mesh gets its own name back rather than falling
+		// back to the shortened id.
+		val reimported = Moc3Import.fromMocDocument(Moc3.read(mocFile.bytes), displayInfo)
+		assertEquals(
+			setOf(overlongStem + "左", overlongStem + "右"),
+			reimported.drawables.mapTo(HashSet()) { drawable -> drawable.name },
+			"a shortened drawable lost its display name",
+		)
 	}
 
 	/** An id that fits is written verbatim and raises nothing. */
