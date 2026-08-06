@@ -29,7 +29,7 @@ class HologramDumpTest {
 				?.walkTopDown()?.firstOrNull { it.name == "modelA.moc3" } ?: return
 		val atlasPng = File(mocFile.parentFile, "modelA.4096/texture_00.png")
 		requireHeadlessGl("[holo-dump]")
-		val mocDocument = Moc3.decode(mocFile.readBytes())
+		val mocDocument = Moc3.read(mocFile.readBytes())
 		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))
 		val textures = if (atlasPng.isFile) buildPuppetTextures(listOf(atlasPng.readBytes()), mocDocument.artMeshes.associate { it.id to 0 }) else null
 		for (hologram in listOf(0f, 1f)) {

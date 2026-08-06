@@ -40,7 +40,7 @@ class Moc3ImportTest {
 			println("moc3.sample not present; skipping import test")
 			return
 		}
-		val mocDocument = Moc3.decode(file.readBytes())
+		val mocDocument = Moc3.read(file.readBytes())
 		val displayInfo = siblingDisplayInfo(file)
 		val puppet = Moc3Import.fromMocDocument(mocDocument, displayInfo)
 
@@ -262,7 +262,7 @@ class Moc3ImportTest {
 			return
 		}
 		for (file in samples) {
-			val puppet = Moc3Import.fromMocDocument(Moc3.decode(file.readBytes()), siblingDisplayInfo(file))
+			val puppet = Moc3Import.fromMocDocument(Moc3.read(file.readBytes()), siblingDisplayInfo(file))
 			val drawableBindings = puppet.drawables.flatMap { it.blendShapes }
 			val warpBindings = puppet.deformers.filterIsInstance<Deformer.Warp>().flatMap { it.blendShapes }
 			val rotationBindings = puppet.deformers.filterIsInstance<Deformer.Rotation>().flatMap { it.blendShapes }

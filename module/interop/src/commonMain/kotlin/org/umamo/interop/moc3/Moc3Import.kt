@@ -116,7 +116,7 @@ import org.umamo.format.moc3.model.Part as MocPart
  */
 object Moc3Import {
 	/**
-	 * Builds a [PuppetModel] from a decoded [MocDocument] (e.g. from `Moc3.decode(bytes)`).
+	 * Builds a [PuppetModel] from a decoded [MocDocument] (e.g. from `Moc3.read(bytes)`).
 	 *
 	 * @param MocDocument mocDocument The decoded semantic model.
 	 * @param Cdi3Json?   displayInfo The sibling cdi3.json (display names, parameter groups, combined

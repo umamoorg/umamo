@@ -1,7 +1,7 @@
 package org.umamo.interop.moc3
 
+import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.MocDocument
-import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.CanvasInfo
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.moc.MocVersion
@@ -656,7 +656,7 @@ object Moc3Export {
 		canvasToParentSpace: CanvasToParentSpace? = null,
 	): Pair<ByteArray, ExportReport> {
 		val lowered = toMocDocument(puppet, version, canvasToParentSpace)
-		return MocEncoder.bakeFresh(version, lowered.document) to lowered.report
+		return Moc3.write(lowered.document) to lowered.report
 	}
 
 	/**

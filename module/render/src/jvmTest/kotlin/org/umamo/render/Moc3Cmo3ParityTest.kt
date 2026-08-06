@@ -64,7 +64,7 @@ class Moc3Cmo3ParityTest {
 		val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
 		val fromMoc3 =
 			restMeshesToCanvasSpace(
-				Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), siblingDisplayInfo(moc3File)),
+				Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), siblingDisplayInfo(moc3File)),
 			)
 
 		// Canvas and world origin agree (CanvasInfo origin == CMO3 canvas center).

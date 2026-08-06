@@ -57,7 +57,7 @@ class Cmo3ConversionRoundTripTest {
 	 */
 	private fun roundTripOne(mocFile: File, failures: ArrayList<String>) {
 		val label = mocFile.name
-		val mocDocument = Moc3.decode(mocFile.readBytes())
+		val mocDocument = Moc3.read(mocFile.readBytes())
 		val manifest = Moc3.readModel3(File(mocFile.parentFile, "${mocFile.nameWithoutExtension}.model3.json").readText())
 		val textureFiles = manifest.fileReferences.textures.map { textureReference -> File(mocFile.parentFile, textureReference) }
 		if (textureFiles.any { textureFile -> !textureFile.isFile }) {

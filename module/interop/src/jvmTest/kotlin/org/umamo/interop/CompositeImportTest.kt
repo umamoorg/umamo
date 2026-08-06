@@ -56,7 +56,7 @@ class CompositeImportTest {
 		return Cmo3Import.fromModelSource(root)
 	}
 
-	private fun importMoc3(file: File): PuppetModel = Moc3Import.fromMocDocument(Moc3.decode(file.readBytes()), null)
+	private fun importMoc3(file: File): PuppetModel = Moc3Import.fromMocDocument(Moc3.read(file.readBytes()), null)
 
 	private fun assertColorClose(expected: ColorRgb, actual: ColorRgb, label: String) {
 		assertTrue(

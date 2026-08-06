@@ -68,7 +68,7 @@ class DeformerChannelOracleTest {
 		val mismatches = ArrayList<String>()
 
 		for (mocFile in samples) {
-			val mocDocument = runCatching { Moc3.decode(mocFile.readBytes()) }.getOrNull() ?: continue
+			val mocDocument = runCatching { Moc3.read(mocFile.readBytes()) }.getOrNull() ?: continue
 			val drivingParameters = parametersDrivingChannelledDeformers(mocDocument)
 			if (drivingParameters.isEmpty()) {
 				continue

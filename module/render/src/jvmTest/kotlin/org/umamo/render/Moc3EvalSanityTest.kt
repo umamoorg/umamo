@@ -30,7 +30,7 @@ class Moc3EvalSanityTest {
 
 		for (mocFile in mocFiles) {
 			val mocDocument =
-				runCatching { Moc3.decode(mocFile.readBytes()) }.getOrElse {
+				runCatching { Moc3.read(mocFile.readBytes()) }.getOrElse {
 					println("${mocFile.name}: not decodable, skipping")
 					continue
 				}
