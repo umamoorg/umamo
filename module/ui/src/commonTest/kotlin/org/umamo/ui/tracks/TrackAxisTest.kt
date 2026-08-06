@@ -219,7 +219,7 @@ class TrackAxisTest {
 		assertEquals(wide.fractionOf(0f), narrow.fractionOf(0.5f), 1e-5f, "both sit at the same screen x")
 	}
 
-	/** Zooming holds the anchor under the pointer rather than drifting toward the centre. */
+	/** Zooming holds the anchor under the pointer rather than drifting toward the center. */
 	@Test
 	fun zoomingHoldsItsAnchor() {
 		val zoomed = TrackWindow.Full.zoomedBy(0.5f, focus = 0.25f)

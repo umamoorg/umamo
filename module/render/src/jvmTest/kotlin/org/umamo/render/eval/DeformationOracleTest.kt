@@ -46,7 +46,7 @@ class DeformationOracleTest {
 		println("[oracle] umamo drawables=${model.drawables.size} evaluated=${geometry.worldPositions.size} oracle=${oracle.size}")
 
 		// Confirmed transform: CMO3 canvas/pixel space -> MOC3 normalized model space = (x-ox)/ppu,
-		// (y+oy)/ppu (origin = canvas centre, ppu from the dump header; umamo already applied -Y).
+		// (y+oy)/ppu (origin = canvas center, ppu from the dump header; umamo already applied -Y).
 		val ppu = 4500f
 		val originX = 2250f
 		val originY = 3250f

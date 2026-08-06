@@ -51,7 +51,6 @@ class Moc3DowngradeContentTest {
 		}
 		val failures = ArrayList<String>()
 		var covered = 0
-		var actuallyDowngraded = 0
 		for (file in files) {
 			val source = Moc3.decode(MocCodec.read(file.readBytes()))
 			val puppet = Moc3Import.fromMocDocument(source, displayInfo = null)
@@ -59,7 +58,6 @@ class Moc3DowngradeContentTest {
 				if (targetVersion.byteValue >= source.version.byteValue) {
 					continue
 				}
-				actuallyDowngraded++
 				val label = "${file.name} → ${targetVersion.name}"
 				val exported = Moc3Export.toMocDocument(puppet, targetVersion).document
 				covered++
@@ -105,10 +103,9 @@ class Moc3DowngradeContentTest {
 				MocCodec.read(MocEncoder.bakeFresh(targetVersion, exported))
 			}
 		}
-		assertTrue(covered > 0, "no corpus model was above V30/V42 to downgrade")
 		// The whole point is the path where strip returns a DIFFERENT model; a run that only ever
 		// re-targeted upward exercised nothing.
-		assertTrue(actuallyDowngraded > 0, "no export in this run actually downgraded")
+		assertTrue(covered > 0, "no export in this run actually downgraded - no corpus model was above V30/V42")
 		println("[downgrade] $covered downgrading exports checked across ${files.size} models")
 		assertEquals(emptyList(), failures.take(25), "a downgraded export kept what its version cannot hold")
 	}

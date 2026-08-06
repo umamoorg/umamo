@@ -185,7 +185,7 @@ internal fun importParts(
  *
  * @param Moc3ImportContext context The import's derived state.
  * @param MocPart           source  The moc part.
- * @return Int The quantised draw order (Cubism default 500 when the part carries no keyforms).
+ * @return Int The quantized draw order (Cubism default 500 when the part carries no keyforms).
  */
 internal fun partStaticDrawOrder(
 	context: Moc3ImportContext,

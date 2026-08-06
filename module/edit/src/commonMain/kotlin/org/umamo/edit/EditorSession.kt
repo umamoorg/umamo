@@ -972,7 +972,7 @@ class EditorSession(
 			}
 		}
 		if (coveredCount == 0) {
-			// Unreachable today (callers pre-filter empty covered sets); the page centre is a safe anchor.
+			// Unreachable today (callers pre-filter empty covered sets); the page center is a safe anchor.
 			return 0.5f to 0.5f
 		}
 		return (sumU / coveredCount) to (sumV / coveredCount)

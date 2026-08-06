@@ -10,7 +10,7 @@ package org.umamo.runtime.model
 fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveRenderRoot())
 
 /**
- * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organisational tree. The org tree
+ * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organizational tree. The org tree
  * ([PuppetModel.rootChildren] / [Part.children]) is the single source of truth for hierarchy + panel
  * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.groupMode] /
  * [Part.drawOrder] / [Part.channelGrids], and each drawable's keyformed draw order). This walks the org

@@ -378,7 +378,7 @@
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
 
-	<!-- Pie menu centre titles (the pie's name, Blender-style). -->
+	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>
 	<string name="pie_title_snap">Snap</string>
 	<string name="pie_title_uv_snap">UV Snap</string>

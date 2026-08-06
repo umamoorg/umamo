@@ -53,7 +53,7 @@ object Moc3Export {
 	 *
 	 * The strip runs FIRST, on the model (see [Moc3VersionDowngrade]), so every producer works on a rig
 	 * the target version can express completely - and the loss is reported against entities the rigger
-	 * recognises rather than against section indices.
+	 * recognizes rather than against section indices.
 	 *
 	 * @param PuppetModel puppet  The rig to export.
 	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.

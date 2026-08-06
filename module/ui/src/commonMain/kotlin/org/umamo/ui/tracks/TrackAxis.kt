@@ -124,7 +124,7 @@ data class TrackWindow(
 	/**
 	 * This window zoomed by [factor] about [focus], a fraction of the VISIBLE width.
 	 *
-	 * Anchored on the pointer rather than the centre, so zooming in on a cluster of keys keeps that
+	 * Anchored on the pointer rather than the center, so zooming in on a cluster of keys keeps that
 	 * cluster under the cursor instead of sliding it away.  Clamped so the window can never invert, shrink
 	 * past [MIN_SPAN] (which would divide by nothing at the pixel mapping), or grow past the full domain.
 	 *

@@ -6,7 +6,7 @@ import org.umamo.runtime.model.DrawableId
  * Region enclosure for object-mode box / circle select.  Object selection is whole-drawable, so a region
  * selects a drawable by its geometry CENTROID (the mean of its posed world vertices), Blender's object-mode
  * rule: a drawable is selected when its centroid falls inside the box or circle.  Centroid-inside is stable
- * and predictable - a full-canvas layer whose centroid sits at the canvas centre is not grabbed by a region
+ * and predictable - a full-canvas layer whose centroid sits at the canvas center is not grabbed by a region
  * that only grazes its edge, unlike an any-vertex-touching rule.
  *
  * These functions are pure and work in the same interleaved (x, y) world space as
@@ -77,8 +77,8 @@ fun drawablesInBox(
  * select brush stamp).  A point exactly on the circle counts as inside.
  *
  * @param Map<DrawableId, FloatArray> centroids The per-drawable [x, y] centroids (see [drawableCentroids]).
- * @param Float centerX The brush centre x in world space.
- * @param Float centerY The brush centre y in world space.
+ * @param Float centerX The brush center x in world space.
+ * @param Float centerY The brush center y in world space.
  * @param Float radius The brush radius in world units.
  * @return Set<DrawableId> The enclosed drawable ids.
  */

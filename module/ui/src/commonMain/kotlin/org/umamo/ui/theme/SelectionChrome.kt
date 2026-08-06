@@ -98,7 +98,7 @@ fun DrawScope.drawSelectionBox(topLeft: Offset, size: Size, style: SelectionOver
  * Draws the Circle-select brush: a mostly-transparent fill disc plus a two-tone marching-ants outline,
  * matching the box and crosshair style.
  *
- * @param Offset center The brush centre in area-local pixels.
+ * @param Offset center The brush center in area-local pixels.
  * @param Float radius The brush radius in pixels.
  * @param SelectionOverlayStyle style The shared two-tone style.
  */

@@ -41,7 +41,7 @@ internal fun lowerArtMeshes(
 						noticeSink.unsupported(
 							"drawable",
 							drawable.id.raw,
-							"the context.canvas-to-parent conversion returned ${converted.size} coordinates for " +
+							"the canvas-to-parent conversion returned ${converted.size} coordinates for " +
 								"${mesh.positions.size}; the rest mesh was written unconverted",
 						)
 					}
@@ -147,7 +147,9 @@ internal fun lowerArtMeshes(
  * it.  Getting that backwards silently double-draws every back face.
  *
  * @param Drawable drawable             The drawable.
- * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
+ * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend
+ *                                      section, which then states the blend mode instead of the
+ *                                      legacy bits.
  * @return Int The flag bits.
  */
 private fun constantFlagsOf(drawable: Drawable, extendedBlendEnabled: Boolean): Int {

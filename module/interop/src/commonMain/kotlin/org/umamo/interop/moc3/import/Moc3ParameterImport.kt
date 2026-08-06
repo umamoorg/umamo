@@ -34,7 +34,7 @@ internal fun importParameters(context: Moc3ImportContext): List<Parameter> =
 	}
 
 /**
- * Imports the LINKED ("combined") parameter pairs cdi3 records - the editor's 2D pads.
+ * Imports the LINKED ("combined") parameter pairs that cdi3 records - the editor's 2D pads.
  *
  * @param Moc3ImportContext context The import's derived state.
  * @return List<ParameterLink> The pairs, empty without cdi3.

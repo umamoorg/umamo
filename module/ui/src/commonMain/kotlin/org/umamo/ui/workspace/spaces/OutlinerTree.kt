@@ -23,7 +23,7 @@ enum class OutlinerIcon {
 	/** The deformer-hierarchy group node (Blender's green armature-data icon). */
 	Armature,
 
-	/** An organisational part / folder. */
+	/** An organizational part / folder. */
 	Part,
 
 	/** A drawable art mesh. */

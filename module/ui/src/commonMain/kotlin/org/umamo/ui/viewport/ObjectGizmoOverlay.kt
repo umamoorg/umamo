@@ -164,7 +164,7 @@ fun ObjectGizmoOverlay(
 
 	// One Circle-select brush stamp: enclose the drawables whose world centroid is within the brush, filter out
 	// locked ones, and add them to (or remove them from) the working selection.  Radius is screen pixels, so it
-	// converts to world units by the zoom; the centre unprojects to world space to match the cached centroids.
+	// converts to world units by the zoom; the center unprojects to world space to match the cached centroids.
 	fun circleStamp(working: Selection, erasing: Boolean, screenPos: Offset, radiusPx: Float, activeCamera: ViewportCamera, size: IntSize): Selection {
 		val model = session.model.value
 		val (worldX, worldY) = screenToWorld(screenPos.x, screenPos.y, activeCamera, size)

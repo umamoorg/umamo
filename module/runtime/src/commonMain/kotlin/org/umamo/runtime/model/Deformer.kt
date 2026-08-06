@@ -7,7 +7,7 @@ package org.umamo.runtime.model
  * deformer kinds, so a `sealed interface` captures the closed taxonomy and forces `when`s over it to
  * be exhaustive (adding a third kind becomes a compile error until handled everywhere). Deformers nest
  * via [parent] (the transform hierarchy a drawable inherits); each also belongs to a part via [partId]
- * (the organisational tree) - two independent hierarchies, mirroring CMO3's `targetDeformerGuid` vs
+ * (the organizational tree) - two independent hierarchies, mirroring CMO3's `targetDeformerGuid` vs
  * `parentGuid`.
  *
  * リグ階層の変形器。Cubism は2種(ワープ／回転)のみ。変形系統([parent])と組織系統([partId])は別。
@@ -21,7 +21,7 @@ sealed interface Deformer {
 	/** Parent deformer in the nesting (transform) hierarchy, or null at the root. */
 	val parent: DeformerId?
 
-	/** The part this deformer belongs to (organisational tree), or null at the root. */
+	/** The part this deformer belongs to (organizational tree), or null at the root. */
 	val partId: PartId?
 
 	/**

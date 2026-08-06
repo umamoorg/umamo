@@ -113,7 +113,7 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): CanvasToParentSpace =
 			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
 			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas
 			// coordinate: seeding Newton with the canvas-space value starts it hundreds of units outside
-			// the [0,1] lattice, where the damped step cannot walk back.  The lattice centre is the
+			// the [0,1] lattice, where the damped step cannot walk back.  The lattice center is the
 			// neutral seed - at most half a lattice away from any target, which the damped step covers.
 			val seed = FloatArray(positions.size) { LATTICE_CENTRE }
 			mapping.worldToLocal(world, seed, positions.indices.step(2).map { index -> index / 2 }.toSet())
