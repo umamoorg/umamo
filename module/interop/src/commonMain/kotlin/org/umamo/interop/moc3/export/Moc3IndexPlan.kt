@@ -1,4 +1,4 @@
-package org.umamo.interop.moc3
+package org.umamo.interop.moc3.export
 
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId

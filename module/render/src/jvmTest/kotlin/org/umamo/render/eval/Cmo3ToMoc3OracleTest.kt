@@ -6,7 +6,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Export
+import org.umamo.interop.moc3.export.Moc3Export
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue

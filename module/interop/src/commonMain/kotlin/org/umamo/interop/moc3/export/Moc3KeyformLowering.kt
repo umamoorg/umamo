@@ -1,4 +1,4 @@
-package org.umamo.interop.moc3
+package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Rgb

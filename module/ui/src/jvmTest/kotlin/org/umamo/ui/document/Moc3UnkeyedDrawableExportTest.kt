@@ -1,8 +1,8 @@
 package org.umamo.ui.document
 
 import org.umamo.interop.ExportNotice
-import org.umamo.interop.moc3.Moc3Export
 import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel

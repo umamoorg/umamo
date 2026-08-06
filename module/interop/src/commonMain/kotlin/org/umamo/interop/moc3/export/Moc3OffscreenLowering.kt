@@ -1,4 +1,4 @@
-package org.umamo.interop.moc3
+package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.model.Offscreen
@@ -24,7 +24,7 @@ import org.umamo.runtime.model.flattenedMasks
  * @param Moc3IndexPlan plan             The file's addressing scheme.
  * @param Map           keyformsByPartId The part bundles the part lowering already built.
  * @param Boolean       colorsEnabled    Whether the target version has color tables.
- * @param Function3     unsupported      Notice sink (category, subject, detail).
+ * @param Moc3ExportNotices noticeSink    Where anything unrepresentable is reported.
  * @return List<Offscreen> The records, owner-index ascending.
  */
 internal fun lowerOffscreens(
@@ -32,7 +32,7 @@ internal fun lowerOffscreens(
 	plan: Moc3IndexPlan,
 	keyformsByPartId: Map<PartId, Moc3ObjectKeyforms?>,
 	colorsEnabled: Boolean,
-	unsupported: (String, String, String) -> Unit,
+	noticeSink: Moc3ExportNotices,
 ): List<Offscreen> {
 	val isolated = plan.parts.filter { part -> part.isIsolated }
 	if (isolated.isEmpty()) {
@@ -53,7 +53,7 @@ internal fun lowerOffscreens(
 					.map { drawableId -> plan.drawableIndex(drawableId) }
 					.filter { index -> index >= 0 }
 			if (maskIndices.size < maskDrawables.size) {
-				unsupported(
+				noticeSink.unsupported(
 					"part",
 					part.id.raw,
 					"a clipping mask names a drawable that could not be written, so it was dropped from the offscreen",
