@@ -8,10 +8,10 @@ import org.umamo.format.raster.RasterImage
 /**
  * Pure-Kotlin PNG codec, read and write.
  *
- * Decodes every PNG colour type (grayscale, RGB, palette, grayscale+alpha, RGBA) at bit depths
+ * Decodes every PNG color type (grayscale, RGB, palette, grayscale+alpha, RGBA) at bit depths
  * 1/2/4/8/16, including tRNS transparency and Adam7 interlace, to the neutral straight-alpha
  * RGBA8888 top-first [RasterImage] (16-bit channels are down-converted to 8-bit, roadmap
- * invariant #6).  Encodes 8-bit RGBA (colour type 6, non-interlaced) - the form the atlas /
+ * invariant #6).  Encodes 8-bit RGBA (color type 6, non-interlaced) - the form the atlas /
  * thumbnail pipeline needs.  DEFLATE is the codec's only platform dependency, reached through the
  * zlib bridge in org.umamo.format.raster, so it decodes byte-identically on every target (no
  * javax.imageio / BitmapFactory, which is exactly what this replaces).
@@ -19,7 +19,7 @@ import org.umamo.format.raster.RasterImage
 public object PngCodec : RasterCodec {
 	override val kind: FileKind = FileKind.Png
 
-	// PNG spec §11.2.2 IHDR colour types.
+	// PNG spec §11.2.2 IHDR color types.
 	private const val COLOR_GRAYSCALE = 0
 	private const val COLOR_RGB = 2
 	private const val COLOR_PALETTE = 3
@@ -92,7 +92,7 @@ public object PngCodec : RasterCodec {
 	}
 
 	/**
-	 * Encodes a [RasterImage] as an 8-bit RGBA (colour type 6), non-interlaced PNG.
+	 * Encodes a [RasterImage] as an 8-bit RGBA (color type 6), non-interlaced PNG.
 	 *
 	 * Every scanline uses filter type 0 (None) - the simplest valid choice; DEFLATE still compresses
 	 * it well.  Round-trip is not byte-identical (zlib output varies), but decoding the result
@@ -145,7 +145,7 @@ public object PngCodec : RasterCodec {
 	 * Parses the 13-byte IHDR data (PNG spec §11.2.2).
 	 *
 	 * @param ByteArray data The IHDR chunk data.
-	 * @return PngHeader The parsed header, validated for a supported colour-type/bit-depth pairing.
+	 * @return PngHeader The parsed header, validated for a supported color-type/bit-depth pairing.
 	 */
 	private fun parseHeader(data: ByteArray): PngHeader {
 		require(data.size >= 13) { "PNG IHDR too short" }
@@ -159,20 +159,20 @@ public object PngCodec : RasterCodec {
 		// buffer; reject rather than wrap to a negative (or plausible-but-wrong) allocation.
 		require(width.toLong() * height * 4 <= Int.MAX_VALUE) { "PNG is too large to decode: ${width}x$height" }
 		require(colorType == COLOR_GRAYSCALE || colorType == COLOR_RGB || colorType == COLOR_PALETTE || colorType == COLOR_GRAYSCALE_ALPHA || colorType == COLOR_RGBA) {
-			"unsupported PNG colour type $colorType"
+			"unsupported PNG color type $colorType"
 		}
 		require(interlace == 0 || interlace == 1) { "unsupported PNG interlace method $interlace" }
 		return PngHeader(width, height, bitDepth, colorType, interlace)
 	}
 
-	/** Channels stored per pixel for a colour type (palette and grayscale store one sample). */
+	/** Channels stored per pixel for a color type (palette and grayscale store one sample). */
 	private fun channelCount(colorType: Int): Int =
 		when (colorType) {
 			COLOR_GRAYSCALE, COLOR_PALETTE -> 1
 			COLOR_GRAYSCALE_ALPHA -> 2
 			COLOR_RGB -> 3
 			COLOR_RGBA -> 4
-			else -> throw IllegalArgumentException("unsupported PNG colour type $colorType")
+			else -> throw IllegalArgumentException("unsupported PNG color type $colorType")
 		}
 
 	/**

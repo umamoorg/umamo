@@ -344,7 +344,7 @@ fun PuppetModel.withDrawableDrawOrder(id: DrawableId, drawOrder: Float): PuppetM
  * A single-field copy: the tint is its own track with its own static, so this writes just that field
  * rather than rewriting every keyform cell.  Rewriting the whole grid instead would flatten any authored
  * per-keyform color animation, and would trip diffModel's identity check into re-uploading the drawable's
- * geometry for a mere colour change.
+ * geometry for a mere color change.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new multiply color.

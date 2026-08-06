@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Exercises [PngCodec] with hand-built PNGs (via the codec's own chunk writer), pinning every colour
+ * Exercises [PngCodec] with hand-built PNGs (via the codec's own chunk writer), pinning every color
  * type, bit depth, tRNS transparency, and sub-byte packing to a known-exact expected RGBA.
  *
  * Lives in commonTest so it runs on every target: the codec is pure Kotlin apart from the zlib bridge,
@@ -27,7 +27,7 @@ class PngCodecTest {
 	 * @param Int width         Image width.
 	 * @param Int height        Image height.
 	 * @param Int bitDepth      Bits per sample.
-	 * @param Int colorType     PNG colour type.
+	 * @param Int colorType     PNG color type.
 	 * @param ByteArray samples The raw, row-major sample bytes (height * rowBytes).
 	 * @param Int rowBytes      Bytes per scanline (excluding the filter byte).
 	 * @param ByteArray? palette The PLTE bytes, or null.

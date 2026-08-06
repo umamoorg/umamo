@@ -39,8 +39,8 @@ import androidx.compose.ui.text.input.TextFieldValue
  * Escape で取消（シェル経由）。空名は取消扱い。装飾は呼び出し側が与える。
  *
  * @param String initialName The current name, pre-selected for replacement.
- * @param TextStyle textStyle The text style (the caller supplies the colour to match its context).
- * @param Color cursorColor The text-cursor colour.
+ * @param TextStyle textStyle The text style (the caller supplies the color to match its context).
+ * @param Color cursorColor The text-cursor color.
  * @param Function onCommit Called with the trimmed new name when the edit is confirmed (never blank).
  * @param Function onCancel Called when the edit is abandoned (Escape or a blank name).
  * @param Modifier modifier The layout modifier for the field.

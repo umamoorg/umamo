@@ -29,7 +29,7 @@ import kotlin.test.assertEquals
  * static.
  *
  * Driven through a real composition because the resolver reads the session's flows, and the bug it exists
- * to prevent - a keyed colour field stuck on the shadowed static, so typing a new value looked rejected -
+ * to prevent - a keyed color field stuck on the shadowed static, so typing a new value looked rejected -
  * is invisible to any test that does not actually recompose on those flows.
  */
 class DisplayedChannelValueTest {
@@ -41,7 +41,7 @@ class DisplayedChannelValueTest {
 	private val keyedAtDefault = ColorRgb(0.25f, 1f, 0f)
 	private val pendingColor = ColorRgb(1f, 0f, 1f)
 
-	/** A drawable whose multiply colour is keyed over ParamAngleX, holding [keyedAtDefault] at the default. */
+	/** A drawable whose multiply color is keyed over ParamAngleX, holding [keyedAtDefault] at the default. */
 	private fun model(): PuppetModel =
 		PuppetModel(
 			parameters = listOf(Parameter(angleX, "ParamAngleX", min = -30f, max = 30f, default = 0f)),

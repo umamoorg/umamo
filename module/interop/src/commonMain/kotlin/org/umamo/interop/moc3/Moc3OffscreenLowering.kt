@@ -23,7 +23,7 @@ import org.umamo.runtime.model.flattenedMasks
  * @param PuppetModel   puppet           The rig being exported.
  * @param Moc3IndexPlan plan             The file's addressing scheme.
  * @param Map           keyformsByPartId The part bundles the part lowering already built.
- * @param Boolean       colorsEnabled    Whether the target version has colour tables.
+ * @param Boolean       colorsEnabled    Whether the target version has color tables.
  * @param Function3     unsupported      Notice sink (category, subject, detail).
  * @return List<Offscreen> The records, owner-index ascending.
  */

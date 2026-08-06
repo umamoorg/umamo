@@ -2,15 +2,12 @@ package org.umamo.render.gl
 
 import org.junit.Assume
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12
 import org.lwjgl.opengl.GL13
 import org.lwjgl.opengl.GL15
 import org.lwjgl.opengl.GL20
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
@@ -57,72 +54,66 @@ class GpuDeformValidationTest {
 	fun gpuDeformMatchesCpuPerVertex() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
-		val window = createHeadlessGl()
-		assumeGlContext("[gpu-tf]", window)
-		try {
-			val root = Cmo3.read(file).root as? CModelSource ?: return
-			val model = Cmo3Import.fromModelSource(root)
-			val program = linkTransformFeedbackProgram()
-			GL20.glUseProgram(program)
-			GL20.glUniform1i(GL20.glGetUniformLocation(program, "deltaTex"), 0)
-			GL20.glUniform1i(GL20.glGetUniformLocation(program, "cpTex"), 1)
+		requireHeadlessGl("[gpu-tf]")
+		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val model = Cmo3Import.fromModelSource(root)
+		val program = linkTransformFeedbackProgram()
+		GL20.glUseProgram(program)
+		GL20.glUniform1i(GL20.glGetUniformLocation(program, "deltaTex"), 0)
+		GL20.glUniform1i(GL20.glGetUniformLocation(program, "cpTex"), 1)
 
-			val drawableById = model.drawables.associateBy { it.id }
-			// Rest plus deformed poses that push warp-bound vertices out of the lattice, exercising warpExtrap.
-			val poses =
-				listOf(
-					"rest" to emptyMap<ParameterId, Float>(),
-					"body" to
-						mapOf(
-							ParameterId("ParamBodyAngleX") to 30f,
-							ParameterId("ParamBodyAngleY") to -25f,
-							ParameterId("ParamBodyAngleZ") to 10f,
-						),
-					"tail" to
-						mapOf(
-							ParameterId("Param_Angle_Rotation") to 25.58f,
-							ParameterId("Param_Angle_Rotation2") to 35.51f,
-							ParameterId("Param_Angle_Rotation3") to 43.31f,
-						),
-				)
-			var maxError = 0.0
-			var worstMesh = ""
-			var worstPose = ""
-			var meshesChecked = 0
-			for ((poseName, parameters) in poses) {
-				val inputs = preparePose(model, parameters)
-				for (drawableInputs in inputs.drawables) {
-					val corners = drawableInputs.corners ?: continue
-					if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
-						continue
-					}
-					val drawable = drawableById[drawableInputs.drawableId] ?: continue
-					val grid = drawable.geometryGrid ?: continue
-					val base = drawable.mesh?.positions ?: continue
-					if (drawable.mesh?.indices?.isEmpty() != false) {
-						continue // renderer skips index-less meshes (glue anchors)
-					}
-					val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld)
-					val gpuWorld = gpuDeform(program, base, grid, corners, drawableInputs.parentWorld)
-					var meshMax = 0.0
-					for (coordIndex in cpuWorld.indices) {
-						meshMax = maxOf(meshMax, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
-					}
-					if (meshMax > maxError) {
-						maxError = meshMax
-						worstMesh = drawableInputs.drawableId.raw
-						worstPose = poseName
-					}
-					meshesChecked++
+		val drawableById = model.drawables.associateBy { it.id }
+		// Rest plus deformed poses that push warp-bound vertices out of the lattice, exercising warpExtrap.
+		val poses =
+			listOf(
+				"rest" to emptyMap<ParameterId, Float>(),
+				"body" to
+					mapOf(
+						ParameterId("ParamBodyAngleX") to 30f,
+						ParameterId("ParamBodyAngleY") to -25f,
+						ParameterId("ParamBodyAngleZ") to 10f,
+					),
+				"tail" to
+					mapOf(
+						ParameterId("Param_Angle_Rotation") to 25.58f,
+						ParameterId("Param_Angle_Rotation2") to 35.51f,
+						ParameterId("Param_Angle_Rotation3") to 43.31f,
+					),
+			)
+		var maxError = 0.0
+		var worstMesh = ""
+		var worstPose = ""
+		var meshesChecked = 0
+		for ((poseName, parameters) in poses) {
+			val inputs = preparePose(model, parameters)
+			for (drawableInputs in inputs.drawables) {
+				val corners = drawableInputs.corners ?: continue
+				if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
+					continue
 				}
+				val drawable = drawableById[drawableInputs.drawableId] ?: continue
+				val grid = drawable.geometryGrid ?: continue
+				val base = drawable.mesh?.positions ?: continue
+				if (drawable.mesh?.indices?.isEmpty() != false) {
+					continue // renderer skips index-less meshes (glue anchors)
+				}
+				val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld)
+				val gpuWorld = gpuDeform(program, base, grid, corners, drawableInputs.parentWorld)
+				var meshMax = 0.0
+				for (coordIndex in cpuWorld.indices) {
+					meshMax = maxOf(meshMax, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
+				}
+				if (meshMax > maxError) {
+					maxError = meshMax
+					worstMesh = drawableInputs.drawableId.raw
+					worstPose = poseName
+				}
+				meshesChecked++
 			}
-			println("[gpu-tf] checked $meshesChecked mesh-poses; max GPU-vs-CPU per-coord error = ${"%.5f".format(maxError)} units (worst $worstMesh @ $worstPose)")
-			assertTrue(meshesChecked > 0, "no meshes were validated")
-			assertTrue(maxError < toleranceUnits, "GPU deform diverges from CPU by $maxError units at $worstMesh @ $worstPose (> $toleranceUnits)")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
 		}
+		println("[gpu-tf] checked $meshesChecked mesh-poses; max GPU-vs-CPU per-coord error = ${"%.5f".format(maxError)} units (worst $worstMesh @ $worstPose)")
+		assertTrue(meshesChecked > 0, "no meshes were validated")
+		assertTrue(maxError < toleranceUnits, "GPU deform diverges from CPU by $maxError units at $worstMesh @ $worstPose (> $toleranceUnits)")
 	}
 
 	/**
@@ -137,60 +128,54 @@ class GpuDeformValidationTest {
 			System.getProperty("cmo3.probe")?.split(',')?.map(::File)
 				?.firstOrNull { it.isFile && it.name.startsWith("modelA") }
 		Assume.assumeTrue("[gpu-tf] no Model A blend-shape model in -Dcmo3.probe", modelAFile != null)
-		val window = createHeadlessGl()
-		assumeGlContext("[gpu-tf]", window)
-		try {
-			val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
-			val model = Cmo3Import.fromModelSource(root)
-			val defaults = model.parameters.associate { it.id to it.default }
-			val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
-			val program = linkTransformFeedbackProgram()
-			GL20.glUseProgram(program)
-			GL20.glUniform1i(GL20.glGetUniformLocation(program, "deltaTex"), 0)
-			GL20.glUniform1i(GL20.glGetUniformLocation(program, "cpTex"), 1)
+		requireHeadlessGl("[gpu-tf]")
+		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
+		val model = Cmo3Import.fromModelSource(root)
+		val defaults = model.parameters.associate { it.id to it.default }
+		val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
+		val program = linkTransformFeedbackProgram()
+		GL20.glUseProgram(program)
+		GL20.glUniform1i(GL20.glGetUniformLocation(program, "deltaTex"), 0)
+		GL20.glUniform1i(GL20.glGetUniformLocation(program, "cpTex"), 1)
 
-			val drawableById = model.drawables.associateBy { it.id }
-			val poses =
-				listOf(
-					"eyeSize" to mapOf(ParameterId("ParamEyeSize") to -1f),
-					"eyeHalf" to mapOf(ParameterId("ParamEyeSize") to -0.5f),
-					"bodyX2" to mapOf(ParameterId("ParamBodyAngleX2") to 10f),
-				)
-			var maxError = 0.0
-			var blendMeshesChecked = 0
-			for ((poseName, parameters) in poses) {
-				val inputs = preparePose(model, parameters)
-				for (drawableInputs in inputs.drawables) {
-					val blend = drawableInputs.blend ?: continue
-					if (blend.contributions.isEmpty()) {
-						continue
-					}
-					val corners = drawableInputs.corners ?: continue
-					if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
-						continue
-					}
-					val drawable = drawableById[drawableInputs.drawableId] ?: continue
-					val grid = drawable.geometryGrid ?: continue
-					val base = drawable.mesh?.positions ?: continue
-					if (drawable.mesh?.indices?.isEmpty() != false) {
-						continue
-					}
-					val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, blend)
-					val gpuWorld =
-						gpuDeform(program, base, grid, corners, drawableInputs.parentWorld, drawable, blend, defaultValue)
-					for (coordIndex in cpuWorld.indices) {
-						maxError = maxOf(maxError, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
-					}
-					blendMeshesChecked++
+		val drawableById = model.drawables.associateBy { it.id }
+		val poses =
+			listOf(
+				"eyeSize" to mapOf(ParameterId("ParamEyeSize") to -1f),
+				"eyeHalf" to mapOf(ParameterId("ParamEyeSize") to -0.5f),
+				"bodyX2" to mapOf(ParameterId("ParamBodyAngleX2") to 10f),
+			)
+		var maxError = 0.0
+		var blendMeshesChecked = 0
+		for ((poseName, parameters) in poses) {
+			val inputs = preparePose(model, parameters)
+			for (drawableInputs in inputs.drawables) {
+				val blend = drawableInputs.blend ?: continue
+				if (blend.contributions.isEmpty()) {
+					continue
 				}
+				val corners = drawableInputs.corners ?: continue
+				if (drawableInputs.isParented && drawableInputs.parentWorld == null) {
+					continue
+				}
+				val drawable = drawableById[drawableInputs.drawableId] ?: continue
+				val grid = drawable.geometryGrid ?: continue
+				val base = drawable.mesh?.positions ?: continue
+				if (drawable.mesh?.indices?.isEmpty() != false) {
+					continue
+				}
+				val cpuWorld = deformMeshWorldFromCorners(grid, base, corners, drawableInputs.parentWorld, blend)
+				val gpuWorld =
+					gpuDeform(program, base, grid, corners, drawableInputs.parentWorld, drawable, blend, defaultValue)
+				for (coordIndex in cpuWorld.indices) {
+					maxError = maxOf(maxError, abs(cpuWorld[coordIndex] - gpuWorld[coordIndex]).toDouble())
+				}
+				blendMeshesChecked++
 			}
-			println("[gpu-tf] blend: checked $blendMeshesChecked blend mesh-poses; max error = ${"%.5f".format(maxError)} units")
-			assertTrue(blendMeshesChecked > 0, "no blend-shaped meshes were validated")
-			assertTrue(maxError < toleranceUnits, "GPU blend deform diverges from CPU by $maxError units")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
 		}
+		println("[gpu-tf] blend: checked $blendMeshesChecked blend mesh-poses; max error = ${"%.5f".format(maxError)} units")
+		assertTrue(blendMeshesChecked > 0, "no blend-shaped meshes were validated")
+		assertTrue(maxError < toleranceUnits, "GPU blend deform diverges from CPU by $maxError units")
 	}
 
 	/**
@@ -392,25 +377,5 @@ class GpuDeformValidationTest {
 			"shader compile failed: ${GL20.glGetShaderInfoLog(shader)}"
 		}
 		return shader
-	}
-
-	/** Creates a hidden 1×1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-gpu-tf", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

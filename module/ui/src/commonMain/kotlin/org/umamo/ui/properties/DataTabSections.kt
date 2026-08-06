@@ -576,7 +576,7 @@ private fun KeyableColorChannelRow(
 }
 
 /**
- * One keyable FLAG channel's row: the scalar and colour rows' counterpart for a checkbox.
+ * One keyable FLAG channel's row: the scalar and color rows' counterpart for a checkbox.
  *
  * A flag snaps to the floor cell rather than blending, which is why it is a channel at all rather than a
  * field on the pivot form - but from the row's point of view it keys exactly like the others.

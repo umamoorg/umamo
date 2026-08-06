@@ -77,8 +77,8 @@ class Moc3DowngradeOracleTest {
 				if (dump.offscreens.isNotEmpty()) {
 					failures.add("$subject: ${dump.offscreens.size} offscreens survived the downgrade")
 				}
-				// Per-object multiply/screen colour is moc 4; below it every drawable must evaluate to the
-				// identity pair, which is also what proves the colour TABLES went with the sections.
+				// Per-object multiply/screen color is moc 4; below it every drawable must evaluate to the
+				// identity pair, which is also what proves the color TABLES went with the sections.
 				if (version.byteValue < 4) {
 					for ((drawableId, entry) in dump.entries) {
 						if (oracleNeverEvaluated(entry)) {
@@ -89,7 +89,7 @@ class Moc3DowngradeOracleTest {
 								entry.screenRgba.take(3).any { channel -> channel != 0f }
 						if (tinted) {
 							failures.add(
-								"$subject $drawableId: colour survived a pre-4.2 downgrade " +
+								"$subject $drawableId: color survived a pre-4.2 downgrade " +
 									"(mul=${entry.multiplyRgba.take(3)} scr=${entry.screenRgba.take(3)})",
 							)
 							break

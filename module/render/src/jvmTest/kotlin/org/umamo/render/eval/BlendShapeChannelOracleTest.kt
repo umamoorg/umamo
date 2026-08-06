@@ -13,7 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Posed differential validation of blend-shape CHANNEL deltas, opacity and multiply/screen colour.
+ * Posed differential validation of blend-shape CHANNEL deltas, opacity and multiply/screen color.
  *
  * A blend-shape record carries a delta row per key for every channel its object owns, not only for
  * geometry.  [BlendShapeOracleTest] compares vertex-position hashes and so cannot see these at all;
@@ -22,7 +22,7 @@ import kotlin.test.assertTrue
  *
  * Poses are DERIVED like the deformer-channel gate's: the test reads the format layer for records
  * whose keyforms carry a non-zero channel delta and sweeps only those parameters, so a re-authored rig
- * keeps being covered and a rig with no channel deltas costs nothing.  A record's colour delta rows are
+ * keeps being covered and a rig with no channel deltas costs nothing.  A record's color delta rows are
  * ADDITIVE, so their identity is zero rather than Cubism's (1,1,1) multiply / (0,0,0) screen - a row of
  * all zeros contributes nothing and is not worth a pose.
  *
@@ -42,7 +42,7 @@ class BlendShapeChannelOracleTest {
 		color != null && (color.r != 0f || color.g != 0f || color.b != 0f)
 
 	/**
-	 * Whether [keyform] carries a non-zero opacity or colour delta.
+	 * Whether [keyform] carries a non-zero opacity or color delta.
 	 *
 	 * @param BlendShapeKeyform keyform One key's delta payload.
 	 * @return Boolean True when a channel would move.
@@ -137,7 +137,7 @@ class BlendShapeChannelOracleTest {
 		}
 
 		// A run that posed nothing would pass while proving nothing, which is the failure mode every
-		// corpus gate here is prone to.  modelC carries non-zero colour delta rows, so the corpus reaches this.
+		// corpus gate here is prone to.  modelC carries non-zero color delta rows, so the corpus reaches this.
 		assertTrue(posedModels > 0, "no corpus model carried a blend-shape channel delta to pose")
 		println(
 			"[oracle] blend-shape channels: $comparedDrawableStates drawable states across $posedModels models, " +

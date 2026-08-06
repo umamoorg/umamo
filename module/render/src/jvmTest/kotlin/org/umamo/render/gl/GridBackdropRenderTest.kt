@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -77,74 +74,62 @@ class GridBackdropRenderTest {
 
 	@Test
 	fun majorLinesLandOnWorldMultiplesAndScaleWithZoom() {
-		val window = createHeadlessGl()
-		assumeGlContext("[grid-backdrop]", window)
-		try {
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			highContrastGrid(renderer)
-			renderer.setPose(emptyMap())
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
+		requireHeadlessGl("[grid-backdrop]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		highContrastGrid(renderer)
+		renderer.setPose(emptyMap())
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
 
-			// 1:1 camera centered on the world origin: world x = 0 is the center column, x = +-scale sit scale
-			// pixels either side.  Sample a row OFF the horizontal y = 0 line (else every column reads that
-			// line's red) and clear of the corner probe quad.
-			val center = viewportSize / 2
-			val row = center + gridScale.toInt() / 2 // world y = ~half a cell: no horizontal line here
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frame = readPixels(viewportSize, viewportSize)
-			assertTrue(hasRedNear(frame, center, row), "a major line at world x = 0 lands at the viewport center")
-			assertTrue(hasRedNear(frame, center - gridScale.toInt(), row), "a major line at world x = -scale")
-			assertTrue(hasRedNear(frame, center + gridScale.toInt(), row), "a major line at world x = +scale")
-			assertTrue(!hasRedNear(frame, center + gridScale.toInt() / 2, row, radius = 2), "no line at a non-multiple (x = scale/2)")
+		// 1:1 camera centered on the world origin: world x = 0 is the center column, x = +-scale sit scale
+		// pixels either side.  Sample a row OFF the horizontal y = 0 line (else every column reads that
+		// line's red) and clear of the corner probe quad.
+		val center = viewportSize / 2
+		val row = center + gridScale.toInt() / 2 // world y = ~half a cell: no horizontal line here
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frame = readPixels(viewportSize, viewportSize)
+		assertTrue(hasRedNear(frame, center, row), "a major line at world x = 0 lands at the viewport center")
+		assertTrue(hasRedNear(frame, center - gridScale.toInt(), row), "a major line at world x = -scale")
+		assertTrue(hasRedNear(frame, center + gridScale.toInt(), row), "a major line at world x = +scale")
+		assertTrue(!hasRedNear(frame, center + gridScale.toInt() / 2, row, radius = 2), "no line at a non-multiple (x = scale/2)")
 
-			// Double the zoom: the lines spread apart on screen.  The world-0 line stays centered, while the
-			// column one scale out (a line at 1x) becomes a mid-cell gap at 2x - the on-screen spacing doubled.
-			renderer.setCamera(ViewportCamera(0f, 0f, 2f))
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val zoomed = readPixels(viewportSize, viewportSize)
-			assertTrue(hasRedNear(zoomed, center, row), "the world-0 line stays centered under zoom")
-			assertTrue(!hasRedNear(zoomed, center + gridScale.toInt(), row, radius = 3), "the 1x line position is now a gap at 2x zoom")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// Double the zoom: the lines spread apart on screen.  The world-0 line stays centered, while the
+		// column one scale out (a line at 1x) becomes a mid-cell gap at 2x - the on-screen spacing doubled.
+		renderer.setCamera(ViewportCamera(0f, 0f, 2f))
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val zoomed = readPixels(viewportSize, viewportSize)
+		assertTrue(hasRedNear(zoomed, center, row), "the world-0 line stays centered under zoom")
+		assertTrue(!hasRedNear(zoomed, center + gridScale.toInt(), row, radius = 3), "the 1x line position is now a gap at 2x zoom")
 	}
 
 	@Test
 	fun majorLineFollowsWorldOrigin() {
-		val window = createHeadlessGl()
-		assumeGlContext("[grid-backdrop]", window)
-		try {
-			// Offset the world origin by half a major cell (a mid-division case): the grid must anchor on the
-			// origin, so the major line lands there, NOT at world 0.
-			val halfCell = gridScale / 2f
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			highContrastGrid(renderer)
-			renderer.setPose(emptyMap())
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frame = readPixels(viewportSize, viewportSize)
-			val center = viewportSize / 2
-			val row = center + gridScale.toInt() / 4 // off the horizontal origin line
-			assertTrue(hasRedNear(frame, center + halfCell.toInt(), row), "the major line lands on the offset world origin")
-			assertTrue(!hasRedNear(frame, center, row, radius = 3), "world x = 0 is a mid-cell gap when the origin is offset")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		requireHeadlessGl("[grid-backdrop]")
+		// Offset the world origin by half a major cell (a mid-division case): the grid must anchor on the
+		// origin, so the major line lands there, NOT at world 0.
+		val halfCell = gridScale / 2f
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		highContrastGrid(renderer)
+		renderer.setPose(emptyMap())
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frame = readPixels(viewportSize, viewportSize)
+		val center = viewportSize / 2
+		val row = center + gridScale.toInt() / 4 // off the horizontal origin line
+		assertTrue(hasRedNear(frame, center + halfCell.toInt(), row), "the major line lands on the offset world origin")
+		assertTrue(!hasRedNear(frame, center, row, radius = 3), "world x = 0 is a mid-cell gap when the origin is offset")
 	}
 
 	/** True when any pixel within [radius] columns of [col] on [row] reads clearly red (a major grid line). */
@@ -169,25 +154,5 @@ class GridBackdropRenderTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-grid-backdrop", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

@@ -1,8 +1,5 @@
 package org.umamo.render.gl
 
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -132,112 +129,75 @@ class CompositeEditReconcileTest {
 
 	@Test
 	fun drawableBlendEditReflectsAfterUpdateModel() {
-		val window = createHeadlessGl()
-		assumeGlContext("[composite-edit-reconcile]", window)
-		try {
-			// A single flat quad over black.  Normal draws its color; a Multiply over black collapses to 0
-			// (the src factor is the destination color, which is black).  The blend edit does no buffer
-			// work (a ModelDiff Keep), so this passes only if updateModel re-stamps the resident's blend.
-			val normal = model(listOf(drawable("top")), rootChildren = listOf(OrgChild.Drawable(DrawableId("top"))))
-			val live = LiveRenderer(normal)
-			live.show(normal)
-			assertTrue(live.centerPixel().take(3).max() > 32, "Normal over black shows the layer color")
+		requireHeadlessGl("[composite-edit-reconcile]")
+		// A single flat quad over black.  Normal draws its color; a Multiply over black collapses to 0
+		// (the src factor is the destination color, which is black).  The blend edit does no buffer
+		// work (a ModelDiff Keep), so this passes only if updateModel re-stamps the resident's blend.
+		val normal = model(listOf(drawable("top")), rootChildren = listOf(OrgChild.Drawable(DrawableId("top"))))
+		val live = LiveRenderer(normal)
+		live.show(normal)
+		assertTrue(live.centerPixel().take(3).max() > 32, "Normal over black shows the layer color")
 
-			val multiplied =
-				model(
-					listOf(drawable("top", blendMode = BlendMode.MultiplyPremultiplied)),
-					rootChildren = listOf(OrgChild.Drawable(DrawableId("top"))),
-				)
-			live.show(multiplied)
-			assertTrue(live.centerPixel().take(3).max() <= 3, "after the blend edit, Multiply over black is dark")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		val multiplied =
+			model(
+				listOf(drawable("top", blendMode = BlendMode.MultiplyPremultiplied)),
+				rootChildren = listOf(OrgChild.Drawable(DrawableId("top"))),
+			)
+		live.show(multiplied)
+		assertTrue(live.centerPixel().take(3).max() <= 3, "after the blend edit, Multiply over black is dark")
 	}
 
 	@Test
 	fun drawableMaskEditReflectsAfterUpdateModel() {
-		val window = createHeadlessGl()
-		assumeGlContext("[composite-edit-reconcile]", window)
-		try {
-			// A full quad, then masked by a hidden left-half source: adding the mask hides the right half.
-			// Editing maskedBy is a Keep (no buffer work), so the right half only disappears if updateModel
-			// re-stamps the resident's mask ids.  The mask source is already resident in both snapshots.
-			val maskSource = drawable("clip", positions = leftHalfQuad, isVisible = false)
-			val rootChildren = listOf(OrgChild.Drawable(DrawableId("clip")), OrgChild.Drawable(DrawableId("top")))
-			val unmasked = model(listOf(maskSource, drawable("top")), rootChildren = rootChildren)
-			val rightX = viewportSize * 3 / 4
-			val centerY = viewportSize / 2
+		requireHeadlessGl("[composite-edit-reconcile]")
+		// A full quad, then masked by a hidden left-half source: adding the mask hides the right half.
+		// Editing maskedBy is a Keep (no buffer work), so the right half only disappears if updateModel
+		// re-stamps the resident's mask ids.  The mask source is already resident in both snapshots.
+		val maskSource = drawable("clip", positions = leftHalfQuad, isVisible = false)
+		val rootChildren = listOf(OrgChild.Drawable(DrawableId("clip")), OrgChild.Drawable(DrawableId("top")))
+		val unmasked = model(listOf(maskSource, drawable("top")), rootChildren = rootChildren)
+		val rightX = viewportSize * 3 / 4
+		val centerY = viewportSize / 2
 
-			val live = LiveRenderer(unmasked)
-			live.show(unmasked)
-			assertTrue(live.pixel(rightX, centerY).take(3).max() > 32, "unmasked quad covers the right half")
+		val live = LiveRenderer(unmasked)
+		live.show(unmasked)
+		assertTrue(live.pixel(rightX, centerY).take(3).max() > 32, "unmasked quad covers the right half")
 
-			val masked =
-				model(
-					listOf(maskSource, drawable("top", maskedBy = listOf(DrawableId("clip")))),
-					rootChildren = rootChildren,
-				)
-			live.show(masked)
-			assertTrue(live.pixel(rightX, centerY).take(3).max() <= 3, "after the mask edit, the right half is clipped away")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		val masked =
+			model(
+				listOf(maskSource, drawable("top", maskedBy = listOf(DrawableId("clip")))),
+				rootChildren = rootChildren,
+			)
+		live.show(masked)
+		assertTrue(live.pixel(rightX, centerY).take(3).max() <= 3, "after the mask edit, the right half is clipped away")
 	}
 
 	@Test
 	fun partCompositeOpacityEditReflectsAfterUpdateModel() {
-		val window = createHeadlessGl()
-		assumeGlContext("[composite-edit-reconcile]", window)
-		try {
-			// An isolated part composited over black at opacity 1, then edited to 0.5.  The edit re-derives
-			// renderRoot (withPartComposite does now), and updateModel + setPose rebuild the plan from it, so
-			// the composite must halve - the end-to-end proof that a part composite edit reaches the screen.
-			fun withOpacity(opacity: Float): PuppetModel =
-				model(
-					drawables = listOf(drawable("top")),
-					parts = listOf(isolatedPart("fx", "top", PartComposite(opacity = opacity))),
-					rootChildren = listOf(OrgChild.Part(PartId("fx"))),
-				)
+		requireHeadlessGl("[composite-edit-reconcile]")
 
-			val live = LiveRenderer(withOpacity(1f))
-			live.show(withOpacity(1f))
-			val opaque = live.centerPixel()
-			assertTrue(opaque.take(3).max() > 32, "the composite shows at full opacity")
+		// An isolated part composited over black at opacity 1, then edited to 0.5.  The edit re-derives
+		// renderRoot (withPartComposite does now), and updateModel + setPose rebuild the plan from it, so
+		// the composite must halve - the end-to-end proof that a part composite edit reaches the screen.
+		fun withOpacity(opacity: Float): PuppetModel =
+			model(
+				drawables = listOf(drawable("top")),
+				parts = listOf(isolatedPart("fx", "top", PartComposite(opacity = opacity))),
+				rootChildren = listOf(OrgChild.Part(PartId("fx"))),
+			)
 
-			live.show(withOpacity(0.5f))
-			val halved = live.centerPixel()
-			for (channelIndex in 0 until 3) {
-				assertTrue(
-					abs(halved[channelIndex] - opaque[channelIndex] / 2) <= 3,
-					"opacity 0.5 halves ch$channelIndex over black: ${opaque.toList()} -> ${halved.toList()}",
-				)
-			}
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
-	}
+		val live = LiveRenderer(withOpacity(1f))
+		live.show(withOpacity(1f))
+		val opaque = live.centerPixel()
+		assertTrue(opaque.take(3).max() > 32, "the composite shows at full opacity")
 
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
+		live.show(withOpacity(0.5f))
+		val halved = live.centerPixel()
+		for (channelIndex in 0 until 3) {
+			assertTrue(
+				abs(halved[channelIndex] - opaque[channelIndex] / 2) <= 3,
+				"opacity 0.5 halves ch$channelIndex over black: ${opaque.toList()} -> ${halved.toList()}",
+			)
 		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-composite-edit-reconcile", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

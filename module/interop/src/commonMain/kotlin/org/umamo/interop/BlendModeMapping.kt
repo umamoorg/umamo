@@ -223,7 +223,7 @@ internal fun exactLegacyBlendFlagOf(mode: BlendMode): Int =
  * tables read backwards so a mode added to one direction is a compile error in the other rather than a
  * silently unpackable value.
  *
- * @param BlendMode      color The runtime colour blend mode.
+ * @param BlendMode      color The runtime color blend mode.
  * @param AlphaBlendMode alpha The runtime alpha blend mode.
  * @return Int The stored int, `colorMode or (alphaMode shl 8)`.
  */

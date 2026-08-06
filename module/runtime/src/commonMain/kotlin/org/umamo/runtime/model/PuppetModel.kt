@@ -174,7 +174,7 @@ data class Part(
 	 * when the part has none.
 	 *
 	 * A part owns only ONE blendable channel - its draw order - so unlike a drawable or a deformer
-	 * these records carry no geometry and no colour.  The effect is on stacking: a record can lift a
+	 * these records carry no geometry and no color.  The effect is on stacking: a record can lift a
 	 * grouped part's whole subtree in front of its siblings for the span of a parameter.
 	 */
 	val blendShapes: List<BlendShapeBinding<PartForm>> = emptyList(),

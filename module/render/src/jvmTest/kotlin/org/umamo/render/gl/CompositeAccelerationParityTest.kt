@@ -1,8 +1,5 @@
 package org.umamo.render.gl
 
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.system.MemoryUtil
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.PuppetTextures
@@ -45,21 +42,15 @@ class CompositeAccelerationParityTest {
 			println("modelA.moc3 not present; skipping composite acceleration parity")
 			return
 		}
-		val window = createHeadlessGl()
-		assumeGlContext("[composite-accel-parity]", window)
-		try {
-			val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(mocFile.readBytes()), null))
-			// The plain full-viewport composite path is the reference (the pre-optimization behavior the
-			// oracle + composite suites already pin).  Each optimization is asserted against it alone and
-			// combined, so a failure names which one diverged.
-			val reference = renderImage(puppet, flatten = false, scissor = false)
-			assertMatches(reference, renderImage(puppet, flatten = true, scissor = false), "identity flatten")
-			assertMatches(reference, renderImage(puppet, flatten = false, scissor = true), "bounds scissor")
-			assertMatches(reference, renderImage(puppet, flatten = true, scissor = true), "flatten + scissor")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		requireHeadlessGl("[composite-accel-parity]")
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(mocFile.readBytes()), null))
+		// The plain full-viewport composite path is the reference (the pre-optimization behavior the
+		// oracle + composite suites already pin).  Each optimization is asserted against it alone and
+		// combined, so a failure names which one diverged.
+		val reference = renderImage(puppet, flatten = false, scissor = false)
+		assertMatches(reference, renderImage(puppet, flatten = true, scissor = false), "identity flatten")
+		assertMatches(reference, renderImage(puppet, flatten = false, scissor = true), "bounds scissor")
+		assertMatches(reference, renderImage(puppet, flatten = true, scissor = true), "flatten + scissor")
 	}
 
 	private fun assertMatches(reference: IntArray, candidate: IntArray, label: String) {
@@ -115,25 +106,5 @@ class CompositeAccelerationParityTest {
 		renderer.render(target, viewportWidth, viewportHeight)
 		val image = device.readPixels(target)
 		return IntArray(image.rgba.size) { image.rgba[it].toInt() and 0xFF }
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-composite-accel-parity", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

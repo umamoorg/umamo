@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.update
 
 /**
  * The severity of a logged line.  Nominal today (the stdout transport prints every level identically),
- * but retained on each entry so an in-app console can colour Warn and Error distinctly.
+ * but retained on each entry so an in-app console can color Warn and Error distinctly.
  */
 enum class LogLevel {
 	Info,
