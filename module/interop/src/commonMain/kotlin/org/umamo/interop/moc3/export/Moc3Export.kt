@@ -33,9 +33,10 @@ import org.umamo.runtime.model.PuppetModel
  * This object is only the orchestrator.  The work sits in per-concern producers beside it -
  * [resolveExportEligibility] for what gets written at all, then [lowerParameters], [lowerRenderOrder],
  * [lowerParts], [lowerDeformers], [lowerArtMeshes], [lowerGlues], [lowerOffscreens], and
- * [lowerBlendShapes] - over one immutable [Moc3ExportContext] and two collaborators each producer
- * takes explicitly: the [Moc3KeyformPool] it interns bindings into and the [Moc3ExportNotices] it
- * reports through.  A producer's signature is therefore the statement of what it can change.
+ * [lowerBlendShapes] - over one immutable [Moc3ExportContext] and three collaborators each producer
+ * takes explicitly: the [Moc3KeyformPool] it interns bindings into, the [Moc3ExportIds] it claims
+ * written ids from, and the [Moc3ExportNotices] it reports through.  A producer's signature is
+ * therefore the statement of what it can change.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
@@ -78,10 +79,13 @@ object Moc3Export {
 		val plan = Moc3IndexPlan.of(downgradedPuppet, eligibility.drawables, eligibility.parts)
 		val context = Moc3ExportContext(downgradedPuppet, version, eligibility, plan, canvasToParentSpace)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
+		// Built from the plan, so every id the file will contain is claimed before the first record is
+		// written and an id too wide for the record can only be shortened INTO a free name.
+		val ids = Moc3ExportIds(plan, downgradedPuppet.glues, noticeSink)
 
 		// Neither of these two interns: a parameter is an axis objects bind TO, and the render-order tree
 		// addresses objects that already exist.
-		val parameters = lowerParameters(context, noticeSink)
+		val parameters = lowerParameters(context, ids)
 		val renderOrderGroups = lowerRenderOrder(downgradedPuppet, plan)
 
 		// The four producers below intern into the shared pool IN THIS ORDER, and that order is the
@@ -89,11 +93,11 @@ object Moc3Export {
 		// permutation nothing downstream reads - but it is also the visible symptom of a producer moving
 		// relative to a data dependency it has, which is not harmless.  Moc3ExportBindingOrderTest pins
 		// it so that second thing cannot happen quietly.
-		val loweredParts = lowerParts(context, pool, noticeSink)
+		val loweredParts = lowerParts(context, pool, ids, noticeSink)
 		val parts = loweredParts.records
-		val deformers = lowerDeformers(context, pool, noticeSink)
-		val artMeshes = lowerArtMeshes(context, pool, noticeSink)
-		val glues = lowerGlues(downgradedPuppet, context, pool, noticeSink)
+		val deformers = lowerDeformers(context, pool, ids, noticeSink)
+		val artMeshes = lowerArtMeshes(context, pool, ids, noticeSink)
+		val glues = lowerGlues(downgradedPuppet, context, pool, ids, noticeSink)
 
 		// LAST, so drop notices trail the per-object findings rather than leading them.  The eligibility
 		// pass runs first, but a rigger reads its findings better after the rest.

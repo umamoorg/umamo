@@ -18,9 +18,11 @@ import org.umamo.runtime.model.ParameterNode
  * @return List<Parameter> The runtime parameters, in file order.
  */
 internal fun importParameters(context: Moc3ImportContext): List<Parameter> =
-	context.mocDocument.parameters.map { source ->
+	context.mocDocument.parameters.mapIndexed { parameterIndex, source ->
 		Parameter(
-			id = ParameterId(source.id),
+			// Through the context's table, not from source.id: a file carrying the same id twice resolves
+			// the repeat to a synthesized id there, and building it here instead would re-merge the two.
+			id = context.parameterIds[parameterIndex],
 			// cdi3: DisplayParameter.name is the display label; fall back to the id (ParamAngleX).
 			name = context.parameterNameById[source.id] ?: source.id,
 			min = source.minimumValue,

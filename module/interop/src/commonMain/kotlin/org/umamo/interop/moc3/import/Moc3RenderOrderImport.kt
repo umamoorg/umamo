@@ -46,8 +46,8 @@ internal fun importRenderRoot(context: Moc3ImportContext): RenderGroup? {
 						partId = partId,
 						drawOrder = partStaticDrawOrder(context, part),
 						children = childrenOf(child.groupIndex),
-						channelGrids = partChannelsOf(context, part),
-						composite = partCompositeOf(context, part),
+						channelGrids = partChannelsOf(context, part, child.index),
+						composite = partCompositeOf(context, part, child.index),
 					)
 				}
 
