@@ -10,6 +10,8 @@ import org.umamo.format.moc3.json.FileReferences
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.export.CanvasToParentSpace
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.mocVersion
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel

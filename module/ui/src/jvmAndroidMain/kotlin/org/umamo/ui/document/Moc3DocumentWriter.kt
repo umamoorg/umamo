@@ -7,9 +7,9 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import org.umamo.interop.moc3.CanvasToParentSpace
-import org.umamo.interop.moc3.Moc3Export
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.export.CanvasToParentSpace
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.eval.drawableSpaceMapping

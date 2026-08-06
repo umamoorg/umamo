@@ -1,7 +1,7 @@
 package org.umamo.render.gl
 
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFormat
@@ -43,7 +43,7 @@ class CompositeAccelerationParityTest {
 			return
 		}
 		requireHeadlessGl("[composite-accel-parity]")
-		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(mocFile.readBytes()), null))
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
 		// The plain full-viewport composite path is the reference (the pre-optimization behavior the
 		// oracle + composite suites already pin).  Each optimization is asserted against it alone and
 		// combined, so a failure names which one diverged.

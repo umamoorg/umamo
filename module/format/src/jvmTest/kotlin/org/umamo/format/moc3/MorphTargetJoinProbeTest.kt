@@ -142,7 +142,7 @@ class MorphTargetJoinProbeTest {
 		}
 
 		// MOC3 side.
-		val document = Moc3.decode(moc3File.readBytes())
+		val document = Moc3.read(moc3File.readBytes())
 		val records = document.blendShapes
 		val warpIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.WarpDeformer }.map { it.index }
 		val rotationIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.RotationDeformer }.map { it.index }

@@ -2,7 +2,7 @@ package org.umamo.render.gl
 
 import org.lwjgl.opengl.GL11
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -43,7 +43,7 @@ class CompositePerfProbeTest {
 			return
 		}
 		requireHeadlessGl("[composite-perf]")
-		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(mocFile.readBytes()), null))
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
 		// Demote Isolated to Grouped (not PassThrough) so the stripped model keeps the same
 		// draw-order grouping and the comparison isolates the composite cost alone.
 		val stripped =

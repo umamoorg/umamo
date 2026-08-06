@@ -6,7 +6,7 @@ import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.model.Deformer
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
 import java.io.File
 import kotlin.test.Test
@@ -68,7 +68,7 @@ class DeformerChannelOracleTest {
 		val mismatches = ArrayList<String>()
 
 		for (mocFile in samples) {
-			val mocDocument = runCatching { Moc3.decode(mocFile.readBytes()) }.getOrNull() ?: continue
+			val mocDocument = runCatching { Moc3.read(mocFile.readBytes()) }.getOrNull() ?: continue
 			val drivingParameters = parametersDrivingChannelledDeformers(mocDocument)
 			if (drivingParameters.isEmpty()) {
 				continue

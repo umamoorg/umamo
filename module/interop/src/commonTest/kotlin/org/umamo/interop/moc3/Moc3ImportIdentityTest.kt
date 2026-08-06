@@ -10,6 +10,7 @@ import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Part
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
+import org.umamo.interop.moc3.import.Moc3Import
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

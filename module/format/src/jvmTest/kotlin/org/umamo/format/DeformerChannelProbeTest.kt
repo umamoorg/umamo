@@ -217,7 +217,7 @@ class DeformerChannelProbeTest {
 		val corpusArtMesh = ChannelTally()
 		for (file in files) {
 			val decoded =
-				runCatching { Moc3.decode(file.readBytes()) }.getOrElse { failure ->
+				runCatching { Moc3.read(file.readBytes()) }.getOrElse { failure ->
 					println("--- ${file.name}: decode failed (${failure::class.simpleName}: ${failure.message})")
 					null
 				}

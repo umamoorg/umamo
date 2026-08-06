@@ -542,7 +542,7 @@ private fun buildAppMenu(
 		fileMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
-			canExportCmo3 = document is PuppetDocument,
+			canExport = document is PuppetDocument,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,
