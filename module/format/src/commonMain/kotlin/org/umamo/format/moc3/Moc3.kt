@@ -6,6 +6,7 @@ import org.umamo.format.FileKind
 import org.umamo.format.FormatCodec
 import org.umamo.format.FormatVersion
 import org.umamo.format.moc3.decode.MocDecoder
+import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.json.Physics3Json
@@ -18,13 +19,12 @@ import org.umamo.format.moc3.moc.MocVersion
 /**
  * Reads and writes Live2D Cubism runtime assets: the `.moc3` binary model and its JSON sidecars.
  *
- * EN: Implements [FormatCodec] for the binary `.moc3` container (round-trip is byte-identical for
- *     unedited files); the JSON sidecar helpers handle `model3.json` and friends. Those sidecars are
- *     `String`-shaped (not `ByteArray`), so they sit alongside the [FormatCodec] members rather than
- *     within them. The `.moc3` and its sidecars are sibling files (the manifest references the rest
- *     by path), so they are decoupled here - pair them yourself. Pure Kotlin (JVM + Android); no
- *     JDOM/reflection.
- * JA: `.moc3` バイナリと JSON サイドカーの読み書き。未編集の `.moc3` はバイト単位で再生成。
+ * Implements [FormatCodec] for the binary `.moc3` container (round-trip is byte-identical for
+ * unedited files); the JSON sidecar helpers handle `model3.json` and friends. Those sidecars are
+ * `String`-shaped (not `ByteArray`), so they sit alongside the [FormatCodec] members rather than
+ * within them. The `.moc3` and its sidecars are sibling files (the manifest references the rest
+ * by path), so they are decoupled here - pair them yourself. Pure Kotlin (JVM + Android); no
+ * JDOM/reflection.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -97,8 +97,7 @@ public object Moc3 : FormatCodec<MocModel> {
 	 * @param MocDocument doc The document to bake.
 	 * @return ByteArray The baked `.moc3` file bytes.
 	 */
-	public fun bake(reference: MocModel, doc: MocDocument): ByteArray =
-		org.umamo.format.moc3.encode.MocEncoder.bake(reference, doc)
+	public fun bake(reference: MocModel, doc: MocDocument): ByteArray = MocEncoder.bake(reference, doc)
 
 	/**
 	 * Parses a `model3.json` manifest.

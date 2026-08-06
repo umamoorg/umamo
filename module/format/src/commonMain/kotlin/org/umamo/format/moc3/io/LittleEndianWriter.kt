@@ -72,6 +72,22 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 	}
 
 	/**
+	 * Writes a little-endian 16-bit integer (low 16 bits used).
+	 *
+	 * Takes an [Int] and masks rather than taking a [Short] with a range precondition: callers pass
+	 * `shortValue.toInt()`, which sign-extends above 32767, and a mesh with more than 32767 vertices
+	 * writes exactly those values.  A `require` here would reject a file the format permits.
+	 *
+	 * @param Int value Value to write; only the low 16 bits are used.
+	 */
+	public fun writeU16(value: Int) {
+		ensure(2)
+		buffer[position] = value.toByte()
+		buffer[position + 1] = (value ushr 8).toByte()
+		position += 2
+	}
+
+	/**
 	 * Writes a little-endian 32-bit integer.
 	 *
 	 * @param Int value Value to write.

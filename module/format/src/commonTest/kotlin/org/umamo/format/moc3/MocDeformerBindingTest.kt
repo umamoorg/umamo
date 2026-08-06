@@ -130,7 +130,7 @@ class MocDeformerBindingTest {
 				renderOrderGroups = emptyList(),
 			)
 
-		val sections = MocLowering.structuralSections(document)
+		val sections = MocLowering.lower(document)
 		val unified = intsOf(sections, Section.DEFORMER_KEYFORM_BINDING, version)
 		val warpBindings = intsOf(sections, Section.WARP_KEYFORM_BINDING, version)
 		val rotationBindings = intsOf(sections, Section.ROTATION_KEYFORM_BINDING, version)
