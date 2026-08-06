@@ -24,6 +24,24 @@ subprojects {
 			exclude { element -> element.file.path.contains("/generated/") }
 		}
 	}
+
+	// Name every test as it runs, and print failures in full.
+	//
+	// Gradle's defaults report a passing run as a single count, which is the one shape this build must
+	// not have: the corpus- and GL-gated tests self-skip when their input is missing, and "239 tests
+	// completed" reads identically whether the GL suite rendered pixels or sat out the whole run.  Naming
+	// passed AND skipped tests is what tells those two apart in a CI log.
+	//
+	// FULL rather than the default SHORT because SHORT prints only "AssertionError at File.kt:120" and
+	// drops the message - which is where a failure says what it actually was (HeadlessGlGate puts the
+	// GLFW error code and description there).  Standard streams stay off: the tests print per-pixel
+	// diagnostics that would bury everything else.
+	tasks.withType<Test>().configureEach {
+		testLogging {
+			events("passed", "skipped", "failed")
+			exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+		}
+	}
 }
 
 // Keeps the common source sets free of JVM-only APIs.

@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -131,29 +128,23 @@ class GpuGlueValidationTest {
 
 	@Test
 	fun gpuGlueWeldMatchesTheCpuOracle() {
-		val window = createHeadlessGl()
-		assumeGlContext("[gpu-glue]", window)
-		try {
-			val welded = artColumnExtent(model(welded = true))
-			val control = artColumnExtent(model(welded = false))
+		requireHeadlessGl("[gpu-glue]")
+		val welded = artColumnExtent(model(welded = true))
+		val control = artColumnExtent(model(welded = false))
 
-			// Where the CPU oracle - which welds through applyGluesResolved - puts B's edges.
-			val expectedWelded = cpuColumnExtent(model(welded = true))
-			val expectedControl = cpuColumnExtent(model(welded = false))
-			println("[gpu-glue] welded: gpu=$welded cpu=$expectedWelded | control: gpu=$control cpu=$expectedControl")
+		// Where the CPU oracle - which welds through applyGluesResolved - puts B's edges.
+		val expectedWelded = cpuColumnExtent(model(welded = true))
+		val expectedControl = cpuColumnExtent(model(welded = false))
+		println("[gpu-glue] welded: gpu=$welded cpu=$expectedWelded | control: gpu=$control cpu=$expectedControl")
 
-			// The control first: if this drifts, the probe itself is wrong and the welded case proves nothing.
-			assertExtentMatches("unwelded", control, expectedControl)
-			// The weld must actually move B, not merely agree with a CPU oracle that also did nothing.
-			assertTrue(
-				expectedWelded.first < expectedControl.first - 50,
-				"probe sanity: the CPU oracle's weld must move B's left edge a long way left",
-			)
-			assertExtentMatches("welded", welded, expectedWelded)
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// The control first: if this drifts, the probe itself is wrong and the welded case proves nothing.
+		assertExtentMatches("unwelded", control, expectedControl)
+		// The weld must actually move B, not merely agree with a CPU oracle that also did nothing.
+		assertTrue(
+			expectedWelded.first < expectedControl.first - 50,
+			"probe sanity: the CPU oracle's weld must move B's left edge a long way left",
+		)
+		assertExtentMatches("welded", welded, expectedWelded)
 	}
 
 	/**
@@ -229,25 +220,5 @@ class GpuGlueValidationTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-gpu-glue", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

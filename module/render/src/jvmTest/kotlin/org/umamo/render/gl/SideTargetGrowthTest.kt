@@ -1,8 +1,5 @@
 package org.umamo.render.gl
 
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.system.MemoryUtil
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
@@ -106,32 +103,26 @@ class SideTargetGrowthTest {
 
 	@Test
 	fun shrinkAndRegrowMatchExactSizeRenders() {
-		val window = createHeadlessGl()
-		assumeGlContext("[side-target-growth]", window)
-		try {
-			val device = GlRenderDevice()
-			val longLived = newRenderer(device)
+		requireHeadlessGl("[side-target-growth]")
+		val device = GlRenderDevice()
+		val longLived = newRenderer(device)
 
-			// Establish the 96-capacity side targets, and pin the scene is not degenerate: some red
-			// byte must differ from the 0.5-grey backdrop (alpha bytes are excluded - they are 255
-			// everywhere and would satisfy a whole-array check vacuously).
-			val firstLarge = renderAt(device, longLived, largeSize)
-			val drewSomething = (firstLarge.rgba.indices step 4).any { redIndex -> (firstLarge.rgba[redIndex].toInt() and 0xFF) != 0x80 }
-			assertTrue(drewSomething, "the scene draws over the backdrop")
+		// Establish the 96-capacity side targets, and pin the scene is not degenerate: some red
+		// byte must differ from the 0.5-grey backdrop (alpha bytes are excluded - they are 255
+		// everywhere and would satisfy a whole-array check vacuously).
+		val firstLarge = renderAt(device, longLived, largeSize)
+		val drewSomething = (firstLarge.rgba.indices step 4).any { redIndex -> (firstLarge.rgba[redIndex].toInt() and 0xFF) != 0x80 }
+		assertTrue(drewSomething, "the scene draws over the backdrop")
 
-			// The load-bearing case: 96-capacity side targets rendering a 64 viewport.
-			val shrunk = renderAt(device, longLived, smallSize)
-			val exactSmall = renderAt(device, newRenderer(device), smallSize)
-			assertContentEquals(exactSmall.rgba, shrunk.rgba, "a 64 render off 96-capacity side targets matches an exact-size renderer")
+		// The load-bearing case: 96-capacity side targets rendering a 64 viewport.
+		val shrunk = renderAt(device, longLived, smallSize)
+		val exactSmall = renderAt(device, newRenderer(device), smallSize)
+		assertContentEquals(exactSmall.rgba, shrunk.rgba, "a 64 render off 96-capacity side targets matches an exact-size renderer")
 
-			// Regrow: back at capacity, still identical to a fresh exact-size renderer.
-			val regrown = renderAt(device, longLived, largeSize)
-			val exactLarge = renderAt(device, newRenderer(device), largeSize)
-			assertContentEquals(exactLarge.rgba, regrown.rgba, "the regrown 96 render matches an exact-size renderer")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// Regrow: back at capacity, still identical to a fresh exact-size renderer.
+		val regrown = renderAt(device, longLived, largeSize)
+		val exactLarge = renderAt(device, newRenderer(device), largeSize)
+		assertContentEquals(exactLarge.rgba, regrown.rgba, "the regrown 96 render matches an exact-size renderer")
 	}
 
 	/** Builds and initializes a renderer for the shared test scene on [device]. */
@@ -158,25 +149,5 @@ class SideTargetGrowthTest {
 		val image = device.readPixels(target)
 		device.destroyRenderTarget(target)
 		return image
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-side-target-growth", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

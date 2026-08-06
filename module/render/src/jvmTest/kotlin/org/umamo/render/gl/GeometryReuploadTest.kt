@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -119,60 +116,54 @@ class GeometryReuploadTest {
 	 * the expected screen delta and that pick geometry followed. Self-skips (returns) with no GL context.
 	 */
 	private fun runMotionCase(source: PuppetModel, label: String) {
-		val window = createHeadlessGl()
-		assumeGlContext("[geometry-reupload]", window)
-		try {
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
-			// never moves - only the art does. Held across both renders.
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		requireHeadlessGl("[geometry-reupload]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(source, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel and the frame
+		// never moves - only the art does. Held across both renders.
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
-			// Background only (the drawable hidden), so the art can be isolated by differencing against it.
-			renderer.setShownDrawables(emptySet())
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val background = readPixels(viewportSize, viewportSize)
+		// Background only (the drawable hidden), so the art can be isolated by differencing against it.
+		renderer.setShownDrawables(emptySet())
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val background = readPixels(viewportSize, viewportSize)
 
-			// Frame A: the art at its original base positions.
-			renderer.setShownDrawables(setOf(probeId))
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frameA = readPixels(viewportSize, viewportSize)
-			val (centroidAx, centroidAy, massA) = maskCentroid(frameA, background, viewportSize, viewportSize)
-			val pickAx = pickCentroidX(renderer)
+		// Frame A: the art at its original base positions.
+		renderer.setShownDrawables(setOf(probeId))
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frameA = readPixels(viewportSize, viewportSize)
+		val (centroidAx, centroidAy, massA) = maskCentroid(frameA, background, viewportSize, viewportSize)
+		val pickAx = pickCentroidX(renderer)
 
-			// Edit: shift the base +shiftWorld in x and push the new model (the render loop's updateModel path).
-			renderer.updateModel(shiftedModel(source))
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frameB = readPixels(viewportSize, viewportSize)
-			val (centroidBx, centroidBy, massB) = maskCentroid(frameB, background, viewportSize, viewportSize)
-			val pickBx = pickCentroidX(renderer)
+		// Edit: shift the base +shiftWorld in x and push the new model (the render loop's updateModel path).
+		renderer.updateModel(shiftedModel(source))
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frameB = readPixels(viewportSize, viewportSize)
+		val (centroidBx, centroidBy, massB) = maskCentroid(frameB, background, viewportSize, viewportSize)
+		val pickBx = pickCentroidX(renderer)
 
-			println(
-				"[geometry-reupload] $label: massA=$massA massB=$massB dx=${centroidBx - centroidAx} " +
-					"(expected $shiftWorld) dy=${centroidBy - centroidAy} pickDx=${pickBx - pickAx}",
-			)
-			assertTrue(massA > 1000, "$label: frame A drew too little art (mass $massA) - the probe did not render")
-			assertTrue(massB > 1000, "$label: frame B drew too little art (mass $massB)")
-			// The whole quad translated rigidly, so its pixel centroid shifts by exactly the world delta at
-			// zoom 1. A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
-			assertEquals(shiftWorld, centroidBx - centroidAx, 4f, "$label: art did not move by the edited base delta")
-			assertTrue(abs(centroidBy - centroidAy) < 4f, "$label: art drifted in y (${centroidBy - centroidAy})")
-			// Pick geometry must follow the edit too (world x unchanged by the global Y-flip).
-			assertEquals(shiftWorld, pickBx - pickAx, 0.5f, "$label: pick geometry did not follow the base edit")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		println(
+			"[geometry-reupload] $label: massA=$massA massB=$massB dx=${centroidBx - centroidAx} " +
+				"(expected $shiftWorld) dy=${centroidBy - centroidAy} pickDx=${pickBx - pickAx}",
+		)
+		assertTrue(massA > 1000, "$label: frame A drew too little art (mass $massA) - the probe did not render")
+		assertTrue(massB > 1000, "$label: frame B drew too little art (mass $massB)")
+		// The whole quad translated rigidly, so its pixel centroid shifts by exactly the world delta at
+		// zoom 1. A generous tolerance covers anti-aliased edge pixels near the flat-color threshold.
+		assertEquals(shiftWorld, centroidBx - centroidAx, 4f, "$label: art did not move by the edited base delta")
+		assertTrue(abs(centroidBy - centroidAy) < 4f, "$label: art drifted in y (${centroidBy - centroidAy})")
+		// Pick geometry must follow the edit too (world x unchanged by the global Y-flip).
+		assertEquals(shiftWorld, pickBx - pickAx, 0.5f, "$label: pick geometry did not follow the base edit")
 	}
 
 	/** The mean world-space x of the probe's current pick geometry (the CPU deform runs against currentModel). */
@@ -235,25 +226,5 @@ class GeometryReuploadTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
 		return framebuffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-geometry-reupload", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }
