@@ -25,14 +25,14 @@ internal interface CameraController {
 	fun actualSize()
 
 	/**
-	 * Zooms in one step about the view centre.
+	 * Zooms in one step about the view center.
 	 *
 	 * @param Boolean coarse Use the larger (Shift) step.
 	 */
 	fun zoomIn(coarse: Boolean)
 
 	/**
-	 * Zooms out one step about the view centre.
+	 * Zooms out one step about the view center.
 	 *
 	 * @param Boolean coarse Use the larger (Shift) step.
 	 */

@@ -174,7 +174,7 @@ fun EditorSession.setDrawableMaskedBy(id: DrawableId, maskedBy: List<DrawableId>
 }
 
 /**
- * Binds deformer [id] to the organisational part that owns it (null clears it) as one undo step.
+ * Binds deformer [id] to the organizational part that owns it (null clears it) as one undo step.
  *
  * @param DeformerId id The deformer to rebind.
  * @param PartId? partId The part that owns it, or null to clear.

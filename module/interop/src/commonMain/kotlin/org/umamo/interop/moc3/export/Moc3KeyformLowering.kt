@@ -1,4 +1,4 @@
-package org.umamo.interop.moc3
+package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.model.KeyformBinding
 import org.umamo.format.moc3.model.Rgb
@@ -178,7 +178,7 @@ fun flagOf(bundle: KeyformBundle, cellIndex: Int, channel: FormChannel, fallback
  * @param FormChannel    channel   The color channel to read.
  * @param ColorRgb       fallback  The owner's static color.
  * @param Boolean        enabled   Whether the target version carries color tables.
- * @return Rgb? The cell's color, or null when colours are not written.
+ * @return Rgb? The cell's color, or null when colors are not written.
  */
 fun colorOf(
 	bundle: KeyformBundle?,

@@ -175,11 +175,7 @@ public class MocSections internal constructor(private val model: MocModel) {
 		when (section.element) {
 			ElementType.I32, ElementType.U32 -> intArray(section).forEach(writer::writeInt32)
 			ElementType.F32 -> floatArray(section).forEach(writer::writeFloat32)
-			ElementType.I16 ->
-				shortArray(section).forEach { shortValue ->
-					writer.writeU8(shortValue.toInt() and 0xFF)
-					writer.writeU8((shortValue.toInt() shr 8) and 0xFF)
-				}
+			ElementType.I16 -> shortArray(section).forEach { shortValue -> writer.writeU16(shortValue.toInt()) }
 			ElementType.U8 -> writer.writeBytes(byteArray(section))
 			// Re-encoded from the decoded strings, so this genuinely exercises the id-record walk and the
 			// NUL-terminate-then-zero-pad convention rather than comparing raw bytes to themselves.  Every

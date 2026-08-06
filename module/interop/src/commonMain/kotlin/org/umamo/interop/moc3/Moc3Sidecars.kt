@@ -10,6 +10,9 @@ import org.umamo.format.moc3.json.FileReferences
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.export.CanvasToParentSpace
+import org.umamo.interop.moc3.export.Moc3Export
+import org.umamo.interop.moc3.export.Moc3WrittenIds
 import org.umamo.interop.mocVersion
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
@@ -102,12 +105,18 @@ object Moc3Sidecars {
 		source: Model3Json? = null,
 		canvasToParentSpace: CanvasToParentSpace? = null,
 	): Bundle {
-		val (mocBytes, report) = Moc3Export.write(puppet, version, canvasToParentSpace)
+		// Lowered rather than written outright, because the cdi3 below has to name the objects by the ids
+		// the MOC actually got: an id the record width forced short is not the id the model carries.
+		val lowered = Moc3Export.toMocDocument(puppet, version, canvasToParentSpace)
+		val mocBytes = Moc3.write(lowered.document)
+		val report = lowered.report
 		val mocFileName = "$basename.moc3"
 		val displayInfoName = "$basename.cdi3.json"
 		val files = ArrayList<BundleFile>(pages.size + sidecars.size + 3)
 		files.add(BundleFile(mocFileName, mocBytes))
-		files.add(BundleFile(displayInfoName, Moc3.writeCdi3(displayInfo(puppet)).encodeToByteArray()))
+		files.add(
+			BundleFile(displayInfoName, Moc3.writeCdi3(displayInfo(puppet, lowered.writtenIds)).encodeToByteArray()),
+		)
 		for (page in pages) {
 			files.add(BundleFile(page.fileName, page.bytes))
 		}
@@ -149,10 +158,21 @@ object Moc3Sidecars {
 	 * writing" because this model happens to use default names would make the family's shape depend
 	 * on the data in it.
 	 *
-	 * @param PuppetModel puppet The rig.
+	 * Every id here is the id the MOC was written with, taken from [writtenIds] rather than from the
+	 * model: the runtime joins the two files on that string, so an id the record width forced short
+	 * would leave its cdi3 entry naming an object the moc does not contain - the display name, the
+	 * parameter's group placement, and its combined-parameter pairing all quietly stranded.  Parameter
+	 * GROUP ids are the exception, and stay verbatim: they exist only in this file, so no moc record
+	 * bounds them.
+	 *
+	 * @param PuppetModel    puppet     The rig.
+	 * @param Moc3WrittenIds writtenIds What the lowering wrote each object's id as.
 	 * @return Cdi3Json The display info.
 	 */
-	fun displayInfo(puppet: PuppetModel): Cdi3Json {
+	fun displayInfo(
+		puppet: PuppetModel,
+		writtenIds: Moc3WrittenIds,
+	): Cdi3Json {
 		val groupIdByParameter = HashMap<String, String>()
 		val groups = ArrayList<DisplayParameterGroup>()
 
@@ -180,21 +200,27 @@ object Moc3Sidecars {
 			parameters =
 				puppet.parameters.map { parameter ->
 					DisplayParameter(
-						id = parameter.id.raw,
+						id = writtenIds.parameterId(parameter.id),
+						// Keyed by the MODEL id: the group walk above indexed the parameter tree, which
+						// holds model ids like everything else in the rig.
 						groupId = groupIdByParameter[parameter.id.raw] ?: "",
 						name = parameter.name,
 					)
 				},
 			parameterGroups = groups,
-			parts = puppet.parts.map { part -> DisplayPart(id = part.id.raw, name = part.name) },
+			parts = puppet.parts.map { part -> DisplayPart(id = writtenIds.partId(part.id), name = part.name) },
 			// The pair order is the same one the import reads back: horizontal first, then vertical.
 			combinedParameters =
 				puppet.parameterLinks
-					.map { link -> listOf(link.horizontal.raw, link.vertical.raw) }
+					.map { link ->
+						listOf(writtenIds.parameterId(link.horizontal), writtenIds.parameterId(link.vertical))
+					}
 					.takeIf { links -> links.isNotEmpty() },
 			drawables =
 				puppet.drawables
-					.map { drawable -> DisplayDrawable(id = drawable.id.raw, name = drawable.name) }
+					.map { drawable ->
+						DisplayDrawable(id = writtenIds.drawableId(drawable.id), name = drawable.name)
+					}
 					.takeIf { meshes -> meshes.isNotEmpty() },
 		)
 	}

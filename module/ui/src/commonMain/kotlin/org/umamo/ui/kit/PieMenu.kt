@@ -89,13 +89,13 @@ private val PIE_DISC_OVERSHOOT = 40.dp
 private val PIE_ICON_SIZE = 12.dp
 
 /**
- * The horizontal half-extent reserved for a West / East chip when clamping the pie centre: the chips
+ * The horizontal half-extent reserved for a West / East chip when clamping the pie center: the chips
  * sit centered ON the ring, so the ring radius plus this covers the widest labels.  Conservative - a
  * pathological label still has the per-chip coercion as its safety net.
  */
 private val PIE_CHIP_MAX_HALF_WIDTH = 120.dp
 
-/** Pointer travel (px) from the pie centre below which a release dismisses instead of picking. */
+/** Pointer travel (px) from the pie center below which a release dismisses instead of picking. */
 private const val PIE_DEAD_ZONE_PX = 24f
 
 /** The placeholder tint for an entry with no authored icon yet - deliberately loud (see PieMenuEntry.icon). */
@@ -103,7 +103,7 @@ private val PIE_ICON_PLACEHOLDER = Color(0xFFFF2BD6)
 
 /**
  * A Blender-style radial pie menu centered at [center]: up to eight entries on a ring, picked by
- * DIRECTION from the centre (not chip bounds), so a coarse flick works as well as a precise click -
+ * DIRECTION from the center (not chip bounds), so a coarse flick works as well as a precise click -
  * and the same gesture works for press-drag-release (pen-friendly; the future pen radial menu reuses
  * this component).  A click (or release) inside the dead zone, or on a disabled entry's direction,
  * dismisses without invoking.  Escape is the shell's to route (it closes the pie via the session
@@ -111,22 +111,22 @@ private val PIE_ICON_PLACEHOLDER = Color(0xFFFF2BD6)
  *
  * The wedge background disc makes the direction mapping readable: each entry's sector is the exact
  * angular region the pick function resolves to it (the angular Voronoi of the used slot directions),
- * with the hovered sector highlighted; the dead zone renders as the centre disc, holding [title].
+ * with the hovered sector highlighted; the dead zone renders as the center disc, holding [title].
  *
- * The centre is CLAMPED so the full ring fits inside the overlay's bounds (Blender constrains its
+ * The center is CLAMPED so the full ring fits inside the overlay's bounds (Blender constrains its
  * pies to the screen the same way): the whole pie shifts inward rather than squishing chips at an
  * edge.  The clamp lives here - not in the host - because the direction pick, the wedges, the title,
- * and the chips must all share the one effective centre or the pick math desyncs from the drawing.
+ * and the chips must all share the one effective center or the pick math desyncs from the drawing.
  *
  * Blender 風の放射状パイメニュー。方向で選択するため、クリックでもドラッグ＆リリースでも使える。
  * 扇形の背景が方向と項目の対応を示し、中央の円にタイトルが乗る。中心はリング全体が収まるよう
  * オーバーレイ境界内にクランプされる。
  *
  * @param List<PieMenuEntry> entries The entries, in Blender slot order (W, E, S, N, NW, NE, SW, SE).
- * @param Offset center The requested pie centre in the host's local pixels (frozen at open by the
- *   host); the rendered centre is this clamped inside the overlay so the ring never clips.
+ * @param Offset center The requested pie center in the host's local pixels (frozen at open by the
+ *   host); the rendered center is this clamped inside the overlay so the ring never clips.
  * @param Function onDismiss Called after an invocation or a dismissing click.
- * @param StringResource? title The pie's name, rendered at the centre (null for none).
+ * @param StringResource? title The pie's name, rendered at the center (null for none).
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
@@ -145,9 +145,9 @@ fun PieMenuOverlay(
 	var hoveredSlot by remember { mutableStateOf(-1) }
 
 	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-		// The centre everything draws and picks from: [center] shifted so the full ring - disc
+		// The center everything draws and picks from: [center] shifted so the full ring - disc
 		// vertically, ring plus the widest chip horizontally - fits inside these bounds.  An overlay
-		// too small to fit the pie at all centres it instead (coerceIn would throw on min > max).
+		// too small to fit the pie at all centers it instead (coerceIn would throw on min > max).
 		val effectiveCenter =
 			with(density) {
 				val horizontalMargin = PIE_RADIUS.toPx() + PIE_CHIP_MAX_HALF_WIDTH.toPx()
@@ -160,11 +160,11 @@ fun PieMenuOverlay(
 				)
 			}
 		// The pointer loop below outlives recompositions (pointerInput(Unit)), so it must read the
-		// centre through a live reference - a window resize while the pie is open moves the clamp.
+		// center through a live reference - a window resize while the pie is open moves the clamp.
 		val liveCenter = rememberUpdatedState(effectiveCenter)
 
 		/**
-		 * Picks the entry slot whose direction is nearest the pointer's direction from the centre.
+		 * Picks the entry slot whose direction is nearest the pointer's direction from the center.
 		 *
 		 * @param Offset position The pointer position in the overlay's coordinates.
 		 * @return Int The nearest slot index, or -1 inside the dead zone.
@@ -227,7 +227,7 @@ fun PieMenuOverlay(
 		) {
 			// The wedge background: each used slot's sector spans the midpoints to its angular neighbors -
 			// exactly the region slotAt() resolves to it - with the hovered sector highlighted and the dead
-			// zone drawn as the centre disc.  Drawn beneath the chips so labels stay crisp.
+			// zone drawn as the center disc.  Drawn beneath the chips so labels stay crisp.
 			Canvas(modifier = Modifier.fillMaxSize()) {
 				val outerRadius = PIE_RADIUS.toPx() + PIE_DISC_OVERSHOOT.toPx()
 				val discTopLeft = Offset(effectiveCenter.x - outerRadius, effectiveCenter.y - outerRadius)

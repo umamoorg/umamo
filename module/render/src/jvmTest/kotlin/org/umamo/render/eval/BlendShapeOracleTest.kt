@@ -5,7 +5,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -55,7 +55,7 @@ class BlendShapeOracleTest {
 			// document-loader path), so the blend mapping's reference re-addition and space
 			// conversion are gated end-to-end.  Same-file comparison, so any cmo3-vs-moc3
 			// authoring-state skew is out of the picture by construction.
-			val moc3Puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(pair.moc3.readBytes()), null))
+			val moc3Puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(pair.moc3.readBytes()), null))
 			for (pose in pair.poses) {
 				val (compared, matched, worst) = comparePose(puppet, dumpModel, coreLib, pair.moc3, pose)
 				totalCompared += compared

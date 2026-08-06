@@ -23,7 +23,7 @@ private fun Deformer.reparentedTo(newParent: DeformerId?): Deformer =
 		is Deformer.Rotation -> copy(parent = newParent)
 	}
 
-/** A copy of this deformer re-bound to the organisational part [newPart] (or null to clear a dangling ref). */
+/** A copy of this deformer re-bound to the organizational part [newPart] (or null to clear a dangling ref). */
 private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(partId = newPart)
@@ -140,7 +140,7 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 			parts.filterNot { it.id in subtree }
 				.map { candidate -> if (partRef in candidate.children) candidate.copy(children = candidate.children - partRef) else candidate }
 		val cleanedRoot = rootChildren.filter { it != partRef }
-		// A deformer's organisational partId may point into the deleted subtree; clear it so nothing dangles.
+		// A deformer's organizational partId may point into the deleted subtree; clear it so nothing dangles.
 		val cleanedDeformers =
 			deformers.map { deformer ->
 				if (deformer.partId != null && deformer.partId in subtree) deformer.reboundToPart(null) else deformer

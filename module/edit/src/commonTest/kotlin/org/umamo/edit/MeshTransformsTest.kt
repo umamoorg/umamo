@@ -94,7 +94,7 @@ class MeshTransformsTest {
 	/** The combined centroid across arrays is the mean of every vertex, weighted by vertex count. */
 	@Test
 	fun combinedCentroidIsVertexWeightedMean() {
-		// One array centred at (1,1) with four vertices, plus a single-vertex array at (10,10). The mean of the
+		// One array centerd at (1,1) with four vertices, plus a single-vertex array at (10,10). The mean of the
 		// five vertices is ((0+2+0+2+10)/5, (0+0+2+2+10)/5) = (2.8, 2.8), pulled toward the denser square.
 		val single = floatArrayOf(10f, 10f)
 		val (centroidX, centroidY) = MeshTransforms.combinedCentroid(listOf(square(), single))

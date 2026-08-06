@@ -25,21 +25,15 @@ public object MocRuntimeSlots {
 	 * @return Map Section index → zero bytes, sized to the owning object list.
 	 */
 	public fun runtimeSlotSections(doc: MocDocument): Map<Int, ByteArray> {
-		val version = doc.version
-		val out = LinkedHashMap<Int, ByteArray>()
+		val sink = SectionSink(doc.version)
 
 		/**
-		 * Emits one zero-filled slot array, skipping sections the version does not define.
+		 * Emits one zero-filled slot array, sized to its owning object list.
 		 *
 		 * @param Section section     The runtime-slot section.
 		 * @param Int     objectCount How many objects the array covers.
 		 */
-		fun put(section: Section, objectCount: Int) {
-			val index = section.indexIn(version)
-			if (index >= 0) {
-				out[index] = ByteArray(objectCount * ElementType.U64.size)
-			}
-		}
+		fun put(section: Section, objectCount: Int) = sink.putZeros(section, objectCount * ElementType.U64.size)
 
 		put(Section.PART_RUNTIME_SLOT, doc.parts.size)
 		put(Section.DEFORMER_RUNTIME_SLOT, doc.deformers.size)
@@ -53,6 +47,6 @@ public object MocRuntimeSlots {
 		put(Section.PARAM_RUNTIME_SLOT_A, doc.parameters.size)
 		put(Section.GLUE_RUNTIME_SLOT, doc.glues.size)
 		put(Section.OFFSCREEN_RUNTIME_SLOT, doc.offscreens.size)
-		return out
+		return sink.toMap()
 	}
 }

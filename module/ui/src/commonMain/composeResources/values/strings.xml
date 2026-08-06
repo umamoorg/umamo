@@ -84,14 +84,89 @@
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
 	<string name="confirm_discard_unexported">The current document has unexported changes.  Discard them?</string>
-	<!-- CMO3 export report alert (the document.exportReport command).  The body lines carry the
-	     per-item diagnostics; %1$s in the weld line is the affected drawable names. -->
-	<string name="export_report_message">The file was exported, but the following could not be carried into CMO3:</string>
+	<!-- Export report alert (the document.exportReport command).  One header per export format,
+	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
+	     %1$s in the weld line is the affected drawable names. -->
+	<string name="export_report_message_cmo3">The file was exported, but the following could not be carried into CMO3:</string>
+	<string name="export_report_message_moc3">The file was exported, but the following could not be carried into MOC3:</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and reopens correctly in Umamo, but it will NOT render in the Cubism Editor.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export a file Cubism can display.</string>
 	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
 	<string name="export_feature_stripped">%1$s is not available for the target runtime version, so it was removed from: %2$s.</string>
 	<string name="export_more_subjects">(+%1$d more)</string>
+	<!-- Export report: the entity category, shown as the bracketed prefix on each notice line. -->
+	<string name="export_category_parameter">Parameter</string>
+	<string name="export_category_parameter_group">Parameter Group</string>
+	<string name="export_category_part">Part</string>
+	<string name="export_category_deformer">Deformer</string>
+	<string name="export_category_drawable">Drawable</string>
+	<string name="export_category_glue">Glue</string>
+	<string name="export_category_document">Document</string>
+	<string name="export_category_keyform">Keyform</string>
+	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
+	     format, so a reason never repeats it.  Shared by both export paths: -->
+	<string name="export_reason_drawable_has_no_mesh">A drawable with no mesh cannot be written.</string>
+	<!-- MOC3 lowering.  %1$s in the channel line is a channel_* label; %1$d/%2$d in the conversion line
+	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
+	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
+	<string name="export_reason_channel_demoted_to_static">%1$s is keyed over a narrower span than the object's grid, so it was written as a constant.  MOC3 stores one grid per object.</string>
+	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
+	<string name="export_reason_unkeyed_drawable_under_deformer">An unkeyed drawable under a deformer has no parent-space geometry to write, so it was left out.</string>
+	<string name="export_reason_rest_mesh_conversion_size_mismatch">The canvas-to-parent conversion returned %1$d coordinates for %2$d, so the rest mesh was written unconverted.</string>
+	<string name="export_reason_no_atlas_page_bound">No atlas page is bound to this drawable, so it was written pointing at page 0.</string>
+	<string name="export_reason_clipping_mask_not_in_export">The clipping mask %1$s is not in this export, so the mesh was written unclipped by it.</string>
+	<string name="export_reason_offscreen_mask_not_in_export">A clipping mask names a drawable that could not be written, so it was dropped from the offscreen.</string>
+	<string name="export_reason_warp_has_no_lattice">A warp deformer with no control-point grid has no lattice to write.  One empty lattice was written in its place so the file stays readable, and everything bound to this deformer collapses to the origin.</string>
+	<string name="export_reason_rotation_has_no_pivot">A rotation deformer with no pivot grid has no transform to write, so the identity transform was written in its place.</string>
+	<string name="export_reason_glue_names_unknown_drawable">A glue naming a drawable that is not in this export was dropped.</string>
+	<string name="export_reason_id_truncated">The id does not fit a moc's %1$d-byte id record, so it was written truncated to “%2$s”.</string>
+	<string name="export_reason_id_truncated_disambiguated">The id does not fit a moc's %1$d-byte id record, and truncating it collided with another object's id, so it was written as “%2$s”.</string>
+	<!-- CMO3 reconcile: an edit with no counterpart in the retained graph. -->
+	<string name="export_reason_no_matching_source">There is no matching CMO3 source to reconcile against, so the change was not written.</string>
+	<string name="export_reason_parameter_kind_change">A parameter's kind change (normal / blend shape) is not lowered.</string>
+	<string name="export_reason_deformer_kind_change">A deformer's kind change is not lowered.</string>
+	<string name="export_reason_deformer_needs_warp_source">The CMO3 source is not a warp deformer, so warp-only edits (bilinear mode, lattice, keyforms) were not written.</string>
+	<string name="export_reason_deformer_needs_rotation_source">The CMO3 source is not a rotation deformer, so rotation-only edits (base angle, keyforms) were not written.</string>
+	<string name="export_reason_texture_rebinding_editor_only">Texture-source rebinding is editor-only state and is not written to CMO3.</string>
+	<string name="export_reason_base_geometry_vertex_mismatch">The base geometry does not match the CMO3 source's vertex count, so it was not written.</string>
+	<string name="export_reason_no_uvs_to_reconcile">The drawable has no UVs to reconcile, so none were written.</string>
+	<string name="export_reason_deformer_no_part_to_move_to">There is no CMO3 part to move the deformer to, so its part was left unchanged.</string>
+	<string name="export_reason_static_draw_order_shadowed">The static draw order is shadowed by its keyform track, so CMO3 cannot store it independently.</string>
+	<string name="export_reason_composite_statics_shadowed">The composite's static values are shadowed by the part's keyform tracks, so CMO3 cannot store them independently.</string>
+	<string name="export_reason_part_masks_flatten">Part-typed composite masks flatten to their descendant drawables in CMO3.</string>
+	<!-- CMO3 structural creation: a new entity with nowhere to be created. -->
+	<string name="export_reason_no_source_set_to_create_into">The CMO3 model has no set of this kind to create into, so the new entity was not synthesized.</string>
+	<string name="export_reason_created_entity_has_no_source">The newly created entity has no CMO3 source yet, so it was left out of the panel order.</string>
+	<string name="export_reason_created_group_not_in_tree">The created group is not in the edited parameter tree, so it was not synthesized.</string>
+	<string name="export_reason_created_drawable_no_texture_source">The created drawable has no texture source to clone, so it was not synthesized.</string>
+	<string name="export_reason_glued_drawable_has_no_source">A glued drawable has no CMO3 source, so the glue was not synthesized.</string>
+	<!-- CMO3 mesh topology and glue re-binding.  %1$d/%2$d are the mesh's vertex count and the most
+	     the edge table can index. -->
+	<string name="export_reason_vertex_count_exceeds_edge_table">The mesh has %1$d vertices, past the %2$d the editable mesh's edge table can index, so the edge table was not rebuilt.</string>
+	<string name="export_reason_glued_mesh_no_uid_table">A glued mesh has no editable-mesh vertex-id table, so the glue could not be re-bound.</string>
+	<string name="export_reason_glue_pair_past_uid_table">A glue pair indexes past its mesh's vertex-id table, so the glue was not re-bound.</string>
+	<!-- CMO3 keyforms.  %1$s in the bundle line is an export_bundle_* sentence; %1$s in the parameter
+	     lines is the parameter id, which is format-level data and stays verbatim. -->
+	<string name="export_reason_keyform_cannot_bundle">%1$s  CMO3 stores one grid per object.</string>
+	<string name="export_reason_axis_parameter_no_source">The grid axis parameter %1$s has no CMO3 source, so the keyform grid was not written.</string>
+	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no CMO3 source, so the blend shape was not written.</string>
+	<string name="export_reason_keyforms_without_base_mesh">Keyforms without a base mesh cannot be bundled into CMO3.</string>
+	<string name="export_reason_fractional_draw_order">CMO3 stores a whole-number draw order, so the fractional value was not written.</string>
+	<string name="export_reason_static_glue_intensity_without_keyforms">A static glue intensity with no keyforms has nowhere to live in CMO3.</string>
+	<!-- Why a keyform set would not bundle into one grid, nested into export_reason_keyform_cannot_bundle.
+	     %1$s in the channel line is a channel_* label. -->
+	<string name="export_bundle_keys_outside_geometry_span">Keys outside the geometry's keyed span cannot be bundled into one grid.</string>
+	<string name="export_bundle_channel_keys_without_geometry">Channel keys with no geometry cannot be bundled into one grid.</string>
+	<string name="export_bundle_keys_outside_channel_span">Keys outside the %1$s track's span cannot be bundled into one grid.</string>
+	<!-- CMO3 document fields.  These notices carry no subject, so each sentence names its own field.
+	     %1$s/%2$s in the combined-pair line are the horizontal and vertical parameter ids. -->
+	<string name="export_reason_no_authored_world_origin">CMO3 stores no authored world origin, so reopening the file derives it from the canvas center.</string>
+	<string name="export_reason_no_root_parameter_group">The model has no root parameter group, so the parameter tree was not rebuilt.</string>
+	<string name="export_reason_no_root_part">The model has no root part, so the parts panel order was not rebuilt.</string>
+	<string name="export_reason_no_parameter_source_set">The model has no parameter set, so the parameter order was not written.</string>
+	<string name="export_reason_combined_pair_reordered">The parameter order was adjusted so the combined pair %1$s + %2$s stays adjacent.</string>
+	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
+	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">Could not read %1$s.</string>
@@ -378,7 +453,7 @@
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
 
-	<!-- Pie menu centre titles (the pie's name, Blender-style). -->
+	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>
 	<string name="pie_title_snap">Snap</string>
 	<string name="pie_title_uv_snap">UV Snap</string>

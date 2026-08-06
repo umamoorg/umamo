@@ -193,7 +193,7 @@ internal class MarqueeSelectController<StrokeSelection>(
 	 * flag, stamps from the in-flight stroke or a fresh seed, and publishes the preview.
 	 *
 	 * @param Boolean erasing True when this stroke removes elements.
-	 * @param Offset center The brush centre in area-local pixels.
+	 * @param Offset center The brush center in area-local pixels.
 	 * @param Float radiusPx The brush radius in screen pixels.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.

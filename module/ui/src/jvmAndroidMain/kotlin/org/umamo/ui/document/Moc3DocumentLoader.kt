@@ -8,12 +8,10 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
-import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
-import org.umamo.format.moc3.moc.MocModel
-import org.umamo.interop.moc3.Moc3Import
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.moc3PuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
@@ -23,18 +21,17 @@ import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
 /**
- * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
- * the decoded document are kept alongside the puppet as the file's undigested form; the MOC3 export
- * reads neither, because it bakes every section fresh from the model with no reference container
- * involved (docs/format/MOC3.md § 8).  The original atlas page PNGs are retained too ([atlasPages], in
- * model3 texture order): both exports write those exact bytes rather than re-encoding the decoded
- * RGBA, Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3 writing them
+ * A `.moc3` imported together with its JSON sidecars and external atlas pages.  None of the file's
+ * undigested form is retained, because the MOC3 export bakes every section fresh from the model with
+ * no reference container involved (docs/format/MOC3.md § 8) - which is why this class has no
+ * counterpart to [Cmo3Document]'s retained graph.  That one IS load-bearing: the CMO3 export
+ * reconciles onto it.  The original atlas page PNGs are the one thing kept ([atlasPages], in model3
+ * texture order): both exports write those exact bytes rather than re-encoding the decoded RGBA,
+ * Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3 writing them
  * beside the moc.
  */
 class Moc3Document(
 	override val path: String,
-	val moc: MocModel,
-	val mocDocument: MocDocument,
 	override val puppet: PuppetModel,
 	override val textures: PuppetTextures,
 	override val liveParams: LiveParams,
@@ -141,11 +138,8 @@ internal fun buildMoc3Document(
 		UmamoLog.warn("$manifestName references ${manifest.fileReferences.moc}, not $name; importing the picked file")
 	}
 
-	val (mocModel, mocDocument) =
-		runCatching {
-			val container = Moc3.read(mocBytes)
-			container to Moc3.decode(container)
-		}.getOrElse { failure ->
+	val mocDocument =
+		runCatching { Moc3.read(mocBytes) }.getOrElse { failure ->
 			UmamoLog.error("failed to decode $path", failure)
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 		}
@@ -200,8 +194,6 @@ internal fun buildMoc3Document(
 		DocumentLoad.Loaded(
 			Moc3Document(
 				path = path,
-				moc = mocModel,
-				mocDocument = mocDocument,
 				puppet = puppet,
 				textures = textures,
 				liveParams = initialLiveParams(puppet),

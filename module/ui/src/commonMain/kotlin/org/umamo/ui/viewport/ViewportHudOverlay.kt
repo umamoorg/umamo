@@ -109,7 +109,7 @@ fun ViewportHudOverlay(
  * screen-constant size - shared by the viewport HUD (the world-space 2D cursor) and the UV editor's
  * overlay (the UV cursor).
  *
- * @param Offset center The marker's centre in area-local pixels.
+ * @param Offset center The marker's center in area-local pixels.
  * @param Color tint The icon tint.
  */
 internal fun DrawScope.drawCursorMarker(center: Offset, tint: Color) {

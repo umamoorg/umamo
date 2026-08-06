@@ -160,7 +160,7 @@ fun <T> RelationListField(
 			}
 			VerticalScrollbarOverlay(scrollState)
 		}
-		// The resize grab handle: Blender puts it under the list, centred.
+		// The resize grab handle: Blender puts it under the list, centerd.
 		Box(
 			modifier =
 				Modifier

@@ -69,12 +69,84 @@
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
 	<string name="confirm_discard_unexported">現在のドキュメントには書き出していない変更があります。破棄しますか？</string>
-	<!-- CMO3 エクスポート結果の通知（document.exportReport コマンド。%1$s は対象メッシュ名）。 -->
-	<string name="export_report_message">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
+	<!-- 書き出し結果の通知（document.exportReport コマンド。見出しは書き出した形式ごと。%1$s は対象メッシュ名）。 -->
+	<string name="export_report_message_cmo3">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
+	<string name="export_report_message_moc3">ファイルは書き出されましたが、以下は MOC3 に引き継げませんでした:</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamoでは正しく開けますが、Cubism Editor では表示されません。Cubismで表示できるファイルを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
 	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
 	<string name="export_more_subjects">(ほか %1$d 件)</string>
+	<!-- 書き出し通知の対象種別（各行の先頭に [ ] で表示）。 -->
+	<string name="export_category_parameter">パラメータ</string>
+	<string name="export_category_parameter_group">パラメータグループ</string>
+	<string name="export_category_part">パーツ</string>
+	<string name="export_category_deformer">デフォーマ</string>
+	<string name="export_category_drawable">描画オブジェクト</string>
+	<string name="export_category_glue">グルー</string>
+	<string name="export_category_document">ドキュメント</string>
+	<string name="export_category_keyform">キーフォーム</string>
+	<!-- 書き出し通知の理由（ExportNoticeReason の各ケースに対応）。形式名は見出しが示すため理由には含めない。
+	     まず両方の書き出しで共通のもの: -->
+	<string name="export_reason_drawable_has_no_mesh">メッシュのない描画オブジェクトは書き出せません。</string>
+	<!-- MOC3 書き出し。%1$s はチャンネル名（channel_*）、変換の行の %1$d/%2$d は返された座標数と本来の座標数、
+	     マスクの行の %1$s はマスク元の名前、ID の行の %1$d/%2$s はレコード長（バイト）と実際に書き出した ID。 -->
+	<string name="export_reason_channel_demoted_to_static">%1$s はオブジェクトのグリッドより狭い範囲にしかキーがないため、定数として書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
+	<string name="export_reason_sketch_part_not_runtime_content">下絵（スケッチ）パーツはランタイムの内容ではないため、除外しました。</string>
+	<string name="export_reason_unkeyed_drawable_under_deformer">デフォーマ配下でキーを持たない描画オブジェクトは親空間の形状を書き出せないため、除外しました。</string>
+	<string name="export_reason_rest_mesh_conversion_size_mismatch">キャンバスから親空間への変換が %2$d に対して %1$d 個の座標を返したため、元のメッシュを変換せずに書き出しました。</string>
+	<string name="export_reason_no_atlas_page_bound">この描画オブジェクトにはアトラスページが割り当てられていないため、ページ 0 を指す状態で書き出しました。</string>
+	<string name="export_reason_clipping_mask_not_in_export">クリッピングマスク %1$s はこの書き出しに含まれないため、メッシュはそのマスクなしで書き出しました。</string>
+	<string name="export_reason_offscreen_mask_not_in_export">クリッピングマスクが書き出せなかった描画オブジェクトを指しているため、オフスクリーンから除外しました。</string>
+	<string name="export_reason_warp_has_no_lattice">制御点グリッドのないワープデフォーマには書き出せる格子がありません。ファイルが読み込める状態を保つため空の格子を書き出しましたが、このデフォーマに紐づくものはすべて原点に潰れます。</string>
+	<string name="export_reason_rotation_has_no_pivot">基準点グリッドのない回転デフォーマには書き出せる変換がないため、単位変換を代わりに書き出しました。</string>
+	<string name="export_reason_glue_names_unknown_drawable">この書き出しに含まれない描画オブジェクトを指すグルーを除外しました。</string>
+	<string name="export_reason_id_truncated">ID が moc の %1$d バイトの ID レコードに収まらないため、「%2$s」に切り詰めて書き出しました。</string>
+	<string name="export_reason_id_truncated_disambiguated">ID が moc の %1$d バイトの ID レコードに収まらず、切り詰めた結果が他のオブジェクトの ID と衝突したため、「%2$s」として書き出しました。</string>
+	<!-- CMO3 の差分反映。編集に対応する要素が元のグラフにない場合。 -->
+	<string name="export_reason_no_matching_source">対応する CMO3 側の要素がないため、この変更は書き出されませんでした。</string>
+	<string name="export_reason_parameter_kind_change">パラメータの種別変更（通常／ブレンドシェイプ）は書き出しに反映されません。</string>
+	<string name="export_reason_deformer_kind_change">デフォーマの種別変更は書き出しに反映されません。</string>
+	<string name="export_reason_deformer_needs_warp_source">CMO3 側がワープデフォーマではないため、ワープ固有の編集（ベジェ分割、格子、キーフォーム）は書き出されませんでした。</string>
+	<string name="export_reason_deformer_needs_rotation_source">CMO3 側が回転デフォーマではないため、回転固有の編集（基準角度、キーフォーム）は書き出されませんでした。</string>
+	<string name="export_reason_texture_rebinding_editor_only">テクスチャの割り当て変更はエディタ内部の状態であり、CMO3 には書き出されません。</string>
+	<string name="export_reason_base_geometry_vertex_mismatch">ベース形状の頂点数が CMO3 側と一致しないため、書き出されませんでした。</string>
+	<string name="export_reason_no_uvs_to_reconcile">この描画オブジェクトには反映できる UV がないため、書き出されませんでした。</string>
+	<string name="export_reason_deformer_no_part_to_move_to">移動先に対応する CMO3 のパーツがないため、デフォーマの所属は変更されませんでした。</string>
+	<string name="export_reason_static_draw_order_shadowed">固定の描画順がキーフォームトラックに上書きされるため、CMO3 では個別に保持できません。</string>
+	<string name="export_reason_composite_statics_shadowed">合成の固定値がパーツのキーフォームトラックに上書きされるため、CMO3 では個別に保持できません。</string>
+	<string name="export_reason_part_masks_flatten">パーツ単位の合成マスクは、CMO3 では配下の描画オブジェクトに展開されます。</string>
+	<!-- CMO3 の新規作成。作成先がない場合。 -->
+	<string name="export_reason_no_source_set_to_create_into">CMO3 側に該当する種別の格納先がないため、新規要素は生成されませんでした。</string>
+	<string name="export_reason_created_entity_has_no_source">新しく作成した要素にはまだ CMO3 側の実体がないため、パネルの並び順から除外しました。</string>
+	<string name="export_reason_created_group_not_in_tree">作成したグループが編集中のパラメータツリーに存在しないため、生成されませんでした。</string>
+	<string name="export_reason_created_drawable_no_texture_source">作成した描画オブジェクトに複製元のテクスチャがないため、生成されませんでした。</string>
+	<string name="export_reason_glued_drawable_has_no_source">グルー対象の描画オブジェクトに CMO3 側の実体がないため、グルーは生成されませんでした。</string>
+	<!-- CMO3 のメッシュ構造とグルーの再結合。%1$d はメッシュの頂点数、%2$d はエッジテーブルが扱える上限。 -->
+	<string name="export_reason_vertex_count_exceeds_edge_table">メッシュの頂点数 %1$d が編集用メッシュのエッジテーブルで扱える上限 %2$d を超えるため、エッジテーブルは再構築されませんでした。</string>
+	<string name="export_reason_glued_mesh_no_uid_table">グルー対象のメッシュに編集用メッシュの頂点 ID テーブルがないため、グルーを再結合できませんでした。</string>
+	<string name="export_reason_glue_pair_past_uid_table">グルーの頂点対がメッシュの頂点 ID テーブルの範囲を超えているため、再結合されませんでした。</string>
+	<!-- CMO3 のキーフォーム。まとめの行の %1$s は export_bundle_* の文、パラメータの行の %1$s は
+	     パラメータ ID（書式レベルの識別子なので翻訳しない）。 -->
+	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
+	<string name="export_reason_axis_parameter_no_source">グリッドの軸パラメータ %1$s に CMO3 側の実体がないため、キーフォームグリッドは書き出されませんでした。</string>
+	<string name="export_reason_blend_shape_parameter_no_source">ブレンドシェイプのパラメータ %1$s に CMO3 側の実体がないため、ブレンドシェイプは書き出されませんでした。</string>
+	<string name="export_reason_keyforms_without_base_mesh">ベースメッシュのないキーフォームは CMO3 にまとめられません。</string>
+	<string name="export_reason_fractional_draw_order">CMO3 の描画順は整数のため、小数の値は書き出されませんでした。</string>
+	<string name="export_reason_static_glue_intensity_without_keyforms">キーフォームのない固定のグルー強度は、CMO3 に保持する場所がありません。</string>
+	<!-- キーフォームを 1 つのグリッドにまとめられない理由。export_reason_keyform_cannot_bundle に埋め込まれる。
+	     %1$s はチャンネル名（channel_*）。 -->
+	<string name="export_bundle_keys_outside_geometry_span">形状のキー範囲外にキーがあるため、1 つのグリッドにまとめられません。</string>
+	<string name="export_bundle_channel_keys_without_geometry">形状を伴わないチャンネルのキーは、1 つのグリッドにまとめられません。</string>
+	<string name="export_bundle_keys_outside_channel_span">%1$s トラックのキー範囲外にキーがあるため、1 つのグリッドにまとめられません。</string>
+	<!-- CMO3 のドキュメント設定。これらの通知は対象名を持たないため、各文が対象の項目名を含む。
+	     組み合わせの行の %1$s/%2$s は横軸・縦軸のパラメータ ID。 -->
+	<string name="export_reason_no_authored_world_origin">CMO3 はワールド原点を保持しないため、ファイルを開き直すとキャンバス中心から導出されます。</string>
+	<string name="export_reason_no_root_parameter_group">モデルにルートのパラメータグループがないため、パラメータツリーは再構築されませんでした。</string>
+	<string name="export_reason_no_root_part">モデルにルートパーツがないため、パーツパネルの並び順は再構築されませんでした。</string>
+	<string name="export_reason_no_parameter_source_set">モデルにパラメータの格納先がないため、パラメータの並び順は書き出されませんでした。</string>
+	<string name="export_reason_combined_pair_reordered">組み合わせパラメータ %1$s ・ %2$s が隣り合うように、パラメータの並び順を調整しました。</string>
+	<string name="export_reason_no_canvas_to_reconcile">モデルにキャンバスがないため、キャンバスサイズは書き出されませんでした。</string>
+	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">%1$s を読み込めませんでした。</string>

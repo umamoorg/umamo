@@ -7,7 +7,7 @@ import org.umamo.runtime.model.PuppetModel
 
 /*
  * Outliner drop resolution: the pure rules deciding what dropping one outliner row onto another does,
- * over the organisational tree (parts / drawables) and the deformer armature.  The UI reads the band
+ * over the organizational tree (parts / drawables) and the deformer armature.  The UI reads the band
  * for its indicator and resolves the drop for its dispatch through the SAME functions here, so the
  * line / fill the user sees always matches the move that happens.  The tree transforms themselves
  * (withOrgChildMoved / withDeformerMoved) live in StructureEdits.kt; this file only routes a drop to
@@ -35,7 +35,7 @@ sealed interface OutlinerDrop {
 		override val expandTarget: Boolean,
 	) : OutlinerDrop
 
-	/** Re-home an org child (a part or drawable) in the organisational tree. */
+	/** Re-home an org child (a part or drawable) in the organizational tree. */
 	data class MoveOrgChild(
 		val child: OrgChild,
 		val newParentId: PartId?,

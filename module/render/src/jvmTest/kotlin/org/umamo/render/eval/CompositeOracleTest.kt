@@ -2,7 +2,7 @@ package org.umamo.render.eval
 
 import org.junit.Assume
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import java.io.File
@@ -67,7 +67,7 @@ class CompositeOracleTest {
 				println("[oracle] ${compositeCase.fileName} not in corpus; skipping")
 				continue
 			}
-			val mocDocument = Moc3.decode(mocFile.readBytes())
+			val mocDocument = Moc3.read(mocFile.readBytes())
 			val puppet = Moc3Import.fromMocDocument(mocDocument, null)
 			// Part/drawable FILE order (oracle indices) - puppet.parts preserves it, puppet.drawables
 			// does not (panel reorder), so drawable joins go through the decoded artMesh list.

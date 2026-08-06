@@ -73,12 +73,12 @@ class OffscreenSweepProbeTest {
 				}
 			}
 			// The lowering mismatches: real vs synthesized 83/84/85 and CountInfo.
-			val auxiliary = MocLowering.auxiliarySections(doc)
+			val lowered = MocLowering.lower(doc)
 			for (sectionIndex in 83..85) {
-				println("  s$sectionIndex real=${intsOf(model.section(sectionIndex))} ours=${intsOf(auxiliary[sectionIndex])}")
+				println("  s$sectionIndex real=${intsOf(model.section(sectionIndex))} ours=${intsOf(lowered[sectionIndex])}")
 			}
 			val realCount = intsOf(model.section(0))
-			val ourCount = intsOf(MocLowering.countInfoSection(doc))
+			val ourCount = intsOf(lowered[0])
 			val diffs =
 				realCount.indices.filter { fieldIndex ->
 					fieldIndex < ourCount.size && realCount[fieldIndex] != ourCount[fieldIndex]

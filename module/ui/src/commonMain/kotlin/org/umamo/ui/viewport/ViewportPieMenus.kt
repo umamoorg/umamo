@@ -56,7 +56,7 @@ fun pieMenuEntriesFor(kind: PieMenuKind): List<PieMenuEntry> =
 	}
 
 /**
- * The centre title for one pie kind (Blender names its pies the same way).
+ * The center title for one pie kind (Blender names its pies the same way).
  *
  * @param PieMenuKind kind The open pie.
  * @return StringResource The localized title.

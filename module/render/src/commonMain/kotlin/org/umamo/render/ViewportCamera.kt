@@ -32,15 +32,15 @@ data class ContentBounds(val minX: Float, val minY: Float, val width: Float, val
  * 2D ビューポートカメラ（平行投影のパン／ズーム、回転なし）。zoom==1 で 1 ワールド単位＝1 画面ピクセル。
  * 編集ヘルパは全て純粋関数（新しいカメラを返し GL に触れない）なので、操作の数学を文脈なしでテストできる。
  *
- * @property Float centerX World X shown at the viewport centre.
- * @property Float centerY World Y shown at the viewport centre.
+ * @property Float centerX World X shown at the viewport center.
+ * @property Float centerY World Y shown at the viewport center.
  * @property Float zoom    Screen pixels per world unit (1 == true 1:1).
  */
 data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Float) {
 	/**
 	 * Builds the affine world-to-NDC parameters the vertex shader applies as
-	 * `ndc = world * (scaleX, scaleY) + (transformX, transformY)`. A world point at the camera centre
-	 * maps to NDC origin (the viewport centre); a point one unit to the right maps [zoom] pixels right.
+	 * `ndc = world * (scaleX, scaleY) + (transformX, transformY)`. A world point at the camera center
+	 * maps to NDC origin (the viewport center); a point one unit to the right maps [zoom] pixels right.
 	 *
 	 * @param Int viewportWidth  Target width in pixels.
 	 * @param Int viewportHeight Target height in pixels.
@@ -66,7 +66,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 	/**
 	 * Cursor-anchored zoom by [deltaPercent] percentage points (the wheel zoom): the world point under
 	 * the cursor stays pinned to that same pixel, and the result snaps to the [stepPercent] grid so clean
-	 * values (… 100%, 50%, 25% …) are reachable instead of drifting off the fit-derived ratio. The recentre
+	 * values (… 100%, 50%, 25% …) are reachable instead of drifting off the fit-derived ratio. The recenter
 	 * uses the snapped, clamped zoom so the pin holds exactly even at the limits.
 	 *
 	 * @param Float deltaPercent   Percentage points to add (negative zooms out).
@@ -91,8 +91,8 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 	}
 
 	/**
-	 * Centred zoom by [deltaPercent] percentage points (the keyboard zoom-in/out), snapping to the
-	 * [stepPercent] grid and leaving the centred world point fixed.
+	 * Centerd zoom by [deltaPercent] percentage points (the keyboard zoom-in/out), snapping to the
+	 * [stepPercent] grid and leaving the centerd world point fixed.
 	 *
 	 * @param Float deltaPercent Percentage points to add (negative zooms out).
 	 * @param Float stepPercent  The grid the result snaps to.
@@ -116,7 +116,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 	}
 
 	/**
-	 * Returns the camera at true 1:1 (zoom 1) about the current centre - the "actual size" / 100% view.
+	 * Returns the camera at true 1:1 (zoom 1) about the current center - the "actual size" / 100% view.
 	 *
 	 * @return ViewportCamera The 1:1 camera.
 	 */
@@ -124,7 +124,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 
 	/**
 	 * Frames a screen-pixel rectangle (Blender's Zoom Region / Shift+B): the dragged box fills the viewport,
-	 * centred on the box centre.  The two corners may be given in any order.  The scale uses min() so the
+	 * centerd on the box center.  The two corners may be given in any order.  The scale uses min() so the
 	 * WHOLE box fits inside the viewport (letterboxed on the looser axis) rather than cropping it; a degenerate
 	 * (zero-area) box is guarded by a one-pixel floor, and the zoom is clamped to the limits so a tiny box
 	 * cannot explode past MAX_ZOOM.  Pure, so the framing maths unit-tests without a context.
@@ -149,8 +149,8 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 		val newZoom = (zoom * fitScale).coerceIn(MIN_ZOOM, MAX_ZOOM)
 		val rectCenterXpx = (minX + maxX) / 2f
 		val rectCenterYpx = (minY + maxY) / 2f
-		// Unproject the box centre through the CURRENT camera (screen->world; Y flips), the inverse of the
-		// same affine worldToNdc applies, so the box centre lands at the viewport centre under the new camera.
+		// Unproject the box center through the CURRENT camera (screen->world; Y flips), the inverse of the
+		// same affine worldToNdc applies, so the box center lands at the viewport center under the new camera.
 		val worldCenterX = centerX + (rectCenterXpx - viewportWidth / 2f) / zoom
 		val worldCenterY = centerY + (viewportHeight / 2f - rectCenterYpx) / zoom
 		return ViewportCamera(worldCenterX, worldCenterY, newZoom)
@@ -165,7 +165,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 		const val FIT_MARGIN: Float = 0.9f
 
 		/**
-		 * Frames [content] centred in the viewport with a small margin - the default view on open and the
+		 * Frames [content] centerd in the viewport with a small margin - the default view on open and the
 		 * target of the Fit command.
 		 *
 		 * @param ContentBounds content        The extent to frame.

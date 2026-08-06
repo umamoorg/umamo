@@ -542,7 +542,7 @@ private fun buildAppMenu(
 		fileMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
-			canExportCmo3 = document is PuppetDocument,
+			canExport = document is PuppetDocument,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,
@@ -558,12 +558,22 @@ private fun buildAppMenu(
 /**
  * One log line for an export notice - the headless-visible mirror of the shell's report alert.
  *
+ * Deliberately English and deliberately structural: the log is a diagnostic surface, read off a bug
+ * report rather than by a rigger mid-edit, so it wants text that is stable across locales and greps
+ * straight back to a call site.  Printing the reason itself gives that for free and, unlike a second
+ * hand-written copy of the alert's prose, cannot drift from the case list it describes.
+ *
  * @param ExportNotice notice The notice to describe.
  * @return String The log text.
  */
 private fun describeExportNotice(notice: ExportNotice): String =
 	when (notice) {
-		is ExportNotice.UnsupportedChange -> "[${notice.category}] ${notice.subject}: ${notice.detail}"
+		is ExportNotice.UnsupportedChange ->
+			if (notice.subject == null) {
+				"[${notice.category}] ${notice.reason}"
+			} else {
+				"[${notice.category}] ${notice.subject}: ${notice.reason}"
+			}
 		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
 		is ExportNotice.FeatureStripped ->
 			"${notice.feature} is not in the exported moc version; removed from " +

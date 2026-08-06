@@ -82,9 +82,11 @@ class KeyformBundleTest {
 				outOfSpanPolicy = OutOfSpanPolicy.RejectOwner,
 			)
 		assertTrue(result is KeyformBundleResult.Unrepresentable, "an out-of-span channel rejects the owner")
+		val rejection = result.rejection
 		assertTrue(
-			result.reason.contains("OPACITY"),
-			"the rejection names the offending channel: ${result.reason}",
+			rejection is KeyformBundleRejection.KeysOutsideChannelSpan &&
+				rejection.channel == FormChannel.OPACITY,
+			"the rejection names the offending channel: $rejection",
 		)
 	}
 

@@ -36,6 +36,7 @@ import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.DocumentField
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
@@ -387,7 +388,10 @@ class Cmo3ExportRoundTripTest {
 		val result =
 			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginY) }
 		assertTrue(
-			result.report.notices.any { notice -> notice is ExportNotice.UnsupportedChange && notice.subject == "world origin" },
+			result.report.notices.any { notice ->
+				notice is ExportNotice.UnsupportedChange &&
+					notice.reason == ExportNoticeReason.NoAuthoredWorldOrigin
+			},
 			"world origin edit must surface as a notice",
 		)
 		val residual = diffPuppetModels(result.reimported, result.edited)

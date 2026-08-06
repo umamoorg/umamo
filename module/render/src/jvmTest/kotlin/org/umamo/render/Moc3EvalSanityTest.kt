@@ -1,7 +1,7 @@
 package org.umamo.render
 
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.eval.CpuDeformationEvaluator
 import java.io.File
 import kotlin.test.Test
@@ -10,7 +10,8 @@ import kotlin.test.assertTrue
 /**
  * Default-pose eval sanity over EVERY corpus moc: imports each `.moc3` found beside the
  * `-Dmoc3.sample` model and asserts the evaluated world geometry is finite and lands within a
- * generous multiple of the canvas.
+ * generous multiple of the canvas. Models with no canvas, and models with no art meshes at all, are
+ * reported and skipped rather than failed - both are shapes a real `.moc3` takes.
  */
 class Moc3EvalSanityTest {
 	private val sample: File? = System.getProperty("moc3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -30,13 +31,22 @@ class Moc3EvalSanityTest {
 
 		for (mocFile in mocFiles) {
 			val mocDocument =
-				runCatching { Moc3.decode(mocFile.readBytes()) }.getOrElse {
+				runCatching { Moc3.read(mocFile.readBytes()) }.getOrElse {
 					println("${mocFile.name}: not decodable, skipping")
 					continue
 				}
 			val model = Moc3Import.fromMocDocument(mocDocument, null)
 			if (model.canvasWidth <= 0f || model.canvasHeight <= 0f) {
 				println("${mocFile.name}: no canvas, skipping bounds check")
+				continue
+			}
+			// A moc may legitimately carry no art at all: the offscreen enum-extraction fixtures are parts
+			// and parameters only, with offscreen flagged on a couple of parts, and the official Cubism
+			// Core reads drawables=0 for them too.  The guard is on the MODEL rather than on the eval
+			// result so the assertion below stays live - a model that HAS drawables and still evaluates
+			// to nothing is a regression, not a fixture.
+			if (model.drawables.isEmpty()) {
+				println("${mocFile.name}: no drawables, skipping bounds check")
 				continue
 			}
 			val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())

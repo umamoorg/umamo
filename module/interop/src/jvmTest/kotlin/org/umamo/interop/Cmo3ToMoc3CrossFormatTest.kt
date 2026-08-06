@@ -7,7 +7,7 @@ import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Export
+import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
 import java.io.File
@@ -95,7 +95,7 @@ class Cmo3ToMoc3CrossFormatTest {
 		val differentRevisions = ArrayList<String>()
 		var compared = 0
 		for ((name, cmo3File, moc3File) in twins) {
-			val baked = Moc3.decode(moc3File.readBytes())
+			val baked = Moc3.read(moc3File.readBytes())
 			val (source, ours) =
 				runCatching { exportedFrom(cmo3File, baked) }.getOrElse { failure ->
 					failures.add("$name: the CMO3 would not lower to a moc ($failure)")

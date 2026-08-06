@@ -101,6 +101,9 @@ kotlin {
 				// pure-function test, and that is exactly where the interaction bugs have been living.
 				implementation(libs.compose.ui.test)
 				implementation(libs.compose.ui.test.junit4)
+				// sealedSubclasses, for the export-notice label coverage test. Without it the reflection
+				// call resolves to an empty list rather than failing, which would make that test vacuous.
+				implementation(kotlin("reflect"))
 			}
 		}
 	}

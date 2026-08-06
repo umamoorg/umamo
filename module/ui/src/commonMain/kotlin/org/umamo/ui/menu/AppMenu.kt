@@ -41,14 +41,14 @@ import org.umamo.ui.resources.workspace_new
  * native UMA format and return when it lands.  Every row reaches its operation through the caller's
  * handlers (which route through the file.importCmo3 / file.importMoc3 / file.exportCmo3 /
  * file.exportMoc3 commands and the shared FileKit picker), so the menu, the keyboard, and the
- * palette share one path.  Both Export rows are gated on [canExportCmo3] (a puppet document is
+ * palette share one path.  Both Export rows are gated on [canExport] (a puppet document is
  * open; the CMO3 export reconciles onto a CMO3-origin document's retained graph and synthesizes a
  * fresh one for a MOC3-origin document); Open Recent labels each stored path via fileDisplayName,
  * disables itself when the list is empty, and routes through the import path.
  *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean canExportCmo3 Whether an exportable puppet document is open (gates both Export rows).
+ * @param Boolean canExport Whether an exportable puppet document is open (gates both Export rows).
  * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
@@ -61,7 +61,7 @@ import org.umamo.ui.resources.workspace_new
 fun fileMenu(
 	keymap: Keymap,
 	recentFiles: List<String>,
-	canExportCmo3: Boolean,
+	canExport: Boolean,
 	onImportCmo3: () -> Unit,
 	onOpenRecent: (String) -> Unit,
 	onImportMoc3: () -> Unit,
@@ -102,13 +102,13 @@ fun fileMenu(
 								label = stringResource(Res.string.menu_export_cmo3),
 								onSelect = onExportCmo3,
 								shortcut = keymap.chordFor("file.exportCmo3")?.let { chord -> formatAccelerator(chord) },
-								enabled = canExportCmo3,
+								enabled = canExport,
 							),
 							MenuItem.Action(
 								label = stringResource(Res.string.menu_export_moc3),
 								onSelect = onExportMoc3,
 								shortcut = keymap.chordFor("file.exportMoc3")?.let { chord -> formatAccelerator(chord) },
-								enabled = canExportCmo3,
+								enabled = canExport,
 							),
 						),
 				),
