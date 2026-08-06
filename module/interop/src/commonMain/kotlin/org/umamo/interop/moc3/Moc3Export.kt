@@ -22,11 +22,22 @@ import org.umamo.interop.packedBlendOf
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
+import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterKind
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RotationPivotForm
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.format.moc3.moc.MocParameter as MocParameter
 import org.umamo.format.moc3.model.Glue as MocGlue
@@ -97,15 +108,15 @@ object Moc3Export {
 		val partByDrawable = puppet.partByDrawable()
 		// The org tree's part->parent link, inverted ONCE.  Both of these are asked per object further
 		// down, and re-deriving either there turns its pass into a quadratic rescan of the whole tree.
-		val partParentById = HashMap<org.umamo.runtime.model.PartId, org.umamo.runtime.model.PartId>()
+		val partParentById = HashMap<PartId, PartId>()
 		for (part in puppet.parts) {
 			for (child in part.children) {
-				if (child is org.umamo.runtime.model.OrgChild.Part) {
+				if (child is OrgChild.Part) {
 					partParentById[child.id] = part.id
 				}
 			}
 		}
-		val dropped = LinkedHashMap<org.umamo.runtime.model.DrawableId, String>()
+		val dropped = LinkedHashMap<DrawableId, String>()
 		for (drawable in puppet.drawables) {
 			if (partByDrawable[drawable.id] in sketchParts) {
 				dropped[drawable.id] = "a guide-image (sketch) part is not runtime content"
@@ -226,7 +237,7 @@ object Moc3Export {
 		// An offscreen's keyforms ride its OWNER PART'S grid - Σ of the owner grid sizes is CountInfo 36 -
 		// so the part's bundle is built once here and the offscreen lowering reads the same one.  Building
 		// it twice would let the two disagree about the grid an offscreen is indexed against.
-		val partKeyformsById = HashMap<org.umamo.runtime.model.PartId, Moc3ObjectKeyforms?>()
+		val partKeyformsById = HashMap<PartId, Moc3ObjectKeyforms?>()
 		val parts =
 			plan.parts.map { part ->
 				// An isolated part's composite channels ride the same cells as its draw order, so they are
@@ -251,7 +262,7 @@ object Moc3Export {
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
-						null as org.umamo.runtime.model.KeyformGrid<Unit>?,
+						null as KeyformGrid<Unit>?,
 						UnitInterpolator,
 						part.channelGrids.onlyChannels(*(compositeChannels + arrayOf(FormChannel.DRAW_ORDER))),
 						compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
@@ -332,7 +343,7 @@ object Moc3Export {
 								(0 until cellCount).map { cellIndex ->
 									val lattice =
 										bundle?.cells?.getOrNull(cellIndex)?.geometry
-											as? org.umamo.runtime.model.WarpLatticeForm
+											as? WarpLatticeForm
 									WarpKeyform(
 										convertPointsToMoc(
 											space,
@@ -392,7 +403,7 @@ object Moc3Export {
 								(0 until cellCount).map { cellIndex ->
 									val pivot =
 										bundle?.cells?.getOrNull(cellIndex)?.geometry
-											as? org.umamo.runtime.model.RotationPivotForm
+											as? RotationPivotForm
 									val origin =
 										convertPointsToMoc(
 											space,
@@ -515,7 +526,7 @@ object Moc3Export {
 						(0 until cellCount).map { cellIndex ->
 							// THE load-bearing invariant: base + delta is the absolute parent-space position.
 							val deltas =
-								(bundle?.cells?.getOrNull(cellIndex)?.geometry as? org.umamo.runtime.model.MeshDeltaForm)
+								(bundle?.cells?.getOrNull(cellIndex)?.geometry as? MeshDeltaForm)
 									?.positionDeltas
 							val absolute =
 								FloatArray(basePositions.size) { coordinate ->
@@ -550,7 +561,7 @@ object Moc3Export {
 				val keyforms =
 					lowerObjectKeyforms(
 						pool,
-						null as org.umamo.runtime.model.KeyformGrid<Unit>?,
+						null as KeyformGrid<Unit>?,
 						UnitInterpolator,
 						glue.channelGrids.onlyChannels(FormChannel.GLUE_INTENSITY),
 						mapOf(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(glue.intensity)),
@@ -627,9 +638,9 @@ object Moc3Export {
 								// means the export dropped the object, and a blend shape on something that was
 								// never written is not worth failing the whole file over.
 								when (ownerId) {
-									is org.umamo.runtime.model.DrawableId ->
+									is DrawableId ->
 										spaceOfParent(plan, drawableById[ownerId]?.parentDeformerId)
-									is org.umamo.runtime.model.DeformerId ->
+									is DeformerId ->
 										spaceOfParent(plan, deformerById[ownerId]?.parent)
 									else -> PointSpace.ModelRoot
 								}
@@ -668,7 +679,7 @@ object Moc3Export {
 	 * @param DeformerId?   parentId The owning object's parent deformer.
 	 * @return PointSpace The space to store in.
 	 */
-	private fun spaceOfParent(plan: Moc3IndexPlan, parentId: org.umamo.runtime.model.DeformerId?): PointSpace {
+	private fun spaceOfParent(plan: Moc3IndexPlan, parentId: DeformerId?): PointSpace {
 		val index = plan.deformerIndex(parentId)
 		return when (plan.deformers.getOrNull(index)) {
 			is Deformer.Warp -> PointSpace.WarpLattice
@@ -683,12 +694,11 @@ object Moc3Export {
 	 * Note bit 2 is the INVERSE of culling: the flag means "double sided", so a culled drawable clears
 	 * it.  Getting that backwards silently double-draws every back face.
 	 *
-	 * @param org.umamo.runtime.model.Drawable drawable             The drawable.
-	 * @param Boolean                          extendedBlendEnabled Whether the target version carries the
-	 *   5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
+	 * @param Drawable drawable             The drawable.
+	 * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
 	 * @return Int The flag bits.
 	 */
-	private fun constantFlagsOf(drawable: org.umamo.runtime.model.Drawable, extendedBlendEnabled: Boolean): Int {
+	private fun constantFlagsOf(drawable: Drawable, extendedBlendEnabled: Boolean): Int {
 		// On moc 6 the extended-blend section is authoritative and the editor leaves the legacy 2-bit pair
 		// CLEAR even for an additive or multiply mesh - writing both would state the mode twice, and the
 		// legacy pair cannot express the other sixteen modes anyway.
@@ -738,13 +748,13 @@ object Moc3Export {
 	 * @param PuppetModel puppet The rig.
 	 * @return Set The part ids to omit.
 	 */
-	private fun sketchSubtree(puppet: PuppetModel): Set<org.umamo.runtime.model.PartId> {
+	private fun sketchSubtree(puppet: PuppetModel): Set<PartId> {
 		val sketches = puppet.parts.filter { part -> part.isSketch }
 		if (sketches.isEmpty()) {
 			return emptySet()
 		}
 		val partsById = puppet.parts.associateBy { part -> part.id }
-		val omitted = LinkedHashSet<org.umamo.runtime.model.PartId>()
+		val omitted = LinkedHashSet<PartId>()
 		val pending = ArrayDeque(sketches.map { part -> part.id })
 		while (pending.isNotEmpty()) {
 			val partId = pending.removeFirst()
@@ -752,7 +762,7 @@ object Moc3Export {
 				continue
 			}
 			for (child in partsById[partId]?.children.orEmpty()) {
-				if (child is org.umamo.runtime.model.OrgChild.Part) {
+				if (child is OrgChild.Part) {
 					pending.addLast(child.id)
 				}
 			}
@@ -788,8 +798,8 @@ internal fun renderChannels(colorsEnabled: Boolean): Array<FormChannel> =
  */
 internal fun renderStatics(
 	opacity: Float,
-	multiplyColor: org.umamo.runtime.model.ColorRgb,
-	screenColor: org.umamo.runtime.model.ColorRgb,
+	multiplyColor: ColorRgb,
+	screenColor: ColorRgb,
 	colorsEnabled: Boolean,
 ): Map<FormChannel, ChannelValue> =
 	if (colorsEnabled) {
@@ -818,11 +828,11 @@ internal object UnitInterpolator : org.umamo.runtime.keyform.FormInterpolator<Un
  * @param FormChannel channels The channels to keep.
  * @return ChannelGrids The restricted set.
  */
-internal fun org.umamo.runtime.model.ChannelGrids.onlyChannels(
+internal fun ChannelGrids.onlyChannels(
 	vararg channels: FormChannel,
-): org.umamo.runtime.model.ChannelGrids {
+): ChannelGrids {
 	val keep = channels.toSet()
-	return org.umamo.runtime.model.ChannelGrids(
+	return ChannelGrids(
 		gridsByChannel.filterKeys { channel -> channel in keep },
 	)
 }
@@ -842,4 +852,4 @@ internal fun org.umamo.runtime.model.ChannelGrids.onlyChannels(
  * @param FloatArray positions Its interleaved canvas-space rest positions.
  * @return FloatArray? The interleaved parent-space positions, or null when the chain cannot invert.
  */
-typealias CanvasToParentSpace = (drawable: org.umamo.runtime.model.DrawableId, positions: FloatArray) -> FloatArray?
+typealias CanvasToParentSpace = (drawable: DrawableId, positions: FloatArray) -> FloatArray?
