@@ -2,6 +2,7 @@ package org.umamo.interop.moc3
 
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.eval.flagAt
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
@@ -9,6 +10,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
@@ -22,9 +24,12 @@ import kotlin.test.assertTrue
  * Reads a real `.moc3` corpus sample (plus its sibling cdi3.json when present), maps it to a
  * `PuppetModel`, and checks the structural tree - the MOC3 counterpart of [Cmo3ImportTest].
  *
- * Self-contained; skips when the sample is absent. Pass `-Dmoc3.sample=/path/to/Model.moc3` (the
- * build supplies the local corpus Erica by default). The assertions verify referential integrity
- * (every index cross-reference resolves to a real entity) plus Erica-pinned golden counts.
+ * Self-contained; skips when the sample is absent.  `moc3.sample` (singular) has no default in this
+ * module, so the test only runs when `-Dmoc3.sample=/path/to/Model.moc3` is passed explicitly.  The
+ * assertions verify referential integrity (every index cross-reference resolves to a real entity),
+ * that deformer ids and part membership come from the file rather than being synthesized or inferred,
+ * that every anchored deformer label names a mesh the deformer really reaches, plus golden counts
+ * pinned per corpus model.
  */
 class Moc3ImportTest {
 	private val sample: File? = System.getProperty("moc3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -36,7 +41,7 @@ class Moc3ImportTest {
 			println("moc3.sample not present; skipping import test")
 			return
 		}
-		val mocDocument = Moc3.decode(file.readBytes())
+		val mocDocument = Moc3.read(file.readBytes())
 		val displayInfo = siblingDisplayInfo(file)
 		val puppet = Moc3Import.fromMocDocument(mocDocument, displayInfo)
 
@@ -143,7 +148,59 @@ class Moc3ImportTest {
 			deformer.parent?.let {
 				assertTrue(it in deformerIds, "deformer ${deformer.id.raw} -> unknown parent ${it.raw}")
 			}
+			deformer.partId?.let {
+				assertTrue(it in partIds, "deformer ${deformer.id.raw} -> unknown part ${it.raw}")
+			}
 		}
+
+		// Deformer identity and org placement are READ from the moc (MOC3 §5.6 s11/s15), not synthesized
+		// or inferred: each imported deformer keeps the file's own id and sits in exactly the part the
+		// file names for it, in file order.
+		for ((deformerIndex, source) in mocDocument.deformers.withIndex()) {
+			val expectedPartId = mocDocument.parts.getOrNull(source.parentPartIndex)?.let { PartId(it.id) }
+			assertEquals(
+				source.id,
+				puppet.deformers[deformerIndex].id.raw,
+				"deformer $deformerIndex id",
+			)
+			assertEquals(
+				expectedPartId,
+				puppet.deformers[deformerIndex].partId,
+				"deformer $deformerIndex (${source.id}) part membership",
+			)
+		}
+
+		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches. The
+		// anchor is checked for TRUTH rather than by restating the rule - whatever mesh a label names
+		// must really be deformed by that deformer, directly or through its descendants.
+		val subtreeDrawables = HashMap<Int, MutableSet<String>>()
+		for (artMesh in mocDocument.artMeshes) {
+			var ancestorIndex = artMesh.parentDeformerIndex
+			val visited = HashSet<Int>()
+			while (ancestorIndex in mocDocument.deformers.indices && visited.add(ancestorIndex)) {
+				subtreeDrawables.getOrPut(ancestorIndex) { HashSet() }.add(artMesh.id)
+				ancestorIndex = mocDocument.deformers[ancestorIndex].parentDeformerIndex
+			}
+		}
+		val labelPattern = Regex("""^(.*) \((.*)\)$""")
+		for ((deformerIndex, source) in mocDocument.deformers.withIndex()) {
+			val name = puppet.deformers[deformerIndex].name
+			val anchor = labelPattern.matchEntire(name)
+			if (anchor == null) {
+				assertEquals(source.id, name, "deformer $deformerIndex unanchored label is its id")
+				continue
+			}
+			assertEquals(source.id, anchor.groupValues[1], "deformer $deformerIndex anchored label keeps its id")
+			assertTrue(
+				anchor.groupValues[2] in subtreeDrawables[deformerIndex].orEmpty(),
+				"deformer ${source.id} is labelled with ${anchor.groupValues[2]}, which it does not deform",
+			)
+		}
+		val anchoredLabels = puppet.deformers.filter { labelPattern.matches(it.name) }
+		println(
+			"[Umamo][moc3import] deformer labels anchored=${anchoredLabels.size}/${puppet.deformers.size} " +
+				"e.g. ${anchoredLabels.take(3).map { it.name }}",
+		)
 		for (glue in puppet.glues) {
 			assertTrue(glue.meshA in drawableIds, "glue -> unknown mesh A ${glue.meshA.raw}")
 			assertTrue(glue.meshB in drawableIds, "glue -> unknown mesh B ${glue.meshB.raw}")
@@ -206,7 +263,7 @@ class Moc3ImportTest {
 			return
 		}
 		for (file in samples) {
-			val puppet = Moc3Import.fromMocDocument(Moc3.decode(file.readBytes()), siblingDisplayInfo(file))
+			val puppet = Moc3Import.fromMocDocument(Moc3.read(file.readBytes()), siblingDisplayInfo(file))
 			val drawableBindings = puppet.drawables.flatMap { it.blendShapes }
 			val warpBindings = puppet.deformers.filterIsInstance<Deformer.Warp>().flatMap { it.blendShapes }
 			val rotationBindings = puppet.deformers.filterIsInstance<Deformer.Rotation>().flatMap { it.blendShapes }

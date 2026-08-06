@@ -45,14 +45,14 @@ enum class FormChannel(val valueKind: ChannelValueKind) {
 	// CMO3: CArtMeshForm / CPartForm / ACDeformerForm field screenColor; MOC3 color-table rows 108-113.
 	SCREEN_COLOR(ChannelValueKind.COLOR),
 
-	// CMO3: CRotationDeformerForm field isReflectX - the Umamo C++ Runtime snaps this per grid cell into
-	// the affine's flipX, so it is NOT interpolable.
+	// CMO3: CRotationDeformerForm field isReflectX; MOC3 §5.6 s66 rotation reflect x.  The Umamo C++
+	// Runtime snaps this per grid cell into the affine's flipX, so it is NOT interpolable.
 	FLIP_X(ChannelValueKind.FLAG),
 
-	// CMO3: CRotationDeformerForm field isReflectY.
+	// CMO3: CRotationDeformerForm field isReflectY; MOC3 §5.6 s67 rotation reflect y.
 	FLIP_Y(ChannelValueKind.FLAG),
 
-	// CMO3: CGlueForm field intensity.
+	// CMO3: CGlueForm field intensity; MOC3 §5.6 s100 glue intensities.
 	GLUE_INTENSITY(ChannelValueKind.SCALAR),
 }
 
@@ -102,6 +102,22 @@ class ChannelGrids(val gridsByChannel: Map<FormChannel, KeyformGrid<ChannelValue
 	 * @return KeyformGrid? The channel's track, or null when unkeyed.
 	 */
 	operator fun get(channel: FormChannel): KeyformGrid<ChannelValue>? = gridsByChannel[channel]
+
+	/**
+	 * Whether this owner's [channel] track holds any value other than [identity].
+	 *
+	 * A track's mere PRESENCE is not use.  A MOC3 import fans every channel out of one bundled grid, so a
+	 * drawable that was never tinted still gets a color track of pure identity cells - and compaction
+	 * deliberately leaves it alone when its axis does not bracket the parameter's range, since an
+	 * out-of-span pose has to fall back to the static.  Counting that as "the document uses color"
+	 * makes an export warn about losing a tint that does not exist.
+	 *
+	 * @param FormChannel channel  The channel to inspect.
+	 * @param ChannelValue identity The channel's neutral value.
+	 * @return Boolean True when some cell differs from the identity.
+	 */
+	fun varies(channel: FormChannel, identity: ChannelValue): Boolean =
+		this[channel]?.cells?.any { cell -> cell.form != identity } ?: false
 
 	companion object {
 		/** The shared no-tracks instance - every property falls back to its owner's static value. */

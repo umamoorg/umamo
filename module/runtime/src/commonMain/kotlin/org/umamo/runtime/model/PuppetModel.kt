@@ -11,12 +11,12 @@ data class PuppetModel(
 	val deformers: List<Deformer>,
 	val drawables: List<Drawable>,
 	/**
-	 * The organisational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
+	 * The organizational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
 	 * same ordered child list as [Part.children]. Single source of truth for top-level structure and
 	 * order; [parts] / [drawables] are flat lookup lists. Draw order derives from this (deriveRenderRoot).
 	 */
 	val rootChildren: List<OrgChild>,
-	/** The organisational tree root (the Parts panel's top), or null if the model is flat. */
+	/** The organizational tree root (the Parts panel's top), or null if the model is flat. */
 	val rootPartId: PartId?,
 	/** Glue affecters - seam-weld pairs of drawables' shared vertices after deformation. */
 	val glues: List<Glue> = emptyList(),
@@ -57,11 +57,40 @@ data class PuppetModel(
 	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
 	val worldOriginY: Float = 0f,
 	/**
+	 * Pixels per unit is used only for runtime export.  It is stored inside of UMA and CMO3, but it is
+	 * not used for anything internal to Umamo.
+	 *
+	 * Canvas pixels per model unit - the scale factor between the source's model space and the world
+	 * space everything here is expressed in - or null when the document has no bake scale of its own.
+	 *
+	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it, so a
+	 * MOC3-origin document carries the value its file recorded.  A CMO3 authors directly in canvas
+	 * pixels and its `CModelInfo.pixelsPerUnit` is 1 on every corpus model, which describes the project
+	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.
+	 * Nothing in the editor or the evaluator reads it - both work purely in world space - but an EXPORT
+	 * cannot invert the import without it: the root-space affine and the scale of every root-path
+	 * rotation deformer both fold it in.
+	 *
+	 * NULLABLE rather than a sentinel because 1 is a legitimate bake scale.  Inferring the origin from
+	 * the magnitude instead would rescale a moc whose own scale happens to be 1 by the canvas width.
+	 */
+	val pixelsPerUnit: Float? = null,
+	/**
 	 * The document's runtime-compatibility target; [RuntimeTarget.NoTarget] restricts nothing.  Gates
 	 * editing controls only - never rendering or saving.  See [RuntimeTarget].
 	 */
 	val runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
-)
+) {
+	/**
+	 * Every part by id, built once per model instance.
+	 *
+	 * The model is immutable, so this cannot go stale, and the pose evaluation runs it every frame -
+	 * rebuilding the map there allocates one entry per part per frame for data that never changes.
+	 * Outside the primary constructor deliberately: it is derived, not state, and must stay out of
+	 * `equals`, `hashCode`, and `copy`.
+	 */
+	val partById: Map<PartId, Part> by lazy { parts.associateBy { part -> part.id } }
+}
 
 /**
  * Cubism's neutral draw order: the midpoint of the 0-1000 scale a part's slot and an art mesh's stacking
@@ -74,7 +103,7 @@ data class PuppetModel(
 const val DEFAULT_DRAW_ORDER = 500
 
 /**
- * One ordered child of the organisational tree: a sub-part or a drawable. Cubism's parts panel keeps
+ * One ordered child of the organizational tree: a sub-part or a drawable. Cubism's parts panel keeps
  * sub-parts and drawables in one interleaved sibling order per level (a loose mesh can sit between two
  * folders), and that order is also the draw-order tiebreak. This sealed type is how [Part.children] and
  * [PuppetModel.rootChildren] express that single order, instead of splitting parts and drawables apart.
@@ -95,7 +124,7 @@ sealed interface OrgChild {
 	data class Drawable(val id: DrawableId) : OrgChild
 }
 
-/** A node in the parts tree - the organisational hierarchy shown in the Parts panel. */
+/** A node in the parts tree - the organizational hierarchy shown in the Parts panel. */
 data class Part(
 	val id: PartId,
 	val name: String,
@@ -111,8 +140,8 @@ data class Part(
 	val isSketch: Boolean = false,
 	/**
 	 * Blender-style selectable toggle: an unselectable part cannot be picked in the viewport.
-	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
-	 * emit isLocked = !isSelectable.
+	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), which the CMO3 export
+	 * lowering emits as isLocked = !isSelectable.
 	 */
 	val isSelectable: Boolean = true,
 	/**
@@ -140,6 +169,15 @@ data class Part(
 	 * applied while the part is Isolated - see [activeComposite], the accessor the render pipeline reads.
 	 */
 	val composite: PartComposite = PartComposite(),
+	/**
+	 * Additive blend-shape bindings on this part's channels, applied on top of [channelGrids]; empty
+	 * when the part has none.
+	 *
+	 * A part owns only ONE blendable channel - its draw order - so unlike a drawable or a deformer
+	 * these records carry no geometry and no color.  The effect is on stacking: a record can lift a
+	 * grouped part's whole subtree in front of its siblings for the span of a parameter.
+	 */
+	val blendShapes: List<BlendShapeBinding<PartForm>> = emptyList(),
 ) {
 	/** True when this part composites its subtree as one layer. */
 	val isIsolated: Boolean
@@ -155,7 +193,7 @@ data class Part(
 }
 
 /**
- * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organisational
+ * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organizational
  * tree) and [parentDeformerId] (the deformer chain that deforms it) - these are independent
  * hierarchies in Cubism.
  */
@@ -207,8 +245,8 @@ data class Drawable(
 	val isVisible: Boolean = true,
 	/**
 	 * Blender-style selectable toggle: an unselectable drawable cannot be picked in the viewport.
-	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), so a future writer must
-	 * emit isLocked = !isSelectable.
+	 * Maps inverted to CMO3's isLocked (Cubism lock = not selectable), which the CMO3 export
+	 * lowering emits as isLocked = !isSelectable.
 	 */
 	val isSelectable: Boolean = true,
 	/**
@@ -219,6 +257,16 @@ data class Drawable(
 	 * format persists it.
 	 */
 	val textureSourceId: DrawableId? = null,
+	/**
+	 * Which atlas page this drawable samples (MOC3 §5.6 s41), or -1 when the source carried none.
+	 *
+	 * Distinct from [textureSourceId], which says WHOSE binding to use; this is the binding itself.
+	 * The renderer does not read it - it resolves pages through the source document's own map, keyed by
+	 * drawable id - but a detached [PuppetModel] otherwise has no texture binding at all, so an export
+	 * could not say which page a drawable belongs to.  CMO3 has no equivalent field (it binds through
+	 * the layered-art web instead), so a CMO3-origin drawable leaves this at -1.
+	 */
+	val texturePage: Int = -1,
 	/**
 	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [geometryGrid]
 	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)

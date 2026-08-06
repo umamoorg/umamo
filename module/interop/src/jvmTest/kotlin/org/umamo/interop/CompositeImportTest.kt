@@ -4,7 +4,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
@@ -56,7 +56,7 @@ class CompositeImportTest {
 		return Cmo3Import.fromModelSource(root)
 	}
 
-	private fun importMoc3(file: File): PuppetModel = Moc3Import.fromMocDocument(Moc3.decode(file.readBytes()), null)
+	private fun importMoc3(file: File): PuppetModel = Moc3Import.fromMocDocument(Moc3.read(file.readBytes()), null)
 
 	private fun assertColorClose(expected: ColorRgb, actual: ColorRgb, label: String) {
 		assertTrue(

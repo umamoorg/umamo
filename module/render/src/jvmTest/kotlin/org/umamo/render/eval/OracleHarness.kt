@@ -1,5 +1,6 @@
 package org.umamo.render.eval
 
+import org.junit.Assume
 import java.io.File
 import kotlin.math.abs
 
@@ -25,6 +26,10 @@ internal data class OracleEntry(
 	val opacity: Float,
 	val multiplyRgba: List<Float>,
 	val screenRgba: List<Float>,
+	/** The core's post-update draw order (its rounded integer form of the blended float). */
+	val drawOrder: Int = 0,
+	/** The core's post-update RENDER order - the drawable's slot after draw-group depth sorting. */
+	val renderOrder: Int = 0,
 )
 
 /**
@@ -41,18 +46,28 @@ internal data class OracleOffscreen(
 	val screenRgba: List<Float>,
 )
 
-/** A parsed dump: the model-space canvas header plus the per-drawable entries by id. */
+/**
+ * A parsed dump: the model-space canvas header plus the per-drawable entries by id.
+ *
+ * The two index->id lists exist because a moc addresses parts and drawables positionally while the
+ * export re-derives its own ordering, so ANY cross-file comparison of an index (an offscreen's owner,
+ * a mask list) has to travel through the id or it compares two different numbering schemes.
+ */
 internal data class OracleDump(
 	val pixelsPerUnit: Float,
 	val originX: Float,
 	val originY: Float,
 	val entries: Map<String, OracleEntry>,
 	val offscreens: List<OracleOffscreen> = emptyList(),
+	/** Part ids in file-index order, from the `T` lines. */
+	val partIds: List<String> = emptyList(),
+	/** Drawable ids in file-index order, from the `D` lines. */
+	val drawableIds: List<String> = emptyList(),
 )
 
 /**
  * Runs dump_model against [coreLib] and [moc3] at [pose] (empty = default pose) and parses the
- * canvas header + `D` lines.
+ * canvas header plus the `T` (part), `O` (offscreen), and `D` (drawable) lines.
  *
  * @param File dumpModel The dump_model binary.
  * @param File coreLib   .so to dlopen - Must be compatible with the official Cubism API.
@@ -67,7 +82,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	command.add(moc3.absolutePath)
 	command.add("--update")
 	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
-	// alternative is two dump invocations for tests that want geometry AND colour.
+	// alternative is two dump invocations for tests that want geometry AND color.
 	command.add("--channels")
 	for ((parameterId, value) in pose) {
 		command.add("--param")
@@ -76,7 +91,9 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val process = ProcessBuilder(command).redirectErrorStream(true).start()
 	val output = process.inputStream.bufferedReader().readText()
 	val exit = process.waitFor()
-	check(exit == 0) { "dump_model failed (exit $exit): ${output.take(300)}" }
+	// The file is named because a non-zero exit IS the "does it even load" gate: without it a rejected
+	// export reads as an unattributable crash in whichever model happened to be next.
+	check(exit == 0) { "dump_model failed on ${moc3.path} (exit $exit): ${output.take(300)}" }
 
 	val canvasRegex = Regex("""# canvas size=(\S+),(\S+) origin=(\S+),(\S+) ppu=(\S+)""")
 	val canvas = canvasRegex.find(output) ?: error("no canvas header in dump")
@@ -87,6 +104,8 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
 	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
 	val opacityRegex = Regex(""" op=(\S+)""")
+	val drawOrderRegex = Regex(""" draw=(-?\d+)""")
+	val renderOrderRegex = Regex(""" render=(-?\d+)""")
 	val multiplyRegex = Regex(""" mul=(\S+)""")
 	val screenRegex = Regex(""" scr=(\S+)""")
 	// O <i> owner=<d> blend=<d> cflag=0x<hex> masks=<n>:<i0>,<i1>,… op=<g> mul=<r>,<g>,<b>,<a> scr=<r>,<g>,<b>,<a>
@@ -94,7 +113,15 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		Regex("""O \d+ owner=(-?\d+) blend=(-?\d+) cflag=0x([0-9a-fA-F]+) masks=\d+:(\S*) op=(\S+) mul=(\S+) scr=(\S+)""")
 	val entries = HashMap<String, OracleEntry>()
 	val offscreens = ArrayList<OracleOffscreen>()
+	val partIds = ArrayList<String>()
+	val drawableIds = ArrayList<String>()
+	// T <index> id=<partId> parent=<index>
+	val partRegex = Regex("""T \d+ id=(\S+)""")
 	for (line in output.lineSequence()) {
+		if (line.startsWith("T ")) {
+			partRegex.find(line)?.let { partIds.add(it.groupValues[1]) }
+			continue
+		}
 		if (line.startsWith("O ")) {
 			val match = offscreenRegex.find(line) ?: continue
 			offscreens.add(
@@ -114,13 +141,27 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 			continue
 		}
 		val id = idRegex.find(line)?.groupValues?.get(1) ?: continue
+		// Recorded before the geometry parse: the id list is the file's INDEX ordering, so a line this
+		// parser gives up on would silently shift every later index.
+		drawableIds.add(id)
 		val vtx = vtxRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: continue
-		val vposH = vposRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-		val vuvH = vuvRegex.find(line)?.groupValues?.get(1)?.toDoubleOrNull() ?: continue
-		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: 1f
-		val multiplyRgba = multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
-		val screenRgba = screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloat() } ?: emptyList()
-		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba)
+		// Non-finite hashes are kept rather than skipped, for the same reason: a dropped entry reads as
+		// "the exported file has no such drawable", which points at the wrong thing entirely.
+		val vposH = vposRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
+		val vuvH = vuvRegex.find(line)?.let { it.groupValues[1].toDoubleOrNull() ?: Double.NaN } ?: continue
+		val opacity = opacityRegex.find(line)?.groupValues?.get(1)?.toFloatOrNull() ?: Float.NaN
+		// A non-finite channel is DATA, not a parse error: the core prints "-nan" for a drawable whose
+		// inputs went bad, and that is exactly the kind of thing a differential gate exists to catch.
+		// Throwing here would turn a reportable mismatch into an unattributable test crash.
+		val multiplyRgba =
+			multiplyRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloatOrNull() ?: Float.NaN }
+				?: emptyList()
+		val screenRgba =
+			screenRegex.find(line)?.groupValues?.get(1)?.split(',')?.map { it.toFloatOrNull() ?: Float.NaN }
+				?: emptyList()
+		val drawOrder = drawOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+		val renderOrder = renderOrderRegex.find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+		entries[id] = OracleEntry(vtx, vposH, vuvH, opacity, multiplyRgba, screenRgba, drawOrder, renderOrder)
 	}
 	return OracleDump(
 		pixelsPerUnit = canvas.groupValues[5].toFloat(),
@@ -128,6 +169,8 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 		originY = canvas.groupValues[4].toFloat(),
 		entries = entries,
 		offscreens = offscreens,
+		partIds = partIds,
+		drawableIds = drawableIds,
 	)
 }
 
@@ -148,3 +191,38 @@ internal fun oracleCloseEnough(a: Double, b: Double): Boolean {
 	val scale = maxOf(1.0, abs(a), abs(b))
 	return abs(a - b) <= 1e-5 * scale
 }
+
+/**
+ * Resolves a `-D`-supplied oracle input, skipping the calling test when it is absent.
+ *
+ * Every oracle gate needs the same two inputs and each had grown its own private copy of this; one
+ * definition keeps the skip MESSAGE identical too, which is what makes an absent harness legible in
+ * the test log rather than looking like a silent pass.
+ *
+ * @param String property The system property naming the file.
+ * @return File The existing file (the test is skipped before this returns otherwise).
+ */
+internal fun requireOracleInput(property: String): File {
+	val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
+	Assume.assumeTrue("[oracle] absent -D$property", file != null)
+	return file!!
+}
+
+/**
+ * Whether the oracle never evaluated [entry] - an all-zero row rather than a real result.
+ *
+ * The core leaves a drawable untouched when nothing drives it at this pose, and the zeroed row is
+ * indistinguishable from a legitimately transparent one by value alone; the combination of a zero
+ * position hash AND zero opacity AND a zero (not white) multiply is what separates them, since an
+ * evaluated drawable still reports real geometry and a white multiply.
+ *
+ * @param OracleEntry entry The dumped drawable.
+ * @return Boolean True when the oracle never evaluated it.
+ */
+internal fun oracleNeverEvaluated(entry: OracleEntry): Boolean =
+	entry.vposH == 0.0 &&
+		entry.opacity == 0f &&
+		entry.multiplyRgba.size == 4 &&
+		entry.multiplyRgba[0] == 0f &&
+		entry.multiplyRgba[1] == 0f &&
+		entry.multiplyRgba[2] == 0f

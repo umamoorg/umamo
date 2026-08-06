@@ -35,8 +35,9 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.ui.action.CommandPalette
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
@@ -66,6 +67,7 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
+import org.umamo.ui.properties.runtimeFeatureLabelRes
 import org.umamo.ui.resources.*
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
@@ -138,13 +140,15 @@ fun EditorShell(
 	// persistence hook rather than capturing the first composition's lambda.
 	val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
 	val currentOnLayoutDragChange by rememberUpdatedState(onLayoutDragChange)
-	val workspaces = remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
+	val workspaces =
+		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	val overlays = remember { ShellOverlayState() }
 	// The localized base name new and imported workspaces are named from (deduped) - the same string the "+"
 	// button passes to onCreate, so the menu's New Workspace and the tab strip agree.
 	val newWorkspaceBaseName = stringResource(Res.string.workspace_new_name)
 	val spaceRegistry = remember(spaceOverrides) { defaultSpaceRegistry().withOverrides(spaceOverrides) }
-	val propertyTabRegistry = remember(propertyTabOverrides) { defaultPropertyTabRegistry().withOverrides(propertyTabOverrides) }
+	val propertyTabRegistry =
+		remember(propertyTabOverrides) { defaultPropertyTabRegistry().withOverrides(propertyTabOverrides) }
 	val focusRequester = remember { FocusRequester() }
 	val dragController = remember { AreaDragController() }
 	// Shared with the menu bar so this shell's root key handler can dismiss an open menu before the keymap
@@ -229,8 +233,8 @@ fun EditorShell(
 		onDispose { cleanup() }
 	}
 	// The document-scoped groups, re-registered on a document swap so their handlers close over the
-	// current session.  They no longer key on the render service: the pointer's area now resolves through
-	// the shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
+	// current session.  They do not key on the render service: the pointer's area resolves through the
+	// shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
 	val editorSession = LocalEditorSession.current
 	// One tier set shared by every document-scoped group below, so the nine tables hold the same three
 	// availability objects rather than three apiece.  Keyed on the session exactly as their effects are.
@@ -267,8 +271,9 @@ fun EditorShell(
 	//  - structuralEditCount: area-tree edits and popup-invoked workspace CRUD;
 	//  - selfFocusedOverlayOpen / inline edit: reclaim when the palette, preferences, Help dialogs, or an
 	//    inline rename CLOSE (while one is open it owns focus, so the effect waits);
-	//  - modalAlertOpen: the confirm dialog and the file-open alert do NOT own focus - root focus is
-	//    (re)claimed on open too, so their Escape/Enter route through the modal ladder while open;
+	//  - modalAlertOpen: the confirm dialog, the file-open alert, and the export report do NOT own focus -
+	//    root focus is (re)claimed on open too, so their Escape/Enter route through the modal ladder while
+	//    open;
 	//  - menu-bar close: an open menu's popup holds focus and its teardown takes it along.
 	// The two-frame wait lets a closing popup's teardown finish stealing focus first - an immediate
 	// request would be nulled right back out (the menu bar demonstrably needs this; it is harmless for
@@ -387,7 +392,12 @@ fun EditorShell(
 								activeId = workspaces.layout.activeWorkspaceId,
 								onSelect = { workspaceId -> workspaces.setActiveWorkspace(workspaceId) },
 								onCreate = { suggestedName -> workspaces.create(suggestedName) },
-								onDuplicate = { sourceId, suggestedName -> workspaces.duplicate(sourceId, suggestedName) },
+								onDuplicate = { sourceId, suggestedName ->
+									workspaces.duplicate(
+										sourceId,
+										suggestedName,
+									)
+								},
 								onDelete = { targetId -> workspaces.delete(targetId) },
 								onReorder = { fromIndex, toIndex -> workspaces.reorder(fromIndex, toIndex) },
 								onRename = { workspaceId, newName -> workspaces.rename(workspaceId, newName) },
@@ -431,15 +441,18 @@ fun EditorShell(
 					// Modal overlays are siblings of the Column (Surface stacks its content in a Box), so their
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
-					// (so the palette can no longer be left open under a menu-bar-launched window).  Painted
-					// bottom-to-top: palette, then settings, then the confirm dialog (the topmost modal).
+					// (so the palette cannot be left open under a menu-bar-launched window).  Painted
+					// bottom-to-top: palette, preferences, the Help dialogs, the file-open alert, the export
+					// report, then the confirm dialog (the topmost modal).
 					if (overlays.paletteVisible) {
 						// title == null marks a command as not-a-palette-entry (internal toggles like
 						// palette.toggle / area.dragCancel, and argument-only import commands), and an
 						// unavailable command is hidden, so the palette only offers titled operations that
 						// apply in the current context (mode, armed tool, open document).
 						CommandPalette(
-							commands = commandRegistry.all().filter { command -> command.title != null && command.availability.isAvailable() },
+							commands =
+								commandRegistry.all()
+									.filter { command -> command.title != null && command.availability.isAvailable() },
 							onDismiss = { overlays.paletteVisible = false },
 							onInvoke = { command ->
 								overlays.paletteVisible = false
@@ -465,8 +478,8 @@ fun EditorShell(
 							onDismiss = { overlays.openFailure = null },
 						)
 					}
-					// The CMO3 export report, in the same modal family: advisory only - the export has
-					// already been written when it shows.
+					// The export report, in the same modal family: advisory only - the export has already
+					// been written when it shows.
 					overlays.exportReport?.let { report ->
 						MessageDialog(
 							message = exportReportMessage(report),
@@ -494,27 +507,73 @@ fun EditorShell(
 /**
  * Builds the export-report alert's text: the localized header, then one line per notice.  The
  * unsupported-change lines carry the exporter's diagnostic text verbatim (dynamic per-edit data,
- * like a log line); the weld-divergence line is localized with the affected drawable names.
+ * like a log line); every other notice kind is localized from its structured fields - the affected
+ * drawable names, the missing page count, or the stripped feature and the entities that carried it.
  *
- * @param Cmo3ExportReport report The export's advisory report.
+ * The header names the format the export actually wrote, from the report's own discriminator - a
+ * notice reads identically for either format, so nothing else in the alert says which file the
+ * rigger is being told about.
+ *
+ * @param ExportReport report The export's advisory report.
  * @return String The multiline alert text.
  */
 @Composable
-private fun exportReportMessage(report: Cmo3ExportReport): String {
+private fun exportReportMessage(report: ExportReport): String {
 	val lines = ArrayList<String>(report.notices.size + 1)
-	lines.add(stringResource(Res.string.export_report_message))
+	lines.add(
+		stringResource(
+			when (report.format) {
+				ExportFormat.Cmo3 -> Res.string.export_report_message_cmo3
+				ExportFormat.Moc3 -> Res.string.export_report_message_moc3
+			},
+		),
+	)
 	for (notice in report.notices) {
 		when (notice) {
 			is ExportNotice.UnsupportedChange ->
 				lines.add("• [${notice.category}] ${notice.subject}: ${notice.detail}")
+
 			is ExportNotice.WeldDivergence ->
 				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))
+
 			is ExportNotice.MissingSourceArt ->
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
+
+			is ExportNotice.FeatureStripped ->
+				lines.add(
+					"• " +
+						stringResource(
+							Res.string.export_feature_stripped,
+							stringResource(runtimeFeatureLabelRes(notice.feature)),
+							abbreviatedSubjects(notice.subjects),
+						),
+				)
 		}
 	}
 	return lines.joinToString("\n")
 }
+
+/**
+ * A subject list short enough for an alert: the first few names, then how many were left out.
+ *
+ * Stripping a 5.3 feature out of a large rig names every drawable that carried it - a thousand-name
+ * line in a dialog nobody can dismiss past.  The report itself keeps the full list; only this display
+ * abbreviates, so a caller that wants them all (a log, a future report panel) still has them.
+ *
+ * @param List subjects The affected entities' names.
+ * @return String The display text.
+ */
+@Composable
+private fun abbreviatedSubjects(subjects: List<String>): String {
+	val shown = subjects.take(SUBJECTS_SHOWN)
+	if (shown.size == subjects.size) {
+		return shown.joinToString()
+	}
+	return shown.joinToString() + " " + stringResource(Res.string.export_more_subjects, subjects.size - shown.size)
+}
+
+/** How many affected entities an export notice spells out before counting the rest. */
+private const val SUBJECTS_SHOWN: Int = 8
 
 /**
  * Resolves a document-open failure to its localized alert message resource.  Every message takes the

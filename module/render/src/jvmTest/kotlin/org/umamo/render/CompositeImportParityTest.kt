@@ -4,7 +4,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -204,7 +204,7 @@ class CompositeImportParityTest {
 			val moc3File = moc3Files[pairName] ?: continue
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$pairName: root is not a CModelSource")
 			val cmo3Channels = deformerChannelMultiset(Cmo3Import.fromModelSource(cmo3Root))
-			val moc3Channels = deformerChannelMultiset(Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null))
+			val moc3Channels = deformerChannelMultiset(Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), null))
 			assertEquals(cmo3Channels, moc3Channels, "$pairName: deformer render channels")
 			assertTrue(cmo3Channels.isNotEmpty(), "$pairName: authors at least one non-identity deformer channel")
 			// The anchor that matters: a deformer opacity of exactly 0 is the subtree show/hide switch
@@ -238,7 +238,7 @@ class CompositeImportParityTest {
 			}
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$pairName: root is not a CModelSource")
 			val cmo3Puppet = Cmo3Import.fromModelSource(cmo3Root)
-			val moc3Puppet = Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null)
+			val moc3Puppet = Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), null)
 			assertCompositeParity(cmo3Puppet, moc3Puppet, pairName)
 			comparedPairs++
 			println("[Umamo][composite-parity] $pairName: parts=${moc3Puppet.parts.size} drawables=${moc3Puppet.drawables.size} OK")

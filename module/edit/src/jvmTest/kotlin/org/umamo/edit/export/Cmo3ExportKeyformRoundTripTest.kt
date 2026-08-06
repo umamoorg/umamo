@@ -3,10 +3,10 @@ package org.umamo.edit.export
 import org.umamo.edit.withDrawableOpacity
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.interop.Cmo3ExportReport
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
@@ -45,7 +45,7 @@ class Cmo3ExportKeyformRoundTripTest {
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
-		val report: Cmo3ExportReport,
+		val report: ExportReport,
 	)
 
 	private fun roundTrip(file: File, edit: (PuppetModel) -> PuppetModel): RoundTrip {
@@ -53,7 +53,8 @@ class Cmo3ExportKeyformRoundTripTest {
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
-		val reimportedSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+		val reimportedSource =
+			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
@@ -94,14 +95,17 @@ class Cmo3ExportKeyformRoundTripTest {
 		val reimportedGrid = result.reimported.drawables.first { it.id == drawableId }.geometryGrid
 		assertTrue(editedGrid != null && reimportedGrid != null, "$label: geometry grid vanished")
 		val reimportedByCoordinate =
-			reimportedGrid!!.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
+			reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
 		var maxComponentDifference = 0f
-		for (cell in editedGrid!!.cells) {
+		for (cell in editedGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
 			assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
 			for (component in cell.form.positionDeltas.indices) {
 				maxComponentDifference =
-					maxOf(maxComponentDifference, abs(cell.form.positionDeltas[component] - reimportedDeltas!![component]))
+					maxOf(
+						maxComponentDifference,
+						abs(cell.form.positionDeltas[component] - reimportedDeltas[component]),
+					)
 			}
 		}
 		assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
@@ -199,7 +203,8 @@ class Cmo3ExportKeyformRoundTripTest {
 				val grid = drawable.geometryGrid!!
 				val axis = grid.axes.first()
 				val midValue = (axis.keys[0] + axis.keys[1]) / 2f
-				val inserted = grid.withKeyInserted(axis.parameterId, midValue, MeshDeltaInterpolator, OutOfSpanKeyPolicy.Reject)
+				val inserted =
+					grid.withKeyInserted(axis.parameterId, midValue, MeshDeltaInterpolator, OutOfSpanKeyPolicy.Reject)
 				puppet.copy(
 					drawables =
 						puppet.drawables.map { candidate ->
@@ -245,11 +250,24 @@ class Cmo3ExportKeyformRoundTripTest {
 				val track = warp.channelGrids[FormChannel.OPACITY]!!
 				val editedCells =
 					track.cells.mapIndexed { cellIndex, cell ->
-						if (cellIndex == 0) KeyformCell(cell.coordinate, ChannelValue.Scalar(0.37f) as ChannelValue) else cell
+						if (cellIndex == 0) {
+							KeyformCell(
+								cell.coordinate,
+								ChannelValue.Scalar(0.37f) as ChannelValue,
+							)
+						} else {
+							cell
+						}
 					}
 				val editedGrids =
 					ChannelGrids(
-						warp.channelGrids.gridsByChannel + (FormChannel.OPACITY to KeyformGrid(track.axes, editedCells)),
+						warp.channelGrids.gridsByChannel + (
+							FormChannel.OPACITY to
+								KeyformGrid(
+									track.axes,
+									editedCells,
+								)
+						),
 					)
 				puppet.copy(
 					deformers =
@@ -367,12 +385,24 @@ class Cmo3ExportKeyformRoundTripTest {
 									if (nudged.isNotEmpty()) {
 										nudged[0] += 2f
 									}
-									org.umamo.runtime.model.MeshForm(nudged, form.drawOrder, form.opacity, form.multiplyColor, form.screenColor)
+									org.umamo.runtime.model.MeshForm(
+										nudged,
+										form.drawOrder,
+										form.opacity,
+										form.multiplyColor,
+										form.screenColor,
+									)
 								} else {
 									form
 								}
 							}
-						BlendShapeBinding(binding.parameterId, binding.keys, binding.neutralIndex, editedForms, binding.limits)
+						BlendShapeBinding(
+							binding.parameterId,
+							binding.keys,
+							binding.neutralIndex,
+							editedForms,
+							binding.limits,
+						)
 					}
 				puppet.copy(
 					drawables =
@@ -480,7 +510,10 @@ class Cmo3ExportKeyformRoundTripTest {
 				assertTrue(reimportedForm != null, "base move + keyform edit: blend-shape form $formIndex vanished")
 				for (component in editedForm.positionDeltas.indices) {
 					maxDeltaDrift =
-						maxOf(maxDeltaDrift, abs(editedForm.positionDeltas[component] - reimportedForm!!.positionDeltas[component]))
+						maxOf(
+							maxDeltaDrift,
+							abs(editedForm.positionDeltas[component] - reimportedForm.positionDeltas[component]),
+						)
 				}
 			}
 		}

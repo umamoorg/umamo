@@ -2,6 +2,7 @@ package org.umamo.interop
 
 import org.umamo.format.cmo3.model.gen.AlphaComposition
 import org.umamo.format.cmo3.model.gen.ColorComposition
+import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 
@@ -154,3 +155,107 @@ internal fun alphaBlendOfPacked(packed: Int): AlphaBlendMode =
 		4 -> AlphaBlendMode.Disjoint
 		else -> AlphaBlendMode.Over
 	}
+
+/**
+ * The LEGACY 2-bit constant-flag encoding of [mode] - the only blend a moc below v6 can express.
+ *
+ * The pre-5.3 fixed-function set is just Normal / Add / Multiply, so every 5.3+ mode has to fall back
+ * to its nearest premultiplied ancestor: the 5.3 additive family reads as Add and the multiply family
+ * as Multiply, and anything with no fixed-function equivalent reads as Normal.  A v6 export writes the
+ * packed extended blend instead and leaves these bits at Normal, so this is only reached when the
+ * target version genuinely cannot carry the authored mode.
+ *
+ * @param BlendMode mode The runtime blend mode.
+ * @return Int The constant-flag bits (0 for Normal).
+ */
+internal fun legacyBlendFlagOf(mode: BlendMode): Int =
+	when (nearestLegacyBlendMode(mode)) {
+		BlendMode.AdditivePremultiplied -> ConstantFlag.BLEND_ADDITIVE
+		BlendMode.MultiplyPremultiplied -> ConstantFlag.BLEND_MULTIPLICATIVE
+		else -> 0
+	}
+
+/**
+ * The pre-5.3 mode [mode] degrades to when the target version cannot carry it.
+ *
+ * The same nearest-ancestor rule [legacyBlendFlagOf] encodes, as a runtime mode rather than as flag
+ * bits, so a version downgrade rewrites the MODEL to what the file will actually say instead of
+ * leaving the two to disagree about what "additive" means.
+ *
+ * @param BlendMode mode The authored blend mode.
+ * @return BlendMode The nearest mode a pre-5.3 runtime understands.
+ */
+internal fun nearestLegacyBlendMode(mode: BlendMode): BlendMode =
+	when (mode) {
+		BlendMode.AdditivePremultiplied, BlendMode.Additive, BlendMode.AdditiveGlow ->
+			BlendMode.AdditivePremultiplied
+		BlendMode.MultiplyPremultiplied, BlendMode.Multiply -> BlendMode.MultiplyPremultiplied
+		else -> BlendMode.Normal
+	}
+
+/**
+ * The constant-flag bits of [mode] when the pair names the mode EXACTLY, else 0.
+ *
+ * Unlike [legacyBlendFlagOf] this never approximates: only the two premultiplied modes have a legacy
+ * bit that means the same thing, so Additive (non-premultiplied), AdditiveGlow, and Multiply all read
+ * as Normal here.  That is what a moc 6 offscreen's flag byte contains - every corpus offscreen sets
+ * the bit for colorMode 1 or 2 and clears it for every other mode - because on v6 the packed section
+ * is authoritative and these bits merely restate the two modes an old reader could have understood.
+ *
+ * Approximating here would state a mode the file does not, which is the failure the two names exist to
+ * keep apart: [legacyBlendFlagOf] is for a DOWNGRADE (the packed section is gone and the nearest
+ * ancestor is the best available), this is for an ECHO (the packed section is right there).
+ *
+ * @param BlendMode mode The runtime blend mode.
+ * @return Int The constant-flag bits (0 unless the mode is exactly additive- or multiply-premultiplied).
+ */
+internal fun exactLegacyBlendFlagOf(mode: BlendMode): Int =
+	when (mode) {
+		BlendMode.AdditivePremultiplied -> ConstantFlag.BLEND_ADDITIVE
+		BlendMode.MultiplyPremultiplied -> ConstantFlag.BLEND_MULTIPLICATIVE
+		else -> 0
+	}
+
+/**
+ * Packs [color] and [alpha] into the MOC3 v6 blend int (sections 153 / 157).
+ *
+ * The exact inverse of [colorBlendOfPacked] and [alphaBlendOfPacked], written as the same ordinal
+ * tables read backwards so a mode added to one direction is a compile error in the other rather than a
+ * silently unpackable value.
+ *
+ * @param BlendMode      color The runtime color blend mode.
+ * @param AlphaBlendMode alpha The runtime alpha blend mode.
+ * @return Int The stored int, `colorMode or (alphaMode shl 8)`.
+ */
+internal fun packedBlendOf(color: BlendMode, alpha: AlphaBlendMode): Int {
+	val colorMode =
+		when (color) {
+			BlendMode.Normal -> 0
+			BlendMode.AdditivePremultiplied -> 1
+			BlendMode.MultiplyPremultiplied -> 2
+			BlendMode.Additive -> 3
+			BlendMode.AdditiveGlow -> 4
+			BlendMode.Darken -> 5
+			BlendMode.Multiply -> 6
+			BlendMode.ColorBurn -> 7
+			BlendMode.LinearBurn -> 8
+			BlendMode.Lighten -> 9
+			BlendMode.Screen -> 10
+			BlendMode.ColorDodge -> 11
+			BlendMode.Overlay -> 12
+			BlendMode.SoftLight -> 13
+			BlendMode.HardLight -> 14
+			BlendMode.LinearLight -> 15
+			BlendMode.Hue -> 16
+			BlendMode.Color -> 17
+		}
+	val alphaMode =
+		when (alpha) {
+			AlphaBlendMode.Over -> 0
+			AlphaBlendMode.Atop -> 1
+			AlphaBlendMode.Out -> 2
+			AlphaBlendMode.Conjoint -> 3
+			AlphaBlendMode.Disjoint -> 4
+		}
+	return colorMode or (alphaMode shl 8)
+}

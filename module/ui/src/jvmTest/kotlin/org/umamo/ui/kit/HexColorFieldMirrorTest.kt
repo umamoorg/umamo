@@ -25,7 +25,7 @@ import kotlin.test.assertEquals
  * This field is not the only writer of what it shows - its own swatch picker, a parameter scrub moving a
  * keyed channel, and undo all change the value underneath it.  It used to skip the mirror whenever it was
  * focused, and since nothing ever takes focus back off it, one click into the field froze it permanently:
- * a keyed multiply colour sat on its first key while the viewport went on blending.
+ * a keyed multiply color sat on its first key while the viewport went on blending.
  */
 class HexColorFieldMirrorTest {
 	private val green = "#FF3DFF00"
@@ -80,7 +80,7 @@ class HexColorFieldMirrorTest {
 	 *
 	 * The field holds a TextFieldValue so its context menu can act on a selection, and BasicTextField's
 	 * TextFieldValue overload reports caret and selection moves through the same callback as typing.
-	 * Persisting those re-committed the stored colour for merely clicking into the field or dragging a
+	 * Persisting those re-committed the stored color for merely clicking into the field or dragging a
 	 * selection across it - and on a KEYED channel that is an undo step plus the orange uncommitted-edit
 	 * tint, for a value that never changed.
 	 */

@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.vinceglb.filekit.absolutePath
+import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
@@ -21,6 +22,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
+import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
@@ -34,8 +36,13 @@ import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
+import org.umamo.ui.document.canvasToParentSpaceFor
+import org.umamo.ui.document.encodeAtlasPng
 import org.umamo.ui.document.loadDocument
+import org.umamo.ui.document.passThroughSidecars
 import org.umamo.ui.document.recentFiles
+import org.umamo.ui.document.withTexturePagesFrom
+import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.menu.editMenu
@@ -277,6 +284,68 @@ fun EditorApp(
 		}
 	}
 
+	fun exportMoc3(puppetDocument: PuppetDocument) {
+		scope.launch {
+			val displayName = puppetDocument.displayName
+			val suggestedName =
+				listOf(".cmo3", ".moc3").firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
+					?.let { extension -> displayName.dropLast(extension.length) }
+					?: displayName
+			filePicker.saveFile(suggestedName, "moc3")?.let { destination ->
+				val documentSession = session?.takeIf { it.baselineModel === puppetDocument.puppet }
+				if (session != null && documentSession == null) {
+					UmamoLog.error("export: session does not belong to $displayName; exporting the unedited document")
+				}
+				// The page binding comes from the decoded atlas set, not the model: a CMO3-origin document
+				// has no page index of its own (see withTexturePagesFrom).
+				val edited =
+					withTexturePagesFrom(documentSession?.model?.value ?: puppetDocument.puppet, puppetDocument.textures)
+				// FileKit appends the extension, so the destination's own name is the family's base name.
+				// The strip ignores CASE: a destination spelled `.MOC3` would otherwise keep its extension
+				// in the base name, and every generated sibling - the manifest included - would be named
+				// after a `X.MOC3.moc3` that no write ever produces.
+				val destinationName = destination.name
+				val basename =
+					if (destinationName.endsWith(".moc3", ignoreCase = true)) {
+						destinationName.dropLast(".moc3".length)
+					} else {
+						destinationName
+					}
+				val moc3Document = puppetDocument as? Moc3Document
+				// Page names come from the SOURCE manifest when there is one, so a re-export lands the
+				// family in the shape (and the subdirectory) the model already used.  A CMO3-origin
+				// document has no manifest, so its pages are named after the export instead.
+				val pages =
+					puppetDocument.textures.atlases.mapIndexed { pageIndex, atlas ->
+						val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
+						Moc3Sidecars.AtlasPage(
+							fileName = sourceName ?: "$basename.$pageIndex.png",
+							// Verbatim source bytes when the document has them; a CMO3-origin document has
+							// only the decoded RGBA, which has to be re-encoded.
+							bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
+						)
+					}
+				val bundle =
+					Moc3Sidecars.bundle(
+						puppet = edited,
+						basename = basename,
+						pages = pages,
+						sidecars = passThroughSidecars(moc3Document),
+						source = moc3Document?.manifest,
+						canvasToParentSpace = canvasToParentSpaceFor(edited),
+					)
+				val written = writeMoc3Bundle(destination, bundle)
+				for (notice in bundle.report.notices) {
+					UmamoLog.warn("export: ${describeExportNotice(notice)}")
+				}
+				if (!bundle.report.isEmpty) {
+					commandRegistry.invoke("document.exportReport", bundle.report)
+				}
+				UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+			}
+		}
+	}
+
 	fun exportAllWorkspaces() {
 		// "the saved JSON from settings.json": the whole interface.layout, pretty-printed (null if unsaved).
 		val text = exportLayoutText(settings) ?: return
@@ -333,8 +402,8 @@ fun EditorApp(
 		}
 	}
 
-	// Register the file and log operations as real commands so the keymap drives them (Ctrl+O /
-	// Ctrl+Shift+E dispatch through the shell's registry).  The tables themselves live with every other
+	// Register the file and log operations as real commands so the keymap and the palette drive them
+	// (Ctrl+O dispatches through the shell's registry).  The tables themselves live with every other
 	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
 	// picker and document loader are.
 	DisposableEffect(commandRegistry) {
@@ -347,14 +416,16 @@ fun EditorApp(
 	// Keyed on the session as well as the document: the handler closes over BOTH, so re-registering
 	// on either change keeps the pair the export reconciles from consistent by construction.
 	DisposableEffect(commandRegistry, document, session) {
-		// Both puppet document kinds export: CMO3-origin reconciles onto its retained graph,
-		// MOC3-origin synthesizes a fresh one.
+		// Both puppet document kinds export, to either format: Export CMO3 reconciles onto a CMO3-origin
+		// document's retained graph and synthesizes a fresh one for a MOC3-origin document, while Export
+		// MOC3 bakes fresh from the model whatever the origin.
 		val exportableDocument = document as? PuppetDocument
 		val cleanup =
 			commandRegistry.registerAll(
 				fileExportCommands(
 					canExport = { exportableDocument != null },
-					onExport = { exportableDocument?.let { exportCmo3(it) } },
+					onExportCmo3 = { exportableDocument?.let { exportCmo3(it) } },
+					onExportMoc3 = { exportableDocument?.let { exportMoc3(it) } },
 				),
 			)
 		onDispose { cleanup() }
@@ -377,6 +448,7 @@ fun EditorApp(
 				::importCmo3ViaPicker,
 				::importMoc3ViaPicker,
 				::exportCmo3,
+				::exportMoc3,
 				onExit,
 				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
 				// binding, and the palette share the one path; the rows are gated by canUndo / canRedo above.
@@ -416,7 +488,7 @@ fun EditorApp(
  *
  * メニューバーのデータを共有ビルダーから構築する。ラベルはここで翻訳し、アクセラレータはキーマップから解決する。
  *
- * @param Document? document The open document (gates Export CMO3).
+ * @param Document? document The open document (gates both Export rows).
  * @param List recentFiles The recent file paths for the Open Recent submenu.
  * @param Keymap keymap The keymap accelerators are resolved against.
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
@@ -426,6 +498,7 @@ fun EditorApp(
  * @param Function importMoc3 Opens the MOC3 import picker.
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
  *                            reconciles; MOC3-origin synthesizes a fresh graph).
+ * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
  * @param Function onExit Closes the application.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).
@@ -451,6 +524,7 @@ private fun buildAppMenu(
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
 	exportCmo3: (PuppetDocument) -> Unit,
+	exportMoc3: (PuppetDocument) -> Unit,
 	onExit: () -> Unit,
 	onUndo: () -> Unit,
 	onRedo: () -> Unit,
@@ -468,11 +542,12 @@ private fun buildAppMenu(
 		fileMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
-			canExportCmo3 = document is PuppetDocument,
+			canExport = document is PuppetDocument,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,
 			onExportCmo3 = { (document as? PuppetDocument)?.let { exportCmo3(it) } },
+			onExportMoc3 = { (document as? PuppetDocument)?.let { exportMoc3(it) } },
 			onExit = onExit,
 		),
 		editMenu(keymap, canUndo, canRedo, onUndo, onRedo, onOpenPreferences),
@@ -490,6 +565,10 @@ private fun describeExportNotice(notice: ExportNotice): String =
 	when (notice) {
 		is ExportNotice.UnsupportedChange -> "[${notice.category}] ${notice.subject}: ${notice.detail}"
 		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
+		is ExportNotice.FeatureStripped ->
+			"${notice.feature} is not in the exported moc version; removed from " +
+				notice.subjects.take(8).joinToString() +
+				if (notice.subjects.size > 8) " (+${notice.subjects.size - 8} more)" else ""
 		is ExportNotice.MissingSourceArt ->
 			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s); " +
 				"it will not render in the Cubism Editor until the original layered art is reconciled in"

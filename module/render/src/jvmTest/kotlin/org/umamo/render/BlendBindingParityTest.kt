@@ -4,7 +4,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import java.io.File
@@ -49,7 +49,7 @@ class BlendBindingParityTest {
 			val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("$name: root is not a CModelSource")
 			// Both sides through the same canvas-space rewrite so mesh form deltas share a base.
 			val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
-			val fromMoc3 = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), null))
+			val fromMoc3 = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), null))
 
 			var meshBindingPairs = 0
 			var maxMeshDelta = 0f

@@ -12,7 +12,8 @@ import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.interop.Cmo3ExportReport
+import org.umamo.interop.ExportFormat
+import org.umamo.interop.ExportReport
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -61,7 +62,12 @@ class ModalKeyLadderTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
+			mesh =
+				DrawableMesh(
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
+					intArrayOf(0, 1, 2),
+				),
 			geometryGrid = null,
 		)
 
@@ -209,7 +215,8 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theOpenFailureAlertTakesEscapeOrEnter() {
-		val overlays = ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
+		val overlays =
+			ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(press(Key.Spacebar, state))
@@ -221,7 +228,7 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theExportReportAlertTakesEscapeOrEnter() {
-		val overlays = ShellOverlayState().apply { exportReport = Cmo3ExportReport(emptyList()) }
+		val overlays = ShellOverlayState().apply { exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(escape(state))
@@ -229,7 +236,7 @@ class ModalKeyLadderTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 4-9: the chrome that claims Escape but yields other keys to its own content.
+	// Arm 4-6: the chrome that claims Escape but yields other keys to its own content.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
@@ -287,9 +294,9 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun escapeClosesOnlyTheTopmostSelfFocusedOverlay() {
-		// The four used to be four consecutive arms, so their relative order was the ladder's.  Collapsing
-		// them moved that order into closeTopmostSelfFocused, and this is what keeps the two from drifting:
-		// one Escape closes exactly one overlay, the topmost, leaving the one beneath it up.
+		// The four share ONE ladder arm, so their relative order lives in closeTopmostSelfFocused rather
+		// than in the ladder; this is what pins the two together: one Escape closes exactly one overlay,
+		// the topmost, leaving the one beneath it up.
 		val overlays =
 			ShellOverlayState().apply {
 				settingsVisible = true
@@ -318,7 +325,7 @@ class ModalKeyLadderTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 10-15: the three modal operator latches.
+	// Arm 7-8: the modal operator latches - one Escape arm and one Enter arm, shared by all three families.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
@@ -365,7 +372,7 @@ class ModalKeyLadderTest {
 		}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 16: the pie menu, which owns the keyboard while its ring is up.
+	// Arm 9: the pie menu, which owns the keyboard while its ring is up.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
@@ -407,7 +414,7 @@ class ModalKeyLadderTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 17-18: the axis lock, which only the ladder can deliver while an operator swallows input.
+	// Arm 10-11: the axis lock, which only the ladder can deliver while an operator swallows input.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
@@ -433,7 +440,7 @@ class ModalKeyLadderTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 19-23: the armed tools and in-flight panel gestures.
+	// Arm 12-17: the armed tools and in-flight panel gestures.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
@@ -551,7 +558,8 @@ class ModalKeyLadderTest {
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Arm 24-26: the viewport gestures and the final clear-selection.
+	// Arm 18-19: the viewport gestures and the final clear-selection, the last arms before the
+	// else that falls through to the shell keymap.
 	// ---------------------------------------------------------------------------------------------
 
 	@Test

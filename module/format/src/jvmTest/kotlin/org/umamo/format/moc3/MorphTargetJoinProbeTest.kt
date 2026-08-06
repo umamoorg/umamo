@@ -26,9 +26,9 @@ import kotlin.test.assertTrue
  * pin down the derivation rules the ingest needs - how morph targets group into records, where
  * the neutral key comes from, and whether a NORMAL-typed parameter can drive a morph target.
  *
- * The join is by id for art meshes (moc3 deformers carry no ids), and by document-order index for
- * deformers - the index correspondence is itself one of the hypotheses this probe checks. Keyed on
- * Model A's pair from `cmo3.probe` + `moc3.samples`; skips gracefully when either is absent.
+ * The join is by id for art meshes and by document-order index for deformers - the index
+ * correspondence is itself one of the hypotheses this probe checks. Keyed on Model A's pair from
+ * `cmo3.probe` + `moc3.samples`; skips gracefully when either is absent.
  */
 class MorphTargetJoinProbeTest {
 	private val modelACmo3: File? =
@@ -142,7 +142,7 @@ class MorphTargetJoinProbeTest {
 		}
 
 		// MOC3 side.
-		val document = Moc3.decode(moc3File.readBytes())
+		val document = Moc3.read(moc3File.readBytes())
 		val records = document.blendShapes
 		val warpIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.WarpDeformer }.map { it.index }
 		val rotationIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.RotationDeformer }.map { it.index }
@@ -194,10 +194,10 @@ class MorphTargetJoinProbeTest {
 		assertTrue(records.isNotEmpty(), "Model A's moc3 should carry blend-shape records")
 		assertTrue(allGroups.isNotEmpty(), "Model A's cmo3 should carry morph-target groups")
 
-		// E3 rule, asserted independent of deformer identity (moc3 deformers carry no ids, and the
-		// order-index join above shows CMO3 and MOC3 deformer orders differ): as MULTISETS over
-		// (target kind, driving parameter, key positions), the CMO3 groups with the parameter default
-		// inserted as the neutral key equal the MOC3 records exactly.
+		// E3 rule, asserted independent of deformer identity (the order-index join above shows CMO3
+		// and MOC3 deformer orders differ): as MULTISETS over (target kind, driving parameter, key
+		// positions), the CMO3 groups with the parameter default inserted as the neutral key equal
+		// the MOC3 records exactly.
 		val kindByLabel = mapOf("mesh" to "ART_MESH", "warp" to "WARP", "rotation" to "ROTATION")
 		val cmo3Multiset =
 			allGroups.map { group ->

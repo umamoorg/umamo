@@ -103,7 +103,7 @@ internal fun PartMaskEditor(part: Part, composite: PartComposite, context: Prope
 	val owner = "part.maskedBy:${part.id.raw}"
 	// Every write re-reads the part's CURRENT composite rather than the one captured in this composition.
 	// An armed eyedropper resolves LONG after it was armed and the panel stays editable in between, so
-	// closing over `composite` would silently revert any opacity / colour edit made while the pick was in
+	// closing over `composite` would silently revert any opacity / color edit made while the pick was in
 	// flight - one undo step that quietly undoes two others.
 	val mutateComposite: (PartComposite.() -> PartComposite) -> Unit = { change ->
 		val live = session?.model?.value?.parts?.firstOrNull { it.id == part.id }?.activeComposite

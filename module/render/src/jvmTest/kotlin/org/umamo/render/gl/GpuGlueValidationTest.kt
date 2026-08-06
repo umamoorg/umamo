@@ -182,7 +182,7 @@ class GpuGlueValidationTest {
 		return worldXToColumn(minX) to worldXToColumn(maxX) - 1
 	}
 
-	/** World x → framebuffer column, at the fixed 1:1 camera centred on the world origin. */
+	/** World x → framebuffer column, at the fixed 1:1 camera centerd on the world origin. */
 	private fun worldXToColumn(worldX: Float): Int = ((worldX + viewportSize / 2f)).toInt()
 
 	/** Renders [source] and returns the (leftmost, rightmost) column carrying drawn art at mid height. */

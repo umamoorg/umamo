@@ -72,6 +72,22 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 	}
 
 	/**
+	 * Writes a little-endian 16-bit integer (low 16 bits used).
+	 *
+	 * Takes an [Int] and masks rather than taking a [Short] with a range precondition: callers pass
+	 * `shortValue.toInt()`, which sign-extends above 32767, and a mesh with more than 32767 vertices
+	 * writes exactly those values.  A `require` here would reject a file the format permits.
+	 *
+	 * @param Int value Value to write; only the low 16 bits are used.
+	 */
+	public fun writeU16(value: Int) {
+		ensure(2)
+		buffer[position] = value.toByte()
+		buffer[position + 1] = (value ushr 8).toByte()
+		position += 2
+	}
+
+	/**
 	 * Writes a little-endian 32-bit integer.
 	 *
 	 * @param Int value Value to write.
@@ -101,6 +117,24 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 		ensure(bytes.size)
 		bytes.copyInto(buffer, position)
 		position += bytes.size
+	}
+
+	/**
+	 * Writes [value] as a fixed-width [width]-byte NUL-terminated record, zero-padded to width.
+	 *
+	 * Inverse of [LittleEndianReader.readFixedString].  MOC3 IDs are 64-byte records holding
+	 * plain ASCII (MOC3 §5.4), so the encoded form must fit in `width - 1` bytes to leave room for
+	 * the terminator; the corpus's longest id is well inside that.
+	 *
+	 * @param String value The identifier to write.
+	 * @param Int    width Record width in bytes (e.g. 64).
+	 * @pre The UTF-8 encoding of [value] is shorter than [width].
+	 */
+	public fun writeFixedString(value: String, width: Int) {
+		val encoded = value.encodeToByteArray()
+		require(encoded.size < width) { "id \"$value\" (${encoded.size} bytes) does not fit a $width-byte record" }
+		writeBytes(encoded)
+		zeroPad(width - encoded.size)
 	}
 
 	/**

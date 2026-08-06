@@ -58,9 +58,11 @@
 	<string name="menu_import_cmo3">CMO3…</string>
 	<string name="menu_import_moc3">MOC3…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
+	<string name="menu_export_moc3">MOC3…</string>
 	<string name="cmd_import_cmo3">Import CMO3…</string>
 	<string name="cmd_import_moc3">Import MOC3…</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
+	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
 
 	<!-- Edit menu. -->
@@ -82,11 +84,16 @@
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
 	<string name="confirm_discard_unexported">The current document has unexported changes.  Discard them?</string>
-	<!-- CMO3 export report alert (the document.exportReport command).  The body lines carry the
-	     per-item diagnostics; %1$s in the weld line is the affected drawable names. -->
-	<string name="export_report_message">The file was exported, but the following could not be carried into CMO3:</string>
+	<!-- Export report alert (the document.exportReport command).  One header per export format,
+	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
+	     %1$s in the weld line is the affected drawable names. -->
+	<string name="export_report_message_cmo3">The file was exported, but the following could not be carried into CMO3:</string>
+	<string name="export_report_message_moc3">The file was exported, but the following could not be carried into MOC3:</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and reopens correctly in Umamo, but it will NOT render in the Cubism Editor.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export a file Cubism can display.</string>
+	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
+	<string name="export_feature_stripped">%1$s is not available for the target runtime version, so it was removed from: %2$s.</string>
+	<string name="export_more_subjects">(+%1$d more)</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">Could not read %1$s.</string>
@@ -373,7 +380,7 @@
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
 
-	<!-- Pie menu centre titles (the pie's name, Blender-style). -->
+	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>
 	<string name="pie_title_snap">Snap</string>
 	<string name="pie_title_uv_snap">UV Snap</string>

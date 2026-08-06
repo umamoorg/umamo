@@ -1,16 +1,20 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.RotationPivotForm
 
 /*
@@ -145,6 +149,10 @@ internal class MeshBlendState(
 	val referenceDeltas: FloatArray?,
 	val referenceDrawOrder: Float,
 	val referenceOpacity: Float,
+	// Default to the channel identities: a drawable with no color tables has no reference to subtract,
+	// and the identities make the subtraction a no-op rather than a shift.
+	val referenceMultiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
+	val referenceScreenColor: ColorRgb = ColorRgb.ScreenIdentity,
 )
 
 /**
@@ -183,6 +191,10 @@ internal fun meshBlendState(
 		referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue),
 		referenceDrawOrder = drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue),
 		referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue),
+		referenceMultiplyColor =
+			drawable.channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, drawable.multiplyColor, defaultValue),
+		referenceScreenColor =
+			drawable.channelGrids.colorAt(FormChannel.SCREEN_COLOR, drawable.screenColor, defaultValue),
 	)
 }
 
@@ -274,4 +286,131 @@ internal fun rotationBlendDeltas(
 		}
 	}
 	return if (contributed) RotationBlendDeltas(originX, originY, angle, scale) else null
+}
+
+/**
+ * A deformer's summed weighted blend-shape CHANNEL deltas - the render channels that cascade onto
+ * every drawable underneath, as additive offsets to be applied on top of the grid blend.
+ */
+internal class DeformerBlendChannelDeltas(
+	val opacity: Float,
+	val multiplyColor: ColorRgb,
+	val screenColor: ColorRgb,
+)
+
+/**
+ * Sums [bindings]' weighted channel deltas at the current pose, or null when nothing contributes.
+ *
+ * The forms carry each channel's value as (stored delta + the grid-at-default reference), the same
+ * convention the geometry uses, so the reference is subtracted back out here.  Sampling the reference
+ * from [channelGrids] rather than from the form list is what makes an UNKEYED channel cancel exactly:
+ * both sides then resolve to the deformer's static.
+ *
+ * Warp and rotation share this because their channel triple is identical - only the geometry payload
+ * differs - and two copies would drift the moment one gained a clamp the other lacked.
+ *
+ * @param List         bindings     The deformer's blend bindings.
+ * @param ChannelGrids channelGrids The deformer's own keyform tracks (the reference source).
+ * @param Float        staticOpacity The deformer's static opacity.
+ * @param ColorRgb     staticMultiply The deformer's static multiply color.
+ * @param ColorRgb     staticScreen The deformer's static screen color.
+ * @param Function     paramValue   Current value per parameter id.
+ * @param Function     defaultValue Default value per parameter id (the neutral pose).
+ * @return DeformerBlendChannelDeltas? The summed offsets, or null when nothing contributes.
+ */
+internal fun <F : Any> deformerBlendChannelDeltas(
+	bindings: List<BlendShapeBinding<F>>,
+	channelGrids: ChannelGrids,
+	staticOpacity: Float,
+	staticMultiply: ColorRgb,
+	staticScreen: ColorRgb,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+	channelsOf: (F) -> DeformerBlendChannelDeltas,
+): DeformerBlendChannelDeltas? {
+	if (bindings.isEmpty()) {
+		return null
+	}
+	var opacity = 0f
+	var multiplyRed = 0f
+	var multiplyGreen = 0f
+	var multiplyBlue = 0f
+	var screenRed = 0f
+	var screenGreen = 0f
+	var screenBlue = 0f
+	var contributed = false
+	var reference: DeformerBlendChannelDeltas? = null
+	for (binding in bindings) {
+		val active =
+			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+		for (key in active) {
+			val form = binding.forms[key.keyIndex] ?: continue
+			if (reference == null) {
+				reference =
+					DeformerBlendChannelDeltas(
+						channelGrids.scalarAt(FormChannel.OPACITY, staticOpacity, defaultValue),
+						channelGrids.colorAt(FormChannel.MULTIPLY_COLOR, staticMultiply, defaultValue),
+						channelGrids.colorAt(FormChannel.SCREEN_COLOR, staticScreen, defaultValue),
+					)
+			}
+			val channels = channelsOf(form)
+			contributed = true
+			opacity += key.weight * (channels.opacity - reference.opacity)
+			multiplyRed += key.weight * (channels.multiplyColor.red - reference.multiplyColor.red)
+			multiplyGreen += key.weight * (channels.multiplyColor.green - reference.multiplyColor.green)
+			multiplyBlue += key.weight * (channels.multiplyColor.blue - reference.multiplyColor.blue)
+			screenRed += key.weight * (channels.screenColor.red - reference.screenColor.red)
+			screenGreen += key.weight * (channels.screenColor.green - reference.screenColor.green)
+			screenBlue += key.weight * (channels.screenColor.blue - reference.screenColor.blue)
+		}
+	}
+	if (!contributed) {
+		return null
+	}
+	return DeformerBlendChannelDeltas(
+		opacity,
+		ColorRgb(multiplyRed, multiplyGreen, multiplyBlue),
+		ColorRgb(screenRed, screenGreen, screenBlue),
+	)
+}
+
+/**
+ * A part's summed weighted blend-shape draw-order delta at the current pose, or null when nothing
+ * contributes.
+ *
+ * Draw order is a part's only blendable channel, so unlike the drawable and deformer paths there is
+ * one scalar to sum.  The reference is the channel's value at the DEFAULT pose - sampled from the
+ * part's own track, falling back to its static - which is exactly what the import added, so the two
+ * cancel.
+ *
+ * @param Part     part         The part.
+ * @param Function paramValue   Current value per parameter id.
+ * @param Function defaultValue Default value per parameter id (the neutral pose).
+ * @return Float? The summed delta, or null when the part has no active contribution.
+ */
+internal fun partBlendDrawOrderDelta(
+	part: Part,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+): Float? {
+	if (part.blendShapes.isEmpty()) {
+		return null
+	}
+	var delta = 0f
+	var contributed = false
+	var reference: Float? = null
+	for (binding in part.blendShapes) {
+		val active =
+			activeBlendKeys(binding, paramValue(binding.parameterId), limitMultiplier(binding.limits, paramValue))
+		for (key in active) {
+			val form = binding.forms[key.keyIndex] ?: continue
+			if (reference == null) {
+				reference =
+					part.channelGrids.scalarAt(FormChannel.DRAW_ORDER, part.drawOrder.toFloat(), defaultValue)
+			}
+			contributed = true
+			delta += key.weight * (form.drawOrder - reference)
+		}
+	}
+	return if (contributed) delta else null
 }

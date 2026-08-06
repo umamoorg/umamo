@@ -2,7 +2,7 @@ package org.umamo.format.moc3.moc
 
 import org.umamo.format.moc3.io.LittleEndianReader
 
-/** Canvas dimensions and origin (section [Sections.CANVAS], `f32[6]`). Pixel units. */
+/** Canvas dimensions and origin (section [Section.CANVAS], `f32[6]`). Pixel units. */
 public data class CanvasInfo(
 	val pixelsPerUnit: Float,
 	val originX: Float,
@@ -12,8 +12,8 @@ public data class CanvasInfo(
 )
 
 /**
- * A model parameter (slider). [type] is null on moc versions without `Parameter.Types` (< 4).
- * [repeats] is the moc 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
+ * A model parameter (slider). [type] is null on MOC3 versions without `Parameter.Types` (< 4).
+ * [repeats] is the Cubism 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
  * `[minimumValue, maximumValue)` instead of clamping.
  */
 public data class MocParameter(
@@ -45,12 +45,11 @@ public data class MocDrawable(
 /**
  * A parsed `.moc3`: the 64-byte header, the section-offset table, and each section's raw bytes.
  *
- * EN: The model retains every section verbatim (the slice `[offset[k], offset[k+1])`, last → EOF,
- *     including padding) so [org.umamo.format.moc3.moc.MocCodec.write] reproduces an unedited file
- *     byte identical.  Structural sections (counts, canvas, IDs, parameters, parts, drawables) are
- *     exposed as typed accessors; the deformer/keyform/glue/ blend-shape/offscreen sections
- *     (per-frame math) are out of scope and read only as raw bytes.
- * JA: 全セクションをそのまま保持し、未編集ファイルはバイト単位で再生成可能。
+ * The model retains every section verbatim (the slice `[offset[k], offset[k+1])`, last → EOF,
+ * including padding) so [org.umamo.format.moc3.moc.MocCodec.write] reproduces an unedited file
+ * byte identical.  A handful of structural sections (counts, canvas, IDs, parameters, parts,
+ * drawables) are exposed here as typed accessors for callers that need only the shape of a model;
+ * every section, deformation payload included, is reachable typed through [sections].
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -80,14 +79,19 @@ public class MocModel internal constructor(
 	/**
 	 * Returns the raw bytes of section [index] (including its trailing padding), or null if absent.
 	 *
-	 * @param Int index A section-table index (e.g. a [Sections] constant).
+	 * @param Int index A section-table index (a [Section]'s [Section.indexIn] for this version).
 	 * @return ByteArray? The section bytes, or null when the section is not present.
 	 */
 	public fun section(index: Int): ByteArray? = rawSections.getOrNull(index)
 
-	/** The CountInfo block (section 0) decoded as a `u32[]` (indexable with `Sections.CI_*`). */
+	/**
+	 * The CountInfo block (section 0) decoded as a `u32[]` (indexable with `Sections.CI_*`).
+	 *
+	 * Read by raw index rather than through [sections], because every `PER_*` sizing rule in
+	 * [MocSections] reads THIS - routing it back through the typed accessor would be circular.
+	 */
 	public val countInfo: IntArray by lazy {
-		val raw = section(Sections.COUNTINFO) ?: return@lazy IntArray(0)
+		val raw = section(Section.COUNT_INFO.indexIn(version)) ?: return@lazy IntArray(0)
 		val reader = LittleEndianReader(raw)
 		IntArray(raw.size / 4) { reader.readInt32() }
 	}
@@ -117,65 +121,71 @@ public class MocModel internal constructor(
 
 	/** The canvas dimensions/origin, or null if the canvas section is absent. */
 	public val canvasInfo: CanvasInfo? by lazy {
-		val raw = section(Sections.CANVAS) ?: return@lazy null
-		val reader = LittleEndianReader(raw)
+		// The file stores f32[6]; the sixth is a trailing zero the model does not carry.
+		val values = sections.floatArray(Section.CANVAS)
+		if (values.size < 5) {
+			return@lazy null
+		}
 		CanvasInfo(
-			pixelsPerUnit = reader.readFloat32(),
-			originX = reader.readFloat32(),
-			originY = reader.readFloat32(),
-			width = reader.readFloat32(),
-			height = reader.readFloat32(),
+			pixelsPerUnit = values[0],
+			originX = values[1],
+			originY = values[2],
+			width = values[3],
+			height = values[4],
 		)
 	}
 
+	// The three accessors below pad a short or absent section out to [elementCount] rather than
+	// returning what the file happens to hold.  The callers index positionally by object, so a
+	// stripped or truncated section must read as zeros/blanks instead of throwing - the same
+	// defensive contract MocDecoder relies on for the object blocks' common heads.
+
 	/**
-	 * Reads section [index] as a packed `i32[elementCount]`, or a zero-filled array when absent.
+	 * Reads [section] as a packed `i32[elementCount]`, zero-filling anything the file omits.
 	 *
-	 * @param Int index        A [Sections] section index.
-	 * @param Int elementCount Number of 32-bit integers to read.
+	 * @param Section section      An I32 section.
+	 * @param Int     elementCount Number of 32-bit integers the caller will index.
 	 * @return IntArray The decoded values (length == [elementCount]).
 	 */
-	private fun ints(index: Int, elementCount: Int): IntArray {
-		val raw = section(index) ?: return IntArray(elementCount)
-		val reader = LittleEndianReader(raw)
-		return IntArray(elementCount) { reader.readInt32() }
+	private fun ints(section: Section, elementCount: Int): IntArray {
+		val decoded = sections.intArray(section)
+		return if (decoded.size == elementCount) decoded else decoded.copyOf(elementCount)
 	}
 
 	/**
-	 * Reads section [index] as a packed `f32[elementCount]`, or a zero-filled array when absent.
+	 * Reads [section] as a packed `f32[elementCount]`, zero-filling anything the file omits.
 	 *
-	 * @param Int index        A [Sections] section index.
-	 * @param Int elementCount Number of 32-bit floats to read.
+	 * @param Section section      An F32 section.
+	 * @param Int     elementCount Number of 32-bit floats the caller will index.
 	 * @return FloatArray The decoded values (length == [elementCount]).
 	 */
-	private fun floats(index: Int, elementCount: Int): FloatArray {
-		val raw = section(index) ?: return FloatArray(elementCount)
-		val reader = LittleEndianReader(raw)
-		return FloatArray(elementCount) { reader.readFloat32() }
+	private fun floats(section: Section, elementCount: Int): FloatArray {
+		val decoded = sections.floatArray(section)
+		return if (decoded.size == elementCount) decoded else decoded.copyOf(elementCount)
 	}
 
 	/**
-	 * Reads section [index] as [elementCount] fixed-width ID records, or blanks when absent.
+	 * Reads [section] as [elementCount] fixed-width ID records, blank-filling anything the file omits.
 	 *
-	 * @param Int index        A [Sections] section index.
-	 * @param Int elementCount Number of ID records to read (each [Sections.ID_STRIDE] bytes).
+	 * @param Section section      An ID section.
+	 * @param Int     elementCount Number of ID records the caller will index.
 	 * @return List<String> The decoded IDs (length == [elementCount]).
 	 */
-	private fun idStrings(index: Int, elementCount: Int): List<String> {
-		val raw = section(index) ?: return List(elementCount) { "" }
-		val reader = LittleEndianReader(raw)
-		return List(elementCount) { reader.readFixedString(Sections.ID_STRIDE) }
+	private fun idStrings(section: Section, elementCount: Int): List<String> {
+		val decoded = sections.idArray(section)
+		return if (decoded.size == elementCount) decoded else List(elementCount) { decoded.getOrElse(it) { "" } }
 	}
 
 	/** The parameters, in file order. */
 	public fun parameters(): List<MocParameter> {
 		val parameterCount = parameterCount
-		val ids = idStrings(Sections.PARAM_ID, parameterCount)
-		val maxima = floats(Sections.PARAM_MAX, parameterCount)
-		val minima = floats(Sections.PARAM_MIN, parameterCount)
-		val defaults = floats(Sections.PARAM_DEFAULT, parameterCount)
-		val repeats = ints(Sections.PARAM_REPEAT, parameterCount)
-		val types = if (section(Sections.PARAM_TYPE) != null) ints(Sections.PARAM_TYPE, parameterCount) else null
+		val ids = idStrings(Section.PARAM_ID, parameterCount)
+		val maxima = floats(Section.PARAM_MAX, parameterCount)
+		val minima = floats(Section.PARAM_MIN, parameterCount)
+		val defaults = floats(Section.PARAM_DEFAULT, parameterCount)
+		val repeats = ints(Section.PARAM_REPEAT, parameterCount)
+		// Absent before moc 4, so a null types array means "every parameter is normal".
+		val types = if (sections.isPresent(Section.PARAM_TYPE)) ints(Section.PARAM_TYPE, parameterCount) else null
 		return List(parameterCount) { parameterIndex ->
 			MocParameter(
 				ids[parameterIndex],
@@ -191,26 +201,27 @@ public class MocModel internal constructor(
 	/** The parts, in file order. */
 	public fun parts(): List<MocPart> {
 		val partCount = partCount
-		val ids = idStrings(Sections.PART_ID, partCount)
-		val parents = ints(Sections.PART_PARENT, partCount)
+		val ids = idStrings(Section.PART_ID, partCount)
+		val parents = ints(Section.PART_PARENT, partCount)
 		return List(partCount) { partIndex -> MocPart(ids[partIndex], parents[partIndex]) }
 	}
 
 	/** The drawables (ArtMeshes), in file order. */
 	public fun drawables(): List<MocDrawable> {
 		val drawableCount = drawableCount
-		val ids = idStrings(Sections.DRAW_ID, drawableCount)
-		val textures = ints(Sections.DRAW_TEXTURE, drawableCount)
-		val vertexCounts = ints(Sections.DRAW_VERTEX_COUNT, drawableCount)
-		val indexCounts = ints(Sections.DRAW_INDEX_COUNT, drawableCount)
-		val maskCounts = ints(Sections.DRAW_MASK_COUNT, drawableCount)
-		val parents = ints(Sections.DRAW_PARENT, drawableCount)
-		val flagsRaw = section(Sections.DRAW_CONSTANT_FLAG)
+		val ids = idStrings(Section.ARTMESH_ID, drawableCount)
+		val textures = ints(Section.ARTMESH_TEXTURE, drawableCount)
+		val vertexCounts = ints(Section.ARTMESH_VERTEX_COUNT, drawableCount)
+		val indexCounts = ints(Section.ARTMESH_INDEX_COUNT, drawableCount)
+		val maskCounts = ints(Section.ARTMESH_MASK_COUNT, drawableCount)
+		val parents = ints(Section.ARTMESH_PARENT_PART, drawableCount)
+		// One byte per drawable, not an i32; byteArray already pads to the drawable count.
+		val flagsRaw = sections.byteArray(Section.ARTMESH_CONSTANT_FLAGS)
 		return List(drawableCount) { drawableIndex ->
 			MocDrawable(
 				id = ids[drawableIndex],
 				textureIndex = textures[drawableIndex],
-				constantFlags = (flagsRaw?.getOrNull(drawableIndex)?.toInt() ?: 0) and 0xFF,
+				constantFlags = (flagsRaw.getOrNull(drawableIndex)?.toInt() ?: 0) and 0xFF,
 				vertexCount = vertexCounts[drawableIndex],
 				indexCount = indexCounts[drawableIndex],
 				maskCount = maskCounts[drawableIndex],

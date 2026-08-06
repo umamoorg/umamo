@@ -52,7 +52,7 @@ class PngImageIoParityTest {
 	/**
 	 * Builds a TYPE_INT_ARGB test image with a deterministic gradient; alpha stays in 64..255 so
 	 * ImageIO reliably preserves the RGB of every pixel (a fully-transparent pixel is where encoders
-	 * are free to drop colour - covered separately by the hand-built tRNS tests).
+	 * are free to drop color - covered separately by the hand-built tRNS tests).
 	 *
 	 * @param Int width  Image width.
 	 * @param Int height Image height.

@@ -6,7 +6,7 @@ import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.model.Deformer
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
 import java.io.File
 import kotlin.test.Test
@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 /**
  * Posed differential validation of the DEFORMER channel cascade against the Umamo C++ runtime.
  *
- * A warp or rotation deformer carries its own opacity and multiply/screen colour per keyform, and
+ * A warp or rotation deformer carries its own opacity and multiply/screen color per keyform, and
  * the runtime folds those down the deformer chain into every drawable underneath before exposing
  * `csmGetDrawableOpacities` / `...MultiplyColors` / `...ScreenColors`.  This gate compares that
  * exposed per-drawable result against [preparePose]'s, so it covers the whole chain: the drawable's
@@ -48,8 +48,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireInput("relive.dumpModel")
-		val coreLib = requireInput("relive.coreLib")
+		val dumpModel = requireOracleInput("relive.dumpModel")
+		val coreLib = requireOracleInput("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -68,7 +68,7 @@ class DeformerChannelOracleTest {
 		val mismatches = ArrayList<String>()
 
 		for (mocFile in samples) {
-			val mocDocument = runCatching { Moc3.decode(mocFile.readBytes()) }.getOrNull() ?: continue
+			val mocDocument = runCatching { Moc3.read(mocFile.readBytes()) }.getOrNull() ?: continue
 			val drivingParameters = parametersDrivingChannelledDeformers(mocDocument)
 			if (drivingParameters.isEmpty()) {
 				continue
@@ -88,7 +88,16 @@ class DeformerChannelOracleTest {
 				val inputs = preparePose(puppet, parameterValues)
 				for (drawableInputs in inputs.drawables) {
 					val oracleEntry = dump.entries[drawableInputs.drawableId.raw] ?: continue
-					if (wasNeverEvaluated(oracleEntry)) {
+					/*
+					 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor
+					 * deformer's - is out of its keyed parameter range, skipping it entirely during the
+					 * update, so every computed field stays at the zero it was allocated with. Umamo
+					 * instead evaluates such a drawable live, and that difference spans geometry as well
+					 * as these channels (the oracle reports `vpos_h=0` for them), so it is a separate gap
+					 * from the channel cascade this test gates - see TODO § Puppet Model, CMO3, MOC3.
+					 * Excluded here so this gate keeps measuring one thing.
+					 */
+					if (oracleNeverEvaluated(oracleEntry)) {
 						skippedNeverEvaluated++
 						continue
 					}
@@ -121,7 +130,7 @@ class DeformerChannelOracleTest {
 	}
 
 	/**
-	 * Finds the parameters driving any deformer that authors a non-identity opacity or colour.
+	 * Finds the parameters driving any deformer that authors a non-identity opacity or color.
 	 *
 	 * @param MocDocument mocDocument The decoded model.
 	 * @return Map<String, FloatArray> Parameter id → the key positions of the axes that drive one.
@@ -153,7 +162,7 @@ class DeformerChannelOracleTest {
 	 * Whether any of this deformer's keyforms departs from the identity channels.
 	 *
 	 * @param Deformer deformer The warp or rotation deformer.
-	 * @return Boolean True when it authors an opacity or colour worth sweeping.
+	 * @return Boolean True when it authors an opacity or color worth sweeping.
 	 */
 	private fun authorsAChannel(deformer: Deformer): Boolean {
 		val channels =
@@ -213,40 +222,9 @@ class DeformerChannelOracleTest {
 		return poses
 	}
 
-	/**
-	 * Whether the oracle left this drawable at its zero-initialized state instead of evaluating it.
-	 *
-	 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor deformer's - is
-	 * out of its keyed parameter range, skipping it entirely during the update, so every computed
-	 * field stays at the zero it was allocated with. Umamo instead evaluates such a drawable live, and
-	 * that difference spans geometry as well as these channels (the oracle reports `vpos_h=0` for
-	 * them), so it is a separate gap from the channel cascade this test gates - see TODO
-	 * § Puppet Model, CMO3, MOC3. Excluded here so this gate keeps measuring one thing.
-	 *
-	 * The signature is unambiguous and cannot arise from a real evaluation: a position hash of exactly
-	 * zero AND a fully black multiply color AND zero opacity, all at once. A legitimately invisible
-	 * drawable still reports real geometry and a white multiply.
-	 *
-	 * @param OracleEntry entry The dumped drawable.
-	 * @return Boolean True when the oracle never evaluated it.
-	 */
-	private fun wasNeverEvaluated(entry: OracleEntry): Boolean =
-		entry.vposH == 0.0 &&
-			entry.opacity == 0f &&
-			entry.multiplyRgba.size == 4 &&
-			entry.multiplyRgba[0] == 0f &&
-			entry.multiplyRgba[1] == 0f &&
-			entry.multiplyRgba[2] == 0f
-
 	private fun checkChannel(mismatches: ArrayList<String>, label: String, channel: String, oracle: Float, ours: Float) {
 		if (!oracleCloseEnough(oracle.toDouble(), ours.toDouble())) {
 			mismatches.add("$label $channel: oracle=$oracle ours=$ours")
 		}
-	}
-
-	private fun requireInput(property: String): File {
-		val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-		Assume.assumeTrue("[oracle] absent -D$property", file != null)
-		return file!!
 	}
 }

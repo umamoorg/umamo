@@ -1,6 +1,5 @@
 # EditorConfig — shared formatting rules across editors AND ktlint (which reads this file).
 # CLAUDE.md mandates TAB indentation, overriding Kotlin's space default.
-# 全エディタと ktlint 共通の整形ルール。CLAUDE.md の規定によりタブインデント。
 root = true
 
 [*]

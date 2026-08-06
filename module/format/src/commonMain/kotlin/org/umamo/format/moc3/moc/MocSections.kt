@@ -7,11 +7,10 @@ import org.umamo.format.moc3.io.LittleEndianWriter
  * Typed read access to every [Section] of a [MocModel] (the "Layer-1" view): each section as a flat
  * array of its element type, sized per its [Sizing] rule.
  *
- * EN: Per-object sections (`PER_*`) are read for exactly their CountInfo count; `TABLE` sections are
- *     read across the whole section slice (lossless - trailing padding becomes trailing zero
- *     elements the semantic layer never dereferences). Reading is non-destructive; the container's
- *     byte-identical write is unaffected.
- * JA: 各セクションを型付き配列として読み出す（Layer-1）。
+ * Per-object sections (`PER_*`) are read for their CountInfo count, capped at what the slice holds
+ * (see [elementCount]); `TABLE` sections are read across the whole section slice (lossless -
+ * trailing padding becomes trailing zero elements the semantic layer never dereferences).  Reading
+ * is non-destructive; the container's byte-identical write is unaffected.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -35,11 +34,18 @@ public class MocSections internal constructor(private val model: MocModel) {
 			Sizing.PER_PARAMETER -> ci(Sections.CI_PARAMETERS)
 			Sizing.PER_GLUE -> ci(Sections.CI_GLUES)
 			Sizing.PER_RENDER_ORDER_GROUP -> ci(Sections.CI_RENDER_ORDER_GROUPS)
+			Sizing.PER_RENDER_ORDER_CHILD -> ci(Sections.CI_RENDER_ORDER_CHILDREN)
 			Sizing.PER_OFFSCREEN -> ci(Sections.CI_OFFSCREENS)
 			Sizing.PER_BLENDSHAPE_WARP -> ci(Sections.CI_BLENDSHAPE_WARPS)
 			Sizing.PER_BLENDSHAPE_MESH -> ci(Sections.CI_BLENDSHAPE_MESHES)
 			Sizing.PER_BLENDSHAPE_ROTATION -> ci(Sections.CI_BLENDSHAPE_ROTATIONS)
 			Sizing.PER_BLENDSHAPE_PART -> ci(Sections.CI_BLENDSHAPE_PARTS)
+			Sizing.PER_BLENDSHAPE_GLUE -> ci(Sections.CI_BLENDSHAPE_GLUES)
+			Sizing.PER_PART_FORM -> ci(Sections.CI_PART_FORMS)
+			Sizing.PER_WARP_FORM -> ci(Sections.CI_WARP_FORMS)
+			Sizing.PER_ROTATION_FORM -> ci(Sections.CI_ROTATION_FORMS)
+			Sizing.PER_ARTMESH_FORM -> ci(Sections.CI_ARTMESH_FORMS)
+			Sizing.PER_OFFSCREEN_FORM -> ci(Sections.CI_OFFSCREEN_KEYFORMS)
 			Sizing.TABLE -> -1
 		}
 
@@ -71,10 +77,23 @@ public class MocSections internal constructor(private val model: MocModel) {
 	/** Whether [section] is present in this model's version and has a section slice. */
 	public fun isPresent(section: Section): Boolean = rawSlice(section) != null
 
-	/** Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables). */
+	/**
+	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables).
+	 *
+	 * A per-object count is clamped to what the slice can actually hold.  CountInfo and the
+	 * section bytes are independent on disk, so a stripped or truncated file can claim more
+	 * objects than it stores; reading the claim would run off the end of the slice and fail the
+	 * whole decode, which [org.umamo.format.moc3.decode.MocDecoder] promises not to do for an
+	 * absent or partial id/flag section.  Clamping yields a short array instead, which every
+	 * caller already tolerates (they index through `getOrElse`).
+	 *
+	 * @param Section section The section to size.
+	 * @return Int The element count, 0 when the section is absent.
+	 */
 	public fun elementCount(section: Section): Int {
 		val slice = rawSlice(section) ?: return 0
-		return if (section.sizing == Sizing.TABLE) slice.size / section.element.size else count(section.sizing)
+		val sliceCapacity = slice.size / section.element.size
+		return if (section.sizing == Sizing.TABLE) sliceCapacity else minOf(count(section.sizing), sliceCapacity)
 	}
 
 	/**
@@ -129,6 +148,21 @@ public class MocSections internal constructor(private val model: MocModel) {
 	}
 
 	/**
+	 * Reads [section] as fixed-width ID records (for ID sections, e.g. deformer ids).
+	 *
+	 * @param Section section A section whose element type is ID.
+	 * @return List<String> The decoded identifiers (empty if the section is absent).
+	 */
+	public fun idArray(section: Section): List<String> {
+		require(section.element == ElementType.ID) { "$section is not an id section" }
+		val slice = rawSlice(section) ?: return emptyList()
+		val reader = LittleEndianReader(slice)
+		// One source of truth for the record width: ElementType.ID.size IS the id stride, and sizing the
+		// walk from anything else lets the two drift and silently misread every id after the first.
+		return List(elementCount(section)) { reader.readFixedString(section.element.size) }
+	}
+
+	/**
 	 * Re-serializes [section]'s element region (the real elements, excluding trailing padding).
 	 * Used to validate that the typed decode is lossless against the original bytes.
 	 *
@@ -141,13 +175,19 @@ public class MocSections internal constructor(private val model: MocModel) {
 		when (section.element) {
 			ElementType.I32, ElementType.U32 -> intArray(section).forEach(writer::writeInt32)
 			ElementType.F32 -> floatArray(section).forEach(writer::writeFloat32)
-			ElementType.I16 ->
-				shortArray(section).forEach { shortValue ->
-					writer.writeU8(shortValue.toInt() and 0xFF)
-					writer.writeU8((shortValue.toInt() shr 8) and 0xFF)
-				}
+			ElementType.I16 -> shortArray(section).forEach { shortValue -> writer.writeU16(shortValue.toInt()) }
 			ElementType.U8 -> writer.writeBytes(byteArray(section))
-			ElementType.ID -> writer.writeBytes(rawSlice(section)!!.copyOf(elementCount * ElementType.ID.size))
+			// Re-encoded from the decoded strings, so this genuinely exercises the id-record walk and the
+			// NUL-terminate-then-zero-pad convention rather than comparing raw bytes to themselves.  Every
+			// id record in the corpus pads cleanly with zeros after its terminator, which is what makes the
+			// round trip byte-exact; a file that padded with garbage would fail here, and should.
+			ElementType.ID ->
+				idArray(section).forEach { identifier ->
+					writer.writeFixedString(identifier, section.element.size)
+				}
+			// A runtime slot is opaque (zero on disk, filled after the memory-cast), so there is no typed
+			// decode to re-serialize from and its element region round-trips as raw bytes.
+			ElementType.U64 -> writer.writeBytes(rawElementRegion(section))
 		}
 		return writer.toByteArray()
 	}

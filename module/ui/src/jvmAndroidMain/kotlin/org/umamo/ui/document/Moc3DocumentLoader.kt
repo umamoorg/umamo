@@ -8,10 +8,10 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
-import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
-import org.umamo.format.moc3.moc.MocModel
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.format.moc3.json.Model3Json
+import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.PuppetTextures
 import org.umamo.render.moc3PuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
@@ -21,20 +21,37 @@ import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
 /**
- * A `.moc3` imported together with its JSON sidecars and external atlas pages.  The raw container and
- * the decoded document are kept alongside the puppet for a future re-bake path (`Moc3.bake` needs a
- * reference container).  The original atlas page PNGs are retained too ([atlasPages], in model3
- * texture order): Export CMO3 for a MOC3-origin document synthesizes a fresh graph whose image
- * chain embeds those exact bytes, higher-fidelity than re-encoding the decoded RGBA.
+ * A `.moc3` imported together with its JSON sidecars and external atlas pages.  None of the file's
+ * undigested form is retained, because the MOC3 export bakes every section fresh from the model with
+ * no reference container involved (docs/format/MOC3.md § 8) - which is why this class has no
+ * counterpart to [Cmo3Document]'s retained graph.  That one IS load-bearing: the CMO3 export
+ * reconciles onto it.  The original atlas page PNGs are the one thing kept ([atlasPages], in model3
+ * texture order): both exports write those exact bytes rather than re-encoding the decoded RGBA,
+ * Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3 writing them
+ * beside the moc.
  */
 class Moc3Document(
 	override val path: String,
-	val moc: MocModel,
-	val mocDocument: MocDocument,
 	override val puppet: PuppetModel,
 	override val textures: PuppetTextures,
 	override val liveParams: LiveParams,
 	val atlasPages: List<ByteArray>,
+	/** The parsed manifest, whose texture names and non-file sections a MOC3 export re-emits. */
+	val manifest: Model3Json,
+	/**
+	 * Every sidecar the manifest referenced and the loader could read, each carrying the manifest
+	 * section it came from and its manifest-relative name (`Erica.physics3.json`,
+	 * `motion/idle.motion3.json`).
+	 *
+	 * Retained as TEXT, unparsed: Umamo models none of these, so a MOC3 export re-emits them verbatim
+	 * rather than rebuilding them from a model that never held them.  Reading them at import is what
+	 * makes that possible at all - a picker-driven export has no access to the source directory.
+	 *
+	 * The KIND travels with the text because only the manifest knows it.  A rigger is free to name the
+	 * physics file anything, and re-deriving the kind from the file name later would drop such a file
+	 * into the motion catch-all - written beside the moc, but no longer wired into the manifest.
+	 */
+	val sidecars: List<Moc3Sidecars.PassThroughSidecar>,
 ) : PuppetDocument
 
 /**
@@ -81,7 +98,8 @@ suspend fun loadMoc3Document(file: PlatformFile, mocBytes: ByteArray): DocumentL
  *    fails as MissingTexture: a puppet without its atlas wiring is broken, not degraded.
  *  - cdi3 (display names) is OPTIONAL - the manifest's DisplayInfo reference first, then the
  *    basename fallback; absent or unparseable degrades to raw format ids.
- *  - physics3/pose3/userdata3 are not read - nothing consumes them yet.
+ *  - physics3/pose3/userdata3/exp3/motion3 are read as TEXT and retained for a MOC3 export to
+ *    re-emit; each is optional, and a missing one degrades that export rather than the open.
  *  - No failure escapes as an exception: like the byte-level CMO3 loader, anything thrown by the
  *    import/assembly is caught and reported as ParseFailed, never propagated to the caller.
  *
@@ -120,11 +138,8 @@ internal fun buildMoc3Document(
 		UmamoLog.warn("$manifestName references ${manifest.fileReferences.moc}, not $name; importing the picked file")
 	}
 
-	val (mocModel, mocDocument) =
-		runCatching {
-			val container = Moc3.read(mocBytes)
-			container to Moc3.decode(container)
-		}.getOrElse { failure ->
+	val mocDocument =
+		runCatching { Moc3.read(mocBytes) }.getOrElse { failure ->
 			UmamoLog.error("failed to decode $path", failure)
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 		}
@@ -163,6 +178,10 @@ internal fun buildMoc3Document(
 				return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))
 			}
 
+	// Pass-through sidecars: read now, re-emitted verbatim by a MOC3 export.  Every one is optional -
+	// an unreadable physics file degrades the export's fidelity, never the open.
+	val sidecars = readPassThroughSidecars(manifest, readRelative)
+
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
 	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
 
@@ -175,18 +194,64 @@ internal fun buildMoc3Document(
 		DocumentLoad.Loaded(
 			Moc3Document(
 				path = path,
-				moc = mocModel,
-				mocDocument = mocDocument,
 				puppet = puppet,
 				textures = textures,
 				liveParams = initialLiveParams(puppet),
 				atlasPages = pageBytes,
+				manifest = manifest,
+				sidecars = sidecars,
 			),
 		)
 	}.getOrElse { failure ->
 		UmamoLog.error("failed to import $path", failure)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}
+}
+
+/**
+ * Reads every sidecar the manifest references, as text, tagged with the section it came from.
+ *
+ * The kind is taken from WHICH manifest field named the file, which is the only place it is stated:
+ * the names themselves are the rigger's to choose, so a physics file called `custom.json` is
+ * indistinguishable from a motion by its name alone.  Classifying here rather than at export time is
+ * what keeps such a file wired into the manifest the export writes.
+ *
+ * The cdi3 is deliberately NOT among them: it is the one sidecar the export synthesizes from the
+ * model (display names are model data), so carrying the imported one through would overwrite the
+ * names the rigger has since changed.
+ *
+ * @param Model3Json manifest     The parsed manifest.
+ * @param Function   readRelative Reads a manifest-directory-relative reference, or null when missing.
+ * @return List Each readable sidecar, with its kind and relative name.
+ */
+private fun readPassThroughSidecars(
+	manifest: Model3Json,
+	readRelative: (String) -> ByteArray?,
+): List<Moc3Sidecars.PassThroughSidecar> {
+	val references = LinkedHashMap<String, Moc3Sidecars.SidecarKind>()
+	manifest.fileReferences.physics?.let { reference ->
+		references[reference] = Moc3Sidecars.SidecarKind.Physics
+	}
+	manifest.fileReferences.pose?.let { reference -> references[reference] = Moc3Sidecars.SidecarKind.Pose }
+	manifest.fileReferences.userData?.let { reference ->
+		references[reference] = Moc3Sidecars.SidecarKind.UserData
+	}
+	manifest.fileReferences.expressions?.forEach { expression ->
+		references[expression.file] = Moc3Sidecars.SidecarKind.Expression
+	}
+	manifest.fileReferences.motions?.values?.forEach { motions ->
+		motions.forEach { motion -> references[motion.file] = Moc3Sidecars.SidecarKind.Motion }
+	}
+	val sidecars = ArrayList<Moc3Sidecars.PassThroughSidecar>(references.size)
+	for ((reference, kind) in references) {
+		val bytes = readRelative(reference)
+		if (bytes == null) {
+			UmamoLog.warn("sidecar $reference is missing; a MOC3 export will not carry it")
+			continue
+		}
+		sidecars.add(Moc3Sidecars.PassThroughSidecar(kind, reference, bytes.decodeToString()))
+	}
+	return sidecars
 }
 
 /**

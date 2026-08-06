@@ -11,7 +11,7 @@ import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
- * Organisational-tree structure edits. The org tree (PuppetModel.rootChildren + Part.children - an ordered
+ * Organizational-tree structure edits. The org tree (PuppetModel.rootChildren + Part.children - an ordered
  * mix of sub-parts and drawables) is the single source of truth for the hierarchy AND the parts-panel
  * order, and that order is the draw-order tiebreak. So one move - withOrgChildMoved - covers reparenting a
  * part, re-homing a drawable, reordering siblings, and interleaving a drawable between parts; every move
@@ -36,7 +36,7 @@ private fun List<OrgChild>.withChildInsertedBefore(child: OrgChild, before: OrgC
 /**
  * Returns a copy of [this] with the org child [child] (a sub-part or a drawable) moved under [newParentId]
  * (null = the top level) and positioned before [before] there (null / absent = appended). This is the one
- * organisational move: a part reparent / reorder, a drawable re-home, and a cross-kind interleave (a
+ * organizational move: a part reparent / reorder, a drawable re-home, and a cross-kind interleave (a
  * drawable dropped between two parts) are the same edit. Because the parts-panel order is the draw-order
  * tiebreak, the render order is re-derived. A move that would drop a part inside its own subtree (a cycle),
  * or that changes nothing, returns the same instance.

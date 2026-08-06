@@ -898,7 +898,7 @@ private fun ParameterPad2D(
 ) {
 	val colors = LocalUmamoColors.current
 	// Both axis names toggle the SAME island range editor, so the disclosure chevron is shared and
-	// vertically centred across the two axis rows rather than pinned to the first. It is pulled out of the
+	// vertically centerd across the two axis rows rather than pinned to the first. It is pulled out of the
 	// per-row leading slot (both rows pass showLeadingSlot = false, supplying the indent from here) and
 	// kept keyboard-focus-safe like the slider's inline toggle.
 	// IntrinsicSize.Min gives the row the height of its tallest child (the two-axis Column), so the shared
@@ -1008,7 +1008,7 @@ private fun ParameterPad2D(
  * @param Boolean  showRangeToggle  Whether this row's leading slot draws the island's chevron (versus a
  *                                  matching spacer); only consulted when [showLeadingSlot] is true.
  * @param Boolean  showLeadingSlot  Whether this row renders its own leading chevron / spacer slot. A
- *                                  linked pad shares one external chevron centred across both axis rows,
+ *                                  linked pad shares one external chevron centerd across both axis rows,
  *                                  so its rows pass false and let that chevron supply the indent.
  * @param Boolean  rangeOpen        Whether the island's range editor is open.
  * @param Function onToggleRange    Called when the name / chevron is clicked.

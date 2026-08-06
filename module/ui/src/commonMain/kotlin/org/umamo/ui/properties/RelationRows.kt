@@ -38,7 +38,7 @@ internal fun deformerIcon(deformer: Deformer): UmamoIcon =
 	}
 
 /**
- * A labelled row binding the active item to an organisational part, through the shared relation picker:
+ * A labelled row binding the active item to an organizational part, through the shared relation picker:
  * the field lists every part, and its eyedropper takes a part from a viewport click (resolved through the
  * clicked drawable's owner) or an outliner row.
  *

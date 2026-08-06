@@ -7,6 +7,7 @@ import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.scalarOrNull
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
@@ -128,16 +129,6 @@ internal fun preparePose(
 				paramValue,
 				overrides?.get(KeyableTarget(drawableOwner, FormChannel.OPACITY)),
 			)
-		// Blend shapes: additive scalar deltas (opacity clamps to [0,1] AFTER summing; the Umamo C++
-		// Runtime rounds draw order (int)(0.001+v) at sort time - Umamo sorts floats, recorded in
-		// MOC3.md §5.6).
-		if (blend != null) {
-			for (contribution in blend.contributions) {
-				drawOrder += contribution.weight * (contribution.form.drawOrder - blend.referenceDrawOrder)
-				opacity += contribution.weight * (contribution.form.opacity - blend.referenceOpacity)
-			}
-			opacity = opacity.coerceIn(0f, 1f)
-		}
 		var multiplyColor =
 			drawable.channelGrids.colorAt(
 				FormChannel.MULTIPLY_COLOR,
@@ -152,6 +143,36 @@ internal fun preparePose(
 				paramValue,
 				overrides?.get(KeyableTarget(drawableOwner, FormChannel.SCREEN_COLOR)),
 			)
+		// Blend shapes: additive deltas on every channel the record carries, not just the scalars.  Each
+		// contribution's form holds its stored delta plus the grid-at-default reference (added at import),
+		// so subtracting that reference back out here recovers the delta exactly.  Opacity and the colours
+		// clamp to [0,1] only AFTER summing - clamping per contribution would bias a record whose
+		// neighbours pull the other way.  Draw order is left unrounded (the Umamo C++ Runtime rounds
+		// (int)(0.001+v) at sort time; Umamo sorts floats - MOC3.md §5.6).
+		if (blend != null) {
+			for (contribution in blend.contributions) {
+				val form = contribution.form
+				drawOrder += contribution.weight * (form.drawOrder - blend.referenceDrawOrder)
+				opacity += contribution.weight * (form.opacity - blend.referenceOpacity)
+				multiplyColor =
+					ColorRgb(
+						multiplyColor.red + contribution.weight * (form.multiplyColor.red - blend.referenceMultiplyColor.red),
+						multiplyColor.green +
+							contribution.weight * (form.multiplyColor.green - blend.referenceMultiplyColor.green),
+						multiplyColor.blue +
+							contribution.weight * (form.multiplyColor.blue - blend.referenceMultiplyColor.blue),
+					)
+				screenColor =
+					ColorRgb(
+						screenColor.red + contribution.weight * (form.screenColor.red - blend.referenceScreenColor.red),
+						screenColor.green + contribution.weight * (form.screenColor.green - blend.referenceScreenColor.green),
+						screenColor.blue + contribution.weight * (form.screenColor.blue - blend.referenceScreenColor.blue),
+					)
+			}
+			opacity = opacity.coerceIn(0f, 1f)
+			multiplyColor = multiplyColor.coerceToUnit()
+			screenColor = screenColor.coerceToUnit()
+		}
 		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
 		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
@@ -207,20 +228,34 @@ internal fun preparePose(
 	// out of range.
 	val partDrawOrders = HashMap<PartId, Float>()
 	val partCompositeStates = HashMap<PartId, PartRenderState>()
+	// The render tree carries a group's tracks but not its part's blend records, so the blend pass
+	// needs the part itself.  Taken from the model, which memoizes it: this runs once per rendered
+	// frame, so building the map here would allocate one entry per part per frame for data that is
+	// immutable across all of them.
+	val partsById = model.partById
 
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
 		val channels = group.channelGrids
 		val partOwner = partId?.let { KeyformOwner.Part(it) }
 		if (partId != null && partOwner != null) {
-			// Left ABSENT when the part has no draw-order track or the pose is out of its range, so the
-			// renderer keeps the part's static slot - the map's sparseness is the signal.
-			channels
-				.scalarOrNull(
+			// Null when the part has no draw-order track or the pose is out of its range; with no blend
+			// record contributing either, the map entry is then left ABSENT so the renderer keeps the
+			// part's static slot - the map's sparseness is the signal.
+			val tracked =
+				channels.scalarOrNull(
 					FormChannel.DRAW_ORDER,
 					paramValue,
 					overrides?.get(KeyableTarget(partOwner, FormChannel.DRAW_ORDER)),
-				)?.let { partDrawOrders[partId] = it }
+				)
+			// A part-target blend record moves the slot too, and it can do so on a part with no track at
+			// all - so an entry appears whenever EITHER contributes, with the static standing in as the
+			// base when only the record does.
+			val blendDelta = partsById[partId]?.let { part -> partBlendDrawOrderDelta(part, paramValue, defaultValue) }
+			if (tracked != null || blendDelta != null) {
+				val base = tracked ?: partsById[partId]?.drawOrder?.toFloat() ?: DEFAULT_DRAW_ORDER.toFloat()
+				partDrawOrders[partId] = base + (blendDelta ?: 0f)
+			}
 		}
 		val composite = group.composite
 		if (partId != null && composite != null) {

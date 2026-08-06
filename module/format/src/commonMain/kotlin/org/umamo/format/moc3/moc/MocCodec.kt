@@ -6,12 +6,11 @@ import org.umamo.format.moc3.io.LittleEndianWriter
 /**
  * Reads and writes the `.moc3` binary container.
  *
- * EN: A `.moc3` is a 64-byte header, a section-offset table at `0x40`, then the sections the table
- *     points at (each 16-byte-or-coarser aligned, the data region beginning at
- *     [Sections.DATA_SECTION_BEGIN]). The exporter appends sections sequentially and pads the file
- *     to a multiple of 64, so the sections partition `[firstOffset, EOF)` in table order. We keep
- *     every section verbatim, so [write] reproduces an unedited file byte-for-byte.
- * JA: ヘッダ＋オフセット表＋セクション群。未編集なら完全一致で再生成。
+ * A `.moc3` is a 64-byte header, a section-offset table at `0x40`, then the sections the table
+ * points at (each 16-byte-or-coarser aligned, the data region beginning at
+ * [Sections.DATA_SECTION_BEGIN]). The exporter appends sections sequentially and pads the file
+ * to a multiple of 64, so the sections partition `[firstOffset, EOF)` in table order. We keep
+ * every section verbatim, so [write] reproduces an unedited file byte-for-byte.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -37,9 +36,9 @@ public object MocCodec {
 	 * @throws IllegalArgumentException if the magic, version, or structure is invalid.
 	 */
 	public fun read(bytes: ByteArray): MocModel {
-		require(isMoc3(bytes)) { "not a moc3: bad magic or too small" }
+		require(isMoc3(bytes)) { "Not a moc3: bad magic or too small" }
 		val versionByte = bytes[4].toInt() and 0xFF // MOC3 header: version @ +0x04
-		require(versionByte in 1..MocVersion.LATEST) { "unsupported moc3 version byte: $versionByte" }
+		require(versionByte in 1..MocVersion.LATEST) { "Unsupported moc3 version byte: $versionByte" }
 
 		// MOC3 offset table @ +0x40: dense run of u32 file offsets, terminated by zero padding.
 		// (Editor output never has interior zero offsets; a 0 marks the start of the pad to the data
@@ -79,7 +78,7 @@ public object MocCodec {
 	public fun write(model: MocModel): ByteArray {
 		val firstOffset = model.offsets[0]
 		val tableEnd = HEADER_SIZE + model.offsets.size * 4
-		require(firstOffset >= tableEnd) { "offset table ($tableEnd B) overruns the first section ($firstOffset)" }
+		require(firstOffset >= tableEnd) { "Offset table ($tableEnd B) overruns the first section ($firstOffset)" }
 
 		val total = firstOffset + model.rawSections.sumOf { it.size }
 		val writer = LittleEndianWriter(total)

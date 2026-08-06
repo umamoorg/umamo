@@ -5,7 +5,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
@@ -64,7 +64,7 @@ class Moc3Cmo3ParityTest {
 		val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
 		val fromMoc3 =
 			restMeshesToCanvasSpace(
-				Moc3Import.fromMocDocument(Moc3.decode(moc3File.readBytes()), siblingDisplayInfo(moc3File)),
+				Moc3Import.fromMocDocument(Moc3.read(moc3File.readBytes()), siblingDisplayInfo(moc3File)),
 			)
 
 		// Canvas and world origin agree (CanvasInfo origin == CMO3 canvas center).
