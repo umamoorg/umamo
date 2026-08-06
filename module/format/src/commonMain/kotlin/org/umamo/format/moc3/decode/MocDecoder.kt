@@ -53,17 +53,12 @@ public object MocDecoder {
 		bindings.registerStoredBindings(model.countInfo.getOrElse(Sections.CI_KEYFORM_BINDINGS) { 0 })
 
 		// ---- value tables ----
-		val positionIndex =
-			sections.intArray(Section.KEYFORM_POSITION_INDEX) // art-mesh keyform -> packed-position offset
-		val warpPositionIndex =
-			sections.intArray(Section.WARP_KEYFORM_INDEX) // warp keyform -> packed-position offset (distinct table)
-		val positionValues = sections.floatArray(Section.KEYFORM_POSITION_VALUES)
 		val colorTables = ColorTables(sections)
+		val keyformValues = KeyformValueTables(sections)
 
 		// PARTS
 		val partKeyformBinding = sections.intArray(Section.PART_KEYFORM_BINDING)
 		val partKeyformBase = sections.intArray(Section.PART_KEYFORM_BASE)
-		val partDrawOrder = sections.floatArray(Section.PART_DRAW_ORDER)
 		// s7/s8 are a pair whose split is unpinned (both are 1 corpus-wide); take s7 and default to
 		// visible when a stripped file omits it.
 		val partVisible = sections.intArray(Section.PART_VISIBLE_ARTMESHES)
@@ -75,118 +70,14 @@ public object MocDecoder {
 					part.id,
 					part.parentPartIndex,
 					keyformBinding,
-					FloatArray(gridSize) { keyIndex -> partDrawOrder[partKeyformBase[partIndex] + keyIndex] },
+					FloatArray(gridSize) { keyIndex -> keyformValues.partDrawOrder[partKeyformBase[partIndex] + keyIndex] },
 					isVisible = partVisible.getOrElse(partIndex) { 1 } != 0,
 				)
 			}
 
 		// Deformers
-		val deformerType = sections.intArray(Section.DEFORMER_TYPE)
-		val deformerParent = sections.intArray(Section.DEFORMER_PARENT)
-
-		// The block's common head (MOC3 §5.6 S11-S15).
-		val deformerId = sections.idArray(Section.DEFORMER_ID)
-
-		// Section 12 is the same binding that the warp/rotation sections 19/25 have.
-		// Warp and Rotation have their own keyform binding which duplicates the deformer binding.
-		// We don't necessarily need it, but we read and write it since there is a chance it might cause a MOC3
-		// validation error in the runtime.
-		val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
-		val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
-		val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
-		val deformerParentPart = sections.intArray(Section.DEFORMER_PARENT_PART)
-		val warpKeyformBinding = sections.intArray(Section.WARP_KEYFORM_BINDING)
-		val warpKeyformBase = sections.intArray(Section.WARP_KEYFORM_BASE)
-		val warpRows = sections.intArray(Section.WARP_ROWS)
-		val warpColumns = sections.intArray(Section.WARP_COLUMNS)
-		val warpMode = if (sections.isPresent(Section.WARP_MODE)) sections.intArray(Section.WARP_MODE) else null
-		val warpColorBase =
-			if (sections.isPresent(Section.WARP_COLOR_BASE)) sections.intArray(Section.WARP_COLOR_BASE) else null
-		val warpOpacity = sections.floatArray(Section.WARP_OPACITY)
-		val rotationKeyformBinding = sections.intArray(Section.ROTATION_KEYFORM_BINDING)
-		val rotationKeyformBase = sections.intArray(Section.ROTATION_KEYFORM_BASE)
-		val rotationBaseAngle = sections.floatArray(Section.ROTATION_BASE_ANGLE)
-		val rotationColorBase =
-			if (sections.isPresent(Section.ROTATION_COLOR_BASE)) sections.intArray(Section.ROTATION_COLOR_BASE) else null
-		val rotationOpacity = sections.floatArray(Section.ROTATION_OPACITY)
-		val rotationAngle = sections.floatArray(Section.ROTATION_ANGLE)
-		val rotationOriginX = sections.floatArray(Section.ROTATION_ORIGIN_X)
-		val rotationOriginY = sections.floatArray(Section.ROTATION_ORIGIN_Y)
-		val rotationScale = sections.floatArray(Section.ROTATION_SCALE)
-		val rotationReflectX = sections.intArray(Section.ROTATION_REFLECT_X)
-		val rotationReflectY = sections.intArray(Section.ROTATION_REFLECT_Y)
-
-		var nextWarpLocal = 0
-		var nextRotationLocal = 0
-		val warpToDeformer = ArrayList<Int>()
-		val rotationToDeformer = ArrayList<Int>()
-		val deformerList = ArrayList<Deformer>(deformerCount)
-		for (deformerIndex in 0 until deformerCount) {
-			if (deformerType[deformerIndex] == 0) {
-				warpToDeformer.add(deformerIndex)
-				val warpLocalIndex = nextWarpLocal++
-				val keyformBinding = warpKeyformBinding[warpLocalIndex]
-				val keyformBase = warpKeyformBase[warpLocalIndex]
-				val controlPointCount = (warpRows[warpLocalIndex] + 1) * (warpColumns[warpLocalIndex] + 1)
-				val gridSize = bindings.binding(keyformBinding).gridSize
-				val keyforms =
-					(0 until gridSize).map { gridIndex ->
-						val positionOffset = warpPositionIndex[keyformBase + gridIndex]
-						WarpKeyform(
-							positionValues.copyOfRange(positionOffset, positionOffset + controlPointCount * 2),
-							warpOpacity[keyformBase + gridIndex],
-							colorTables.multiplyForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
-							colorTables.screenForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
-						)
-					}
-				deformerList.add(
-					WarpDeformer(
-						id = deformerId.getOrElse(deformerIndex) { "" },
-						keyformBindingIndex = keyformBinding,
-						isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
-						isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
-						parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
-						parentDeformerIndex = deformerParent[deformerIndex],
-						rows = warpRows[warpLocalIndex],
-						columns = warpColumns[warpLocalIndex],
-						mode = warpMode?.get(warpLocalIndex) ?: 0,
-						keyforms = keyforms,
-					),
-				)
-			} else {
-				rotationToDeformer.add(deformerIndex)
-				val rotationLocalIndex = nextRotationLocal++
-				val keyformBinding = rotationKeyformBinding[rotationLocalIndex]
-				val keyformBase = rotationKeyformBase[rotationLocalIndex]
-				val gridSize = bindings.binding(keyformBinding).gridSize
-				val keyforms =
-					(0 until gridSize).map { gridIndex ->
-						RotationKeyform(
-							rotationOriginX[keyformBase + gridIndex],
-							rotationOriginY[keyformBase + gridIndex],
-							rotationAngle[keyformBase + gridIndex],
-							rotationScale[keyformBase + gridIndex],
-							rotationReflectX[keyformBase + gridIndex] != 0,
-							rotationReflectY[keyformBase + gridIndex] != 0,
-							rotationOpacity[keyformBase + gridIndex],
-							colorTables.multiplyForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
-							colorTables.screenForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
-						)
-					}
-				deformerList.add(
-					RotationDeformer(
-						id = deformerId.getOrElse(deformerIndex) { "" },
-						keyformBindingIndex = keyformBinding,
-						isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
-						isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
-						parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
-						parentDeformerIndex = deformerParent[deformerIndex],
-						baseAngle = rotationBaseAngle[rotationLocalIndex],
-						keyforms = keyforms,
-					),
-				)
-			}
-		}
+		val decodedDeformers = DeformerDecoder(sections, bindings, colorTables, keyformValues).decodeAll(deformerCount)
+		val deformerList = decodedDeformers.deformers
 
 		// ---- art meshes ----
 		val artMeshKeyformBinding = sections.intArray(Section.ARTMESH_KEYFORM_BINDING)
@@ -201,8 +92,6 @@ public object MocDecoder {
 		// 1 on every drawable of every corpus sample and is carried only so a bake reproduces it.
 		val artMeshIsVisible = sections.intArray(Section.ARTMESH_IS_VISIBLE)
 		val artMeshIsEnabled = sections.intArray(Section.ARTMESH_IS_ENABLED)
-		val artMeshOpacity = sections.floatArray(Section.ARTMESH_OPACITY)
-		val artMeshDrawOrder = sections.floatArray(Section.ARTMESH_DRAW_ORDER)
 		val uvData = sections.floatArray(Section.ARTMESH_UV_DATA)
 		val indexData = sections.shortArray(Section.ARTMESH_INDEX_DATA)
 		val maskData = sections.intArray(Section.MASK_INDEX_DATA)
@@ -232,11 +121,11 @@ public object MocDecoder {
 				val gridSize = bindings.binding(keyformBinding).gridSize
 				val keyforms =
 					(0 until gridSize).map { gridIndex ->
-						val positionOffset = positionIndex[keyformBase + gridIndex]
+						val positionOffset = keyformValues.positionIndex[keyformBase + gridIndex]
 						ArtMeshKeyform(
-							positionValues.copyOfRange(positionOffset, positionOffset + vertexCount * 2),
-							artMeshOpacity[keyformBase + gridIndex],
-							artMeshDrawOrder[keyformBase + gridIndex],
+							keyformValues.positionValues.copyOfRange(positionOffset, positionOffset + vertexCount * 2),
+							keyformValues.artMeshOpacity[keyformBase + gridIndex],
+							keyformValues.artMeshDrawOrder[keyformBase + gridIndex],
 							colorTables.multiplyForKeyform(artMeshColorBase?.get(drawableIndex), gridIndex),
 							colorTables.screenForKeyform(artMeshColorBase?.get(drawableIndex), gridIndex),
 						)
@@ -279,25 +168,9 @@ public object MocDecoder {
 		// each target object's payload size (warp control-point count, drawable vertex count).
 		val blendDeltaTables =
 			BlendDeltaTables(
-				positionIndex = positionIndex,
-				warpPositionIndex = warpPositionIndex,
-				positionValues = positionValues,
-				warpOpacity = warpOpacity,
-				artMeshOpacity = artMeshOpacity,
-				artMeshDrawOrder = artMeshDrawOrder,
-				partDrawOrder = partDrawOrder,
-				rotationOriginX = rotationOriginX,
-				rotationOriginY = rotationOriginY,
-				rotationAngle = rotationAngle,
-				rotationScale = rotationScale,
-				rotationReflectX = rotationReflectX,
-				rotationReflectY = rotationReflectY,
-				rotationOpacity = rotationOpacity,
+				keyformValues = keyformValues,
 				colorTables = colorTables,
-				warpControlPointCounts =
-					IntArray(warpRows.size) { warpLocalIndex ->
-						(warpRows[warpLocalIndex] + 1) * (warpColumns[warpLocalIndex] + 1)
-					},
+				warpControlPointCounts = decodedDeformers.warpControlPointCounts,
 				drawableVertexCounts = IntArray(drawables.size) { drawableIndex -> drawables[drawableIndex].vertexCount },
 				colorDeltaRowStart =
 					model.countInfo.getOrElse(Sections.CI_OFFSCREEN_KEYFORMS) { 0 } +
@@ -314,8 +187,8 @@ public object MocDecoder {
 				sections,
 				model.parameterCount,
 				bindings.keyPositions,
-				warpToDeformer,
-				rotationToDeformer,
+				decodedDeformers.warpToDeformer,
+				decodedDeformers.rotationToDeformer,
 				blendDeltaTables,
 			)
 		// The offscreen mask entries are the PREFIX of MASK_INDEX_DATA, addressed per offscreen by
@@ -557,26 +430,221 @@ public object MocDecoder {
 	}
 
 	/**
-	 * The shared keyform value tables (plus per-object payload sizes) a blend-shape record's delta
-	 * rows are read from. Bundled so [decodeBlendShapes] can lift the per-key delta payloads
-	 * without a dozen loose parameters; every array is the same instance [decode] read for the
-	 * base keyforms (MOC3 §5.6: delta rows are appended after the base rows in the same tables).
+	 * The per-keyform value tables shared by the base keyforms and the blend-shape delta rows.
+	 *
+	 * MOC3 §5.6 appends a record's delta rows AFTER the base rows of these same tables, so a base
+	 * keyform and a delta differ only in which row they address.  That is why they are read once here
+	 * and handed to both paths.  Per-type structural tables (a warp's rows/columns, a drawable's UVs,
+	 * any id or flag column) are NOT shared and stay with their own decoder.
+	 */
+	private class KeyformValueTables(sections: MocSections) {
+		/** Art-mesh keyform -> packed-position offset (§5.6 section 70, indexing into 71). */
+		val positionIndex: IntArray = sections.intArray(Section.KEYFORM_POSITION_INDEX)
+
+		/** Warp keyform -> packed-position offset; a table distinct from [positionIndex] (section 60). */
+		val warpPositionIndex: IntArray = sections.intArray(Section.WARP_KEYFORM_INDEX)
+
+		/** The packed position blocks both index tables point into (section 71). */
+		val positionValues: FloatArray = sections.floatArray(Section.KEYFORM_POSITION_VALUES)
+
+		/** Part draw-order rows (section 58). */
+		val partDrawOrder: FloatArray = sections.floatArray(Section.PART_DRAW_ORDER)
+
+		/** Warp opacity rows (section 59). */
+		val warpOpacity: FloatArray = sections.floatArray(Section.WARP_OPACITY)
+
+		/** Art-mesh opacity rows (section 68). */
+		val artMeshOpacity: FloatArray = sections.floatArray(Section.ARTMESH_OPACITY)
+
+		/** Art-mesh draw-order rows (section 69). */
+		val artMeshDrawOrder: FloatArray = sections.floatArray(Section.ARTMESH_DRAW_ORDER)
+
+		/** Rotation opacity rows (section 61); a rotation delta indexes the affine tables directly. */
+		val rotationOpacity: FloatArray = sections.floatArray(Section.ROTATION_OPACITY)
+
+		/** Rotation angle rows (section 62). */
+		val rotationAngle: FloatArray = sections.floatArray(Section.ROTATION_ANGLE)
+
+		/** Rotation pivot X rows (section 63). */
+		val rotationOriginX: FloatArray = sections.floatArray(Section.ROTATION_ORIGIN_X)
+
+		/** Rotation pivot Y rows (section 64). */
+		val rotationOriginY: FloatArray = sections.floatArray(Section.ROTATION_ORIGIN_Y)
+
+		/** Rotation scale rows (section 65). */
+		val rotationScale: FloatArray = sections.floatArray(Section.ROTATION_SCALE)
+
+		/** Rotation X-reflection flags (section 66). */
+		val rotationReflectX: IntArray = sections.intArray(Section.ROTATION_REFLECT_X)
+
+		/** Rotation Y-reflection flags (section 67). */
+		val rotationReflectY: IntArray = sections.intArray(Section.ROTATION_REFLECT_Y)
+	}
+
+	/** The decoded deformer block, plus the index maps and payload sizes the blend path needs. */
+	private class DecodedDeformers(
+		val deformers: List<Deformer>,
+		/** Warp local index -> deformer index; blend-shape warp records are stored against the local one. */
+		val warpToDeformer: List<Int>,
+		/** Rotation local index -> deformer index, for the same reason. */
+		val rotationToDeformer: List<Int>,
+		/** Control points per warp, which sizes both a base warp keyform and a warp delta payload. */
+		val warpControlPointCounts: IntArray,
+	)
+
+	/**
+	 * Decodes the deformer block into typed [WarpDeformer]s and [RotationDeformer]s.
+	 *
+	 * Both kinds share one deformer index space and one common head (MOC3 §5.6 sections 11-15), but
+	 * each kind's own tables are densely packed over only its own members.  So the walk advances the
+	 * shared index while carrying a separate local cursor per kind, and every per-type read is by that
+	 * local index, never the deformer index.  Those local indices are also how blend-shape records
+	 * name their target, which is what [DecodedDeformers] carries the maps for.
+	 */
+	private class DeformerDecoder(
+		sections: MocSections,
+		private val bindings: BindingResolver,
+		private val colorTables: ColorTables,
+		private val keyformValues: KeyformValueTables,
+	) {
+		private val deformerType = sections.intArray(Section.DEFORMER_TYPE)
+		private val deformerParent = sections.intArray(Section.DEFORMER_PARENT)
+
+		// The block's common head (MOC3 §5.6 S11-S15).
+		private val deformerId = sections.idArray(Section.DEFORMER_ID)
+
+		// Section 12 is the same binding that the warp/rotation sections 19/25 have.
+		// Warp and Rotation have their own keyform binding which duplicates the deformer binding.
+		// We don't necessarily need it, but we read and write it since there is a chance it might cause a MOC3
+		// validation error in the runtime.
+		private val deformerKeyformBinding = sections.intArray(Section.DEFORMER_KEYFORM_BINDING)
+		private val deformerIsVisible = sections.intArray(Section.DEFORMER_IS_VISIBLE)
+		private val deformerIsEnabled = sections.intArray(Section.DEFORMER_IS_ENABLED)
+		private val deformerParentPart = sections.intArray(Section.DEFORMER_PARENT_PART)
+
+		private val warpKeyformBinding = sections.intArray(Section.WARP_KEYFORM_BINDING)
+		private val warpKeyformBase = sections.intArray(Section.WARP_KEYFORM_BASE)
+		private val warpRows = sections.intArray(Section.WARP_ROWS)
+		private val warpColumns = sections.intArray(Section.WARP_COLUMNS)
+		private val warpMode = if (sections.isPresent(Section.WARP_MODE)) sections.intArray(Section.WARP_MODE) else null
+		private val warpColorBase =
+			if (sections.isPresent(Section.WARP_COLOR_BASE)) sections.intArray(Section.WARP_COLOR_BASE) else null
+
+		private val rotationKeyformBinding = sections.intArray(Section.ROTATION_KEYFORM_BINDING)
+		private val rotationKeyformBase = sections.intArray(Section.ROTATION_KEYFORM_BASE)
+		private val rotationBaseAngle = sections.floatArray(Section.ROTATION_BASE_ANGLE)
+		private val rotationColorBase =
+			if (sections.isPresent(Section.ROTATION_COLOR_BASE)) sections.intArray(Section.ROTATION_COLOR_BASE) else null
+
+		/** Control points per warp: an (rows + 1) x (columns + 1) lattice of them. */
+		private val warpControlPointCounts =
+			IntArray(warpRows.size) { warpLocalIndex ->
+				(warpRows[warpLocalIndex] + 1) * (warpColumns[warpLocalIndex] + 1)
+			}
+
+		/**
+		 * Decodes every deformer, dispatching on the section 11 type column.
+		 *
+		 * @param Int deformerCount The model's deformer count.
+		 * @return DecodedDeformers The deformers in index order, with the per-kind index maps.
+		 */
+		fun decodeAll(deformerCount: Int): DecodedDeformers {
+			var nextWarpLocal = 0
+			var nextRotationLocal = 0
+			val warpToDeformer = ArrayList<Int>()
+			val rotationToDeformer = ArrayList<Int>()
+			val deformers = ArrayList<Deformer>(deformerCount)
+			for (deformerIndex in 0 until deformerCount) {
+				if (deformerType[deformerIndex] == 0) {
+					warpToDeformer.add(deformerIndex)
+					deformers.add(warpDeformer(deformerIndex, nextWarpLocal++))
+				} else {
+					rotationToDeformer.add(deformerIndex)
+					deformers.add(rotationDeformer(deformerIndex, nextRotationLocal++))
+				}
+			}
+			return DecodedDeformers(deformers, warpToDeformer, rotationToDeformer, warpControlPointCounts)
+		}
+
+		/**
+		 * Builds one warp deformer and its FFD lattice keyforms.
+		 *
+		 * @param Int deformerIndex  Its index in the shared deformer space (the common head's row).
+		 * @param Int warpLocalIndex Its index among warps (every per-warp table's row).
+		 * @return WarpDeformer The decoded deformer.
+		 */
+		private fun warpDeformer(deformerIndex: Int, warpLocalIndex: Int): WarpDeformer {
+			val keyformBinding = warpKeyformBinding[warpLocalIndex]
+			val keyformBase = warpKeyformBase[warpLocalIndex]
+			val controlPointCount = warpControlPointCounts[warpLocalIndex]
+			val keyforms =
+				(0 until bindings.binding(keyformBinding).gridSize).map { gridIndex ->
+					val positionOffset = keyformValues.warpPositionIndex[keyformBase + gridIndex]
+					WarpKeyform(
+						keyformValues.positionValues.copyOfRange(positionOffset, positionOffset + controlPointCount * 2),
+						keyformValues.warpOpacity[keyformBase + gridIndex],
+						colorTables.multiplyForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
+						colorTables.screenForKeyform(warpColorBase?.get(warpLocalIndex), gridIndex),
+					)
+				}
+			return WarpDeformer(
+				id = deformerId.getOrElse(deformerIndex) { "" },
+				keyformBindingIndex = keyformBinding,
+				isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
+				isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
+				parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
+				parentDeformerIndex = deformerParent[deformerIndex],
+				rows = warpRows[warpLocalIndex],
+				columns = warpColumns[warpLocalIndex],
+				mode = warpMode?.get(warpLocalIndex) ?: 0,
+				keyforms = keyforms,
+			)
+		}
+
+		/**
+		 * Builds one rotation deformer and its pivot-transform keyforms.
+		 *
+		 * @param Int deformerIndex      Its index in the shared deformer space (the common head's row).
+		 * @param Int rotationLocalIndex Its index among rotations (every per-rotation table's row).
+		 * @return RotationDeformer The decoded deformer.
+		 */
+		private fun rotationDeformer(deformerIndex: Int, rotationLocalIndex: Int): RotationDeformer {
+			val keyformBinding = rotationKeyformBinding[rotationLocalIndex]
+			val keyformBase = rotationKeyformBase[rotationLocalIndex]
+			val keyforms =
+				(0 until bindings.binding(keyformBinding).gridSize).map { gridIndex ->
+					RotationKeyform(
+						keyformValues.rotationOriginX[keyformBase + gridIndex],
+						keyformValues.rotationOriginY[keyformBase + gridIndex],
+						keyformValues.rotationAngle[keyformBase + gridIndex],
+						keyformValues.rotationScale[keyformBase + gridIndex],
+						keyformValues.rotationReflectX[keyformBase + gridIndex] != 0,
+						keyformValues.rotationReflectY[keyformBase + gridIndex] != 0,
+						keyformValues.rotationOpacity[keyformBase + gridIndex],
+						colorTables.multiplyForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
+						colorTables.screenForKeyform(rotationColorBase?.get(rotationLocalIndex), gridIndex),
+					)
+				}
+			return RotationDeformer(
+				id = deformerId.getOrElse(deformerIndex) { "" },
+				keyformBindingIndex = keyformBinding,
+				isVisible = deformerIsVisible.getOrElse(deformerIndex) { 1 } != 0,
+				isEnabled = deformerIsEnabled.getOrElse(deformerIndex) { 1 } != 0,
+				parentPartIndex = deformerParentPart.getOrElse(deformerIndex) { -1 },
+				parentDeformerIndex = deformerParent[deformerIndex],
+				baseAngle = rotationBaseAngle[rotationLocalIndex],
+				keyforms = keyforms,
+			)
+		}
+	}
+
+	/**
+	 * The per-object payload sizes and row anchor a blend-shape record's delta rows need, over the
+	 * shared [KeyformValueTables]. Bundled so [decodeBlendShapes] can lift the per-key delta payloads
+	 * without a dozen loose parameters.
 	 */
 	private class BlendDeltaTables(
-		val positionIndex: IntArray,
-		val warpPositionIndex: IntArray,
-		val positionValues: FloatArray,
-		val warpOpacity: FloatArray,
-		val artMeshOpacity: FloatArray,
-		val artMeshDrawOrder: FloatArray,
-		val partDrawOrder: FloatArray,
-		val rotationOriginX: FloatArray,
-		val rotationOriginY: FloatArray,
-		val rotationAngle: FloatArray,
-		val rotationScale: FloatArray,
-		val rotationReflectX: IntArray,
-		val rotationReflectY: IntArray,
-		val rotationOpacity: FloatArray,
+		val keyformValues: KeyformValueTables,
 		val colorTables: ColorTables,
 		val warpControlPointCounts: IntArray,
 		val drawableVertexCounts: IntArray,
@@ -783,14 +851,14 @@ public object MocDecoder {
 					BlendShapeTarget.WARP -> {
 						// MOC3 §5.6: warp delta rows index packed position blocks via section 60 into 71.
 						val controlPointCount = deltaTables.warpControlPointCounts[localObjectIndex]
-						val positionOffset = deltaTables.warpPositionIndex[deltaRow]
+						val positionOffset = deltaTables.keyformValues.warpPositionIndex[deltaRow]
 						BlendShapeKeyform.Warp(
 							WarpKeyform(
-								deltaTables.positionValues.copyOfRange(
+								deltaTables.keyformValues.positionValues.copyOfRange(
 									positionOffset,
 									positionOffset + controlPointCount * 2,
 								),
-								deltaTables.warpOpacity[deltaRow],
+								deltaTables.keyformValues.warpOpacity[deltaRow],
 								deltaMultiply(recordIndex, keyIndex),
 								deltaScreen(recordIndex, keyIndex),
 							),
@@ -799,15 +867,15 @@ public object MocDecoder {
 					BlendShapeTarget.ART_MESH -> {
 						// MOC3 §5.6: mesh delta rows index packed position blocks via section 70 into 71.
 						val vertexCount = deltaTables.drawableVertexCounts[localObjectIndex]
-						val positionOffset = deltaTables.positionIndex[deltaRow]
+						val positionOffset = deltaTables.keyformValues.positionIndex[deltaRow]
 						BlendShapeKeyform.Mesh(
 							ArtMeshKeyform(
-								deltaTables.positionValues.copyOfRange(
+								deltaTables.keyformValues.positionValues.copyOfRange(
 									positionOffset,
 									positionOffset + vertexCount * 2,
 								),
-								deltaTables.artMeshOpacity[deltaRow],
-								deltaTables.artMeshDrawOrder[deltaRow],
+								deltaTables.keyformValues.artMeshOpacity[deltaRow],
+								deltaTables.keyformValues.artMeshDrawOrder[deltaRow],
 								deltaMultiply(recordIndex, keyIndex),
 								deltaScreen(recordIndex, keyIndex),
 							),
@@ -817,20 +885,20 @@ public object MocDecoder {
 						// MOC3 §5.6: rotation delta rows sit directly in the affine tables 61-67.
 						BlendShapeKeyform.Rotation(
 							RotationKeyform(
-								deltaTables.rotationOriginX[deltaRow],
-								deltaTables.rotationOriginY[deltaRow],
-								deltaTables.rotationAngle[deltaRow],
-								deltaTables.rotationScale[deltaRow],
-								deltaTables.rotationReflectX[deltaRow] != 0,
-								deltaTables.rotationReflectY[deltaRow] != 0,
-								deltaTables.rotationOpacity[deltaRow],
+								deltaTables.keyformValues.rotationOriginX[deltaRow],
+								deltaTables.keyformValues.rotationOriginY[deltaRow],
+								deltaTables.keyformValues.rotationAngle[deltaRow],
+								deltaTables.keyformValues.rotationScale[deltaRow],
+								deltaTables.keyformValues.rotationReflectX[deltaRow] != 0,
+								deltaTables.keyformValues.rotationReflectY[deltaRow] != 0,
+								deltaTables.keyformValues.rotationOpacity[deltaRow],
 								deltaMultiply(recordIndex, keyIndex),
 								deltaScreen(recordIndex, keyIndex),
 							),
 						)
 					}
 					// MOC3 §5.6: part delta rows are draw-order floats in section 58.
-					BlendShapeTarget.PART -> BlendShapeKeyform.Part(deltaTables.partDrawOrder[deltaRow])
+					BlendShapeTarget.PART -> BlendShapeKeyform.Part(deltaTables.keyformValues.partDrawOrder[deltaRow])
 				}
 			}
 
