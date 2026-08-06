@@ -1,8 +1,5 @@
 package org.umamo.render.gl
 
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.system.MemoryUtil
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.Moc3Import
 import org.umamo.render.GridColors
@@ -31,20 +28,14 @@ class HologramDumpTest {
 			System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
 				?.walkTopDown()?.firstOrNull { it.name == "modelA.moc3" } ?: return
 		val atlasPng = File(mocFile.parentFile, "modelA.4096/texture_00.png")
-		val window = createHeadlessGl()
-		if (window == 0L) return
-		try {
-			val mocDocument = Moc3.decode(mocFile.readBytes())
-			val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))
-			val textures = if (atlasPng.isFile) buildPuppetTextures(listOf(atlasPng.readBytes()), mocDocument.artMeshes.associate { it.id to 0 }) else null
-			for (hologram in listOf(0f, 1f)) {
-				val rgba = render(puppet, textures, mapOf(ParameterId("ParamHologram") to hologram))
-				writePng(rgba, File(out, "modelA_holo_$hologram.png"))
-				println("[holo-dump] wrote modelA_holo_$hologram.png")
-			}
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
+		requireHeadlessGl("[holo-dump]")
+		val mocDocument = Moc3.decode(mocFile.readBytes())
+		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))
+		val textures = if (atlasPng.isFile) buildPuppetTextures(listOf(atlasPng.readBytes()), mocDocument.artMeshes.associate { it.id to 0 }) else null
+		for (hologram in listOf(0f, 1f)) {
+			val rgba = render(puppet, textures, mapOf(ParameterId("ParamHologram") to hologram))
+			writePng(rgba, File(out, "modelA_holo_$hologram.png"))
+			println("[holo-dump] wrote modelA_holo_$hologram.png")
 		}
 	}
 
@@ -78,24 +69,5 @@ class HologramDumpTest {
 			index += 4
 		}
 		ImageIO.write(image, "png", file)
-	}
-
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-holo-dump", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

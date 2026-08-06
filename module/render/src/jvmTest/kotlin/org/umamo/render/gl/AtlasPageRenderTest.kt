@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
@@ -116,66 +113,54 @@ class AtlasPageRenderTest {
 
 	@Test
 	fun atlasPageRendersUprightWithCorrectUvOrientation() {
-		val window = createHeadlessGl()
-		assumeGlContext("[atlas-page]", window)
-		try {
-			val page = quadrantPage(viewportSize)
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			// Fit the page rectangle 1:1 so the whole page fills the frame.
-			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.renderAtlasPage(target, 0, viewportSize, viewportSize)
-			val frame = readPixels(viewportSize, viewportSize) // bottom-up rows: displayed TOP = high row index
+		requireHeadlessGl("[atlas-page]")
+		val page = quadrantPage(viewportSize)
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(listOf(page), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		// Fit the page rectangle 1:1 so the whole page fills the frame.
+		renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize)
+		val frame = readPixels(viewportSize, viewportSize) // bottom-up rows: displayed TOP = high row index
 
-			val near = viewportSize / 8
-			val far = viewportSize - near - 1
-			// The V-flip acceptance check: atlas top-left (red) must land at the displayed top-left.
-			assertChannel(frame, near, far, "red", "displayed top-left is the atlas top-left (red)")
-			// U orientation: atlas top-right (green) at the displayed top-right.
-			assertChannel(frame, far, far, "green", "displayed top-right is the atlas top-right (green)")
-			// atlas bottom-left (blue) at the displayed bottom-left.
-			assertChannel(frame, near, near, "blue", "displayed bottom-left is the atlas bottom-left (blue)")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		val near = viewportSize / 8
+		val far = viewportSize - near - 1
+		// The V-flip acceptance check: atlas top-left (red) must land at the displayed top-left.
+		assertChannel(frame, near, far, "red", "displayed top-left is the atlas top-left (red)")
+		// U orientation: atlas top-right (green) at the displayed top-right.
+		assertChannel(frame, far, far, "green", "displayed top-right is the atlas top-right (green)")
+		// atlas bottom-left (blue) at the displayed bottom-left.
+		assertChannel(frame, near, near, "blue", "displayed bottom-left is the atlas bottom-left (blue)")
 	}
 
 	@Test
 	fun nullPageRendersGridOnly() {
-		val window = createHeadlessGl()
-		assumeGlContext("[atlas-page]", window)
-		try {
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
-			val frame = readPixels(viewportSize, viewportSize)
+		requireHeadlessGl("[atlas-page]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, viewportSize.toFloat(), viewportSize.toFloat()), viewportSize, viewportSize))
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
+		val frame = readPixels(viewportSize, viewportSize)
 
-			// No page: the neutral grey grid (grey background + grey lines) fills the frame, so a sampled pixel
-			// reads near-neutral - not a saturated red / green / blue art channel.  Assert grayish (all
-			// channels within a tight band).
-			val pixel = (viewportSize / 2 * viewportSize + viewportSize / 2) * 4
-			val red = frame.get(pixel).toInt() and 0xFF
-			val green = frame.get(pixel + 1).toInt() and 0xFF
-			val blue = frame.get(pixel + 2).toInt() and 0xFF
-			val spread = maxOf(red, green, blue) - minOf(red, green, blue)
-			println("[atlas-page] null-page center rgb=($red,$green,$blue) spread=$spread")
-			assertTrue(spread < 40, "null page paints the neutral grid, not colored art (rgb spread $spread)")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// No page: the neutral grey grid (grey background + grey lines) fills the frame, so a sampled pixel
+		// reads near-neutral - not a saturated red / green / blue art channel.  Assert grayish (all
+		// channels within a tight band).
+		val pixel = (viewportSize / 2 * viewportSize + viewportSize / 2) * 4
+		val red = frame.get(pixel).toInt() and 0xFF
+		val green = frame.get(pixel + 1).toInt() and 0xFF
+		val blue = frame.get(pixel + 2).toInt() and 0xFF
+		val spread = maxOf(red, green, blue) - minOf(red, green, blue)
+		println("[atlas-page] null-page center rgb=($red,$green,$blue) spread=$spread")
+		assertTrue(spread < 40, "null page paints the neutral grid, not colored art (rgb spread $spread)")
 	}
 
 	/** Asserts the given channel dominates the pixel at (col, row), i.e. the expected quadrant color lands there. */
@@ -199,25 +184,5 @@ class AtlasPageRenderTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-atlas-page", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

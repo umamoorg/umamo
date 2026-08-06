@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -88,20 +85,14 @@ class MaskCoverageBlendTest {
 
 	@Test
 	fun maskedDrawableSurvivesAMultiplyBlendMaskSource() {
-		val window = createHeadlessGl()
-		assumeGlContext("[mask-blend]", window)
-		try {
-			// The mask source is Multiply - the mode that most clearly breaks a coverage pass that honours it.
-			val litColumns = renderAndCountArtColumns(model(BlendMode.MultiplyPremultiplied))
-			assertTrue(
-				litColumns > viewportSize / 2,
-				"a Multiply-blend mask source must still produce coverage: the masked quad should fill the row " +
-					"(got $litColumns lit columns of $viewportSize)",
-			)
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		requireHeadlessGl("[mask-blend]")
+		// The mask source is Multiply - the mode that most clearly breaks a coverage pass that honours it.
+		val litColumns = renderAndCountArtColumns(model(BlendMode.MultiplyPremultiplied))
+		assertTrue(
+			litColumns > viewportSize / 2,
+			"a Multiply-blend mask source must still produce coverage: the masked quad should fill the row " +
+				"(got $litColumns lit columns of $viewportSize)",
+		)
 	}
 
 	/** Renders [source] and returns how many columns of the centre row carry drawn (non-black) art. */
@@ -130,25 +121,5 @@ class MaskCoverageBlendTest {
 			}
 		}
 		return lit
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-mask-blend", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

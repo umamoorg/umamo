@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -108,59 +105,53 @@ class UvReuploadTest {
 
 	@Test
 	fun artResamplesAfterUvEdit() {
-		val window = createHeadlessGl()
-		assumeGlContext("[uv-reupload]", window)
-		try {
-			val source = probeModel()
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			// A fixed 1:1 camera centered on the origin, so the quad never moves - only its texels do.
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		requireHeadlessGl("[uv-reupload]")
+		val source = probeModel()
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(source, PuppetTextures(listOf(twoColorAtlas()), mapOf(probeId.raw to 0), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		// A fixed 1:1 camera centered on the origin, so the quad never moves - only its texels do.
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
 
-			// Background only (the drawable hidden), so the art can be isolated by differencing against it.
-			renderer.setShownDrawables(emptySet())
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val background = readPixels(viewportSize, viewportSize)
+		// Background only (the drawable hidden), so the art can be isolated by differencing against it.
+		renderer.setShownDrawables(emptySet())
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val background = readPixels(viewportSize, viewportSize)
 
-			// Frame A: the quad sampling the red half.
-			renderer.setShownDrawables(setOf(probeId))
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frameA = readPixels(viewportSize, viewportSize)
-			val statsA = artColorStats(frameA, background, viewportSize, viewportSize)
+		// Frame A: the quad sampling the red half.
+		renderer.setShownDrawables(setOf(probeId))
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frameA = readPixels(viewportSize, viewportSize)
+		val statsA = artColorStats(frameA, background, viewportSize, viewportSize)
 
-			// Edit: retarget the UVs at the green half and push the new model (the render loop's
-			// updateModel path, fed by the UV editor's preview and commit).
-			renderer.updateModel(uvShiftedModel(source))
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frameB = readPixels(viewportSize, viewportSize)
-			val statsB = artColorStats(frameB, background, viewportSize, viewportSize)
+		// Edit: retarget the UVs at the green half and push the new model (the render loop's
+		// updateModel path, fed by the UV editor's preview and commit).
+		renderer.updateModel(uvShiftedModel(source))
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frameB = readPixels(viewportSize, viewportSize)
+		val statsB = artColorStats(frameB, background, viewportSize, viewportSize)
 
-			println(
-				"[uv-reupload] massA=${statsA.mass} redA=${statsA.meanRed} greenA=${statsA.meanGreen} | " +
-					"massB=${statsB.mass} redB=${statsB.meanRed} greenB=${statsB.meanGreen} | " +
-					"centroidDx=${statsB.centroidX - statsA.centroidX} centroidDy=${statsB.centroidY - statsA.centroidY}",
-			)
-			assertTrue(statsA.mass > 1000, "frame A drew too little art (mass ${statsA.mass}) - the probe did not render")
-			assertTrue(statsB.mass > 1000, "frame B drew too little art (mass ${statsB.mass})")
-			assertTrue(statsA.meanRed > 200f && statsA.meanGreen < 60f, "frame A should sample the red half (r=${statsA.meanRed} g=${statsA.meanGreen})")
-			assertTrue(statsB.meanGreen > 200f && statsB.meanRed < 60f, "frame B should sample the green half after the UV edit (r=${statsB.meanRed} g=${statsB.meanGreen})")
-			// A pure UV edit moves texels, never geometry: the drawn quad must stay put.
-			assertTrue(abs(statsB.centroidX - statsA.centroidX) < 2f, "the art moved in x under a UV-only edit")
-			assertTrue(abs(statsB.centroidY - statsA.centroidY) < 2f, "the art moved in y under a UV-only edit")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		println(
+			"[uv-reupload] massA=${statsA.mass} redA=${statsA.meanRed} greenA=${statsA.meanGreen} | " +
+				"massB=${statsB.mass} redB=${statsB.meanRed} greenB=${statsB.meanGreen} | " +
+				"centroidDx=${statsB.centroidX - statsA.centroidX} centroidDy=${statsB.centroidY - statsA.centroidY}",
+		)
+		assertTrue(statsA.mass > 1000, "frame A drew too little art (mass ${statsA.mass}) - the probe did not render")
+		assertTrue(statsB.mass > 1000, "frame B drew too little art (mass ${statsB.mass})")
+		assertTrue(statsA.meanRed > 200f && statsA.meanGreen < 60f, "frame A should sample the red half (r=${statsA.meanRed} g=${statsA.meanGreen})")
+		assertTrue(statsB.meanGreen > 200f && statsB.meanRed < 60f, "frame B should sample the green half after the UV edit (r=${statsB.meanRed} g=${statsB.meanGreen})")
+		// A pure UV edit moves texels, never geometry: the drawn quad must stay put.
+		assertTrue(abs(statsB.centroidX - statsA.centroidX) < 2f, "the art moved in x under a UV-only edit")
+		assertTrue(abs(statsB.centroidY - statsA.centroidY) < 2f, "the art moved in y under a UV-only edit")
 	}
 
 	/** The mean color and pixel centroid of the art (every pixel differing from [background]). */
@@ -225,25 +216,5 @@ class UvReuploadTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
 		return framebuffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-uv-reupload", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

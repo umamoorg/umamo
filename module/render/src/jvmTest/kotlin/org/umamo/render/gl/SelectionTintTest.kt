@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -86,77 +83,71 @@ class SelectionTintTest {
 
 	@Test
 	fun activeDrawableTintsApartFromSelected() {
-		val window = createHeadlessGl()
-		assumeGlContext("[selection-tint]", window)
-		try {
-			val model = twoQuadModel()
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel: the left quad
-			// lands at col ~100, the right at ~300, both at row ~200.
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
-			renderer.setShownDrawables(setOf(leftId, rightId))
-			renderer.setSelection(setOf(leftId, rightId))
-			// Saturated pure colors so the active/selected channels are unambiguous in the read-back.
-			renderer.setSelectionHighlightColor(0f, 0f, 1f)
-			renderer.setActiveSelectionHighlightColor(0f, 1f, 0f)
+		requireHeadlessGl("[selection-tint]")
+		val model = twoQuadModel()
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		// A fixed 1:1 camera centered on the origin, so one world unit == one screen pixel: the left quad
+		// lands at col ~100, the right at ~300, both at row ~200.
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		renderer.setShownDrawables(setOf(leftId, rightId))
+		renderer.setSelection(setOf(leftId, rightId))
+		// Saturated pure colors so the active/selected channels are unambiguous in the read-back.
+		renderer.setSelectionHighlightColor(0f, 0f, 1f)
+		renderer.setActiveSelectionHighlightColor(0f, 1f, 0f)
 
-			// Control: no active drawable, so both quads tint toward the same selection blue and read alike.
-			renderer.setActiveSelection(null)
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val control = readPixels(viewportSize, viewportSize)
-			val controlLeft = averageColor(control, leftScreenCol, quadScreenRow)
-			val controlRight = averageColor(control, rightScreenCol, quadScreenRow)
+		// Control: no active drawable, so both quads tint toward the same selection blue and read alike.
+		renderer.setActiveSelection(null)
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val control = readPixels(viewportSize, viewportSize)
+		val controlLeft = averageColor(control, leftScreenCol, quadScreenRow)
+		val controlRight = averageColor(control, rightScreenCol, quadScreenRow)
 
-			// The left quad is now the active one; it must tint toward green, the right stays selection blue.
-			renderer.setActiveSelection(leftId)
-			renderer.setPose(emptyMap())
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val active = readPixels(viewportSize, viewportSize)
-			val activeLeft = averageColor(active, leftScreenCol, quadScreenRow)
-			val selectedRight = averageColor(active, rightScreenCol, quadScreenRow)
+		// The left quad is now the active one; it must tint toward green, the right stays selection blue.
+		renderer.setActiveSelection(leftId)
+		renderer.setPose(emptyMap())
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val active = readPixels(viewportSize, viewportSize)
+		val activeLeft = averageColor(active, leftScreenCol, quadScreenRow)
+		val selectedRight = averageColor(active, rightScreenCol, quadScreenRow)
 
-			println(
-				"[selection-tint] control L=$controlLeft R=$controlRight | active L=$activeLeft R=$selectedRight",
-			)
-			// Each quad is compared to ITSELF across the two frames (identical pixels, so the grid backdrop
-			// bleeding through the quad's alpha cancels out) - the two quads sit at different screen columns
-			// where the backdrop differs, so a cross-quad brightness comparison is not meaningful.
+		println(
+			"[selection-tint] control L=$controlLeft R=$controlRight | active L=$activeLeft R=$selectedRight",
+		)
+		// Each quad is compared to ITSELF across the two frames (identical pixels, so the grid backdrop
+		// bleeding through the quad's alpha cancels out) - the two quads sit at different screen columns
+		// where the backdrop differs, so a cross-quad brightness comparison is not meaningful.
 
-			// With no active drawable both quads tint toward the selection blue, so both read blue-dominant.
-			assertTrue(
-				controlLeft.third > controlLeft.second && controlRight.third > controlRight.second,
-				"both selected quads should read blue-dominant with no active drawable (L=$controlLeft R=$controlRight)",
-			)
-			// The left quad becoming active flips it toward green: its green rises and its blue falls sharply,
-			// and it ends green-dominant.  This within-quad transition is caused solely by setActiveSelection.
-			assertTrue(
-				activeLeft.second > controlLeft.second + 40 && activeLeft.third < controlLeft.third - 40,
-				"the left quad should turn greener and less blue when it becomes active (control=$controlLeft active=$activeLeft)",
-			)
-			assertTrue(
-				activeLeft.second > activeLeft.third,
-				"the active quad should read green-dominant (active=$activeLeft)",
-			)
-			// The right quad stayed merely selected, so it is essentially unchanged between the two frames and
-			// remains blue-dominant - the active tint touched only the active drawable.
-			assertTrue(
-				kotlin.math.abs(selectedRight.second - controlRight.second) < 8 &&
-					kotlin.math.abs(selectedRight.third - controlRight.third) < 8 &&
-					selectedRight.third > selectedRight.second,
-				"the merely-selected quad should stay blue-dominant and unchanged (control=$controlRight active=$selectedRight)",
-			)
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// With no active drawable both quads tint toward the selection blue, so both read blue-dominant.
+		assertTrue(
+			controlLeft.third > controlLeft.second && controlRight.third > controlRight.second,
+			"both selected quads should read blue-dominant with no active drawable (L=$controlLeft R=$controlRight)",
+		)
+		// The left quad becoming active flips it toward green: its green rises and its blue falls sharply,
+		// and it ends green-dominant.  This within-quad transition is caused solely by setActiveSelection.
+		assertTrue(
+			activeLeft.second > controlLeft.second + 40 && activeLeft.third < controlLeft.third - 40,
+			"the left quad should turn greener and less blue when it becomes active (control=$controlLeft active=$activeLeft)",
+		)
+		assertTrue(
+			activeLeft.second > activeLeft.third,
+			"the active quad should read green-dominant (active=$activeLeft)",
+		)
+		// The right quad stayed merely selected, so it is essentially unchanged between the two frames and
+		// remains blue-dominant - the active tint touched only the active drawable.
+		assertTrue(
+			kotlin.math.abs(selectedRight.second - controlRight.second) < 8 &&
+				kotlin.math.abs(selectedRight.third - controlRight.third) < 8 &&
+				selectedRight.third > selectedRight.second,
+			"the merely-selected quad should stay blue-dominant and unchanged (control=$controlRight active=$selectedRight)",
+		)
 	}
 
 	private val leftScreenCol = 100
@@ -202,25 +193,5 @@ class SelectionTintTest {
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
 		return framebuffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-selection-tint", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }
