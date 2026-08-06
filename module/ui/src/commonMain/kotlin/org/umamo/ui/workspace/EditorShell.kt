@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.ui.action.CommandPalette
@@ -509,13 +510,24 @@ fun EditorShell(
  * like a log line); every other notice kind is localized from its structured fields - the affected
  * drawable names, the missing page count, or the stripped feature and the entities that carried it.
  *
+ * The header names the format the export actually wrote, from the report's own discriminator - a
+ * notice reads identically for either format, so nothing else in the alert says which file the
+ * rigger is being told about.
+ *
  * @param ExportReport report The export's advisory report.
  * @return String The multiline alert text.
  */
 @Composable
 private fun exportReportMessage(report: ExportReport): String {
 	val lines = ArrayList<String>(report.notices.size + 1)
-	lines.add(stringResource(Res.string.export_report_message))
+	lines.add(
+		stringResource(
+			when (report.format) {
+				ExportFormat.Cmo3 -> Res.string.export_report_message_cmo3
+				ExportFormat.Moc3 -> Res.string.export_report_message_moc3
+			},
+		),
+	)
 	for (notice in report.notices) {
 		when (notice) {
 			is ExportNotice.UnsupportedChange ->

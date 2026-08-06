@@ -1,6 +1,7 @@
 package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.runtime.model.DrawableId
@@ -28,7 +29,7 @@ internal class Moc3ExportNotices {
 	 *
 	 * @return ExportReport The advisory findings; empty for a fully-lowered export.
 	 */
-	fun report(): ExportReport = ExportReport(collected.toList())
+	fun report(): ExportReport = ExportReport(ExportFormat.Moc3, collected.toList())
 
 	/**
 	 * Adopts the version strip's notices, which describe losses taken before any lowering ran.
