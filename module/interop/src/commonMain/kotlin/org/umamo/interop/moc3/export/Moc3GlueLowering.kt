@@ -16,13 +16,15 @@ import org.umamo.format.moc3.model.Glue as MocGlue
  * @param PuppetModel       puppet     The stripped rig, for its glue list.
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every surviving glue claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations, demotions, unknown mesh references.
+ * @param Moc3ExportIds     ids        Claimed from: each surviving glue's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions and unknown mesh references.
  * @return List<MocGlue> The records, in model order.
  */
 internal fun lowerGlues(
 	puppet: PuppetModel,
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): List<MocGlue> {
 	val plan = context.plan
@@ -51,7 +53,7 @@ internal fun lowerGlues(
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		MocGlue(
-			id = noticeSink.mocId("glue", glueId),
+			id = ids.glueId(glueId),
 			meshAIndex = meshA,
 			meshBIndex = meshB,
 			keyformBindingIndex = keyforms?.bindingIndex ?: 0,
