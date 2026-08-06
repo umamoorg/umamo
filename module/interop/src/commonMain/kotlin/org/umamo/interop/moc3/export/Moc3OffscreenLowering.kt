@@ -3,6 +3,8 @@ package org.umamo.interop.moc3.export
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.model.Offscreen
 import org.umamo.format.moc3.model.OffscreenKeyform
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.exactLegacyBlendFlagOf
 import org.umamo.interop.packedBlendOf
 import org.umamo.runtime.model.FormChannel
@@ -54,9 +56,9 @@ internal fun lowerOffscreens(
 					.filter { index -> index >= 0 }
 			if (maskIndices.size < maskDrawables.size) {
 				noticeSink.unsupported(
-					"part",
+					ExportEntityCategory.Part,
 					part.id.raw,
-					"a clipping mask names a drawable that could not be written, so it was dropped from the offscreen",
+					ExportNoticeReason.OffscreenMaskNotInExport,
 				)
 			}
 			val bundle = keyformsByPartId[part.id]?.bundle

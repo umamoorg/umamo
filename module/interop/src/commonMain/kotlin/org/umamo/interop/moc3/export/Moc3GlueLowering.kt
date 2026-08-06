@@ -1,6 +1,8 @@
 package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.model.GlueVertexPair
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
@@ -32,7 +34,11 @@ internal fun lowerGlues(
 		val meshA = plan.drawableIndex(glue.meshA)
 		val meshB = plan.drawableIndex(glue.meshB)
 		if (meshA < 0 || meshB < 0) {
-			noticeSink.unsupported("glue", glue.id ?: "Glue$glueIndex", "a glue naming an unknown drawable is dropped")
+			noticeSink.unsupported(
+				ExportEntityCategory.Glue,
+				glue.id ?: "Glue$glueIndex",
+				ExportNoticeReason.GlueNamesAnUnknownDrawable,
+			)
 			return@mapIndexedNotNull null
 		}
 		val keyforms =
@@ -49,7 +55,7 @@ internal fun lowerGlues(
 		// drop notice above is the exception on purpose - a dropped glue has no written id to cite,
 		// so its ordinal is the only handle left.
 		val glueId = glue.id ?: "Glue_${meshA}_${meshB}_"
-		noticeSink.reportDemotions("glue", glueId, keyforms)
+		noticeSink.reportDemotions(ExportEntityCategory.Glue, glueId, keyforms)
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		MocGlue(

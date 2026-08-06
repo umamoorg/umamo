@@ -1,6 +1,8 @@
 package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.Glue
@@ -40,16 +42,16 @@ internal class Moc3ExportIds(
 	// One namespace per id space, because a moc's sections are separate id tables: a part and a
 	// drawable sharing a name collide nowhere, so disambiguating across the two would rename an object
 	// for no reason.
-	private val parameterSpace = Moc3IdSpace("parameter", plan.parameters.map { parameter -> parameter.id.raw }, noticeSink)
-	private val partSpace = Moc3IdSpace("part", plan.parts.map { part -> part.id.raw }, noticeSink)
-	private val deformerSpace = Moc3IdSpace("deformer", plan.deformers.map { deformer -> deformer.id.raw }, noticeSink)
-	private val drawableSpace = Moc3IdSpace("drawable", plan.drawables.map { drawable -> drawable.id.raw }, noticeSink)
+	private val parameterSpace = Moc3IdSpace(ExportEntityCategory.Parameter, plan.parameters.map { parameter -> parameter.id.raw }, noticeSink)
+	private val partSpace = Moc3IdSpace(ExportEntityCategory.Part, plan.parts.map { part -> part.id.raw }, noticeSink)
+	private val deformerSpace = Moc3IdSpace(ExportEntityCategory.Deformer, plan.deformers.map { deformer -> deformer.id.raw }, noticeSink)
+	private val drawableSpace = Moc3IdSpace(ExportEntityCategory.Drawable, plan.drawables.map { drawable -> drawable.id.raw }, noticeSink)
 
 	// A glue with no authored id gets one synthesized at lowering time, so only the authored ones can
 	// be claimed here.  That is enough: a shortened id is at least ID_STRIDE - 4 bytes long (dropping
 	// one character sheds at most 4 UTF-8 bytes), and the synthesized "Glue_a_b_" form is far shorter
 	// than that, so the two can never name the same string.
-	private val glueSpace = Moc3IdSpace("glue", glues.mapNotNull { glue -> glue.id }, noticeSink)
+	private val glueSpace = Moc3IdSpace(ExportEntityCategory.Glue, glues.mapNotNull { glue -> glue.id }, noticeSink)
 
 	/**
 	 * The id a parameter is written under.
@@ -173,11 +175,11 @@ class Moc3WrittenIds internal constructor(
  * One moc id table: which names are spoken for, and what each model id ended up written as.
  *
  * @param List<String> modelIds Every id the rig gives this space, claimed if it fits.
- * @property String            category   The entity category, for the notices it raises.
+ * @property ExportEntityCategory category   The entity category, for the notices it raises.
  * @property Moc3ExportNotices noticeSink Appended to when an id has to be shortened.
  */
 private class Moc3IdSpace(
-	private val category: String,
+	private val category: ExportEntityCategory,
 	modelIds: List<String>,
 	private val noticeSink: Moc3ExportNotices,
 ) {
@@ -229,11 +231,9 @@ private class Moc3IdSpace(
 			category,
 			modelId,
 			if (written == truncated) {
-				"the id does not fit a moc's ${Sections.ID_STRIDE}-byte id record, so it was written " +
-					"truncated to \"$written\""
+				ExportNoticeReason.IdTruncated(Sections.ID_STRIDE, written)
 			} else {
-				"the id does not fit a moc's ${Sections.ID_STRIDE}-byte id record, and truncating it " +
-					"collided with another object's id, so it was written as \"$written\""
+				ExportNoticeReason.IdTruncatedAndDisambiguated(Sections.ID_STRIDE, written)
 			},
 		)
 		return written

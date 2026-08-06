@@ -2,6 +2,7 @@ package org.umamo.ui.properties
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.RuntimeFeature
 import kotlin.test.Test
@@ -26,6 +27,9 @@ class EnumLabelsTest {
 
 		val featureResources = RuntimeFeature.entries.map { feature -> runtimeFeatureLabelRes(feature) }
 		assertEquals(RuntimeFeature.entries.size, featureResources.toSet().size)
+
+		val channelResources = FormChannel.entries.map { channel -> formChannelLabelRes(channel) }
+		assertEquals(FormChannel.entries.size, channelResources.toSet().size)
 	}
 
 	@Test

@@ -4,6 +4,8 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.RotationKeyform
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -54,14 +56,12 @@ internal fun lowerDeformers(
 						),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions("deformer", deformer.id.raw, keyforms)
+				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
 				if (keyforms == null) {
 					noticeSink.unsupported(
-						"deformer",
+						ExportEntityCategory.Deformer,
 						deformer.id.raw,
-						"a warp deformer with no control-point grid has no lattice to write; one empty " +
-							"lattice was written in its place so the file stays readable, and everything " +
-							"bound to this deformer collapses to the origin",
+						ExportNoticeReason.WarpDeformerHasNoLattice,
 					)
 				}
 				val bundle = keyforms?.bundle
@@ -120,13 +120,12 @@ internal fun lowerDeformers(
 							),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions("deformer", deformer.id.raw, keyforms)
+				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
 				if (keyforms == null) {
 					noticeSink.unsupported(
-						"deformer",
+						ExportEntityCategory.Deformer,
 						deformer.id.raw,
-						"a rotation deformer with no pivot grid has no transform to write; the identity " +
-							"transform was written in its place",
+						ExportNoticeReason.RotationDeformerHasNoPivot,
 					)
 				}
 				val bundle = keyforms?.bundle

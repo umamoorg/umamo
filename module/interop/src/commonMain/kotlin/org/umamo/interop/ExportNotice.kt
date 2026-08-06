@@ -14,15 +14,15 @@ sealed interface ExportNotice {
 	/**
 	 * An edit the export lowering did not persist into the written file.
 	 *
-	 * @property String category The entity category ("parameter", "parameter group", "part",
-	 *                           "deformer", "drawable", "glue", "document", "keyform").
-	 * @property String subject  The affected entity's id, or the document field name.
-	 * @property String detail   Diagnostic English text describing what was not lowered.
+	 * @property ExportEntityCategory category The kind of thing the finding is about.
+	 * @property String?              subject  The affected entity's id, or null for a document-level
+	 *                                         finding, whose [reason] names the field itself.
+	 * @property ExportNoticeReason   reason   Why the lowering could not carry the edit.
 	 */
 	data class UnsupportedChange(
-		val category: String,
-		val subject: String,
-		val detail: String,
+		val category: ExportEntityCategory,
+		val subject: String?,
+		val reason: ExportNoticeReason,
 	) : ExportNotice
 
 	/**
@@ -65,6 +65,27 @@ sealed interface ExportNotice {
 	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
 	 */
 	data class MissingSourceArt(val pageCount: Int) : ExportNotice
+}
+
+/**
+ * The kind of thing an [ExportNotice.UnsupportedChange] is about, naming the panel a rigger would
+ * look in to find it.
+ *
+ * An enum rather than the free text it replaces: the vocabulary was previously documented in a
+ * comment and enforced by nothing, so a typo produced a category no reader recognized, and the label
+ * could not be localized.  [Keyform] is the odd member - a keyform is not an entity in its own right -
+ * but the notice's subject there is the owning drawable or part, so the rendered line still reads as
+ * a place to look.
+ */
+enum class ExportEntityCategory {
+	Parameter,
+	ParameterGroup,
+	Part,
+	Deformer,
+	Drawable,
+	Glue,
+	Document,
+	Keyform,
 }
 
 /**

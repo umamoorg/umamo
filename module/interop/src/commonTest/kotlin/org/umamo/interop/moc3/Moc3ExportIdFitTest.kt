@@ -3,6 +3,7 @@ package org.umamo.interop.moc3
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
@@ -110,11 +111,11 @@ class Moc3ExportIdFitTest {
 			)
 		}
 		// Each shortening is reported against the id the RIG carries, so the rigger can find the object
-		// the notice is about; the written name is in the detail.
+		// the notice is about; the written name is on the reason.
 		val subjects =
 			lowered.report.notices
 				.filterIsInstance<ExportNotice.UnsupportedChange>()
-				.filter { notice -> notice.category == "drawable" }
+				.filter { notice -> notice.category == ExportEntityCategory.Drawable }
 				.map { notice -> notice.subject }
 		assertEquals(listOf(overlongStem + "左", overlongStem + "右"), subjects, "both shortenings were reported")
 	}

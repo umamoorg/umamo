@@ -16,7 +16,9 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.type.CArrayList
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.Glue
@@ -54,8 +56,12 @@ internal class Cmo3StructureLowering(
 	var deletedAnything: Boolean = false
 		private set
 
-	private fun unsupported(category: String, subject: String, detail: String) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
+	private fun unsupported(
+		category: ExportEntityCategory,
+		subject: String?,
+		reason: ExportNoticeReason,
+	) {
+		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
 	private fun freshGuidLike(template: Guid?, fallbackKind: String): Guid =
@@ -115,7 +121,7 @@ internal class Cmo3StructureLowering(
 	fun synthesizeParameter(editedParameter: Parameter): Boolean {
 		val sourceSet = modelSource.parameterSourceSet as? CParameterSourceSet
 		if (sourceSet == null) {
-			unsupported("parameter", editedParameter.id.raw, "model has no parameter source set to create into")
+			unsupported(ExportEntityCategory.Parameter, editedParameter.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val template = index.parameterSources.firstOrNull()
@@ -163,12 +169,12 @@ internal class Cmo3StructureLowering(
 	fun synthesizeParameterGroup(groupId: ParameterGroupId): Boolean {
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet
 		if (groupSet == null) {
-			unsupported("parameter group", groupId.raw, "model has no parameter group set to create into")
+			unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val editedGroup = findEditedGroup(groupId)
 		if (editedGroup == null) {
-			unsupported("parameter group", groupId.raw, "created group is not in the edited tree")
+			unsupported(ExportEntityCategory.ParameterGroup, groupId.raw, ExportNoticeReason.CreatedGroupIsNotInTheEditedTree)
 			return false
 		}
 		val template = index.groupSources.firstOrNull() ?: index.rootParameterGroup
@@ -215,13 +221,13 @@ internal class Cmo3StructureLowering(
 		val subject = editedDrawable.id.raw
 		val sourceSet = modelSource.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 		if (sourceSet == null) {
-			unsupported("drawable", subject, "model has no drawable source set to create into")
+			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val textureSource = editedDrawable.textureSourceId?.let { index.drawableByIdStr[it.raw] }
 		val binding = drawableBindings[subject]
 		if (textureSource == null && binding == null) {
-			unsupported("drawable", subject, "created drawable has no texture source to clone; not synthesized")
+			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.CreatedDrawableHasNoTextureSource)
 			return false
 		}
 		val templateMesh = textureSource?.let(Cmo3Import::editableMeshOf)
@@ -339,7 +345,7 @@ internal class Cmo3StructureLowering(
 	fun synthesizePart(editedPart: org.umamo.runtime.model.Part): Boolean {
 		val sourceSet = modelSource.partSourceSet as? org.umamo.format.cmo3.model.gen.CPartSourceSet
 		if (sourceSet == null) {
-			unsupported("part", editedPart.id.raw, "model has no part source set to create into")
+			unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val template = index.userPartSources.firstOrNull() ?: index.rootPartSource
@@ -403,7 +409,7 @@ internal class Cmo3StructureLowering(
 	fun synthesizeDeformer(editedDeformer: org.umamo.runtime.model.Deformer): Boolean {
 		val sourceSet = modelSource.deformerSourceSet as? org.umamo.format.cmo3.model.gen.CDeformerSourceSet
 		if (sourceSet == null) {
-			unsupported("deformer", editedDeformer.id.raw, "model has no deformer source set to create into")
+			unsupported(ExportEntityCategory.Deformer, editedDeformer.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val fresh: org.umamo.format.cmo3.model.gen.ACDeformerSource =
@@ -456,13 +462,13 @@ internal class Cmo3StructureLowering(
 		val subject = "${editedGlue.meshA.raw}~${editedGlue.meshB.raw}"
 		val sourceSet = modelSource.affecterSourceSet as? org.umamo.format.cmo3.model.gen.CAffecterSourceSet
 		if (sourceSet == null) {
-			unsupported("glue", subject, "model has no affecter source set to create into")
+			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoSourceSetToCreateInto)
 			return false
 		}
 		val meshAGuid = index.drawableByIdStr[editedGlue.meshA.raw]?.guid as? Guid
 		val meshBGuid = index.drawableByIdStr[editedGlue.meshB.raw]?.guid as? Guid
 		if (meshAGuid == null || meshBGuid == null) {
-			unsupported("glue", subject, "glued drawable has no CMO3 source; not synthesized")
+			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedDrawableHasNoSource)
 			return false
 		}
 		val template = index.glueSources.firstOrNull()
@@ -599,7 +605,7 @@ internal class Cmo3StructureLowering(
 		val subject = editedDrawable.id.raw
 		val mesh = editedDrawable.mesh
 		if (mesh == null) {
-			unsupported("drawable", subject, "a drawable without a mesh cannot be written to CMO3")
+			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.DrawableHasNoMesh)
 			return false
 		}
 		// CMO3: CArtMeshSource fields indices / positions / uvs.  The positions are CANVAS-frame
@@ -633,7 +639,11 @@ internal class Cmo3StructureLowering(
 				editableMesh.edge = triangleEdges(mesh.indices)
 				editor.ensureChildSlot(editableMesh, "GEditableMesh2", "edge", "edgePriority")
 			} else {
-				unsupported("drawable", subject, "vertex count exceeds the editable mesh's short-indexed edge table")
+				unsupported(
+					ExportEntityCategory.Drawable,
+					subject,
+					ExportNoticeReason.VertexCountExceedsEdgeTable(vertexCount, Short.MAX_VALUE.toInt()),
+				)
 			}
 			// Priority arrays resize to the new counts, keeping whichever array type was stored.
 			editableMesh.pointPriority = resizedPriorityArray(editableMesh.pointPriority, vertexCount, freshDefault = 10)
@@ -675,13 +685,13 @@ internal class Cmo3StructureLowering(
 					index.drawableIdStrByUuid[Cmo3Import.uuidOf(candidate.targetArtMeshB_guid)] == editedGlue.meshB.raw
 			}.getOrNull(ordinal)
 		if (glueSource == null) {
-			unsupported("glue", subject, "no matching CMO3 source to re-bind")
+			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoMatchingSourceToReconcile)
 			return false
 		}
 		val uidTableA = uidTableOf(editedGlue.meshA)
 		val uidTableB = uidTableOf(editedGlue.meshB)
 		if (uidTableA == null || uidTableB == null) {
-			unsupported("glue", subject, "a glued mesh has no editable-mesh uid table")
+			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluedMeshHasNoUidTable)
 			return false
 		}
 		val pairCount = editedGlue.pairs.size
@@ -692,7 +702,7 @@ internal class Cmo3StructureLowering(
 			val uidA = uidTableA.getOrNull(pair.indexA)
 			val uidB = uidTableB.getOrNull(pair.indexB)
 			if (uidA == null || uidB == null) {
-				unsupported("glue", subject, "a glue pair indexes past its mesh's uid table")
+				unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.GluePairIndexesPastUidTable)
 				return false
 			}
 			// CMO3: CGlueSource fields weights / bindVertexUids - [A, B]-interleaved per pair.

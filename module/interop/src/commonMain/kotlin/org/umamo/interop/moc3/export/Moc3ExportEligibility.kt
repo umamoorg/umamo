@@ -1,5 +1,6 @@
 package org.umamo.interop.moc3.export
 
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
@@ -14,14 +15,15 @@ import org.umamo.runtime.model.partByDrawable
  * @property Set<PartId>             parts           The part ids that survive.
  * @property Map<DrawableId, PartId?> partByDrawable Each drawable's owning part, null when unparented.
  * @property Map<PartId, PartId>     partParentById  The org tree's part→parent link, inverted once.
- * @property Map<DrawableId, String> droppedDrawables Each omitted drawable and the reason, for notices.
+ * @property Map<DrawableId, ExportNoticeReason> droppedDrawables Each omitted drawable and the reason,
+ *                                                               for notices.
  */
 internal class Moc3ExportEligibility(
 	val drawables: List<Drawable>,
 	val parts: Set<PartId>,
 	val partByDrawable: Map<DrawableId, PartId?>,
 	val partParentById: Map<PartId, PartId>,
-	val droppedDrawables: Map<DrawableId, String>,
+	val droppedDrawables: Map<DrawableId, ExportNoticeReason>,
 )
 
 /**
@@ -59,19 +61,19 @@ internal fun resolveExportEligibility(
 			}
 		}
 	}
-	val dropped = LinkedHashMap<DrawableId, String>()
+	val dropped = LinkedHashMap<DrawableId, ExportNoticeReason>()
 	for (drawable in puppet.drawables) {
 		if (partByDrawable[drawable.id] in sketchParts) {
-			dropped[drawable.id] = "a guide-image (sketch) part is not runtime content"
+			dropped[drawable.id] = ExportNoticeReason.SketchPartIsNotRuntimeContent
 		} else if (drawable.mesh == null) {
-			dropped[drawable.id] = "a drawable with no mesh cannot be written"
+			dropped[drawable.id] = ExportNoticeReason.DrawableHasNoMesh
 		} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null && canvasToParentSpace == null) {
 			// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
 			// with no grid there are no deltas to recover the parent-local form from.  Inverting the
 			// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach -
 			// so without the injected seam the drawable is dropped rather than written at the wrong
 			// scale, which is what a canvas-space value under a warp would be.
-			dropped[drawable.id] = "an unkeyed drawable under a deformer has no parent-space geometry to write"
+			dropped[drawable.id] = ExportNoticeReason.UnkeyedDrawableUnderDeformerHasNoParentGeometry
 		}
 	}
 	return Moc3ExportEligibility(

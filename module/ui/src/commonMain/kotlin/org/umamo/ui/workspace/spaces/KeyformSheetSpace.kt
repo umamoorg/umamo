@@ -67,6 +67,7 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalKeyableHover
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.properties.formChannelLabelRes
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
@@ -994,24 +995,14 @@ private fun EmptySheetNotice(message: String) {
  * Every channel's localized short label, resolved in one pass.
  *
  * A map rather than a function because the projection is Compose-free and calls its label lookup from
- * ordinary code, where stringResource is unreachable.  Exhaustive over the enum, so adding a channel is a
- * compile error here rather than a missing label at runtime.
+ * ordinary code, where stringResource is unreachable.  The labels themselves come from
+ * [formChannelLabelRes], shared with the export report so a channel reads the same in both.
  *
  * @return Map<FormChannel, String> The label per channel.
  */
 @Composable
 private fun channelLabels(): Map<FormChannel, String> =
-	FormChannel.entries.associateWith { channel ->
-		when (channel) {
-			FormChannel.DRAW_ORDER -> stringResource(Res.string.channel_draw_order)
-			FormChannel.OPACITY -> stringResource(Res.string.channel_opacity)
-			FormChannel.MULTIPLY_COLOR -> stringResource(Res.string.channel_multiply_color)
-			FormChannel.SCREEN_COLOR -> stringResource(Res.string.channel_screen_color)
-			FormChannel.FLIP_X -> stringResource(Res.string.channel_flip_x)
-			FormChannel.FLIP_Y -> stringResource(Res.string.channel_flip_y)
-			FormChannel.GLUE_INTENSITY -> stringResource(Res.string.channel_glue_intensity)
-		}
-	}
+	FormChannel.entries.associateWith { channel -> stringResource(formChannelLabelRes(channel)) }
 
 /**
  * Every owner kind's localized label, resolved in one pass - the subtitle under a group row's name.
