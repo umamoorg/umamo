@@ -5,6 +5,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget
@@ -32,6 +33,13 @@ import org.umamo.ui.resources.blend_mode_normal
 import org.umamo.ui.resources.blend_mode_overlay
 import org.umamo.ui.resources.blend_mode_screen
 import org.umamo.ui.resources.blend_mode_soft_light
+import org.umamo.ui.resources.channel_draw_order
+import org.umamo.ui.resources.channel_flip_x
+import org.umamo.ui.resources.channel_flip_y
+import org.umamo.ui.resources.channel_glue_intensity
+import org.umamo.ui.resources.channel_multiply_color
+import org.umamo.ui.resources.channel_opacity
+import org.umamo.ui.resources.channel_screen_color
 import org.umamo.ui.resources.part_group_grouped
 import org.umamo.ui.resources.part_group_isolated
 import org.umamo.ui.resources.part_group_pass_through
@@ -211,6 +219,26 @@ fun runtimeFeatureLabelRes(feature: RuntimeFeature): StringResource =
 		RuntimeFeature.PartComposite -> Res.string.runtime_feature_part_composite
 		RuntimeFeature.ParameterRepeat -> Res.string.runtime_feature_parameter_repeat
 		RuntimeFeature.ArtPath -> Res.string.runtime_feature_art_path
+	}
+
+/**
+ * The [StringResource] naming a keyform channel in the UI.
+ *
+ * Shared by the keyform sheet's track headers and the export report, so a demoted channel is named
+ * with the same word the sheet showed it under.
+ *
+ * @param FormChannel channel The channel to label.
+ * @return StringResource The localized label resource.
+ */
+fun formChannelLabelRes(channel: FormChannel): StringResource =
+	when (channel) {
+		FormChannel.DRAW_ORDER -> Res.string.channel_draw_order
+		FormChannel.OPACITY -> Res.string.channel_opacity
+		FormChannel.MULTIPLY_COLOR -> Res.string.channel_multiply_color
+		FormChannel.SCREEN_COLOR -> Res.string.channel_screen_color
+		FormChannel.FLIP_X -> Res.string.channel_flip_x
+		FormChannel.FLIP_Y -> Res.string.channel_flip_y
+		FormChannel.GLUE_INTENSITY -> Res.string.channel_glue_intensity
 	}
 
 /**

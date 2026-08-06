@@ -13,7 +13,7 @@ import org.umamo.runtime.model.PuppetModel
  * vertices or deformer control points (those belong to Edit mode, see [EditorMode]).
  */
 sealed interface SelectionTarget {
-	/** An organisational tree part. */
+	/** An organizational tree part. */
 	data class Part(val id: PartId) : SelectionTarget
 
 	/** A textured drawable mesh. */

@@ -10,19 +10,19 @@ import org.umamo.format.moc3.moc.MocParameter as MocParameter
  * Takes no keyform pool, which is the point of the signature: a parameter is an axis objects bind TO,
  * so this pass cannot intern a binding and the type says so.
  *
- * @param Moc3ExportContext context    The export's derived state.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations.
+ * @param Moc3ExportContext context The export's derived state.
+ * @param Moc3ExportIds     ids     Claimed from: each parameter's written id (over-long ones reported).
  * @return List<MocParameter> The records, in plan order.
  */
 internal fun lowerParameters(
 	context: Moc3ExportContext,
-	noticeSink: Moc3ExportNotices,
+	ids: Moc3ExportIds,
 ): List<MocParameter> {
 	val version = context.version
 	val plan = context.plan
 	return plan.parameters.map { parameter ->
 		MocParameter(
-			id = noticeSink.mocId("parameter", parameter.id.raw),
+			id = ids.parameterId(parameter.id),
 			minimumValue = parameter.min,
 			maximumValue = parameter.max,
 			defaultValue = parameter.default,

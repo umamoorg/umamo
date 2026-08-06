@@ -71,7 +71,7 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 		// directly rather than going through the capture, which requires a mapping.
 		val displayed = drawableLocalPosed(model, pose, id) ?: base
 		// No world mapping (a hidden ancestor), so fall back to the posed LOCAL geometry - but negate the
-		// centre's y first.  localToWorld flips y (world y grows upward), so reporting local y raw would make
+		// center's y first.  localToWorld flips y (world y grows upward), so reporting local y raw would make
 		// the Position Z row jump sign purely because an ancestor was toggled invisible.  Extents are
 		// unsigned and carry over as-is.  Not editable: without a mapping there is nothing to invert through.
 		val local = meshBounds(displayed)

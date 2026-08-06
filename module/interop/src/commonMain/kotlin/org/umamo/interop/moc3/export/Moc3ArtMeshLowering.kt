@@ -3,6 +3,8 @@ package org.umamo.interop.moc3.export
 import org.umamo.format.moc3.moc.ConstantFlag
 import org.umamo.format.moc3.model.ArtMesh
 import org.umamo.format.moc3.model.ArtMeshKeyform
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.legacyBlendFlagOf
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.interop.packedBlendOf
@@ -17,12 +19,14 @@ import org.umamo.runtime.model.MeshDeltaForm
  *
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every art mesh claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations, demotions, unresolvable masks.
+ * @param Moc3ExportIds     ids        Claimed from: each drawable's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions and unresolvable masks.
  * @return List<ArtMesh> The records, in plan order.
  */
 internal fun lowerArtMeshes(
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): List<ArtMesh> {
 	val plan = context.plan
@@ -39,10 +43,12 @@ internal fun lowerArtMeshes(
 				canvasToParentSpace?.invoke(drawable.id, mesh.positions)?.also { converted ->
 					if (converted.size != mesh.positions.size) {
 						noticeSink.unsupported(
-							"drawable",
+							ExportEntityCategory.Drawable,
 							drawable.id.raw,
-							"the context.canvas-to-parent conversion returned ${converted.size} coordinates for " +
-								"${mesh.positions.size}; the rest mesh was written unconverted",
+							ExportNoticeReason.RestMeshConversionSizeMismatch(
+								converted.size,
+								mesh.positions.size,
+							),
 						)
 					}
 				}?.takeIf { converted -> converted.size == mesh.positions.size } ?: mesh.positions
@@ -61,7 +67,7 @@ internal fun lowerArtMeshes(
 					mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(drawable.drawOrder)),
 				requireGeometry = false,
 			)
-		noticeSink.reportDemotions("drawable", drawable.id.raw, keyforms)
+		noticeSink.reportDemotions(ExportEntityCategory.Drawable, drawable.id.raw, keyforms)
 		val bundle = keyforms?.bundle
 		val cellCount = maxOf(bundle?.cells?.size ?: 0, 1)
 		val triangleIndices =
@@ -71,9 +77,9 @@ internal fun lowerArtMeshes(
 		// which is worth a notice even though the file it produces is structurally valid.
 		if (drawable.texturePage < 0) {
 			noticeSink.unsupported(
-				"drawable",
+				ExportEntityCategory.Drawable,
 				drawable.id.raw,
-				"no atlas page is bound to this drawable, so it was written pointing at page 0",
+				ExportNoticeReason.NoAtlasPageBound,
 			)
 		}
 		// A mask naming a drawable this export dropped has no file index to reference.  Filtering it
@@ -91,14 +97,13 @@ internal fun lowerArtMeshes(
 		}
 		if (unresolvedMasks.isNotEmpty()) {
 			noticeSink.unsupported(
-				"drawable",
+				ExportEntityCategory.Drawable,
 				drawable.id.raw,
-				"the clipping mask ${unresolvedMasks.joinToString()} is not in this export, so the mesh " +
-					"was written unclipped by it",
+				ExportNoticeReason.ClippingMaskNotInExport(unresolvedMasks.toList()),
 			)
 		}
 		ArtMesh(
-			id = noticeSink.mocId("drawable", drawable.id.raw),
+			id = ids.drawableId(drawable.id),
 			textureIndex = maxOf(drawable.texturePage, 0),
 			constantFlags = constantFlagsOf(drawable, context.extendedBlendEnabled),
 			// The 5.3 blend surface; below v6 the mode falls back to the legacy constant-flag bits.
@@ -147,7 +152,9 @@ internal fun lowerArtMeshes(
  * it.  Getting that backwards silently double-draws every back face.
  *
  * @param Drawable drawable             The drawable.
- * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend section, which then states the blend mode instead of the legacy bits.
+ * @param Boolean  extendedBlendEnabled Whether the target version carries the 5.3 extended-blend
+ *                                      section, which then states the blend mode instead of the
+ *                                      legacy bits.
  * @return Int The flag bits.
  */
 private fun constantFlagsOf(drawable: Drawable, extendedBlendEnabled: Boolean): Int {

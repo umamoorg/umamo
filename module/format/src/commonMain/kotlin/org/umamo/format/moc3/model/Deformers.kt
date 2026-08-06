@@ -7,7 +7,7 @@ package org.umamo.format.moc3.model
  * Deformers reference each other by index (their position in
  * [org.umamo.format.moc3.MocDocument.deformers]), and [id] is the authored identifier the editor
  * wrote alongside that index.  The two hierarchies are independent: [parentDeformerIndex] is the
- * deformation nesting, [parentPartIndex] the organisational tree.
+ * deformation nesting, [parentPartIndex] the organizational tree.
  */
 public sealed class Deformer {
 	/** MOC3 §5.6 s11: the authored id, e.g. "Warp349" or "B_LEG_01". */

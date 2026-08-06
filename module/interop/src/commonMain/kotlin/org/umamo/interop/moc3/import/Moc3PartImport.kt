@@ -150,8 +150,8 @@ internal fun importParts(
 		mocDocument.parts.mapIndexed { partIndex, source ->
 			// MOC3 (runtime format) only records composite data for offscreen parts, so this is null for
 			// the rest; the composite is stored latently and applied only while the part is Isolated.
-			val offscreenComposite = partCompositeOf(context, source)
-			val partChannels = partChannelsOf(context, source)
+			val offscreenComposite = partCompositeOf(context, source, partIndex)
+			val partChannels = partChannelsOf(context, source, partIndex)
 			Part(
 				id = partIds[partIndex],
 				// cdi3: DisplayPart.name is the display label; fall back to the id.
@@ -185,7 +185,7 @@ internal fun importParts(
  *
  * @param Moc3ImportContext context The import's derived state.
  * @param MocPart           source  The moc part.
- * @return Int The quantised draw order (Cubism default 500 when the part carries no keyforms).
+ * @return Int The quantized draw order (Cubism default 500 when the part carries no keyforms).
  */
 internal fun partStaticDrawOrder(
 	context: Moc3ImportContext,
@@ -206,15 +206,21 @@ internal fun partStaticDrawOrder(
  * The compositing settings of a moc part, or null when the part owns no offscreen (i.e. its
  * group mode is not Isolated).
  *
- * @param Moc3ImportContext context The import's derived state.
- * @param MocPart           source  The moc part.
+ * Takes the part's file index rather than looking the offscreen up by the part's id, for the same
+ * reason [partBlendShapesOfBound] does: a moc addresses its offscreens by index and nothing guarantees
+ * the id strings are unique, so two same-named parts would both read whichever record came last.
+ *
+ * @param Moc3ImportContext context   The import's derived state.
+ * @param MocPart           source    The moc part.
+ * @param Int               partIndex The part's file index.
  * @return PartComposite? The runtime compositing settings, or null.
  */
 internal fun partCompositeOf(
 	context: Moc3ImportContext,
 	source: MocPart,
+	partIndex: Int,
 ): PartComposite? {
-	val offscreen = context.offscreenByPartId[source.id] ?: return null
+	val offscreen = context.offscreenByPartIndex[partIndex] ?: return null
 	// The first keyform doubles as the static fallback (a static part stores exactly one row).
 	val staticKeyform = offscreen.keyforms.firstOrNull()
 	return PartComposite(
@@ -238,18 +244,20 @@ internal fun partCompositeOf(
  * the draw order always; for an isolated part the offscreen's keyformed opacity/color
  * channels merge in, riding the same grid cells (MOC3 §5.6: Σ owner grid == CountInfo 36).
  *
- * @param Moc3ImportContext context The import's derived state.
- * @param MocPart           source  The moc part.
+ * @param Moc3ImportContext context   The import's derived state.
+ * @param MocPart           source    The moc part.
+ * @param Int               partIndex The part's file index, which is how its offscreen names it.
  * @return ChannelGrids The part's per-channel tracks, empty when it is unbound.
  */
 internal fun partChannelsOf(
 	context: Moc3ImportContext,
 	source: MocPart,
+	partIndex: Int,
 ): ChannelGrids {
 	if (source.keyformBindingIndex <= 0) {
 		return ChannelGrids.Empty
 	}
-	val offscreenKeyforms = context.offscreenByPartId[source.id]?.keyforms
+	val offscreenKeyforms = context.offscreenByPartIndex[partIndex]?.keyforms
 	val bundled =
 		gridOf(context, context.bindingOf(source.keyformBindingIndex)) { gridIndex ->
 			source.drawOrderKeyforms.getOrNull(gridIndex)?.let { drawOrder ->

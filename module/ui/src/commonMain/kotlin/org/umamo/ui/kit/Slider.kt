@@ -113,7 +113,7 @@ fun Slider(
 		val centerY = size.height / 2f
 		val corner = CornerRadius(trackHeight / 2f)
 		val top = Offset(0f, centerY - trackHeight / 2f)
-		// The thumb centre travels within [thumbRadius, width - thumbRadius] so the whole dot stays inside the
+		// The thumb center travels within [thumbRadius, width - thumbRadius] so the whole dot stays inside the
 		// control's hit area at both ends; otherwise the outer half of the thumb would hang into the
 		// non-interactive padding at the track start, and a click there would miss the slider. The track fills
 		// the full width for the end caps.

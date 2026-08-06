@@ -9,7 +9,6 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.MeshForm
 
@@ -70,7 +69,10 @@ internal fun importDrawables(context: Moc3ImportContext): List<Drawable> =
 			}?.fanOutMesh()
 		val drawable =
 			Drawable(
-				id = DrawableId(source.id),
+				// Through the context's table, not from source.id: a file carrying the same id twice
+				// resolves the repeat to a synthesized id there, and building it here instead would
+				// re-merge the two - masks, part membership, and keyforms landing on one drawable.
+				id = context.drawableIdsByFileIndex[drawableIndex],
 				// The MOC3 itself carries no drawable names; only the cdi3 Meshes extension does, so a
 				// file the official editor wrote falls back to the format id.
 				name = context.drawableNameById[source.id] ?: source.id,

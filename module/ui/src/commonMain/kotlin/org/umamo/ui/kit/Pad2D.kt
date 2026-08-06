@@ -95,7 +95,7 @@ fun Pad2D(
 		val padHeight = size.height
 		drawRect(color = trackColor, size = Size(padWidth, padHeight))
 		drawRect(color = borderColor, size = Size(padWidth, padHeight), style = Stroke(width = 1.dp.toPx()))
-		// A faint centre cross for orientation; the thirds would over-clutter, so the centre is enough.
+		// A faint center cross for orientation; the thirds would over-clutter, so the center is enough.
 		drawLine(crossColor, Offset(padWidth / 2f, 0f), Offset(padWidth / 2f, padHeight), strokeWidth = 1.dp.toPx())
 		drawLine(crossColor, Offset(0f, padHeight / 2f), Offset(padWidth, padHeight / 2f), strokeWidth = 1.dp.toPx())
 		// Nine reference dots at the 0 / 0.5 / 1 grid intersections on each axis.

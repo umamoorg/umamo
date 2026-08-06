@@ -190,7 +190,7 @@ internal fun facesInBox(
  * brush.
  *
  * @param FloatArray positions The interleaved world posed positions.
- * @param Offset center The brush centre in screen pixels.
+ * @param Offset center The brush center in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
@@ -204,7 +204,7 @@ internal fun verticesInCircle(positions: FloatArray, center: Offset, radiusPx: F
  *
  * @param FloatArray positions The interleaved world posed positions.
  * @param List<MeshElement.Edge> edges The mesh's unique edges.
- * @param Offset center The brush centre in screen pixels.
+ * @param Offset center The brush center in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
@@ -229,7 +229,7 @@ internal fun edgesInCircle(
  *
  * @param FloatArray positions The interleaved world posed positions.
  * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
- * @param Offset center The brush centre in screen pixels.
+ * @param Offset center The brush center in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.

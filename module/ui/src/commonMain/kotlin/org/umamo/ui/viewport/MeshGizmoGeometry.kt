@@ -135,7 +135,7 @@ internal fun elementsInBox(
  *
  * @param MeshSelection working The stroke's accumulating selection (seeded from the committed selection).
  * @param Boolean erasing True to remove the enclosed elements, false to add them.
- * @param Offset center The brush centre in screen pixels.
+ * @param Offset center The brush center in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param List<GizmoMeshGeometry> geometries The meshes' gizmo geometry.
  * @param ViewportCamera camera The area camera.

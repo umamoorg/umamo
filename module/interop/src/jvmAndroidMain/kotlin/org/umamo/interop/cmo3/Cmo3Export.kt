@@ -6,6 +6,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.GlueDiff
@@ -96,7 +97,7 @@ object Cmo3Export {
 		val baseline = Cmo3Import.fromModelSource(modelSource)
 		val diff = diffPuppetModels(baseline, edited)
 		if (diff.isEmpty) {
-			return ExportReport(emptyList())
+			return ExportReport(ExportFormat.Cmo3, emptyList())
 		}
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
@@ -331,6 +332,6 @@ object Cmo3Export {
 		if (anyDeleted) {
 			editor.pruneUnreachableShared()
 		}
-		return ExportReport(notices)
+		return ExportReport(ExportFormat.Cmo3, notices)
 	}
 }

@@ -1,5 +1,6 @@
 package org.umamo.interop.moc3.export
 
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
@@ -28,12 +29,14 @@ internal class Moc3LoweredParts(
  *
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every part claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations and channel demotions.
+ * @param Moc3ExportIds     ids        Claimed from: each part's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: channel demotions.
  * @return Moc3LoweredParts The records and their bundles.
  */
 internal fun lowerParts(
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): Moc3LoweredParts {
 	val plan = context.plan
@@ -68,12 +71,12 @@ internal fun lowerParts(
 					compositeStatics + mapOf(FormChannel.DRAW_ORDER to ChannelValue.Scalar(part.drawOrder.toFloat())),
 					requireGeometry = false,
 				)
-			noticeSink.reportDemotions("part", part.id.raw, keyforms)
+			noticeSink.reportDemotions(ExportEntityCategory.Part, part.id.raw, keyforms)
 			partKeyformsById[part.id] = keyforms
 			val bundle = keyforms?.bundle
 			val cellCount = bundle?.cells?.size ?: 0
 			MocPart(
-				id = noticeSink.mocId("part", part.id.raw),
+				id = ids.partId(part.id),
 				parentPartIndex = plan.partIndex(context.partParentById[part.id]),
 				// A static part points at binding 0, which is what the import's `> 0` static test expects.
 				keyformBindingIndex = if (cellCount > 1) keyforms!!.bindingIndex else 0,

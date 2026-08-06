@@ -256,7 +256,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Zooms the area's camera about its centre (keyboard zoom in/out) by one configured step.
+	 * Zooms the area's camera about its center (keyboard zoom in/out) by one configured step.
 	 *
 	 * @param String areaId The area id.
 	 * @param Boolean zoomIn True to zoom in, false to zoom out.
@@ -269,7 +269,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Sets the area's camera to true 1:1 about its centre (actual size / 100%).
+	 * Sets the area's camera to true 1:1 about its center (actual size / 100%).
 	 *
 	 * @param String areaId The area id.
 	 */
@@ -289,7 +289,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Fits a world-space rectangle inside the area, centred (the Frame Selected camera move). A no-op before
+	 * Fits a world-space rectangle inside the area, centerd (the Frame Selected camera move). A no-op before
 	 * the first fit or when the area has no size yet.
 	 *
 	 * @param String areaId The area id.
@@ -306,7 +306,7 @@ internal class ViewportAreaRegistry {
 			return
 		}
 		// A degenerate rect (a single vertex) still frames: ContentBounds spans are clamped to >= 1 world unit
-		// by the fit, so the camera centres on the point at a sane zoom.
+		// by the fit, so the camera centers on the point at a sane zoom.
 		updateCamera(areaId) {
 			ViewportCamera.fit(ContentBounds(minX, minY, maxX - minX, maxY - minY), width, height)
 		}

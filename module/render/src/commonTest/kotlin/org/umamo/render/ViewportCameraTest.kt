@@ -24,23 +24,23 @@ class ViewportCameraTest {
 	fun fitCentersAndScalesContent() {
 		val content = ContentBounds(minX = -100f, minY = -50f, width = 200f, height = 100f)
 		val camera = ViewportCamera.fit(content, viewportWidth = 400, viewportHeight = 400)
-		assertEquals(0f, camera.centerX, tolerance, "centre X = content centre")
-		assertEquals(0f, camera.centerY, tolerance, "centre Y = content centre")
+		assertEquals(0f, camera.centerX, tolerance, "center X = content center")
+		assertEquals(0f, camera.centerY, tolerance, "center Y = content center")
 		// min(400/200, 400/100) = 2, times the 0.9 margin.
 		assertEquals(0.9f * 2f, camera.zoom, tolerance, "fit zoom uses the tighter axis and the margin")
 	}
 
 	@Test
-	fun worldToNdcMapsCentreToOriginAndOneUnitToZoomPixels() {
+	fun worldToNdcMapsCenterToOriginAndOneUnitToZoomPixels() {
 		val camera = ViewportCamera(centerX = 5f, centerY = -7f, zoom = 3f)
 		val width = 200
 		val height = 100
 		val ndc = camera.worldToNdc(width, height)
-		val centreX = camera.centerX * ndc[0] + ndc[2]
-		val centreY = camera.centerY * ndc[1] + ndc[3]
-		assertEquals(0f, centreX, tolerance, "camera centre maps to NDC origin")
-		assertEquals(0f, centreY, tolerance, "camera centre maps to NDC origin")
-		// One world unit right of centre lands zoom pixels right of the viewport centre.
+		val centerX = camera.centerX * ndc[0] + ndc[2]
+		val centerY = camera.centerY * ndc[1] + ndc[3]
+		assertEquals(0f, centerX, tolerance, "camera center maps to NDC origin")
+		assertEquals(0f, centerY, tolerance, "camera center maps to NDC origin")
+		// One world unit right of center lands zoom pixels right of the viewport center.
 		val (screenX, screenY) = worldToScreen(camera, camera.centerX + 1f, camera.centerY, width, height)
 		assertEquals(width / 2f + camera.zoom, screenX, tolerance, "one world unit = zoom pixels")
 		assertEquals(height / 2f, screenY, tolerance, "no vertical shift along a horizontal step")
@@ -79,24 +79,24 @@ class ViewportCameraTest {
 	}
 
 	@Test
-	fun panByScreenMovesCentreByDeltaOverZoom() {
+	fun panByScreenMovesCenterByDeltaOverZoom() {
 		val camera = ViewportCamera(centerX = 0f, centerY = 0f, zoom = 2f)
 		val panned = camera.panByScreen(deltaXpx = 10f, deltaYpx = 6f)
-		assertEquals(-5f, panned.centerX, tolerance, "centre X shifts opposite the drag, scaled by 1/zoom")
-		assertEquals(3f, panned.centerY, tolerance, "centre Y carries the screen-down vs world-up flip")
+		assertEquals(-5f, panned.centerX, tolerance, "center X shifts opposite the drag, scaled by 1/zoom")
+		assertEquals(3f, panned.centerY, tolerance, "center Y carries the screen-down vs world-up flip")
 	}
 
 	@Test
-	fun actualSizeSetsUnitZoomKeepingCentre() {
+	fun actualSizeSetsUnitZoomKeepingCenter() {
 		val camera = ViewportCamera(centerX = 42f, centerY = -9f, zoom = 7f)
 		val actual = camera.withActualSize()
 		assertEquals(1f, actual.zoom, tolerance, "actual size is true 1:1")
-		assertEquals(camera.centerX, actual.centerX, tolerance, "centre is unchanged")
-		assertEquals(camera.centerY, actual.centerY, tolerance, "centre is unchanged")
+		assertEquals(camera.centerX, actual.centerX, tolerance, "center is unchanged")
+		assertEquals(camera.centerY, actual.centerY, tolerance, "center is unchanged")
 	}
 
 	@Test
-	fun framingScreenRectCentresAndFillsTheBox() {
+	fun framingScreenRectCentersAndFillsTheBox() {
 		val camera = ViewportCamera(centerX = 10f, centerY = 20f, zoom = 2f)
 		val width = 400
 		val height = 300
@@ -108,13 +108,13 @@ class ViewportCameraTest {
 		val framed = camera.framingScreenRect(right, bottom, left, top, viewportWidth = width, viewportHeight = height)
 		// min(400/100, 300/60) = min(4, 5) = 4, so the looser (vertical) axis letterboxes.
 		assertEquals(camera.zoom * 4f, framed.zoom, tolerance, "the box fills the tighter axis")
-		// The world point under the box centre (via the OLD camera inverse) maps to the viewport centre
+		// The world point under the box center (via the OLD camera inverse) maps to the viewport center
 		// under the NEW camera.
 		val worldX = camera.centerX + ((left + right) / 2f - width / 2f) / camera.zoom
 		val worldY = camera.centerY + (height / 2f - (top + bottom) / 2f) / camera.zoom
 		val (screenX, screenY) = worldToScreen(framed, worldX, worldY, width, height)
-		assertEquals(width / 2f, screenX, tolerance, "box centre X frames to viewport centre")
-		assertEquals(height / 2f, screenY, tolerance, "box centre Y frames to viewport centre")
+		assertEquals(width / 2f, screenX, tolerance, "box center X frames to viewport center")
+		assertEquals(height / 2f, screenY, tolerance, "box center Y frames to viewport center")
 	}
 
 	@Test

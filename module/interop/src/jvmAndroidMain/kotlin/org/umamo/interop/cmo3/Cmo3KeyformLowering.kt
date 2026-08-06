@@ -24,7 +24,9 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraint
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.type.CArrayList
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.KeyformBundle
 import org.umamo.interop.KeyformBundleResult
 import org.umamo.interop.OutOfSpanPolicy
@@ -109,8 +111,12 @@ internal class Cmo3KeyformLowering(
 			}
 		}
 
-	private fun unsupported(category: String, subject: String, detail: String) {
-		notices.add(ExportNotice.UnsupportedChange(category, subject, detail))
+	private fun unsupported(
+		category: ExportEntityCategory,
+		subject: String?,
+		reason: ExportNoticeReason,
+	) {
+		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
 	/**
@@ -120,7 +126,7 @@ internal class Cmo3KeyformLowering(
 	 * CMO3 can decline to write an object's grid; MOC3 cannot (every object needs a keyform), which is
 	 * why the shared bundler takes the policy as a parameter instead of assuming one.
 	 *
-	 * @param String           category         The notice category.
+	 * @param ExportEntityCategory category    The notice category.
 	 * @param String           subject          The owner's id for notices.
 	 * @param KeyformGrid?     geometryGrid     The geometry grid, or null for a channel-only owner.
 	 * @param FormInterpolator geometryBlend    The geometry interpolator (unused when no geometry).
@@ -130,7 +136,7 @@ internal class Cmo3KeyformLowering(
 	 * @return KeyformBundle? The bundle, or null when unrepresentable (reported).
 	 */
 	private fun <TGeometry> buildBundle(
-		category: String,
+		category: ExportEntityCategory,
 		subject: String,
 		geometryGrid: KeyformGrid<TGeometry>?,
 		geometryBlend: FormInterpolator<TGeometry>,
@@ -151,7 +157,7 @@ internal class Cmo3KeyformLowering(
 		) {
 			is KeyformBundleResult.Bundled -> result.bundle
 			is KeyformBundleResult.Unrepresentable -> {
-				unsupported(category, subject, "${result.reason} (CMO3 stores one grid per object)")
+				unsupported(category, subject, ExportNoticeReason.KeyformCannotBundle(result.rejection))
 				null
 			}
 		}
@@ -260,7 +266,7 @@ internal class Cmo3KeyformLowering(
 		for (axis in bundle.axes) {
 			val parameterSource = index.parameterByIdStr[axis.parameterId.raw]
 			if (parameterSource == null) {
-				unsupported("keyform", subject, "axis parameter ${axis.parameterId.raw} has no CMO3 source")
+				unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.AxisParameterHasNoSource(axis.parameterId.raw))
 				return false
 			}
 			val binding =
@@ -407,7 +413,7 @@ internal class Cmo3KeyformLowering(
 		val subject = editedDrawable.id.raw
 		val editedBase = editedDrawable.mesh?.positions
 		if (editedBase == null) {
-			unsupported("drawable", subject, "keyforms without a base mesh cannot bundle into CMO3")
+			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.KeyformsWithoutBaseMesh)
 			return
 		}
 		val baselineBase = baselineDrawableById[editedDrawable.id]?.mesh?.positions
@@ -420,7 +426,7 @@ internal class Cmo3KeyformLowering(
 			)
 		val bundle =
 			buildBundle(
-				"drawable",
+				ExportEntityCategory.Drawable,
 				subject,
 				editedDrawable.geometryGrid,
 				MeshDeltaInterpolator,
@@ -429,7 +435,7 @@ internal class Cmo3KeyformLowering(
 				requireGeometry = false,
 			) ?: return
 		if (!drawOrdersAreIntegral(bundle)) {
-			unsupported("drawable", subject, "fractional draw order cannot be stored in CMO3 (integer field)")
+			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
 			return
 		}
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
@@ -582,7 +588,7 @@ internal class Cmo3KeyformLowering(
 				FormChannel.SCREEN_COLOR to ChannelValue.Color(editedWarp.screenColor),
 			)
 		val bundle =
-			buildBundle("deformer", subject, editedWarp.geometryGrid, WarpLatticeInterpolator, editedWarp.channelGrids, statics, requireGeometry = true)
+			buildBundle(ExportEntityCategory.Deformer, subject, editedWarp.geometryGrid, WarpLatticeInterpolator, editedWarp.channelGrids, statics, requireGeometry = true)
 				?: return
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CWarpDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CWarpDeformerSource>().map { it.keyforms })
@@ -671,7 +677,7 @@ internal class Cmo3KeyformLowering(
 				FormChannel.FLIP_Y to ChannelValue.Flag(editedRotation.flipY),
 			)
 		val bundle =
-			buildBundle("deformer", subject, editedRotation.geometryGrid, RotationPivotInterpolator, editedRotation.channelGrids, statics, requireGeometry = true)
+			buildBundle(ExportEntityCategory.Deformer, subject, editedRotation.geometryGrid, RotationPivotInterpolator, editedRotation.channelGrids, statics, requireGeometry = true)
 				?: return
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CRotationDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CRotationDeformerSource>().map { it.keyforms })
@@ -774,10 +780,10 @@ internal class Cmo3KeyformLowering(
 				FormChannel.SCREEN_COLOR to ChannelValue.Color(editedPart.composite.screenColor),
 			)
 		val bundle =
-			buildBundle("part", subject, null as KeyformGrid<Unit>?, UnitInterpolator, editedPart.channelGrids, statics, requireGeometry = false)
+			buildBundle(ExportEntityCategory.Part, subject, null as KeyformGrid<Unit>?, UnitInterpolator, editedPart.channelGrids, statics, requireGeometry = false)
 				?: return
 		if (!drawOrdersAreIntegral(bundle)) {
-			unsupported("part", subject, "fractional draw order cannot be stored in CMO3 (integer field)")
+			unsupported(ExportEntityCategory.Part, subject, ExportNoticeReason.FractionalDrawOrderNotStorable)
 			return
 		}
 		if (bundle.axes.isEmpty()) {
@@ -865,14 +871,14 @@ internal class Cmo3KeyformLowering(
 		val subject = "${editedGlue.meshA.raw}+${editedGlue.meshB.raw}"
 		val statics = mapOf<FormChannel, ChannelValue>(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(editedGlue.intensity))
 		val bundle =
-			buildBundle("glue", subject, null as KeyformGrid<Unit>?, UnitInterpolator, editedGlue.channelGrids, statics, requireGeometry = false)
+			buildBundle(ExportEntityCategory.Glue, subject, null as KeyformGrid<Unit>?, UnitInterpolator, editedGlue.channelGrids, statics, requireGeometry = false)
 				?: return
 		if (bundle.axes.isEmpty() && bundle.cells.isEmpty()) {
 			// No intensity track: write the static into whatever forms exist (an unkeyed glue welds
 			// fully, so a non-1 static without forms has no CMO3 home) - never clear a glue's grid.
 			val forms = Cmo3Import.elementsOf(source.keyforms).filterIsInstance<CGlueForm>()
 			if (forms.isEmpty() && editedGlue.intensity != 1f) {
-				unsupported("glue", subject, "a static intensity without keyforms has no CMO3 home")
+				unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.StaticGlueIntensityWithoutKeyforms)
 				return
 			}
 			for (form in forms) {
@@ -984,7 +990,7 @@ internal class Cmo3KeyformLowering(
 		for (binding in bindings) {
 			val parameterSource = index.parameterByIdStr[binding.parameterId.raw]
 			if (parameterSource == null) {
-				unsupported("keyform", subject, "blend shape parameter ${binding.parameterId.raw} has no CMO3 source")
+				unsupported(ExportEntityCategory.Keyform, subject, ExportNoticeReason.BlendShapeParameterHasNoSource(binding.parameterId.raw))
 				return null
 			}
 			val parameterUuid = Cmo3Import.uuidOf(parameterSource.guid)

@@ -75,7 +75,7 @@ internal suspend fun PointerInputScope.observeWindowPointer(onPointer: (Offset) 
  * Blender-style).  Living ABOVE the area tree - not inside a viewport's clipped box - is what lets
  * the ring escape area bounds, and being the only instance structurally prevents any cross-viewport
  * duplication (a per-viewport copy could never be gated consistently).
- * [PieMenuOverlay] clamps the centre to the window so the ring never clips (Blender's
+ * [PieMenuOverlay] clamps the center to the window so the ring never clips (Blender's
  * constrain-to-screen); entries dispatch through the command registry, and opening / closing go
  * through the session so the shell's key ladder routes Escape and the 1..N digits unchanged.
  *
@@ -83,7 +83,7 @@ internal suspend fun PointerInputScope.observeWindowPointer(onPointer: (Offset) 
  * はみ出せて、複数ビューポートでの重複表示も構造的に起きない。中心はウィンドウ内にクランプされる。
  *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
- *   pointer event (a keyboard-opened pie then centres in the window).
+ *   pointer event (a keyboard-opened pie then centers in the window).
  * @param Modifier modifier The layout modifier (the shell passes a window fill).
  */
 @Composable
@@ -119,7 +119,7 @@ internal fun ShellPieMenuHost(pointerPosition: Offset?, modifier: Modifier = Mod
  * pointer last touched).  Draw-only - installs no pointer input.
  *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
- *   pointer event (the notice then anchors at the window's lower centre).
+ *   pointer event (the notice then anchors at the window's lower center).
  * @param Modifier modifier The layout modifier (the shell passes a window fill).
  */
 @Composable
@@ -137,7 +137,7 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
 		session.clearNotice(current.serial)
 	}
 	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-		// Anchor beside the pointer, falling back to the lower centre when no pointer has entered yet
+		// Anchor beside the pointer, falling back to the lower center when no pointer has entered yet
 		// (a keyboard-triggered notice can arrive before any pointer event).
 		val anchor = pointerPosition ?: Offset(constraints.maxWidth / 2f, constraints.maxHeight * 0.75f)
 		TooltipCard(
@@ -159,7 +159,7 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
  * Properties row, and it must not be clipped to that panel's box.
  *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
- *   pointer event (the prompt then opens at the window's centre).
+ *   pointer event (the prompt then opens at the window's center).
  * @param Modifier modifier The layout modifier (the shell passes a window fill).
  */
 @Composable

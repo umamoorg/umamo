@@ -14,15 +14,15 @@ sealed interface ExportNotice {
 	/**
 	 * An edit the export lowering did not persist into the written file.
 	 *
-	 * @property String category The entity category ("parameter", "parameter group", "part",
-	 *                           "deformer", "drawable", "glue", "document", "keyform").
-	 * @property String subject  The affected entity's id, or the document field name.
-	 * @property String detail   Diagnostic English text describing what was not lowered.
+	 * @property ExportEntityCategory category The kind of thing the finding is about.
+	 * @property String?              subject  The affected entity's id, or null for a document-level
+	 *                                         finding, whose [reason] names the field itself.
+	 * @property ExportNoticeReason   reason   Why the lowering could not carry the edit.
 	 */
 	data class UnsupportedChange(
-		val category: String,
-		val subject: String,
-		val detail: String,
+		val category: ExportEntityCategory,
+		val subject: String?,
+		val reason: ExportNoticeReason,
 	) : ExportNotice
 
 	/**
@@ -68,15 +68,52 @@ sealed interface ExportNotice {
 }
 
 /**
+ * The kind of thing an [ExportNotice.UnsupportedChange] is about, naming the panel a rigger would
+ * look in to find it.
+ *
+ * An enum rather than the free text it replaces: the vocabulary was previously documented in a
+ * comment and enforced by nothing, so a typo produced a category no reader recognized, and the label
+ * could not be localized.  [Keyform] is the odd member - a keyform is not an entity in its own right -
+ * but the notice's subject there is the owning drawable or part, so the rendered line still reads as
+ * a place to look.
+ */
+enum class ExportEntityCategory {
+	Parameter,
+	ParameterGroup,
+	Part,
+	Deformer,
+	Drawable,
+	Glue,
+	Document,
+	Keyform,
+}
+
+/**
+ * The format one export wrote, naming which file family a report's findings are about.
+ *
+ * Deliberately narrower than [org.umamo.format.FileKind], which spans every family Umamo reads
+ * (art sources, sidecars, raster pages) - only the ones an export path writes belong here, so a
+ * `when` over an [ExportReport]'s format stays exhaustive without an `else` that would silently
+ * swallow a new export target.
+ */
+enum class ExportFormat {
+	Cmo3,
+	Moc3,
+}
+
+/**
  * The advisory outcome of one export: what the written file does not carry.
  *
- * Format-neutral because the contract is: an export ALWAYS writes, and notices only say what the
- * written file does not carry.  That holds identically for CMO3 and MOC3, so both report through this
- * rather than through parallel types the UI would have to handle twice.
+ * The notice kinds are format-neutral because the contract is: an export ALWAYS writes, and notices
+ * only say what the written file does not carry.  That holds identically for CMO3 and MOC3, so both
+ * report through this rather than through parallel types the UI would have to handle twice.  The
+ * [format] is what keeps the report attributable: a reader (the alert's header, a log line) has to
+ * name the file family the findings are about, and no notice carries that on its own.
  *
- * @property List notices The findings, empty for a fully-lowered export.
+ * @property ExportFormat format  The format the export wrote.
+ * @property List         notices The findings, empty for a fully-lowered export.
  */
-data class ExportReport(val notices: List<ExportNotice>) {
+data class ExportReport(val format: ExportFormat, val notices: List<ExportNotice>) {
 	/** True when the export lowered everything with nothing to warn about. */
 	val isEmpty: Boolean get() = notices.isEmpty()
 }

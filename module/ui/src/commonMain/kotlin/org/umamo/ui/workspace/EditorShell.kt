@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.ui.action.CommandPalette
@@ -504,10 +505,16 @@ fun EditorShell(
 }
 
 /**
- * Builds the export-report alert's text: the localized header, then one line per notice.  The
- * unsupported-change lines carry the exporter's diagnostic text verbatim (dynamic per-edit data,
- * like a log line); every other notice kind is localized from its structured fields - the affected
- * drawable names, the missing page count, or the stripped feature and the entities that carried it.
+ * Builds the export-report alert's text: the localized header, then one line per notice.
+ *
+ * Every line is localized from the notice's structured fields - the entity category, the reason and
+ * whatever it carries, the affected drawable names, the missing page count, or the stripped feature
+ * and the entities that carried it.  The only text passed through verbatim is document data: an
+ * entity's own id, which is format-level and must never be translated.
+ *
+ * The header names the format the export actually wrote, from the report's own discriminator - a
+ * notice reads identically for either format, so nothing else in the alert says which file the
+ * rigger is being told about.
  *
  * @param ExportReport report The export's advisory report.
  * @return String The multiline alert text.
@@ -515,11 +522,28 @@ fun EditorShell(
 @Composable
 private fun exportReportMessage(report: ExportReport): String {
 	val lines = ArrayList<String>(report.notices.size + 1)
-	lines.add(stringResource(Res.string.export_report_message))
+	lines.add(
+		stringResource(
+			when (report.format) {
+				ExportFormat.Cmo3 -> Res.string.export_report_message_cmo3
+				ExportFormat.Moc3 -> Res.string.export_report_message_moc3
+			},
+		),
+	)
 	for (notice in report.notices) {
 		when (notice) {
-			is ExportNotice.UnsupportedChange ->
-				lines.add("• [${notice.category}] ${notice.subject}: ${notice.detail}")
+			is ExportNotice.UnsupportedChange -> {
+				val categoryLabel = stringResource(exportEntityCategoryLabelRes(notice.category))
+				val reasonText = exportNoticePhraseText(exportNoticeReasonPhrase(notice.reason))
+				// A document-level finding has no entity to name; its reason names the field instead.
+				lines.add(
+					if (notice.subject == null) {
+						"• [$categoryLabel] $reasonText"
+					} else {
+						"• [$categoryLabel] ${notice.subject}: $reasonText"
+					},
+				)
+			}
 
 			is ExportNotice.WeldDivergence ->
 				lines.add("• " + stringResource(Res.string.export_weld_divergence, notice.drawableNames.joinToString()))

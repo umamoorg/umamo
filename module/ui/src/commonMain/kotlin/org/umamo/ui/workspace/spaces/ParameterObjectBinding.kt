@@ -197,7 +197,7 @@ private fun Deformer.blendShapeDrivers(): List<ParameterId> =
 		is Deformer.Rotation -> blendShapes.map { binding -> binding.parameterId }
 	}
 
-/** Every drawable id under [part]'s organisational subtree, descending into sub-parts. */
+/** Every drawable id under [part]'s organizational subtree, descending into sub-parts. */
 private fun collectPartDrawables(part: Part, partById: Map<PartId, Part>): List<DrawableId> {
 	val result = ArrayList<DrawableId>()
 

@@ -128,7 +128,7 @@ public enum class Section(
 	 */
 	DEFORMER_IS_ENABLED(ElementType.I32, Sizing.PER_DEFORMER, 14, 14, 14, 14, 14, 14),
 
-	/** Per-deformer owning part (the organisational tree), -1 at the root. */
+	/** Per-deformer owning part (the organizational tree), -1 at the root. */
 	DEFORMER_PARENT_PART(ElementType.I32, Sizing.PER_DEFORMER, 15, 15, 15, 15, 15, 15),
 	DEFORMER_PARENT(ElementType.I32, Sizing.PER_DEFORMER, 16, 16, 16, 16, 16, 16),
 	DEFORMER_TYPE(ElementType.I32, Sizing.PER_DEFORMER, 17, 17, 17, 17, 17, 17),
@@ -221,7 +221,7 @@ public enum class Section(
 	 */
 	ARTMESH_IS_ENABLED(ElementType.I32, Sizing.PER_DRAWABLE, 38, 38, 38, 38, 38, 38),
 
-	/** Per-drawable owning part (the organisational tree), -1 at the root. */
+	/** Per-drawable owning part (the organizational tree), -1 at the root. */
 	ARTMESH_PARENT_PART(ElementType.I32, Sizing.PER_DRAWABLE, 39, 39, 39, 39, 39, 39),
 
 	/** Per-drawable texture (atlas page) index. */
@@ -366,7 +366,7 @@ public enum class Section(
 	PART_VISIBLE_ARTMESHES(ElementType.I32, Sizing.PER_PART, 7, 7, 7, 7, 7, 7),
 	PART_VISIBLE_DEFORMERS(ElementType.I32, Sizing.PER_PART, 8, 8, 8, 8, 8, 8),
 
-	/** Per-part parent in the organisational tree, -1 at the root. */
+	/** Per-part parent in the organizational tree, -1 at the root. */
 	PART_PARENT(ElementType.I32, Sizing.PER_PART, 9, 9, 9, 9, 9, 9),
 	PART_DRAW_ORDER(ElementType.F32, Sizing.TABLE, 58, 58, 58, 58, 58, 58),
 

@@ -13,7 +13,7 @@ import org.umamo.runtime.model.FormChannel
  */
 
 /**
- * The render channels an object's grid should bundle, gated on whether the version carries colours.
+ * The render channels an object's grid should bundle, gated on whether the version carries colors.
  *
  * @param Boolean colorsEnabled Whether the target version has color tables.
  * @return Array<FormChannel> The channels to bundle.
@@ -28,7 +28,7 @@ internal fun renderChannels(colorsEnabled: Boolean): Array<FormChannel> =
 /**
  * The static fallbacks for [renderChannels].
  *
- * Colours are omitted entirely below moc 4 rather than defaulted, so the bundle never manufactures a
+ * Colors are omitted entirely below moc 4 rather than defaulted, so the bundle never manufactures a
  * color cell the version has nowhere to store.
  *
  * @param Float    opacity       The owner's static opacity.
@@ -54,7 +54,7 @@ internal fun renderStatics(
 	}
 
 /** A geometry interpolator for owners that have no geometry at all (parts, glues). */
-internal object UnitInterpolator : org.umamo.runtime.keyform.FormInterpolator<Unit> {
+internal object UnitInterpolator : FormInterpolator<Unit> {
 	override fun interpolate(lower: Unit, upper: Unit, fraction: Float) = Unit
 
 	override fun isExactlyEqual(left: Unit, right: Unit): Boolean = true

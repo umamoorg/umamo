@@ -4,6 +4,8 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.RotationKeyform
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.format.moc3.model.WarpKeyform
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.moc3.convertPointsToMoc
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
@@ -23,12 +25,14 @@ import org.umamo.format.moc3.model.Deformer as MocDeformer
  *
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every deformer claims a binding index here.
- * @param Moc3ExportNotices noticeSink Appended to: id truncations, demotions, unrepresentable grids.
+ * @param Moc3ExportIds     ids        Claimed from: each deformer's written id.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions and unrepresentable grids.
  * @return List<MocDeformer> The records, in plan order.
  */
 internal fun lowerDeformers(
 	context: Moc3ExportContext,
 	pool: Moc3KeyformPool,
+	ids: Moc3ExportIds,
 	noticeSink: Moc3ExportNotices,
 ): List<MocDeformer> {
 	val plan = context.plan
@@ -52,14 +56,12 @@ internal fun lowerDeformers(
 						),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions("deformer", deformer.id.raw, keyforms)
+				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
 				if (keyforms == null) {
 					noticeSink.unsupported(
-						"deformer",
+						ExportEntityCategory.Deformer,
 						deformer.id.raw,
-						"a warp deformer with no control-point grid has no lattice to write; one empty " +
-							"lattice was written in its place so the file stays readable, and everything " +
-							"bound to this deformer collapses to the origin",
+						ExportNoticeReason.WarpDeformerHasNoLattice,
 					)
 				}
 				val bundle = keyforms?.bundle
@@ -74,7 +76,7 @@ internal fun lowerDeformers(
 				// arithmetic, and a short array would desynchronize every warp block after it.
 				val controlPointFloats = (deformer.rows + 1) * (deformer.columns + 1) * 2
 				WarpDeformer(
-					id = noticeSink.mocId("deformer", deformer.id.raw),
+					id = ids.deformerId(deformer.id),
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 					isVisible = deformer.isVisible,
 					isEnabled = deformer.isEnabled,
@@ -118,13 +120,12 @@ internal fun lowerDeformers(
 							),
 						requireGeometry = true,
 					)
-				noticeSink.reportDemotions("deformer", deformer.id.raw, keyforms)
+				noticeSink.reportDemotions(ExportEntityCategory.Deformer, deformer.id.raw, keyforms)
 				if (keyforms == null) {
 					noticeSink.unsupported(
-						"deformer",
+						ExportEntityCategory.Deformer,
 						deformer.id.raw,
-						"a rotation deformer with no pivot grid has no transform to write; the identity " +
-							"transform was written in its place",
+						ExportNoticeReason.RotationDeformerHasNoPivot,
 					)
 				}
 				val bundle = keyforms?.bundle
@@ -136,7 +137,7 @@ internal fun lowerDeformers(
 				val scaleFactor =
 					context.rotationScaleFactorFor(deformer)
 				RotationDeformer(
-					id = noticeSink.mocId("deformer", deformer.id.raw),
+					id = ids.deformerId(deformer.id),
 					keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 					isVisible = deformer.isVisible,
 					isEnabled = deformer.isEnabled,

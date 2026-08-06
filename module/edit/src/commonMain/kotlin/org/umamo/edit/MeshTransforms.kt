@@ -179,7 +179,7 @@ object MeshTransforms {
 	 * @param FloatArray positions The interleaved mesh positions.
 	 * @param Set<Int> indices The selected vertex indices.
 	 * @param Float radians The rotation angle in radians.
-	 * @param Float pivotX The pivot x (the rotation centre).
+	 * @param Float pivotX The pivot x (the rotation center).
 	 * @param Float pivotY The pivot y.
 	 * @return FloatArray A new positions array with the selected vertices rotated.
 	 */
@@ -249,7 +249,7 @@ object MeshTransforms {
 	 * @param FloatArray positions The interleaved mesh positions.
 	 * @param Map<Int, Float> weights Vertex index to influence weight in [0, 1].
 	 * @param Float radians The full rotation angle in radians (each vertex turns weight x this).
-	 * @param Float pivotX The pivot x (the rotation centre).
+	 * @param Float pivotX The pivot x (the rotation center).
 	 * @param Float pivotY The pivot y.
 	 * @return FloatArray A new positions array with the weighted vertices rotated.
 	 */

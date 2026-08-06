@@ -61,7 +61,7 @@ class DrawableThumbnailerTest {
 			geometryGrid = null,
 		)
 
-	/** A flat model: every [drawables] entry sits at the organisational root (no owning part). */
+	/** A flat model: every [drawables] entry sits at the organizational root (no owning part). */
 	private fun flatModel(drawables: List<Drawable>): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),

@@ -12,6 +12,7 @@ import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportReport
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -227,7 +228,7 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theExportReportAlertTakesEscapeOrEnter() {
-		val overlays = ShellOverlayState().apply { exportReport = ExportReport(emptyList()) }
+		val overlays = ShellOverlayState().apply { exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(escape(state))
