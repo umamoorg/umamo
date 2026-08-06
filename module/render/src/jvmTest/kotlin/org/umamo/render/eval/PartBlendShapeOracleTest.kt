@@ -4,7 +4,7 @@ import org.junit.Assume
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
 import java.io.File
 import kotlin.test.Test

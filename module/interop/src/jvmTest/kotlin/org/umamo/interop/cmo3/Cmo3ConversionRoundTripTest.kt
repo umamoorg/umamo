@@ -8,7 +8,7 @@ import org.umamo.interop.DocumentField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
-import org.umamo.interop.moc3.Moc3Import
+import org.umamo.interop.moc3.import.Moc3Import
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test

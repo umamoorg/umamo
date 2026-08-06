@@ -2,6 +2,7 @@ package org.umamo.interop.moc3
 
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.moc3.export.Moc3VersionDowngrade
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding

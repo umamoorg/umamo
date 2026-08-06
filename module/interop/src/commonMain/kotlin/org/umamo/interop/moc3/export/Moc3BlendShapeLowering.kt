@@ -1,4 +1,4 @@
-package org.umamo.interop.moc3
+package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.model.ArtMeshKeyform
 import org.umamo.format.moc3.model.BlendShape
@@ -8,6 +8,9 @@ import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationKeyform
 import org.umamo.format.moc3.model.WarpKeyform
+import org.umamo.interop.moc3.MocCanvasMapping
+import org.umamo.interop.moc3.PointSpace
+import org.umamo.interop.moc3.convertDeltasToMoc
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
 import org.umamo.runtime.eval.rotationFormAt
@@ -44,9 +47,6 @@ import org.umamo.runtime.model.WarpForm
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
-
-/** Where a blend record's owner sits, so the lowering can name it by kind-local index. */
-internal class BlendOwner(val target: BlendShapeTarget, val localIndex: Int)
 
 /**
  * Builds every blend-shape record for the document.
