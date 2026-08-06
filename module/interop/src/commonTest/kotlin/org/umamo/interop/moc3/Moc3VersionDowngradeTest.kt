@@ -206,7 +206,7 @@ class Moc3VersionDowngradeTest {
 	@Test
 	fun eachTargetStripsOnlyWhatItsVersionPredates() {
 		val original = kitchenSink()
-		// 5.0 keeps blend shapes and colour, and loses only the two 5.3 features in use.
+		// 5.0 keeps blend shapes and color, and loses only the two 5.3 features in use.
 		val toFiveZero = Moc3VersionDowngrade.strip(original, MocVersion.V50)
 		assertEquals(
 			setOf(RuntimeFeature.ExtendedBlendModes, RuntimeFeature.PartComposite),
@@ -220,7 +220,7 @@ class Moc3VersionDowngradeTest {
 		assertEquals(
 			ColorRgb(0.5f, 0.5f, 0.5f),
 			(toFiveZero.puppet.deformers.first { it is Deformer.Warp } as Deformer.Warp).multiplyColor,
-			"5.0 carries deformer colour",
+			"5.0 carries deformer color",
 		)
 
 		// 4.2 additionally loses the rotation-target blend record, but keeps the mesh and warp ones.

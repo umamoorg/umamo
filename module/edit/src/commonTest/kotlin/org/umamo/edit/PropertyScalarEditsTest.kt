@@ -206,9 +206,9 @@ class PropertyScalarEditsTest {
 	 * The 5.3 per-art-mesh tint is now a STATIC channel value, so the builders write one field instead of
 	 * rewriting every keyform cell.
 	 *
-	 * That is the point of the split: the old builder flattened any authored per-keyform colour animation
+	 * That is the point of the split: the old builder flattened any authored per-keyform color animation
 	 * and, by replacing the grid, tripped the renderer's identity check into re-uploading geometry for a
-	 * colour change.  Neither is possible now - the colour never touches the geometry grid.
+	 * color change.  Neither is possible now - the color never touches the geometry grid.
 	 */
 	@Test
 	fun drawableColorBuildersWriteTheStaticAndNoOp() {
@@ -216,11 +216,11 @@ class PropertyScalarEditsTest {
 		val red = ColorRgb(1f, 0f, 0f)
 
 		val tinted = base.withDrawableMultiplyColor(drawableId, red)
-		assertEquals(red, tinted.drawables.first().multiplyColor, "the static multiply colour is set")
+		assertEquals(red, tinted.drawables.first().multiplyColor, "the static multiply color is set")
 		assertSame(
 			base.drawables.first().geometryGrid,
 			tinted.drawables.first().geometryGrid,
-			"a colour edit leaves the geometry grid untouched by identity, so no re-upload is triggered",
+			"a color edit leaves the geometry grid untouched by identity, so no re-upload is triggered",
 		)
 
 		// Already-set and missing-id are no-ops (same instance).

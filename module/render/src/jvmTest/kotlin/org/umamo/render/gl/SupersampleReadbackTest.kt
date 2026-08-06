@@ -1,10 +1,7 @@
 package org.umamo.render.gl
 
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.SupersampledSurface
 import kotlin.test.Test
@@ -35,66 +32,60 @@ class SupersampleReadbackTest {
 
 	@Test
 	fun resolveDownscalesAndAsyncReadbackMatchesSync() {
-		val window = createHeadlessGl()
-		assumeGlContext("[supersample-readback]", window)
-		try {
-			val device = GlRenderDevice()
-			val surface = SupersampledSurface(device, scale)
-			val drawTarget = surface.ensure(displaySize, displaySize) as GlRenderTarget
-			assertEquals(displaySize * scale, drawTarget.width, "the draw target is supersampled")
+		requireHeadlessGl("[supersample-readback]")
+		val device = GlRenderDevice()
+		val surface = SupersampledSurface(device, scale)
+		val drawTarget = surface.ensure(displaySize, displaySize) as GlRenderTarget
+		assertEquals(displaySize * scale, drawTarget.width, "the draw target is supersampled")
 
-			paintHalves(drawTarget, displaySize * scale, displaySize * scale)
-			surface.resolve()
+		paintHalves(drawTarget, displaySize * scale, displaySize * scale)
+		surface.resolve()
 
-			// Sync read of the resolve target: display-sized, top row red - the downscale kept regions in
-			// place and the read-back honoured the top-first contract.
-			val sync = device.readPixels(surface.resolveTarget)
-			assertEquals(displaySize, sync.width)
-			assertEquals(displaySize, sync.height)
-			assertPixel(sync, row = 0, expectedRed = 255, expectedGreen = 0, note = "top row is the red half")
-			assertPixel(sync, row = displaySize - 1, expectedRed = 0, expectedGreen = 255, note = "bottom row is the green half")
+		// Sync read of the resolve target: display-sized, top row red - the downscale kept regions in
+		// place and the read-back honoured the top-first contract.
+		val sync = device.readPixels(surface.resolveTarget)
+		assertEquals(displaySize, sync.width)
+		assertEquals(displaySize, sync.height)
+		assertPixel(sync, row = 0, expectedRed = 255, expectedGreen = 0, note = "top row is the red half")
+		assertPixel(sync, row = displaySize - 1, expectedRed = 0, expectedGreen = 255, note = "bottom row is the green half")
 
-			// Async: two tickets in flight at once, collected in submission order, byte-identical to sync.
-			val firstTicket = device.beginReadback(surface.resolveTarget)
-			val secondTicket = device.beginReadback(surface.resolveTarget)
-			val first = awaitReadback(device, firstTicket)
-			val second = awaitReadback(device, secondTicket)
-			assertContentEquals(sync.rgba, first.rgba, "the async read-back returns the same pixels as the sync one")
-			assertContentEquals(sync.rgba, second.rgba, "a second in-flight ticket delivers too")
+		// Async: two tickets in flight at once, collected in submission order, byte-identical to sync.
+		val firstTicket = device.beginReadback(surface.resolveTarget)
+		val secondTicket = device.beginReadback(surface.resolveTarget)
+		val first = awaitReadback(device, firstTicket)
+		val second = awaitReadback(device, secondTicket)
+		assertContentEquals(sync.rgba, first.rgba, "the async read-back returns the same pixels as the sync one")
+		assertContentEquals(sync.rgba, second.rgba, "a second in-flight ticket delivers too")
 
-			// A completed poll consumes the ticket EXACTLY ONCE, at the fence-signal: re-polling a finished
-			// ticket must trip the spent check, not silently re-map a recycled PBO. This pins the ordering
-			// fix - the ticket is marked spent the moment the fence signals, before the map, so there is no
-			// window in which a consumed ticket reads as still-in-flight and gets re-polled.
-			assertFailsWith<IllegalStateException>("re-polling a consumed ticket is a spent-check trip") {
-				device.pollReadback(firstTicket)
-			}
-
-			// Grow-only: a smaller ensure keeps the high-water allocation (the SAME target instances)
-			// and just narrows the used region; the render, resolve, and read-back all confine
-			// themselves to it.
-			val halfSize = displaySize / 2
-			val shrunk = surface.ensure(halfSize, halfSize) as GlRenderTarget
-			assertSame(drawTarget, shrunk, "a smaller ensure never reallocates the draw target")
-			assertEquals(displaySize * scale, shrunk.width, "the draw target keeps its high-water allocation")
-			assertEquals(displaySize, (surface.resolveTarget as GlRenderTarget).width, "the resolve target keeps its allocation too")
-			assertEquals(halfSize, surface.usedWidth, "the used region follows the request")
-			assertEquals(halfSize, surface.usedHeight)
-
-			paintHalves(shrunk, halfSize * scale, halfSize * scale)
-			surface.resolve()
-			val small = device.readPixels(surface.resolveTarget, halfSize, halfSize)
-			assertEquals(halfSize, small.width)
-			assertEquals(halfSize, small.height)
-			assertPixel(small, row = 0, expectedRed = 255, expectedGreen = 0, note = "used-region top row is red after the shrink")
-			assertPixel(small, row = halfSize - 1, expectedRed = 0, expectedGreen = 255, note = "used-region bottom row is green after the shrink")
-			val smallTicket = device.beginReadback(surface.resolveTarget, halfSize, halfSize)
-			assertContentEquals(small.rgba, awaitReadback(device, smallTicket).rgba, "the used-region async read-back matches the sync one")
-			surface.dispose()
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
+		// A completed poll consumes the ticket EXACTLY ONCE, at the fence-signal: re-polling a finished
+		// ticket must trip the spent check, not silently re-map a recycled PBO. This pins the ordering
+		// fix - the ticket is marked spent the moment the fence signals, before the map, so there is no
+		// window in which a consumed ticket reads as still-in-flight and gets re-polled.
+		assertFailsWith<IllegalStateException>("re-polling a consumed ticket is a spent-check trip") {
+			device.pollReadback(firstTicket)
 		}
+
+		// Grow-only: a smaller ensure keeps the high-water allocation (the SAME target instances)
+		// and just narrows the used region; the render, resolve, and read-back all confine
+		// themselves to it.
+		val halfSize = displaySize / 2
+		val shrunk = surface.ensure(halfSize, halfSize) as GlRenderTarget
+		assertSame(drawTarget, shrunk, "a smaller ensure never reallocates the draw target")
+		assertEquals(displaySize * scale, shrunk.width, "the draw target keeps its high-water allocation")
+		assertEquals(displaySize, (surface.resolveTarget as GlRenderTarget).width, "the resolve target keeps its allocation too")
+		assertEquals(halfSize, surface.usedWidth, "the used region follows the request")
+		assertEquals(halfSize, surface.usedHeight)
+
+		paintHalves(shrunk, halfSize * scale, halfSize * scale)
+		surface.resolve()
+		val small = device.readPixels(surface.resolveTarget, halfSize, halfSize)
+		assertEquals(halfSize, small.width)
+		assertEquals(halfSize, small.height)
+		assertPixel(small, row = 0, expectedRed = 255, expectedGreen = 0, note = "used-region top row is red after the shrink")
+		assertPixel(small, row = halfSize - 1, expectedRed = 0, expectedGreen = 255, note = "used-region bottom row is green after the shrink")
+		val smallTicket = device.beginReadback(surface.resolveTarget, halfSize, halfSize)
+		assertContentEquals(small.rgba, awaitReadback(device, smallTicket).rgba, "the used-region async read-back matches the sync one")
+		surface.dispose()
 	}
 
 	/** Polls [ticket] to completion, bounded so a wedged fence fails the test instead of hanging it. */
@@ -135,25 +126,5 @@ class SupersampleReadbackTest {
 		val green = image.rgba[at + 1].toInt() and 0xFF
 		assertNotNull(image.rgba, note)
 		assertTrue(red == expectedRed && green == expectedGreen, "$note: got rgb($red, $green, _) at row $row")
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-supersample-readback", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

@@ -149,7 +149,7 @@ internal class MeshBlendState(
 	val referenceDeltas: FloatArray?,
 	val referenceDrawOrder: Float,
 	val referenceOpacity: Float,
-	// Default to the channel identities: a drawable with no colour tables has no reference to subtract,
+	// Default to the channel identities: a drawable with no color tables has no reference to subtract,
 	// and the identities make the subtraction a no-op rather than a shift.
 	val referenceMultiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 	val referenceScreenColor: ColorRgb = ColorRgb.ScreenIdentity,

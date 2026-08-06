@@ -93,13 +93,13 @@ class Moc3RestMeshTest {
 			channels[channel]!!.cells.map { cell -> (cell.form as ChannelValue.Color).color }
 		assertEquals(listOf(400f, 600f), scalars(FormChannel.DRAW_ORDER))
 		assertEquals(listOf(0.25f, 0.75f), scalars(FormChannel.OPACITY))
-		assertEquals(listOf(blueMultiply, blueMultiply), colors(FormChannel.MULTIPLY_COLOR), "keyform multiply colour must survive the rebase")
-		assertEquals(listOf(warmScreen, warmScreen), colors(FormChannel.SCREEN_COLOR), "keyform screen colour must survive the rebase")
+		assertEquals(listOf(blueMultiply, blueMultiply), colors(FormChannel.MULTIPLY_COLOR), "keyform multiply color must survive the rebase")
+		assertEquals(listOf(warmScreen, warmScreen), colors(FormChannel.SCREEN_COLOR), "keyform screen color must survive the rebase")
 		val blendForm = drawable.blendShapes.single().forms[1]!!
 		assertEquals(500f, blendForm.drawOrder)
 		assertEquals(0.5f, blendForm.opacity)
-		assertEquals(blueMultiply, blendForm.multiplyColor, "blend-shape multiply colour must survive the rebase")
-		assertEquals(warmScreen, blendForm.screenColor, "blend-shape screen colour must survive the rebase")
+		assertEquals(blueMultiply, blendForm.multiplyColor, "blend-shape multiply color must survive the rebase")
+		assertEquals(warmScreen, blendForm.screenColor, "blend-shape screen color must survive the rebase")
 	}
 
 	@Test

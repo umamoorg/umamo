@@ -1,11 +1,8 @@
 package org.umamo.render.gl
 
 import org.lwjgl.BufferUtils
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
-import org.lwjgl.system.MemoryUtil
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -70,40 +67,34 @@ class WorldAxisLinesTest {
 
 	@Test
 	fun axisLinesDrawOnlyWhenEnabled() {
-		val window = createHeadlessGl()
-		assumeGlContext("[world-axis-lines]", window)
-		try {
-			val device = GlRenderDevice()
-			val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
-			renderer.initGl()
-			// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
-			val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-			val framebuffer = (target as GlRenderTarget).framebuffer
-			// A fixed 1:1 camera centered on the world origin: the axes must cross at the viewport center.
-			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
-			renderer.setPose(emptyMap())
+		requireHeadlessGl("[world-axis-lines]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		// Device-owned target; the raw fbo id is read for this test's own bottom-up glReadPixels.
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		// A fixed 1:1 camera centered on the world origin: the axes must cross at the viewport center.
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		renderer.setPose(emptyMap())
 
-			// Default: axes off - the frame must contain no axis-colored pixels (render-diff tests rely on this).
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val framePlain = readPixels(viewportSize, viewportSize)
-			assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
-			assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
+		// Default: axes off - the frame must contain no axis-colored pixels (render-diff tests rely on this).
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val framePlain = readPixels(viewportSize, viewportSize)
+		assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
+		assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
 
-			// Enabled: a red row and a blue column cross at the center.
-			renderer.setWorldAxesVisible(true)
-			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-			renderer.render(target, viewportSize, viewportSize)
-			val frameAxes = readPixels(viewportSize, viewportSize)
-			val redRun = maxRedRunInCenterRows(frameAxes)
-			val blueRun = maxBlueRunInCenterColumns(frameAxes)
-			println("[world-axis-lines] redRun=$redRun blueRun=$blueRun (viewport $viewportSize)")
-			assertTrue(redRun > viewportSize / 2, "the X axis row spans the viewport (got $redRun red pixels)")
-			assertTrue(blueRun > viewportSize / 2, "the Z axis column spans the viewport (got $blueRun blue pixels)")
-		} finally {
-			GLFW.glfwDestroyWindow(window)
-			GLFW.glfwTerminate()
-		}
+		// Enabled: a red row and a blue column cross at the center.
+		renderer.setWorldAxesVisible(true)
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val frameAxes = readPixels(viewportSize, viewportSize)
+		val redRun = maxRedRunInCenterRows(frameAxes)
+		val blueRun = maxBlueRunInCenterColumns(frameAxes)
+		println("[world-axis-lines] redRun=$redRun blueRun=$blueRun (viewport $viewportSize)")
+		assertTrue(redRun > viewportSize / 2, "the X axis row spans the viewport (got $redRun red pixels)")
+		assertTrue(blueRun > viewportSize / 2, "the Z axis column spans the viewport (got $blueRun blue pixels)")
 	}
 
 	/** Counts red-dominant pixels per row across the center band and returns the largest row count. */
@@ -159,25 +150,5 @@ class WorldAxisLinesTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates a hidden 1x1 GL 3.3 core window for headless rendering, or 0 if GLFW/GL is unavailable. */
-	private fun createHeadlessGl(): Long {
-		if (!GLFW.glfwInit()) {
-			return 0L
-		}
-		GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE)
-		GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE)
-		val window = GLFW.glfwCreateWindow(1, 1, "umamo-world-axis-lines", MemoryUtil.NULL, MemoryUtil.NULL)
-		if (window == MemoryUtil.NULL) {
-			GLFW.glfwTerminate()
-			return 0L
-		}
-		GLFW.glfwMakeContextCurrent(window)
-		GL.createCapabilities()
-		return window
 	}
 }

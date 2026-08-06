@@ -63,7 +63,7 @@ internal class BlendOwner(val target: BlendShapeTarget, val localIndex: Int)
  * @param MocCanvasMapping canvas        The canvas mapping, for un-converting positional deltas.
  * @param Function         spaceOf       A drawable/deformer id's stored point space.
  * @param Function         scaleFactorOf The px→model factor for a rotation deformer.
- * @param Boolean          colorsEnabled Whether the target version carries colour tables.
+ * @param Boolean          colorsEnabled Whether the target version carries color tables.
  * @return List<BlendShape> The records, in no particular order (the lowering orders them).
  */
 internal fun lowerBlendShapes(
@@ -82,9 +82,9 @@ internal fun lowerBlendShapes(
 	val records = ArrayList<BlendShape>()
 
 	/**
-	 * The delta of a colour channel against its reference, or null when colours are not written.
+	 * The delta of a color channel against its reference, or null when colours are not written.
 	 *
-	 * @param ColorRgb form      The form's colour (reference + delta).
+	 * @param ColorRgb form      The form's color (reference + delta).
 	 * @param ColorRgb reference The channel's value at the default pose.
 	 * @return Rgb? The stored delta row.
 	 */

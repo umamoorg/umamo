@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * Posed differential validation of PART-target blend-shape records against the runtime.
  *
  * A part's only blendable channel is its draw order, so unlike the drawable and deformer records these
- * carry no geometry and no colour - and their effect is invisible to every other oracle gate, which
+ * carry no geometry and no color - and their effect is invisible to every other oracle gate, which
  * compares positions and per-drawable channels.  What a part draw-order delta actually moves is the
  * SORT: a grouped part's whole subtree changes places among its siblings.  So this gate compares the
  * core's post-update render order (`csmGetDrawableRenderOrders`) against ours.
