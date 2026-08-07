@@ -89,6 +89,9 @@ internal class Cmo3StructureLowering(
 			mutable.add(element)
 			return
 		}
+		// Every field this helper serves (_sources, _groups, _childGuids) is carray_list in every
+		// corpus model; the official editor's deserializers cast such fields to CArrayList, so an
+		// array_list tag fails its load.
 		val fresh: MutableList<Any?> = CArrayList()
 		fresh.add(element)
 		assign(fresh)

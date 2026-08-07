@@ -1034,6 +1034,21 @@ internal class Cmo3PropertyLowering(
 	 * @param List     newElements    The replacement elements.
 	 * @param Function assign         Assigns a freshly created list to the field.
 	 */
+	/**
+	 * Rewrites a collection field in place, or creates a fresh CArrayList and records its slot.
+	 *
+	 * The fresh list's runtime type decides the serialized tag, and every field this helper
+	 * serves (_childGuids, _sources) is carray_list in every corpus model; the official
+	 * editor's deserializers cast such fields to CArrayList, so array_list fails its load.
+	 *
+	 * @param Any      owner          The graph object owning the collection field.
+	 * @param String   tag            The owner's serial tag for the child-slot record.
+	 * @param String   property       The collection field's name.
+	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
+	 * @param Any?     current        The current field value.
+	 * @param List     newElements    The elements to write.
+	 * @param Function assign         Assigns the fresh list to the field.
+	 */
 	private fun writeListField(
 		owner: Any,
 		tag: String,
