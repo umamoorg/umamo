@@ -15,6 +15,9 @@ import org.umamo.runtime.model.PuppetModel
 import kotlin.math.max
 import kotlin.math.min
 
+/** The warp inverse's neutral seed: the middle of the normalized [0,1] lattice. */
+private const val LATTICE_CENTRE: Float = 0.5f
+
 /**
  * Rewrites each drawable's rest mesh to its default-pose canvas-space geometry, matching the CMO3
  * convention the editor is built on.
@@ -207,9 +210,6 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> Flo
 		}
 	}
 }
-
-/** The warp inverse's neutral seed: the middle of the normalized [0,1] lattice. */
-private const val LATTICE_CENTRE: Float = 0.5f
 
 /**
  * The clamped evaluation pose for drawables hidden at the raw default: every parameter driving a

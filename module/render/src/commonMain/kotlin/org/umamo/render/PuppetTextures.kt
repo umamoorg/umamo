@@ -139,10 +139,10 @@ fun encodeAtlasPng(atlas: DecodedImage): ByteArray =
 /**
  * [puppet] with every drawable's atlas page taken from [textures].
  *
- * A moc addresses its pages by index on the art mesh, so the export needs one on every drawable.  A
+ * A MOC3 addresses its pages by index on the art mesh, so the export needs one on every drawable.  A
  * MOC3-origin document already carries them (the import reads them straight off the art mesh), but a
  * CMO3 has no page index at all - its pixels are embedded per drawable - so those documents reach the
- * export with every drawable still on the -1 sentinel, which the moc lowering clamps to page 0,
+ * export with every drawable still on the -1 sentinel, which the MOC3 lowering clamps to page 0,
  * pointing a multi-page rig at one atlas.  The decoded texture set is what knows the answer either
  * way, so it is the one asked.
  *

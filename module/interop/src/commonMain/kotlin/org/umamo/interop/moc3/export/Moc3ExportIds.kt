@@ -19,7 +19,7 @@ import org.umamo.runtime.model.PartId
  * is a reachable path rather than a theoretical one.
  *
  * Shortening is also what MINTS DUPLICATES: two names that differ only past the 63rd byte truncate to
- * the same string.  A moc addresses nothing by id, so the file itself takes the duplicate without
+ * the same string.  A MOC3 addresses nothing by id, so the file itself takes the duplicate without
  * complaint and the loss surfaces only on the way back, where a re-import merges the two objects into
  * one - one mesh's masks, part membership, and keyforms landing on the other.  So a shortened id is
  * disambiguated here rather than reported and left colliding.
