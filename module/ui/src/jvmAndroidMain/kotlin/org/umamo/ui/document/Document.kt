@@ -47,16 +47,11 @@ sealed interface PuppetDocument : Document {
 }
 
 /**
+ * This function exists because I managed to somehow export a CMO3 with the puppet model of a previously opened file.
+ * So if this ever happens again we will have logged proof it that someone can report.
+ *
  * The model an export should write for [document]: the session's edited model when [session] belongs
  * to this document, else the document's own unedited puppet.
- *
- * The session's CURRENT model is what a rigger means by "export" - the document's own puppet is the
- * original import and never sees edits.  But the session must be THIS document's: one from a stale
- * composition pass would export the PREVIOUS document's rig onto this document's atlas pages,
- * surfacing as a wall of drawable notices plus the wrong hierarchy in the output.  A mismatched
- * session is dropped rather than trusted - exporting the unedited document is recoverable, exporting
- * another model's rig is not.  Ownership is identity on the baseline, not equality: two documents can
- * hold equal models and still be different documents.
  *
  * @param PuppetDocument  document The document being exported.
  * @param EditorSession?  session  The shell's current session, if any.
