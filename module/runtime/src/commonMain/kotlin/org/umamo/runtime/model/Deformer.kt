@@ -56,6 +56,11 @@ sealed interface Deformer {
 	 * It is 1 on every deformer of every corpus model, so its meaning is unpinned - it is NOT the
 	 * visibility toggle ([isVisible] is, by analogy with the art-mesh pair that a CMO3 join proved).
 	 * Nothing reads it; it exists so the value survives a round trip instead of being invented.
+	 *
+	 * The one field here that is pure format carriage rather than a property of the rig, so it belongs
+	 * on a document-level side table rather than in the runtime model - and it moves there together with
+	 * [PuppetModel.pixelsPerUnit], the other bake-only value, once that table exists.  Pinning its
+	 * meaning would resolve this the other way instead, by making it a real property.
 	 */
 	val isEnabled: Boolean
 

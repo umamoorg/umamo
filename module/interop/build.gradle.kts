@@ -59,6 +59,9 @@ kotlin {
 				// TEST-ONLY: the MOC3 conversion round trip mirrors the app's document loader, which
 				// normalizes rest meshes to canvas space through :render's evaluator before export
 				// (production :interop code never depends on :render - siblings over :runtime).
+				// Both halves of that space conversion live in :render's Moc3RestMesh.kt -
+				// restMeshesToCanvasSpace going in, canvasToParentSpaceFor coming back out, the latter
+				// reaching production through the injected CanvasToParentSpace seam.
 				implementation(project(":render"))
 			}
 		}

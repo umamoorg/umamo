@@ -1,6 +1,8 @@
 package org.umamo.render
 
 import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.PuppetModel
 
 /** A decoded RGBA image (top row first), ready for GL upload. */
 class DecodedImage(val rgba: ByteArray, val width: Int, val height: Int)
@@ -114,4 +116,45 @@ fun buildPuppetTextures(
 		keptIndexBySourceIndex[sourceIndex]?.let { keptIndex -> keptIndexByDrawableId[drawableId] = keptIndex }
 	}
 	return PuppetTextures(atlases, keptIndexByDrawableId, premultipliedAlpha)
+}
+
+/**
+ * Re-encodes a decoded atlas page as PNG, for a document that has no original page bytes.
+ *
+ * Only a CMO3-origin document reaches this: a MOC3-origin one retains the source PNGs and writes those
+ * verbatim, which is both faster and lossless.
+ *
+ * @param DecodedImage atlas The decoded page.
+ * @return ByteArray The PNG bytes.
+ */
+fun encodeAtlasPng(atlas: DecodedImage): ByteArray =
+	PngCodec.write(RasterImage(width = atlas.width, height = atlas.height, rgba = atlas.rgba))
+
+/**
+ * [puppet] with every drawable's atlas page taken from [textures].
+ *
+ * A moc addresses its pages by index on the art mesh, so the export needs one on every drawable.  A
+ * MOC3-origin document already carries them (the import reads them straight off the art mesh), but a
+ * CMO3 has no page index at all - its pixels are embedded per drawable - so those documents reach the
+ * export with every drawable still on the -1 sentinel, which the moc lowering clamps to page 0,
+ * pointing a multi-page rig at one atlas.  The decoded texture set is what knows the answer either
+ * way, so it is the one asked.
+ *
+ * @param PuppetModel    puppet   The rig being exported.
+ * @param PuppetTextures textures The document's decoded atlas set.
+ * @return PuppetModel The rig with its page bindings resolved, or [puppet] when none moved.
+ */
+fun withTexturePagesFrom(puppet: PuppetModel, textures: PuppetTextures): PuppetModel {
+	var moved = false
+	val drawables =
+		puppet.drawables.map { drawable ->
+			val page = textures.atlasIndexByDrawableId[drawable.id.raw] ?: return@map drawable
+			if (page == drawable.texturePage) {
+				drawable
+			} else {
+				moved = true
+				drawable.copy(texturePage = page)
+			}
+		}
+	return if (moved) puppet.copy(drawables = drawables) else puppet
 }

@@ -1,6 +1,8 @@
 package org.umamo.render
 
 import org.umamo.render.eval.CpuDeformationEvaluator
+import org.umamo.render.eval.DeformedGeometry
+import org.umamo.render.eval.drawableSpaceMapping
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -46,19 +48,8 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 	// Second chance for drawables absent from the raw default pose: clamp every involved parameter
 	// into its axes' key ranges and evaluate once more.  Only the still-missing drawables read from
 	// this pose, so in-range drawables keep their true default geometry.
-	// No keyforms != null gate: an unkeyed drawable now evaluates at its rest mesh rather than being
-	// skipped, so if one is still absent from the default pose it is genuinely hidden (a hidden ancestor
-	// deformer) and deserves the same clamped second chance as any other.
-	val hiddenAtDefault =
-		model.drawables.filter { drawable ->
-			drawable.mesh != null && defaultPose.worldPositions[drawable.id] == null
-		}.map { drawable -> drawable.id }
-	val clampedPose =
-		if (hiddenAtDefault.isEmpty()) {
-			null
-		} else {
-			evaluator.evaluate(preGlueModel, clampedDefaultsFor(model, hiddenAtDefault))
-		}
+	val fallback = defaultPoseFallbackFor(model, defaultPose)
+	val clampedPose = fallback?.let { rescue -> evaluator.evaluate(preGlueModel, rescue.clampedDefaults) }
 
 	val drawables =
 		model.drawables.map { drawable ->
@@ -136,6 +127,89 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 		}
 	return model.copy(drawables = drawables)
 }
+
+/**
+ * The drawables the raw default pose hides, paired with the clamped pose that rescues them.
+ *
+ * @property Set<DrawableId>          hiddenIds       Drawables with a mesh but no default-pose geometry.
+ * @property Map<ParameterId, Float>  clampedDefaults The pose to evaluate those drawables at.
+ */
+private class DefaultPoseFallback(
+	val hiddenIds: Set<DrawableId>,
+	val clampedDefaults: Map<ParameterId, Float>,
+)
+
+/**
+ * Which drawables need the clamped second-chance pose, and what that pose is.
+ *
+ * Both directions of the canvas-space conversion ask this, and they MUST agree: the forward pass maps
+ * such a drawable through the clamped pose, so an export that inverted it through the raw default
+ * would be undoing a transform that was never applied.
+ *
+ * No `keyforms != null` gate: an unkeyed drawable evaluates at its rest mesh rather than being skipped,
+ * so one still absent from the default pose is genuinely hidden (a hidden ancestor deformer) and
+ * deserves the same second chance as any other.
+ *
+ * @param PuppetModel      model       The model being converted.
+ * @param DeformedGeometry defaultPose Its evaluation at the raw default parameters.
+ * @return DefaultPoseFallback? The hidden set and their pose, or null when nothing is hidden.
+ */
+private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeometry): DefaultPoseFallback? {
+	val hiddenAtDefault =
+		model.drawables.filter { drawable ->
+			drawable.mesh != null && defaultPose.worldPositions[drawable.id] == null
+		}.map { drawable -> drawable.id }
+	if (hiddenAtDefault.isEmpty()) {
+		return null
+	}
+	return DefaultPoseFallback(hiddenAtDefault.toSet(), clampedDefaultsFor(model, hiddenAtDefault))
+}
+
+/**
+ * The export's space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
+ * parent-deformer chain, at the same pose [restMeshesToCanvasSpace] mapped it forward with.
+ *
+ * That pose is the neutral one for most drawables - it is the pose the rest mesh is defined at, so
+ * inverting there is the forward pass read backwards.  A drawable the raw default hides went forward
+ * through the clamped second-chance pose instead, so it is inverted through that same clamped pose;
+ * using the raw default for it would undo a transform that was never applied.
+ *
+ * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which the export
+ * turns into a notice rather than a silently mis-scaled mesh.
+ *
+ * @param PuppetModel puppet The rig being exported.
+ * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space
+ *                   positions, or null when the chain cannot invert.
+ */
+fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> FloatArray? {
+	// Resolved once per export rather than per drawable: the evaluation is the expensive part and the
+	// answer is a property of the model, not of whichever drawable is being written.
+	val preGlueModel = puppet.copy(glues = emptyList())
+	val defaultPose = CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap())
+	val fallback = defaultPoseFallbackFor(puppet, defaultPose)
+
+	return { drawableId, positions ->
+		val pose =
+			if (fallback != null && drawableId in fallback.hiddenIds) {
+				fallback.clampedDefaults
+			} else {
+				emptyMap()
+			}
+		drawableSpaceMapping(puppet, pose, drawableId)?.let { mapping ->
+			// worldToLocal expects the renderer's Y-negated world space, and every vertex is solved.
+			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
+			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas
+			// coordinate: seeding Newton with the canvas-space value starts it hundreds of units outside
+			// the [0,1] lattice, where the damped step cannot walk back.  The lattice center is the
+			// neutral seed - at most half a lattice away from any target, which the damped step covers.
+			val seed = FloatArray(positions.size) { LATTICE_CENTRE }
+			mapping.worldToLocal(world, seed, positions.indices.step(2).map { index -> index / 2 }.toSet())
+		}
+	}
+}
+
+/** The warp inverse's neutral seed: the middle of the normalized [0,1] lattice. */
+private const val LATTICE_CENTRE: Float = 0.5f
 
 /**
  * The clamped evaluation pose for drawables hidden at the raw default: every parameter driving a

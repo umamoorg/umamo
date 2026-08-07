@@ -115,9 +115,8 @@ internal fun buildMoc3Document(
 	mocBytes: ByteArray,
 	readRelative: (String) -> ByteArray?,
 ): DocumentLoad {
-	// Case-insensitive strip: every route here matches the extension case-insensitively (argv) or
-	// not at all (magic-byte detection), so "MODEL.MOC3" must yield basename "MODEL".
-	val basename = if (name.endsWith(".moc3", ignoreCase = true)) name.dropLast(".moc3".length) else name
+	// Shared with the export so import and re-export agree on the family's shape.
+	val basename = Moc3Sidecars.basenameFor(name)
 
 	// model3.json: the manifest that joins the family together. Hard requirement; a manifest that
 	// exists but does not parse is a ParseFailed, not a MissingManifest - the alert must not claim

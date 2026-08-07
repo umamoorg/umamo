@@ -132,7 +132,7 @@ private fun PuppetModel.withChannelGrids(owner: KeyformOwner, channelGrids: Chan
 				glues =
 					glues.map { glue ->
 						if (glue.meshA == owner.meshA && glue.meshB == owner.meshB) {
-							Glue(glue.meshA, glue.meshB, glue.pairs, channelGrids, glue.intensity)
+							glue.copy(channelGrids = channelGrids)
 						} else {
 							glue
 						}

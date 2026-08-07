@@ -4,6 +4,7 @@ import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
@@ -43,6 +44,30 @@ sealed interface PuppetDocument : Document {
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams
+}
+
+/**
+ * The model an export should write for [document]: the session's edited model when [session] belongs
+ * to this document, else the document's own unedited puppet.
+ *
+ * The session's CURRENT model is what a rigger means by "export" - the document's own puppet is the
+ * original import and never sees edits.  But the session must be THIS document's: one from a stale
+ * composition pass would export the PREVIOUS document's rig onto this document's atlas pages,
+ * surfacing as a wall of drawable notices plus the wrong hierarchy in the output.  A mismatched
+ * session is dropped rather than trusted - exporting the unedited document is recoverable, exporting
+ * another model's rig is not.  Ownership is identity on the baseline, not equality: two documents can
+ * hold equal models and still be different documents.
+ *
+ * @param PuppetDocument  document The document being exported.
+ * @param EditorSession?  session  The shell's current session, if any.
+ * @return PuppetModel The model to export.
+ */
+fun exportedModelFor(document: PuppetDocument, session: EditorSession?): PuppetModel {
+	val documentSession = session?.takeIf { candidate -> candidate.baselineModel === document.puppet }
+	if (session != null && documentSession == null) {
+		UmamoLog.error("export: session does not belong to ${document.displayName}; exporting the unedited document")
+	}
+	return documentSession?.model?.value ?: document.puppet
 }
 
 /**

@@ -32,6 +32,27 @@ import org.umamo.runtime.model.PuppetModel
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md § Export</a>
  */
 object Moc3Sidecars {
+	/** The moc extension the family's base name is derived against. */
+	private const val MOC3_EXTENSION: String = ".moc3"
+
+	/**
+	 * The family base name for a moc file called [fileName] - every sibling is named off this.
+	 *
+	 * The strip ignores CASE.  A file spelled `X.MOC3` would otherwise keep its extension in the base
+	 * name, and every generated sibling - the manifest included - would be named after an `X.MOC3.moc3`
+	 * that no write ever produces.  Import and export both derive the name this way, so a re-export
+	 * lands the family in the shape the model already used.
+	 *
+	 * @param String fileName The moc's own file name.
+	 * @return String The base name the rest of the family hangs off.
+	 */
+	fun basenameFor(fileName: String): String =
+		if (fileName.endsWith(MOC3_EXTENSION, ignoreCase = true)) {
+			fileName.dropLast(MOC3_EXTENSION.length)
+		} else {
+			fileName
+		}
+
 	/** The cdi3 schema version the editor writes. */
 	private const val CDI3_VERSION: Int = 3
 
