@@ -39,6 +39,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Glue
 * CMO3
 	* ACParameterControllableSource.isVisible was wired up so now the outliner needs this toggle as well.  Deformer editing is not implemented yet so this is minor.
+	* Refactor interop/cmo3/ in the same way that interop/moc3/ was done.
 * MOC3
 	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
