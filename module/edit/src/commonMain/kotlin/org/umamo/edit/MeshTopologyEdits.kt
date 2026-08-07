@@ -2,7 +2,6 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -168,7 +167,7 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 							GluePair(newIndexA, newIndexB, pair.weightA, pair.weightB)
 						}
 					}
-				Glue(glue.meshA, glue.meshB, remappedPairs, glue.channelGrids, glue.intensity)
+				glue.copy(pairs = remappedPairs)
 			}
 		}
 	return copy(drawables = newDrawables, glues = newGlues)

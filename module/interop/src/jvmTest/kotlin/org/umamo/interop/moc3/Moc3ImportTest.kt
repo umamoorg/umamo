@@ -364,8 +364,7 @@ class Moc3ImportTest {
 	 * @return Cdi3Json? The parsed display info, or null.
 	 */
 	private fun siblingDisplayInfo(mocFile: File): Cdi3Json? {
-		// Case-insensitive strip, matching the document loader's basename rule.
-		val basename = if (mocFile.name.endsWith(".moc3", ignoreCase = true)) mocFile.name.dropLast(".moc3".length) else mocFile.name
+		val basename = Moc3Sidecars.basenameFor(mocFile.name)
 		val cdi3File = mocFile.parentFile.resolve("$basename.cdi3.json")
 		if (!cdi3File.isFile) {
 			return null

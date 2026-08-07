@@ -56,6 +56,8 @@ sealed interface Deformer {
 	 * It is 1 on every deformer of every corpus model, so its meaning is unpinned - it is NOT the
 	 * visibility toggle ([isVisible] is, by analogy with the art-mesh pair that a CMO3 join proved).
 	 * Nothing reads it; it exists so the value survives a round trip instead of being invented.
+	 *
+	 * ONLY MOC3 HAS THIS.  "Enabled" is just a guess as to what it is since it seems to behave like an enabled toggle.
 	 */
 	val isEnabled: Boolean
 

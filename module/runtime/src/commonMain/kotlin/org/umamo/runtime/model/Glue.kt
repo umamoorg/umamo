@@ -46,4 +46,32 @@ class Glue(
 	 * round trip writes back the name the model was authored with instead of a synthesized one.
 	 */
 	val id: String? = null,
-)
+) {
+	/**
+	 * This glue with the given fields replaced, every other one carried over.
+	 *
+	 * Every rewrite goes through here rather than the constructor, so changing one field cannot silently
+	 * drop another - a positional rebuild that stops early resets the rest to their defaults, and [id]
+	 * is the one whose default is indistinguishable from a source that carried none.
+	 *
+	 * Hand-written rather than a `data class` conversion: the generated `equals`/`hashCode` would
+	 * compare [pairs] and the channel grids by reference anyway, so that would buy this one method at
+	 * the cost of a misleading equality contract.
+	 *
+	 * @param DrawableId     meshA         The first welded mesh.
+	 * @param DrawableId     meshB         The second welded mesh.
+	 * @param List<GluePair> pairs         The welded vertex pairs.
+	 * @param ChannelGrids   channelGrids  The keyed channel tracks.
+	 * @param Float          intensity     The static weld strength.
+	 * @param String?        id            The source's authored identifier.
+	 * @return Glue The rewritten glue.
+	 */
+	fun copy(
+		meshA: DrawableId = this.meshA,
+		meshB: DrawableId = this.meshB,
+		pairs: List<GluePair> = this.pairs,
+		channelGrids: ChannelGrids = this.channelGrids,
+		intensity: Float = this.intensity,
+		id: String? = this.id,
+	): Glue = Glue(meshA, meshB, pairs, channelGrids, intensity, id)
+}

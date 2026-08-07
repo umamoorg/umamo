@@ -20,9 +20,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
-import org.umamo.interop.cmo3.Cmo3Conversion
-import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.interop.ExportReport
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
@@ -30,18 +28,16 @@ import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
-import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
-import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
-import org.umamo.ui.document.canvasToParentSpaceFor
-import org.umamo.ui.document.encodeAtlasPng
+import org.umamo.ui.document.exportSuggestedName
+import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.loadDocument
-import org.umamo.ui.document.passThroughSidecars
+import org.umamo.ui.document.prepareCmo3Export
+import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.recentFiles
-import org.umamo.ui.document.withTexturePagesFrom
 import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.applyAppLocale
@@ -223,62 +219,33 @@ fun EditorApp(
 		}
 	}
 
+	// Surfaces an export's report: every notice to the log, and the report itself to the alert the
+	// shell shows.  Both exports end this way - anything unrepresentable is stated, never dropped.
+	fun reportExport(report: ExportReport) {
+		for (notice in report.notices) {
+			UmamoLog.warn("export: ${describeExportNotice(notice)}")
+		}
+		if (!report.isEmpty) {
+			commandRegistry.invoke("document.exportReport", report)
+		}
+	}
+
 	fun exportCmo3(puppetDocument: PuppetDocument) {
 		scope.launch {
-			// Suggest the base name without the source extension (case-insensitive); FileKit
-			// re-appends ".cmo3".
-			val displayName = puppetDocument.displayName
-			val suggestedName =
-				listOf(".cmo3", ".moc3").firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
-					?.let { extension -> displayName.dropLast(extension.length) }
-					?: displayName
-			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
-				// Reconcile the session's CURRENT model - the document's own puppet is the original
-				// import and never sees edits.  The report carries everything the lowering could not
-				// persist; it is surfaced, never silently swallowed.
-				//
-				// The session must be THIS document's: a session from a stale composition pass would
-				// export the PREVIOUS document's rig onto this document's atlas pages, surfacing as a
-				// wall of drawable notices plus the wrong hierarchy in the output.  A mismatched
-				// session is dropped rather than trusted - exporting the unedited document is
-				// recoverable, exporting another model's rig is not.
-				val documentSession = session?.takeIf { it.baselineModel === puppetDocument.puppet }
-				if (session != null && documentSession == null) {
-					UmamoLog.error("export: session does not belong to ${puppetDocument.displayName}; exporting the unedited document")
-				}
-				val edited = documentSession?.model?.value ?: puppetDocument.puppet
-				val (model, report) =
-					when (puppetDocument) {
-						// A CMO3-origin document reconciles onto its retained graph.
-						is Cmo3Document -> puppetDocument.cmo3 to Cmo3Export.apply(edited, puppetDocument.cmo3)
-						// A MOC3-origin document has no retained graph: synthesize a fresh one from
-						// the blank skeleton + the retained atlas pages, then reconcile onto it.
-						is Moc3Document -> {
-							val result =
-								Cmo3Conversion.freshCmo3(
-									puppet = edited,
-									pages =
-										puppetDocument.atlasPages.mapIndexed { pageIndex, pngBytes ->
-											val decoded = puppetDocument.textures.atlases[pageIndex]
-											Cmo3Conversion.AtlasPage(pngBytes, decoded.width, decoded.height)
-										},
-									pageIndexByDrawableId = puppetDocument.textures.atlasIndexByDrawableId,
-									modelName = suggestedName,
-									nowMillis = System.currentTimeMillis(),
-									obfuscateKey = Random.nextInt(),
-								)
-							result.model to result.report
-						}
-					}
-				destination.write(Cmo3.write(model))
+			val suggestedName = exportSuggestedName(puppetDocument.displayName)
+			filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
+				val prepared =
+					prepareCmo3Export(
+						document = puppetDocument,
+						edited = exportedModelFor(puppetDocument, session),
+						modelName = suggestedName,
+						nowMillis = System.currentTimeMillis(),
+						obfuscateKey = Random.nextInt(),
+					)
+				destination.write(Cmo3.write(prepared.model))
 				// True export semantics: an export is not a save, so the dirty baseline stays put - the
 				// modified marker clears only once UMA Save exists and owns markSaved.
-				for (notice in report.notices) {
-					UmamoLog.warn("export: ${describeExportNotice(notice)}")
-				}
-				if (!report.isEmpty) {
-					commandRegistry.invoke("document.exportReport", report)
-				}
+				reportExport(prepared.report)
 				UmamoLog.info("exported ${destination.absolutePath()}")
 			}
 		}
@@ -286,61 +253,16 @@ fun EditorApp(
 
 	fun exportMoc3(puppetDocument: PuppetDocument) {
 		scope.launch {
-			val displayName = puppetDocument.displayName
-			val suggestedName =
-				listOf(".cmo3", ".moc3").firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
-					?.let { extension -> displayName.dropLast(extension.length) }
-					?: displayName
-			filePicker.saveFile(suggestedName, "moc3")?.let { destination ->
-				val documentSession = session?.takeIf { it.baselineModel === puppetDocument.puppet }
-				if (session != null && documentSession == null) {
-					UmamoLog.error("export: session does not belong to $displayName; exporting the unedited document")
-				}
-				// The page binding comes from the decoded atlas set, not the model: a CMO3-origin document
-				// has no page index of its own (see withTexturePagesFrom).
-				val edited =
-					withTexturePagesFrom(documentSession?.model?.value ?: puppetDocument.puppet, puppetDocument.textures)
-				// FileKit appends the extension, so the destination's own name is the family's base name.
-				// The strip ignores CASE: a destination spelled `.MOC3` would otherwise keep its extension
-				// in the base name, and every generated sibling - the manifest included - would be named
-				// after a `X.MOC3.moc3` that no write ever produces.
-				val destinationName = destination.name
-				val basename =
-					if (destinationName.endsWith(".moc3", ignoreCase = true)) {
-						destinationName.dropLast(".moc3".length)
-					} else {
-						destinationName
-					}
-				val moc3Document = puppetDocument as? Moc3Document
-				// Page names come from the SOURCE manifest when there is one, so a re-export lands the
-				// family in the shape (and the subdirectory) the model already used.  A CMO3-origin
-				// document has no manifest, so its pages are named after the export instead.
-				val pages =
-					puppetDocument.textures.atlases.mapIndexed { pageIndex, atlas ->
-						val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
-						Moc3Sidecars.AtlasPage(
-							fileName = sourceName ?: "$basename.$pageIndex.png",
-							// Verbatim source bytes when the document has them; a CMO3-origin document has
-							// only the decoded RGBA, which has to be re-encoded.
-							bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
-						)
-					}
+			filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
 				val bundle =
-					Moc3Sidecars.bundle(
-						puppet = edited,
-						basename = basename,
-						pages = pages,
-						sidecars = passThroughSidecars(moc3Document),
-						source = moc3Document?.manifest,
-						canvasToParentSpace = canvasToParentSpaceFor(edited),
+					prepareMoc3Export(
+						document = puppetDocument,
+						edited = exportedModelFor(puppetDocument, session),
+						// FileKit appends the extension, so the picked handle's own name is authoritative.
+						destinationName = destination.name,
 					)
 				val written = writeMoc3Bundle(destination, bundle)
-				for (notice in bundle.report.notices) {
-					UmamoLog.warn("export: ${describeExportNotice(notice)}")
-				}
-				if (!bundle.report.isEmpty) {
-					commandRegistry.invoke("document.exportReport", bundle.report)
-				}
+				reportExport(bundle.report)
 				UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
 			}
 		}
@@ -485,8 +407,6 @@ fun EditorApp(
  * are localized here (in composition) and accelerators are resolved from [keymap], so a row shows the
  * same chord the keyboard uses. Item actions call the supplied operations directly, so the menu works
  * regardless of command-registration timing.
- *
- * メニューバーのデータを共有ビルダーから構築する。ラベルはここで翻訳し、アクセラレータはキーマップから解決する。
  *
  * @param Document? document The open document (gates both Export rows).
  * @param List recentFiles The recent file paths for the Open Recent submenu.

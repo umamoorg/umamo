@@ -5,7 +5,6 @@ import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
-import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Part
@@ -162,12 +161,9 @@ fun PuppetModel.withChannelsCompacted(): PuppetModel {
 				if (compacted.constants.isEmpty() && compacted.channelGrids === glue.channelGrids) {
 					glue
 				} else {
-					Glue(
-						glue.meshA,
-						glue.meshB,
-						glue.pairs,
-						compacted.channelGrids,
-						compacted.constants.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
+					glue.copy(
+						channelGrids = compacted.channelGrids,
+						intensity = compacted.constants.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
 					)
 				}
 			},

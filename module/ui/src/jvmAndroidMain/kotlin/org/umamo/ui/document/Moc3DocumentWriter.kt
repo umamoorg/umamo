@@ -5,15 +5,7 @@ import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.write
 import okio.FileSystem
 import okio.Path.Companion.toPath
-import org.umamo.format.png.PngCodec
-import org.umamo.format.raster.RasterImage
 import org.umamo.interop.moc3.Moc3Sidecars
-import org.umamo.interop.moc3.export.CanvasToParentSpace
-import org.umamo.interop.moc3.export.Moc3Export
-import org.umamo.render.DecodedImage
-import org.umamo.render.PuppetTextures
-import org.umamo.render.eval.drawableSpaceMapping
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 
 /*
@@ -81,73 +73,3 @@ suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bund
  */
 fun passThroughSidecars(document: Moc3Document?): List<Moc3Sidecars.PassThroughSidecar> =
 	document?.sidecars.orEmpty()
-
-/**
- * Re-encodes a decoded atlas page as PNG, for a document that has no original page bytes.
- *
- * Only a CMO3-origin document reaches this: a MOC3-origin one retains the source PNGs and writes those
- * verbatim, which is both faster and lossless.
- *
- * @param DecodedImage atlas The decoded page.
- * @return ByteArray The PNG bytes.
- */
-fun encodeAtlasPng(atlas: DecodedImage): ByteArray =
-	PngCodec.write(RasterImage(width = atlas.width, height = atlas.height, rgba = atlas.rgba))
-
-/**
- * The [Moc3Export] space seam for [puppet]: inverts a drawable's canvas-space rest mesh through its
- * parent-deformer chain at the NEUTRAL pose.
- *
- * The neutral pose is the right one because that is the pose the rest mesh is defined at - the import's
- * own canvas-space pass evaluates the default parameters to produce it, so inverting at the same pose
- * is that pass read backwards.  A drawable the chain cannot map (a deformer with no lattice anywhere)
- * returns null, which the export turns into a notice rather than a silently mis-scaled mesh.
- *
- * @param PuppetModel puppet The rig being exported.
- * @return CanvasToParentSpace The seam to hand the export.
- */
-fun canvasToParentSpaceFor(puppet: PuppetModel): CanvasToParentSpace =
-	{ drawableId, positions ->
-		drawableSpaceMapping(puppet, emptyMap(), drawableId)?.let { mapping ->
-			// worldToLocal expects the renderer's Y-negated world space, and every vertex is solved.
-			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
-			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas
-			// coordinate: seeding Newton with the canvas-space value starts it hundreds of units outside
-			// the [0,1] lattice, where the damped step cannot walk back.  The lattice center is the
-			// neutral seed - at most half a lattice away from any target, which the damped step covers.
-			val seed = FloatArray(positions.size) { LATTICE_CENTRE }
-			mapping.worldToLocal(world, seed, positions.indices.step(2).map { index -> index / 2 }.toSet())
-		}
-	}
-
-/** The warp inverse's neutral seed: the middle of the normalized [0,1] lattice. */
-private const val LATTICE_CENTRE: Float = 0.5f
-
-/**
- * [puppet] with every drawable's atlas page taken from [textures].
- *
- * A moc addresses its pages by index on the art mesh, so the export needs one on every drawable.  A
- * MOC3-origin document already carries them (the import reads them straight off the art mesh), but a
- * CMO3 has no page index at all - its pixels are embedded per drawable - so those documents reach the
- * export with every drawable still on the -1 sentinel, which the moc lowering clamps to page 0,
- * pointing a multi-page rig at one atlas.  The decoded texture set is what knows the answer either
- * way, so it is the one asked.
- *
- * @param PuppetModel    puppet   The rig being exported.
- * @param PuppetTextures textures The document's decoded atlas set.
- * @return PuppetModel The rig with its page bindings resolved, or [puppet] when none moved.
- */
-fun withTexturePagesFrom(puppet: PuppetModel, textures: PuppetTextures): PuppetModel {
-	var moved = false
-	val drawables =
-		puppet.drawables.map { drawable ->
-			val page = textures.atlasIndexByDrawableId[drawable.id.raw] ?: return@map drawable
-			if (page == drawable.texturePage) {
-				drawable
-			} else {
-				moved = true
-				drawable.copy(texturePage = page)
-			}
-		}
-	return if (moved) puppet.copy(drawables = drawables) else puppet
-}

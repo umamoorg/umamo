@@ -1,6 +1,8 @@
 package org.umamo.render
 
 import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.PuppetModel
 
 /** A decoded RGBA image (top row first), ready for GL upload. */
 class DecodedImage(val rgba: ByteArray, val width: Int, val height: Int)
@@ -114,4 +116,51 @@ fun buildPuppetTextures(
 		keptIndexBySourceIndex[sourceIndex]?.let { keptIndex -> keptIndexByDrawableId[drawableId] = keptIndex }
 	}
 	return PuppetTextures(atlases, keptIndexByDrawableId, premultipliedAlpha)
+}
+
+/**
+ * Re-encodes a decoded atlas page as PNG, for a page the document retains no source bytes for.
+ *
+ * The fallback half of both exports' page payload: a retained source PNG is written verbatim, which is
+ * faster and lossless, and this covers every page there is no such PNG for.  A CMO3-origin document
+ * reaches it for every page (its pixels are embedded per drawable, so it retains no atlas PNGs at all).
+ * A MOC3-origin one retains a PNG per decoded page and so does not reach it, and falls back here only
+ * if those two lists ever diverge - which would otherwise leave that page with no bytes to write.
+ *
+ * Re-encoding rather than dropping the page is what keeps page INDICES stable - drawables address
+ * pages by number, so omitting one would renumber every page after it.
+ *
+ * @param DecodedImage atlas The decoded page.
+ * @return ByteArray The PNG bytes.
+ */
+fun encodeAtlasPng(atlas: DecodedImage): ByteArray =
+	PngCodec.write(RasterImage(width = atlas.width, height = atlas.height, rgba = atlas.rgba))
+
+/**
+ * [puppet] with every drawable's atlas page taken from [textures].
+ *
+ * A MOC3 addresses its pages by index on the art mesh, so the export needs one on every drawable.  A
+ * MOC3-origin document already carries them (the import reads them straight off the art mesh), but a
+ * CMO3 has no page index at all - its pixels are embedded per drawable - so those documents reach the
+ * export with every drawable still on the -1 sentinel, which the MOC3 lowering clamps to page 0,
+ * pointing a multi-page rig at one atlas.  The decoded texture set is what knows the answer either
+ * way, so it is the one asked.
+ *
+ * @param PuppetModel    puppet   The rig being exported.
+ * @param PuppetTextures textures The document's decoded atlas set.
+ * @return PuppetModel The rig with its page bindings resolved, or [puppet] when none moved.
+ */
+fun withTexturePagesFrom(puppet: PuppetModel, textures: PuppetTextures): PuppetModel {
+	var moved = false
+	val drawables =
+		puppet.drawables.map { drawable ->
+			val page = textures.atlasIndexByDrawableId[drawable.id.raw] ?: return@map drawable
+			if (page == drawable.texturePage) {
+				drawable
+			} else {
+				moved = true
+				drawable.copy(texturePage = page)
+			}
+		}
+	return if (moved) puppet.copy(drawables = drawables) else puppet
 }
