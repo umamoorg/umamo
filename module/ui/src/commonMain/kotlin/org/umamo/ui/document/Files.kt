@@ -1,5 +1,7 @@
 package org.umamo.ui.document
 
+import org.umamo.format.FileKind
+
 /**
  * The display name for a stored file path (titles, the Open Recent menu). A pure string helper — it
  * never touches the filesystem — so it degrades gracefully for Android SAF `content://` URIs, whose
@@ -10,8 +12,14 @@ package org.umamo.ui.document
  */
 fun fileDisplayName(path: String): String = path.substringAfterLast('/').substringAfterLast('\\')
 
-/** The source extensions an export strips before suggesting a name. */
-private val SOURCE_EXTENSIONS = listOf(".cmo3", ".moc3")
+/**
+ * The source extensions an export strips before suggesting a name.
+ *
+ * Named members rather than a filter over [FileKind]: this is the set a puppet document can currently
+ * be OPEN from, which is narrower than "everything readable" - the art sources are readable too and
+ * must never suggest a name here.  UMA joins the list when its codec lands.
+ */
+private val SOURCE_EXTENSIONS = listOf(FileKind.Cmo3, FileKind.Moc3).map { kind -> ".${kind.extension}" }
 
 /**
  * The base name to seed an export's save dialog with: [displayName] minus its source extension.

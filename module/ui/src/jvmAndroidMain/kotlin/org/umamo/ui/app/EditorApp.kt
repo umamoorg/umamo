@@ -233,7 +233,7 @@ fun EditorApp(
 	fun exportCmo3(puppetDocument: PuppetDocument) {
 		scope.launch {
 			val suggestedName = exportSuggestedName(puppetDocument.displayName)
-			filePicker.saveFile(suggestedName, "cmo3")?.let { destination ->
+			filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
 				val prepared =
 					prepareCmo3Export(
 						document = puppetDocument,
@@ -253,7 +253,7 @@ fun EditorApp(
 
 	fun exportMoc3(puppetDocument: PuppetDocument) {
 		scope.launch {
-			filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), "moc3")?.let { destination ->
+			filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
 				val bundle =
 					prepareMoc3Export(
 						document = puppetDocument,

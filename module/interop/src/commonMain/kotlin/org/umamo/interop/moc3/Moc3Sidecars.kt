@@ -1,5 +1,6 @@
 package org.umamo.interop.moc3
 
+import org.umamo.format.FileKind
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.DisplayDrawable
@@ -32,8 +33,8 @@ import org.umamo.runtime.model.PuppetModel
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md § Export</a>
  */
 object Moc3Sidecars {
-	/** The moc extension the family's base name is derived against. */
-	private const val MOC3_EXTENSION: String = ".moc3"
+	/** The moc extension the family's base name is derived against, dotted for the name strip. */
+	private val MOC3_EXTENSION: String = ".${FileKind.Moc3.extension}"
 
 	/**
 	 * The family base name for a moc file called [fileName] - every sibling is named off this.
@@ -131,7 +132,7 @@ object Moc3Sidecars {
 		val lowered = Moc3Export.toMocDocument(puppet, version, canvasToParentSpace)
 		val mocBytes = Moc3.write(lowered.document)
 		val report = lowered.report
-		val mocFileName = "$basename.moc3"
+		val mocFileName = "$basename$MOC3_EXTENSION"
 		val displayInfoName = "$basename.cdi3.json"
 		val files = ArrayList<BundleFile>(pages.size + sidecars.size + 3)
 		files.add(BundleFile(mocFileName, mocBytes))
