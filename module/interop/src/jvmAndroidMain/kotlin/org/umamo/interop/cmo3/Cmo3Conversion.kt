@@ -80,7 +80,7 @@ public object Cmo3Conversion {
 			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
 			val mesh = drawable.mesh ?: continue
 			regionsByPage.getOrNull(pageIndex)?.add(
-				Cmo3ImageChainBuilder.DrawableRegion(drawable.id.raw, mesh.uvs, mesh.positions),
+				Cmo3ImageChainBuilder.DrawableRegion(drawable.id.raw, mesh.uvs, mesh.positions, mesh.indices),
 			)
 		}
 		val chain =

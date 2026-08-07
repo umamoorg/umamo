@@ -30,16 +30,31 @@ public class Cmo3DrawableTextureBinding(
  * inverts this to place the mesh over its texture patch in the atlas and mesh-edit views, so an
  * identity here draws every mesh at its assembled canvas position instead.  Cubism-authored
  * mappings are exact per-drawable affines (the layer's canvas translation composed with the
- * packer's scale+translate), so a least-squares fit recovers them to float precision; a
- * degenerate mesh falls back to per-axis scale+offset, then to a pure centroid translation.
+ * packer's scale, rotation, and translate), so a least-squares fit recovers them to float
+ * precision; a degenerate mesh falls back to a single-axis regression, then to a pure centroid
+ * translation.
+ *
+ * The moments are accumulated about the point cloud's MEAN, not about the page origin, and that is
+ * load-bearing rather than a tidiness preference.  A patch sits thousands of pixels out on a
+ * 16384-square page while spanning only a few hundred, so origin-referenced moments are dominated
+ * by the offset: the system's conditioning picks up the squared offset-to-spread ratio, the
+ * informative pivot falls far below any offset-scaled singularity tolerance, and a perfectly
+ * determined fit is rejected as degenerate.  What it degrades to - a per-axis regression - cannot
+ * express an off-diagonal term at all, so a drawable the packer rotated comes back squashed onto
+ * the wrong axis.  Centering drops the offset term outright: the solve sees only the cloud's own
+ * shape, and the translation comes back from the means.
+ *
+ * A packing that rotates or mirrors the patch is therefore carried faithfully.  The crop the image
+ * chain slices out is still the axis-aligned uv bounding box, which for a rotated patch encloses
+ * the art plus its surrounding page pixels - that is a property of reconstructing source art from a
+ * baked page, and real source art removes it along with the fit itself.
  *
  * This fit exists only because a MOC3-origin export has to RECONSTRUCT the placement a CMO3 would
  * have read straight off its source art - see [Cmo3ImageChainBuilder]'s header for why that whole
- * reconstruction is a stopgap.  KNOWN GAP: the packing side is written position-only (scale 1,
- * angle 0 on the ModelImageEntry) while this affine may flip, scale, or shear - true for roughly
- * 890 of one corpus model's 972 drawables.  For those the crop is an axis-aligned uv bbox
- * described as if packed upright, so the atlas view mismaps them; only pure-translation packings
- * are faithful today.  Real source art removes the need for the fit entirely.
+ * reconstruction is a stopgap.  A residual survives it by construction for any drawable under a
+ * warp deformer: the exported base mesh is the rest pose pushed through the warp's lattice, whose
+ * bilinear map is not affine, so no CAffine reproduces it exactly.  The fit is the closest affine,
+ * which is what the atlas view needs.
  *
  * @param FloatArray uvs        Interleaved atlas-frame texture coordinates (u then v per vertex).
  * @param FloatArray positions  Interleaved base canvas positions (x then y per vertex).
@@ -52,134 +67,90 @@ internal fun fitAtlasPageToCanvasTransform(uvs: FloatArray, positions: FloatArra
 	if (vertexCount == 0) {
 		return CAffine()
 	}
-	var sumPageX = 0.0
-	var sumPageY = 0.0
-	var sumPageXX = 0.0
-	var sumPageXY = 0.0
-	var sumPageYY = 0.0
-	val sumCanvas = DoubleArray(2)
-	val sumCanvasPageX = DoubleArray(2)
-	val sumCanvasPageY = DoubleArray(2)
-	for (vertexIndex in 0 until vertexCount) {
-		val pageX = uvs[2 * vertexIndex].toDouble() * pageWidth
-		val pageY = uvs[2 * vertexIndex + 1].toDouble() * pageHeight
-		sumPageX += pageX
-		sumPageY += pageY
-		sumPageXX += pageX * pageX
-		sumPageXY += pageX * pageY
-		sumPageYY += pageY * pageY
-		for (axis in 0 until 2) {
-			val canvas = positions[2 * vertexIndex + axis].toDouble()
-			sumCanvas[axis] += canvas
-			sumCanvasPageX[axis] += canvas * pageX
-			sumCanvasPageY[axis] += canvas * pageY
-		}
-	}
 	val pointCount = vertexCount.toDouble()
-	// Full 6-dof fit: per target axis, solve the 3x3 normal equations for (a, b, t) in
-	// canvas = a*pageX + b*pageY + t.
-	val rows = Array(2) { axis -> solveThreeByThree(sumPageXX, sumPageXY, sumPageX, sumPageYY, sumPageY, pointCount, sumCanvasPageX[axis], sumCanvasPageY[axis], sumCanvas[axis]) }
-	// A near-identity linear part is least-squares noise on a pure translation (the editor's own
-	// unscaled packings): snap it and refit the translation as the mean offset, so the written
-	// transform matches the editor's exact-translation shape instead of 0.9999997-style drift.
-	val fittedRowX = rows[0]
-	val fittedRowY = rows[1]
-	if (fittedRowX != null &&
-		fittedRowY != null &&
-		kotlin.math.abs(fittedRowX[0] - 1.0) < 1e-3 &&
-		kotlin.math.abs(fittedRowX[1]) < 1e-3 &&
-		kotlin.math.abs(fittedRowY[0]) < 1e-3 &&
-		kotlin.math.abs(fittedRowY[1] - 1.0) < 1e-3
-	) {
-		rows[0] = doubleArrayOf(1.0, 0.0, (sumCanvas[0] - sumPageX) / pointCount)
-		rows[1] = doubleArrayOf(0.0, 1.0, (sumCanvas[1] - sumPageY) / pointCount)
+	var meanPageX = 0.0
+	var meanPageY = 0.0
+	val meanCanvas = DoubleArray(2)
+	for (vertexIndex in 0 until vertexCount) {
+		meanPageX += uvs[2 * vertexIndex].toDouble() * pageWidth
+		meanPageY += uvs[2 * vertexIndex + 1].toDouble() * pageHeight
+		for (axis in 0 until 2) {
+			meanCanvas[axis] += positions[2 * vertexIndex + axis].toDouble()
+		}
 	}
-	val meanPage = doubleArrayOf(sumPageX / pointCount, sumPageY / pointCount)
-	val transform = CAffine()
+	meanPageX /= pointCount
+	meanPageY /= pointCount
+	meanCanvas[0] /= pointCount
+	meanCanvas[1] /= pointCount
+	// Centered second moments: the page cloud's own covariance plus its cross-covariance with each
+	// canvas axis.  These are the normal equations of `canvas = a*pageX + b*pageY + t` with t
+	// eliminated, which is exactly what centering buys.
+	var pageXX = 0.0
+	var pageXY = 0.0
+	var pageYY = 0.0
+	val canvasPageX = DoubleArray(2)
+	val canvasPageY = DoubleArray(2)
+	for (vertexIndex in 0 until vertexCount) {
+		val pageX = uvs[2 * vertexIndex].toDouble() * pageWidth - meanPageX
+		val pageY = uvs[2 * vertexIndex + 1].toDouble() * pageHeight - meanPageY
+		pageXX += pageX * pageX
+		pageXY += pageX * pageY
+		pageYY += pageY * pageY
+		for (axis in 0 until 2) {
+			val canvas = positions[2 * vertexIndex + axis].toDouble() - meanCanvas[axis]
+			canvasPageX[axis] += pageX * canvas
+			canvasPageY[axis] += pageY * canvas
+		}
+	}
+	val determinant = pageXX * pageYY - pageXY * pageXY
+	// Relative test: the page cloud spans two independent directions only when its covariance
+	// determinant is a real fraction of the product of its variances.  A patch collapsed to a line
+	// (a degenerate mesh) fails here and takes the single-axis path below.
+	val hasTwoAxisSpread = determinant > 1e-12 * pageXX * pageYY
+	val linear = Array(2) { DoubleArray(2) }
 	for (axis in 0 until 2) {
-		var row = rows[axis]
-		if (row == null) {
-			// Per-axis fallback: canvas = s*page + t along the matching page axis alone.
-			val (sumPage, sumPageSquared, sumCanvasPage) =
-				if (axis == 0) {
-					Triple(sumPageX, sumPageXX, sumCanvasPageX[axis])
-				} else {
-					Triple(sumPageY, sumPageYY, sumCanvasPageY[axis])
-				}
-			val denominator = pointCount * sumPageSquared - sumPage * sumPage
-			row =
-				if (denominator > 1e-9 * pointCount * maxOf(sumPageSquared, 1.0)) {
-					val scale = (pointCount * sumCanvasPage - sumPage * sumCanvas[axis]) / denominator
-					val offset = (sumCanvas[axis] - scale * sumPage) / pointCount
-					if (axis == 0) doubleArrayOf(scale, 0.0, offset) else doubleArrayOf(0.0, scale, offset)
-				} else {
-					// Zero page span: centroid translation at unit scale.
-					val offset = sumCanvas[axis] / pointCount - meanPage[axis]
-					if (axis == 0) doubleArrayOf(1.0, 0.0, offset) else doubleArrayOf(0.0, 1.0, offset)
-				}
+		if (hasTwoAxisSpread) {
+			linear[axis][0] = (canvasPageX[axis] * pageYY - canvasPageY[axis] * pageXY) / determinant
+			linear[axis][1] = (canvasPageY[axis] * pageXX - canvasPageX[axis] * pageXY) / determinant
+			continue
 		}
-		if (axis == 0) {
-			transform.m00 = row[0].toFloat()
-			transform.m01 = row[1].toFloat()
-			transform.m02 = row[2].toFloat()
+		// Collinear page cloud: regress against whichever page axis actually carries the spread, so
+		// a rotated strip still recovers its coefficient instead of dividing by nothing.  The other
+		// column is unconstrained by the data and takes its identity value rather than zero - a zero
+		// column would make the affine singular, and the editor INVERTS this transform to draw the
+		// mesh over its patch.
+		if (pageXX >= pageYY && pageXX > 0.0) {
+			linear[axis][0] = canvasPageX[axis] / pageXX
+			linear[axis][1] = if (axis == 1) 1.0 else 0.0
+		} else if (pageYY > 0.0) {
+			linear[axis][0] = if (axis == 0) 1.0 else 0.0
+			linear[axis][1] = canvasPageY[axis] / pageYY
 		} else {
-			transform.m10 = row[0].toFloat()
-			transform.m11 = row[1].toFloat()
-			transform.m12 = row[2].toFloat()
+			// Every vertex shares one page pixel: nothing to scale, so place by the centroid alone.
+			linear[axis][0] = if (axis == 0) 1.0 else 0.0
+			linear[axis][1] = if (axis == 0) 0.0 else 1.0
 		}
 	}
+	// A near-identity linear part is least-squares noise on a pure translation (the editor's own
+	// unscaled packings): snap it so the written transform matches the editor's exact-translation
+	// shape instead of 0.9999997-style drift.
+	if (kotlin.math.abs(linear[0][0] - 1.0) < 1e-3 &&
+		kotlin.math.abs(linear[0][1]) < 1e-3 &&
+		kotlin.math.abs(linear[1][0]) < 1e-3 &&
+		kotlin.math.abs(linear[1][1] - 1.0) < 1e-3
+	) {
+		linear[0][0] = 1.0
+		linear[0][1] = 0.0
+		linear[1][0] = 0.0
+		linear[1][1] = 1.0
+	}
+	val transform = CAffine()
+	// The translation is whatever carries the page mean onto the canvas mean under the linear part.
+	transform.m00 = linear[0][0].toFloat()
+	transform.m01 = linear[0][1].toFloat()
+	transform.m02 = (meanCanvas[0] - linear[0][0] * meanPageX - linear[0][1] * meanPageY).toFloat()
+	transform.m10 = linear[1][0].toFloat()
+	transform.m11 = linear[1][1].toFloat()
+	transform.m12 = (meanCanvas[1] - linear[1][0] * meanPageX - linear[1][1] * meanPageY).toFloat()
 	return transform
-}
-
-/**
- * Solves the symmetric 3x3 normal system of the affine fit by Gaussian elimination.
- *
- * @param Double sumXX Sum of pageX*pageX.
- * @param Double sumXY Sum of pageX*pageY.
- * @param Double sumX  Sum of pageX.
- * @param Double sumYY Sum of pageY*pageY.
- * @param Double sumY  Sum of pageY.
- * @param Double count The vertex count.
- * @param Double rhs0  Sum of canvas*pageX.
- * @param Double rhs1  Sum of canvas*pageY.
- * @param Double rhs2  Sum of canvas.
- * @return DoubleArray The (a, b, t) solution, or null when the system is singular.
- */
-private fun solveThreeByThree(sumXX: Double, sumXY: Double, sumX: Double, sumYY: Double, sumY: Double, count: Double, rhs0: Double, rhs1: Double, rhs2: Double): DoubleArray? {
-	val matrix =
-		arrayOf(
-			doubleArrayOf(sumXX, sumXY, sumX, rhs0),
-			doubleArrayOf(sumXY, sumYY, sumY, rhs1),
-			doubleArrayOf(sumX, sumY, count, rhs2),
-		)
-	val scale = maxOf(kotlin.math.abs(sumXX), kotlin.math.abs(sumYY), count, 1.0)
-	for (pivotIndex in 0 until 3) {
-		var bestRow = pivotIndex
-		for (rowIndex in pivotIndex + 1 until 3) {
-			if (kotlin.math.abs(matrix[rowIndex][pivotIndex]) > kotlin.math.abs(matrix[bestRow][pivotIndex])) {
-				bestRow = rowIndex
-			}
-		}
-		if (kotlin.math.abs(matrix[bestRow][pivotIndex]) < 1e-9 * scale) {
-			return null
-		}
-		val swap = matrix[pivotIndex]
-		matrix[pivotIndex] = matrix[bestRow]
-		matrix[bestRow] = swap
-		for (rowIndex in pivotIndex + 1 until 3) {
-			val factor = matrix[rowIndex][pivotIndex] / matrix[pivotIndex][pivotIndex]
-			for (columnIndex in pivotIndex until 4) {
-				matrix[rowIndex][columnIndex] -= factor * matrix[pivotIndex][columnIndex]
-			}
-		}
-	}
-	val solution = DoubleArray(3)
-	for (rowIndex in 2 downTo 0) {
-		var value = matrix[rowIndex][3]
-		for (columnIndex in rowIndex + 1 until 3) {
-			value -= matrix[rowIndex][columnIndex] * solution[columnIndex]
-		}
-		solution[rowIndex] = value / matrix[rowIndex][rowIndex]
-	}
-	return solution
 }

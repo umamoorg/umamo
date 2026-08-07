@@ -97,13 +97,20 @@ import org.umamo.format.raster.RasterImage
  * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
  * CModelImage's _materialLocalToCanvasTransform.
  *
- * SECOND, NARROWER GAP (independent of the render gap above, and visible even when a file does
- * render): the packing transform is written as position-only (scale 1, angle 0) while the fitted
- * page-to-canvas affine may flip, scale, or shear - true for ~890 of LimeBirb's 972 drawables.
- * For those the crop is an axis-aligned uv bbox described as if packed upright, so the atlas view
- * mismaps them; only pure-translation packings (Erica) are currently faithful.  Representing it
- * honestly would mean un-packing each patch to upright art so the entry can carry the real scale
- * and rotation - which real source art supplies for free.
+ * WHERE THE PACKING'S SCALE AND ROTATION LIVE: not on the ModelImageEntry.  Each crop is an
+ * axis-aligned rect of page pixels lifted at scale 1, so position-only IS the honest
+ * materialLocalToAtlasTransform for it; whatever the packer did to the art - rotate, mirror, scale
+ * - is carried by the page fit, which both atlasLocalToCanvasTransform and the model image's
+ * _materialLocalToCanvasTransform compose (see fitAtlasPageToCanvasTransform, and note the
+ * mean-centering there is what lets a rotated packing survive the fit at all).
+ *
+ * A patch rect is a uv BOUNDING BOX, so unless the mesh is itself a page-aligned rectangle the rect
+ * also spans page pixels the packer nested into the leftover corners - a neighbour's artwork.  The
+ * crop is therefore masked to the mesh's own triangles (coverageMaskOf) rather than copied
+ * verbatim: the rect stays exactly as computed, so every placement transform is untouched, but a
+ * drawable's CModelImage carries only pixels its mesh actually samples.  Un-masked, the editor
+ * takes the foreign pixels for this drawable's artwork - they follow the patch when the atlas is
+ * rearranged, and a repack stamps them back into the page.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
@@ -113,8 +120,17 @@ internal object Cmo3ImageChainBuilder {
 	/** One retained atlas page: the original PNG bytes plus its pixel dimensions. */
 	internal class AtlasPage(val pngBytes: ByteArray, val width: Int, val height: Int)
 
-	/** One drawable's geometry on its page: id plus interleaved atlas-frame uvs and base positions. */
-	internal class DrawableRegion(val drawableIdStr: String, val uvs: FloatArray, val positions: FloatArray)
+	/**
+	 * One drawable's geometry on its page: id, interleaved atlas-frame uvs and base positions, plus
+	 * the triangle indices that say which page pixels inside the uv bounding box are actually this
+	 * drawable's (see [coverageMaskOf]).
+	 */
+	internal class DrawableRegion(
+		val drawableIdStr: String,
+		val uvs: FloatArray,
+		val positions: FloatArray,
+		val indices: IntArray,
+	)
 
 	/** The populated chain: the PNG entries to embed and the texture bindings. */
 	internal class BuiltImageChain(
@@ -122,6 +138,33 @@ internal object Cmo3ImageChainBuilder {
 		val bindingByDrawableId: Map<String, Cmo3DrawableTextureBinding>,
 		val pageFallbackBindings: List<Cmo3DrawableTextureBinding>,
 	)
+
+	/**
+	 * What makes two drawables share one CModelImage: the same crop rect, the same fitted placement,
+	 * and the same mesh.  The mesh is part of the identity because it masks the crop - two drawables
+	 * over one rect with different topology no longer produce the same pixels.
+	 */
+	private class PatchWebKey(
+		private val patchRect: IntArray,
+		private val placementBits: IntArray,
+		private val uvs: FloatArray,
+		private val indices: IntArray,
+	) {
+		override fun equals(other: Any?): Boolean =
+			other is PatchWebKey &&
+				patchRect.contentEquals(other.patchRect) &&
+				placementBits.contentEquals(other.placementBits) &&
+				uvs.contentEquals(other.uvs) &&
+				indices.contentEquals(other.indices)
+
+		override fun hashCode(): Int {
+			var result = patchRect.contentHashCode()
+			result = 31 * result + placementBits.contentHashCode()
+			result = 31 * result + uvs.contentHashCode()
+			result = 31 * result + indices.contentHashCode()
+			return result
+		}
+	}
 
 	/** CMO3: FilterInstance filterDefGuid for "CLayerSelector" - fixed uuid in every corpus file. */
 	private const val LAYER_SELECTOR_DEF_UUID = "5e9fe1ea-0ec3-4d68-a5fa-018fc7abe301"
@@ -388,20 +431,225 @@ internal object Cmo3ImageChainBuilder {
 		}
 
 	/**
-	 * Encodes the patch rect of a decoded page as its own PNG.
+	 * How far kept coverage grows past the mesh's own triangles, in page pixels.
 	 *
-	 * @param RasterImage decodedPage The decoded page pixels.
-	 * @param Int         x0          Patch origin x.
-	 * @param Int         y0          Patch origin y.
-	 * @param Int         cropWidth   Patch width.
-	 * @param Int         cropHeight  Patch height.
+	 * Cutting exactly on the outermost edge would fringe the silhouette: the drawable's UVs reach
+	 * that edge, so a bilinear tap there blends against the transparent pixel immediately outside.
+	 * Two pixels covers a bilinear tap plus a mip level while staying well inside the gutter a
+	 * packer leaves between neighbouring patches.
+	 */
+	private const val COVERAGE_BLEED_MARGIN = 2
+
+	/**
+	 * Which pixels of a patch rect the drawable's own mesh covers, grown by [COVERAGE_BLEED_MARGIN].
+	 *
+	 * A patch rect is the mesh's axis-aligned uv bounding box, so for any mesh that is not itself a
+	 * page-aligned rectangle the rect also spans page pixels belonging to whatever the packer nested
+	 * into the leftover corners.  Copying the rect verbatim hands those foreign pixels to this
+	 * drawable's CModelImage, which the editor treats as the drawable's own artwork - it travels
+	 * with the patch when the atlas is rearranged and gets stamped back into the page on a repack.
+	 * Masking to the triangles keeps the crop rect (so every placement transform is unchanged) while
+	 * dropping pixels the mesh never samples.
+	 *
+	 * Rasterization is CONSERVATIVE - a pixel counts as covered when its square overlaps a triangle
+	 * at all, not when its center happens to land inside one.  Cubism meshes carry long sliver
+	 * triangles along a silhouette, and center sampling drops the ones thinner than a pixel.
+	 *
+	 * @param FloatArray uvs        Interleaved atlas-frame uvs.
+	 * @param IntArray   indices    Triangle indices, three per triangle.
+	 * @param Int        pageWidth  The page's pixel width.
+	 * @param Int        pageHeight The page's pixel height.
+	 * @param Int        patchX0    The patch rect's origin x on the page.
+	 * @param Int        patchY0    The patch rect's origin y on the page.
+	 * @param Int        cropWidth  The patch rect's width.
+	 * @param Int        cropHeight The patch rect's height.
+	 * @return BooleanArray One flag per crop pixel in row-major order, or null when the mesh carries
+	 *         no triangles to mask with (the whole rect is then kept, as before).
+	 */
+	private fun coverageMaskOf(
+		uvs: FloatArray,
+		indices: IntArray,
+		pageWidth: Int,
+		pageHeight: Int,
+		patchX0: Int,
+		patchY0: Int,
+		cropWidth: Int,
+		cropHeight: Int,
+	): BooleanArray? {
+		if (indices.size < 3) {
+			return null
+		}
+		val vertexCount = uvs.size / 2
+		val covered = BooleanArray(cropWidth * cropHeight)
+		var triangleStart = 0
+		while (triangleStart + 2 < indices.size) {
+			val indexA = indices[triangleStart]
+			val indexB = indices[triangleStart + 1]
+			val indexC = indices[triangleStart + 2]
+			triangleStart += 3
+			if (indexA !in 0 until vertexCount || indexB !in 0 until vertexCount || indexC !in 0 until vertexCount) {
+				continue
+			}
+			val cornerAx = uvs[2 * indexA].toDouble() * pageWidth - patchX0
+			val cornerAy = uvs[2 * indexA + 1].toDouble() * pageHeight - patchY0
+			val cornerBx = uvs[2 * indexB].toDouble() * pageWidth - patchX0
+			val cornerBy = uvs[2 * indexB + 1].toDouble() * pageHeight - patchY0
+			val cornerCx = uvs[2 * indexC].toDouble() * pageWidth - patchX0
+			val cornerCy = uvs[2 * indexC + 1].toDouble() * pageHeight - patchY0
+			val doubledArea = (cornerBx - cornerAx) * (cornerCy - cornerAy) - (cornerCx - cornerAx) * (cornerBy - cornerAy)
+			if (!doubledArea.isFinite() || doubledArea == 0.0) {
+				continue
+			}
+			// Normalize the winding so "inside" is uniformly a non-negative edge value.
+			val winding = if (doubledArea > 0.0) 1.0 else -1.0
+			// One extra pixel each way: the conservative test below reaches half a pixel past the
+			// triangle, and a bounding box rounded inward would clip that reach off.
+			val firstColumn = kotlin.math.floor(minOf(cornerAx, cornerBx, cornerCx)).toInt().coerceIn(0, cropWidth - 1) - 1
+			val lastColumn = kotlin.math.ceil(maxOf(cornerAx, cornerBx, cornerCx)).toInt().coerceIn(0, cropWidth - 1) + 1
+			val firstRow = kotlin.math.floor(minOf(cornerAy, cornerBy, cornerCy)).toInt().coerceIn(0, cropHeight - 1) - 1
+			val lastRow = kotlin.math.ceil(maxOf(cornerAy, cornerBy, cornerCy)).toInt().coerceIn(0, cropHeight - 1) + 1
+			for (rowIndex in maxOf(0, firstRow)..minOf(cropHeight - 1, lastRow)) {
+				val pointY = rowIndex + 0.5
+				for (columnIndex in maxOf(0, firstColumn)..minOf(cropWidth - 1, lastColumn)) {
+					val flatIndex = rowIndex * cropWidth + columnIndex
+					if (covered[flatIndex]) {
+						continue
+					}
+					val pointX = columnIndex + 0.5
+					if (overlapsEdge(cornerAx, cornerAy, cornerBx, cornerBy, pointX, pointY, winding) &&
+						overlapsEdge(cornerBx, cornerBy, cornerCx, cornerCy, pointX, pointY, winding) &&
+						overlapsEdge(cornerCx, cornerCy, cornerAx, cornerAy, pointX, pointY, winding)
+					) {
+						covered[flatIndex] = true
+					}
+				}
+			}
+		}
+		return dilate(covered, cropWidth, cropHeight, COVERAGE_BLEED_MARGIN)
+	}
+
+	/**
+	 * Whether a pixel's unit square reaches the inside half-plane of one triangle edge.
+	 *
+	 * The edge value at the pixel center varies by at most half the sum of the edge normal's
+	 * components across the square, so adding that slack turns a center test into a square-overlap
+	 * test - which is what keeps sub-pixel slivers from vanishing.
+	 *
+	 * @param Double fromX   Edge start x, in crop-local pixels.
+	 * @param Double fromY   Edge start y.
+	 * @param Double toX     Edge end x.
+	 * @param Double toY     Edge end y.
+	 * @param Double pointX  The pixel center's x.
+	 * @param Double pointY  The pixel center's y.
+	 * @param Double winding +1 when the triangle winds counter-clockwise, -1 when clockwise.
+	 * @return Boolean True when the pixel square is not fully outside this edge.
+	 */
+	private fun overlapsEdge(
+		fromX: Double,
+		fromY: Double,
+		toX: Double,
+		toY: Double,
+		pointX: Double,
+		pointY: Double,
+		winding: Double,
+	): Boolean {
+		val edgeX = toX - fromX
+		val edgeY = toY - fromY
+		val edgeValue = winding * (edgeX * (pointY - fromY) - edgeY * (pointX - fromX))
+		return edgeValue + 0.5 * (kotlin.math.abs(edgeX) + kotlin.math.abs(edgeY)) >= 0.0
+	}
+
+	/**
+	 * Grows a coverage mask by [margin] pixels, as two linear-time passes over a sliding window.
+	 *
+	 * @param BooleanArray covered The raw per-pixel coverage, row-major.
+	 * @param Int          width   The mask width.
+	 * @param Int          height  The mask height.
+	 * @param Int          margin  How many pixels to grow by.
+	 * @return BooleanArray The grown mask ([covered] itself when the margin is zero).
+	 */
+	private fun dilate(covered: BooleanArray, width: Int, height: Int, margin: Int): BooleanArray {
+		if (margin <= 0) {
+			return covered
+		}
+		val grownAcross = BooleanArray(covered.size)
+		for (rowIndex in 0 until height) {
+			val rowStart = rowIndex * width
+			var windowCount = 0
+			for (columnIndex in 0..minOf(margin, width - 1)) {
+				if (covered[rowStart + columnIndex]) {
+					windowCount += 1
+				}
+			}
+			for (columnIndex in 0 until width) {
+				grownAcross[rowStart + columnIndex] = windowCount > 0
+				val leavingColumn = columnIndex - margin
+				val enteringColumn = columnIndex + margin + 1
+				if (leavingColumn >= 0 && covered[rowStart + leavingColumn]) {
+					windowCount -= 1
+				}
+				if (enteringColumn < width && covered[rowStart + enteringColumn]) {
+					windowCount += 1
+				}
+			}
+		}
+		val grown = BooleanArray(covered.size)
+		for (columnIndex in 0 until width) {
+			var windowCount = 0
+			for (rowIndex in 0..minOf(margin, height - 1)) {
+				if (grownAcross[rowIndex * width + columnIndex]) {
+					windowCount += 1
+				}
+			}
+			for (rowIndex in 0 until height) {
+				grown[rowIndex * width + columnIndex] = windowCount > 0
+				val leavingRow = rowIndex - margin
+				val enteringRow = rowIndex + margin + 1
+				if (leavingRow >= 0 && grownAcross[leavingRow * width + columnIndex]) {
+					windowCount -= 1
+				}
+				if (enteringRow < height && grownAcross[enteringRow * width + columnIndex]) {
+					windowCount += 1
+				}
+			}
+		}
+		return grown
+	}
+
+	/**
+	 * Encodes the patch rect of a decoded page as its own PNG, clearing pixels outside [coverage].
+	 *
+	 * @param RasterImage  decodedPage The decoded page pixels.
+	 * @param Int          x0          Patch origin x.
+	 * @param Int          y0          Patch origin y.
+	 * @param Int          cropWidth   Patch width.
+	 * @param Int          cropHeight  Patch height.
+	 * @param BooleanArray coverage    The mesh coverage mask, or null to keep the whole rect.
 	 * @return ByteArray The encoded PNG bytes.
 	 */
-	private fun cropPng(decodedPage: RasterImage, x0: Int, y0: Int, cropWidth: Int, cropHeight: Int): ByteArray {
+	private fun cropPng(
+		decodedPage: RasterImage,
+		x0: Int,
+		y0: Int,
+		cropWidth: Int,
+		cropHeight: Int,
+		coverage: BooleanArray?,
+	): ByteArray {
 		val cropRgba = ByteArray(cropWidth * cropHeight * 4)
 		for (rowIndex in 0 until cropHeight) {
 			val sourceOffset = ((y0 + rowIndex) * decodedPage.width + x0) * 4
-			decodedPage.rgba.copyInto(cropRgba, rowIndex * cropWidth * 4, sourceOffset, sourceOffset + cropWidth * 4)
+			val targetOffset = rowIndex * cropWidth * 4
+			decodedPage.rgba.copyInto(cropRgba, targetOffset, sourceOffset, sourceOffset + cropWidth * 4)
+			if (coverage == null) {
+				continue
+			}
+			for (columnIndex in 0 until cropWidth) {
+				if (coverage[rowIndex * cropWidth + columnIndex]) {
+					continue
+				}
+				val pixelOffset = targetOffset + columnIndex * 4
+				cropRgba.fill(0, pixelOffset, pixelOffset + 4)
+			}
 		}
 		return PngCodec.write(RasterImage(cropWidth, cropHeight, cropRgba))
 	}
@@ -550,11 +798,11 @@ internal object Cmo3ImageChainBuilder {
 					magFilter = MagFilter.LINEAR
 					owner = texture
 				}
-			// Per-drawable patch webs, deduped by patch rect + fitted placement (a mirror duplicate
-			// with a different placement keeps its own web - a ModelImageEntry carries only one).
+			// Per-drawable patch webs, deduped by exact web identity (a mirror duplicate with a
+			// different placement keeps its own web - a ModelImageEntry carries only one).
 			val regions = regionsByPage.getOrNull(pageIndex).orEmpty()
 			val decodedPage = if (regions.isNotEmpty()) PngCodec.read(page.pngBytes) else null
-			val imageGuidByWebKey = HashMap<String, Guid>()
+			val imageGuidByWebKey = HashMap<PatchWebKey, Guid>()
 			for (region in regions) {
 				val pageFit = fitAtlasPageToCanvasTransform(region.uvs, region.positions, page.width, page.height)
 				val patch = patchRectOf(region.uvs, page.width, page.height)
@@ -567,13 +815,25 @@ internal object Cmo3ImageChainBuilder {
 				val patchY0 = patch[1]
 				val cropWidth = patch[2] - patch[0]
 				val cropHeight = patch[3] - patch[1]
-				val fitBits =
-					floatArrayOf(pageFit.m00, pageFit.m01, pageFit.m02, pageFit.m10, pageFit.m11, pageFit.m12)
-						.joinToString(":") { component -> component.toRawBits().toString() }
-				val webKey = "${patch.joinToString(":")}|$fitBits"
+				val webKey =
+					PatchWebKey(
+						patch,
+						intArrayOf(
+							pageFit.m00.toRawBits(),
+							pageFit.m01.toRawBits(),
+							pageFit.m02.toRawBits(),
+							pageFit.m10.toRawBits(),
+							pageFit.m11.toRawBits(),
+							pageFit.m12.toRawBits(),
+						),
+						region.uvs,
+						region.indices,
+					)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
-						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight)
+						val coverage =
+							coverageMaskOf(region.uvs, region.indices, page.width, page.height, patchX0, patchY0, cropWidth, cropHeight)
+						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
 						val cropPath = nextImageFileBufPath()
 						pngEntries.add(Cmo3FreshFile.PngEntry(cropPath, cropBytes))
 						val cropResource =

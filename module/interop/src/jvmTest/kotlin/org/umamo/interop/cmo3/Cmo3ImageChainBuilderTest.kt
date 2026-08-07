@@ -72,7 +72,7 @@ class Cmo3ImageChainBuilderTest {
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
 				listOf(solidPage(4, 0x11)),
-				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("BoundDrawable", uvs, positions))),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("BoundDrawable", uvs, positions, intArrayOf(0, 1, 2)))),
 				nowMillis = 1_700_000_000_000L,
 			)
 		val model =
@@ -133,6 +133,37 @@ class Cmo3ImageChainBuilderTest {
 	}
 
 	@Test
+	fun cropClearsPagePixelsTheMeshDoesNotCover() {
+		val skeleton = Cmo3SkeletonBuilder.buildBlank("Mask Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+		// A fully opaque page: every pixel the crop keeps or clears is distinguishable from padding.
+		val pageSize = 32
+		val pageRgba = ByteArray(pageSize * pageSize * 4) { 0x7F }
+		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		// A right triangle over page (4,4)-(28,4)-(4,28): its uv bounding box is the full 24-square
+		// patch, so half of that rect is page pixels the mesh never samples.
+		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f)
+		val positions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
+		val chain =
+			Cmo3ImageChainBuilder.populate(
+				skeleton.root,
+				listOf(page),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("MaskDrawable", uvs, positions, intArrayOf(0, 1, 2)))),
+				nowMillis = 1_700_000_000_000L,
+			)
+		val crop = PngCodec.read(chain.pngEntries.single { entry -> entry.path == "imageFileBuf_0.png" }.pngBytes)
+		// The rect itself is untouched - masking must not move the crop, or every placement
+		// transform computed against it would be wrong.
+		assertEquals(24, crop.width, "crop width is still the uv bounding box")
+		assertEquals(24, crop.height, "crop height is still the uv bounding box")
+		// Well inside the triangle.
+		assertEquals(0x7F.toByte(), crop.rgba[(2 * 24 + 2) * 4 + 3], "a covered pixel keeps the page's alpha")
+		// Well past the hypotenuse (x + y = 24 in crop-local pixels), far outside the bleed margin.
+		for (channel in 0 until 4) {
+			assertEquals(0, crop.rgba[(22 * 24 + 22) * 4 + channel], "an uncovered pixel is cleared, channel $channel")
+		}
+	}
+
+	@Test
 	fun patchWebCarriesPlacementAndCropBytes() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Patch Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
 		// A gradient page so the crop subregion is verifiable byte-for-byte.
@@ -155,7 +186,7 @@ class Cmo3ImageChainBuilderTest {
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
 				listOf(page),
-				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("PatchDrawable", uvs, positions))),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("PatchDrawable", uvs, positions, intArrayOf(0, 1, 2, 1, 2, 3)))),
 				nowMillis = 1_700_000_000_000L,
 			)
 		val binding = chain.bindingByDrawableId.getValue("PatchDrawable")

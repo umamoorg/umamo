@@ -51,9 +51,50 @@ class Cmo3AtlasPlacementFitTest {
 	}
 
 	@Test
+	fun recoversAQuarterTurnPackingFarFromThePageOrigin() {
+		// The packer rotated this patch a quarter turn, and it sits ~12000 px out on a 16384-square
+		// page while spanning only ~700.  Both halves matter: an origin-referenced normal system is
+		// swamped by the offset and reads as singular, and what it degrades to - a per-axis
+		// regression - has no off-diagonal term to put the rotation in, so the patch comes back
+		// squashed onto the wrong axis (the misplaced-FACE report, off by ~380 px).
+		val pageWidth = 16384
+		val pageHeight = 16384
+		val patchOriginX = 12.0
+		val patchOriginY = 11782.0
+		// canvas = rotate(-90 deg) * (page - patchOrigin) + canvasOrigin.
+		val canvasOriginX = 1937.0
+		val canvasOriginY = 1166.0
+		val uvs = FloatArray(2 * 16)
+		val positions = FloatArray(2 * 16)
+		var vertexIndex = 0
+		for (columnIndex in 0 until 4) {
+			for (rowIndex in 0 until 4) {
+				val pageX = patchOriginX + columnIndex * 247.0
+				val pageY = patchOriginY + rowIndex * 187.0
+				uvs[2 * vertexIndex] = (pageX / pageWidth).toFloat()
+				uvs[2 * vertexIndex + 1] = (pageY / pageHeight).toFloat()
+				positions[2 * vertexIndex] = (canvasOriginX + (pageY - patchOriginY)).toFloat()
+				positions[2 * vertexIndex + 1] = (canvasOriginY - (pageX - patchOriginX)).toFloat()
+				vertexIndex += 1
+			}
+		}
+		val transform = fitAtlasPageToCanvasTransform(uvs, positions, pageWidth, pageHeight)
+		assertEquals(0f, transform.m00, 1e-3f, "x from page x (a quarter turn decouples them)")
+		assertEquals(1f, transform.m01, 1e-3f, "x from page y")
+		assertEquals(-1f, transform.m10, 1e-3f, "y from page x")
+		assertEquals(0f, transform.m11, 1e-3f, "y from page y")
+		for (checkedVertex in 0 until 16) {
+			val (canvasX, canvasY) =
+				apply(transform, uvs[2 * checkedVertex] * pageWidth.toDouble(), uvs[2 * checkedVertex + 1] * pageHeight.toDouble())
+			assertEquals(positions[2 * checkedVertex].toDouble(), canvasX, 1.0, "x of vertex $checkedVertex")
+			assertEquals(positions[2 * checkedVertex + 1].toDouble(), canvasY, 1.0, "y of vertex $checkedVertex")
+		}
+	}
+
+	@Test
 	fun degenerateVerticalSpanStillFitsTheHorizontalAxis() {
-		// All v identical: the full 3x3 system is singular; x must still fit exactly and y must
-		// land on the centroid.
+		// All v identical: the page cloud spans one direction, so the second column is unconstrained;
+		// x must still fit exactly and y must land on the centroid.
 		val uvs = floatArrayOf(0.0f, 0.5f, 0.25f, 0.5f, 1.0f, 0.5f)
 		val positions = floatArrayOf(10f, 7f, 12.5f, 7f, 20f, 7f)
 		val transform = fitAtlasPageToCanvasTransform(uvs, positions, 100, 100)
@@ -62,6 +103,10 @@ class Cmo3AtlasPlacementFitTest {
 			assertEquals(positions[2 * vertexIndex].toDouble(), canvasX, 1e-3, "x of vertex $vertexIndex")
 			assertEquals(7.0, canvasY, 1e-3, "y of vertex $vertexIndex")
 		}
+		// The unconstrained direction takes its identity value, never zero: the editor inverts this
+		// transform to draw the mesh over its patch, and a singular one has no inverse.
+		val determinant = transform.m00 * transform.m11 - transform.m01 * transform.m10
+		assertTrue(kotlin.math.abs(determinant) > 1e-6f, "the fitted affine stays invertible, got determinant $determinant")
 	}
 
 	@Test
