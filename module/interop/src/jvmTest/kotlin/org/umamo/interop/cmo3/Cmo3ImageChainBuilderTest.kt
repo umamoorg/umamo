@@ -216,8 +216,10 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(10f, entryPlacement.m12, 1e-3f, "entry placement matches the fit")
 
 		// The synthetic source doc is the PAGE's frame (official docs carry the source image's own
-		// size, not the canvas), and the layer's boundsOnImageDoc stays all-zero like every corpus
-		// layer - placement lives on the model image's _materialLocalToCanvasTransform.
+		// size, not the canvas), and the layer's boundsOnImageDoc carries the patch's canvas
+		// placement as its origin with the crop dims as its size - every corpus layer's rect
+		// equals its model image's _materialLocalToCanvasTransform translation plus its
+		// imageResource dims.
 		val layeredImage =
 			Cmo3Import.elementsOf(textureManager._rawImages)
 				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
@@ -230,10 +232,10 @@ class Cmo3ImageChainBuilderTest {
 				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
 				.single()
 		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
-		assertEquals(0, bounds.x, "boundsOnImageDoc is all zero, like official")
-		assertEquals(0, bounds.y, "boundsOnImageDoc is all zero, like official")
-		assertEquals(0, bounds.width, "boundsOnImageDoc is all zero, like official")
-		assertEquals(0, bounds.height, "boundsOnImageDoc is all zero, like official")
+		assertEquals(7, bounds.x, "bounds origin x is the fitted patch-origin placement (2*2 + 3)")
+		assertEquals(6, bounds.y, "bounds origin y is the fitted patch-origin placement (-1*4 + 10)")
+		assertEquals(2, bounds.width, "bounds width is the crop width")
+		assertEquals(4, bounds.height, "bounds height is the crop height")
 
 		// The crop PNG is the page subregion (x 2..4, y 4..8).
 		val cropEntry = chain.pngEntries.single { pngEntry -> pngEntry.path == "imageFileBuf_0.png" }

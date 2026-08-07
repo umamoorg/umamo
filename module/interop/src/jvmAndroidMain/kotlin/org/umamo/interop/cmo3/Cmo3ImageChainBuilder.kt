@@ -93,9 +93,11 @@ import org.umamo.format.raster.RasterImage
  * The synthetic source doc is the ATLAS PAGE's own frame, mirroring how an official document's
  * CLayeredImage carries the source PSD's size rather than the canvas
  * (ModelWithOffscreenPartClipping: a 500x500 doc inside a 1000x2000 canvas - Erica's doc merely
- * happens to equal its canvas).  A layer's placement is NOT in boundsOnImageDoc, which is all
- * zero on every corpus layer (883 of 883, every file and era); it lives on the owning
- * CModelImage's _materialLocalToCanvasTransform.
+ * happens to equal its canvas).  Each layer's boundsOnImageDoc carries the placement translation
+ * as its origin (equal to the owning CModelImage's _materialLocalToCanvasTransform translation on
+ * all 892 corpus layers) and the imageResource dims as its size (also 892 of 892); official docs
+ * sit origin-aligned on the canvas, so their doc rects and canvas placements coincide, and our
+ * patch layers keep that equality by writing the canvas placement.
  *
  * WHERE THE PACKING'S SCALE AND ROTATION LIVE: not on the ModelImageEntry.  Each crop is an
  * axis-aligned rect of page pixels lifted at scale 1, so position-only IS the honest
@@ -831,6 +833,7 @@ internal object Cmo3ImageChainBuilder {
 					)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
+						val patchPlacement = materialLocalToCanvas(pageFit, patchX0, patchY0)
 						val coverage =
 							coverageMaskOf(region.uvs, region.indices, page.width, page.height, patchX0, patchY0, cropWidth, cropHeight)
 						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
@@ -858,10 +861,17 @@ internal object Cmo3ImageChainBuilder {
 								_optionOfIOption = sharedOptions
 								_layeredImage = layeredImage
 								imageResource = cropResource
-								// CMO3: CLayer field boundsOnImageDoc - ALL ZERO on every corpus layer
-								// (883 of 883, every file and era).  The layer's placement lives on
-								// its CModelImage's _materialLocalToCanvasTransform, not here.
-								boundsOnImageDoc = CRect()
+								// CMO3: CLayer field boundsOnImageDoc - the layer's pixel rect on the
+								// layered-image doc: origin = the placement translation (equals the
+								// CModelImage's _materialLocalToCanvasTransform translation on all 892
+								// corpus layers), size = the imageResource dims (also 892 of 892).
+								boundsOnImageDoc =
+									CRect().apply {
+										x = kotlin.math.round(patchPlacement.m02).toInt()
+										y = kotlin.math.round(patchPlacement.m12).toInt()
+										width = cropWidth
+										height = cropHeight
+									}
 								layerIdentifier =
 									CLayerIdentifier().apply {
 										layerName = region.drawableIdStr
@@ -925,8 +935,9 @@ internal object Cmo3ImageChainBuilder {
 								// corpus model image; the icon is a placeholder the editor regenerates.
 								icon16 = placeholderIcon(16, "image_${iconSuffix++}.png", pngEntries)
 								// CMO3: CModelImage field _materialLocalToCanvasTransform - the patch's
-								// canvas placement (official layers carry their canvas origin here).
-								_materialLocalToCanvasTransform = materialLocalToCanvas(pageFit, patchX0, patchY0)
+								// canvas placement (official layers carry their canvas origin here),
+								// the same numbers the layer's boundsOnImageDoc origin carries.
+								_materialLocalToCanvasTransform = copyAffine(patchPlacement)
 								_group = group
 								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
 								cachedImageManager = identityCacheManager(cropResource, cropWidth, cropHeight)
