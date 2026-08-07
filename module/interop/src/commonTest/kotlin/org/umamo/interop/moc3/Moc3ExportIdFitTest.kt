@@ -176,6 +176,55 @@ class Moc3ExportIdFitTest {
 		)
 	}
 
+	/**
+	 * The cdi3 names only the objects the moc contains - never one the export dropped.
+	 *
+	 * The mesh-less drawable here is dropped, and its id is exactly what the kept drawable's over-long id
+	 * shortens to.  A dropped object claims no id, so the shortening lands on that very string: naming
+	 * the dropped one anyway would put TWO entries under a single id in the cdi3, and the import's join
+	 * on that string would pick between them arbitrarily - handing a mesh a deleted object's name.
+	 */
+	@Test
+	fun theCdi3OmitsObjectsTheExportDropped() {
+		val overlong = "A".repeat(Sections.ID_STRIDE + 20)
+		val truncated = "A".repeat(Sections.ID_STRIDE - 1)
+		val partId = PartId("Part1")
+		val kept = drawable(overlong, partId)
+		// Mesh-less, so the eligibility pass drops it before the plan is built.
+		val dropped = drawable(truncated, partId).copy(mesh = null)
+		val sketchPartId = PartId("Sketch")
+		val puppet =
+			PuppetModel(
+				parameters = emptyList(),
+				parts =
+					listOf(
+						Part(id = partId, name = "Part1", children = listOf(OrgChild.Drawable(kept.id), OrgChild.Drawable(dropped.id))),
+						Part(id = sketchPartId, name = "Sketch", children = emptyList(), isSketch = true),
+					),
+				deformers = emptyList(),
+				drawables = listOf(kept, dropped),
+				rootChildren = listOf(OrgChild.Part(partId), OrgChild.Part(sketchPartId)),
+				rootPartId = null,
+				canvasWidth = 100f,
+				canvasHeight = 100f,
+			)
+
+		val bundle = Moc3Sidecars.bundle(puppet, basename = "rig", version = MocVersion.V50, pages = emptyList())
+		val displayInfo = Moc3.readCdi3(bundle.files.first { file -> file.name == "rig.cdi3.json" }.bytes.decodeToString())
+
+		assertEquals(
+			listOf(truncated),
+			displayInfo.drawables.orEmpty().map { drawable -> drawable.id },
+			"the cdi3 names a drawable the moc does not contain",
+		)
+		assertEquals(overlong, displayInfo.drawables.orEmpty().single().name, "the entry is the kept mesh's, not the dropped one's")
+		assertEquals(
+			listOf("Part1"),
+			displayInfo.parts.map { part -> part.id },
+			"the cdi3 names a sketch part the bake leaves out",
+		)
+	}
+
 	/** An id that fits is written verbatim and raises nothing. */
 	@Test
 	fun idsThatFitAreWrittenVerbatimAndReportNothing() {

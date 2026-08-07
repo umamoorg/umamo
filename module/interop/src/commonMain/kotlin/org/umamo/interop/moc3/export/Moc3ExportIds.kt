@@ -125,7 +125,8 @@ internal class Moc3ExportIds(
  * is what lets the family agree with itself.
  *
  * An id the export never wrote (a dropped drawable) maps to itself, which is the only honest answer:
- * there is no written form to report.
+ * there is no written form to report.  Whether an object was written at all is a separate question, and
+ * one a sidecar has to ask before naming it - see [wrotePart] / [wroteDrawable].
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.4</a>
  */
@@ -135,6 +136,30 @@ class Moc3WrittenIds internal constructor(
 	private val deformers: Map<String, String>,
 	private val drawables: Map<String, String>,
 ) {
+	/**
+	 * Whether the moc contains a record for [id].
+	 *
+	 * A part in a sketch subtree is left out of the bake entirely, so a sidecar entry for it names
+	 * nothing the file contains.
+	 *
+	 * @param PartId id The part's model id.
+	 * @return Boolean True when the export wrote it.
+	 */
+	fun wrotePart(id: PartId): Boolean = id.raw in parts
+
+	/**
+	 * Whether the moc contains a record for [id].
+	 *
+	 * A drawable can be dropped for several reasons (a sketch subtree, a missing mesh, an uninvertible
+	 * deformer chain), and a dropped one holds no claim on its id - so an over-long id can be shortened
+	 * onto exactly that string.  A sidecar that named the dropped object anyway would then carry two
+	 * entries under one id, and a join on that string would pick between them arbitrarily.
+	 *
+	 * @param DrawableId id The drawable's model id.
+	 * @return Boolean True when the export wrote it.
+	 */
+	fun wroteDrawable(id: DrawableId): Boolean = id.raw in drawables
+
 	/**
 	 * The id [id] was written under.
 	 *

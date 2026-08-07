@@ -187,6 +187,12 @@ object Moc3Sidecars {
 	 * GROUP ids are the exception, and stay verbatim: they exist only in this file, so no moc record
 	 * bounds them.
 	 *
+	 * Parts and art meshes are also filtered to the ones the lowering actually WROTE - the export drops
+	 * sketch subtrees, mesh-less drawables, and unkeyed drawables it cannot invert into parent space.
+	 * Naming a dropped object is dead weight on its own, and worse than that alongside the shortening
+	 * above: a dropped object claims no id, so an over-long id can shorten onto exactly its string and
+	 * leave the file with two entries under one id for a reader's join to choose between.
+	 *
 	 * @param PuppetModel    puppet     The rig.
 	 * @param Moc3WrittenIds writtenIds What the lowering wrote each object's id as.
 	 * @return Cdi3Json The display info.
@@ -230,7 +236,10 @@ object Moc3Sidecars {
 					)
 				},
 			parameterGroups = groups,
-			parts = puppet.parts.map { part -> DisplayPart(id = writtenIds.partId(part.id), name = part.name) },
+			parts =
+				puppet.parts
+					.filter { part -> writtenIds.wrotePart(part.id) }
+					.map { part -> DisplayPart(id = writtenIds.partId(part.id), name = part.name) },
 			// The pair order is the same one the import reads back: horizontal first, then vertical.
 			combinedParameters =
 				puppet.parameterLinks
@@ -240,6 +249,7 @@ object Moc3Sidecars {
 					.takeIf { links -> links.isNotEmpty() },
 			drawables =
 				puppet.drawables
+					.filter { drawable -> writtenIds.wroteDrawable(drawable.id) }
 					.map { drawable ->
 						DisplayDrawable(id = writtenIds.drawableId(drawable.id), name = drawable.name)
 					}
