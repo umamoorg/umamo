@@ -149,6 +149,9 @@
 	<string name="export_reason_combined_pair_reordered">組み合わせパラメータ %1$s ・ %2$s が隣り合うように、パラメータの並び順を調整しました。</string>
 	<string name="export_reason_no_canvas_to_reconcile">モデルにキャンバスがないため、キャンバスサイズは書き出されませんでした。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
+	<!-- 書き出しの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
+	     %2$s は省略表示のファイル一覧）。 -->
+	<string name="confirm_export_overwrite">書き出しにより既存の %1$d 個のファイルを上書きします: %2$s</string>
 	<!-- 書き出しオプションダイアログ（document.exportOptionsMoc3 コマンド）。キャンバス表示の
 	     %1$s/%2$s は編集中のスケールでのキャンバスの幅と高さ（ユニット単位）。 -->
 	<string name="export_options_title_moc3">MOC3 書き出しオプション</string>

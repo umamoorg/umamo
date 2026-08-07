@@ -10,12 +10,20 @@ import org.umamo.ui.document.DocumentOpenFailure
 /**
  * A pending confirmation: the localized prompt to show and the action to run if the user confirms.  The
  * shell holds at most one of these (like its palette-visible flag) and renders a ConfirmDialog for it,
- * so a destructive command (reset, import-overwrite) sets one instead of acting immediately.
+ * so a destructive command (reset, import-overwrite, export-overwrite) sets one instead of acting
+ * immediately.
  *
- * @property StringResource message The localized prompt shown in the dialog.
- * @property Function onConfirm The action to run when confirmed.
+ * @property StringResource message   The localized prompt shown in the dialog.
+ * @property List           arguments The prompt's format arguments, in placeholder order; empty for
+ *                                    an argument-free prompt.  Plain values (counts, file names) -
+ *                                    document data is never translated.
+ * @property Function       onConfirm The action to run when confirmed.
  */
-internal data class ConfirmRequest(val message: StringResource, val onConfirm: () -> Unit)
+internal data class ConfirmRequest(
+	val message: StringResource,
+	val arguments: List<Any> = emptyList(),
+	val onConfirm: () -> Unit,
+)
 
 /**
  * The shell's transient overlay flags in one place: which modal chrome (palette, preferences, Help

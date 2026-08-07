@@ -82,9 +82,12 @@ internal fun exportedSidecarsFor(
  * The atlas pages the family writes, in the decoded set's page order.
  *
  * Page names come from the SOURCE manifest when there is one, so a re-export lands the family in the
- * shape (and the subdirectory) the model already used.  A CMO3-origin document has no manifest, so its
- * pages are named after the export instead.  Bytes are the source PNGs verbatim when the document
- * retains them - both faster and lossless - and a re-encode of the decoded RGBA only when it does not.
+ * shape (and the subdirectory) the model already used.  A CMO3-origin document has no manifest, so
+ * its pages are named the way the official editor's bake names them - a `Basename.Resolution/`
+ * subfolder holding `texture_NN.png` files (two-digit minimum, underscore separated); every corpus
+ * manifest follows exactly this shape, and runtimes' tooling expects it.  Bytes are the source PNGs
+ * verbatim when the document retains them - both faster and lossless - and a re-encode of the
+ * decoded RGBA only when it does not.
  *
  * Driven by the DECODED set rather than the retained bytes: that set is what the model's page indices
  * were resolved against, so a source whose manifest lists more pages than decoded cannot silently
@@ -100,11 +103,35 @@ internal fun atlasPagesFor(
 	textures: PuppetTextures,
 	moc3Document: Moc3Document?,
 	basename: String,
-): List<Moc3Sidecars.AtlasPage> =
-	textures.atlases.mapIndexed { pageIndex, atlas ->
+): List<Moc3Sidecars.AtlasPage> {
+	val textureFolder = "$basename.${atlasResolutionFor(textures)}"
+	return textures.atlases.mapIndexed { pageIndex, atlas ->
 		val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
 		Moc3Sidecars.AtlasPage(
-			fileName = sourceName ?: "$basename.$pageIndex.png",
+			fileName = sourceName ?: "$textureFolder/texture_${paddedPageIndex(pageIndex)}.png",
 			bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
 		)
 	}
+}
+
+/**
+ * The single per-project resolution the texture subfolder is named with.
+ *
+ * The official layout carries ONE resolution for the whole family (`Azxiana.4096/`,
+ * `modelF.16384/`), so a set whose pages differ still has to pick one number - the largest
+ * dimension across every page, which is the size the export target actually needed.
+ *
+ * @param PuppetTextures textures The decoded atlas set.
+ * @return Int The folder resolution; 0 only for a set with no pages, which names no files.
+ */
+private fun atlasResolutionFor(textures: PuppetTextures): Int =
+	textures.atlases.maxOfOrNull { atlas -> maxOf(atlas.width, atlas.height) } ?: 0
+
+/**
+ * A page index in the official texture file naming: at least two digits, so page 3 is
+ * `texture_03.png` while page 100 keeps all its digits.
+ *
+ * @param Int pageIndex The page's index in the decoded set.
+ * @return String The padded index.
+ */
+private fun paddedPageIndex(pageIndex: Int): String = pageIndex.toString().padStart(2, '0')

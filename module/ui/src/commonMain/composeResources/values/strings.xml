@@ -169,6 +169,9 @@
 	<string name="export_reason_combined_pair_reordered">The parameter order was adjusted so the combined pair %1$s + %2$s stays adjacent.</string>
 	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
+	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
+	     export would replace, %2$s the abbreviated file list). -->
+	<string name="confirm_export_overwrite">Exporting will overwrite %1$d existing file(s): %2$s</string>
 	<!-- Export options dialog (the document.exportOptionsMoc3 command).  %1$s/%2$s in the canvas
 	     readout are the canvas width and height in model units at the edited scale. -->
 	<string name="export_options_title_moc3">MOC3 Export Options</string>

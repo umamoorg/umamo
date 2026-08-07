@@ -38,9 +38,31 @@ class Moc3ExportPolicyTest {
 		PuppetTextures(pages.toList(), emptyMap(), premultipliedAlpha = false)
 
 	@Test
-	fun aCmo3OriginPageIsNamedAfterTheExport() {
+	fun aCmo3OriginPageIsNamedInTheOfficialTextureLayout() {
+		// Basename.Resolution/texture_NN.png, exactly as every corpus manifest lays the family out.
+		// The resolution is per PROJECT, so the smaller second page still lives in the same folder.
 		val pages = atlasPagesFor(texturesOf(decodedPage(4, 4), decodedPage(2, 2)), moc3Document = null, basename = "Model")
-		assertEquals(listOf("Model.0.png", "Model.1.png"), pages.map { page -> page.fileName })
+		assertEquals(listOf("Model.4/texture_00.png", "Model.4/texture_01.png"), pages.map { page -> page.fileName })
+	}
+
+	@Test
+	fun theTextureFolderResolutionIsTheLargestPageDimension() {
+		// A non-square page still needs one number for the folder; the largest dimension is the size
+		// the export actually required.
+		val pages = atlasPagesFor(texturesOf(decodedPage(6, 3)), moc3Document = null, basename = "Model")
+		assertEquals(listOf("Model.6/texture_00.png"), pages.map { page -> page.fileName })
+	}
+
+	@Test
+	fun thePageIndexKeepsAllItsDigitsPastTwo() {
+		val pages =
+			atlasPagesFor(
+				texturesOf(*Array(101) { decodedPage(1, 1) }),
+				moc3Document = null,
+				basename = "Model",
+			)
+		assertEquals("Model.1/texture_00.png", pages.first().fileName)
+		assertEquals("Model.1/texture_100.png", pages.last().fileName, "a third digit is kept, not truncated")
 	}
 
 	@Test

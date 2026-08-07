@@ -13,9 +13,9 @@ import org.umamo.ui.workspace.ShellOverlayState
  *
  * The reporting lives here rather than in the app because the shell owns the modal chrome: routing a
  * failure or a confirm through a command means Escape, Enter, the scrim, and focus reclamation behave
- * exactly as they do for every other overlay, instead of each alert re-implementing them.  All four are
- * argument-only and untitled, so they never surface in the palette - there is nothing to invoke without
- * a payload.
+ * exactly as they do for every other overlay, instead of each alert re-implementing them.  All of them
+ * are argument-only and untitled, so they never surface in the palette - there is nothing to invoke
+ * without a payload.
  *
  * @param ShellOverlayState overlays The overlay state the confirms and the alerts go through.
  * @return List<Command> The commands to register.
@@ -40,5 +40,11 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		// continuation carries the export on from whatever the rigger confirms.
 		Command("document.exportOptionsMoc3", title = null) { argument ->
 			(argument as? ExportOptionsRequest)?.let { request -> overlays.pendingExportOptions = request }
+		},
+		// A ready-built confirm from the app layer (the export-overwrite warning).  Unlike
+		// document.confirmReplace, whose prompt is fixed here, the caller owns the prompt and its
+		// arguments - the command only routes it into the shell's one pending-confirm slot.
+		Command("document.confirm", title = null) { argument ->
+			(argument as? ConfirmRequest)?.let { request -> overlays.pendingConfirm = request }
 		},
 	)

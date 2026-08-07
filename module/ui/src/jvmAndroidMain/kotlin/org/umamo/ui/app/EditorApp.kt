@@ -34,6 +34,7 @@ import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
+import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
@@ -59,9 +60,12 @@ import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
+import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
@@ -286,9 +290,31 @@ fun EditorApp(
 									destinationName = destination.name,
 									options = options,
 								)
-							val written = writeMoc3Bundle(destination, bundle)
-							reportExport(bundle.report)
-							UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+							fun writeAndReport() {
+								scope.launch {
+									val written = writeMoc3Bundle(destination, bundle)
+									reportExport(bundle.report)
+									UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+								}
+							}
+							// The native save dialog confirmed the picked file only; the rest of the family
+							// (manifest, cdi3, textures, sidecars) lands beside it unannounced, so anything
+							// already there gets one warning naming what an OK would replace.
+							val existing = existingBundleFiles(destination, bundle)
+							if (existing.isEmpty()) {
+								writeAndReport()
+							} else {
+								commandRegistry.invoke(
+									"document.confirm",
+									ConfirmRequest(
+										message = Res.string.confirm_export_overwrite,
+										// File names are document data, listed in full - the dialog wraps, and a
+										// name the warning omitted is a file the rigger did not agree to lose.
+										arguments = listOf(existing.size, existing.joinToString()),
+										onConfirm = ::writeAndReport,
+									),
+								)
+							}
 						}
 					}
 				},

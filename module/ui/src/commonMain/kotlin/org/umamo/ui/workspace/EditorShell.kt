@@ -499,7 +499,14 @@ fun EditorShell(
 					// so it floats above the tabs, the area tree, the palette, and the settings window.
 					overlays.pendingConfirm?.let { request ->
 						ConfirmDialog(
-							message = stringResource(request.message),
+							// Format only when the prompt takes arguments: an argument-free prompt may carry a
+							// literal % (a scale, a progress figure) that a formatter would choke on.
+							message =
+								if (request.arguments.isEmpty()) {
+									stringResource(request.message)
+								} else {
+									stringResource(request.message, *request.arguments.toTypedArray())
+								},
 							onConfirm = {
 								request.onConfirm()
 								overlays.pendingConfirm = null
