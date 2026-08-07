@@ -34,8 +34,8 @@ import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
-import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.addRecentFile
+import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.loadDocument
@@ -290,6 +290,7 @@ fun EditorApp(
 									destinationName = destination.name,
 									options = options,
 								)
+
 							fun writeAndReport() {
 								scope.launch {
 									val written = writeMoc3Bundle(destination, bundle)

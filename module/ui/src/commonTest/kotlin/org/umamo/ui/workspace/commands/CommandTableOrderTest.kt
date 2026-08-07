@@ -74,7 +74,7 @@ class CommandTableOrderTest {
 				"document.confirmReplace",
 				"document.exportReport",
 				"document.exportOptionsMoc3",
-				"document.confirm"
+				"document.confirm",
 			),
 			commands.map { command -> command.id },
 		)
