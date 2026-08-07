@@ -119,10 +119,16 @@ fun buildPuppetTextures(
 }
 
 /**
- * Re-encodes a decoded atlas page as PNG, for a document that has no original page bytes.
+ * Re-encodes a decoded atlas page as PNG, for a page the document retains no source bytes for.
  *
- * Only a CMO3-origin document reaches this: a MOC3-origin one retains the source PNGs and writes those
- * verbatim, which is both faster and lossless.
+ * The fallback half of both exports' page payload: a retained source PNG is written verbatim, which is
+ * faster and lossless, and this covers every page there is no such PNG for.  A CMO3-origin document
+ * reaches it for every page (its pixels are embedded per drawable, so it retains no atlas PNGs at all).
+ * A MOC3-origin one retains a PNG per decoded page and so does not reach it, and falls back here only
+ * if those two lists ever diverge - which would otherwise leave that page with no bytes to write.
+ *
+ * Re-encoding rather than dropping the page is what keeps page INDICES stable - drawables address
+ * pages by number, so omitting one would renumber every page after it.
  *
  * @param DecodedImage atlas The decoded page.
  * @return ByteArray The PNG bytes.

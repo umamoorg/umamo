@@ -26,9 +26,10 @@ import org.umamo.ui.viewport.initialLiveParams
  * no reference container involved (docs/format/MOC3.md § 8) - which is why this class has no
  * counterpart to [Cmo3Document]'s retained graph.  That one IS load-bearing: the CMO3 export
  * reconciles onto it.  The original atlas page PNGs are the one thing kept ([atlasPages], in model3
- * texture order): both exports write those exact bytes rather than re-encoding the decoded RGBA,
- * Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3 writing them
- * beside the moc.
+ * texture order): both exports prefer those exact bytes over re-encoding the decoded RGBA, Export CMO3
+ * embedding them in the synthesized graph's image chain and Export MOC3 writing them beside the moc.
+ * Each export falls back to a re-encode for any decoded page this list does not reach, so the page
+ * numbering the drawables address stays intact either way.
  */
 class Moc3Document(
 	override val path: String,

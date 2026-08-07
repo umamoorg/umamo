@@ -73,7 +73,7 @@ class Moc3ExportPolicyTest {
 	@Test
 	fun aNameWithoutTheExtensionIsItsOwnBasename() {
 		assertEquals("Model", Moc3Sidecars.basenameFor("Model"))
-		// Only a TRAILING extension is a extension; an interior one is part of the name.
+		// Only a TRAILING `.moc3` is an extension; an interior one is part of the name.
 		assertEquals("Model.moc3.backup", Moc3Sidecars.basenameFor("Model.moc3.backup"))
 	}
 
