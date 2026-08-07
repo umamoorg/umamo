@@ -44,6 +44,12 @@ sealed interface ExportNoticeReason {
 	/** A guide-image (sketch) part holds authoring aids, not runtime content. */
 	data object SketchPartIsNotRuntimeContent : ExportNoticeReason
 
+	/** A hidden part's subtree was left out because the export options omit hidden parts. */
+	data object HiddenPartOmittedByExportOption : ExportNoticeReason
+
+	/** A hidden art mesh was left out because the export options omit hidden drawables. */
+	data object HiddenDrawableOmittedByExportOption : ExportNoticeReason
+
 	/** An unkeyed drawable under a deformer has no parent-space geometry the moc could store. */
 	data object UnkeyedDrawableUnderDeformerHasNoParentGeometry : ExportNoticeReason
 

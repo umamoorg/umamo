@@ -50,8 +50,9 @@ public data class ArtMesh(
 	/**
 	 * MOC3 §5.6 s37: whether the art mesh is visible (the editor's eye toggle).  The official editor
 	 * normally DELETES a hidden mesh at bake time and only carries it - flagged false here - when
-	 * "export invisible ArtMesh" is on, which is why almost every corpus file has this true
-	 * throughout.  An Umamo export always carries hidden meshes rather than dropping them.
+	 * "export invisible drawable" is on, which is why almost every corpus file has this true
+	 * throughout.  An Umamo export carries hidden meshes this same way unless its own export options
+	 * asked to omit them.
 	 */
 	val isVisible: Boolean = true,
 	/** MOC3 §5.6 s38: the drawable's second flag; 1 throughout the corpus (see `ARTMESH_IS_ENABLED`). */

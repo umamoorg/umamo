@@ -1,6 +1,7 @@
 package org.umamo.interop.moc3.export
 
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.MocCanvasMapping
 import org.umamo.interop.moc3.PointSpace
 import org.umamo.interop.moc3.rotationAncestorsById
@@ -30,9 +31,18 @@ internal class Moc3ExportContext(
 	val eligibility: Moc3ExportEligibility,
 	val plan: Moc3IndexPlan,
 	val canvasToParentSpace: CanvasToParentSpace?,
+	options: Moc3ExportOptions = Moc3ExportOptions.Default,
 ) {
-	/** The bake scale written into the canvas record and used to convert every position. */
-	val pixelsPerUnit: Float = Moc3Export.mocPixelsPerUnitFor(puppet)
+	/**
+	 * The bake scale written into the canvas record and used to convert every position.
+	 *
+	 * Resolved HERE, before [canvas] is built, because an override that only patched the canvas
+	 * record afterward would leave every converted position at the old scale - the record and the
+	 * geometry must come from the same number.
+	 */
+	val pixelsPerUnit: Float =
+		options.pixelsPerUnitOverride?.takeIf { override -> override > 0f }
+			?: Moc3Export.mocPixelsPerUnitFor(puppet)
 
 	/** The px↔model mapping every geometry conversion goes through. */
 	val canvas: MocCanvasMapping = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)

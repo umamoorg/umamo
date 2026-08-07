@@ -30,6 +30,8 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.DrawableHasNoMesh,
 			ExportNoticeReason.ChannelDemotedToStatic(FormChannel.OPACITY),
 			ExportNoticeReason.SketchPartIsNotRuntimeContent,
+			ExportNoticeReason.HiddenPartOmittedByExportOption,
+			ExportNoticeReason.HiddenDrawableOmittedByExportOption,
 			ExportNoticeReason.UnkeyedDrawableUnderDeformerHasNoParentGeometry,
 			ExportNoticeReason.RestMeshConversionSizeMismatch(6, 8),
 			ExportNoticeReason.NoAtlasPageBound,

@@ -1,6 +1,7 @@
 package org.umamo.ui.document
 
 import org.umamo.format.png.PngCodec
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
@@ -37,9 +38,31 @@ class Moc3ExportPolicyTest {
 		PuppetTextures(pages.toList(), emptyMap(), premultipliedAlpha = false)
 
 	@Test
-	fun aCmo3OriginPageIsNamedAfterTheExport() {
+	fun aCmo3OriginPageIsNamedInTheOfficialTextureLayout() {
+		// Basename.Resolution/texture_NN.png, exactly as every corpus manifest lays the family out.
+		// The resolution is per PROJECT, so the smaller second page still lives in the same folder.
 		val pages = atlasPagesFor(texturesOf(decodedPage(4, 4), decodedPage(2, 2)), moc3Document = null, basename = "Model")
-		assertEquals(listOf("Model.0.png", "Model.1.png"), pages.map { page -> page.fileName })
+		assertEquals(listOf("Model.4/texture_00.png", "Model.4/texture_01.png"), pages.map { page -> page.fileName })
+	}
+
+	@Test
+	fun theTextureFolderResolutionIsTheLargestPageDimension() {
+		// A non-square page still needs one number for the folder; the largest dimension is the size
+		// the export actually required.
+		val pages = atlasPagesFor(texturesOf(decodedPage(6, 3)), moc3Document = null, basename = "Model")
+		assertEquals(listOf("Model.6/texture_00.png"), pages.map { page -> page.fileName })
+	}
+
+	@Test
+	fun thePageIndexKeepsAllItsDigitsPastTwo() {
+		val pages =
+			atlasPagesFor(
+				texturesOf(*Array(101) { decodedPage(1, 1) }),
+				moc3Document = null,
+				basename = "Model",
+			)
+		assertEquals("Model.1/texture_00.png", pages.first().fileName)
+		assertEquals("Model.1/texture_100.png", pages.last().fileName, "a third digit is kept, not truncated")
 	}
 
 	@Test
@@ -85,5 +108,39 @@ class Moc3ExportPolicyTest {
 		assertEquals("Model", exportSuggestedName("Model.moc3"))
 		assertEquals("Model", exportSuggestedName("Model.CMO3"))
 		assertEquals("Model", exportSuggestedName("Model"))
+	}
+
+	/**
+	 * One retained sidecar of [kind].
+	 *
+	 * @param SidecarKind kind     The sidecar's kind.
+	 * @param String      fileName Its relative file name.
+	 * @return PassThroughSidecar The sidecar.
+	 */
+	private fun sidecarOf(kind: Moc3Sidecars.SidecarKind, fileName: String): Moc3Sidecars.PassThroughSidecar =
+		Moc3Sidecars.PassThroughSidecar(kind, fileName, text = "{}")
+
+	private fun retainedSidecars(): List<Moc3Sidecars.PassThroughSidecar> =
+		listOf(
+			sidecarOf(Moc3Sidecars.SidecarKind.Physics, "Model.physics3.json"),
+			sidecarOf(Moc3Sidecars.SidecarKind.UserData, "Model.userdata3.json"),
+			sidecarOf(Moc3Sidecars.SidecarKind.Pose, "Model.pose3.json"),
+		)
+
+	@Test
+	fun defaultOptionsCarryEveryRetainedSidecar() {
+		val exported = exportedSidecarsFor(retainedSidecars(), Moc3ExportOptions.Default)
+		assertEquals(retainedSidecars().map { sidecar -> sidecar.fileName }, exported.map { sidecar -> sidecar.fileName })
+	}
+
+	@Test
+	fun optingOutDropsExactlyTheOptedOutSidecarKinds() {
+		val exported =
+			exportedSidecarsFor(
+				retainedSidecars(),
+				Moc3ExportOptions(includePhysics = false, includeUserData = false),
+			)
+		// The pose sidecar has no toggle, so opting the other two out must never take it along.
+		assertEquals(listOf("Model.pose3.json"), exported.map { sidecar -> sidecar.fileName })
 	}
 }

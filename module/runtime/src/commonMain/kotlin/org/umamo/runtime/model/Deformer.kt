@@ -45,8 +45,8 @@ sealed interface Deformer {
 	 *
 	 * MOC3 §5.6 s13; CMO3 ACParameterControllableSource.isVisible.  A bake normally DELETES what the
 	 * editor hides, so almost every imported deformer is visible; Azxiana is the one corpus model that
-	 * keeps 7 hidden ones.  Umamo's own export always carries hidden objects rather than dropping them,
-	 * which is what makes this round-trip rather than decay to true.
+	 * keeps 7 hidden ones.  Umamo's own export always carries hidden deformers (the export options
+	 * offer no deformer toggle), which is what makes this round-trip rather than decay to true.
 	 */
 	val isVisible: Boolean
 

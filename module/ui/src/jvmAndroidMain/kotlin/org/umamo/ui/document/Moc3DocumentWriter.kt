@@ -19,6 +19,27 @@ import org.umamo.storage.UmamoLog
  */
 
 /**
+ * The bundle files that already exist at [destination], under the names the bundle would write.
+ *
+ * The safety check behind the pre-export overwrite warning: the native save dialog confirms
+ * replacing the PICKED file only, while the family lands a manifest, a cdi3, atlas pages (in their
+ * subfolder), and sidecars beside it that the dialog never mentioned.  Every bundle name is
+ * checked - the moc included, since a picked NEW name can still collide with an existing family's
+ * moc when only the extension's case differs.  On a platform whose handle has no resolvable parent
+ * (Android SAF) nothing beside the moc will be written anyway, so there is nothing to warn about.
+ *
+ * @param PlatformFile destination The picked `.moc3` handle.
+ * @param Bundle       bundle      The family that would be written.
+ * @return List The relative names that already exist, in the bundle's own order.
+ */
+fun existingBundleFiles(destination: PlatformFile, bundle: Moc3Sidecars.Bundle): List<String> {
+	val directory = runCatching { destination.absolutePath().toPath().parent }.getOrNull() ?: return emptyList()
+	return bundle.files
+		.map { file -> file.name }
+		.filter { name -> FileSystem.SYSTEM.exists(directory / name) }
+}
+
+/**
  * Writes every file of [bundle] beside [destination].
  *
  * The moc goes through the picker's own handle - that is the one path the user actually chose, and on

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.kit.button.Button
 import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.dialog_ok
+import org.umamo.ui.resources.dialog_okay
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -63,7 +63,7 @@ fun MessageDialog(
 			Column(modifier = Modifier.padding(20.dp)) {
 				Text(text = message, style = LocalUmamoTypography.current.bodyMedium)
 				Box(modifier = Modifier.padding(top = 20.dp).align(Alignment.End)) {
-					Button(label = stringResource(Res.string.dialog_ok), onClick = onDismiss, primary = true)
+					Button(label = stringResource(Res.string.dialog_okay), onClick = onDismiss, primary = true)
 				}
 			}
 		}

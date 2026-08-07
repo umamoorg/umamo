@@ -442,8 +442,8 @@ fun EditorShell(
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
 					// (so the palette cannot be left open under a menu-bar-launched window).  Painted
-					// bottom-to-top: palette, preferences, the Help dialogs, the file-open alert, the export
-					// report, then the confirm dialog (the topmost modal).
+					// bottom-to-top: palette, preferences, the Help dialogs, the export-options dialog, the
+					// file-open alert, the export report, then the confirm dialog (the topmost modal).
 					if (overlays.paletteVisible) {
 						// title == null marks a command as not-a-palette-entry (internal toggles like
 						// palette.toggle / area.dragCancel, and argument-only import commands), and an
@@ -471,6 +471,15 @@ fun EditorShell(
 					if (overlays.creditsVisible) {
 						CreditsDialog(onDismiss = { overlays.creditsVisible = false })
 					}
+					// The export-options dialog, the last of the self-focused family (its number field owns
+					// focus); the modal alerts below still paint above it.  The request's continuation runs
+					// from its own Export button, so dismissal here is unconditional.
+					overlays.pendingExportOptions?.let { request ->
+						ExportOptionsDialog(
+							request = request,
+							onDismiss = { overlays.pendingExportOptions = null },
+						)
+					}
 					// The file-open failure alert, in the same modal family (below the confirm dialog in paint order).
 					overlays.openFailure?.let { failure ->
 						MessageDialog(
@@ -490,7 +499,14 @@ fun EditorShell(
 					// so it floats above the tabs, the area tree, the palette, and the settings window.
 					overlays.pendingConfirm?.let { request ->
 						ConfirmDialog(
-							message = stringResource(request.message),
+							// Format only when the prompt takes arguments: an argument-free prompt may carry a
+							// literal % (a scale, a progress figure) that a formatter would choke on.
+							message =
+								if (request.arguments.isEmpty()) {
+									stringResource(request.message)
+								} else {
+									stringResource(request.message, *request.arguments.toTypedArray())
+								},
 							onConfirm = {
 								request.onConfirm()
 								overlays.pendingConfirm = null
