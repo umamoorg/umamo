@@ -1021,20 +1021,6 @@ internal class Cmo3PropertyLowering(
 	}
 
 	/**
-	 * Rewrites a graph collection field to [newElements].  An existing mutable list is mutated in
-	 * place, keeping its object identity (its recorded child slot and its on-disk list tag); an
-	 * absent field gets a fresh CArrayList (the editor's collection type for guid lists) plus the
-	 * recorded slot.
-	 *
-	 * @param Any      owner          The object owning the field.
-	 * @param String   tag            The serializer tag level the field is declared at.
-	 * @param String   property       The field's Kotlin property name.
-	 * @param String?  beforeProperty The declared sibling the ensured slot lands before.
-	 * @param Any?     current        The field's current value.
-	 * @param List     newElements    The replacement elements.
-	 * @param Function assign         Assigns a freshly created list to the field.
-	 */
-	/**
 	 * Rewrites a collection field in place, or creates a fresh CArrayList and records its slot.
 	 *
 	 * The fresh list's runtime type decides the serialized tag, and every field this helper
