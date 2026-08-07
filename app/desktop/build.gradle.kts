@@ -90,7 +90,7 @@ compose.desktop {
 		// `:desktop:run` alone at the bottom of this file.
 		//
 		// Decoding the 8192² atlas to RGBA is transiently heavy (~0.5 GB); give the preview headroom.
-		jvmArgs.add("-Xmx4g")
+		jvmArgs.add("-Xmx16g")
 		nativeDistributions {
 			// packageName feeds the uber-jar base name (and any future jpackage installers);
 			// lowercase matches the project/domain and Linux package conventions.

@@ -73,6 +73,8 @@ class CommandTableOrderTest {
 				"document.openFailed",
 				"document.confirmReplace",
 				"document.exportReport",
+				"document.exportOptionsMoc3",
+				"document.confirm"
 			),
 			commands.map { command -> command.id },
 		)
