@@ -165,7 +165,7 @@
 	<string name="export_options_pixels_per_unit">ピクセル / ユニット</string>
 	<string name="export_options_canvas_in_units">キャンバス: %1$s × %2$s ユニット</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
-	<string name="dialog_ok">OK</string>
+	<string name="dialog_okay">Okay</string>
 	<string name="open_failed_read">%1$s を読み込めませんでした。</string>
 	<string name="open_failed_unrecognized">%1$s は Umamo が認識できるファイル形式ではありません。</string>
 	<string name="open_failed_not_openable">%1$s はまだエディタで開けないファイル形式です。</string>

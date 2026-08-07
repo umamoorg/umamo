@@ -185,7 +185,7 @@
 	<string name="export_options_pixels_per_unit">Pixels per unit</string>
 	<string name="export_options_canvas_in_units">Canvas: %1$s × %2$s units</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
-	<string name="dialog_ok">OK</string>
+	<string name="dialog_okay">Okay</string>
 	<string name="open_failed_read">Could not read %1$s.</string>
 	<string name="open_failed_unrecognized">%1$s is not a file format Umamo recognizes.</string>
 	<string name="open_failed_not_openable">%1$s cannot be opened in the editor yet.</string>
