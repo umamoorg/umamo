@@ -11,7 +11,6 @@ import org.umamo.runtime.keyform.withAxisCollapsedLifting
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
-import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.Parameter
@@ -217,12 +216,9 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 			if (scrubbed.channelGrids === glue.channelGrids) {
 				glue
 			} else {
-				Glue(
-					glue.meshA,
-					glue.meshB,
-					glue.pairs,
-					scrubbed.channelGrids,
-					scrubbed.lifted.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
+				glue.copy(
+					channelGrids = scrubbed.channelGrids,
+					intensity = scrubbed.lifted.scalarOr(FormChannel.GLUE_INTENSITY, glue.intensity),
 				)
 			}
 		}

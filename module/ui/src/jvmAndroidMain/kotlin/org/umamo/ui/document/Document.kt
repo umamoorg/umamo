@@ -4,6 +4,7 @@ import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
@@ -43,6 +44,25 @@ sealed interface PuppetDocument : Document {
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams
+}
+
+/**
+ * This function exists because I managed to somehow export a CMO3 with the puppet model of a previously opened file.
+ * So if this ever happens again we will have logged proof it that someone can report.
+ *
+ * The model an export should write for [document]: the session's edited model when [session] belongs
+ * to this document, else the document's own unedited puppet.
+ *
+ * @param PuppetDocument  document The document being exported.
+ * @param EditorSession?  session  The shell's current session, if any.
+ * @return PuppetModel The model to export.
+ */
+fun exportedModelFor(document: PuppetDocument, session: EditorSession?): PuppetModel {
+	val documentSession = session?.takeIf { candidate -> candidate.baselineModel === document.puppet }
+	if (session != null && documentSession == null) {
+		UmamoLog.error("export: session does not belong to ${document.displayName}; exporting the unedited document")
+	}
+	return documentSession?.model?.value ?: document.puppet
 }
 
 /**

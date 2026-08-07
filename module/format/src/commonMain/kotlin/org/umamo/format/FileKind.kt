@@ -5,8 +5,8 @@ package org.umamo.format
  *
  * Modelled as a `sealed interface` so a `when` over kinds is exhaustive (the compiler rejects an
  * unhandled case) - the same enforcement applied to [Cmo3Version]. Each kind declares its
- * capabilities ([readable]/[writable]) and its priority [tier], so dispatch and UI can reason
- * about support without a scattered list of booleans.
+ * capabilities ([readable]/[writable]), so dispatch and UI can reason about support without a
+ * scattered list of booleans, and its [extension], so nothing else spells the extension by hand.
  */
 sealed interface FileKind {
 	/** Conventional file extension without the dot, e.g. `"cmo3"`. */

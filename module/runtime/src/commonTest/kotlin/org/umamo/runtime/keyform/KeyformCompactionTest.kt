@@ -234,6 +234,52 @@ class KeyformCompactionTest {
 		assertEquals(0.4f, lifted.intensity)
 	}
 
+	/**
+	 * A compacted glue keeps its authored id.
+	 *
+	 * Compaction runs on the MOC3 import path itself, so a glue whose intensity track lifts passes
+	 * through here before any export sees it.  The id exists purely so a round trip writes back the name
+	 * the model was authored with, which a rewrite that dropped it would silently defeat - the export
+	 * would synthesize `Glue_ArtMeshNN_ArtMeshMM_` and nothing would report a loss.
+	 */
+	@Test
+	fun aCompactedGlueKeepsItsAuthoredId() {
+		val spanningTrack =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
+				listOf<KeyformCell<ChannelValue>>(
+					KeyformCell(intArrayOf(0), scalar(0.4f)),
+					KeyformCell(intArrayOf(1), scalar(0.4f)),
+				),
+			)
+		val model =
+			PuppetModel(
+				parameters = listOf(Parameter(angleX, angleX.raw, min = -1f, max = 1f, default = 0f)),
+				parts = emptyList(),
+				deformers = emptyList(),
+				drawables = emptyList(),
+				rootChildren = emptyList(),
+				rootPartId = null,
+				glues =
+					listOf(
+						Glue(
+							DrawableId("a"),
+							DrawableId("b"),
+							emptyList(),
+							ChannelGrids(mapOf(FormChannel.GLUE_INTENSITY to spanningTrack)),
+							id = "Glue__ArtMesh48__ArtMesh49",
+						),
+					),
+			)
+
+		val compacted = model.withChannelsCompacted()
+
+		// The glue IS rewritten here - its track lifts to a static - so this is the rewrite that must
+		// carry the id, not a pass-through that trivially would.
+		assertEquals(0.4f, compacted.glues.single().intensity, "the spanning constant lifted")
+		assertEquals("Glue__ArtMesh48__ArtMesh49", compacted.glues.single().id)
+	}
+
 	/** A sparse grid is passed straight through - its missing cells cannot be tested, so nothing is dropped. */
 	@Test
 	fun aSparseGridIsUntouched() {
