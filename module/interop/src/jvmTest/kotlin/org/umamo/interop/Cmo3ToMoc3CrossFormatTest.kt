@@ -115,10 +115,11 @@ class Cmo3ToMoc3CrossFormatTest {
 			}
 			compared++
 			// What the editor's bake omits and ours keeps: HIDDEN objects.  The official bake deletes them
-			// unless "export invisible ArtMesh" is ticked; Umamo has no such option yet and deleting
-			// something the rigger can still see in the outliner is a silent destructive edit, so the
-			// documented behaviour is to keep them (with the visibility flag clear).  That makes an
-			// unexpected id acceptable ONLY when the source says it is hidden - anything else is a bug.
+			// unless "export invisible drawable" is ticked; Umamo asks the same through Moc3ExportOptions,
+			// but this test lowers with the options-less API default, which keeps them (flag clear) -
+			// deleting something the rigger can still see in the outliner is a silent destructive edit.
+			// That makes an unexpected id acceptable ONLY when the source says it is hidden - anything
+			// else is a bug.
 			val hiddenParts = source.parts.filterNot { part -> part.isVisible }.mapTo(HashSet()) { it.id.raw }
 			val hiddenDrawables =
 				source.drawables

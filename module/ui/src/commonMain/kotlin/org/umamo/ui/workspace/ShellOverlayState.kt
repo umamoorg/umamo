@@ -59,22 +59,30 @@ internal class ShellOverlayState {
 	var exportReport: ExportReport? by mutableStateOf(null)
 
 	/**
+	 * The export-options dialog's payload - set by the document.exportOptionsMoc3 command when an
+	 * export with options begins, cleared by Cancel, the scrim, Escape, or the Export button (which
+	 * first runs the request's continuation).  Null while none shows.
+	 */
+	var pendingExportOptions: ExportOptionsRequest? by mutableStateOf(null)
+
+	/**
 	 * True while an overlay that holds its own focus is open (the palette's search field, the
-	 * preferences window's popups, the Help dialogs).  While one is up the shell must NOT steal focus;
-	 * it reclaims when this flips false.
+	 * preferences window's popups, the Help dialogs, the export-options dialog's fields).  While one
+	 * is up the shell must NOT steal focus; it reclaims when this flips false.
 	 */
 	val selfFocusedOverlayOpen: Boolean
-		get() = paletteVisible || settingsVisible || aboutVisible || creditsVisible
+		get() = paletteVisible || settingsVisible || aboutVisible || creditsVisible || pendingExportOptions != null
 
 	/**
 	 * Closes the topmost open self-focused overlay, if any - what Escape does to this family.
 	 *
-	 * The order is the four overlays' stacking order.  It lives here rather than as four consecutive
+	 * The order is the overlays' stacking order.  It lives here rather than as consecutive
 	 * modal-ladder arms, so the flags and the precedence over them cannot drift apart.  It only matters
 	 * when two are somehow open at once; with one open, any order closes it.
 	 */
 	fun closeTopmostSelfFocused() {
 		when {
+			pendingExportOptions != null -> pendingExportOptions = null
 			settingsVisible -> settingsVisible = false
 			aboutVisible -> aboutVisible = false
 			creditsVisible -> creditsVisible = false

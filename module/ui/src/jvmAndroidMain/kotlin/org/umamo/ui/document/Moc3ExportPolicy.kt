@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
 import org.umamo.render.canvasToParentSpaceFor
@@ -23,12 +24,15 @@ import org.umamo.runtime.model.PuppetModel
  *                                       a MOC3 origin - its source manifest and page bytes).
  * @param PuppetModel    edited          The model to write; see [exportedModelFor].
  * @param String         destinationName The picked file's own name, which the family is named after.
+ * @param Moc3ExportOptions options      What the rigger chose to include; the default is the
+ *                                       options-less behavior.
  * @return Bundle The named byte arrays to write, plus the report of anything unrepresentable.
  */
 fun prepareMoc3Export(
 	document: PuppetDocument,
 	edited: PuppetModel,
 	destinationName: String,
+	options: Moc3ExportOptions = Moc3ExportOptions.Default,
 ): Moc3Sidecars.Bundle {
 	// The page binding comes from the decoded atlas set, not the model: a CMO3-origin document has no
 	// page index of its own (see withTexturePagesFrom).
@@ -40,11 +44,39 @@ fun prepareMoc3Export(
 		puppet = bound,
 		basename = basename,
 		pages = atlasPagesFor(document.textures, moc3Document, basename),
-		sidecars = passThroughSidecars(moc3Document),
+		sidecars = exportedSidecarsFor(passThroughSidecars(moc3Document), options),
 		source = moc3Document?.manifest,
 		canvasToParentSpace = canvasToParentSpaceFor(bound),
+		options = options,
 	)
 }
+
+/**
+ * The pass-through sidecars an export carries under [options].
+ *
+ * Physics and user data are the two a rigger can opt out of; every other kind always rides along.
+ * Filtered HERE, before the bundle, because the manifest derives its physics/userData references
+ * from the sidecar list it is handed - dropping a sidecar upstream drops its reference with it,
+ * so the two cannot disagree.
+ *
+ * @param List sidecars The retained pass-through sidecars.
+ * @param Moc3ExportOptions options What the rigger chose to include.
+ * @return List The sidecars to bundle.
+ */
+internal fun exportedSidecarsFor(
+	sidecars: List<Moc3Sidecars.PassThroughSidecar>,
+	options: Moc3ExportOptions,
+): List<Moc3Sidecars.PassThroughSidecar> =
+	sidecars.filter { sidecar ->
+		when (sidecar.kind) {
+			Moc3Sidecars.SidecarKind.Physics -> options.includePhysics
+			Moc3Sidecars.SidecarKind.UserData -> options.includeUserData
+			Moc3Sidecars.SidecarKind.Pose,
+			Moc3Sidecars.SidecarKind.Expression,
+			Moc3Sidecars.SidecarKind.Motion,
+			-> true
+		}
+	}
 
 /**
  * The atlas pages the family writes, in the decoded set's page order.

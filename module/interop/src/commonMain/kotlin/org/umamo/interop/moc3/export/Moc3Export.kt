@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.CanvasInfo
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.mocVersion
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -27,8 +28,10 @@ import org.umamo.runtime.model.PuppetModel
  * convention natively - which is what lets one lowering serve both.
  *
  * An export ALWAYS writes.  Anything it cannot express becomes an [ExportNotice] rather than a
- * silent drop, including hidden objects, which are CARRIED with their flag clear rather than
- * deleted the way the official editor's bake deletes them.
+ * silent drop, including hidden objects, which by default are CARRIED with their flag clear rather
+ * than deleted the way the official editor's bake deletes them.  [Moc3ExportOptions] is where the
+ * rigger changes that: its hidden/guide flags feed [resolveExportEligibility], and its scale
+ * override feeds the [Moc3ExportContext]; the options-less default stays the carrying behavior.
  *
  * This object is only the orchestrator.  The work sits in per-concern producers beside it -
  * [resolveExportEligibility] for what gets written at all, then [lowerParameters], [lowerRenderOrder],
@@ -66,12 +69,15 @@ object Moc3Export {
 	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
 	 * @param CanvasToParentSpace? canvasToParentSpace Inverts the deformer chain for an unkeyed
 	 *   drawable; null drops those drawables with a notice instead (see [CanvasToParentSpace]).
+	 * @param Moc3ExportOptions options What the rigger chose to include; the default is the
+	 *   options-less behavior.
 	 * @return Lowered The document and its notices.
 	 */
 	fun toMocDocument(
 		puppet: PuppetModel,
 		version: MocVersion = puppet.runtimeTarget.mocVersion(),
 		canvasToParentSpace: CanvasToParentSpace? = null,
+		options: Moc3ExportOptions = Moc3ExportOptions.Default,
 	): Lowered {
 		val noticeSink = Moc3ExportNotices()
 		val downgraded = Moc3VersionDowngrade.strip(puppet, version)
@@ -81,9 +87,9 @@ object Moc3Export {
 		// re-target upward - so reading the parameter by mistake is invisible on all of them.  Naming
 		// them apart is what makes the mistake say so.
 		val downgradedPuppet = downgraded.puppet
-		val eligibility = resolveExportEligibility(downgradedPuppet, canvasToParentSpace)
+		val eligibility = resolveExportEligibility(downgradedPuppet, canvasToParentSpace, options)
 		val plan = Moc3IndexPlan.of(downgradedPuppet, eligibility.drawables, eligibility.parts)
-		val context = Moc3ExportContext(downgradedPuppet, version, eligibility, plan, canvasToParentSpace)
+		val context = Moc3ExportContext(downgradedPuppet, version, eligibility, plan, canvasToParentSpace, options)
 		val pool = Moc3KeyformPool { parameterId -> plan.parameterIndex(parameterId) }
 		// Built from the plan, so every id the file will contain is claimed before the first record is
 		// written and an id too wide for the record can only be shortened INTO a free name.
@@ -161,14 +167,17 @@ object Moc3Export {
 	 * @param PuppetModel puppet  The rig to export.
 	 * @param MocVersion  version The moc version to target; the document's own runtime target by default.
 	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
+	 * @param Moc3ExportOptions options What the rigger chose to include; the default is the
+	 *   options-less behavior.
 	 * @return Pair The bytes and the advisory report.
 	 */
 	fun write(
 		puppet: PuppetModel,
 		version: MocVersion = puppet.runtimeTarget.mocVersion(),
 		canvasToParentSpace: CanvasToParentSpace? = null,
+		options: Moc3ExportOptions = Moc3ExportOptions.Default,
 	): Pair<ByteArray, ExportReport> {
-		val lowered = toMocDocument(puppet, version, canvasToParentSpace)
+		val lowered = toMocDocument(puppet, version, canvasToParentSpace, options)
 		return Moc3.write(lowered.document) to lowered.report
 	}
 
@@ -183,9 +192,9 @@ object Moc3Export {
 	 *
 	 * So a CMO3-origin export defaults to the canvas width, and a MOC3-origin one keeps the scale its
 	 * file already had.  Writing the project's literal 1 instead is not a smaller choice - it stores the
-	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger who
-	 * picked a different scale at bake time cannot have it recovered from the project; that wants an
-	 * export option, on the same surface an omit-hidden-objects toggle would live on.
+	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger
+	 * who wants a different bake scale sets [Moc3ExportOptions.pixelsPerUnitOverride]; the export
+	 * dialog seeds its scale field from this function, which is why it is public.
 	 *
 	 * The two cases are told apart by [PuppetModel.pixelsPerUnit] being NULL, never by the value's
 	 * magnitude: 1 is a legitimate bake scale, so a `> 1` test would silently rescale a moc that baked
@@ -194,7 +203,7 @@ object Moc3Export {
 	 * @param PuppetModel puppet The rig being exported.
 	 * @return Float The canvas scale to write.
 	 */
-	internal fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
+	fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
 		puppet.pixelsPerUnit?.let { recorded -> return recorded }
 		return puppet.canvasWidth.takeIf { width -> width > 0f } ?: 1f
 	}

@@ -92,6 +92,8 @@
 	     マスクの行の %1$s はマスク元の名前、ID の行の %1$d/%2$s はレコード長（バイト）と実際に書き出した ID。 -->
 	<string name="export_reason_channel_demoted_to_static">%1$s はオブジェクトのグリッドより狭い範囲にしかキーがないため、定数として書き出しました。MOC3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
 	<string name="export_reason_sketch_part_not_runtime_content">下絵（スケッチ）パーツはランタイムの内容ではないため、除外しました。</string>
+	<string name="export_reason_hidden_part_omitted_by_option">非表示のパーツを書き出さない設定のため、このパーツの内容を除外しました。</string>
+	<string name="export_reason_hidden_drawable_omitted_by_option">非表示のアートメッシュを書き出さない設定のため、このアートメッシュを除外しました。</string>
 	<string name="export_reason_unkeyed_drawable_under_deformer">デフォーマ配下でキーを持たない描画オブジェクトは親空間の形状を書き出せないため、除外しました。</string>
 	<string name="export_reason_rest_mesh_conversion_size_mismatch">キャンバスから親空間への変換が %2$d に対して %1$d 個の座標を返したため、元のメッシュを変換せずに書き出しました。</string>
 	<string name="export_reason_no_atlas_page_bound">この描画オブジェクトにはアトラスページが割り当てられていないため、ページ 0 を指す状態で書き出しました。</string>
@@ -147,6 +149,21 @@
 	<string name="export_reason_combined_pair_reordered">組み合わせパラメータ %1$s ・ %2$s が隣り合うように、パラメータの並び順を調整しました。</string>
 	<string name="export_reason_no_canvas_to_reconcile">モデルにキャンバスがないため、キャンバスサイズは書き出されませんでした。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
+	<!-- 書き出しオプションダイアログ（document.exportOptionsMoc3 コマンド）。キャンバス表示の
+	     %1$s/%2$s は編集中のスケールでのキャンバスの幅と高さ（ユニット単位）。 -->
+	<string name="export_options_title_moc3">MOC3 書き出しオプション</string>
+	<string name="export_options_export">書き出し</string>
+	<string name="export_options_section_content">内容</string>
+	<string name="export_options_section_sidecars">サイドカーファイル</string>
+	<string name="export_options_section_scale">スケール</string>
+	<string name="export_options_hidden_parts">非表示のパーツを書き出す</string>
+	<string name="export_options_hidden_drawables">非表示のアートメッシュを書き出す</string>
+	<string name="export_options_guide_parts">下絵（スケッチ）パーツを書き出す</string>
+	<string name="export_options_include_physics">物理演算設定（physics3.json）</string>
+	<string name="export_options_include_userdata">ユーザーデータ（userdata3.json）</string>
+	<string name="export_options_include_displayinfo">表示補助情報（cdi3.json）</string>
+	<string name="export_options_pixels_per_unit">ピクセル / ユニット</string>
+	<string name="export_options_canvas_in_units">キャンバス: %1$s × %2$s ユニット</string>
 	<!-- ファイルを開けなかったときの通知（document.openFailed コマンド。%1$s はファイル名）。 -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">%1$s を読み込めませんでした。</string>

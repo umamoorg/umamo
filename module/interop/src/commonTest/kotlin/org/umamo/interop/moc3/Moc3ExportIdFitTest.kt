@@ -139,11 +139,11 @@ class Moc3ExportIdFitTest {
 	}
 
 	/**
-	 * The cdi3 beside the moc names the objects by the ids the MOC got, not the ones the model carries.
+	 * The cdi3 beside the MOC3 names the objects by the ids the MOC got, not the ones the model carries.
 	 *
 	 * The two files are joined on that string by every runtime and by Umamo's own import: a cdi3 built
-	 * from the model's ids would name an object the moc does not contain under that name, so the display
-	 * name - the one thing the moc cannot carry, which is the entire reason the cdi3 is written - is lost
+	 * from the model's ids would name an object the MOC3 does not contain under that name, so the display
+	 * name - the one thing the MOC3 cannot carry, which is the entire reason the cdi3 is written - is lost
 	 * on exactly the objects whose ids had to be shortened.
 	 */
 	@Test

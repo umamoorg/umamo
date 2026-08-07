@@ -90,6 +90,10 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			)
 		ExportNoticeReason.SketchPartIsNotRuntimeContent ->
 			ExportNoticePhrase(Res.string.export_reason_sketch_part_not_runtime_content)
+		ExportNoticeReason.HiddenPartOmittedByExportOption ->
+			ExportNoticePhrase(Res.string.export_reason_hidden_part_omitted_by_option)
+		ExportNoticeReason.HiddenDrawableOmittedByExportOption ->
+			ExportNoticePhrase(Res.string.export_reason_hidden_drawable_omitted_by_option)
 		ExportNoticeReason.UnkeyedDrawableUnderDeformerHasNoParentGeometry ->
 			ExportNoticePhrase(Res.string.export_reason_unkeyed_drawable_under_deformer)
 		is ExportNoticeReason.RestMeshConversionSizeMismatch ->

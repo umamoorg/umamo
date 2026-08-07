@@ -31,7 +31,7 @@ import kotlin.test.assertEquals
  * The join is one-directional on purpose, because a bake normally DELETES what the editor hides:
  * across the twins, a CMO3-hidden object is simply absent from the MOC3 (EricaTamamo drops 3 art
  * meshes, modelD drops 4 plus 2 parts, miku drops 5 plus a part).  Only miku_verycursed keeps
- * them - the editor's "export invisible ArtMesh" option - and there all 3 hidden meshes are
+ * them - the editor's "export invisible drawable" option - and there all 3 hidden meshes are
  * present with s37 = 0 and nothing else is.  So the provable direction is `s37 == 0` implies
  * hidden, and that is what this asserts; "hidden implies s37 == 0" is NOT assertable, both
  * because the object is usually gone and because the twins can drift (modelE hides ArtMesh153 in

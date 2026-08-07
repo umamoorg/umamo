@@ -33,8 +33,11 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
-* MOC3 export should check the destination folder for safety.  If there are existing matching files for any of the possible files then a warning is required.
-* Runtime export dialog.
+* MOC3 Export
+	* Should check the destination folder for safety.  If there are existing matching files for any of the possible files then a warning is required.
+	* Textures need to be in a subfolder to match the MOC3 standard.
+		* Basename.Resolution/
+		* Texture naming: texture_00.png - Minimum two digits, underscore separation(No period or spaces)
 
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat

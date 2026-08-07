@@ -21,6 +21,7 @@ import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
@@ -30,6 +31,8 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
+import org.umamo.ui.document.Moc3Document
+import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.exportSuggestedName
@@ -59,6 +62,7 @@ import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
+import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.fileCommands
@@ -119,6 +123,10 @@ fun EditorApp(
 	val scope = rememberCoroutineScope()
 	val filePicker = remember { FileKitFilePicker() }
 	val commandRegistry = remember { CommandRegistry() }
+	// The MOC3 export dialog's session memory: sticky for the application's life, never persisted.
+	// Held here rather than in the shell because it must survive document swaps (nothing in this
+	// remember block is keyed on the document) and because the export closures below read it.
+	val moc3ExportOptions = remember { Moc3ExportSessionOptions() }
 	val uriHandler = LocalUriHandler.current
 	// Mirror the session's undo/redo availability for the Edit menu's enabled state. produceState runs
 	// unconditionally (the session may be null with no document) and re-collects when the session swaps.
@@ -252,20 +260,40 @@ fun EditorApp(
 	}
 
 	fun exportMoc3(puppetDocument: PuppetDocument) {
-		scope.launch {
-			filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
-				val bundle =
-					prepareMoc3Export(
-						document = puppetDocument,
-						edited = exportedModelFor(puppetDocument, session),
-						// FileKit appends the extension, so the picked handle's own name is authoritative.
-						destinationName = destination.name,
-					)
-				val written = writeMoc3Bundle(destination, bundle)
-				reportExport(bundle.report)
-				UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
-			}
-		}
+		// Options first, destination second: the choices do not depend on where the family lands, and
+		// recording them on confirm - before the picker - keeps them sticky through a cancelled picker.
+		val moc3Document = puppetDocument as? Moc3Document
+		val seedModel = exportedModelFor(puppetDocument, session)
+		commandRegistry.invoke(
+			"document.exportOptionsMoc3",
+			ExportOptionsRequest.Moc3(
+				initial = moc3ExportOptions.dialogOptionsFor(puppetDocument.path, seedModel),
+				physicsAvailable = moc3Document?.sidecars?.any { sidecar -> sidecar.kind == Moc3Sidecars.SidecarKind.Physics } == true,
+				userDataAvailable = moc3Document?.sidecars?.any { sidecar -> sidecar.kind == Moc3Sidecars.SidecarKind.UserData } == true,
+				canvasWidth = seedModel.canvasWidth,
+				canvasHeight = seedModel.canvasHeight,
+				onConfirm = { options ->
+					moc3ExportOptions.recordConfirmed(puppetDocument.path, options)
+					scope.launch {
+						filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
+							val bundle =
+								prepareMoc3Export(
+									document = puppetDocument,
+									// Re-resolved at write time: the dialog is modeless enough that the
+									// session could undo between confirm and the picker closing.
+									edited = exportedModelFor(puppetDocument, session),
+									// FileKit appends the extension, so the picked handle's own name is authoritative.
+									destinationName = destination.name,
+									options = options,
+								)
+							val written = writeMoc3Bundle(destination, bundle)
+							reportExport(bundle.report)
+							UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+						}
+					}
+				},
+			),
+		)
 	}
 
 	fun exportAllWorkspaces() {

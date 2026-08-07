@@ -116,6 +116,8 @@ object Moc3Sidecars {
 	 * @param List        sidecars The retained sidecars to carry through.
 	 * @param Model3Json? source   The imported manifest, whose non-file sections carry through.
 	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
+	 * @param Moc3ExportOptions options What the rigger chose to include; the default is the
+	 *   options-less behavior.
 	 * @return Bundle The files to write, which of them is the moc, and the report.
 	 */
 	fun bundle(
@@ -126,19 +128,24 @@ object Moc3Sidecars {
 		sidecars: List<PassThroughSidecar> = emptyList(),
 		source: Model3Json? = null,
 		canvasToParentSpace: CanvasToParentSpace? = null,
+		options: Moc3ExportOptions = Moc3ExportOptions.Default,
 	): Bundle {
 		// Lowered rather than written outright, because the cdi3 below has to name the objects by the ids
 		// the MOC actually got: an id the record width forced short is not the id the model carries.
-		val lowered = Moc3Export.toMocDocument(puppet, version, canvasToParentSpace)
+		val lowered = Moc3Export.toMocDocument(puppet, version, canvasToParentSpace, options)
 		val mocBytes = Moc3.write(lowered.document)
 		val report = lowered.report
 		val mocFileName = "$basename$MOC3_EXTENSION"
-		val displayInfoName = "$basename.cdi3.json"
+		// Null when the rigger opted the cdi3 out: the file and the manifest's reference to it must
+		// move together, or the manifest names a file the bundle does not contain.
+		val displayInfoName = "$basename.cdi3.json".takeIf { options.includeDisplayInfo }
 		val files = ArrayList<BundleFile>(pages.size + sidecars.size + 3)
 		files.add(BundleFile(mocFileName, mocBytes))
-		files.add(
-			BundleFile(displayInfoName, Moc3.writeCdi3(displayInfo(puppet, lowered.writtenIds)).encodeToByteArray()),
-		)
+		if (displayInfoName != null) {
+			files.add(
+				BundleFile(displayInfoName, Moc3.writeCdi3(displayInfo(puppet, lowered.writtenIds)).encodeToByteArray()),
+			)
+		}
 		for (page in pages) {
 			files.add(BundleFile(page.fileName, page.bytes))
 		}
@@ -175,16 +182,17 @@ object Moc3Sidecars {
 	/**
 	 * The `cdi3.json` for [puppet]: parameter, group, part, and art-mesh display names.
 	 *
-	 * Written unconditionally, even when every name equals its id.  A cdi3 is what carries the ONE
-	 * thing the moc cannot - what the rigger called each object - and deciding it is "not worth
-	 * writing" because this model happens to use default names would make the family's shape depend
-	 * on the data in it.
+	 * Written whenever [Moc3ExportOptions.includeDisplayInfo] allows it, even when every name equals
+	 * its id.  A cdi3 is what carries the ONE thing the MOC3 cannot - what the rigger called each
+	 * object - and deciding it is "not worth writing" because this model happens to use default names
+	 * would make the family's shape depend on the data in it.  The rigger's explicit opt-out in the
+	 * export options is the one sanctioned exception: a CHOICE may shape the family, the data may not.
 	 *
 	 * Every id here is the id the MOC was written with, taken from [writtenIds] rather than from the
 	 * model: the runtime joins the two files on that string, so an id the record width forced short
-	 * would leave its cdi3 entry naming an object the moc does not contain - the display name, the
+	 * would leave its cdi3 entry naming an object the MOC3 does not contain - the display name, the
 	 * parameter's group placement, and its combined-parameter pairing all quietly stranded.  Parameter
-	 * GROUP ids are the exception, and stay verbatim: they exist only in this file, so no moc record
+	 * GROUP ids are the exception, and stay verbatim: they exist only in this file, so no MOC3 record
 	 * bounds them.
 	 *
 	 * Parts and art meshes are also filtered to the ones the lowering actually WROTE - the export drops

@@ -111,6 +111,8 @@
 	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
 	<string name="export_reason_channel_demoted_to_static">%1$s is keyed over a narrower span than the object's grid, so it was written as a constant.  MOC3 stores one grid per object.</string>
 	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
+	<string name="export_reason_hidden_part_omitted_by_option">The part is hidden and the export options omit hidden parts, so its contents were left out.</string>
+	<string name="export_reason_hidden_drawable_omitted_by_option">The drawable is hidden and the export options omit hidden art meshes, so it was left out.</string>
 	<string name="export_reason_unkeyed_drawable_under_deformer">An unkeyed drawable under a deformer has no parent-space geometry to write, so it was left out.</string>
 	<string name="export_reason_rest_mesh_conversion_size_mismatch">The canvas-to-parent conversion returned %1$d coordinates for %2$d, so the rest mesh was written unconverted.</string>
 	<string name="export_reason_no_atlas_page_bound">No atlas page is bound to this drawable, so it was written pointing at page 0.</string>
@@ -167,6 +169,21 @@
 	<string name="export_reason_combined_pair_reordered">The parameter order was adjusted so the combined pair %1$s + %2$s stays adjacent.</string>
 	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
+	<!-- Export options dialog (the document.exportOptionsMoc3 command).  %1$s/%2$s in the canvas
+	     readout are the canvas width and height in model units at the edited scale. -->
+	<string name="export_options_title_moc3">MOC3 Export Options</string>
+	<string name="export_options_export">Export</string>
+	<string name="export_options_section_content">Content</string>
+	<string name="export_options_section_sidecars">Sidecar files</string>
+	<string name="export_options_section_scale">Scale</string>
+	<string name="export_options_hidden_parts">Export hidden parts</string>
+	<string name="export_options_hidden_drawables">Export hidden drawables</string>
+	<string name="export_options_guide_parts">Export sketch parts</string>
+	<string name="export_options_include_physics">Physics settings (physics3.json)</string>
+	<string name="export_options_include_userdata">User data (userdata3.json)</string>
+	<string name="export_options_include_displayinfo">Display info (cdi3.json)</string>
+	<string name="export_options_pixels_per_unit">Pixels per unit</string>
+	<string name="export_options_canvas_in_units">Canvas: %1$s × %2$s units</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_ok">OK</string>
 	<string name="open_failed_read">Could not read %1$s.</string>

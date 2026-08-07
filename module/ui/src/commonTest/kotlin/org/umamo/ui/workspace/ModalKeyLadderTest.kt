@@ -14,6 +14,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportReport
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -175,6 +176,17 @@ class ModalKeyLadderTest {
 	private fun draggingController(): AreaDragController =
 		AreaDragController().apply { beginDrag("a", AreaCorner.TopLeft, Offset.Zero) }
 
+	/** A minimal pending MOC3 export-options request, for the self-focused overlay arms. */
+	private fun exportOptionsRequest(): ExportOptionsRequest =
+		ExportOptionsRequest.Moc3(
+			initial = Moc3ExportOptions(),
+			physicsAvailable = false,
+			userDataAvailable = false,
+			canvasWidth = 100f,
+			canvasHeight = 100f,
+			onConfirm = {},
+		)
+
 	/** A registry with one recording command, for the arms that dispatch by id. */
 	private class RecordingRegistry(commandId: String) {
 		var invoked = false
@@ -272,14 +284,20 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theSelfFocusedOverlaysTakeEscapeAndYieldOtherKeys() {
-		// Preferences, the two Help dialogs, and the palette are one family: Escape closes, anything else
-		// falls through to the overlay's own content (its search field, its scroll, its links).
+		// Preferences, the two Help dialogs, the palette, and the export-options dialog are one family:
+		// Escape closes, anything else falls through to the overlay's own content (its search field, its
+		// scroll, its links, its number field's type-in).
 		val cases =
 			listOf<Triple<String, ShellOverlayState, (ShellOverlayState) -> Boolean>>(
 				Triple("preferences", ShellOverlayState().apply { settingsVisible = true }, { it.settingsVisible }),
 				Triple("about", ShellOverlayState().apply { aboutVisible = true }, { it.aboutVisible }),
 				Triple("credits", ShellOverlayState().apply { creditsVisible = true }, { it.creditsVisible }),
 				Triple("palette", ShellOverlayState().apply { paletteVisible = true }, { it.paletteVisible }),
+				Triple(
+					"export options",
+					ShellOverlayState().apply { pendingExportOptions = exportOptionsRequest() },
+					{ it.pendingExportOptions != null },
+				),
 			)
 		for ((name, overlays, isOpen) in cases) {
 			val state = ShellModalState(overlays = overlays)
@@ -310,6 +328,39 @@ class ModalKeyLadderTest {
 
 		assertTrue(escape(state))
 		assertFalse(overlays.aboutVisible, "a second Escape takes the next one down")
+	}
+
+	@Test
+	fun theExportOptionsDialogSitsAtopTheSelfFocusedFamily() {
+		val overlays =
+			ShellOverlayState().apply {
+				pendingExportOptions = exportOptionsRequest()
+				settingsVisible = true
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingExportOptions, "the export dialog closes before preferences")
+		assertTrue(overlays.settingsVisible, "which survives the first Escape")
+
+		assertTrue(escape(state))
+		assertFalse(overlays.settingsVisible)
+	}
+
+	@Test
+	fun aConfirmDialogOutranksTheExportOptionsDialog() {
+		// The confirm is a modal alert, the export dialog a self-focused overlay; the alert arm sits
+		// higher in the ladder, so Escape reaches the confirm first.
+		val overlays =
+			ShellOverlayState().apply {
+				pendingExportOptions = exportOptionsRequest()
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "the confirm took it")
+		assertNotNull(overlays.pendingExportOptions, "and the export dialog beneath it stays up")
 	}
 
 	@Test
