@@ -306,7 +306,7 @@ internal class Cmo3KeyformLowering(
 					accessKey =
 						KeyformGridAccessKey().apply {
 							_keyOnParameterList =
-								CArrayList<Any?>().apply {
+								ArrayList<Any?>().apply {
 									for (axisIndex in bundle.axes.indices) {
 										add(
 											KeyOnParameter().apply {
@@ -326,7 +326,7 @@ internal class Cmo3KeyformLowering(
 		return true
 	}
 
-	/** Rewrites a collection field in place, or creates a CArrayList and records its slot. */
+	/** Rewrites a collection field in place, or creates a ArrayList and records its slot. */
 	private fun writeCollection(
 		owner: Any,
 		tag: String,
@@ -342,7 +342,7 @@ internal class Cmo3KeyformLowering(
 			mutable.addAll(newElements)
 			return
 		}
-		val fresh: MutableList<Any?> = CArrayList()
+		val fresh: MutableList<Any?> = ArrayList()
 		fresh.addAll(newElements)
 		assign(fresh)
 		editor.ensureChildSlot(owner, tag, property, beforeProperty)
