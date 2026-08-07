@@ -1,5 +1,7 @@
 package org.umamo.interop.cmo3
 
+import org.umamo.format.art.LayerBounds
+import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
@@ -619,7 +621,7 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * Encodes the patch rect of a decoded page as its own PNG, clearing pixels outside [coverage].
+	 * Copies the patch rect out of a decoded page, clearing pixels outside [coverage].
 	 *
 	 * @param RasterImage  decodedPage The decoded page pixels.
 	 * @param Int          x0          Patch origin x.
@@ -627,16 +629,16 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int          cropWidth   Patch width.
 	 * @param Int          cropHeight  Patch height.
 	 * @param BooleanArray coverage    The mesh coverage mask, or null to keep the whole rect.
-	 * @return ByteArray The encoded PNG bytes.
+	 * @return RasterImage The masked crop pixels.
 	 */
-	private fun cropPng(
+	private fun maskedCropOf(
 		decodedPage: RasterImage,
 		x0: Int,
 		y0: Int,
 		cropWidth: Int,
 		cropHeight: Int,
 		coverage: BooleanArray?,
-	): ByteArray {
+	): RasterImage {
 		val cropRgba = ByteArray(cropWidth * cropHeight * 4)
 		for (rowIndex in 0 until cropHeight) {
 			val sourceOffset = ((y0 + rowIndex) * decodedPage.width + x0) * 4
@@ -653,7 +655,26 @@ internal object Cmo3ImageChainBuilder {
 				cropRgba.fill(0, pixelOffset, pixelOffset + 4)
 			}
 		}
-		return PngCodec.write(RasterImage(cropWidth, cropHeight, cropRgba))
+		return RasterImage(cropWidth, cropHeight, cropRgba)
+	}
+
+	/**
+	 * Extracts [bounds] out of a raster, returning the raster itself when the bounds cover it.
+	 *
+	 * @param RasterImage source The raster to extract from.
+	 * @param LayerBounds bounds The raster-local rect to keep.
+	 * @return RasterImage The extracted pixels.
+	 */
+	private fun subRaster(source: RasterImage, bounds: LayerBounds): RasterImage {
+		if (bounds.left == 0 && bounds.top == 0 && bounds.width == source.width && bounds.height == source.height) {
+			return source
+		}
+		val rgba = ByteArray(bounds.width * bounds.height * 4)
+		for (rowIndex in 0 until bounds.height) {
+			val sourceOffset = ((bounds.top + rowIndex) * source.width + bounds.left) * 4
+			source.rgba.copyInto(rgba, rowIndex * bounds.width * 4, sourceOffset, sourceOffset + bounds.width * 4)
+		}
+		return RasterImage(bounds.width, bounds.height, rgba)
 	}
 
 	/**
@@ -833,17 +854,28 @@ internal object Cmo3ImageChainBuilder {
 					)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
-						val patchPlacement = materialLocalToCanvas(pageFit, patchX0, patchY0)
 						val coverage =
 							coverageMaskOf(region.uvs, region.indices, page.width, page.height, patchX0, patchY0, cropWidth, cropHeight)
-						val cropBytes = cropPng(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
+						val maskedCrop = maskedCropOf(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
+						// Trim the masked crop to its opaque pixel bounds: an official layer rect
+						// records the ART's own bounds, not the mesh's reach (the auto-mesh margin
+						// the uv bbox includes), and trimming lands within ~1px median of the
+						// editor's own rects on the EricaTamamo differential.  A fully transparent
+						// crop (a mesh over empty page pixels) keeps the untrimmed rect.
+						val opaqueBounds =
+							analyzeAlpha(cropWidth, cropHeight, maskedCrop.rgba, contourEpsilon = 0f)?.opaqueBounds
+						val trimmedCrop = if (opaqueBounds == null) maskedCrop else subRaster(maskedCrop, opaqueBounds)
+						val trimmedX0 = patchX0 + (opaqueBounds?.left ?: 0)
+						val trimmedY0 = patchY0 + (opaqueBounds?.top ?: 0)
+						val patchPlacement = materialLocalToCanvas(pageFit, trimmedX0, trimmedY0)
+						val cropBytes = PngCodec.write(trimmedCrop)
 						val cropPath = nextImageFileBufPath()
 						pngEntries.add(Cmo3FreshFile.PngEntry(cropPath, cropBytes))
 						val cropResource =
 							CImageResource().apply {
 								// CMO3: CImageResource - the drawable's patch cropped out of the page.
-								width = cropWidth
-								height = cropHeight
+								width = trimmedCrop.width
+								height = trimmedCrop.height
 								type = "INT_ARGB"
 								imageFileBuf = FileRef().apply { archivePath = cropPath }
 								imageFileBuf_size = cropBytes.size
@@ -869,8 +901,8 @@ internal object Cmo3ImageChainBuilder {
 									CRect().apply {
 										x = kotlin.math.round(patchPlacement.m02).toInt()
 										y = kotlin.math.round(patchPlacement.m12).toInt()
-										width = cropWidth
-										height = cropHeight
+										width = trimmedCrop.width
+										height = trimmedCrop.height
 									}
 								layerIdentifier =
 									CLayerIdentifier().apply {
@@ -940,7 +972,7 @@ internal object Cmo3ImageChainBuilder {
 								_materialLocalToCanvasTransform = copyAffine(patchPlacement)
 								_group = group
 								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
-								cachedImageManager = identityCacheManager(cropResource, cropWidth, cropHeight)
+								cachedImageManager = identityCacheManager(cropResource, trimmedCrop.width, trimmedCrop.height)
 								memo = ""
 							}
 						groupModelImages.add(patchImage)
@@ -959,8 +991,8 @@ internal object Cmo3ImageChainBuilder {
 									GTransform2().apply {
 										position =
 											GVector2().apply {
-												x = patchX0.toFloat()
-												y = patchY0.toFloat()
+												x = trimmedX0.toFloat()
+												y = trimmedY0.toFloat()
 											}
 										scale =
 											GVector2().apply {

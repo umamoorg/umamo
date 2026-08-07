@@ -151,8 +151,8 @@ class Cmo3ImageChainBuilderTest {
 				nowMillis = 1_700_000_000_000L,
 			)
 		val crop = PngCodec.read(chain.pngEntries.single { entry -> entry.path == "imageFileBuf_0.png" }.pngBytes)
-		// The rect itself is untouched - masking must not move the crop, or every placement
-		// transform computed against it would be wrong.
+		// The page is fully opaque and the triangle's legs run along the rect's edges, so the
+		// opaque-bbox trim is a no-op here and the rect stays the uv bounding box.
 		assertEquals(24, crop.width, "crop width is still the uv bounding box")
 		assertEquals(24, crop.height, "crop height is still the uv bounding box")
 		// Well inside the triangle.
@@ -161,6 +161,62 @@ class Cmo3ImageChainBuilderTest {
 		for (channel in 0 until 4) {
 			assertEquals(0, crop.rgba[(22 * 24 + 22) * 4 + channel], "an uncovered pixel is cleared, channel $channel")
 		}
+	}
+
+	@Test
+	fun cropTrimsToOpaquePixelBounds() {
+		val skeleton = Cmo3SkeletonBuilder.buildBlank("Trim Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+		// A transparent page with one opaque block at x 10..14, y 12..18: the mesh's uv bbox is
+		// much larger, so the trim must shrink the crop to the block - what an official layer
+		// rect records (the art's bounds, not the mesh's reach).
+		val pageSize = 32
+		val pageRgba = ByteArray(pageSize * pageSize * 4)
+		for (rowIndex in 12 until 19) {
+			for (columnIndex in 10 until 15) {
+				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
+			}
+		}
+		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		// A quad over uv bbox [4, 28] squared, positions = page pixels (identity fit).
+		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
+		val positions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
+		val chain =
+			Cmo3ImageChainBuilder.populate(
+				skeleton.root,
+				listOf(page),
+				listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("TrimDrawable", uvs, positions, intArrayOf(0, 1, 2, 1, 2, 3)))),
+				nowMillis = 1_700_000_000_000L,
+			)
+		val crop = PngCodec.read(chain.pngEntries.single { entry -> entry.path == "imageFileBuf_0.png" }.pngBytes)
+		assertEquals(5, crop.width, "crop width is the opaque block's width")
+		assertEquals(7, crop.height, "crop height is the opaque block's height")
+		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val atlas =
+			Cmo3Import.elementsOf(textureManager._textureAtlases)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.single()
+		val entry =
+			Cmo3Import.elementsOf(atlas.modelImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.single()
+		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
+		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		assertEquals(10f, packingPosition.x, 1e-6f, "packing origin x is the block's page origin")
+		assertEquals(12f, packingPosition.y, 1e-6f, "packing origin y is the block's page origin")
+		val layeredImage =
+			Cmo3Import.elementsOf(textureManager._rawImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.single()
+				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+		val patchLayer =
+			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
+				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+				.single()
+		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		assertEquals(10, bounds.x, "bounds origin x is the block's canvas position (identity fit)")
+		assertEquals(12, bounds.y, "bounds origin y is the block's canvas position (identity fit)")
+		assertEquals(5, bounds.width, "bounds width is the trimmed crop's width")
+		assertEquals(7, bounds.height, "bounds height is the trimmed crop's height")
 	}
 
 	@Test
