@@ -1,7 +1,6 @@
 package org.umamo.ui.document
 
 import org.umamo.format.moc3.Moc3
-import org.umamo.interop.moc3.Moc3Sidecars
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -43,21 +42,10 @@ class Moc3FamilyExportTest {
 			}
 		val loaded = assertIs<DocumentLoad.Loaded>(source).document as Moc3Document
 
-		val pages =
-			loaded.atlasPages.mapIndexed { pageIndex, bytes ->
-				Moc3Sidecars.AtlasPage(
-					fileName = loaded.manifest.fileReferences.textures.getOrNull(pageIndex) ?: "$basename.$pageIndex.png",
-					bytes = bytes,
-				)
-			}
-		val bundle =
-			Moc3Sidecars.bundle(
-				puppet = loaded.puppet,
-				basename = basename,
-				pages = pages,
-				sidecars = passThroughSidecars(loaded),
-				source = loaded.manifest,
-			)
+		// Through the SHIPPED policy, not a copy of it: the page naming, the verbatim-vs-re-encode
+		// choice, and the basename strip are the rules under test, so re-deriving them here would only
+		// ever assert that the test agrees with itself.
+		val bundle = prepareMoc3Export(loaded, loaded.puppet, "$basename.moc3")
 		val byName = bundle.files.associate { file -> file.name to file.bytes }
 		val reimported =
 			buildMoc3Document("$basename.moc3", "$basename.moc3", byName.getValue("$basename.moc3")) { reference ->
@@ -127,20 +115,7 @@ class Moc3FamilyExportTest {
 					File(directory, reference).takeIf { it.isFile }?.readBytes()
 				},
 			).document as Moc3Document
-		val bundle =
-			Moc3Sidecars.bundle(
-				puppet = loaded.puppet,
-				basename = "Exported",
-				pages =
-					loaded.atlasPages.mapIndexed { pageIndex, bytes ->
-						Moc3Sidecars.AtlasPage(
-							fileName = loaded.manifest.fileReferences.textures.getOrNull(pageIndex) ?: "page$pageIndex.png",
-							bytes = bytes,
-						)
-					},
-				sidecars = passThroughSidecars(loaded),
-				source = loaded.manifest,
-			)
+		val bundle = prepareMoc3Export(loaded, loaded.puppet, "Exported.moc3")
 		val names = bundle.files.map { file -> file.name }.toSet()
 		val manifest = Moc3.readModel3(bundle.files.first { it.name == "Exported.model3.json" }.bytes.decodeToString())
 		val references =

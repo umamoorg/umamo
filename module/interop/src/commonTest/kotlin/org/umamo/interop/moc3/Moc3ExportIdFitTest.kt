@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
  * MOC3 §5.4 makes every id a fixed 64-byte record while CMO3 places no width limit on the same string,
  * so an over-wide id is a rig a rigger can really author - 22 CJK characters already exceed the record.
  * Truncating it is the only way to write it, and truncation is what creates the collision this guards:
- * two names differing only past the 63rd byte truncate to one.  A moc addresses nothing by id, so the
+ * two names differing only past the 63rd byte truncate to one.  A MOC3 addresses nothing by id, so the
  * file takes the duplicate silently and the loss surfaces on the way back, where the import merges the
  * two objects into one.
  *

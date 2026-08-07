@@ -74,7 +74,7 @@ class Moc3IndexPlan private constructor(
 				// already a valid file order and keeping it makes the export's output stable.
 				//
 				// The list is the drawables that will ACTUALLY be written, not every drawable the rig has.
-				// A moc addresses drawables by position, so if the export drops one - a mesh-less drawable,
+				// A MOC3 addresses drawables by position, so if the export drops one - a mesh-less drawable,
 				// say - and the plan still counted it, every index after it would name the wrong drawable
 				// and every mask reference would silently shift.
 				drawables = exportableDrawables,

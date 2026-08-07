@@ -283,7 +283,7 @@ internal fun partChannelsOf(
 /**
  * [partBlendShapesOf] with this part's records looked up.
  *
- * Takes the part's file index rather than searching for it by id.  A moc addresses blend records
+ * Takes the part's file index rather than searching for it by id.  A MOC3 addresses blend records
  * by index and nothing guarantees the id strings are unique, so resolving the index from the id
  * would give two same-named parts the SAME records - the first part's, applied twice, with the
  * second part's own records never read.  The caller is iterating by index already.
