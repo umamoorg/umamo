@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
  * Also pins that an unedited graph still re-emits byte-identically (the hoist is a no-op for it).
  */
 class FreshSharedObjectWriteTest {
-	private val engine = SerializeEngine.of(listOf(Node::class, Vec::class, Leaf::class))
+	private val engine = reflectiveEngineOf(listOf(Node::class, Vec::class, Leaf::class))
 
 	private fun sourceXml(): ByteArray {
 		val sharedLeaf = Leaf().apply { id = 7 }

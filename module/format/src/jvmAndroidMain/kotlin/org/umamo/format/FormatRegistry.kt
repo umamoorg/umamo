@@ -15,7 +15,7 @@ import org.umamo.format.webp.WebPReader
  * The registry of binary container codecs Umamo can read/write, and the entry point for dispatching
  * an unknown file to the right one.
  *
- * EN: Lives in `jvmAndroidMain` because it references [Cmo3] (reflection-driven serializer, JVM-only)
+ * EN: Lives in `jvmAndroidMain` because it references [Cmo3] (whose engine files sit here until W4)
  *     and [KraReader] (java.util.zip); it still sees the commonMain [Moc3]. Holds heterogeneous
  *     `FormatCodec<*>` since the models share no supertype; a caller does `detect(bytes)?.read(bytes)`
  *     and then branches on the returned model type or the codec's [FormatCodec.kind]. Text sidecars
@@ -25,7 +25,8 @@ import org.umamo.format.webp.WebPReader
 public object FormatRegistry {
 	/**
 	 * Every registered codec, in priority order (first magic match wins in [detect]).  Most are
-	 * commonMain (MOC3, CLIP, PSD, and the flat raster codecs); CMO3 (kotlin-reflect) and KRA
+	 * commonMain (MOC3, CLIP, PSD, and the flat raster codecs); CMO3 (engine files pending the
+	 * W4 move) and KRA
 	 * (java.util.zip) are jvmAndroidMain, which is what keeps this registry there too.  The magics
 	 * do not collide, so the raster codecs sit last; BMP's short 2-byte "BM" magic is checked after
 	 * the longer signatures.

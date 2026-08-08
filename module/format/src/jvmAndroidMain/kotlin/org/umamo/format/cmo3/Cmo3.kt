@@ -69,25 +69,22 @@ public class Cmo3Model internal constructor(
 				is Iterable<*> -> obj.forEach(stack::addLast)
 				is Map<*, *> -> obj.values.forEach(stack::addLast)
 				is Array<*> -> obj.forEach(stack::addLast)
-				else ->
-					if (obj::class.java.name.startsWith(MODEL_PACKAGE)) {
-						var cls: Class<*>? = obj::class.java
-						while (cls != null && cls != Any::class.java) {
-							for (field in cls.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
-								field.isAccessible = true
-								stack.addLast(field.get(obj))
-							}
-							cls = cls.superclass
+				else -> {
+					// Descend through the descriptor chain of the classes the reading engine
+					// typed; descriptor-less classes (custom-serialized leaves, platform types)
+					// hold no model references.  WalkerParityTest pins this walk to the frozen
+					// declared-field reference over the corpus.
+					var descriptor = graph.descriptorFor(obj::class)
+					while (descriptor != null) {
+						for (property in descriptor.properties) {
+							stack.addLast(property.get(obj))
 						}
+						descriptor = descriptor.superDescriptor
 					}
+				}
 			}
 		}
 		return out
-	}
-
-	private companion object {
-		const val MODEL_PACKAGE = "org.umamo.format.cmo3.model"
 	}
 
 	/**
@@ -125,8 +122,9 @@ public class Cmo3Model internal constructor(
  * EN: `read` parses the container and deserializes main.xml into the typed model; `write` re-emits
  *     the model into main.xml and repacks the container. Round-trip is byte-identical for unedited
  *     files. Implements [FormatCodec] for `.cmo3`; the `File`-taking overloads are JVM-only
- *     conveniences on top of the byte-array contract. JVM/Android only (the serializer is
- *     reflection-driven; the XML layer itself is commonMain).
+ *     conveniences on top of the byte-array contract. The serializer is descriptor-driven and the
+ *     XML layer is commonMain; the engine files sit in jvmAndroidMain until the Workstream 4 move
+ *     (docs/plan/cmo3-commonmain-migration.md).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */

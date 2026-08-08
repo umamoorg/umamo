@@ -1,6 +1,7 @@
 package org.umamo.format.cmo3.serialize
 
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.serialize.gen.GeneratedDescriptors
 import org.umamo.format.xml.Element
 
 /**
@@ -47,13 +48,13 @@ internal object CAffineSerializer : XmlSerializer {
 }
 
 /**
- * Registers the value-type subsystem (GVector2, CRect, CColor reflective; CAffine custom).
+ * Registers the value-type subsystem (GVector2, CRect, CColor descriptor-driven; CAffine custom).
  *
  * @param SerializerRegistry registry The registry to populate.
  */
 internal fun registerValueTypeSubsystem(registry: SerializerRegistry) {
-	registry.register(org.umamo.format.cmo3.model.type.GVector2::class)
-	registry.register(org.umamo.format.cmo3.model.type.CRect::class)
-	registry.register(org.umamo.format.cmo3.model.type.CColor::class)
-	registry.registerCustom(CAffine::class, CAffineSerializer)
+	registry.register(GeneratedDescriptors.gVector2)
+	registry.register(GeneratedDescriptors.cRect)
+	registry.register(GeneratedDescriptors.cColor)
+	registry.registerCustom("CAffine", CAffine::class, CAffineSerializer)
 }

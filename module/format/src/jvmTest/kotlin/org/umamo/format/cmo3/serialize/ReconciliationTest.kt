@@ -31,7 +31,7 @@ class ReconciliationTest {
 				.firstByTag(CaffArchive.TAG_MAIN_XML)?.content ?: error("no main_xml")
 
 		var unmodeled = 0
-		val engine = SerializeEngine.of(emptyList(), diagnostics = { _, _ -> unmodeled++ })
+		val engine = reflectiveEngineOf(emptyList(), diagnostics = { _, _ -> unmodeled++ })
 
 		val graph = engine.readModel(XmlCodec.parse(mainXml))
 		// Sanity: a verbatim CModelSource root and a populated shared pool were captured.

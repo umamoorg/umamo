@@ -67,6 +67,27 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 	 * documents never lose a pool entry their untyped content still references.
 	 */
 	public fun pruneUnreachableShared() {
+		val reachable = reachableObjects()
+		val unreachable = graph.sharedOrder.filter { instance -> instance !in reachable }
+		if (unreachable.isEmpty()) {
+			return
+		}
+		graph.sharedOrder.removeAll { instance -> instance !in reachable }
+		for (instance in unreachable) {
+			graph.sharedInfo.remove(instance)
+		}
+	}
+
+	/**
+	 * The identity set of every non-leaf object reachable from the model root, following typed
+	 * fields, collections, and xs.ref attributes inside verbatim subtrees.  Scalars, strings, and
+	 * enums are leaves and never enter the set.  This is the reachability [pruneUnreachableShared]
+	 * keeps entries by; WalkerParityTest compares it against the frozen reflective reference walk
+	 * over the corpus.
+	 *
+	 * @return Set The reachable objects (an identity set).
+	 */
+	internal fun reachableObjects(): Set<Any> {
 		val sharedById = HashMap<String, Any>()
 		for (instance in graph.sharedOrder) {
 			graph.sharedInfo[instance]?.let { sharedRef -> sharedById[sharedRef.id] = instance }
@@ -100,48 +121,25 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 				}
 
 				is Array<*> -> obj.forEach(stack::addLast)
-				else ->
-					if (shouldWalkFields(obj)) {
-						var currentClass: Class<*>? = obj::class.java
-						while (currentClass != null && currentClass != Any::class.java) {
-							for (field in currentClass.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-									continue
-								}
-								field.isAccessible = true
-								stack.addLast(field.get(obj))
-							}
-							currentClass = currentClass.superclass
+				else -> {
+					// Descend into exactly the classes registered with the graph's engine, through
+					// their descriptor chains.  Pruning must never drop an entry a live object
+					// still holds; every graph-attached class is descriptor-registered (a class
+					// the engine cannot type reads as a VerbatimNode, scanned above, and the
+					// custom-serialized leaves hold no references — the descriptor generator
+					// enforces that).  WalkerParityTest pins this walk to the frozen
+					// declared-field reference over the corpus.
+					var descriptor = graph.descriptorFor(obj::class)
+					while (descriptor != null) {
+						for (property in descriptor.properties) {
+							stack.addLast(property.get(obj))
 						}
+						descriptor = descriptor.superDescriptor
 					}
+				}
 			}
 		}
-		val unreachable = graph.sharedOrder.filter { instance -> instance !in reachable }
-		if (unreachable.isEmpty()) {
-			return
-		}
-		graph.sharedOrder.removeAll { instance -> instance !in reachable }
-		for (instance in unreachable) {
-			graph.sharedInfo.remove(instance)
-		}
-	}
-
-	/**
-	 * True when the reachability walk should descend into [obj]'s declared fields.  Pruning must
-	 * never drop an entry a live object still holds, so the walk descends into every graph-attached
-	 * class rather than allow-listing packages; only platform and XML DOM types (which cannot hold
-	 * shared model references — verbatim subtrees are scanned separately via their xs.ref
-	 * attributes) are excluded.
-	 *
-	 * @param Any obj The object under consideration.
-	 * @return Boolean Whether to walk its fields.
-	 */
-	private fun shouldWalkFields(obj: Any): Boolean {
-		val className = obj::class.java.name
-		return !className.startsWith("java.") &&
-			!className.startsWith("javax.") &&
-			!className.startsWith("kotlin.") &&
-			!className.startsWith("org.umamo.format.xml.")
+		return reachable
 	}
 
 	/**

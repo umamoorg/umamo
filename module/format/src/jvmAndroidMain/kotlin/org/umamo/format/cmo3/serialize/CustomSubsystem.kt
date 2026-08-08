@@ -1,19 +1,7 @@
 package org.umamo.format.cmo3.serialize
 
-import org.umamo.format.cmo3.model.custom.CFloatColor
-import org.umamo.format.cmo3.model.custom.CImageResource
-import org.umamo.format.cmo3.model.custom.CLabelColor
-import org.umamo.format.cmo3.model.custom.CLayer
-import org.umamo.format.cmo3.model.custom.CModelImage
-import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
-import org.umamo.format.cmo3.model.custom.CSize
-import org.umamo.format.cmo3.model.custom.CWritableImage
-import org.umamo.format.cmo3.model.custom.FilterInstance
-import org.umamo.format.cmo3.model.custom.GEditableMesh2
-import org.umamo.format.cmo3.model.custom.RotationDeformerOriginalShape
-import org.umamo.format.cmo3.model.custom.WarpDeformerOriginalShape
 import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.format.cmo3.serialize.gen.GeneratedDescriptors
 import org.umamo.format.xml.Element
 
 /**
@@ -46,23 +34,24 @@ internal object FileSerializer : XmlSerializer {
 
 /**
  * Registers the hand-written custom subsystem: the `<file>` element plus the attribute-serialized
- * leaf/value classes (modelled reflectively with @SerialAttribute), including the CModelSource root.
+ * leaf/value classes (modelled with @SerialAttribute descriptor properties), including the
+ * CModelSource root.
  *
  * @param SerializerRegistry registry The registry to populate.
  */
 internal fun registerCustomSubsystem(registry: SerializerRegistry) {
 	registry.registerCustomTag("file", FileRef::class, FileSerializer)
-	registry.register(CFloatColor::class)
-	registry.register(CLabelColor::class)
-	registry.register(WarpDeformerOriginalShape::class)
-	registry.register(RotationDeformerOriginalShape::class)
-	registry.register(CSize::class)
-	registry.register(CRotationDeformerForm::class)
-	registry.register(CWritableImage::class)
-	registry.register(CImageResource::class)
-	registry.register(FilterInstance::class)
-	registry.register(CModelImage::class)
-	registry.register(GEditableMesh2::class)
-	registry.register(CLayer::class)
-	registry.register(CModelSource::class)
+	registry.register(GeneratedDescriptors.cFloatColor)
+	registry.register(GeneratedDescriptors.cLabelColor)
+	registry.register(GeneratedDescriptors.warpDeformerOriginalShape)
+	registry.register(GeneratedDescriptors.rotationDeformerOriginalShape)
+	registry.register(GeneratedDescriptors.cSize)
+	registry.register(GeneratedDescriptors.cRotationDeformerForm)
+	registry.register(GeneratedDescriptors.cWritableImage)
+	registry.register(GeneratedDescriptors.cImageResource)
+	registry.register(GeneratedDescriptors.filterInstance)
+	registry.register(GeneratedDescriptors.cModelImage)
+	registry.register(GeneratedDescriptors.gEditableMesh2)
+	registry.register(GeneratedDescriptors.cLayer)
+	registry.register(GeneratedDescriptors.cModelSource)
 }

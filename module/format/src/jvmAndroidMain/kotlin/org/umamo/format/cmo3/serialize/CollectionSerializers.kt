@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.serialize
 
+import org.umamo.format.cmo3.serialize.descriptors.EnumDescriptor
 import org.umamo.format.xml.Element
 
 internal const val ATTR_ENUM_VALUE: String = "v"
@@ -15,9 +16,9 @@ private const val ARRAY_SEPARATOR: String = " "
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
  */
-internal class EnumSerializer(private val tag: String, private val enumClass: Class<*>) : XmlSerializer {
+internal class EnumSerializer(private val descriptor: EnumDescriptor) : XmlSerializer {
 	override fun createElement(name: String?, value: Any, ctx: WriteContext): Element {
-		val element = Element(tag)
+		val element = Element(descriptor.tag)
 		element.setFieldName(name)
 		element.setAttribute(ATTR_ENUM_VALUE, (value as Enum<*>).name)
 		return element
@@ -25,10 +26,9 @@ internal class EnumSerializer(private val tag: String, private val enumClass: Cl
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val constantName = element.getAttributeValue(ATTR_ENUM_VALUE)
-		// Class.getEnumConstants() is @Nullable in Java (null for non-enum classes), so Kotlin types it
-		// Array<...>?. This serializer is only ever constructed for an enum class, so the array is
-		// non-null by construction - assert it with !! rather than threading a spurious null path.
-		return enumClass.enumConstants!!.first { (it as Enum<*>).name == constantName }
+		// An unknown constant name (a newer schema era) throws here and lands in the engine's
+		// verbatim fallback like any other deserialize failure.
+		return descriptor.entries.first { it.name == constantName }
 	}
 }
 

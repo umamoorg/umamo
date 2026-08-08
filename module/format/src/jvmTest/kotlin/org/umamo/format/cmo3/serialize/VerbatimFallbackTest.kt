@@ -29,7 +29,7 @@ class VerbatimFallbackTest {
 
 		val reported = mutableListOf<String>()
 		val engine =
-			SerializeEngine.of(
+			reflectiveEngineOf(
 				listOf(Holder::class),
 				diagnostics = { tag, path -> reported += "$tag@$path" },
 			)

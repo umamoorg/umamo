@@ -36,7 +36,7 @@ class Node {
  * xs.idx), version PIs, and full byte<->object<->byte round-trip through the XML codec.
  */
 class SerializeEngineTest {
-	private val engine = SerializeEngine.of(listOf(Node::class, Vec::class, Leaf::class))
+	private val engine = reflectiveEngineOf(listOf(Node::class, Vec::class, Leaf::class))
 
 	@Test
 	fun roundTripsTypedGraphThroughXml() {

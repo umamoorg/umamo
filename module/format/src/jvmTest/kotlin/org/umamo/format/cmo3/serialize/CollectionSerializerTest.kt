@@ -46,10 +46,8 @@ private object Point2Serializer : XmlSerializer {
 /** Exercises enums, typed arrays, maps, and a custom attribute serializer through full XML round-trip. */
 class CollectionSerializerTest {
 	private fun engine(): SerializeEngine {
-		val registry = SerializerRegistry()
-		registry.register(Bag::class)
-		registry.register(Mode::class)
-		registry.registerCustom(Point2::class, Point2Serializer)
+		val registry = reflectiveDescriptorRegistry(listOf(Bag::class, Mode::class))
+		registry.registerCustom("Point2", Point2::class, Point2Serializer)
 		return SerializeEngine(registry, SerializeDiagnostics.None)
 	}
 

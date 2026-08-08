@@ -13,6 +13,10 @@ androidxActivity = "1.13.0"
 # so XMLOutputter + Format.getPrettyFormat() reproduce main.xml byte-for-byte; JDOM2 (org.jdom2)
 # would re-order/re-format and break the round-trip. See docs/formats/CMO3.md §3.
 jdom = "1.1.3"
+# xmlutil — KMP streaming XML reader (pull parser) behind :format's own parse seam
+# (org.umamo.format.xml.XmlParser). Apache-2.0, publishes iosArm64. Reader-only use keeps it
+# swappable; emission is our own XmlEmitter. See docs/plan/cmo3-commonmain-migration.md §W1.
+xmlutil = "1.0.1"
 kotlinxSerialization = "1.11.0"
 # okio — the de-facto multiplatform filesystem (Kotlin stdlib has no common File). Backs :storage's
 # file IO on desktop + Android with one API, and FakeFileSystem makes :settings testable with no disk.
@@ -68,6 +72,8 @@ compose-components-resources = { module = "org.jetbrains.compose.components:comp
 
 # JDOM 1.x — main.xml read/write for the CMO3 serializer (jvmAndroidMain; works on Android via JAXP).
 jdom = { module = "org.jdom:jdom", version.ref = "jdom" }
+# xmlutil core — the generic (platform-independent) streaming reader XmlParser builds on.
+xmlutilCore = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 # okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.

@@ -1,21 +1,25 @@
 package org.umamo.format.cmo3.serialize
 
-import org.umamo.format.cmo3.serialize.annotations.SerialTag
+import org.umamo.format.cmo3.serialize.descriptors.ClassDescriptor
+import org.umamo.format.cmo3.serialize.descriptors.EnumDescriptor
 import org.umamo.format.xml.Document
 import org.umamo.format.xml.Element
 import org.umamo.format.xml.ProcessingInstruction
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
-import kotlin.reflect.full.findAnnotation
 
 /**
  * Resolves element tags <-> classes and owns the serializer instances (primitives, collections, and
- * lazily-built reflective class serializers).
+ * lazily-built descriptor class serializers).
  */
 internal class SerializerRegistry {
 	private val tagToClass = HashMap<String, KClass<*>>()
 	private val classToTag = HashMap<KClass<*>, String>()
-	private val classSerializerCache = HashMap<KClass<*>, ReflectiveClassSerializer>()
+	private val classDescriptors = HashMap<KClass<*>, ClassDescriptor>()
+	private val classSerializerCache = HashMap<ClassDescriptor, DescriptorClassSerializer>()
+	private val enumSerializersByClass = HashMap<KClass<*>, EnumSerializer>()
+	private val enumSerializersByEntry = HashMap<Enum<*>, EnumSerializer>()
+	private val registeredVersions = ArrayList<Pair<String, Int>>()
 
 	private val intSerializer = PrimitiveSerializer("i") { it.toInt() }
 	private val floatSerializer = PrimitiveSerializer("f") { it.toFloat() }
@@ -91,22 +95,46 @@ internal class SerializerRegistry {
 			{ tokens -> BooleanArray(tokens.size) { tokens[it] == "true" } },
 		)
 
-	private val enumSerializerCache = HashMap<KClass<*>, EnumSerializer>()
 	private val customByClass = HashMap<KClass<*>, XmlSerializer>()
 	private val customByTag = HashMap<String, XmlSerializer>()
 
-	/** Registers a model class so its tag resolves on read and its version PI can be emitted. */
-	fun register(kClass: KClass<*>) {
-		val tag = tagFor(kClass)
-		tagToClass[tag] = kClass
-		classToTag[kClass] = tag
+	/** Registers a model class descriptor so its tag resolves on read and write dispatch finds it. */
+	fun register(descriptor: ClassDescriptor) {
+		tagToClass[descriptor.tag] = descriptor.kClass
+		classToTag[descriptor.kClass] = descriptor.tag
+		classDescriptors[descriptor.kClass] = descriptor
+		if (descriptor.version >= 0) {
+			registeredVersions += descriptor.tag to descriptor.version
+		}
 	}
 
-	/** Registers a class with a hand-written (e.g. attribute-based) serializer, e.g. value-types. */
-	fun registerCustom(kClass: KClass<*>, serializer: XmlSerializer) {
-		register(kClass)
+	/** Registers a model enum descriptor; each constant maps to the serializer for write dispatch. */
+	fun register(descriptor: EnumDescriptor) {
+		tagToClass[descriptor.tag] = descriptor.kClass
+		classToTag[descriptor.kClass] = descriptor.tag
+		val serializer = EnumSerializer(descriptor)
+		enumSerializersByClass[descriptor.kClass] = serializer
+		for (entry in descriptor.entries) {
+			enumSerializersByEntry[entry] = serializer
+		}
+		if (descriptor.version >= 0) {
+			registeredVersions += descriptor.tag to descriptor.version
+		}
+	}
+
+	/**
+	 * Registers a class with a hand-written (e.g. attribute-based) serializer under an explicit
+	 * [tag], e.g. value-types.
+	 *
+	 * @param String        tag        The element tag to handle.
+	 * @param KClass        kClass     The model class the serializer covers.
+	 * @param XmlSerializer serializer The hand-written serializer.
+	 */
+	fun registerCustom(tag: String, kClass: KClass<*>, serializer: XmlSerializer) {
+		tagToClass[tag] = kClass
+		classToTag[kClass] = tag
 		customByClass[kClass] = serializer
-		customByTag[classToTag.getValue(kClass)] = serializer
+		customByTag[tag] = serializer
 	}
 
 	/**
@@ -125,33 +153,23 @@ internal class SerializerRegistry {
 		customByTag[tag] = serializer
 	}
 
-	private fun enumSerializerFor(enumClass: Class<*>): EnumSerializer {
-		val kClass = enumClass.kotlin
-		return enumSerializerCache.getOrPut(kClass) { EnumSerializer(tagFor(kClass), enumClass) }
-	}
-
-	private fun enumClassOf(value: Enum<*>): Class<*> =
-		value.javaClass.let { if (it.isEnum) it else it.superclass }
-
-	/** The element tag for [kClass]: its @SerialTag, else its simple name. */
-	fun tagFor(kClass: KClass<*>): String =
-		classToTag[kClass] ?: (
-			kClass.findAnnotation<SerialTag>()?.tag ?: kClass.simpleName
-				?: error("anonymous class cannot be serialized: $kClass")
-		)
-
 	/** The class registered under [tag], or null if unknown (caller may fall back to verbatim). */
 	fun classForTag(tag: String): KClass<*>? = tagToClass[tag]
 
-	/** Cached reflective serializer for [kClass]. */
-	fun classSerializer(kClass: KClass<*>): ReflectiveClassSerializer =
-		classSerializerCache.getOrPut(kClass) { ReflectiveClassSerializer(kClass, this) }
+	/** The registered descriptor for [kClass], or null.  The graph walkers descend through this. */
+	fun descriptorFor(kClass: KClass<*>): ClassDescriptor? = classDescriptors[kClass]
+
+	/** Cached serializer for [descriptor].  Super descriptors need no tag registration of their own. */
+	fun classSerializer(descriptor: ClassDescriptor): DescriptorClassSerializer =
+		classSerializerCache.getOrPut(descriptor) { DescriptorClassSerializer(descriptor, this) }
 
 	/** Serializer for a runtime value, dispatched by type (write path). */
 	fun serializerForValue(value: Any): XmlSerializer {
 		customByClass[value::class]?.let { return it }
 		return when (value) {
-			is Enum<*> -> enumSerializerFor(enumClassOf(value))
+			is Enum<*> ->
+				enumSerializersByEntry[value]
+					?: error("no enum descriptor registered for ${value::class.qualifiedName}")
 			is Int -> intSerializer
 			is Float -> floatSerializer
 			is Double -> doubleSerializer
@@ -176,7 +194,9 @@ internal class SerializerRegistry {
 			is org.umamo.format.cmo3.type.CArrayList<*> -> carrayListSerializer
 			is List<*> -> arrayListSerializer
 			is Set<*> -> linkedSetSerializer
-			else -> classSerializer(value::class)
+			else ->
+				classDescriptors[value::class]?.let { descriptor -> classSerializer(descriptor) }
+					?: error("no descriptor registered for class ${value::class.qualifiedName}")
 		}
 	}
 
@@ -206,26 +226,22 @@ internal class SerializerRegistry {
 			"byte-array" -> byteArraySerializer
 			"char-array" -> charArraySerializer
 			"bool-array" -> boolArraySerializer
-			else ->
-				classForTag(tag)?.let { kClass ->
-					if (kClass.java.isEnum) enumSerializerFor(kClass.java) else classSerializer(kClass)
-				}
+			else -> {
+				val kClass = tagToClass[tag] ?: return null
+				enumSerializersByClass[kClass]
+					?: classDescriptors[kClass]?.let { descriptor -> classSerializer(descriptor) }
+			}
 		}
 	}
 
-	/** Serializer for the serializable superclass of [kClass], or null. Never instantiated directly. */
-	fun superSerializerOf(kClass: KClass<*>, suppress: Boolean): ReflectiveClassSerializer? {
-		if (suppress) return null
-		val superJava = kClass.java.superclass ?: return null
-		if (superJava == Any::class.java || superJava.isInterface) return null
-		return classSerializer(superJava.kotlin)
-	}
+	/** Registered (tag -> version) pairs, sorted by tag so PI emission is deterministic. */
+	fun versions(): List<Pair<String, Int>> = registeredVersions.sortedBy { it.first }
 
-	/** Registered (tag -> version) pairs for classes that declare a @SerialTag version. */
-	fun versions(): List<Pair<String, Int>> =
-		classToTag.entries.mapNotNull { (kClass, tag) ->
-			kClass.findAnnotation<SerialTag>()?.version?.takeIf { it >= 0 }?.let { tag to it }
-		}
+	/** Every registered class (tag-mapped), for the descriptor tooling's input cross-check. */
+	fun registeredClasses(): Set<KClass<*>> = classToTag.keys.toSet()
+
+	/** Classes served by hand-written custom serializers (descriptor-less), for the same cross-check. */
+	fun customSerializedClasses(): Set<KClass<*>> = customByClass.keys.toSet()
 }
 
 /** Identity record for an object already written, with its element and global write order. */
@@ -242,7 +258,7 @@ internal class SharedDef(val element: Element, val refId: String, val index: Int
 internal class SharedRef(val id: String, val index: Int, val tag: String)
 
 /**
- * One child slot of a reflective object, captured on read so the exact child sequence can be replayed
+ * One child slot of a descriptor-typed object, captured on read so the exact child sequence can be replayed
  * on write. This makes typed classes tolerant of format evolution (added, removed, or reordered
  * fields) across schema versions while staying byte-identical: a known field is re-serialized from the
  * typed value, an unrecognised one is re-emitted verbatim, and the superclass keeps its position.
@@ -439,6 +455,13 @@ public class ModelGraph internal constructor(
 	internal val rootAttributes: List<Pair<String, String>>,
 	internal val childOrder: IdentityHashMap<Any, MutableMap<String, MutableList<ChildSlot>>>,
 	internal val presentAttrs: IdentityHashMap<Any, MutableMap<String, MutableSet<String>>>,
+	/**
+	 * The registered class descriptor for a graph object's class, from the engine that read this
+	 * graph.  The graph walkers (image-resource collection, shared-pool reachability) enumerate an
+	 * object's state through this, so they see exactly the classes the reading engine typed —
+	 * including synthetic test classes a corpus engine never registers.
+	 */
+	internal val descriptorFor: (KClass<*>) -> ClassDescriptor?,
 ) {
 	/**
 	 * Ensures the replayed child order for [owner] at the [tag] level contains a KnownField slot for
@@ -500,6 +523,9 @@ public class SerializeEngine internal constructor(
 	private val registry: SerializerRegistry,
 	private val diagnostics: SerializeDiagnostics,
 ) {
+	/** The registry, exposed for the jvmTest descriptor tooling (generator input cross-checks). */
+	internal val toolingRegistry: SerializerRegistry get() = registry
+
 	/**
 	 * Serializes [root] into a model document.
 	 *
@@ -617,6 +643,7 @@ public class SerializeEngine internal constructor(
 			rootAttributes,
 			context.childOrder,
 			context.presentAttrs,
+			registry::descriptorFor,
 		)
 	}
 
@@ -680,23 +707,5 @@ public class SerializeEngine internal constructor(
 			document.addContent(piIndex, instruction.clone())
 		}
 		return document
-	}
-
-	public companion object {
-		/**
-		 * Builds an engine for the given model classes (registered by their @SerialTag / simple name).
-		 *
-		 * @param Collection         classes     The model classes to register.
-		 * @param SerializeDiagnostics diagnostics Sink for unmodeled-tag reports (default no-op).
-		 * @return SerializeEngine A ready engine.
-		 */
-		public fun of(
-			classes: Collection<KClass<*>>,
-			diagnostics: SerializeDiagnostics = SerializeDiagnostics.None,
-		): SerializeEngine {
-			val registry = SerializerRegistry()
-			classes.forEach(registry::register)
-			return SerializeEngine(registry, diagnostics)
-		}
 	}
 }
