@@ -1,0 +1,10 @@
+# GENERATED descriptor code (DescriptorGenerator, never hand-edited): it wildcard-imports the
+# entire generated model package, and its per-class val/function names are decapitalized model
+# class names, some of which carry format-dictated underscores (cBlend_Normal). ktlint's
+# no-wildcard-imports and naming rules don't fit machine-generated identifiers mirroring the
+# on-disk schema, so they're disabled for this gen/ subtree only.
+# EN: generated code exemption. JA: 自動生成コードのため命名とワイルドカードインポート規則を無効化。
+[*.kt]
+ktlint_standard_no-wildcard-imports = disabled
+ktlint_standard_property-naming = disabled
+ktlint_standard_function-naming = disabled

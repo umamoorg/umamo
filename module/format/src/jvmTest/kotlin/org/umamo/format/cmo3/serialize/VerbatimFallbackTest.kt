@@ -13,7 +13,7 @@ class Holder {
 }
 
 /**
- * Verifies the verbatim-JDOM fallback: an unmodeled tag inside a typed object is preserved
+ * Verifies the verbatim-XML fallback: an unmodeled tag inside a typed object is preserved
  * losslessly on round-trip and reported via SerializeDiagnostics.
  */
 class VerbatimFallbackTest {
@@ -29,7 +29,7 @@ class VerbatimFallbackTest {
 
 		val reported = mutableListOf<String>()
 		val engine =
-			SerializeEngine.of(
+			reflectiveEngineOf(
 				listOf(Holder::class),
 				diagnostics = { tag, path -> reported += "$tag@$path" },
 			)

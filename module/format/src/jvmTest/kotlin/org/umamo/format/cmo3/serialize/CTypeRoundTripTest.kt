@@ -25,8 +25,7 @@ class Crate {
  */
 class CTypeRoundTripTest {
 	private fun engine(): SerializeEngine {
-		val registry = SerializerRegistry()
-		registry.register(Crate::class)
+		val registry = reflectiveDescriptorRegistry(listOf(Crate::class))
 		return SerializeEngine(registry, SerializeDiagnostics.None)
 	}
 

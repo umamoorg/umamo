@@ -1,8 +1,8 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -38,18 +38,16 @@ private object Point2Serializer : XmlSerializer {
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any =
 		Point2().apply {
-			x = element.getAttributeValue("x").toFloat()
-			y = element.getAttributeValue("y").toFloat()
+			x = element.getAttributeValue("x")!!.toFloat()
+			y = element.getAttributeValue("y")!!.toFloat()
 		}
 }
 
 /** Exercises enums, typed arrays, maps, and a custom attribute serializer through full XML round-trip. */
 class CollectionSerializerTest {
 	private fun engine(): SerializeEngine {
-		val registry = SerializerRegistry()
-		registry.register(Bag::class)
-		registry.register(Mode::class)
-		registry.registerCustom(Point2::class, Point2Serializer)
+		val registry = reflectiveDescriptorRegistry(listOf(Bag::class, Mode::class))
+		registry.registerCustom("Point2", Point2::class, Point2Serializer)
 		return SerializeEngine(registry, SerializeDiagnostics.None)
 	}
 

@@ -9,9 +9,12 @@ composeMultiplatform = "1.11.1"
 ktlint = "14.2.0"
 lwjgl = "3.4.2"
 androidxActivity = "1.13.0"
-# JDOM 1.x (package org.jdom) — the exact XML library the Cubism editor uses. Pinned to 1.1.x
-# so XMLOutputter + Format.getPrettyFormat() reproduce main.xml byte-for-byte; JDOM2 (org.jdom2)
-# would re-order/re-format and break the round-trip. See docs/formats/CMO3.md §3.
+# JDOM 1.x (package org.jdom) — the exact XML library the Cubism editor uses, and therefore the
+# REFERENCE for :format's own XML layer: XmlEmitter transcribes this version's XMLOutputter rules,
+# and the jvmTest differential oracle (XmlDifferentialOracleTest) byte-compares against it.  Pinned
+# to 1.1.x because JDOM2 (org.jdom2) formats differently.  Production use is down to KraReader's
+# maindoc.xml parse (removed with cmo3-commonmain-migration.md Workstream 4); the CMO3 codec itself
+# no longer touches it.  See docs/format/CMO3.md §3.
 jdom = "1.1.3"
 kotlinxSerialization = "1.11.0"
 # okio — the de-facto multiplatform filesystem (Kotlin stdlib has no common File). Backs :storage's
@@ -32,6 +35,12 @@ filekit = "0.14.2"
 jna = "5.19.1"
 # SQLDelight — typed access to the embedded SQLite layer table in a .clip file.
 sqldelight = "2.3.2"
+# xmlutil — multiplatform streaming XML reader (Apache-2.0), the parsing half of :format's common
+# XML layer. Consumed reader-only behind org.umamo.format.xml.XmlParser (no xmlutil type in any
+# public surface), so it stays swappable for a fork or a hand-rolled parser. Emission is NOT
+# xmlutil's job — the byte-exact main.xml writer is our own XmlEmitter. See
+# docs/plan/cmo3-commonmain-migration.md § Workstream 1.
+xmlutil = "1.0.1"
 
 # Android SDK levels (referenced from each android target).
 android-compileSdk = "37"
@@ -66,8 +75,10 @@ compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "
 compose-ui-test-junit4 = { module = "org.jetbrains.compose.ui:ui-test-junit4", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 
-# JDOM 1.x — main.xml read/write for the CMO3 serializer (jvmAndroidMain; works on Android via JAXP).
+# JDOM 1.x — KraReader's maindoc.xml parse (jvmAndroidMain) + the XML-layer test oracle (jvmTest).
 jdom = { module = "org.jdom:jdom", version.ref = "jdom" }
+# xmlutil's core streaming module — see the version note above.
+xmlutilCore = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 kotlinxSerializationJson = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 # okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.

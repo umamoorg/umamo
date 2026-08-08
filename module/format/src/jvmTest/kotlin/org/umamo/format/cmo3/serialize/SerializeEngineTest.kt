@@ -33,10 +33,10 @@ class Node {
 /**
  * Validates the reflective engine core end-to-end: field discovery/order, primitives as
  * `<i>/<f>/<s>/<b>` children, nested objects, an `array_list`, shared-object hoisting (xs.id/xs.ref/
- * xs.idx), version PIs, and full byte<->object<->byte round-trip through JDOM.
+ * xs.idx), version PIs, and full byte<->object<->byte round-trip through the XML codec.
  */
 class SerializeEngineTest {
-	private val engine = SerializeEngine.of(listOf(Node::class, Vec::class, Leaf::class))
+	private val engine = reflectiveEngineOf(listOf(Node::class, Vec::class, Leaf::class))
 
 	@Test
 	fun roundTripsTypedGraphThroughXml() {

@@ -4,7 +4,7 @@ import org.umamo.format.cmo3.serialize.annotations.DontSerialize
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 /**
- * A 2D vector, serialized reflectively as `<f xs.n="x">`
+ * A 2D vector, serialized as `<f xs.n="x">`
  * + `<f xs.n="y">` children.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
@@ -16,7 +16,7 @@ public class GVector2 {
 }
 
 /**
- * An integer rectangle: reflective `<i>` children in x, y, width,
+ * An integer rectangle: `<i>` children in x, y, width,
  * height order.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>

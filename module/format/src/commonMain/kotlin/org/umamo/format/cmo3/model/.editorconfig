@@ -1,5 +1,5 @@
-# CMO3 model types mirror the Live2D on-disk schema VERBATIM. The reflection-based serializer
-# derives each XML element/attribute name directly from the Kotlin class/property name, so
+# CMO3 model types mirror the Live2D on-disk schema VERBATIM. The serializer's generated
+# descriptors derive each XML element/attribute name directly from the Kotlin class/property name, so
 # identifiers like `imageFileBuf_size`, `CBlend_Normal`, `_modelImageGuid`, and `m00` are dictated
 # by the format — renaming them to satisfy ktlint would break the CMO3 round-trip. This is the same
 # "localize chrome/display, never format-level identifiers" rule from CLAUDE.md, applied to code.

@@ -1,12 +1,12 @@
 package org.umamo.interop.cmo3
 
-import org.jdom.Element
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Author
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.RuntimeTarget
 import java.io.File

@@ -53,9 +53,6 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
-				// The skeleton gate compares emitted XML structure against the corpus blank; JDOM is
-				// :format's own (implementation-scoped) backend, so the test declares it directly.
-				implementation(libs.jdom)
 				// TEST-ONLY: the MOC3 conversion round trip mirrors the app's document loader, which
 				// normalizes rest meshes to canvas space through :render's evaluator before export
 				// (production :interop code never depends on :render - siblings over :runtime).
@@ -74,11 +71,11 @@ kotlin {
 // round-trip gates walk in full. moc3.sample (singular, read by Moc3ImportTest's golden-count test) has
 // no default and only takes effect when passed as -D.
 umamoTestCorpus {
-	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of JDOM).  Raised
+	// The probe loop inflates every corpus CMO3 (Model C's main.xml alone is ~10 MB of XML DOM).  Raised
 	// from 4g when modelF joined the corpus: at 57.8 MB and ~6.5 M keyform vertex positions its
 	// MOC3→CMO3 conversion in Cmo3ConversionRoundTripTest OOMs at 4g and passes at 8g, because the
-	// conversion holds the PuppetModel and the whole synthesized JDOM graph at once.  Do not trim this
-	// back without re-running that test against modelF.
+	// conversion holds the PuppetModel and the whole synthesized document graph at once.  Do not trim
+	// this back without re-running that test against modelF.
 	maxHeap("8g")
 	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples")
 }

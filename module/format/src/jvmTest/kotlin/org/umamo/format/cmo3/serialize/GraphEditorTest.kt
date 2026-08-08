@@ -28,8 +28,8 @@ class Badge {
  * solely from verbatim (untyped) subtrees.
  */
 class GraphEditorTest {
-	private val nodeEngine = SerializeEngine.of(listOf(Node::class, Vec::class, Leaf::class))
-	private val badgeEngine = SerializeEngine.of(listOf(Badge::class))
+	private val nodeEngine = reflectiveEngineOf(listOf(Node::class, Vec::class, Leaf::class))
+	private val badgeEngine = reflectiveEngineOf(listOf(Badge::class))
 
 	private fun sharedLeafSourceXml(): ByteArray {
 		val sharedLeaf = Leaf().apply { id = 7 }
@@ -92,7 +92,7 @@ class GraphEditorTest {
 	fun pruneKeepsEntriesReferencedOnlyFromVerbatimSubtrees() {
 		// An empty registry reads everything verbatim: the root becomes a VerbatimNode whose xs.ref
 		// attributes are the only remaining links to the pool.
-		val verbatimEngine = SerializeEngine.of(emptyList())
+		val verbatimEngine = reflectiveEngineOf(emptyList())
 		val graph = verbatimEngine.readModel(XmlCodec.parse(sharedLeafSourceXml()))
 		Cmo3GraphEditor(graph).pruneUnreachableShared()
 		assertEquals(1, graph.sharedOrder.size, "verbatim xs.ref keeps its pool entry alive")

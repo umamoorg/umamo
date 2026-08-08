@@ -7,7 +7,7 @@ import org.umamo.format.cmo3.serialize.annotations.SerialName
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 /*
- * Value/leaf classes whose scalar fields are written as attributes, modelled as reflective classes with
+ * Value/leaf classes whose scalar fields are written as attributes, modelled as plain classes with
  * @SerialAttribute for the fields the editor writes as attributes. Field order mirrors each class's
  * serialize() method (verified by the byte-identity gate). Object fields are Any? - they reference
  * already-typed or still-verbatim objects and round-trip by identity regardless.

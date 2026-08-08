@@ -1,28 +1,27 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Document
-import org.jdom.Element
-import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Document
+import org.umamo.format.xml.Element
+import org.umamo.format.xml.ProcessingInstruction
 
 /**
  * The parsed model document (main.xml): the `<root>` graph plus its `<?version?>`/`<?import?>`
  * processing instructions, with navigable views over the shared pool and the main root.
  *
- * EN: This is the backbone the reflective serializer plugs into. It wraps the live JDOM
- *     [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
- *     is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
- *     The serializer model: `<root>` holds a
- *     `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
- *     reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
- *     writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
- *     recompute the editor's global refId/writtenIndex counters.
- * JA: main.xml を表すモデル文書。JDOM をそのまま保持するため、未対応クラスでも write はバイト一致する。
+ * This is the backbone the reflective serializer plugs into. It wraps the live XML
+ * [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
+ * is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
+ * The serializer model: `<root>` holds a
+ * `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
+ * reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
+ * writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
+ * recompute the editor's global refId/writtenIndex counters.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
 public class ModelDocument private constructor(
-	/** The live JDOM document; mutating it changes what [write] emits. */
+	/** The live XML document; mutating it changes what [write] emits. */
 	public val document: Document,
 ) {
 	/** `<?version Class:N?>` PIs as a className -> version map (e.g. "CModelSource" -> 13). */
@@ -64,18 +63,16 @@ public class ModelDocument private constructor(
 		versions = parsedVersions
 		imports = parsedImports
 
-		@Suppress("UNCHECKED_CAST")
-		sharedElements = (rootElement.getChild(SHARED_ELEMENT)?.children as List<Element>?).orEmpty()
+		sharedElements = rootElement.getChild(SHARED_ELEMENT)?.children.orEmpty()
 
-		@Suppress("UNCHECKED_CAST")
-		mainElements = (rootElement.getChild(MAIN_ELEMENT)?.children as List<Element>?).orEmpty()
+		mainElements = rootElement.getChild(MAIN_ELEMENT)?.children.orEmpty()
 	}
 
 	/** Schema version of [className] as declared by a `<?version?>` PI, or null. */
 	public fun versionOf(className: String): Int? = versions[className]
 
 	/**
-	 * Re-emits the document to bytes. Byte-identical to the source while the underlying JDOM is
+	 * Re-emits the document to bytes. Byte-identical to the source while the underlying DOM is
 	 * unmodified (verbatim fallback); reflects edits once the typed layer mutates [document].
 	 *
 	 * @return ByteArray UTF-8 XML in the editor's exact format.

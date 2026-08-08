@@ -31,7 +31,7 @@ class IdentitySubsystemTest {
 
 		// Baseline: nothing typed -> count distinct unmodeled tags.
 		val baseline = sortedSetOf<String>()
-		SerializeEngine.of(emptyList()) { tag, _ -> baseline += tag }
+		reflectiveEngineOf(emptyList()) { tag, _ -> baseline += tag }
 			.readModel(XmlCodec.parse(mainXml))
 
 		// Typed identity subsystem.

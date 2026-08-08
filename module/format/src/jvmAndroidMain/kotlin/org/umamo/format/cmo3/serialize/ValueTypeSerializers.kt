@@ -1,7 +1,8 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.serialize.gen.GeneratedDescriptors
+import org.umamo.format.xml.Element
 
 /**
  * Custom serializer for CAffine: `<CAffine m00="…" m01="…" m02="…" m10="…" m11="…" m12="…" />`.
@@ -25,23 +26,35 @@ internal object CAffineSerializer : XmlSerializer {
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any =
 		CAffine().apply {
-			m00 = element.getAttributeValue("m00").toFloat()
-			m01 = element.getAttributeValue("m01").toFloat()
-			m02 = element.getAttributeValue("m02").toFloat()
-			m10 = element.getAttributeValue("m10").toFloat()
-			m11 = element.getAttributeValue("m11").toFloat()
-			m12 = element.getAttributeValue("m12").toFloat()
+			m00 = requiredMatrixCell(element, "m00")
+			m01 = requiredMatrixCell(element, "m01")
+			m02 = requiredMatrixCell(element, "m02")
+			m10 = requiredMatrixCell(element, "m10")
+			m11 = requiredMatrixCell(element, "m11")
+			m12 = requiredMatrixCell(element, "m12")
 		}
+
+	/**
+	 * Reads one required CAffine matrix attribute.  A missing cell is malformed input, and the
+	 * throw lands in the engine's verbatim fallback like any other deserialize failure.
+	 *
+	 * @param Element element       The CAffine element.
+	 * @param String  attributeName The matrix cell attribute name.
+	 * @return Float The parsed cell value.
+	 */
+	private fun requiredMatrixCell(element: Element, attributeName: String): Float =
+		element.getAttributeValue(attributeName)?.toFloat()
+			?: error("CAffine is missing attribute $attributeName")
 }
 
 /**
- * Registers the value-type subsystem (GVector2, CRect, CColor reflective; CAffine custom).
+ * Registers the value-type subsystem (GVector2, CRect, CColor descriptor-driven; CAffine custom).
  *
  * @param SerializerRegistry registry The registry to populate.
  */
 internal fun registerValueTypeSubsystem(registry: SerializerRegistry) {
-	registry.register(org.umamo.format.cmo3.model.type.GVector2::class)
-	registry.register(org.umamo.format.cmo3.model.type.CRect::class)
-	registry.register(org.umamo.format.cmo3.model.type.CColor::class)
-	registry.registerCustom(CAffine::class, CAffineSerializer)
+	registry.register(GeneratedDescriptors.gVector2)
+	registry.register(GeneratedDescriptors.cRect)
+	registry.register(GeneratedDescriptors.cColor)
+	registry.registerCustom("CAffine", CAffine::class, CAffineSerializer)
 }

@@ -1,8 +1,8 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.xml.Element
 
 /**
  * Custom serializer for all `*Guid` tags: `<Kind uuid="…" note="…" />` (uuid then note attributes).

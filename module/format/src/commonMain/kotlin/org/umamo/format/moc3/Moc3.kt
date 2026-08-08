@@ -29,7 +29,7 @@ import org.umamo.format.moc3.moc.MocVersion
  * The JSON sidecar helpers handle `model3.json` and friends.  Those sidecars are `String`-shaped
  * (not `ByteArray`), so they sit alongside the [FormatCodec] members rather than within them.  The
  * `.moc3` and its sidecars are sibling files (the manifest references the rest by path), so they are
- * decoupled here - pair them yourself.  Pure Kotlin (JVM + Android); no JDOM/reflection.
+ * decoupled here - pair them yourself.  Pure Kotlin in commonMain; no reflection.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §8</a>
  */

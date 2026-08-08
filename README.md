@@ -199,7 +199,8 @@ test/corpus/clip/    test/corpus/psd/  test/corpus/krita/   test/corpus/tiff/  t
 ```bash
 ./gradlew :format:jvmTest                                   #Corpus automatic discovery.
 ./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3 #Point at one explicitly.
-./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.ModelGenerator" -Dcmo3.generate=true -Dcmo3.gensample=/path/to/Model.cmo3 --rerun #Generate new CMO3 model and registration.  Make sure to run ktlintFormat afterwards to clean up.
+./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.ModelGenerator" -Dcmo3.generate=true -Dcmo3.gensample=/path/to/Model.cmo3 --rerun #Generate new CMO3 model classes.  Run the descriptor generator below afterwards.
+./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.DescriptorGenerator" -Dcmo3.generateDescriptors=true --rerun #Regenerate the serialization descriptors + registration from the model classes.  Make sure to run ktlintFormat afterwards to clean up.
 ```
 
 ## Legal & Trademark Notice
