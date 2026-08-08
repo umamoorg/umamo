@@ -1,6 +1,5 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.xml.XmlCodec
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -50,8 +49,7 @@ class FreshSharedObjectWriteTest {
 		val output = XmlCodec.write(engine.writeModel(graph))
 		val document = XmlCodec.parse(output)
 
-		@Suppress("UNCHECKED_CAST")
-		val defs = document.rootElement.getChild("shared").children as List<Element>
+		val defs = document.rootElement.getChild("shared")!!.children
 		assertEquals(2, defs.size, "preserved def + hoisted fresh def")
 		val preservedDef = defs[0]
 		val freshDef = defs[1]
@@ -62,15 +60,12 @@ class FreshSharedObjectWriteTest {
 			freshDef.getAttributeValue("xs.id"),
 			"fresh id never reuses a preserved id",
 		)
-		val preservedIndex = preservedDef.getAttributeValue("xs.idx").toInt()
-		assertEquals(preservedIndex + 1, freshDef.getAttributeValue("xs.idx").toInt(), "xs.idx continues")
+		val preservedIndex = preservedDef.getAttributeValue("xs.idx")!!.toInt()
+		assertEquals(preservedIndex + 1, freshDef.getAttributeValue("xs.idx")!!.toInt(), "xs.idx continues")
 
 		// Both field uses in <main> are references; the inline def was replaced by the hoist.
-		@Suppress("UNCHECKED_CAST")
-		val mainNode = (document.rootElement.getChild("main").children as List<Element>).first()
-
-		@Suppress("UNCHECKED_CAST")
-		val nodeChildren = mainNode.children as List<Element>
+		val mainNode = document.rootElement.getChild("main")!!.children.first()
+		val nodeChildren = mainNode.children
 		val childRef = nodeChildren.first { it.getAttributeValue("xs.n") == "sharedChild" }
 		val childAgainRef = nodeChildren.first { it.getAttributeValue("xs.n") == "sharedChildAgain" }
 		assertEquals("#1", childRef.getAttributeValue("xs.ref"), "first use replaced by a reference")

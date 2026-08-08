@@ -25,9 +25,11 @@ kotlin {
 	// expect is `useClipDatabase`, a top-level fun — which needs no opt-in. Do not add the flag back
 	// without a declaration that genuinely requires it.
 
-	// The `jvmAndroidMain` group this module's CMO3 codec lives in comes from the
-	// `umamo.kmp-jvmandroid` convention plugin — CMO3 read/write is a JDOM + Kotlin-reflection XML
-	// serializer (NOT Java object serialization — see docs/format/CMO3.md), and those are JVM-only APIs.
+	// The `jvmAndroidMain` group this module's CMO3 serializer lives in comes from the
+	// `umamo.kmp-jvmandroid` convention plugin — the serializer is Kotlin-reflection-driven (NOT Java
+	// object serialization — see docs/format/CMO3.md), and kotlin-reflect is a JVM-only API.  The XML
+	// layer itself (org.umamo.format.xml + XmlCodec) is commonMain; de-reflecting the serializer is
+	// Workstream 2 of docs/plan/cmo3-commonmain-migration.md.
 	// NOTE: commonMain purity is a COMPILER GUARANTEE in this module, not a convention — the iosArm64
 	// target below is non-JVM, so `java.*` in commonMain is an unresolved reference rather than a
 	// latent surprise. (That is not true of a JVM-only module: there, commonMain resolves `java.*`
@@ -76,12 +78,17 @@ kotlin {
 			// match what the official editor writes. The stdlib's common Clock has no time zone and a
 			// DOS timestamp is local, so this closes the gap without an expect/actual.
 			implementation(libs.kotlinxDatetime)
+			// xmlutil: the streaming reader behind org.umamo.format.xml.XmlParser. `implementation`
+			// on purpose — no xmlutil type may appear in :format's public surface, so the parser
+			// stays swappable. Emission never goes through xmlutil (XmlEmitter owns the bytes).
+			implementation(libs.xmlutilCore)
 		}
 
-		// Shared by desktop JVM + Android: the CMO3 CAFF/XML codec. JDOM lives here (not jvmMain)
-		// because the editor's XML serializer must round-trip on both targets — CLAUDE.md keeps
-		// CMO3 read/write available on Android. JDOM 1.x works on Android via the platform's JAXP.
+		// Shared by desktop JVM + Android: the CMO3 serializer and the KRA reader.
 		jvmAndroidMain.dependencies {
+			// JDOM's ONE remaining production use is KraReader's maindoc.xml parse (java.util.zip
+			// pins that file here anyway); the CMO3 codec reads and writes through the commonMain
+			// XML layer.  Workstream 4 of docs/plan/cmo3-commonmain-migration.md removes this.
 			implementation(libs.jdom)
 			// The CMO3 serializer is reflection-driven (declaredMemberProperties, findAnnotation,
 			// javaField) — those kotlin.reflect.full/.jvm extensions live in kotlin-reflect, not
@@ -118,6 +125,11 @@ kotlin {
 				// to generate its database.  jvmMain already carries the driver, but the test's use is
 				// its own - declared here so it survives the driver ever moving out of jvmMain.
 				implementation(libs.sqldelightSqliteDriver)
+				// JDOM as the differential ORACLE for the common XML layer (XmlDifferentialOracleTest)
+				// and the parser inside ModelGenerator.  Declared here in its own right so the tests
+				// survive jdom leaving the main source sets (it currently also arrives transitively
+				// via jvmAndroidMain, which Workstream 4 of the commonMain migration removes).
+				implementation(libs.jdom)
 			}
 		}
 	}

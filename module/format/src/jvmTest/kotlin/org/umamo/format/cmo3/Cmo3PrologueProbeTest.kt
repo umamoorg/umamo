@@ -1,10 +1,10 @@
 package org.umamo.format.cmo3
 
-import org.jdom.Element
-import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
+import org.umamo.format.xml.ProcessingInstruction
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -110,7 +110,7 @@ class Cmo3PrologueProbeTest {
 		}
 
 		// Root attributes: exactly fileFormatVersion.
-		val attributeNames = document.rootElement.attributes.map { attribute -> (attribute as org.jdom.Attribute).name }
+		val attributeNames = document.rootElement.attributes.map { attribute -> attribute.name }
 		if (attributeNames != listOf("fileFormatVersion")) {
 			failures.add("${file.name}: root attributes are $attributeNames")
 		}
@@ -158,7 +158,7 @@ class Cmo3PrologueProbeTest {
 	private fun collectTags(element: Element, into: HashSet<String>) {
 		into.add(element.name)
 		for (child in element.children) {
-			collectTags(child as Element, into)
+			collectTags(child, into)
 		}
 	}
 }

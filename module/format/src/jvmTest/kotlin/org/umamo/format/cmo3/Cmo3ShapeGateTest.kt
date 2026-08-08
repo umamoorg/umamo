@@ -1,9 +1,9 @@
 package org.umamo.format.cmo3
 
-import org.jdom.Element
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -84,8 +84,7 @@ class Cmo3ShapeGateTest {
 	 * @param Function report  Receives (tag, field-name sequence) per class element.
 	 */
 	private fun collectShapes(element: Element, report: (String, List<String>) -> Unit) {
-		@Suppress("UNCHECKED_CAST")
-		val children = element.children as List<Element>
+		val children = element.children
 		if (element.name !in collectionTags) {
 			report(element.name, children.map { child -> child.getAttributeValue("xs.n") ?: child.name })
 		}

@@ -1,10 +1,10 @@
 package org.umamo.format.cmo3
 
-import org.jdom.Document
-import org.jdom.Element
-import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.serialize.cubismEngine
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Document
+import org.umamo.format.xml.Element
+import org.umamo.format.xml.ProcessingInstruction
 
 /**
  * Authors a main.xml for a NEVER-READ object graph, producing the full editor prologue that
@@ -144,7 +144,7 @@ public object Cmo3Author {
 	private fun collectTags(element: Element, into: HashSet<String>) {
 		into.add(element.name)
 		for (child in element.children) {
-			collectTags(child as Element, into)
+			collectTags(child, into)
 		}
 	}
 }

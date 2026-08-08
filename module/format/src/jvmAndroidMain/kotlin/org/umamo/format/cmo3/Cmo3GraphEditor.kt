@@ -1,10 +1,10 @@
 package org.umamo.format.cmo3
 
-import org.jdom.Element
 import org.umamo.format.cmo3.serialize.ATTR_REF
 import org.umamo.format.cmo3.serialize.ChildSlot
 import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.VerbatimNode
+import org.umamo.format.xml.Element
 
 /**
  * Mutation support for a read [Cmo3Model]'s graph, for callers lowering editor state back onto it.
@@ -129,8 +129,9 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 	/**
 	 * True when the reachability walk should descend into [obj]'s declared fields.  Pruning must
 	 * never drop an entry a live object still holds, so the walk descends into every graph-attached
-	 * class rather than allow-listing packages; only platform and JDOM types (which cannot hold
-	 * shared model references) are excluded.
+	 * class rather than allow-listing packages; only platform and XML DOM types (which cannot hold
+	 * shared model references — verbatim subtrees are scanned separately via their xs.ref
+	 * attributes) are excluded.
 	 *
 	 * @param Any obj The object under consideration.
 	 * @return Boolean Whether to walk its fields.
@@ -140,7 +141,7 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 		return !className.startsWith("java.") &&
 			!className.startsWith("javax.") &&
 			!className.startsWith("kotlin.") &&
-			!className.startsWith("org.jdom.")
+			!className.startsWith("org.umamo.format.xml.")
 	}
 
 	/**
@@ -153,8 +154,7 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 	 */
 	private fun addVerbatimRefTargets(element: Element, sharedById: Map<String, Any>, stack: ArrayDeque<Any?>) {
 		element.getAttributeValue(ATTR_REF)?.let { refId -> sharedById[refId]?.let(stack::addLast) }
-		@Suppress("UNCHECKED_CAST")
-		for (child in element.children as List<Element>) {
+		for (child in element.children) {
 			addVerbatimRefTargets(child, sharedById, stack)
 		}
 	}
