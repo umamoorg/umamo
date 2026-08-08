@@ -9,15 +9,14 @@ import org.umamo.format.xml.ProcessingInstruction
  * The parsed model document (main.xml): the `<root>` graph plus its `<?version?>`/`<?import?>`
  * processing instructions, with navigable views over the shared pool and the main root.
  *
- * EN: This is the backbone the reflective serializer plugs into. It wraps the live XML
- *     [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
- *     is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
- *     The serializer model: `<root>` holds a
- *     `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
- *     reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
- *     writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
- *     recompute the editor's global refId/writtenIndex counters.
- * JA: main.xml を表すモデル文書。XML DOM をそのまま保持するため、未対応クラスでも write はバイト一致する。
+ * This is the backbone the reflective serializer plugs into. It wraps the live XML
+ * [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
+ * is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
+ * The serializer model: `<root>` holds a
+ * `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
+ * reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
+ * writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
+ * recompute the editor's global refId/writtenIndex counters.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
