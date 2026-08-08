@@ -5,7 +5,8 @@ root = true
 [*]
 charset = utf-8
 end_of_line = lf
-insert_final_newline = true
+# HOLY FUCKING SHIT THIS TOOK SO FUCKING LONG TO FIND.  FUCK THIS NEWLINE AT THE END OF FILES SHIT.  IT'S 2026!  Stop doing lazy as fuck programming.
+insert_final_newline = false
 trim_trailing_whitespace = true
 indent_style = tab
 

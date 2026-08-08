@@ -6,8 +6,21 @@ Umamo is early alpha.
 
 (Unreleased changes)
 
+### Added
+* Diagnostic CLI: A new `:cli` module(`./gradlew :cli:run`) exposes headless `dump`, `convert`, `diff`, and `extract` for inspecting CMO3 and MOC3 files.
+* MOC3 export: A new Export Options dialog for choosing MOC3 export granularity.
+
+### Changed
+* CMO3 import and export are now at beta level status.  Numerous bugs have been corrected especially on the export side.
+* MOC3 import to CMO3 export conversion is now alpha level status.  Texture atlases are now automatically cut up into source artwork layers and the produced CMO3 now displays properly in the Cubism editor.  While a cut up texture atlas won't be original layered artwork quality this makes it easier to manually reconcile the source artwork layers and also get a functional CMO3.
+* MOC3-imported deformers, which carry no display name in the bake, are now labeled with the drawable they deform when that's unambiguous(e.g. "Warp40 (ArtMesh5)") instead of just the raw identifier.
+* Export notices, the report shown after an import or export finishes, are now localized instead of always appearing in English.
+
 ### Fixed
 * Switch a part composite from isolated to anything else stops rendering composite effects.  Originally for Umamo it was intended that opacity could be applied to have a part and have it cascade down to drawables to make it quick to change the opacity of all drawables in a part.  However, reconciling Cubism behavior with Umamo desires would create too many problems.
+* MOC3 export: Identifiers were being deduplicated before being truncated.  This means the truncated identifier could then immediately become a duplicate again.  Now they are truncated, deduplicated, and properly written into the MOC3 and sidecars.
+* MOC3 export: Blend shape deltas under a deformer chain were computed in the wrong point space, looking up the entity's own space instead of its parent's, producing incorrect deltas for any blend shape nested under a deformer.
+* MOC3 export no longer silently overwrites existing sidecar files(textures, model3.json, cdi3.json, and the rest) already present at the destination; it now warns and lists every file that would be overwritten before you confirm.
 
 ## 0.2.0-dev - 2026-08-03
 
