@@ -14,6 +14,7 @@ private const val USAGE = """Umamo diagnostic CLI
 
 Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this tool's):
   ./gradlew -q :cli:run --args="dump <file> [--sections] [--xml] [--puppet]"
+  ./gradlew -q :cli:run --args="extract <file> [<directory>]"
   ./gradlew -q :cli:run --args="convert <in> <out>"
   ./gradlew -q :cli:run --args="diff <a> <b>"
 
@@ -24,6 +25,11 @@ Commands:
                      --sections  MOC3 container tier: per-section presence and counts.
                      --xml       CMO3 only: the decompressed main.xml, byte-for-byte.
                      --puppet    Either format: import to a PuppetModel and summarize.
+  extract <file> [<directory>]
+                   Unpack a cmo3's archive into loose files: The plaintext main.xml plus
+                   every embedded layer PNG.  Files write to a NEW subdirectory named
+                   after the model, created under <directory> (Default: The file's own
+                   directory) - `extract Model.cmo3 test/work/` writes test/work/Model/.
   convert <in> <out>
                    Direction by input format and output extension:
                      cmo3 -> cmo3  Resave (An unedited main.xml will reemit byte-identical.)
@@ -65,6 +71,7 @@ internal fun runCli(arguments: List<String>): Int {
 	return try {
 		when (arguments[0]) {
 			"dump" -> runDump(arguments.drop(1))
+			"extract" -> runExtract(arguments.drop(1))
 			"convert" -> runConvert(arguments.drop(1))
 			"diff" -> runDiff(arguments.drop(1))
 			else -> {

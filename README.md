@@ -161,11 +161,12 @@ Reverse engineered file formats have documentation in the [docs/format/](docs/fo
 The `:cli` module (`app/cli`) is a headless dump, convert, and diff tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
 
 ```bash
-./gradlew -q :cli:run --args="dump model.moc3"            #Static-rig summary (dump_model.c line grammar)
+./gradlew -q :cli:run --args="dump model.moc3"            #Static-rig summary
 ./gradlew -q :cli:run --args="dump model.moc3 --sections" #Container tier: per-section presence + counts
 ./gradlew -q :cli:run --args="dump model.cmo3"            #CAFF entry table + main.xml overview
-./gradlew -q :cli:run --args="dump model.cmo3 --xml"      #Decompressed main.xml, byte-for-byte (redirectable)
-./gradlew -q :cli:run --args="dump model.cmo3 --puppet"   #Import to PuppetModel and summarize (either format)
+./gradlew -q :cli:run --args="dump model.cmo3 --xml"      #Decompressed main.xml, byte-for-byte (Redirectable)
+./gradlew -q :cli:run --args="dump model.cmo3 --puppet"   #Import to PuppetModel and summarize (Either format)
+./gradlew -q :cli:run --args="extract model.cmo3 out/"    #Unpack the archive (Plaintext main.xml + layer PNGs) into out/model/
 ./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"   #Resave (An unedited main.xml will reemit byte-identical.)
 ./gradlew -q :cli:run --args="convert in.moc3 out.moc3"   #Rebake (Fresh synthesis, NOT byte-identical by design.)
 ./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"   #Full family: moc3 + model3.json + cdi3.json + textures
