@@ -88,8 +88,10 @@ class Cmo3AtlasUndedupTest {
 			val insideSourceY = sourceY + (14 - 4)
 			val insideNewX = newX + (12 - 4)
 			val insideNewY = newY + (14 - 4)
-			if (insideSourceX in 0 until pageSize && insideSourceY in 0 until pageSize &&
-				insideNewX in 0 until extraPage.width && insideNewY in 0 until extraPage.height
+			if (insideSourceX in 0 until pageSize &&
+				insideSourceY in 0 until pageSize &&
+				insideNewX in 0 until extraPage.width &&
+				insideNewY in 0 until extraPage.height
 			) {
 				assertEquals(
 					sourcePage.rgba[(insideSourceY * pageSize + insideSourceX) * 4 + 3],
