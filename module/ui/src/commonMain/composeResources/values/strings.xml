@@ -177,7 +177,7 @@
 	<string name="export_options_title_moc3">MOC3 Export Options</string>
 	<string name="export_options_export">Export</string>
 	<string name="export_options_section_content">Content</string>
-	<string name="export_options_section_sidecars">Sidecar files</string>
+	<string name="export_options_section_sidecars">Sidecar Files</string>
 	<string name="export_options_section_scale">Scale</string>
 	<string name="export_options_hidden_parts">Export hidden parts</string>
 	<string name="export_options_hidden_drawables">Export hidden drawables</string>

@@ -633,11 +633,12 @@ public class CParameterGroupSet {
 	public var `_groups`: Any? = null
 }
 
+// decimalPlaces AND snapEpsilon ARE HAND EDITED.  IF YOU SEE THIS MESSAGE DISAPPEAR IN A DIFF, FIX IT.
 @SerialTag("CParameterSource")
 public class CParameterSource {
-	public var `decimalPlaces`: Int = 0
+	public var `decimalPlaces`: Int = 3
 	public var `guid`: Any? = null
-	public var `snapEpsilon`: Float = 0f
+	public var `snapEpsilon`: Float = 0.001f
 	public var `minValue`: Float = 0f
 	public var `maxValue`: Float = 0f
 	public var `defaultValue`: Float = 0f

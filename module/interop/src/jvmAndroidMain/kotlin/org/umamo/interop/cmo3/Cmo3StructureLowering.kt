@@ -89,6 +89,9 @@ internal class Cmo3StructureLowering(
 			mutable.add(element)
 			return
 		}
+		// Every field this helper serves (_sources, _groups, _childGuids) is carray_list in every
+		// corpus model; the official editor's deserializers cast such fields to CArrayList, so an
+		// array_list tag fails its load.
 		val fresh: MutableList<Any?> = CArrayList()
 		fresh.add(element)
 		assign(fresh)
@@ -131,8 +134,8 @@ internal class Cmo3StructureLowering(
 				// (decimal places, snap epsilon, the explicit paramType).
 				guid = freshGuidLike(template?.guid as? Guid, "CParameterGuid")
 				id = freshIdLike(template?.id as? Id, "CParameterId", editedParameter.id.raw)
-				decimalPlaces = template?.decimalPlaces ?: 0
-				snapEpsilon = template?.snapEpsilon ?: 0f
+				decimalPlaces = template?.decimalPlaces ?: 3 // Documented default from surveying 50+ CMO3 files.
+				snapEpsilon = template?.snapEpsilon ?: 0.001f // Documented default from surveying 50+ CMO3 files.
 				minValue = editedParameter.min
 				maxValue = editedParameter.max
 				defaultValue = editedParameter.default

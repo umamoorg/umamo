@@ -180,7 +180,9 @@ internal object Cmo3SkeletonBuilder {
 				// also drives the ModelStateSet:1 version PI.
 				randomPoseSetting =
 					org.umamo.format.cmo3.model.gen.CRandomPoseSettingManager().apply {
-						_settings = CArrayList<Any?>()
+						// CMO3: CRandomPoseSettingManager field _settings - array_list, unlike the
+						// carray_list sibling collections.
+						_settings = ArrayList<Any?>()
 					}
 				motionSyncSettingsSet =
 					org.umamo.format.cmo3.model.gen.CMotionSyncSettingSourceSet().apply {
