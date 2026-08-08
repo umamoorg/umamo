@@ -217,6 +217,90 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(12, bounds.y, "bounds origin y is the block's canvas position (identity fit)")
 		assertEquals(5, bounds.width, "bounds width is the trimmed crop's width")
 		assertEquals(7, bounds.height, "bounds height is the trimmed crop's height")
+		// The cache transform records the raw dims over the 64-aligned cache raster (5/64, 7/64);
+		// identity here stretches the art by the padding fraction in the editor's source-image mode.
+		val modelImage =
+			Cmo3Import.elementsOf(
+				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.single()
+					._modelImages,
+			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>().single()
+		val cachedImage =
+			Cmo3Import.elementsOf((modelImage.cachedImageManager as org.umamo.format.cmo3.model.gen.CCachedImageManager).cachedImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CCachedImage>()
+				.single()
+		val cacheTransform = cachedImage.transformRawImageToCachedImage as org.umamo.format.cmo3.model.type.CAffine
+		assertEquals(5f / 64f, cacheTransform.m00, "cache transform x is raw width over the 64-padded raster")
+		assertEquals(7f / 64f, cacheTransform.m11, "cache transform y is raw height over the 64-padded raster")
+	}
+
+	@Test
+	fun placementSnapsToIntegerCanvasOrigin() {
+		val skeleton = Cmo3SkeletonBuilder.buildBlank("Snap Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+		// The trim fixture's opaque block, but positions carry a FRACTIONAL translation
+		// (+0.4, -0.3): the layer placement must snap to whole canvas pixels (every official
+		// _materialLocalToCanvasTransform translation is integral), bounds must equal the
+		// snapped transform without a second rounding, and the declared packing origin must
+		// carry the complementary fraction so the web still composes exactly.
+		val pageSize = 32
+		val pageRgba = ByteArray(pageSize * pageSize * 4)
+		for (rowIndex in 12 until 19) {
+			for (columnIndex in 10 until 15) {
+				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
+			}
+		}
+		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
+		val positions =
+			FloatArray(uvs.size) { index ->
+				if (index % 2 == 0) {
+					uvs[index] * pageSize + 0.4f
+				} else {
+					uvs[index] * pageSize - 0.3f
+				}
+			}
+		Cmo3ImageChainBuilder.populate(
+			skeleton.root,
+			listOf(page),
+			listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("SnapDrawable", uvs, positions, intArrayOf(0, 1, 2, 1, 2, 3)))),
+			nowMillis = 1_700_000_000_000L,
+		)
+		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val modelImage =
+			Cmo3Import.elementsOf(
+				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.single()
+					._modelImages,
+			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>().single()
+		val placement = modelImage._materialLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+		assertEquals(10f, placement.m02, "placement x snaps to the whole canvas pixel (10.4 -> 10)")
+		assertEquals(12f, placement.m12, "placement y snaps to the whole canvas pixel (11.7 -> 12)")
+		val atlas =
+			Cmo3Import.elementsOf(textureManager._textureAtlases)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.single()
+		val entry =
+			Cmo3Import.elementsOf(atlas.modelImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.single()
+		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
+		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		assertEquals(9.6f, packingPosition.x, 1e-4f, "packing origin carries the complementary x fraction")
+		assertEquals(12.3f, packingPosition.y, 1e-4f, "packing origin carries the complementary y fraction")
+		val layeredImage =
+			Cmo3Import.elementsOf(textureManager._rawImages)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.single()
+				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+		val patchLayer =
+			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
+				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+				.single()
+		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		assertEquals(10, bounds.x, "bounds origin x equals the snapped placement")
+		assertEquals(12, bounds.y, "bounds origin y equals the snapped placement")
 	}
 
 	@Test
