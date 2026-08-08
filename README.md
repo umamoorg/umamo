@@ -166,10 +166,10 @@ The `:cli` module (`app/cli`) is a headless dump, convert, and diff tool over th
 ./gradlew -q :cli:run --args="dump model.cmo3"            #CAFF entry table + main.xml overview
 ./gradlew -q :cli:run --args="dump model.cmo3 --xml"      #Decompressed main.xml, byte-for-byte (redirectable)
 ./gradlew -q :cli:run --args="dump model.cmo3 --puppet"   #Import to PuppetModel and summarize (either format)
-./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"   #Resave (An unedited main.xml will reemit byte-identical)
-./gradlew -q :cli:run --args="convert in.moc3 out.moc3"   #Rebake (Fresh synthesis, NOT byte-identical by design)
+./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"   #Resave (An unedited main.xml will reemit byte-identical.)
+./gradlew -q :cli:run --args="convert in.moc3 out.moc3"   #Rebake (Fresh synthesis, NOT byte-identical by design.)
 ./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"   #Full family: moc3 + model3.json + cdi3.json + textures
-./gradlew -q :cli:run --args="convert in.moc3 out.cmo3"   #Fresh-graph synthesis (always reports MissingSourceArt)
+./gradlew -q :cli:run --args="convert in.moc3 out.cmo3"   #Fresh-graph synthesis (Always reports MissingSourceArt)
 ./gradlew -q :cli:run --args="diff a.cmo3 b.moc3"         #Semantic per-entity diff of two models
 ```
 

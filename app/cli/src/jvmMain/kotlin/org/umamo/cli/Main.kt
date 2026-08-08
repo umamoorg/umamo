@@ -18,28 +18,25 @@ Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this to
   ./gradlew -q :cli:run --args="diff <a> <b>"
 
 Commands:
-  dump <file>      Print a cmo3/moc3's contents.  MOC3 defaults to the static-rig
-                   summary in dump_model.c's line grammar (runtime-evaluated columns
-                   such as posed draw order and vertex hashes are absent - this dumps
-                   the file, not a revived core).  CMO3 defaults to the archive entry
-                   table plus the parsed main.xml overview.
+  dump <file>      Print a cmo3/moc3's contents.  MOC3 defaults to printing a static
+                   rig summary.  CMO3 defaults to the archive entry table plus the
+                   parsed main.xml overview.
                      --sections  MOC3 container tier: per-section presence and counts.
                      --xml       CMO3 only: the decompressed main.xml, byte-for-byte.
                      --puppet    Either format: import to a PuppetModel and summarize.
   convert <in> <out>
                    Direction by input format and output extension:
-                     cmo3 -> cmo3  resave (unedited graph re-emits byte-identically)
-                     moc3 -> moc3  rebake (NOT byte-identical by design - a fresh bake)
-                     cmo3 -> moc3  full family: moc3 + model3.json + cdi3.json + textures
-                     moc3 -> cmo3  fresh-graph synthesis (Cubism can open it; the source
+                     cmo3 -> cmo3  Resave (An unedited main.xml will reemit byte-identical.)
+                     moc3 -> moc3  Rebake (Fresh synthesis, NOT byte-identical by design.)
+                     cmo3 -> moc3  Full family: moc3 + model3.json + cdi3.json + textures
+                     moc3 -> cmo3  Fresh-graph synthesis (Cubism can open it; the source
                                    art pages are atlas copies, so a MissingSourceArt
-                                   notice is always reported)
+                                   notice is always reported.)
                    A moc3 input may also be given as its .model3.json manifest; sibling
                    sidecars (model3/cdi3/physics3/pose3/userdata3) are discovered by
                    the manifest's own file references.
   diff <a> <b>     Import both files (either format) and print the semantic per-entity
-                   difference.  Exit code stays 0 - a difference is a report, not an
-                   error.
+                   difference.
   help             This text."""
 
 /**
