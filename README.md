@@ -69,11 +69,14 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 ### Common commands
 
 ```bash
-./gradlew :desktop:run             #Launch the desktop editor
-./gradlew :android:installDebug    #Deploy to a connected Android tablet
-./gradlew build                    #Everything
-./gradlew test                     #Unit tests
-./gradlew ktlintFormat             #Format all files according to .editorconfig
+./gradlew :desktop:run                                      #Launch the desktop editor
+./gradlew :android:installDebug                             #Deploy to a connected Android tablet
+./gradlew build                                             #Everything
+./gradlew test                                              #Unit tests
+./gradlew ktlintFormat                                      #Format all files according to .editorconfig
+./gradlew -q :cli:run --args="dump model.moc3"              #Dump a CMO3/MOC3's contents to stdout
+./gradlew -q :cli:run --args="convert model.cmo3 out.moc3"  #Convert between formats(Overwrites WITHOUT confirmation)
+./gradlew -q :cli:run --args="diff a.cmo3 b.moc3"           #Compare two models semantically
 # Cross-target the desktop build (default: host). -Pumamo.target swaps the bundled Skiko + LWJGL
 # natives: linux-x64 | linux-arm64 | windows-x64 | macos-x64 | macos-arm64.
 ./gradlew :desktop:packageUberJarForCurrentOS -Pumamo.target=windows-x64
@@ -152,6 +155,31 @@ Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black
 #### Format Documents
 
 Reverse engineered file formats have documentation in the [docs/format/](docs/format/) folder.
+
+#### Diagnostic CLI
+
+The `:cli` module (`app/cli`) is a headless dump, convert, and diff tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
+
+```bash
+./gradlew -q :cli:run --args="dump model.moc3"            #Static-rig summary (dump_model.c line grammar)
+./gradlew -q :cli:run --args="dump model.moc3 --sections" #Container tier: per-section presence + counts
+./gradlew -q :cli:run --args="dump model.cmo3"            #CAFF entry table + main.xml overview
+./gradlew -q :cli:run --args="dump model.cmo3 --xml"      #Decompressed main.xml, byte-for-byte (redirectable)
+./gradlew -q :cli:run --args="dump model.cmo3 --puppet"   #Import to PuppetModel and summarize (either format)
+./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"   #Resave (An unedited main.xml will reemit byte-identical.)
+./gradlew -q :cli:run --args="convert in.moc3 out.moc3"   #Rebake (Fresh synthesis, NOT byte-identical by design.)
+./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"   #Full family: moc3 + model3.json + cdi3.json + textures
+./gradlew -q :cli:run --args="convert in.moc3 out.cmo3"   #Fresh-graph synthesis (Always reports MissingSourceArt)
+./gradlew -q :cli:run --args="diff a.cmo3 b.moc3"         #Semantic per-entity diff of two models
+```
+
+A moc3 input may also be given as its `.model3.json` manifest; textures and sidecars(cdi3/physics3/pose3/userdata3) are discovered through the manifest's file references.
+
+#### Running Tests
+
+All tests can be run with `./gradlew test` or individual tests can be run like so:
+
+`./gradlew :interop:jvmTest --tests "org.umamo.interop.PuppetModelDiffTest"`
 
 #### Corpus Testing
 
