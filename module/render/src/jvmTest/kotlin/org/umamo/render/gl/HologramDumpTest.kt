@@ -1,5 +1,6 @@
 package org.umamo.render.gl
 
+import org.junit.Assume
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.GridColors
@@ -23,11 +24,16 @@ class HologramDumpTest {
 
 	@Test
 	fun dump() {
-		val out = System.getenv("HOLO_DUMP_DIR") ?: return
+		// Assume, not return: a missing precondition must report SKIPPED, never a hollow PASSED.
+		// HOLO_DUMP_DIR stays a skip even under -Dumamo.requireGl=true - this is an opt-in dump
+		// tool, and requireGl's hard-fail contract only applies once the operator has opted in.
+		val out = System.getenv("HOLO_DUMP_DIR").orEmpty()
+		Assume.assumeTrue("[holo-dump] HOLO_DUMP_DIR not set (opt-in dump tool)", out.isNotEmpty())
 		val mocFile =
 			System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
-				?.walkTopDown()?.firstOrNull { it.name == "modelA.moc3" } ?: return
-		val atlasPng = File(mocFile.parentFile, "modelA.4096/texture_00.png")
+				?.walkTopDown()?.firstOrNull { it.name == "modelA.moc3" }
+		Assume.assumeTrue("[holo-dump] no -Dmoc3.samples corpus with modelA.moc3", mocFile != null)
+		val atlasPng = File(mocFile!!.parentFile, "modelA.4096/texture_00.png")
 		requireHeadlessGl("[holo-dump]")
 		val mocDocument = Moc3.read(mocFile.readBytes())
 		val puppet = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, null))

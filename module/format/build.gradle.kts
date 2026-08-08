@@ -112,6 +112,14 @@ kotlin {
 				implementation(kotlin("test"))
 			}
 		}
+		jvmTest {
+			dependencies {
+				// The synthetic CLIP fixture (ClipSyntheticReaderTest) drives the JDBC driver directly
+				// to generate its database.  jvmMain already carries the driver, but the test's use is
+				// its own - declared here so it survives the driver ever moving out of jvmMain.
+				implementation(libs.sqldelightSqliteDriver)
+			}
+		}
 	}
 }
 
