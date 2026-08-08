@@ -15,20 +15,20 @@ import org.umamo.format.webp.WebPReader
  * The registry of binary container codecs Umamo can read/write, and the entry point for dispatching
  * an unknown file to the right one.
  *
- * EN: Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
- *     JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
- *     models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
- *     returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
- *     not registered here - they are `String`-shaped and live as helpers on [Moc3].
+ * EN: Lives in `jvmAndroidMain` because it references [Cmo3] (reflection-driven serializer, JVM-only)
+ *     and [KraReader] (java.util.zip); it still sees the commonMain [Moc3]. Holds heterogeneous
+ *     `FormatCodec<*>` since the models share no supertype; a caller does `detect(bytes)?.read(bytes)`
+ *     and then branches on the returned model type or the codec's [FormatCodec.kind]. Text sidecars
+ *     (`model3.json` etc.) are not registered here - they are `String`-shaped helpers on [Moc3].
  * JA: バイナリ形式コーデックの一覧と判定窓口。Cmo3 が JVM 専用のためこのソースセットに置く。
  */
 public object FormatRegistry {
 	/**
-	 * Every registered codec, in priority order (first magic match wins in [detect]). All of them work
-	 * on every target: the model codecs (CMO3/MOC3), the layered art readers (CLIP, KRA, PSD), and the
-	 * flat raster codecs (PNG, BMP, plus the JPEG/WebP/TIFF read placeholders) all live in
-	 * jvmAndroidMain and need only java.nio / java.util.zip / JDOM.  The magics do not collide, so the
-	 * raster codecs sit last; BMP's short 2-byte "BM" magic is checked after the longer signatures.
+	 * Every registered codec, in priority order (first magic match wins in [detect]).  Most are
+	 * commonMain (MOC3, CLIP, PSD, and the flat raster codecs); CMO3 (kotlin-reflect) and KRA
+	 * (java.util.zip) are jvmAndroidMain, which is what keeps this registry there too.  The magics
+	 * do not collide, so the raster codecs sit last; BMP's short 2-byte "BM" magic is checked after
+	 * the longer signatures.
 	 */
 	private val codecs: List<FormatCodec<*>> =
 		listOf(Cmo3, Moc3, ClipReader, KraReader, PsdReader, PngCodec, BmpCodec, JpegReader, WebPReader, TiffReader)

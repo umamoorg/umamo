@@ -125,7 +125,8 @@ public class Cmo3Model internal constructor(
  * EN: `read` parses the container and deserializes main.xml into the typed model; `write` re-emits
  *     the model into main.xml and repacks the container. Round-trip is byte-identical for unedited
  *     files. Implements [FormatCodec] for `.cmo3`; the `File`-taking overloads are JVM-only
- *     conveniences on top of the byte-array contract. JVM/Android only (uses reflection + JDOM).
+ *     conveniences on top of the byte-array contract. JVM/Android only (the serializer is
+ *     reflection-driven; the XML layer itself is commonMain).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */

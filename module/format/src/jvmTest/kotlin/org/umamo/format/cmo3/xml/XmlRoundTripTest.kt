@@ -8,7 +8,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
 
 /**
- * End-to-end XML fidelity: cmo3 -> CAFF -> main.xml bytes -> JDOM parse -> emit -> identical bytes.
+ * End-to-end XML fidelity: cmo3 -> CAFF -> main.xml bytes -> XmlCodec parse -> emit -> identical bytes.
  *
  * This locks the editor's XML formatting contract - re-emitted bytes must be byte-identical to the
  * original. Skips when the sample is unavailable.
@@ -31,6 +31,6 @@ class XmlRoundTripTest {
 
 		val reemitted = XmlCodec.write(XmlCodec.parse(mainXml))
 		assertTrue(reemitted.isNotEmpty(), "non-empty output")
-		assertContentEquals(mainXml, reemitted, "main.xml must round-trip byte-identical via JDOM")
+		assertContentEquals(mainXml, reemitted, "main.xml must round-trip byte-identical via XmlCodec")
 	}
 }

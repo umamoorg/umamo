@@ -1,9 +1,9 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Document
-import org.jdom.Element
-import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
+import org.umamo.format.xml.Document
+import org.umamo.format.xml.Element
+import org.umamo.format.xml.ProcessingInstruction
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
@@ -337,7 +337,7 @@ internal class WriteContext(
 		}
 		if (value is VerbatimNode) {
 			// Re-emit the preserved subtree, re-stamping the owning field name (or dropping it for items).
-			val clone = value.element.clone() as Element
+			val clone = value.element.clone()
 			if (name != null) clone.setAttribute(ATTR_NAME, name) else clone.removeAttribute(ATTR_NAME)
 			return clone
 		}
@@ -379,7 +379,7 @@ internal class ReadContext(
 
 	/** Records, in document order, a child of [owner] the [tag] serializer did not recognise. */
 	fun recordVerbatimChild(owner: Any, tag: String, element: Element) =
-		slots(owner, tag).add(ChildSlot.VerbatimChild(element.clone() as Element))
+		slots(owner, tag).add(ChildSlot.VerbatimChild(element.clone()))
 
 	/** Records, in document order, the position of the `<super>` element of [owner] at the [tag] level. */
 	fun recordSuperChild(owner: Any, tag: String) = slots(owner, tag).add(ChildSlot.Super)
@@ -404,7 +404,7 @@ internal class ReadContext(
 		if (serializer == null) {
 			// Unmodeled tag: keep verbatim so the document still round-trips, and report it.
 			diagnostics.onUnmodeledTag(tag, element.getAttributeValue(ATTR_NAME) ?: "(item)")
-			return VerbatimNode(element.clone() as Element)
+			return VerbatimNode(element.clone())
 		}
 		// A typed serializer may still fail on evolved/unknown content (e.g. a newer enum constant,
 		// an added field, a missing no-arg constructor). Fall back to verbatim + report, so format
@@ -416,7 +416,7 @@ internal class ReadContext(
 			instance
 		} catch (failure: Exception) {
 			diagnostics.onUnmodeledTag(tag, "deserialize-failed: ${failure.message}")
-			VerbatimNode(element.clone() as Element)
+			VerbatimNode(element.clone())
 		}
 	}
 }
@@ -492,7 +492,7 @@ public class ModelGraph internal constructor(
 
 /**
  * Top-level model (de)serializer: turns a typed root object into a `<root><shared/><main/></root>`
- * JDOM document (and back), reproducing the editor's shared-pool hoisting and `<?version?>` PIs.
+ * XML document (and back), reproducing the editor's shared-pool hoisting and `<?version?>` PIs.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
@@ -548,8 +548,7 @@ public class SerializeEngine internal constructor(
 		val rootElement = document.rootElement
 		val context = ReadContext(registry, diagnostics)
 
-		@Suppress("UNCHECKED_CAST")
-		val sharedChildren = (rootElement.getChild(ModelDocument.SHARED_ELEMENT)?.children as List<Element>?).orEmpty()
+		val sharedChildren = rootElement.getChild(ModelDocument.SHARED_ELEMENT)?.children.orEmpty()
 		val created = ArrayList<Pair<Element, Any>>()
 		for (element in sharedChildren) {
 			val id = element.getAttributeValue(ATTR_ID) ?: continue
@@ -562,10 +561,8 @@ public class SerializeEngine internal constructor(
 			registry.serializerForTag(element.name)?.setupInstance(element, instance, context)
 		}
 
-		@Suppress("UNCHECKED_CAST")
 		val mainChild =
-			(rootElement.getChild(ModelDocument.MAIN_ELEMENT)?.children as List<Element>?)
-				?.firstOrNull() ?: return null
+			rootElement.getChild(ModelDocument.MAIN_ELEMENT)?.children?.firstOrNull() ?: return null
 		return context.createObjectFromElement(mainChild)
 	}
 
@@ -583,8 +580,7 @@ public class SerializeEngine internal constructor(
 		val sharedOrder = ArrayList<Any>()
 		val sharedInfo = IdentityHashMap<Any, SharedRef>()
 
-		@Suppress("UNCHECKED_CAST")
-		val sharedChildren = (rootElement.getChild(ModelDocument.SHARED_ELEMENT)?.children as List<Element>?).orEmpty()
+		val sharedChildren = rootElement.getChild(ModelDocument.SHARED_ELEMENT)?.children.orEmpty()
 		val typedToSetup = ArrayList<Pair<Element, Any>>()
 		for (element in sharedChildren) {
 			val id = element.getAttributeValue(ATTR_ID) ?: continue
@@ -593,7 +589,7 @@ public class SerializeEngine internal constructor(
 			val instance: Any =
 				if (serializer == null) {
 					diagnostics.onUnmodeledTag(element.name, "(shared)")
-					VerbatimNode(element.clone() as Element)
+					VerbatimNode(element.clone())
 				} else {
 					serializer.createInstance(element, context) ?: continue
 				}
@@ -606,15 +602,13 @@ public class SerializeEngine internal constructor(
 			registry.serializerForTag(element.name)?.setupInstance(element, instance, context)
 		}
 
-		@Suppress("UNCHECKED_CAST")
-		val mainChild = (rootElement.getChild(ModelDocument.MAIN_ELEMENT)?.children as List<Element>?)?.firstOrNull()
+		val mainChild = rootElement.getChild(ModelDocument.MAIN_ELEMENT)?.children?.firstOrNull()
 		val rootObject = mainChild?.let { context.createObjectFromElement(it) }
 
 		val instructions =
-			document.content.filterIsInstance<ProcessingInstruction>().map { it.clone() as ProcessingInstruction }
+			document.content.filterIsInstance<ProcessingInstruction>().map { it.clone() }
 
-		@Suppress("UNCHECKED_CAST")
-		val rootAttributes = (rootElement.attributes as List<org.jdom.Attribute>).map { it.name to it.value }
+		val rootAttributes = rootElement.attributes.map { attribute -> attribute.name to attribute.value }
 		return ModelGraph(
 			rootObject,
 			sharedOrder,
@@ -650,7 +644,7 @@ public class SerializeEngine internal constructor(
 			val sharedRef = graph.sharedInfo.getValue(instance)
 			val defElement: Element =
 				if (instance is VerbatimNode) {
-					instance.element.clone() as Element
+					instance.element.clone()
 				} else {
 					val element = registry.serializerForValue(instance).createElement(null, instance, context)
 					element.setAttribute(ATTR_ID, sharedRef.id)
@@ -683,7 +677,7 @@ public class SerializeEngine internal constructor(
 
 		val document = Document(rootElement)
 		graph.processingInstructions.forEachIndexed { piIndex, instruction ->
-			document.addContent(piIndex, instruction.clone() as ProcessingInstruction)
+			document.addContent(piIndex, instruction.clone())
 		}
 		return document
 	}

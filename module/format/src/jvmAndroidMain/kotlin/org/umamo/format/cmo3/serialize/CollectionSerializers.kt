@@ -1,6 +1,6 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
+import org.umamo.format.xml.Element
 
 internal const val ATTR_ENUM_VALUE: String = "v"
 internal const val ATTR_KEY_TYPE: String = "keyType"
@@ -82,8 +82,7 @@ internal class SetSerializer(private val tag: String, private val factory: () ->
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val out = factory()
-		@Suppress("UNCHECKED_CAST")
-		for (child in element.children as List<Element>) out.add(ctx.createObjectFromElement(child))
+		for (child in element.children) out.add(ctx.createObjectFromElement(child))
 		return out
 	}
 }
@@ -125,8 +124,7 @@ internal class MapSerializer(
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val out = factory()
 
-		@Suppress("UNCHECKED_CAST")
-		val children = element.children as List<Element>
+		val children = element.children
 		if (element.getAttributeValue(ATTR_KEY_TYPE) == "string") {
 			for (valueElement in children) {
 				val key = valueElement.getAttributeValue(ATTR_NAME)
@@ -135,8 +133,7 @@ internal class MapSerializer(
 		} else {
 			for (entry in children) {
 				if (entry.name != TAG_ENTRY) continue
-				@Suppress("UNCHECKED_CAST")
-				val parts = entry.children as List<Element>
+				val parts = entry.children
 				val keyElement = parts.firstOrNull { it.getAttributeValue(ATTR_NAME) == NAME_KEY }
 				val valueElement = parts.firstOrNull { it.getAttributeValue(ATTR_NAME) == NAME_VALUE }
 				out[keyElement?.let { ctx.createObjectFromElement(it) }] =

@@ -1,6 +1,5 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLabelColor
@@ -15,6 +14,7 @@ import org.umamo.format.cmo3.model.custom.GEditableMesh2
 import org.umamo.format.cmo3.model.custom.RotationDeformerOriginalShape
 import org.umamo.format.cmo3.model.custom.WarpDeformerOriginalShape
 import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.format.xml.Element
 
 /**
  * Serializer for the `<file xs.n="…" path="…"/>` element. Mirrors the editor's writeFile: the path
@@ -27,8 +27,9 @@ internal object FileSerializer : XmlSerializer {
 		val element = Element("file")
 		element.setFieldName(name)
 		val fileRef = value as FileRef
-		if (fileRef.archivePath != null) {
-			element.setAttribute("path", fileRef.archivePath)
+		val archivePath = fileRef.archivePath
+		if (archivePath != null) {
+			element.setAttribute("path", archivePath)
 		} else {
 			element.text = fileRef.textPath ?: ""
 		}

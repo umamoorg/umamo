@@ -1,7 +1,5 @@
 package org.umamo.format.cmo3
 
-import org.jdom.Element
-import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.caff.CaffEntry
@@ -9,6 +7,8 @@ import org.umamo.format.cmo3.caff.CompressOption
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
+import org.umamo.format.xml.ProcessingInstruction
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -132,7 +132,7 @@ class Cmo3AuthorTest {
 	private fun collectTags(element: Element, into: HashSet<String>) {
 		into.add(element.name)
 		for (child in element.children) {
-			collectTags(child as Element, into)
+			collectTags(child, into)
 		}
 	}
 }

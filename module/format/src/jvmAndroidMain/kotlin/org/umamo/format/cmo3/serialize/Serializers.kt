@@ -1,11 +1,11 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.serialize.annotations.DontSerialize
 import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault
 import org.umamo.format.cmo3.serialize.annotations.SerialAttribute
 import org.umamo.format.cmo3.serialize.annotations.SerialName
 import org.umamo.format.cmo3.serialize.annotations.SuppressSerializeSuperClass
+import org.umamo.format.xml.Element
 import kotlin.reflect.KClass
 import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.full.declaredMemberProperties
@@ -23,7 +23,7 @@ internal const val TAG_NULL: String = "null"
 internal const val NAME_SUPER: String = "super"
 
 /**
- * Maps a model value to/from a JDOM element:
+ * Maps a model value to/from an XML element:
  * objects are created empty ([createInstance]) then populated ([setupInstance]) so cyclic/shared
  * references resolve; primitives ignore [setupInstance] and return their value from [createInstance].
  *
@@ -102,8 +102,7 @@ internal class ListSerializer(
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any {
 		val out = factory()
-		@Suppress("UNCHECKED_CAST")
-		for (child in element.children as List<Element>) out.add(ctx.createObjectFromElement(child))
+		for (child in element.children) out.add(ctx.createObjectFromElement(child))
 		return out
 	}
 }
@@ -217,7 +216,7 @@ internal class ReflectiveClassSerializer(
 							)
 						}
 
-					is ChildSlot.VerbatimChild -> element.addContent(slot.element.clone() as Element)
+					is ChildSlot.VerbatimChild -> element.addContent(slot.element.clone())
 					is ChildSlot.KnownField ->
 						childPropertiesByPropName[slot.propertyName]?.let { property ->
 							element.addContent(ctx.createElementFromObject(childNameOf(property), property.get(value)))
@@ -248,8 +247,7 @@ internal class ReflectiveClassSerializer(
 			ctx.recordPresentAttr(instance, tag, property.name)
 			property.set(instance, parseScalar(raw, property))
 		}
-		@Suppress("UNCHECKED_CAST")
-		for (child in element.children as List<Element>) {
+		for (child in element.children) {
 			val fieldName = child.getAttributeValue(ATTR_NAME)
 			if (fieldName == NAME_SUPER) {
 				val superSerializer = this.superSerializer

@@ -1,8 +1,8 @@
 package org.umamo.format.cmo3.serialize
 
-import org.jdom.Element
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.format.xml.Element
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -38,8 +38,8 @@ private object Point2Serializer : XmlSerializer {
 
 	override fun createInstance(element: Element, ctx: ReadContext): Any =
 		Point2().apply {
-			x = element.getAttributeValue("x").toFloat()
-			y = element.getAttributeValue("y").toFloat()
+			x = element.getAttributeValue("x")!!.toFloat()
+			y = element.getAttributeValue("y")!!.toFloat()
 		}
 }
 
