@@ -37,10 +37,16 @@ public object Cmo3Conversion {
 		public val height: Int,
 	)
 
-	/** The conversion outcome: the fresh model plus the reconcile's advisory report. */
+	/**
+	 * The conversion outcome: the fresh model, the reconcile's advisory report, and the puppet
+	 * actually encoded - the input after the atlas un-dedup prepass, whose uvs differ from the
+	 * caller's wherever a baked twin was routed to its own synthesized slot.  Round-trip checks
+	 * must compare a re-import against THIS puppet, not the caller's.
+	 */
 	public class Result(
 		public val model: Cmo3Model,
 		public val report: ExportReport,
+		public val puppet: PuppetModel,
 	)
 
 	/**
@@ -63,21 +69,28 @@ public object Cmo3Conversion {
 		nowMillis: Long,
 		obfuscateKey: Int,
 	): Result {
+		// Baked twins (one atlas slot, several canvas placements) are unrepresentable in the
+		// model-image web; the prepass copies each additional placement's patch onto a synthesized
+		// page and remaps those drawables' uvs there.  Everything below runs on ITS outputs.
+		val undedup = Cmo3AtlasUndedup.undeduplicate(puppet, pages, pageIndexByDrawableId)
+		val effectivePuppet = undedup.puppet
+		val effectivePages = undedup.pages
+		val effectivePageIndexByDrawableId = undedup.pageIndexByDrawableId
 		val skeleton =
 			Cmo3SkeletonBuilder.buildBlank(
 				modelName = modelName,
-				canvasWidth = puppet.canvasWidth.roundToInt(),
-				canvasHeight = puppet.canvasHeight.roundToInt(),
-				targetVersionNo = puppet.runtimeTarget.cmo3TargetVersionNo(),
+				canvasWidth = effectivePuppet.canvasWidth.roundToInt(),
+				canvasHeight = effectivePuppet.canvasHeight.roundToInt(),
+				targetVersionNo = effectivePuppet.runtimeTarget.cmo3TargetVersionNo(),
 			)
 		// Each page's drawable regions feed the per-drawable patch webs (crop + placement fit).
 		// The puppet's mesh.positions MUST be canvas-frame here: the app's MOC3 document loader
 		// normalizes parent-local rest meshes through :render's restMeshesToCanvasSpace before any
 		// export, and callers converting a raw Moc3Import puppet must do the same (the official
 		// source-level positions and the whole placement web are canvas geometry).
-		val regionsByPage = List(pages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
-		for (drawable in puppet.drawables) {
-			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
+		val regionsByPage = List(effectivePages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
+		for (drawable in effectivePuppet.drawables) {
+			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue
 			val mesh = drawable.mesh ?: continue
 			regionsByPage.getOrNull(pageIndex)?.add(
 				Cmo3ImageChainBuilder.DrawableRegion(drawable.id.raw, mesh.uvs, mesh.positions, mesh.indices),
@@ -86,7 +99,7 @@ public object Cmo3Conversion {
 		val chain =
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
-				pages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
+				effectivePages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
 				regionsByPage,
 				nowMillis,
 			)
@@ -104,17 +117,21 @@ public object Cmo3Conversion {
 				),
 			)
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
-		for (drawable in puppet.drawables) {
-			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
+		for (drawable in effectivePuppet.drawables) {
+			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue
 			val binding =
 				chain.bindingByDrawableId[drawable.id.raw] ?: chain.pageFallbackBindings.getOrNull(pageIndex)
 			binding?.let { resolved -> bindings[drawable.id.raw] = resolved }
 		}
-		val report = Cmo3Export.apply(puppet, model, bindings)
+		val report = Cmo3Export.apply(effectivePuppet, model, bindings)
 		// Every fresh-graph export is by definition source-art-less - the stand-in document above is
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
 		// per-entity findings.  It is the one finding that explains why the file will not render in
 		// the official editor, which no amount of per-drawable detail would tell the user.
-		return Result(model, report.copy(notices = listOf(ExportNotice.MissingSourceArt(pages.size)) + report.notices))
+		return Result(
+			model,
+			report.copy(notices = listOf(ExportNotice.MissingSourceArt(effectivePages.size)) + report.notices),
+			effectivePuppet,
+		)
 	}
 }

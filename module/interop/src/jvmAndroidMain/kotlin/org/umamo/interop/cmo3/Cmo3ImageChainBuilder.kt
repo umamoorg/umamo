@@ -108,17 +108,19 @@ import org.umamo.format.raster.RasterImage
  * _materialLocalToCanvasTransform compose (see fitAtlasPageToCanvasTransform, and note the
  * mean-centering there is what lets a rotated packing survive the fit at all).
  *
- * A patch rect is a uv BOUNDING BOX, so unless the mesh is itself a page-aligned rectangle the rect
- * also spans page pixels the packer nested into the leftover corners - a neighbour's artwork.  The
- * crop is therefore masked to the mesh's own triangles (coverageMaskOf) rather than copied
- * verbatim: the rect stays exactly as computed, so every placement transform is untouched, but a
- * drawable's CModelImage carries only pixels its mesh actually samples.  Un-masked, the editor
+ * A patch rect starts as a uv BOUNDING BOX, so unless the mesh is itself a page-aligned rectangle
+ * the rect also spans page pixels the packer nested into the leftover corners - a neighbour's
+ * artwork.  The crop is therefore masked to the mesh's own triangles (coverageMaskOf) rather than
+ * copied verbatim, then TRIMMED to the masked pixels' opaque bounds, with the packing origin,
+ * placement, and layer bounds all derived from the trimmed rect together.  Un-masked, the editor
  * takes the foreign pixels for this drawable's artwork - they follow the patch when the atlas is
  * rearranged, and a repack stamps them back into the page.
  *
  * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
  * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
- * images are the raw resources themselves at identity (SCALE_1, nothing prerendered).
+ * images are the raw resources themselves (SCALE_1, nothing prerendered; their
+ * transformRawImageToCachedImage records the 64-aligned padding fraction like every corpus
+ * cache entry).
  */
 internal object Cmo3ImageChainBuilder {
 	/** One retained atlas page: the original PNG bytes plus its pixel dimensions. */
@@ -144,26 +146,29 @@ internal object Cmo3ImageChainBuilder {
 	)
 
 	/**
-	 * What makes two drawables share one CModelImage: the same crop rect, the same fitted placement,
-	 * and the same mesh.  The mesh is part of the identity because it masks the crop - two drawables
-	 * over one rect with different topology no longer produce the same pixels.
+	 * What makes two drawables share one CModelImage: the same crop rect and the same mesh.  The
+	 * mesh is part of the identity because it masks the crop - two drawables over one rect with
+	 * different topology no longer produce the same pixels.  The fitted PLACEMENT is deliberately
+	 * NOT part of the key, and that is only safe because Cmo3AtlasUndedup has already routed every
+	 * different-placement twin to its own slot: official multi-drawable materials are always
+	 * CO-LOCATED (Erica: 45 of 45 shared groups have identical mesh and placement), the shared
+	 * image carries a single canvas placement, and duplicating a material over one slot instead
+	 * makes the editor's atlas view - a recomposite of the materials - stack the shared art's
+	 * alpha (2a - a*a per extra copy), rendering the atlas more opaque than source-image mode.
 	 */
 	private class PatchWebKey(
 		private val patchRect: IntArray,
-		private val placementBits: IntArray,
 		private val uvs: FloatArray,
 		private val indices: IntArray,
 	) {
 		override fun equals(other: Any?): Boolean =
 			other is PatchWebKey &&
 				patchRect.contentEquals(other.patchRect) &&
-				placementBits.contentEquals(other.placementBits) &&
 				uvs.contentEquals(other.uvs) &&
 				indices.contentEquals(other.indices)
 
 		override fun hashCode(): Int {
 			var result = patchRect.contentHashCode()
-			result = 31 * result + placementBits.contentHashCode()
 			result = 31 * result + uvs.contentHashCode()
 			result = 31 * result + indices.contentHashCode()
 			return result
@@ -313,7 +318,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int            height       The page height in pixels.
 	 * @return CCachedImageManager The fresh manager.
 	 */
-	private fun identityCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
+	private fun paddedCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
 		CCachedImageManager().apply {
 			// CMO3: CCachedImageManager fields defaultCacheType / rawImage / cachedImages /
 			// requiredMipmapLevel (corpus flat imports cache the raw resource itself).
@@ -334,7 +339,16 @@ internal object Cmo3ImageChainBuilder {
 							mipmapLevel = 64
 							hasMargin = false
 							isCleaned = false
-							transformRawImageToCachedImage = CAffine()
+							// CMO3: CCachedImage field transformRawImageToCachedImage - the raw
+							// dims over the cache raster's 64-aligned padding, per axis: every
+							// corpus reductionRatio=1 cache writes exactly dim / ceil64(dim)
+							// (1073 of 1073).  Identity here makes the editor's source-image
+							// sampling stretch the art by the padding fraction.
+							transformRawImageToCachedImage =
+								CAffine().apply {
+									m00 = width.toFloat() / ((width + 63) / 64 * 64)
+									m11 = height.toFloat() / ((height + 63) / 64 * 64)
+								}
 						},
 					),
 				)
@@ -373,7 +387,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int        pageHeight The page's pixel height.
 	 * @return IntArray? [x0, y0, x1, y1] (exclusive max), or null when there are no uvs.
 	 */
-	private fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
+	internal fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
 		if (uvs.size < 2) {
 			return null
 		}
@@ -397,6 +411,32 @@ internal object Cmo3ImageChainBuilder {
 		val x1 = kotlin.math.ceil(maxU * pageWidth).toInt().coerceIn(x0 + 1, pageWidth)
 		val y1 = kotlin.math.ceil(maxV * pageHeight).toInt().coerceIn(y0 + 1, pageHeight)
 		return intArrayOf(x0, y0, x1, y1)
+	}
+
+	/**
+	 * The material-local point whose image under [pageFit] is the given canvas point.
+	 *
+	 * This back-solves the declared packing origin from the snapped integer placement so that
+	 * atlasLocalToCanvasTransform composed with materialLocalToAtlasTransform reproduces
+	 * _materialLocalToCanvasTransform exactly - the official files' structure (their packing
+	 * origins are fractional, carrying the complement of the fit's fractional translation).
+	 *
+	 * @param CAffine pageFit The page-to-canvas fit.
+	 * @param Float   canvasX The snapped placement x.
+	 * @param Float   canvasY The snapped placement y.
+	 * @return FloatArray The (x, y) material-local origin, or null when the fit is degenerate.
+	 */
+	private fun solvePageFitFor(pageFit: CAffine, canvasX: Float, canvasY: Float): FloatArray? {
+		val determinant = pageFit.m00.toDouble() * pageFit.m11 - pageFit.m01.toDouble() * pageFit.m10
+		if (determinant == 0.0) {
+			return null
+		}
+		val deltaX = canvasX.toDouble() - pageFit.m02
+		val deltaY = canvasY.toDouble() - pageFit.m12
+		return floatArrayOf(
+			((pageFit.m11 * deltaX - pageFit.m01 * deltaY) / determinant).toFloat(),
+			((pageFit.m00 * deltaY - pageFit.m10 * deltaX) / determinant).toFloat(),
+		)
 	}
 
 	/**
@@ -793,7 +833,7 @@ internal object Cmo3ImageChainBuilder {
 				cachedAtlasImage = pageResource
 				guid = Cmo3SkeletonBuilder.freshGuid("CTextureAtlasGuid")
 				modelImages = atlasEntries
-				cachedImageManager = identityCacheManager(pageResource, page.width, page.height)
+				cachedImageManager = paddedCacheManager(pageResource, page.width, page.height)
 			}
 			val texture =
 				GTexture2D().apply {
@@ -821,8 +861,9 @@ internal object Cmo3ImageChainBuilder {
 					magFilter = MagFilter.LINEAR
 					owner = texture
 				}
-			// Per-drawable patch webs, deduped by exact web identity (a mirror duplicate with a
-			// different placement keeps its own web - a ModelImageEntry carries only one).
+			// Patch webs, shared across drawables sampling the same crop with the same mesh (mirror
+			// twins get ONE material like official files; each twin's placement rides its own
+			// region input, and the shared image keeps the first drawable's placement).
 			val regions = regionsByPage.getOrNull(pageIndex).orEmpty()
 			val decodedPage = if (regions.isNotEmpty()) PngCodec.read(page.pngBytes) else null
 			val imageGuidByWebKey = HashMap<PatchWebKey, Guid>()
@@ -838,20 +879,7 @@ internal object Cmo3ImageChainBuilder {
 				val patchY0 = patch[1]
 				val cropWidth = patch[2] - patch[0]
 				val cropHeight = patch[3] - patch[1]
-				val webKey =
-					PatchWebKey(
-						patch,
-						intArrayOf(
-							pageFit.m00.toRawBits(),
-							pageFit.m01.toRawBits(),
-							pageFit.m02.toRawBits(),
-							pageFit.m10.toRawBits(),
-							pageFit.m11.toRawBits(),
-							pageFit.m12.toRawBits(),
-						),
-						region.uvs,
-						region.indices,
-					)
+				val webKey = PatchWebKey(patch, region.uvs, region.indices)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
 						val coverage =
@@ -867,7 +895,19 @@ internal object Cmo3ImageChainBuilder {
 						val trimmedCrop = if (opaqueBounds == null) maskedCrop else subRaster(maskedCrop, opaqueBounds)
 						val trimmedX0 = patchX0 + (opaqueBounds?.left ?: 0)
 						val trimmedY0 = patchY0 + (opaqueBounds?.top ?: 0)
+						// Anchor the web on an INTEGER canvas placement, official-style: every
+						// official _materialLocalToCanvasTransform translation is a whole number
+						// (176 of 176 on EricaTamamo) while the packing origin and the page fit
+						// carry complementary FRACTIONS whose composition reproduces it exactly.
+						// So snap the placement to the nearest canvas pixel and back-solve the
+						// declared packing origin through the fit - the whole chain then composes
+						// without a rounding step, and boundsOnImageDoc equals the placement
+						// bit-for-bit instead of disagreeing by the rounding residue (the editor's
+						// source-image view shows that residue as a subtle per-layer misplacement).
 						val patchPlacement = materialLocalToCanvas(pageFit, trimmedX0, trimmedY0)
+						patchPlacement.m02 = kotlin.math.round(patchPlacement.m02)
+						patchPlacement.m12 = kotlin.math.round(patchPlacement.m12)
+						val packingOrigin = solvePageFitFor(pageFit, patchPlacement.m02, patchPlacement.m12)
 						val cropBytes = PngCodec.write(trimmedCrop)
 						val cropPath = nextImageFileBufPath()
 						pngEntries.add(Cmo3FreshFile.PngEntry(cropPath, cropBytes))
@@ -899,8 +939,10 @@ internal object Cmo3ImageChainBuilder {
 								// corpus layers), size = the imageResource dims (also 892 of 892).
 								boundsOnImageDoc =
 									CRect().apply {
-										x = kotlin.math.round(patchPlacement.m02).toInt()
-										y = kotlin.math.round(patchPlacement.m12).toInt()
+										// The placement translation is already snapped integral, so
+										// this equals the transform without a second rounding.
+										x = patchPlacement.m02.toInt()
+										y = patchPlacement.m12.toInt()
 										width = trimmedCrop.width
 										height = trimmedCrop.height
 									}
@@ -972,7 +1014,7 @@ internal object Cmo3ImageChainBuilder {
 								_materialLocalToCanvasTransform = copyAffine(patchPlacement)
 								_group = group
 								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
-								cachedImageManager = identityCacheManager(cropResource, trimmedCrop.width, trimmedCrop.height)
+								cachedImageManager = paddedCacheManager(cropResource, trimmedCrop.width, trimmedCrop.height)
 								memo = ""
 							}
 						groupModelImages.add(patchImage)
@@ -987,12 +1029,16 @@ internal object Cmo3ImageChainBuilder {
 								// (v="NONE"); the editor's field is enum-typed and class-casts a boolean.
 								autoLayoutLock = org.umamo.format.cmo3.model.gen.AutoLayoutLock.NONE
 								atlasLocalToCanvasTransform = copyAffine(pageFit)
+								// CMO3: ModelImageEntry field materialLocalToAtlasTransform - the declared
+								// packing origin is the fit-inverse of the snapped placement (fractional,
+								// like every official entry), NOT the raw crop rect origin, so the web
+								// composes to the integer placement exactly.
 								materialLocalToAtlasTransform =
 									GTransform2().apply {
 										position =
 											GVector2().apply {
-												x = trimmedX0.toFloat()
-												y = trimmedY0.toFloat()
+												x = packingOrigin?.get(0) ?: trimmedX0.toFloat()
+												y = packingOrigin?.get(1) ?: trimmedY0.toFloat()
 											}
 										scale =
 											GVector2().apply {

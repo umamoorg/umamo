@@ -103,11 +103,17 @@ private fun loadMoc3(mocFile: File, manifestFile: File?, manifest: Model3Json?):
 	}
 	val manifestDirectory = resolvedManifestFile!!.parentFile
 	val references = resolvedManifest.fileReferences
+	// Manifest reference first, then the sibling-by-basename fallback the app's document loader
+	// uses - a model3 without a DisplayInfo entry otherwise converts nameless, and the export then
+	// writes parameter ids where Cubism expects display names.
 	val displayInfo =
-		references.displayInfo
-			?.let { reference -> File(manifestDirectory, reference) }
-			?.takeIf { file -> file.isFile }
-			?.let { file -> Moc3.readCdi3(file.readText()) }
+		listOfNotNull(references.displayInfo, "${mocFile.nameWithoutExtension}.cdi3.json")
+			.distinct()
+			.firstNotNullOfOrNull { reference ->
+				File(manifestDirectory, reference)
+					.takeIf { file -> file.isFile }
+					?.let { file -> runCatching { Moc3.readCdi3(file.readText()) }.getOrNull() }
+			}
 	val textureFiles = references.textures.map { reference -> File(manifestDirectory, reference) }
 	val sidecars =
 		buildList {
