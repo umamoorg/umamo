@@ -236,6 +236,74 @@ class Cmo3ImageChainBuilderTest {
 	}
 
 	@Test
+	fun sameSlotSameMeshSharesOneMaterial() {
+		val skeleton = Cmo3SkeletonBuilder.buildBlank("Twin Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+		// Two drawables sampling the SAME atlas slot with the SAME mesh share one CModelImage at
+		// the builder level (duplicating a material over one slot makes the editor's atlas
+		// recomposite stack the shared art's alpha).  Different-placement twins only reach the
+		// builder like this when the caller skips Cmo3AtlasUndedup - the conversion routes them
+		// to their own slots first, because the shared image carries a single canvas placement
+		// and the second twin would go missing in source-image mode.
+		val pageSize = 32
+		val pageRgba = ByteArray(pageSize * pageSize * 4)
+		for (rowIndex in 12 until 19) {
+			for (columnIndex in 10 until 15) {
+				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
+			}
+		}
+		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
+		val indices = intArrayOf(0, 1, 2, 1, 2, 3)
+		val straightPositions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
+		val mirroredPositions =
+			FloatArray(uvs.size) { index ->
+				if (index % 2 == 0) {
+					-(uvs[index] * pageSize) + 100f
+				} else {
+					uvs[index] * pageSize
+				}
+			}
+		val chain =
+			Cmo3ImageChainBuilder.populate(
+				skeleton.root,
+				listOf(page),
+				listOf(
+					listOf(
+						Cmo3ImageChainBuilder.DrawableRegion("TwinA", uvs, straightPositions, indices),
+						Cmo3ImageChainBuilder.DrawableRegion("TwinB", uvs, mirroredPositions, indices),
+					),
+				),
+				nowMillis = 1_700_000_000_000L,
+			)
+		val bindingA = chain.bindingByDrawableId.getValue("TwinA")
+		val bindingB = chain.bindingByDrawableId.getValue("TwinB")
+		assertEquals(bindingA.modelImageGuid, bindingB.modelImageGuid, "twins share one model image")
+		assertEquals(1f, bindingA.inputImageLocalToCanvasTransform.m00, 1e-4f, "twin A keeps its own fit")
+		assertEquals(-1f, bindingB.inputImageLocalToCanvasTransform.m00, 1e-4f, "twin B keeps its mirrored fit")
+		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val modelImages =
+			Cmo3Import.elementsOf(
+				Cmo3Import.elementsOf(textureManager._modelImageGroups)
+					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.single()
+					._modelImages,
+			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>()
+		assertEquals(1, modelImages.size, "one shared material, not one per twin")
+		val entries =
+			Cmo3Import.elementsOf(
+				Cmo3Import.elementsOf(textureManager._textureAtlases)
+					.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+					.single()
+					.modelImages,
+			).filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+		assertEquals(1, entries.size, "one atlas entry for the shared material")
+		// The shared image keeps the FIRST drawable's placement (identity fit -> the block origin).
+		val placement = modelImages.single()._materialLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+		assertEquals(10f, placement.m02, "shared placement is twin A's")
+		assertEquals(12f, placement.m12, "shared placement is twin A's")
+	}
+
+	@Test
 	fun placementSnapsToIntegerCanvasOrigin() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Snap Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
 		// The trim fixture's opaque block, but positions carry a FRACTIONAL translation

@@ -133,8 +133,11 @@ class Cmo3ConversionRoundTripTest {
 					failures.add("$label: re-read root is not a CModelSource")
 					return
 				}
+		// Diff against the puppet the conversion ENCODED: the atlas un-dedup prepass remaps a
+		// baked twin's uvs onto its own synthesized slot, so the caller's puppet is not the
+		// round-trip target wherever twins existed.
 		val reimported = Cmo3Import.fromModelSource(reimportedSource)
-		val residual = org.umamo.interop.diffPuppetModels(reimported, puppet)
+		val residual = org.umamo.interop.diffPuppetModels(reimported, result.puppet)
 		if (residual.isEmpty) {
 			return
 		}
@@ -166,7 +169,7 @@ class Cmo3ConversionRoundTripTest {
 				failures.add("$label: drawable residue $entityDiff")
 				continue
 			}
-			val drift = maxGeometryDrift(puppet, reimported, entityDiff.id.raw)
+			val drift = maxGeometryDrift(result.puppet, reimported, entityDiff.id.raw)
 			if (drift > geometryUlpTolerance) {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}

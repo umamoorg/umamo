@@ -146,26 +146,29 @@ internal object Cmo3ImageChainBuilder {
 	)
 
 	/**
-	 * What makes two drawables share one CModelImage: the same crop rect, the same fitted placement,
-	 * and the same mesh.  The mesh is part of the identity because it masks the crop - two drawables
-	 * over one rect with different topology no longer produce the same pixels.
+	 * What makes two drawables share one CModelImage: the same crop rect and the same mesh.  The
+	 * mesh is part of the identity because it masks the crop - two drawables over one rect with
+	 * different topology no longer produce the same pixels.  The fitted PLACEMENT is deliberately
+	 * NOT part of the key, and that is only safe because Cmo3AtlasUndedup has already routed every
+	 * different-placement twin to its own slot: official multi-drawable materials are always
+	 * CO-LOCATED (Erica: 45 of 45 shared groups have identical mesh and placement), the shared
+	 * image carries a single canvas placement, and duplicating a material over one slot instead
+	 * makes the editor's atlas view - a recomposite of the materials - stack the shared art's
+	 * alpha (2a - a*a per extra copy), rendering the atlas more opaque than source-image mode.
 	 */
 	private class PatchWebKey(
 		private val patchRect: IntArray,
-		private val placementBits: IntArray,
 		private val uvs: FloatArray,
 		private val indices: IntArray,
 	) {
 		override fun equals(other: Any?): Boolean =
 			other is PatchWebKey &&
 				patchRect.contentEquals(other.patchRect) &&
-				placementBits.contentEquals(other.placementBits) &&
 				uvs.contentEquals(other.uvs) &&
 				indices.contentEquals(other.indices)
 
 		override fun hashCode(): Int {
 			var result = patchRect.contentHashCode()
-			result = 31 * result + placementBits.contentHashCode()
 			result = 31 * result + uvs.contentHashCode()
 			result = 31 * result + indices.contentHashCode()
 			return result
@@ -384,7 +387,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int        pageHeight The page's pixel height.
 	 * @return IntArray? [x0, y0, x1, y1] (exclusive max), or null when there are no uvs.
 	 */
-	private fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
+	internal fun patchRectOf(uvs: FloatArray, pageWidth: Int, pageHeight: Int): IntArray? {
 		if (uvs.size < 2) {
 			return null
 		}
@@ -858,8 +861,9 @@ internal object Cmo3ImageChainBuilder {
 					magFilter = MagFilter.LINEAR
 					owner = texture
 				}
-			// Per-drawable patch webs, deduped by exact web identity (a mirror duplicate with a
-			// different placement keeps its own web - a ModelImageEntry carries only one).
+			// Patch webs, shared across drawables sampling the same crop with the same mesh (mirror
+			// twins get ONE material like official files; each twin's placement rides its own
+			// region input, and the shared image keeps the first drawable's placement).
 			val regions = regionsByPage.getOrNull(pageIndex).orEmpty()
 			val decodedPage = if (regions.isNotEmpty()) PngCodec.read(page.pngBytes) else null
 			val imageGuidByWebKey = HashMap<PatchWebKey, Guid>()
@@ -875,20 +879,7 @@ internal object Cmo3ImageChainBuilder {
 				val patchY0 = patch[1]
 				val cropWidth = patch[2] - patch[0]
 				val cropHeight = patch[3] - patch[1]
-				val webKey =
-					PatchWebKey(
-						patch,
-						intArrayOf(
-							pageFit.m00.toRawBits(),
-							pageFit.m01.toRawBits(),
-							pageFit.m02.toRawBits(),
-							pageFit.m10.toRawBits(),
-							pageFit.m11.toRawBits(),
-							pageFit.m12.toRawBits(),
-						),
-						region.uvs,
-						region.indices,
-					)
+				val webKey = PatchWebKey(patch, region.uvs, region.indices)
 				val imageGuid =
 					imageGuidByWebKey.getOrPut(webKey) {
 						val coverage =
