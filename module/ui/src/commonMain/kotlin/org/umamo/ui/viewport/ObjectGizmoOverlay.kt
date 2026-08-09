@@ -103,9 +103,6 @@ private class ObjectGesture(
  * scheme, and the screen projection ([worldToScreen] / [screenToWorld]) are shared verbatim with the Edit
  * gizmo; only the capture's per-drawable geometry and the selection domain (whole drawables) differ.
  *
- * オブジェクトモードのギズモ重畳。描画メッシュ全体の選択（クリック・ボックス・サークル）と G / S / R
- * 変形を駆動する。編集モードのギズモのオブジェクト版で、モードで相互排他。
- *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (picking, live preview pushes, centroids).
  * @param EditorSession session The session owning the model, object selection, and active tool / operator.

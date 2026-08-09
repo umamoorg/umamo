@@ -1,12 +1,9 @@
 package org.umamo.ui.viewport
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -15,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -27,7 +23,6 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -43,14 +38,12 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.LocalSettings
-import org.umamo.ui.kit.Text
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.model.OverlapEntry
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
-import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.workspace.ViewportHost
 import kotlin.math.roundToInt
@@ -80,8 +73,6 @@ class PuppetViewportBinding(
  * viewport is ordinary Compose content (the zoom readout - and future gizmos - layer over it correctly).
  * The service is created through [serviceFactory], owned for the life of this composition (one document),
  * and disposed when it leaves; viewport areas register / resize / navigate against it by id.
- *
- * レンダサービスに支えられたビューポート。エリアごとにパン／ズームのカメラを持つ軽量な Image。
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
@@ -312,20 +303,6 @@ fun rememberPuppetViewportHost(
 									onDismiss = { overlap = null },
 								)
 							}
-							camera?.let { current ->
-								val overlayColors = LocalUmamoColors.current
-								Text(
-									text = "${(current.zoom * 100f).roundToInt()}%",
-									color = overlayColors.viewportBadgeText,
-									style = LocalUmamoTypography.current.labelSmall,
-									modifier =
-										Modifier
-											.align(Alignment.BottomStart)
-											.padding(8.dp)
-											.background(overlayColors.viewportBadgeBackground, RoundedCornerShape(4.dp))
-											.padding(horizontal = 6.dp, vertical = 2.dp),
-								)
-							}
 							// Edit-mode vertex gizmos draw over the puppet image; the overlay self-gates on Edit
 							// mode with an active drawable, so it is inert (and passes input through) otherwise.
 							// Project AND pose with the DISPLAYED frame, not the live state: the raster is produced
@@ -390,8 +367,10 @@ fun rememberPuppetViewportHost(
 								areaId = areaId,
 								service = service,
 							)
-							// The HUD layer draws topmost (the 2D cursor and the modal-op status badge). It
-							// installs no pointer input, so it never steals a gesture from the overlays below.
+							// The HUD layer draws topmost (the 2D cursor, the modal-op status badge, the
+							// active-mesh info chip, and the zoom readout). It installs no pointer input, so it
+							// never steals a gesture from the overlays below. The zoom readout takes the LIVE
+							// camera - the wheel updates it immediately, where the frame camera lags the raster.
 							// The near-cursor notices and the radial pie menus render at the SHELL level
 							// (ShellCursorOverlays.kt): one instance above the whole area tree, escaping this
 							// viewport's clipped bounds.
@@ -399,6 +378,7 @@ fun rememberPuppetViewportHost(
 								areaId = areaId,
 								session = session,
 								camera = image?.camera,
+								liveCamera = camera,
 								widthPx = widthPx,
 								heightPx = heightPx,
 							)

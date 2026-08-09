@@ -40,7 +40,6 @@ import org.umamo.ui.theme.LocalUmamoIcons
 fun OverflowRowScope.viewport2DHeaderControls() {
 	item("editorMode") { EditorModeDropdown() }
 	item("selectMode") { MeshSelectModeButtons() }
-	item("activeMesh") { ActiveMeshName() }
 	item("pivot") { PivotModeDropdown() }
 	item("snap") { SnapDropdown() }
 	item("proportional") { ProportionalEditControls() }

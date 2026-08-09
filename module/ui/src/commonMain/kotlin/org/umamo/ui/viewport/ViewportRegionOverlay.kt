@@ -44,9 +44,6 @@ private const val REGION_DRAG_THRESHOLD_PX = 3f
  * The crosshair cursor and dashed guides are drawn (the OS cursor is hidden while armed), so the affordance
  * matches the armed Box-select tool; the two share [drawCrosshairGuides].
  *
- * ズーム領域重畳（Shift+B）。モード非依存。対象エリアで武装中のみ全画面十字ガイドと破線ボックスを描き、
- * 離すとそのボックスをビューポートにフレーミングする。
- *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for the zoom-to-region call).
  * @param EditorSession session The session owning the armed-area flag.

@@ -2,7 +2,6 @@ package org.umamo.ui.workspace.spaces
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -10,8 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
@@ -24,18 +21,14 @@ import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
-import org.umamo.ui.kit.Text
-import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.ButtonGroup
 import org.umamo.ui.kit.button.ButtonGroupItem
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
-import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.falloffLabel
 
 /*
@@ -44,39 +37,6 @@ import org.umamo.ui.viewport.falloffLabel
  * controls, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates only by dispatching registry commands, per the everything-through-the-action-registry rule.
  */
-
-/** How wide the active-mesh label may get before it ellipsizes, so one long name cannot swallow the strip. */
-private val ACTIVE_MESH_NAME_MAX_WIDTH = 160.dp
-
-/**
- * The active mesh's name: which drawable element clicks and operators land on as the active element hops
- * between meshes.  Rendered only in Edit mode with an active mesh, so the callers need no gate of their
- * own.  A document name is user data, rendered verbatim (never localized) - and capped at
- * [ACTIVE_MESH_NAME_MAX_WIDTH] with an ellipsis, since the header is one 28.dp line and an uncapped name
- * would wrap and clip.  The tooltip carries the name in full.
- */
-@Composable
-internal fun ActiveMeshName() {
-	val session = LocalEditorSession.current ?: return
-	val editorMode by session.mode.collectAsState()
-	val meshSelection by session.meshSelection.collectAsState()
-	val model by session.model.collectAsState()
-	if (editorMode != EditorMode.Edit) {
-		return
-	}
-	val activeId = meshSelection.activeDrawableId ?: return
-	val activeName = model.drawables.firstOrNull { drawable -> drawable.id == activeId }?.name ?: return
-	Tooltip(text = activeName) {
-		Text(
-			text = activeName,
-			style = LocalUmamoTypography.current.labelMedium,
-			color = LocalUmamoColors.current.textMuted,
-			maxLines = 1,
-			overflow = TextOverflow.Ellipsis,
-			modifier = Modifier.widthIn(max = ACTIVE_MESH_NAME_MAX_WIDTH),
-		)
-	}
-}
 
 /**
  * The vertex / edge / face select-mode buttons: a three-segment radio ButtonGroup whose lit segment is
