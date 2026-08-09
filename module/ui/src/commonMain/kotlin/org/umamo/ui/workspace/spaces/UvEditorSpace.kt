@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -24,6 +25,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.SelectionOps
+import org.umamo.edit.SelectionTarget
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
@@ -31,30 +34,36 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
+import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvCursorOverlay
-import org.umamo.ui.viewport.UvGizmoOverlay
+import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
-import org.umamo.ui.viewport.UvObjectOverlay
+import org.umamo.ui.viewport.UvObjectGizmoOverlay
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.overlapStateFrom
+import org.umamo.ui.viewport.restFrontRank
+import org.umamo.ui.viewport.uvIslandPick
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 
 /**
- * The UV editor space: the active drawable's atlas page drawn under its UV wireframe, with the
- * session's mesh selection shared 1:1 (Blender's UV sync selection, always on - Umamo UVs are strictly
- * per-vertex, so the viewport and the UV editor agree by construction).  In Edit mode the composed
- * [UvGizmoOverlay] owns the interactions: element picking and box select over the shared selection,
- * and the modal G / S / R operators over the texture coordinates with live GPU preview.  Object mode
- * shows the selected drawables' mappings as a read-only preview (pan / zoom only) through
- * [UvObjectOverlay], matching the app's object/edit split.  Middle-drag pans and the wheel zooms in
- * both modes, through this space's own navigation loop.
+ * The UV editor space: the shown atlas page drawn under its UV islands, with the session's selections
+ * shared 1:1 (Blender's UV sync selection, always on - Umamo UVs are strictly per-vertex, so the
+ * viewport and the UV editor agree by construction).  In Edit mode the composed [UvEditGizmoOverlay]
+ * owns the interactions: element picking and box select over the shared mesh selection, and the modal
+ * G / S / R operators over the texture coordinates with live GPU preview.  In Object mode
+ * [UvObjectGizmoOverlay] draws every visible island on the page and owns island selection - click,
+ * box, and the Alt overlap stack, writing the session's object selection, so a selection made here
+ * flows out to the viewport and the outliner.  Middle-drag pans and the wheel zooms in both modes,
+ * through this space's own navigation loop.
  *
  * FULL VIEWPORT-SERVICE PARITY: the atlas page underlay is rendered by the SAME offscreen GL engine the
  * 2D viewport uses (a per-area "atlas page" render scene), blitted here by [UvPageUnderlay]; the UV
@@ -103,17 +112,30 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val pageHeight = resolvedPage.pageHeight
 
 	// The meshes drawn over the page and their display-space projection (the Edit / Object candidate
-	// rules and the page filter live in shownUvDrawables), remembered so selection churn that changes
-	// none of the inputs never rebuilds them.
+	// rules and the page filter live in shownUvDrawables), remembered so selection churn - which
+	// changes styling, never membership - rebuilds nothing here.
 	val shownDrawables =
-		remember(model, textures, pageIndex, mode, meshSelection.drawableIds, objectSelection, activeDrawable) {
-			shownUvDrawables(model, mode, meshSelection, objectSelection, textures, pageIndex)
+		remember(model, textures, pageIndex, mode, meshSelection.drawableIds) {
+			shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
 		}
 	val geometries =
 		remember(shownDrawables, pageWidth, pageHeight) {
 			uvGizmoGeometries(shownDrawables, pageWidth, pageHeight)
 		}
 	val liveGeometries = rememberUpdatedState(geometries)
+
+	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick
+	// adapters over the shown islands and the page's decoded pixels (UvIslandPick.kt).
+	val frontRank = remember(model) { restFrontRank(model) }
+	val islandPick =
+		remember(shownDrawables, geometries, frontRank, pageIndex, textures) {
+			uvIslandPick(
+				shownDrawables = shownDrawables,
+				geometries = geometries,
+				frontRank = frontRank,
+				page = pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) },
+			)
+		}
 
 	// Register this area as an atlas-page scene on the shared GL engine and follow the frame it publishes;
 	// the page tracks the active drawable via setAtlasPageIndex.  The camera is owned by the service (pan /
@@ -132,9 +154,14 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// radiusWorld is scaled for the puppet canvas and means nothing on an atlas page, so only the
 	// falloff curve and Connected Only are shared; the radius seeds from the page size on first use
 	// and survives across gestures (the circle-select remembered-radius pattern).  Owned here, by the
-	// overlay stack's host, because two sibling overlays need it: UvGizmoOverlay's gesture machinery
+	// overlay stack's host, because two sibling overlays need it: UvEditGizmoOverlay's gesture machinery
 	// seeds and resizes it, UvHudOverlay's status badge reads it.
 	val proportionalRadiusDisplay = remember(scope.areaId) { mutableStateOf<Float?>(null) }
+
+	// The overlap-picker popup's host state (the 2D viewport's pattern): the Object overlay's Alt
+	// pick requests it through overlapStateFrom, the popup mounted in the content stack resolves or
+	// dismisses it.  Area-local, like the anchor it carries.
+	var overlap by remember(scope.areaId) { mutableStateOf<OverlapState?>(null) }
 
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
@@ -160,9 +187,23 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// zoom steps honor the same viewport.zoomStep settings fed into the service.
 	val areaCameraHub = LocalAreaCameraHub.current
 	DisposableEffect(scope.areaId, areaCameraHub, session, service) {
-		// The UV camera reads liveGeometries.value lazily each Frame Selected, so it always frames the
-		// current shown geometries without re-registering on every mesh change.
-		val ops = UvSpaceCamera(service, session, scope.areaId) { liveGeometries.value }
+		// The UV camera reads the supplier lazily each Frame Selected, so it always frames the current
+		// shown geometries without re-registering on every mesh change.  Object mode narrows to the
+		// SELECTED islands - the shown list is every visible island on the page, and framing all of
+		// them would just frame the page; an empty selection yields an empty list, keeping Frame
+		// Selected a no-op then.
+		val ops =
+			UvSpaceCamera(service, session, scope.areaId) {
+				if (session.mode.value == EditorMode.Edit) {
+					liveGeometries.value
+				} else {
+					val selectedIds =
+						session.selection.value.targets
+							.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }
+							.toSet()
+					liveGeometries.value.filter { geometry -> geometry.drawableId in selectedIds }
+				}
+			}
 		areaCameraHub?.register(scope.areaId, ops)
 		onDispose { areaCameraHub?.unregister(scope.areaId) }
 	}
@@ -223,24 +264,47 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					widthPx = widthPx,
 					heightPx = heightPx,
 				)
+				// The overlap picker for an ambiguous Alt click over stacked islands (the popup is its
+				// own window; the anchor stays area-local).
+				overlap?.let { state ->
+					OverlapPickerPopup(
+						anchor = state.anchor,
+						entries = state.entries,
+						defaultIndex = state.defaultIndex,
+						onPick = { pickedId ->
+							state.pick(pickedId)
+							overlap = null
+						},
+						onDismiss = { overlap = null },
+					)
+				}
 				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
-				// viewport pair's convention, so both mount unconditionally): Object mode's read-only
-				// wireframe preview plus its Shift+RightClick UV-cursor placement, then Edit mode's
-				// interaction core (element selection, box select, and the modal G / S / R operators
-				// with live GPU preview).  Both are locked to the frame camera (image?.camera) for the
-				// same pan / zoom glue as the 2D viewport's overlays; in Object mode everything but
-				// the cursor placement falls through to the navigation loop and the context menu.
-				UvObjectOverlay(
+				// viewport pair's convention, so both mount unconditionally): Object mode's island
+				// selection surface (every visible island drawn, click / box / Alt-stack picking and
+				// Shift+RightClick cursor placement over the session's object selection), then Edit
+				// mode's interaction core (element selection, box select, and the modal G / S / R
+				// operators with live GPU preview).  Both are locked to the frame camera
+				// (image?.camera) for the same pan / zoom glue as the 2D viewport's overlays;
+				// unconsumed input falls through to the navigation loop and the context menu.
+				UvObjectGizmoOverlay(
 					areaId = scope.areaId,
 					session = session,
 					geometries = geometries,
+					islandPick = islandPick,
 					pageWidth = pageWidth,
 					pageHeight = pageHeight,
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
+					onOverlapRequest = { position, candidates ->
+						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
+						overlap =
+							overlapStateFrom(service, position, candidates) { pickedId ->
+								session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
+							}
+					},
 				)
-				UvGizmoOverlay(
+				UvEditGizmoOverlay(
 					areaId = scope.areaId,
 					session = session,
 					geometries = geometries,
@@ -295,9 +359,12 @@ internal fun UvEditorSpace(scope: AreaScope) {
  * The UV editor's navigation pointer loop: middle-mouse drag pans and the wheel zooms toward the cursor
  * (Shift for the coarse step).  Pan and zoom drive the SERVICE camera (same as the 2D viewport) and are
  * skipped while this area owns a modal UV operator or an armed select tool - the overlay's controller owns
- * the pointer then (a wheel scroll resizes the proportional radius, not the zoom).  A gesture latched in
- * ANOTHER area does not block: its events never reach here, so this area keeps panning and zooming during
- * it (Blender parity).
+ * the pointer then (a wheel scroll resizes the proportional radius, not the zoom) - and while an un-armed
+ * box drag is live (viewportGestureActive, area-less by design: pointer capture pins the drag's events to
+ * the dragging overlay, and zooming under a live rubber-band would desync the box from the camera used at
+ * release) or Zoom Region is armed here (its overlay owns the drag above).  The four-term gate is the 2D
+ * viewport loop's.  A gesture latched in ANOTHER area does not block: its events never reach here, so this
+ * area keeps panning and zooming during it (Blender parity).
  *
  * This loop stamps nothing about where the pointer is: the hovered surface is stamped by the hosting
  * leaf, for every space alike (see stampsHoveredSurface).
@@ -317,7 +384,9 @@ private suspend fun PointerInputScope.uvEditorNavigation(
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
 			if (session.activeUvOperator.value?.areaId == areaId ||
-				session.activeSelectTool.value?.areaId == areaId
+				session.activeSelectTool.value?.areaId == areaId ||
+				session.viewportGestureActive.value ||
+				session.zoomRegionArmedArea.value == areaId
 			) {
 				continue
 			}

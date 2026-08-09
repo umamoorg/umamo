@@ -73,7 +73,7 @@ private class UvGesture(
 
 /**
  * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its atlas
- * underlay.  Self-gates to Edit mode with a camera - the mode-exclusive sibling of [UvObjectOverlay],
+ * underlay.  Self-gates to Edit mode with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay],
  * so the host mounts both unconditionally (the viewport overlay pair's convention).
  * Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the
  * idle element selection (click pick with Shift/Ctrl toggle, empty-drag box, sub-threshold-click
@@ -104,7 +104,7 @@ private class UvGesture(
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-internal fun UvGizmoOverlay(
+internal fun UvEditGizmoOverlay(
 	areaId: String,
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,

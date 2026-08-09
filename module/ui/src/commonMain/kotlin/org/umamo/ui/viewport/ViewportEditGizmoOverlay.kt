@@ -175,9 +175,6 @@ private class SlideContext(
  * lags together with the textured raster instead of leading it. A primary click or Enter confirms (one undo
  * step), Esc or right-click cancels. While modal, all pointer input is swallowed.
  *
- * 編集モードのギズモ重畳。ベースメッシュの静止状態のみを編集する。頂点・辺・面の選択モードを持ち、
- * モーダルな G / S / R を駆動する。
- *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for live preview pushes).
  * @param EditorSession session The session owning the model, element selection, and active operator.
@@ -193,7 +190,7 @@ private class SlideContext(
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-fun EditGizmoOverlay(
+fun ViewportEditGizmoOverlay(
 	areaId: String,
 	service: PuppetViewportService,
 	session: EditorSession,

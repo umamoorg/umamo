@@ -11,6 +11,9 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,7 +34,7 @@ class UvEditorViewStateTest {
 	/** The default triangle's uvs: display (16, 16), (48, 16), (16, 24) on the 64x32 page. */
 	private val triangleUvs = floatArrayOf(0.25f, 0.5f, 0.75f, 0.5f, 0.25f, 0.25f)
 
-	private fun meshedDrawable(rawId: String, uvs: FloatArray = triangleUvs.copyOf()): Drawable =
+	private fun meshedDrawable(rawId: String, uvs: FloatArray = triangleUvs.copyOf(), isVisible: Boolean = true): Drawable =
 		Drawable(
 			id = DrawableId(rawId),
 			name = rawId,
@@ -40,6 +43,7 @@ class UvEditorViewStateTest {
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), uvs, intArrayOf(0, 1, 2)),
 			geometryGrid = null,
+			isVisible = isVisible,
 		)
 
 	private fun bareDrawable(rawId: String): Drawable =
@@ -53,20 +57,22 @@ class UvEditorViewStateTest {
 			geometryGrid = null,
 		)
 
+	// Every drawable gets a root org-tree entry: visibleDrawableIds walks rootChildren, so a drawable
+	// absent from the tree would read as hidden.
 	private fun modelOf(vararg drawables: Drawable): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),
 			parts = emptyList(),
 			deformers = emptyList(),
 			drawables = drawables.toList(),
-			rootChildren = emptyList(),
+			rootChildren = drawables.map { drawable -> OrgChild.Drawable(drawable.id) },
 			rootPartId = null,
 		)
 
 	private fun twoPageTextures(): PuppetTextures =
 		PuppetTextures(
 			atlases = listOf(DecodedImage(ByteArray(64 * 32 * 4), 64, 32), DecodedImage(ByteArray(16 * 16 * 4), 16, 16)),
-			atlasIndexByDrawableId = mapOf("a" to 0, "b" to 1),
+			atlasIndexByDrawableId = mapOf("a" to 0, "a2" to 0, "b" to 1),
 			premultipliedAlpha = false,
 		)
 
@@ -144,43 +150,68 @@ class UvEditorViewStateTest {
 				model = model,
 				mode = EditorMode.Edit,
 				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a"), DrawableId("b")), activeDrawableId = DrawableId("a")),
-				objectSelection = Selection(),
 				textures = twoPageTextures(),
 				pageIndex = 0,
 			)
 		assertEquals(listOf(DrawableId("a")), shown.map { drawable -> drawable.id }, "only the shown page's meshes draw")
 	}
 
-	/** Object mode lists the SELECTED drawables only; the object selection is the candidate set. */
+	/** Object mode lists EVERY visible meshed drawable mapped to the shown page, in model order. */
 	@Test
-	fun objectModeListsTheSelectedDrawablesOnly() {
-		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+	fun objectModeListsEveryVisibleMeshOnThePage() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"), meshedDrawable("a2"))
 		val shown =
 			shownUvDrawables(
 				model = model,
 				mode = EditorMode.Object,
 				meshSelection = MeshSelection(),
-				objectSelection = Selection(setOf(SelectionTarget.Drawable(DrawableId("b"))), SelectionTarget.Drawable(DrawableId("b"))),
-				textures = twoPageTextures(),
-				pageIndex = 1,
-			)
-		assertEquals(listOf(DrawableId("b")), shown.map { drawable -> drawable.id }, "the selected drawable's mapping draws")
-	}
-
-	/** An empty object selection draws nothing - the page fallback drawable must NOT render. */
-	@Test
-	fun emptyObjectSelectionDrawsNothing() {
-		val model = modelOf(meshedDrawable("a"))
-		val shown =
-			shownUvDrawables(
-				model = model,
-				mode = EditorMode.Object,
-				meshSelection = MeshSelection(),
-				objectSelection = Selection(),
 				textures = twoPageTextures(),
 				pageIndex = 0,
 			)
-		assertTrue(shown.isEmpty(), "nothing selected means no wireframe, even though a fallback page shows")
+		assertEquals(
+			listOf(DrawableId("a"), DrawableId("a2")),
+			shown.map { drawable -> drawable.id },
+			"every visible page-0 mesh draws, in model order, selection playing no part",
+		)
+	}
+
+	/** Object mode excludes hidden islands: the drawable's own eyeball and a hidden ancestor part alike. */
+	@Test
+	fun objectModeExcludesHiddenIslands() {
+		val visible = meshedDrawable("a")
+		val hiddenSelf = meshedDrawable("hiddenSelf", isVisible = false)
+		val underHiddenPart = meshedDrawable("underHiddenPart")
+		val hiddenPart =
+			Part(
+				id = PartId("hiddenPart"),
+				name = "hiddenPart",
+				children = listOf(OrgChild.Drawable(underHiddenPart.id)),
+				isVisible = false,
+			)
+		val model =
+			PuppetModel(
+				parameters = emptyList(),
+				parts = listOf(hiddenPart),
+				deformers = emptyList(),
+				drawables = listOf(visible, hiddenSelf, underHiddenPart),
+				rootChildren =
+					listOf(
+						OrgChild.Drawable(visible.id),
+						OrgChild.Drawable(hiddenSelf.id),
+						OrgChild.Part(hiddenPart.id),
+					),
+				rootPartId = null,
+			)
+		val shown =
+			shownUvDrawables(
+				model = model,
+				mode = EditorMode.Object,
+				meshSelection = MeshSelection(),
+				// Null textures reduce the filter to visibility alone (no page filter).
+				textures = null,
+				pageIndex = null,
+			)
+		assertEquals(listOf(DrawableId("a")), shown.map { drawable -> drawable.id }, "hidden islands neither draw nor pick")
 	}
 
 	/** Meshes with an empty or size-mismatched UV array are excluded everywhere. */
@@ -198,7 +229,6 @@ class UvEditorViewStateTest {
 						drawableIds = listOf(DrawableId("emptyUvs"), DrawableId("mismatched"), DrawableId("a")),
 						activeDrawableId = DrawableId("a"),
 					),
-				objectSelection = Selection(),
 				// Null textures reduce the filter to the UV-shape checks alone (no page filter).
 				textures = null,
 				pageIndex = null,

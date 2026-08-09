@@ -159,7 +159,8 @@ internal class ViewportSpaceCamera(
  * @property PuppetViewportService service The render service holding this area's camera.
  * @property EditorSession session The session whose mode / mesh selection Frame Selected reads.
  * @property String areaId The UV editor area this controller drives.
- * @property Function geometries The live shown UV geometries in display space, re-read on each call.
+ * @property Function geometries The display-space geometries Frame Selected frames, re-read on each
+ *   call; the host's supplier narrows Object mode to the selected islands.
  */
 internal class UvSpaceCamera(
 	service: PuppetViewportService,
@@ -169,10 +170,11 @@ internal class UvSpaceCamera(
 ) : ServiceCameraController(service, session, areaId) {
 	override fun frameSelected() {
 		// Mirror the 2D viewport's mode split (ViewportSpaceCamera.frameSelected): Edit mode frames the
-		// covered (selected) vertices; Object mode has no element selection, so it frames every vertex of
-		// the shown geometries - which in Object mode are exactly the selected drawables.  Without this
-		// branch Object-mode Frame Selected is a no-op, because meshSelection is empty there and
-		// coveredVertexIndices returns nothing.
+		// covered (selected) vertices; Object mode has no element selection, so it frames every vertex
+		// of the supplied geometries - the host's supplier narrows Object mode to the SELECTED islands
+		// (the shown list is every visible island on the page).  Without this branch Object-mode Frame
+		// Selected is a no-op, because meshSelection is empty there and coveredVertexIndices returns
+		// nothing.
 		val editMode = session.mode.value == EditorMode.Edit
 		val selection = session.meshSelection.value
 		var minX = Float.MAX_VALUE

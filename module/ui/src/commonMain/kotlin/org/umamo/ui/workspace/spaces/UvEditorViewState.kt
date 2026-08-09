@@ -8,6 +8,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.atlasPageIndexFor
 import org.umamo.ui.viewport.uvToDisplay
@@ -71,17 +72,16 @@ internal fun resolveUvEditorPage(
 
 /**
  * The meshes drawn over the shown page: in Edit mode every session mesh sampling this page (the
- * active one is emphasized via the highlight sets), in Object mode the selected drawables alone,
- * read-only.  With nothing selected in Object mode the pane shows just the atlas page (the
- * first-meshed fallback still drives which page, but draws no wireframe): rendering the fallback
- * drawable's vertices while nothing is selected reads as editable and clutters the view.  Meshes
- * without an editable UV array (empty or malformed) and meshes mapped to another page are excluded
- * everywhere.
+ * active one is emphasized via the highlight sets), in Object mode EVERY visible meshed drawable
+ * mapped to the page, in model (parts-tree) order - the islands are the click targets, so all of
+ * them show, selection styling the difference.  Visibility follows the Parts-panel eyeball cascade
+ * (visibleDrawableIds), matching what the viewport can render and therefore pick; a hidden island
+ * neither draws nor picks.  Meshes without an editable UV array (empty or malformed) and meshes
+ * mapped to another page are excluded everywhere.
  *
  * @param PuppetModel model The session's committed model.
  * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
  * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
- * @param Selection objectSelection The object selection (Object mode's candidate set).
  * @param PuppetTextures? textures The decoded atlas pages, or null before textures load.
  * @param Int? pageIndex The shown page's index (the page filter), or null for the untextured fallback.
  * @return List<Drawable> The drawables whose mappings draw over the page.
@@ -90,7 +90,6 @@ internal fun shownUvDrawables(
 	model: PuppetModel,
 	mode: EditorMode,
 	meshSelection: MeshSelection,
-	objectSelection: Selection,
 	textures: PuppetTextures?,
 	pageIndex: Int?,
 ): List<Drawable> {
@@ -98,9 +97,8 @@ internal fun shownUvDrawables(
 		if (mode == EditorMode.Edit) {
 			meshSelection.drawableIds.mapNotNull { drawableId -> model.drawables.firstOrNull { drawable -> drawable.id == drawableId } }
 		} else {
-			objectSelection.targets
-				.filterIsInstance<SelectionTarget.Drawable>()
-				.mapNotNull { target -> model.drawables.firstOrNull { drawable -> drawable.id == target.id } }
+			val shownIds = model.visibleDrawableIds()
+			model.drawables.filter { drawable -> drawable.id in shownIds }
 		}
 	return candidates.filter { drawable ->
 		val mesh = drawable.mesh
