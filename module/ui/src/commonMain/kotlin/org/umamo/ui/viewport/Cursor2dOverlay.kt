@@ -61,7 +61,7 @@ internal fun Cursor2dOverlay(
  * The UV cursor marker (the texture-space 2D cursor), the UV editor's twin of [Cursor2dOverlay]:
  * the same crosshair at the cursor's display-space position, present in both modes and drawn above
  * the gizmo chrome for viewport parity.  Draw-only; placement stays a gizmo gesture
- * (Shift+RightClick in the UV editor's Edit mode).
+ * (Shift+RightClick, handled by the mode's own overlay in both modes).
  *
  * @param EditorSession session The session whose UV cursor this overlay draws.
  * @param Int pageWidth The shown atlas page's width in texels (the display mapping's scale).

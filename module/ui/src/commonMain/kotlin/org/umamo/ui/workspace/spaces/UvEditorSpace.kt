@@ -225,13 +225,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				)
 				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
 				// viewport pair's convention, so both mount unconditionally): Object mode's read-only
-				// wireframe preview, then Edit mode's interaction core (element selection, box select,
-				// and the modal G / S / R operators with live GPU preview).  Both are locked to the
-				// frame camera (image?.camera) for the same pan / zoom glue as the 2D viewport's
-				// overlays; in Object mode input falls through to the navigation loop untouched.
+				// wireframe preview plus its Shift+RightClick UV-cursor placement, then Edit mode's
+				// interaction core (element selection, box select, and the modal G / S / R operators
+				// with live GPU preview).  Both are locked to the frame camera (image?.camera) for the
+				// same pan / zoom glue as the 2D viewport's overlays; in Object mode everything but
+				// the cursor placement falls through to the navigation loop and the context menu.
 				UvObjectOverlay(
+					areaId = scope.areaId,
 					session = session,
 					geometries = geometries,
+					pageWidth = pageWidth,
+					pageHeight = pageHeight,
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
