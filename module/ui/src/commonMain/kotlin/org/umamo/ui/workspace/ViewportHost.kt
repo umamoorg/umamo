@@ -10,9 +10,6 @@ import androidx.compose.ui.Modifier
  * lives in the app's platform source set - `:ui` can't reference it - so a Viewport2D area asks the host
  * to render itself. The [areaId] lets the host cache one GL surface per area (via movableContentOf), so
  * the surface moves rather than tears down when an unrelated area splits.
- *
- * 共通 `:ui` シェルにプラットフォーム GL ビューポートを注入する継ぎ目。areaId でエリアごとに GL
- * サーフェスをキャッシュし、無関係な分割で再生成されないようにする。
  */
 fun interface ViewportHost {
 	/**

@@ -40,9 +40,6 @@ private val TOOLBAR_GLYPH_SIZE = 18.dp
  * Visibility is [org.umamo.ui.workspace.LocalViewportChrome] (settings-backed, toggled by
  * view.toggleToolbar / T) - the caller gates on it, keeping this composable a pure strip.
  *
- * ビューポート左側の浮遊ツールバー。選択ツールとモーダル変形をコマンド経由で発行し、動作中のツールを
- * 点灯表示する。ドキュメント未オープン時は無効表示。
- *
  * @param Modifier modifier The layout modifier (the caller aligns it to the viewport's left edge).
  */
 @Composable

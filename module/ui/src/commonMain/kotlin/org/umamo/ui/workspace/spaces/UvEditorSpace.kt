@@ -47,11 +47,13 @@ import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.viewport.ActiveMeshInfoLabel
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvGizmoOverlay
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.ViewportZoomBadge
 import org.umamo.ui.viewport.atlasPageIndexFor
 import org.umamo.ui.viewport.buildHighlightSets
 import org.umamo.ui.viewport.drawMeshWireframe
@@ -165,11 +167,15 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// the page tracks the active drawable via setAtlasPageIndex.  The camera is owned by the service (pan /
 	// zoom / fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.
 	val imageFlow = remember(scope.areaId) { service.registerAtlasPage(scope.areaId, pageIndex) }
+	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
+	// frame's camera (image?.camera) lags the raster by a few frames.
+	val cameraFlow = remember(scope.areaId) { service.cameraFlow(scope.areaId) }
 	LaunchedEffect(scope.areaId, pageIndex) { service.setAtlasPageIndex(scope.areaId, pageIndex) }
 	DisposableEffect(scope.areaId) {
 		onDispose { service.unregister(scope.areaId) }
 	}
 	val image by imageFlow.collectAsState()
+	val liveCamera by cameraFlow.collectAsState()
 
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
@@ -344,6 +350,13 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					widthPx = widthPx,
 					heightPx = heightPx,
 				)
+				// The shared HUD chips, draw-only (no pointer input, so nothing below loses a gesture):
+				// the top-left active-mesh label and the bottom-left zoom readout.  The label uses the
+				// SAME mode-dependent resolution as the 2D viewport - deliberately not this space's
+				// first-meshed page fallback - so the two surfaces annotate the same mesh and the chip
+				// stays absent while nothing is selected.
+				ActiveMeshInfoLabel(session = session)
+				ViewportZoomBadge(camera = liveCamera)
 			}
 		}
 	}
