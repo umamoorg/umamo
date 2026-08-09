@@ -50,6 +50,7 @@ internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(PARAMETERS_VIEW_STATE_KEY) { ParametersViewState() }
 	// Add Parameter and New Group ride one item: both create, they were always 4.dp apart rather than the
 	// strip's 8.dp, and splitting a create pair across the strip and the overflow panel would read as noise.
+	// I know this looks like duplicate `LocalPuppet.current != null`, but it is not.  They are still added, but only show if a document is open.
 	item("add") {
 		if (LocalPuppet.current != null) {
 			AddParameterChip(viewState)
