@@ -86,6 +86,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Improvements
 	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
+	* Transform Position and Size should update the render while scrubbing.
+	* Aspect locked properties(Size) should update the other control while one is being scrubbed.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
@@ -97,7 +99,7 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Search in header.
 
 ## Workspace
-* Menu: Add Previous/Next workspace to the main menu.
+* Menu: Add Previous/Next workspace to the Workspace main menu at the top.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
@@ -142,6 +144,9 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Outliner
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
+
+## Keybindings
+* The clear shortcut button Needs more right margin on the overall row to clear the scrollbar.
 
 ## UI
 * The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
