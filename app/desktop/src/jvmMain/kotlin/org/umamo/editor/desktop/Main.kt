@@ -134,6 +134,7 @@ fun main(args: Array<String>) {
 					// so the viewport grid never tracked the theme.
 					UmamoTheme {
 						WindowsTitleBarTint(window)
+						WindowResizeHeal(window)
 						EditorApp(
 							document = document,
 							session = session,

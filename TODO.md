@@ -173,9 +173,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.
 
-## Random Bugs
-* While resizing the application window pressing escape to cancel the resize snaps the window back, but the Compose area does not.
-
 ## Storage
 
 ## Future Feature Wishes
