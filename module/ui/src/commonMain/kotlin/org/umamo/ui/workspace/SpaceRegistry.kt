@@ -13,8 +13,6 @@ import org.umamo.ui.theme.UmamoIcon
  * the one channel a space's header controls and its body can share state through (a CompositionLocal
  * provided inside the body never reaches the header).
  *
- * 空間のコンテンツとヘッダスロットに渡されるエリアコンテキスト。安定したエリア id と空間ごとの状態置き場を持つ。
- *
  * @property String areaId The id of the leaf hosting this space.
  */
 class AreaScope(
@@ -53,9 +51,6 @@ class AreaScope(
  * nothing.  Because the builder is not itself composable, a CompositionLocal may only be read inside an
  * item's body - see [org.umamo.ui.kit.OverflowRowScope].
  *
- * 1 つのエディタ空間の記述。種別・ローカライズ済みタイトル・アイコン・コンテンツ生成関数を持つ。
- * headerContent は空間固有のヘッダ内容（任意）。
- *
  * @property SpaceKind kind The space type this describes.
  * @property StringResource title The localized dropdown label.
  * @property UmamoIcon icon The glyph shown in the area header and the dropdown rows.
@@ -75,8 +70,6 @@ class SpaceDescriptor(
  * the registry for its current kind's descriptor to render content, and lists [all] descriptors to
  * populate the editor-type dropdown. The app augments the base registry with [withOverrides] (e.g. to
  * swap the placeholder viewport for the real GL one).
- *
- * SpaceKind から SpaceDescriptor への解決器。エリアはこれで内容を描画し、ドロップダウンを構成する。
  */
 class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescriptor>) {
 	/**

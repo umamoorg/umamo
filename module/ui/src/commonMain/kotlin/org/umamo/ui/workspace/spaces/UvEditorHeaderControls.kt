@@ -11,9 +11,6 @@ import org.umamo.ui.kit.OverflowRowScope
  * mode here switches the viewport too, by design.  Everything but the pivot is Edit-mode only, since
  * the UV editor's Object-mode face is a read-only preview - each control gates itself, and one that
  * renders nothing measures zero and costs the strip nothing.
- *
- * UV エディタ固有のヘッダ内容。選択モードボタン・アクティブメッシュ名・ピボット・プロポーショナル
- * 編集は共有部品で、2D ビューポートと同じ挙動になる。
  */
 internal fun OverflowRowScope.uvEditorHeaderControls() {
 	item("selectMode") { MeshSelectModeButtons() }

@@ -36,10 +36,6 @@ import org.umamo.ui.theme.LocalUmamoIcons
  * The widest strip in the app, so it is the one that most needs the overflow behavior.  Only the mode
  * dropdown is pinned - it is the control the whole viewport header is about, and a header that hides its
  * own subject is worse than one that clips.
- *
- * 2D ビューポート固有のヘッダ内容。モードドロップダウン、選択モードボタン、ピボット、スナップ、
- * プロポーショナル編集の切替と減衰。変更はすべてコマンドレジストリ経由。ドキュメント未オープン時は
- * 無効表示。幅が足りなければモードドロップダウン以外はオーバーフローに畳み込まれる。
  */
 fun OverflowRowScope.viewport2DHeaderControls() {
 	pinnedItem("editorMode") { EditorModeDropdown() }
@@ -56,9 +52,6 @@ fun OverflowRowScope.viewport2DHeaderControls() {
  * a two-row menu (Object Mode / Edit Mode, each icon + label + bound-shortcut hint); choosing a row
  * dispatches the matching set-mode command.  The chip anatomy is the shared kit [DropdownChip], the
  * same face as the area header's AreaTypeDropdown so the header chips read as one family.
- *
- * エディタモードセレクタ（Blender 式）。現在モードのアイコンとラベルとシェブロンを表示し、クリックで
- * モードメニューを開く。選択は mode.object / mode.edit コマンドを発行する。
  */
 @Composable
 private fun EditorModeDropdown() {
@@ -116,8 +109,6 @@ private fun EditorModeDropdown() {
  * The snap menu (Blender's Shift+S, as a header dropdown): an icon-only magnet chip whose rows
  * dispatch the eight snap commands - the cursor moves and the selection moves - so the pie and this
  * menu stay one behavior.
- *
- * スナップメニュー（Shift+S のヘッダ版）。各行はスナップコマンドを発行する。
  */
 @Composable
 private fun SnapDropdown() {
