@@ -151,12 +151,11 @@ private class OutlinerRowBoundsHolder {
  * state when nothing is loaded). Branches start collapsed (only the root is open); rows dim when hidden
  * or sketch and select through [LocalSelection] (plain click replaces, Ctrl / Cmd toggles, Shift adds).
  * A selection made elsewhere (a viewport pick) reveals its row - ancestors expand and the list scrolls
- * to it - but a click inside the outliner never scrolls the list. The AREA header carries the name
- * search and the filter dropdown (OutlinerHeaderControls, sharing this body's OutlinerViewState
- * through [scope]); names never wrap, so a horizontal scroll reaches long ones.
- *
- * アウトライナー空間。Cubism の分割パネルを1つの木に統合する。既定は折りたたみ、横スクロール対応、
- * 検索と絞り込みはエリアヘッダ側。
+ * to it - but a click inside the outliner never scrolls the list.  Clearing the search reveals the active
+ * selection the same way, so a row picked out of the results is not stranded behind a branch that closes
+ * again. The AREA header carries the name search and the filter dropdown (OutlinerHeaderControls,
+ * sharing this body's OutlinerViewState through [scope]); names never wrap, so a horizontal scroll
+ * reaches long ones.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  * @param Modifier modifier The layout modifier.
@@ -256,6 +255,17 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 	}
 
+	// The one reveal body both paths below share: open every ancestor of the target, then bring its row
+	// into view. Shared so the two entry points cannot drift into revealing a row differently.
+	suspend fun revealTarget(target: SelectionTarget) {
+		val path = pathTo(filteredTree, target) ?: return
+		path.dropLast(1).forEach { ancestorId -> expanded[ancestorId] = true }
+		val index = flattenOutliner(filteredTree, isOpen).indexOfFirst { row -> row.node.id == path.last() }
+		if (index >= 0) {
+			listState.animateScrollToItem(index)
+		}
+	}
+
 	// Reveal-on-select: a selection from elsewhere (a viewport pick) opens the target's ancestors and
 	// scrolls to it; a selection made by clicking inside the outliner suppresses the scroll so the list
 	// does not jump under the user's cursor.
@@ -266,12 +276,23 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			return@LaunchedEffect
 		}
 		val active = selection.active ?: return@LaunchedEffect
-		val path = pathTo(filteredTree, active) ?: return@LaunchedEffect
-		path.dropLast(1).forEach { ancestorId -> expanded[ancestorId] = true }
-		val index = flattenOutliner(filteredTree, isOpen).indexOfFirst { row -> row.node.id == path.last() }
-		if (index >= 0) {
-			listState.animateScrollToItem(index)
+		revealTarget(active)
+	}
+
+	// Reveal-on-search-cleared: a search opens every branch, so a row clicked out of the results sits in a
+	// branch that closes again the moment the query goes away. Revealing the active selection on that edge
+	// keeps it in view. Strictly the searching -> not-searching edge: doing it on every query change would
+	// pull the list to the selection on each keystroke, and expand the ancestors of whatever the shifting
+	// matches happen to be, which is nearly every branch.
+	var wasSearching by remember { mutableStateOf(searching) }
+	LaunchedEffect(searching) {
+		val searchCleared = wasSearching && !searching
+		wasSearching = searching
+		if (!searchCleared) {
+			return@LaunchedEffect
 		}
+		val active = selection.active ?: return@LaunchedEffect
+		revealTarget(active)
 	}
 
 	Column(modifier = modifier.fillMaxSize()) {

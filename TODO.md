@@ -137,10 +137,9 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
 
 ## Glue
-* Glue intensity is keyable but has no Properties home (glue is not selectable) — see Claude Notes § Glue intensity has no editable home.
+* Glue intensity is keyable but has no Properties home(glue is not selectable).  See Claude Notes § Glue intensity has no editable home.
 
 ## Outliner
-* After searching for something and clicking on it, when clearing the search it should resolve that tree branch to be open.  Having it return to be closed with the mystery item selected somewhere in the depths is a poor experience.
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
 

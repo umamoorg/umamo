@@ -56,6 +56,7 @@ Umamo is early alpha.
 * Composite(part/group) rendering is faster: An isolated part whose blend is pose-identity Normal/Over over an all-Normal/Over subtree now draws inline instead of through its own offscreen layer, and each composite layer's clear/snapshot/draw is scissored to its subtree's posed bounds instead of the full viewport.
 * Undo history entries for Grab/Scale/Rotate gestures are now labeled per domain and per operation(e.g. "Scale Vertices", "Rotate UVs", "Scale Objects") instead of collapsing to a generic "Move..." label regardless of what actually happened.
 * The legacy "Add (Before 5.3)" / "Multiply (Before 5.3)" blend modes are relabeled "(Legacy)" and sorted to the bottom of the blend-mode picker; their properties no longer show the Alpha Blend field, which never applied to them.  They might be renamed again in the future.
+* Outliner: After searching then selecting an item in a collapsed branch, the branch is expanded with `revealTarget()` when clearing the search term.
 
 ### Fixed
 
