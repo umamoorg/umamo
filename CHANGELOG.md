@@ -19,6 +19,7 @@ Umamo is early alpha.
 * Export notices, the report shown after an import or export finishes, are now localized instead of always appearing in English.
 * The pointer is now properly tracked across all hovered areas and the old "active area ID" was removed.  This fixes a lot of hotkey fighting between areas.
 * Outliner: After searching then selecting an item in a collapsed branch, the branch is expanded with `revealTarget()` when clearing the search term.
+* Viewport/UV HUD Overlay: Now shows the part, drawable, and deformer name in the upper left.
 
 ### Fixed
 * Switch a part composite from isolated to anything else stops rendering composite effects.  Originally for Umamo it was intended that opacity could be applied to have a part and have it cascade down to drawables to make it quick to change the opacity of all drawables in a part.  However, reconciling Cubism behavior with Umamo desires would create too many problems.
