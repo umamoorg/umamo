@@ -9,15 +9,16 @@ Umamo is early alpha.
 ### Added
 * Diagnostic CLI: A new `:cli` module(`./gradlew :cli:run`) exposes headless `dump`, `convert`, `diff`, and `extract` for inspecting CMO3 and MOC3 files.
 * MOC3 export: A new Export Options dialog for choosing MOC3 export granularity.
+* History: The number of history steps is now configurable.
+* Area Header Controls: Controls in area headers now overflow into a "...>" pop up instead of disappearing.
 
 ### Changed
 * CMO3 import and export are now at beta level status.  Numerous bugs have been corrected especially on the export side.
 * MOC3 import to CMO3 export conversion is now alpha level status.  Texture atlases are now automatically cut up into source artwork layers and the produced CMO3 now displays properly in the Cubism editor.  While a cut up texture atlas won't be original layered artwork quality this makes it easier to manually reconcile the source artwork layers and also get a functional CMO3.
-* MOC3-imported deformers, which carry no display name in the bake, are now labeled with the drawable they deform when that's unambiguous(e.g. "Warp40 (ArtMesh5)") instead of just the raw identifier.
+* Deformers imported from a MOC, which never have a display name in the MOC3, are now labeled with the drawable they deform when that's unambiguous(e.g. "Warp40 (ArtMesh5)") instead of just the raw identifier.
 * Export notices, the report shown after an import or export finishes, are now localized instead of always appearing in English.
 * The pointer is now properly tracked across all hovered areas and the old "active area ID" was removed.  This fixes a lot of hotkey fighting between areas.
 * Outliner: After searching then selecting an item in a collapsed branch, the branch is expanded with `revealTarget()` when clearing the search term.
-* History: The number of history steps is now configurable.
 
 ### Fixed
 * Switch a part composite from isolated to anything else stops rendering composite effects.  Originally for Umamo it was intended that opacity could be applied to have a part and have it cascade down to drawables to make it quick to change the opacity of all drawables in a part.  However, reconciling Cubism behavior with Umamo desires would create too many problems.
