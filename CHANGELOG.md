@@ -15,12 +15,16 @@ Umamo is early alpha.
 * MOC3 import to CMO3 export conversion is now alpha level status.  Texture atlases are now automatically cut up into source artwork layers and the produced CMO3 now displays properly in the Cubism editor.  While a cut up texture atlas won't be original layered artwork quality this makes it easier to manually reconcile the source artwork layers and also get a functional CMO3.
 * MOC3-imported deformers, which carry no display name in the bake, are now labeled with the drawable they deform when that's unambiguous(e.g. "Warp40 (ArtMesh5)") instead of just the raw identifier.
 * Export notices, the report shown after an import or export finishes, are now localized instead of always appearing in English.
+* The pointer is now properly tracked across all hovered areas and the old "active area ID" was removed.  This fixes a lot of hotkey fighting between areas.
+* Outliner: After searching then selecting an item in a collapsed branch, the branch is expanded with `revealTarget()` when clearing the search term.
 
 ### Fixed
 * Switch a part composite from isolated to anything else stops rendering composite effects.  Originally for Umamo it was intended that opacity could be applied to have a part and have it cascade down to drawables to make it quick to change the opacity of all drawables in a part.  However, reconciling Cubism behavior with Umamo desires would create too many problems.
 * MOC3 export: Identifiers were being deduplicated before being truncated.  This means the truncated identifier could then immediately become a duplicate again.  Now they are truncated, deduplicated, and properly written into the MOC3 and sidecars.
 * MOC3 export: Blend shape deltas under a deformer chain were computed in the wrong point space, looking up the entity's own space instead of its parent's, producing incorrect deltas for any blend shape nested under a deformer.
 * MOC3 export no longer silently overwrites existing sidecar files(textures, model3.json, cdi3.json, and the rest) already present at the destination; it now warns and lists every file that would be overwritten before you confirm.
+* Windows OS: Workaround for AWT not sending a resize event when cancelling a window resize on Windows causing the Compose around to be stuck at the wrong size until resizing without cancelling.
+* Accessibility: Various semantics/contentDescription spots were fixed and visual tooltips added.
 
 ## 0.2.0-dev - 2026-08-03
 
@@ -56,7 +60,6 @@ Umamo is early alpha.
 * Composite(part/group) rendering is faster: An isolated part whose blend is pose-identity Normal/Over over an all-Normal/Over subtree now draws inline instead of through its own offscreen layer, and each composite layer's clear/snapshot/draw is scissored to its subtree's posed bounds instead of the full viewport.
 * Undo history entries for Grab/Scale/Rotate gestures are now labeled per domain and per operation(e.g. "Scale Vertices", "Rotate UVs", "Scale Objects") instead of collapsing to a generic "Move..." label regardless of what actually happened.
 * The legacy "Add (Before 5.3)" / "Multiply (Before 5.3)" blend modes are relabeled "(Legacy)" and sorted to the bottom of the blend-mode picker; their properties no longer show the Alpha Blend field, which never applied to them.  They might be renamed again in the future.
-* Outliner: After searching then selecting an item in a collapsed branch, the branch is expanded with `revealTarget()` when clearing the search term.
 
 ### Fixed
 

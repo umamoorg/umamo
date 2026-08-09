@@ -49,6 +49,7 @@ import org.umamo.ui.kit.LocalInlineEditController
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Tab
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -356,20 +357,24 @@ private fun NewWorkspaceButton(contentDescription: String, onClick: () -> Unit) 
 	val hovered by interaction.collectIsHoveredAsState()
 	// fillMaxHeight (against the strip's IntrinsicSize.Min row) keeps this button exactly as tall as
 	// the text-metric-sized tabs beside it; no vertical padding, the icon centers in the full height.
-	Box(
-		modifier =
-			Modifier
-				.padding(horizontal = 2.dp)
-				.fillMaxHeight()
-				.clip(shapes.medium)
-				.clickable(interactionSource = interaction, indication = null, onClick = onClick)
-				.background(if (hovered) colors.rowHover else Color.Transparent, shape = shapes.medium)
-				.semantics { this.contentDescription = contentDescription }
-				.padding(horizontal = 3.dp),
-		contentAlignment = Alignment.Center,
-	) {
-		Canvas(modifier = Modifier.size(16.dp)) {
-			drawIcon(LocalUmamoIcons.plus, colors.textMuted)
+	// The label doubles as the hover text, matching the kit's icon controls; the wrapper carries the
+	// fillMaxHeight so the button still measures against the strip row.
+	Tooltip(text = contentDescription, modifier = Modifier.fillMaxHeight()) {
+		Box(
+			modifier =
+				Modifier
+					.padding(horizontal = 2.dp)
+					.fillMaxHeight()
+					.clip(shapes.medium)
+					.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+					.background(if (hovered) colors.rowHover else Color.Transparent, shape = shapes.medium)
+					.semantics { this.contentDescription = contentDescription }
+					.padding(horizontal = 3.dp),
+			contentAlignment = Alignment.Center,
+		) {
+			Canvas(modifier = Modifier.size(16.dp)) {
+				drawIcon(LocalUmamoIcons.plus, colors.textMuted)
+			}
 		}
 	}
 }

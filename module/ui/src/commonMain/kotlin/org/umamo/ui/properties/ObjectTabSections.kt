@@ -30,7 +30,6 @@ import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
-import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.resources.*
@@ -242,20 +241,18 @@ private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onRes
 				},
 			),
 		)
-		// The chain glyph spans both fields.
-		Tooltip(
-			text = stringResource(Res.string.properties_transform_lock_aspect),
+		// The chain glyph spans both fields.  IconButton tooltips itself from contentDescription, and its own
+		// modifier already rides on that tooltip wrapper, so the alignment goes here rather than into a second
+		// enclosing Tooltip.
+		IconButton(
+			icon = if (lockAspect) icons.linked else icons.unlinked,
+			contentDescription = stringResource(Res.string.properties_transform_lock_aspect),
+			onClick = { lockAspect = !lockAspect },
 			modifier = Modifier.align(Alignment.CenterEnd),
-		) {
-			IconButton(
-				icon = if (lockAspect) icons.linked else icons.unlinked,
-				contentDescription = stringResource(Res.string.properties_transform_lock_aspect),
-				onClick = { lockAspect = !lockAspect },
-				active = lockAspect,
-				enabled = enabled,
-				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-			)
-		}
+			active = lockAspect,
+			enabled = enabled,
+			appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+		)
 	}
 }
 

@@ -27,10 +27,10 @@ internal fun RowScope.KeyformSheetHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(KEYFORM_SHEET_VIEW_STATE_KEY) { KeyformSheetViewState() }
 	Spacer(modifier = Modifier.weight(1f))
 	FilterPopupChip(
-		contentDescription = stringResource(Res.string.keyform_sheet_filters),
+		contentDescription = stringResource(Res.string.common_filters),
 		icon = if (viewState.isUnfiltered) LocalUmamoIcons.filterUnfiltered else LocalUmamoIcons.filterFiltered,
 	) {
-		FilterSectionLabel(stringResource(Res.string.keyform_sheet_filters))
+		FilterSectionLabel(stringResource(Res.string.common_filters))
 		Checkbox(
 			checked = viewState.showGeometry,
 			onCheckedChange = { checked -> viewState.showGeometry = checked },

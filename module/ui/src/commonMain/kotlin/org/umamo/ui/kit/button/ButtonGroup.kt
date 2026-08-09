@@ -50,13 +50,15 @@ private val SEGMENT_GAP = 1.dp
  * @property UmamoIcon icon The segment's glyph.
  * @property Boolean selected Whether the segment is lit (the caller owns the toggle state).
  * @property Function onClick Invoked on tap; the caller flips its own state.
- * @property String? contentDescription The accessible label, or null for none.
+ * @property String contentDescription The accessible label, doubling as the segment's hover label.
+ *   Required: a segment's face is only a glyph, so an absent label would leave it nameless to a screen
+ *   reader and silent on hover at once.
  */
 data class ButtonGroupItem(
 	val icon: UmamoIcon,
 	val selected: Boolean,
 	val onClick: () -> Unit,
-	val contentDescription: String? = null,
+	val contentDescription: String,
 )
 
 /**
@@ -116,14 +118,9 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape) {
 	val hovered by interaction.collectIsHoveredAsState()
 	val fill = accentControlFill(colors, item.selected, hovered)
 	val iconTint = accentControlGlyph(colors, item.selected)
-	val semanticsModifier =
-		if (item.contentDescription != null) {
-			Modifier.semantics { contentDescription = item.contentDescription }
-		} else {
-			Modifier
-		}
-	// A null description means an unlabelled segment, so the tooltip text is blank and no card attaches.
-	Tooltip(text = item.contentDescription ?: "") {
+	// The label doubles as the hover text, as it does on IconButton - it is the human name of the segment
+	// either way.
+	Tooltip(text = item.contentDescription) {
 		Box(
 			modifier =
 				Modifier
@@ -131,7 +128,7 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape) {
 					.clip(shape)
 					.background(fill)
 					.clickable(interactionSource = interaction, indication = null, onClick = item.onClick)
-					.then(semanticsModifier),
+					.semantics { contentDescription = item.contentDescription },
 			contentAlignment = Alignment.Center,
 		) {
 			Canvas(modifier = Modifier.size(SEGMENT_ICON_SIZE)) {

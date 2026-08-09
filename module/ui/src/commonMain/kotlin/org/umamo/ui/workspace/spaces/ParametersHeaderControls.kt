@@ -135,10 +135,10 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 	// grows more view toggles as the keyform tracks land, and a shared chip keeps the two headers from
 	// drifting apart. The funnel glyph still reports the filtered / unfiltered state at a glance.
 	FilterPopupChip(
-		contentDescription = stringResource(Res.string.parameter_filters),
+		contentDescription = stringResource(Res.string.common_filters),
 		icon = if (viewState.showOnlySelected) LocalUmamoIcons.filterFiltered else LocalUmamoIcons.filterUnfiltered,
 	) {
-		FilterSectionLabel(stringResource(Res.string.parameter_filters))
+		FilterSectionLabel(stringResource(Res.string.common_filters))
 		Checkbox(
 			checked = viewState.showOnlySelected,
 			onCheckedChange = { checked -> viewState.showOnlySelected = checked },

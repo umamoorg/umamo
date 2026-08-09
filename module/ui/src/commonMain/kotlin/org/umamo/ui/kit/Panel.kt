@@ -1,6 +1,5 @@
 package org.umamo.ui.kit
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,9 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
-import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
-import org.umamo.ui.theme.drawIcon
 
 /**
  * A thin-bordered panel with a header bar (title on the left, an optional [headerAction] on the right) over a
@@ -83,15 +79,7 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		val chevron =
-			if (expanded) {
-				LocalUmamoIcons.chevronDown
-			} else {
-				LocalUmamoIcons.chevronRight
-			}
-		Canvas(modifier = Modifier.size(10.dp)) {
-			drawIcon(chevron, colors.text)
-		}
+		DisclosureChevron(expanded = expanded, tint = colors.text, glyphSize = 10.dp)
 		Spacer(modifier = Modifier.width(5.dp))
 		Text(text = label, style = LocalUmamoTypography.current.labelMedium)
 	}
