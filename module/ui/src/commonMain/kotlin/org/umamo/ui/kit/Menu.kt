@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,15 @@ private val MENU_FALLBACK_MAX_HEIGHT = 360.dp
 private val MENU_ICON_LABEL_GAP = 8.dp
 
 /**
+ * True while composing inside a popup that already owns the outside-click and Esc dismiss.  Only one
+ * popup in a tree may be focusable, so a popup opened from inside another one must not take focus and
+ * fight it for the dismiss - the inner press would otherwise read as "outside" to the outer popup, which
+ * would tear the inner one down mid-click.  Popups that host arbitrary caller content (the overflow
+ * dropdown, a filter panel) provide this so the menus and chips inside them yield automatically.
+ */
+val LocalPopupDismissOwned = compositionLocalOf { false }
+
+/**
  * A popup menu rendered from a [MenuItem] list - the one menu surface used across the menu bar, context
  * menus, and the area type selector.  Styled to the kit's menu look: medium rounded corners, the dark
  * panel fill, no border, and no drop shadow.  Hosted in a [Popup] so it escapes its parent's bounds,
@@ -76,14 +86,13 @@ private val MENU_ICON_LABEL_GAP = 8.dp
  * [onDismissRequest].  Renders [MenuItem.Submenu] entries as nested flyouts that open on hover (desktop)
  * or tap (touch).
  *
- * MenuItem のリストから描く共通ポップアップメニュー。メニューバー・コンテキストメニュー・エリア種別で共用。
- *
  * @param List items The entries to render.
  * @param Function onDismissRequest Called to close the whole menu tree (outside click / Esc / selection).
  * @param PopupPositionProvider positionProvider Where the popup is placed relative to its anchor.
  * @param Modifier modifier Modifier for the menu's content column.
  * @param Boolean focusable Whether this popup owns focus and the dismiss - true for a root menu, false
  *   for a nested submenu flyout (only one popup in the tree may be focusable, or they fight over focus).
+ *   Defaults to yielding whenever an enclosing popup already owns it (see [LocalPopupDismissOwned]).
  */
 @Composable
 fun Menu(
@@ -91,7 +100,7 @@ fun Menu(
 	onDismissRequest: () -> Unit,
 	positionProvider: PopupPositionProvider,
 	modifier: Modifier = Modifier,
-	focusable: Boolean = true,
+	focusable: Boolean = !LocalPopupDismissOwned.current,
 ) {
 	Popup(
 		popupPositionProvider = positionProvider,
@@ -108,9 +117,6 @@ fun Menu(
  * tree tears the whole menu down.  When any action row in this panel carries an icon, every row reserves
  * the icon slot so all labels share one column (Blender-style); each flyout is its own panel, so the
  * decision never leaks across nesting levels.
- *
- * Menu のポップアップ内の行の並び。開いているサブメニューを 1 つに保ち、葉の選択で全体を閉じる。
- * いずれかの行にアイコンがあれば全行がアイコン枠を確保し、ラベル列を揃える。
  *
  * @param List items The entries to render.
  * @param Function dismissRoot Closes the entire menu tree.
@@ -185,8 +191,6 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
  * A disabled row is dimmed (icon included) and neither hovers nor clicks.  An icon-less row in a panel
  * that reserves the slot indents its label to the shared column.
  *
- * 選択可能な 1 行。任意の先頭アイコン、ラベル、右に任意のショートカット。無効行は淡色で操作不可。
- *
  * @param MenuItem.Action item The row to render.
  * @param Boolean reserveIconSlot Whether icon-less rows indent to the panel's shared label column.
  * @param Function onClick Invoked when an enabled row is chosen.
@@ -254,8 +258,6 @@ private fun MenuSeparatorRow() {
  * flyout (so a diagonal move across the gap does not snap it shut); on a touch screen, with no hover,
  * tapping the row toggles it.  The flyout popup is non-focusable so the focusable root menu stays the
  * sole owner of the outside-click / Esc dismiss for the whole tree.
- *
- * サブメニュー行。右に入れ子フライアウトを開く。デスクトップはホバー（猶予付き）、タッチはタップで開閉。
  *
  * @param MenuItem.Submenu item The submenu row.
  * @param Boolean reserveIconSlot Whether this row indents its label to the panel's shared label column.
@@ -385,8 +387,6 @@ internal object BelowAnchorPositionProvider : PopupPositionProvider {
  * Positions a submenu flyout flush to the right of its parent row, aligned with the row's top, flipping
  * to the row's left when a right-side flyout would overflow the window, and clamping the top so a tall
  * flyout near the window bottom stays on screen.
- *
- * サブメニューを親行の右に隣接配置。右がはみ出す場合は左へ反転し、上端を画面内に収める。
  */
 private object SubmenuPositionProvider : PopupPositionProvider {
 	override fun calculatePosition(
@@ -411,8 +411,6 @@ private object SubmenuPositionProvider : PopupPositionProvider {
  * Positions a popup at a point [localOffset] inside its anchor (the context-menu host), so the menu opens
  * at the cursor.  The point is offset by the anchor's window origin and then clamped to keep the whole
  * menu on screen.
- *
- * アンカー内の指定点（カーソル位置）にポップアップを配置する。画面外に出ないよう収める。
  *
  * @property IntOffset localOffset The cursor point relative to the anchor's top-left.
  */

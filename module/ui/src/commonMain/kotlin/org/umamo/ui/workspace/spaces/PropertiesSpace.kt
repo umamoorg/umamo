@@ -52,7 +52,7 @@ private val TAB_STRIP_WIDTH = 32.dp
  * The Properties space: a Blender-style tabbed property editor.  A left icon strip switches between the
  * always-on Document tab and the per-item Object / Data tabs (visible only with one item active); the body
  * renders the active tab's collapsible sections.  The header's search box (mounted separately via
- * [PropertiesHeaderControls]) filters sections and auto-switches to a tab that has matches.
+ * [propertiesHeaderControls]) filters sections and auto-switches to a tab that has matches.
  *
  * Reads [LocalPuppet] for the document + object graph and [LocalSelection] for the active item; read-only
  * in this first cut.  Its search / active-tab / expanded state lives on the area's [PropertiesViewState],

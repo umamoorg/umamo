@@ -366,7 +366,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	) {
 		Column(modifier = Modifier.fillMaxSize()) {
 			// The list scrolls under an overlay scrollbar; the Box carries the column weight so the bar
-			// spans the scrolling region. Reset All lives in the area header (ParametersHeaderControls).
+			// spans the scrolling region. Reset All lives in the area header (parametersHeaderControls).
 			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
 				LazyColumn(
 					state = listState,

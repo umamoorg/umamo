@@ -157,7 +157,7 @@ private class OutlinerRowBoundsHolder {
  * A selection made elsewhere (a viewport pick) reveals its row - ancestors expand and the list scrolls
  * to it - but a click inside the outliner never scrolls the list.  Clearing the search reveals the active
  * selection the same way, so a row picked out of the results is not stranded behind a branch that closes
- * again. The AREA header carries the name search and the filter dropdown (OutlinerHeaderControls,
+ * again. The AREA header carries the name search and the filter dropdown (outlinerHeaderControls,
  * sharing this body's OutlinerViewState through [scope]); names never wrap, so a horizontal scroll
  * reaches long ones.
  *
@@ -207,7 +207,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// identity on every edit / undo, so keying on it would wipe the open branches on each rename or
 	// visibility toggle; the host remounts this space (key(document)) when the document actually changes.
 	val expanded = remember { mutableStateMapOf<String, Boolean>() }
-	// Search / filter state shared with the area-header controls (OutlinerHeaderControls) through the
+	// Search / filter state shared with the area-header controls (outlinerHeaderControls) through the
 	// hosting AreaScope - the header slot is a sibling subtree, so a body-local remember cannot reach it.
 	val viewState = scope.spaceState(OUTLINER_VIEW_STATE_KEY) { OutlinerViewState() }
 	val query = viewState.query

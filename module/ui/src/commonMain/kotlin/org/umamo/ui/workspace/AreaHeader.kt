@@ -19,6 +19,7 @@ import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
+import org.umamo.ui.kit.OverflowRow
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.theme.LocalUmamoColors
 
@@ -33,8 +34,10 @@ private val HEADER_HEIGHT = 28.dp
  * emitted from here are [AreaCommand]s through [onCommand], the single choke point the shell routes
  * through the action registry - the header never mutates the tree itself.  The space slot is resolved
  * from the registry so the header itself stays space-agnostic; when a slot exists it OWNS the flexible
- * middle region (a weighted Row), so each space arranges its own controls - start-packed by default, or
- * centered / end-aligned via its own weight spacers - without the header knowing.
+ * middle region (an [OverflowRow]), so each space arranges its own controls - start-packed by default,
+ * or centered / end-aligned via its own flexibleSpace gaps - without the header knowing.  Narrowing an
+ * area collapses the controls that no longer fit into the strip's trailing dropdown instead of crushing
+ * them, so the header stays usable down to the minimum area width.
  *
  * @param LeafArea area The area this header belongs to.
  * @param AreaScope scope The area's stable scope, handed to the space's header content.
@@ -53,9 +56,12 @@ fun AreaHeader(area: LeafArea, scope: AreaScope, onCommand: (AreaCommand) -> Uni
 			val headerContent = LocalSpaceRegistry.current.descriptor(area.space).headerContent
 			if (headerContent != null) {
 				Spacer(modifier = Modifier.width(8.dp))
-				// The slot owns the flexible middle: its RowScope is this weighted Row, so a space's
-				// own weight spacers resolve against the whole region (centering, right-alignment).
-				Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+				// The slot owns the flexible middle: an OverflowRow over the whole region, so a space's own
+				// flexibleSpace gaps resolve against all of it (centering, right-alignment) and any control
+				// that will not fit collapses into the strip's trailing dropdown rather than being crushed.
+				// The area-type chip stays OUTSIDE it - the header's own control, never collapsible, always
+				// leftmost.
+				OverflowRow(modifier = Modifier.weight(1f)) {
 					headerContent(scope)
 				}
 			} else {

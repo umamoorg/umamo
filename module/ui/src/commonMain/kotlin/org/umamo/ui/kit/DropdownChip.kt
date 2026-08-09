@@ -7,11 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -50,6 +51,10 @@ enum class DropdownChipStyle {
  * paddings, chevron) stays un-forkable across every header chip, which is the drift this component
  * exists to prevent.  The dropdown stays a slot because consumers differ (a kit Menu that dismisses
  * per click vs a stay-open Popup).
+ *
+ * A Header chip holds its intrinsic width: the glyphs and the label ignore the incoming maximum, so a
+ * parent with no room left pushes the chip off its edge instead of squeezing it down to an empty
+ * padding box.  A Field chip still ellipsizes its label, which is what a form column wants.
  *
  * @param Boolean   expanded           Whether the chip's dropdown is open (drives the accent state).
  * @param Function  onExpandRequest    Invoked on click to open the dropdown.
@@ -105,12 +110,19 @@ fun DropdownChip(
 		// The tooltip wraps the chip face only; the popup is a sibling below, so it is never wrapped and
 		// its anchor bounds (the box) stay the chip's bounds.
 		Tooltip(text = contentDescription) {
-			// A Field is pinned to the shared control height (so it lines up with a NumberField) and takes no
-			// vertical padding - the fixed height plus center alignment place the content; a Header stays
-			// content-sized and keeps its symmetric padding.
+			// A Field fills its column so it lines up with the other form controls.  A Header chip is pinned to
+			// its own intrinsic width and IGNORES the incoming maximum: a Row clamps itself to whatever width is
+			// left, which would shrink the painted face out from under the glyphs.  Overflowing the parent (and
+			// being clipped) is the legible failure; a chip squeezed down to an empty padding box is not.
+			val faceWidth =
+				if (isField) {
+					Modifier.fillMaxWidth()
+				} else {
+					Modifier.requiredWidth(IntrinsicSize.Max)
+				}
 			Row(
 				modifier =
-					(if (isField) Modifier.fillMaxWidth() else Modifier.wrapContentSize())
+					faceWidth
 						.clip(shapes.small)
 						.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
 						.border(width = 1.dp, color = borderColor, shape = shapes.small)
@@ -120,13 +132,18 @@ fun DropdownChip(
 				verticalAlignment = Alignment.CenterVertically,
 			) {
 				if (icon != null) {
-					Canvas(modifier = Modifier.size(16.dp)) {
+					// requiredSize, not size: size coerces to the incoming constraints, so a starved parent
+					// measures the glyph at zero and the chip renders as an empty padding box.  The chip holds
+					// its glyphs at full size and overflows instead - being pushed off the edge is legible,
+					// silently shrinking to nothing is not.
+					Canvas(modifier = Modifier.requiredSize(16.dp)) {
 						drawIcon(icon, chipContentColor)
 					}
 				}
 				if (label != null) {
 					// A Field weights its label so it fills the chip (ellipsizing when long) and pushes the
-					// chevron to the trailing edge; a Header keeps the label content-width.
+					// chevron to the trailing edge; a Header keeps the label content-width, which the Row's own
+					// intrinsic sizing already guarantees room for.
 					val labelModifier =
 						if (isField) {
 							Modifier.weight(1f).padding(horizontal = 4.dp)
@@ -147,7 +164,7 @@ fun DropdownChip(
 						expanded -> LocalUmamoIcons.chevronDown
 						else -> LocalUmamoIcons.chevronRight
 					}
-				Canvas(modifier = Modifier.size(12.dp)) {
+				Canvas(modifier = Modifier.requiredSize(12.dp)) {
 					drawIcon(chevron, chipContentColor)
 				}
 			}

@@ -1,9 +1,9 @@
 package org.umamo.ui.workspace
 
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.ui.kit.OverflowRowScope
 import org.umamo.ui.theme.UmamoIcon
 
 /**
@@ -12,8 +12,6 @@ import org.umamo.ui.theme.UmamoIcon
  * the header slot and the body render as sibling subtrees sharing only this scope, so [spaceState] is
  * the one channel a space's header controls and its body can share state through (a CompositionLocal
  * provided inside the body never reaches the header).
- *
- * 空間のコンテンツとヘッダスロットに渡されるエリアコンテキスト。安定したエリア id と空間ごとの状態置き場を持つ。
  *
  * @property String areaId The id of the leaf hosting this space.
  */
@@ -44,12 +42,14 @@ class AreaScope(
  * override specific kinds (notably the GL viewport) without `:ui` depending on any platform code.
  *
  * [headerContent] is the optional space-specific header strip, rendered by the (otherwise
- * space-agnostic) area header between the editor-type dropdown and its flexible gap - the 2D viewport
- * mounts its mode dropdown and select-mode buttons here, and the UV editor is the intended second
- * consumer.  Declared before [content] so the existing trailing-lambda construction sites stay valid.
+ * space-agnostic) area header after the editor-type dropdown - the 2D viewport mounts its mode dropdown
+ * and select-mode buttons here, and the UV editor is the intended second consumer.  Declared before
+ * [content] so the existing trailing-lambda construction sites stay valid.
  *
- * 1 つのエディタ空間の記述。種別・ローカライズ済みタイトル・アイコン・コンテンツ生成関数を持つ。
- * headerContent は空間固有のヘッダ内容（任意）。
+ * The slot declares ITEMS into an overflow-aware strip rather than emitting composables into a Row: a
+ * control that does not fit collapses into the strip's trailing dropdown instead of being squeezed to
+ * nothing.  Because the builder is not itself composable, a CompositionLocal may only be read inside an
+ * item's body - see [org.umamo.ui.kit.OverflowRowScope].
  *
  * @property SpaceKind kind The space type this describes.
  * @property StringResource title The localized dropdown label.
@@ -61,7 +61,7 @@ class SpaceDescriptor(
 	val kind: SpaceKind,
 	val title: StringResource,
 	val icon: UmamoIcon,
-	val headerContent: (@Composable RowScope.(AreaScope) -> Unit)? = null,
+	val headerContent: (OverflowRowScope.(AreaScope) -> Unit)? = null,
 	val content: @Composable (AreaScope) -> Unit,
 )
 
@@ -70,8 +70,6 @@ class SpaceDescriptor(
  * the registry for its current kind's descriptor to render content, and lists [all] descriptors to
  * populate the editor-type dropdown. The app augments the base registry with [withOverrides] (e.g. to
  * swap the placeholder viewport for the real GL one).
- *
- * SpaceKind から SpaceDescriptor への解決器。エリアはこれで内容を描画し、ドロップダウンを構成する。
  */
 class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescriptor>) {
 	/**

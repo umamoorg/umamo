@@ -154,8 +154,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * Viewport loading overlay and mouse busy pointer.
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
-	* When the width becomes too small the icons in the DropdownChip start shrinking, but the chip does not.  The icons should not shrink.
-	* Search box shrinks, but eventually then squishing upwards causing clipping.
 
 * Menu - New Items
 	* Edit
