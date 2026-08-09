@@ -251,8 +251,8 @@ val LocalUmamoIcons =
 		chevronLeft = simpleIcon("M15 6l-6 6l6 6"),
 		// Tabler "chevron-right" (viewBox 0 0 24 24, stroked).
 		chevronRight = simpleIcon("M9 6l6 6l-6 6"),
-		// Tabler "dots" (viewBox 0 0 24 24, stroked) - the overflow chip's face.
-		dots = simpleIcon("M5 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M17 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"),
+		// Tabler "dots" (viewBox 0 0 24 24, stroked).
+		dots = simpleIcon("M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"),
 		// Tabler "grip-vertical" (viewBox 0 0 24 24, stroked).
 		gripVertical = simpleIcon("M8 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M8 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M8 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M14 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M14 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0 M14 19a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"),
 		// Tabler "grip-horizontal" (viewBox 0 0 24 24, stroked).
