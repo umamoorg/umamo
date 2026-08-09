@@ -18,6 +18,12 @@ import org.umamo.ui.theme.LocalUmamoIcons
 val SEARCH_FIELD_WIDTH = 160.dp
 
 /**
+ * The narrowest a header search box is worth squeezing to: still wide enough to read a few characters and
+ * the clear affordance beside them.  Below this it is better off in the overflow dropdown at full width.
+ */
+val SEARCH_FIELD_MIN_WIDTH = 72.dp
+
+/**
  * A filter box: a [TextField] with a clear affordance pinned inside its trailing edge, shown only while
  * there is text to clear.  The X rides the field's trailing slot rather than being overlaid on it, so
  * the value and the caret can never run underneath it.

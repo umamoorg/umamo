@@ -11,10 +11,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.defaultKeymap
+import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.theme.UmamoTheme
 import kotlin.test.Test
 
@@ -65,6 +67,40 @@ class AreaHeaderOverflowTest {
 	}
 
 	/**
+	 * The Outliner keeps its search box AND its filter chip on the strip well before the area gets tight.
+	 *
+	 * Two regressions meet here.  The chip's width used to be charged against every admission even when no
+	 * chip would be shown, and the search box was a fixed 160.dp that took its natural width and pushed the
+	 * filter into the dropdown - so the filter turned into an overflow chip with obvious slack still on the
+	 * strip.  260.dp is comfortably tighter than a default panel and must still show both.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theOutlinerKeepsItsSearchAndFilterOnATightStrip() {
+		runComposeUiTest {
+			setHeader(kind = SpaceKind.Outliner, headerWidth = 260.dp, puppet = emptyPuppet())
+			onNodeWithContentDescription(FILTERS_LABEL, useUnmergedTree = true).assertExists()
+			onNodeWithContentDescription(MORE_LABEL, useUnmergedTree = true).assertDoesNotExist()
+		}
+	}
+
+	/**
+	 * A document with no content - enough to satisfy the headers' open-document gate, which is all these
+	 * layout assertions need.
+	 *
+	 * @return PuppetModel The empty document.
+	 */
+	private fun emptyPuppet(): PuppetModel =
+		PuppetModel(
+			parameters = emptyList(),
+			parts = emptyList(),
+			deformers = emptyList(),
+			drawables = emptyList(),
+			rootChildren = emptyList(),
+			rootPartId = null,
+		)
+
+	/**
 	 * Composes one space's real header inside a fixed-width box and settles it.
 	 *
 	 * @param SpaceKind kind        The space whose header strip to mount.
@@ -83,17 +119,19 @@ class AreaHeaderOverflowTest {
 	 * No puppet and no session are provided, which is the no-document state every header already handles -
 	 * the viewport chips render disabled and the panel headers render nothing.
 	 *
-	 * @param SpaceKind kind        The space whose header strip to mount.
-	 * @param Dp        headerWidth The width the header is given.
+	 * @param SpaceKind    kind        The space whose header strip to mount.
+	 * @param Dp           headerWidth The width the header is given.
+	 * @param PuppetModel? puppet      The open document, or null for the no-document state.
 	 */
 	@OptIn(ExperimentalTestApi::class)
-	private fun ComposeUiTest.setHeader(kind: SpaceKind, headerWidth: Dp) {
+	private fun ComposeUiTest.setHeader(kind: SpaceKind, headerWidth: Dp, puppet: PuppetModel? = null) {
 		setContent {
 			UmamoTheme {
 				CompositionLocalProvider(
 					LocalSpaceRegistry provides defaultSpaceRegistry(),
 					LocalCommands provides CommandRegistry(),
 					LocalKeymap provides defaultKeymap(),
+					LocalPuppet provides puppet,
 				) {
 					Box(modifier = Modifier.width(headerWidth)) {
 						AreaHeader(area = LeafArea("area-1", kind), scope = AreaScope("area-1"), onCommand = {})
@@ -113,5 +151,8 @@ class AreaHeaderOverflowTest {
 
 		/** The pinned mode chip's English name, taken from its current mode with no document open. */
 		const val OBJECT_MODE_LABEL = "Object Mode"
+
+		/** The filter chip's English name; it doubles as its accessible label. */
+		const val FILTERS_LABEL = "Filters"
 	}
 }

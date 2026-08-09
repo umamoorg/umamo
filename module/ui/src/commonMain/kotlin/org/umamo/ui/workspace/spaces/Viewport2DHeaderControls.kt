@@ -38,7 +38,7 @@ import org.umamo.ui.theme.LocalUmamoIcons
  * own subject is worse than one that clips.
  */
 fun OverflowRowScope.viewport2DHeaderControls() {
-	pinnedItem("editorMode") { EditorModeDropdown() }
+	item("editorMode") { EditorModeDropdown() }
 	item("selectMode") { MeshSelectModeButtons() }
 	item("activeMesh") { ActiveMeshName() }
 	item("pivot") { PivotModeDropdown() }

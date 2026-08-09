@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.kit.SEARCH_FIELD_MIN_WIDTH
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.properties.PROPERTIES_VIEW_STATE_KEY
@@ -19,7 +20,7 @@ internal fun OverflowRowScope.propertiesHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }
 	// Flexible gaps on both sides center the search field within the header slot.
 	flexibleSpace()
-	item("search") {
+	item("search", minWidth = SEARCH_FIELD_MIN_WIDTH) {
 		// The item gates itself on the document: an item that renders nothing measures zero, so the strip
 		// empties without the builder needing a CompositionLocal it cannot read.
 		if (LocalPuppet.current != null) {

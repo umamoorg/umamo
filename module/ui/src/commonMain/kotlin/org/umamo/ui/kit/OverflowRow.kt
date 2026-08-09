@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
@@ -29,6 +30,12 @@ private val OVERFLOW_MENU_ROW_PADDING_HORIZONTAL = 8.dp
 private val OVERFLOW_MENU_ROW_PADDING_VERTICAL = 2.dp
 
 /**
+ * The separation a flexible gap keeps once its leftover is gone - the same 8.dp the strip puts between
+ * two adjacent controls, so a fully squeezed gap reads as ordinary spacing rather than as a seam.
+ */
+val FLEXIBLE_SPACE_MIN_WIDTH = 8.dp
+
+/**
  * Declares the controls on an [OverflowRow].  Deliberately NOT a composable scope: the row has to hold
  * each control's body as a value so the overflow panel can render exactly the collapsed subset, and a
  * composable collector would let one inner restartable scope re-append to a list the outer scope never
@@ -45,11 +52,17 @@ interface OverflowRowScope {
 	 * A control that collapses into the overflow dropdown when the strip runs out of room.  Collapsing
 	 * happens from the end: the last declared item goes first.
 	 *
-	 * @param Any?     key     A stable identity for the slot, so its state survives a sibling appearing or
+	 * Pass [minWidth] for a control that can usefully give up width before it gives up entirely - a search
+	 * box is the obvious one - and it is measured against the room actually left, compressing down to that
+	 * floor and only collapsing below it.  Left unspecified the control is placed at its natural width or
+	 * not at all, which is what a chip or a button wants.
+	 *
+	 * @param Any?     key      A stable identity for the slot, so its state survives a sibling appearing or
 	 *   disappearing.  Defaults to the declaration index, which is only safe when the item list is fixed.
-	 * @param Function content The control.
+	 * @param Dp       minWidth The narrowest this control may be squeezed to; unspecified to never compress.
+	 * @param Function content  The control.
 	 */
-	fun item(key: Any? = null, content: @Composable () -> Unit)
+	fun item(key: Any? = null, minWidth: Dp = Dp.Unspecified, content: @Composable () -> Unit)
 
 	/**
 	 * A control that is always placed, even when placing it overflows the strip.  Reserve this for the
@@ -64,23 +77,30 @@ interface OverflowRowScope {
 	 * A weighted gap that absorbs leftover width - the replacement for Spacer(Modifier.weight(w)).  It
 	 * carries no spacing of its own on either side, since it IS the separation.
 	 *
-	 * @param Float weight This gap's share of the leftover width.
+	 * [minWidth] is the separation the gap never closes below, reserved before the controls around it are
+	 * admitted rather than shared out of what happens to be left.  Without it a starved strip resolves the
+	 * gap to nothing and the controls either side butt together, which reads as a rendering fault.
+	 *
+	 * @param Float weight   This gap's share of the leftover width.
+	 * @param Dp    minWidth The separation this gap keeps even with no leftover to share.
 	 */
-	fun flexibleSpace(weight: Float = 1f)
+	fun flexibleSpace(weight: Float = 1f, minWidth: Dp = FLEXIBLE_SPACE_MIN_WIDTH)
 }
 
 /**
  * One declared slot: its identity, how it behaves when width runs short, and its body.
  *
- * @property Any               key     The slot's stable identity, also its subcomposition slot id.
- * @property OverflowSlotKind  kind    How the slot behaves when width runs short.
- * @property Float             weight  The share of leftover width, for a Flexible slot.
- * @property Function?         content The control, or null for a Flexible gap.
+ * @property Any               key      The slot's stable identity, also its subcomposition slot id.
+ * @property OverflowSlotKind  kind     How the slot behaves when width runs short.
+ * @property Float             weight   The share of leftover width, for a Flexible slot.
+ * @property Dp                minWidth A control's squeeze floor, or a gap's minimum separation.
+ * @property Function?         content  The control, or null for a Flexible gap.
  */
 private class OverflowSlot(
 	val key: Any,
 	val kind: OverflowSlotKind,
 	val weight: Float,
+	val minWidth: Dp,
 	val content: (@Composable () -> Unit)?,
 )
 
@@ -95,32 +115,33 @@ private sealed interface OverflowSlotId {
 private class OverflowRowCollector : OverflowRowScope {
 	val slots = mutableListOf<OverflowSlot>()
 
-	override fun item(key: Any?, content: @Composable () -> Unit) {
-		add(key, OverflowSlotKind.Collapsible, weight = 0f, content = content)
+	override fun item(key: Any?, minWidth: Dp, content: @Composable () -> Unit) {
+		add(key, OverflowSlotKind.Collapsible, weight = 0f, minWidth = minWidth, content = content)
 	}
 
 	override fun pinnedItem(key: Any?, content: @Composable () -> Unit) {
-		add(key, OverflowSlotKind.Pinned, weight = 0f, content = content)
+		add(key, OverflowSlotKind.Pinned, weight = 0f, minWidth = Dp.Unspecified, content = content)
 	}
 
-	override fun flexibleSpace(weight: Float) {
-		add(key = null, kind = OverflowSlotKind.Flexible, weight = weight, content = null)
+	override fun flexibleSpace(weight: Float, minWidth: Dp) {
+		add(key = null, kind = OverflowSlotKind.Flexible, weight = weight, minWidth = minWidth, content = null)
 	}
 
 	/**
 	 * Appends one slot, defaulting its key to the declaration index and rejecting duplicates.
 	 *
-	 * @param Any?             key     The caller's key, or null to key by declaration index.
-	 * @param OverflowSlotKind kind    How the slot behaves when width runs short.
-	 * @param Float            weight  The share of leftover width, for a Flexible gap.
-	 * @param Function?        content The control, or null for a Flexible gap.
+	 * @param Any?             key      The caller's key, or null to key by declaration index.
+	 * @param OverflowSlotKind kind     How the slot behaves when width runs short.
+	 * @param Float            weight   The share of leftover width, for a Flexible gap.
+	 * @param Dp               minWidth The narrowest the control may be squeezed to, or unspecified.
+	 * @param Function?        content  The control, or null for a Flexible gap.
 	 */
-	private fun add(key: Any?, kind: OverflowSlotKind, weight: Float, content: (@Composable () -> Unit)?) {
+	private fun add(key: Any?, kind: OverflowSlotKind, weight: Float, minWidth: Dp, content: (@Composable () -> Unit)?) {
 		val slotKey = key ?: slots.size
 		// A duplicate key silently merges two slots' subcompositions, so their state would swap under the
 		// user.  That is a programming error, not a runtime branch - same posture as SpaceRegistry.
 		require(slots.none { existing -> existing.key == slotKey }) { "duplicate OverflowRow slot key: $slotKey" }
-		slots.add(OverflowSlot(key = slotKey, kind = kind, weight = weight, content = content))
+		slots.add(OverflowSlot(key = slotKey, kind = kind, weight = weight, minWidth = minWidth, content = content))
 	}
 }
 
@@ -185,26 +206,44 @@ fun OverflowRow(
 				emptySet()
 			}
 
+		// Measurables are cached, not just placeables: the packer walks the strip up to twice, and a
+		// compressible slot is offered a different maximum each time.  subcompose may not be called twice
+		// with one id in a pass, so the slot is composed once and re-measured against the new bound.
+		val measurables = HashMap<Int, Measurable>(slots.size)
+		val measuredAtMaxWidthPx = HashMap<Int, Int>(slots.size)
 		val packing =
 			packOverflowRow(
-				slots = slots.map { slot -> OverflowSlotSpec(kind = slot.kind, weight = slot.weight) },
+				slots =
+					slots.map { slot ->
+						OverflowSlotSpec(
+							kind = slot.kind,
+							weight = slot.weight,
+							minWidthPx = if (slot.minWidth == Dp.Unspecified) 0 else slot.minWidth.roundToPx(),
+						)
+					},
 				availableWidthPx = constraints.maxWidth,
 				boundedWidth = constraints.hasBoundedWidth,
 				spacingPx = spacingPx,
 				overflowButtonWidthPx = overflowButtonWidthPx.value,
 				preCollapsedSlotIndices = preCollapsed,
-			) { slotIndex ->
+			) { slotIndex, maxWidthPx ->
 				val slot = slots[slotIndex]
-				val placeable =
-					subcompose(OverflowSlotId.Item(slot.key)) {
-						// One wrapper Row per item, so a multi-control item is one indivisible group whose
-						// internal spacing matches the strip's, and subcompose always yields one measurable.
-						Row(verticalAlignment = verticalAlignment, horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
-							slot.content?.invoke()
-						}
-					}.first().measure(slotConstraints)
-				placeables[slotIndex] = placeable
-				placeable.width
+				val measurable =
+					measurables.getOrPut(slotIndex) {
+						subcompose(OverflowSlotId.Item(slot.key)) {
+							// One wrapper Row per item, so a multi-control item is one indivisible group whose
+							// internal spacing matches the strip's, and subcompose always yields one measurable.
+							Row(verticalAlignment = verticalAlignment, horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
+								slot.content?.invoke()
+							}
+						}.first()
+					}
+				if (measuredAtMaxWidthPx[slotIndex] != maxWidthPx) {
+					val boundedMaxPx = if (maxWidthPx == OVERFLOW_WIDTH_UNBOUNDED) Constraints.Infinity else maxWidthPx.coerceAtLeast(0)
+					placeables[slotIndex] = measurable.measure(slotConstraints.copy(maxWidth = boundedMaxPx))
+					measuredAtMaxWidthPx[slotIndex] = maxWidthPx
+				}
+				placeables.getValue(slotIndex).width
 			}
 
 		val collapsed = packing.collapsedSlotIndices.map { slotIndex -> slotKeys[slotIndex] }

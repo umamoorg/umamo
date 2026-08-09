@@ -1,14 +1,11 @@
 package org.umamo.ui.workspace.spaces
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
@@ -53,15 +50,17 @@ internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(PARAMETERS_VIEW_STATE_KEY) { ParametersViewState() }
 	// Add Parameter and New Group ride one item: both create, they were always 4.dp apart rather than the
 	// strip's 8.dp, and splitting a create pair across the strip and the overflow panel would read as noise.
-	item("create") {
+	item("add") {
 		if (LocalPuppet.current != null) {
-			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-				AddParameterChip(viewState)
-				NewParameterGroupButton(viewState)
-			}
+			AddParameterChip(viewState)
 		}
 	}
-	flexibleSpace()
+	item("new") {
+		if (LocalPuppet.current != null) {
+			NewParameterGroupButton(viewState)
+		}
+	}
+	flexibleSpace(minWidth = 8.dp)
 	item("resetAll") {
 		if (LocalPuppet.current != null) {
 			ResetAllParametersButton()

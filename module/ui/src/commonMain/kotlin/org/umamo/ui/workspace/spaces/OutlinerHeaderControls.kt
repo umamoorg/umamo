@@ -9,6 +9,7 @@ import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.FilterPopupChip
 import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.kit.SEARCH_FIELD_MIN_WIDTH
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.button.ButtonGroup
 import org.umamo.ui.kit.button.ButtonGroupItem
@@ -37,7 +38,7 @@ internal fun OverflowRowScope.outlinerHeaderControls(scope: AreaScope) {
 	// second gap right-aligns. The center sits left of true center by half the chip's width - accepted,
 	// since exact centering would need the strip to weight against the placed items too.
 	flexibleSpace()
-	item("search") {
+	item("search", minWidth = SEARCH_FIELD_MIN_WIDTH) {
 		// Each item gates itself on the document: an item that renders nothing measures zero, so the
 		// whole strip disappears without the builder needing a CompositionLocal it cannot read.
 		if (LocalPuppet.current != null) {

@@ -46,7 +46,31 @@ class OverflowRowPackingTest {
 			boundedWidth = true,
 			spacingPx = spacingPx,
 			overflowButtonWidthPx = overflowButtonWidthPx,
-			slotWidthPx = { slotIndex -> widths[slotIndex] },
+			slotWidthPx = { slotIndex, _ -> widths[slotIndex] },
+		)
+
+	/**
+	 * Packs [slots] with a measure that honors the offered maximum, the way a real control does - a
+	 * Modifier.width caps at the incoming constraint, so a compressible slot reports the smaller of its
+	 * natural width and the room it was handed.
+	 *
+	 * @param List slots            The declared slots.
+	 * @param List naturalWidths    Each slot's unconstrained width.
+	 * @param Int  availableWidthPx The strip's width.
+	 * @return OverflowRowPacking The resolved strip.
+	 */
+	private fun packWithMeasure(
+		slots: List<OverflowSlotSpec>,
+		naturalWidths: List<Int>,
+		availableWidthPx: Int,
+	): OverflowRowPacking =
+		packOverflowRow(
+			slots = slots,
+			availableWidthPx = availableWidthPx,
+			boundedWidth = true,
+			spacingPx = 10,
+			overflowButtonWidthPx = 20,
+			slotWidthPx = { slotIndex, maxWidthPx -> minOf(naturalWidths[slotIndex], maxWidthPx) },
 		)
 
 	/** With room to spare every slot is placed and the chip is measured but never positioned. */
@@ -80,10 +104,35 @@ class OverflowRowPackingTest {
 	/** A pinned slot is always placed, and its width is reserved before an earlier slot is admitted. */
 	@Test
 	fun aTrailingPinnedSlotIsReservedForAndAlwaysPlaced() {
-		// Budget 80.  Reserving the trailing pinned 50 (+10 spacing) leaves 20, so the leading 30 cannot fit.
-		val packing = pack(slots = listOf(collapsible, pinned), widths = listOf(30, 50), availableWidthPx = 100)
+		// Reserving the trailing pinned 50 (+10 spacing) leaves 10, so the leading 30 cannot fit.
+		val packing = pack(slots = listOf(collapsible, pinned), widths = listOf(30, 50), availableWidthPx = 70)
 		assertEquals(listOf(1), packing.placements.map { it.slotIndex })
 		assertEquals(listOf(0), packing.collapsedSlotIndices)
+	}
+
+	/**
+	 * A strip whose controls all fit at the full width is not charged for a chip it will not show.
+	 *
+	 * The regression: the chip's width used to come off the budget on every decision, so the last control
+	 * collapsed roughly a chip early - visibly so, with slack still sitting in the flexible gaps.
+	 */
+	@Test
+	fun nothingIsChargedForTheChipWhenEverythingFits() {
+		// 30 + 10 + 50 = 90, which fits 100 exactly - but not 100 minus a 20-wide chip.
+		val packing = pack(slots = listOf(collapsible, collapsible), widths = listOf(30, 50), availableWidthPx = 100)
+		assertEquals(listOf(0, 1), packing.placements.map { it.slotIndex })
+		assertTrue(packing.collapsedSlotIndices.isEmpty())
+		assertNull(packing.overflowButtonXPx)
+	}
+
+	/** Once something genuinely misses, the chip is real and the second walk charges for it. */
+	@Test
+	fun theChipIsChargedForOnceSomethingMisses() {
+		// 30 + 10 + 90 = 130 misses 100 outright, so the chip exists and the budget drops to 80.
+		val packing = pack(slots = listOf(collapsible, collapsible), widths = listOf(30, 90), availableWidthPx = 100)
+		assertEquals(listOf(0), packing.placements.map { it.slotIndex })
+		assertEquals(listOf(1), packing.collapsedSlotIndices)
+		assertEquals(80, packing.overflowButtonXPx)
 	}
 
 	/** A pinned slot is placed even when it alone overruns the strip - clipped, never hidden. */
@@ -167,7 +216,7 @@ class OverflowRowPackingTest {
 				boundedWidth = true,
 				spacingPx = 10,
 				overflowButtonWidthPx = 20,
-				slotWidthPx = { slotIndex ->
+				slotWidthPx = { slotIndex, _ ->
 					measuredIndices.add(slotIndex)
 					widths[slotIndex]
 				},
@@ -175,10 +224,10 @@ class OverflowRowPackingTest {
 		assertEquals(listOf(1, 2), packing.collapsedSlotIndices)
 		assertEquals(listOf(0, 3), packing.placements.map { it.slotIndex })
 		// The pinned slot is always measured (its width is reserved for) and slot 1 is the miss that
-		// latches collapsing, but slot 2 is behind the latch and is never composed at all.
+		// latches collapsing, but slot 2 is behind the latch and is never composed at all.  A slot CAN be
+		// asked twice, once per walk - the caller composes once and re-measures, so that costs no composition.
 		assertTrue(3 in measuredIndices)
 		assertTrue(2 !in measuredIndices)
-		assertEquals(measuredIndices.size, measuredIndices.distinct().size, "each slot is measured at most once")
 	}
 
 	/** Narrowing the strip only ever collapses more - the unconditional chip reserve rules out oscillation. */
@@ -197,6 +246,98 @@ class OverflowRowPackingTest {
 		}
 	}
 
+	/**
+	 * A compressible slot gives up width to keep the controls behind it on the strip.
+	 *
+	 * The regression: a fixed 160-wide search box took its natural width and pushed the filter chip beside
+	 * it into the dropdown, which read as the filter collapsing for no reason while the box sat full-size.
+	 */
+	@Test
+	fun aCompressibleSlotYieldsToTheControlsBehindIt() {
+		val packing =
+			packWithMeasure(
+				slots = listOf(OverflowSlotSpec(OverflowSlotKind.Collapsible, minWidthPx = 40), collapsible),
+				naturalWidths = listOf(160, 30),
+				availableWidthPx = 120,
+			)
+		// Both placed: the box took 120 - 30 - 10 = 80 instead of its natural 160.
+		assertEquals(listOf(0, 1), packing.placements.map { it.slotIndex })
+		assertTrue(packing.collapsedSlotIndices.isEmpty())
+		assertEquals(80, packing.placements.first().widthPx)
+	}
+
+	/** It keeps its natural width whenever there is room for it. */
+	@Test
+	fun aCompressibleSlotKeepsItsNaturalWidthWhenItFits() {
+		val packing =
+			packWithMeasure(
+				slots = listOf(OverflowSlotSpec(OverflowSlotKind.Collapsible, minWidthPx = 40), collapsible),
+				naturalWidths = listOf(160, 30),
+				availableWidthPx = 400,
+			)
+		assertEquals(160, packing.placements.first().widthPx)
+	}
+
+	/** It never squeezes past its floor - below that it collapses like anything else. */
+	@Test
+	fun aCompressibleSlotCollapsesBelowItsFloor() {
+		val packing =
+			packWithMeasure(
+				slots = listOf(OverflowSlotSpec(OverflowSlotKind.Collapsible, minWidthPx = 40), collapsible),
+				naturalWidths = listOf(160, 30),
+				availableWidthPx = 45,
+			)
+		assertEquals(listOf(0, 1), packing.collapsedSlotIndices)
+	}
+
+	/** Squeezed to its floor rather than collapsed when the tail alone would push it under. */
+	@Test
+	fun aCompressibleSlotStopsAtItsFloorRatherThanYieldingFurther() {
+		val packing =
+			packWithMeasure(
+				slots = listOf(OverflowSlotSpec(OverflowSlotKind.Collapsible, minWidthPx = 40), collapsible),
+				naturalWidths = listOf(160, 60),
+				availableWidthPx = 90,
+			)
+		// Leaving the 60-wide tail its room would need the box at 20; it stops at 40 and the tail collapses.
+		assertEquals(40, packing.placements.first().widthPx)
+		assertEquals(listOf(1), packing.collapsedSlotIndices)
+	}
+
+	/**
+	 * A starved flexible gap keeps its floor instead of closing, so the controls either side never touch.
+	 *
+	 * The regression: the walk placed every gap at zero and the leftover was written OVER that, so once the
+	 * leftover ran out the two buttons around the gap butted together and read as a rendering fault.
+	 */
+	@Test
+	fun aStarvedFlexibleGapKeepsItsFloor() {
+		val gapWithFloor = OverflowSlotSpec(OverflowSlotKind.Flexible, weight = 1f, minWidthPx = 8)
+		// 30 + 8 + 30 = 68 against 68: nothing left over, so the gap is down to exactly its floor.
+		val packing = pack(slots = listOf(collapsible, gapWithFloor, collapsible), widths = listOf(30, 0, 30), availableWidthPx = 68)
+		assertEquals(listOf(0, 1, 2), packing.placements.map { it.slotIndex })
+		assertEquals(8, packing.placements[1].widthPx)
+		assertEquals(listOf(0, 30, 38), packing.placements.map { it.xPx })
+	}
+
+	/** The floor is reserved before its neighbours are admitted, not shared out of what they leave. */
+	@Test
+	fun aFlexibleGapsFloorIsChargedAgainstItsNeighbours() {
+		val gapWithFloor = OverflowSlotSpec(OverflowSlotKind.Flexible, weight = 1f, minWidthPx = 8)
+		// 30 + 8 + 30 needs 68; at 60 the trailing control cannot have its width AND leave the gap its floor.
+		val packing = pack(slots = listOf(collapsible, gapWithFloor, collapsible), widths = listOf(30, 0, 30), availableWidthPx = 60)
+		assertEquals(listOf(2), packing.collapsedSlotIndices)
+	}
+
+	/** Leftover is added to the floor rather than replacing it, so a roomy gap is floor plus its share. */
+	@Test
+	fun aFlexibleGapAddsItsLeftoverShareToItsFloor() {
+		val gapWithFloor = OverflowSlotSpec(OverflowSlotKind.Flexible, weight = 1f, minWidthPx = 8)
+		val packing = pack(slots = listOf(collapsible, gapWithFloor, collapsible), widths = listOf(30, 0, 30), availableWidthPx = 200)
+		// 200 - 30 - 8 - 30 = 132 free, on top of the 8 the gap already holds.
+		assertEquals(140, packing.placements[1].widthPx)
+	}
+
 	/** An unbounded strip has no width to run out of: nothing collapses and the gaps resolve to zero. */
 	@Test
 	fun anUnboundedStripNeverCollapsesAndHasNoLeftover() {
@@ -208,7 +349,7 @@ class OverflowRowPackingTest {
 				boundedWidth = false,
 				spacingPx = 10,
 				overflowButtonWidthPx = 20,
-				slotWidthPx = { slotIndex -> widths[slotIndex] },
+				slotWidthPx = { slotIndex, _ -> widths[slotIndex] },
 			)
 		assertTrue(packing.collapsedSlotIndices.isEmpty())
 		assertNull(packing.overflowButtonXPx)
