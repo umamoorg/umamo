@@ -79,8 +79,6 @@ internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
  * (square) parameter.  Either creates a document edit and opens the new row for inline rename.  The full
  * add-ticks / keyform-capture workflow is not built yet.
  *
- * パラメータ追加のドロップダウン。キーフォームかブレンドシェイプかを先に選ばせる。
- *
  * @param ParametersViewState viewState The panel's shared view state, which parks the id to rename.
  */
 @Composable
@@ -155,8 +153,6 @@ private fun NewParameterGroupButton(viewState: ParametersViewState) {
  * The panel body gates every pose write on Edit mode (Edit mode is pinned to the neutral pose), and this
  * must replicate that lock or a locked panel becomes writable from the header.  Group create / delete /
  * rename are document edits rather than pose writes, so they are NOT gated.
- *
- * 全パラメータを既定値に戻す。編集モードでは中立ポーズに固定されるためポーズ書き込みは禁止。
  */
 @Composable
 private fun ResetAllParametersButton() {
