@@ -173,7 +173,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* Import from pervious version.
 	* Select from binding defaults.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
-* Make history limit configurable.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.

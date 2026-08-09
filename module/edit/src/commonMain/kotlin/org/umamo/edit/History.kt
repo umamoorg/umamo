@@ -119,14 +119,28 @@ data class HistoryStep(
  *
  * 不変スナップショットの線形な取り消し/やり直しスタック。やり直し枝は新規記録で破棄する（v1 の方針）。
  *
- * @property Int limit The maximum retained entries; the oldest is dropped past this.
+ * @param EditorSnapshot initial The seed entry — the state the document opened on.
+ * @param Int initialLimit The starting cap; [limit] carries it and may be reassigned later.
+ * @property Int limit The maximum retained entries; the oldest is dropped past this. Settable at
+ *   runtime, since the cap is a user preference.
  */
 class History(
 	initial: EditorSnapshot,
-	private val limit: Int = DEFAULT_HISTORY_LIMIT,
+	initialLimit: Int = DEFAULT_HISTORY_LIMIT,
 ) {
 	private val entries: MutableList<HistoryEntry> = mutableListOf(HistoryEntry(initial, null))
 	private var cursor: Int = 0
+
+	/**
+	 * The maximum retained entries, settable at runtime because the cap is a user preference. Assigning a
+	 * lower value trims the stack at once (see [trimToLimit]), so lowering it frees memory without waiting
+	 * for the next edit. Clamped to at least 1 so a degenerate cap never empties the stack.
+	 */
+	var limit: Int = initialLimit.coerceAtLeast(1)
+		set(value) {
+			field = value.coerceAtLeast(1)
+			trimToLimit()
+		}
 
 	/** The live state — the snapshot at the current cursor. */
 	val current: EditorSnapshot get() = entries[cursor].snapshot
@@ -161,10 +175,18 @@ class History(
 		}
 		entries.add(HistoryEntry(snapshot, change))
 		cursor = entries.lastIndex
-		// Enforce the cap by dropping from the front (the oldest undo levels), keeping the cursor on the
-		// same live entry. Guard limit >= 1 so a degenerate cap never empties the stack.
-		val cap = if (limit < 1) 1 else limit
-		while (entries.size > cap) {
+		trimToLimit()
+	}
+
+	/**
+	 * Drops the oldest entries until the stack fits [limit], stopping at the live step so the current state
+	 * and its redo branch are never discarded. That stop is what makes a lowered cap safe to apply to a
+	 * stack whose cursor sits mid-history: it frees what it can at once and sheds the rest on subsequent
+	 * pushes, and the cursor stays valid throughout. On the push path the cursor is the last entry, so the
+	 * stop never engages and the stack lands exactly at the cap.
+	 */
+	private fun trimToLimit() {
+		while (entries.size > limit && cursor > 0) {
 			entries.removeAt(0)
 			cursor--
 		}

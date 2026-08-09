@@ -642,6 +642,8 @@
 	<string name="settings_theme_light">Light</string>
 	<string name="settings_theme_system">System</string>
 	<string name="settings_interface_language">Language</string>
+	<!-- The undo-history cap (interface.historyLimit): how many steps the History panel retains. -->
+	<string name="settings_interface_history_steps">History Steps</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
 	<string name="settings_keybindings_preset">Preset</string>
 	<string name="settings_keymap_preset_default">Default</string>

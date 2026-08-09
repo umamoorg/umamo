@@ -11,12 +11,20 @@ import org.umamo.runtime.model.PuppetModel
  * flag), and the flags/view derived from them.  [EditorSession] pushes snapshots and republishes
  * flows from the ones this hands back; the derived flows here are exposed on the session unchanged.
  * Dirty is measured against the model only, so pose-only and selection-only steps never trip it.
- *
- * セッションのアンドゥ機構。スナップショット履歴・保存基準・そこから導出されるフラグと履歴ビューを
- * 保持する。ダーティ判定はモデル参照の同一性のみで行う。
  */
-internal class HistoryCore(initialSnapshot: EditorSnapshot, historyLimit: Int) {
-	private val history = History(initialSnapshot, historyLimit)
+internal class HistoryCore(initialSnapshot: EditorSnapshot, initialHistoryLimit: Int) {
+	private val history = History(initialSnapshot, initialHistoryLimit)
+
+	/**
+	 * The retained-undo-step cap.  Assigning trims the stack immediately, never past the live step; the
+	 * session republishes the derived flags afterwards so the panel and the undo/redo enabled states
+	 * follow the trim.
+	 */
+	var limit: Int
+		get() = history.limit
+		set(value) {
+			history.limit = value
+		}
 
 	/**
 	 * The live step's snapshot - what the last push (or the last undo) recorded.

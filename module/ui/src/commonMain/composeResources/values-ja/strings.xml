@@ -584,6 +584,8 @@
 	<string name="settings_theme_light">ライト</string>
 	<string name="settings_theme_system">システム</string>
 	<string name="settings_interface_language">言語</string>
+	<!-- 取り消し履歴の上限（interface.historyLimit）。履歴パネルが保持するステップ数。 -->
+	<string name="settings_interface_history_steps">履歴のステップ数</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>
 	<string name="settings_keymap_preset_default">デフォルト</string>

@@ -38,6 +38,7 @@ import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
+import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
 import org.umamo.ui.resources.settings_interface_theme
 import org.umamo.ui.resources.settings_pen_coming_soon
@@ -64,19 +65,19 @@ private const val LOCALE_KEY = "localization.locale"
 private const val LOCALE_DEFAULT = "en"
 
 /**
- * The Interface section: theme and language, the two settings already wired end-to-end (writing the key
- * re-themes / re-localizes the running app live), so both auto-save with immediate visible effect.
+ * The Interface section: theme, language, and the undo-history depth.  All three are wired end-to-end -
+ * writing the key re-themes / re-localizes the running app and re-caps the open document's undo stack -
+ * so each auto-saves with immediate visible effect.
  *
  * Theme option labels are localized chrome.  Language names are endonyms ("English" / "日本語") shown
  * verbatim regardless of the active UI language - a language's own name is identity, not chrome to
  * translate, the same reasoning that keeps format-level identifiers unlocalized.
- *
- * インターフェース設定。テーマと言語。どちらも書き込み即反映で自動保存。言語名は自言語表記（翻訳しない）。
  */
 @Composable
 internal fun InterfaceSection() {
 	var theme by rememberStringSetting(THEME_KEY, THEME_DEFAULT)
 	var locale by rememberStringSetting(LOCALE_KEY, LOCALE_DEFAULT)
+	var historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
 
 	// Resolve option labels in composition (stringResource is @Composable) into ordered maps, so the
 	// SelectField label lambda - which is plain (T) -> String - is a lookup, not a composable call. The
@@ -104,6 +105,16 @@ internal fun InterfaceSection() {
 				options = languageEndonyms.keys.toList(),
 				label = { value -> languageEndonyms[value] ?: value },
 				onSelect = { value -> locale = value },
+			)
+		}
+		// Lowering this trims the open document's stack on commit, but never past the live step - the
+		// current state and anything left to redo always survive (see EditorSession.historyLimit).
+		SettingRow(label = stringResource(Res.string.settings_interface_history_steps)) {
+			NumberField(
+				value = historyLimit,
+				onValueChange = { committed -> historyLimit = committed },
+				range = HistorySettings.HISTORY_LIMIT_RANGE,
+				modifier = Modifier.width(80.dp),
 			)
 		}
 	}

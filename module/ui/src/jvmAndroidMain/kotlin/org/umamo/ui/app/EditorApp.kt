@@ -3,6 +3,7 @@ package org.umamo.ui.app
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -60,8 +61,10 @@ import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.rememberSessionEditorState
+import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
+import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
@@ -588,6 +591,14 @@ private fun DocumentViewport(
 				// the fallback only guards a desync. Panels read LocalPuppet (a live projection of the session
 				// model) and drive edits through LocalEditorSession / the session-backed selection handle.
 				val activeSession = session ?: remember(document) { EditorSession(document.puppet, document.liveParams.values) }
+				// The undo cap is a preference, not a construction-time constant, so it is applied here rather
+				// than passed to the constructor: the desktop host builds the session outside the settings
+				// provider, and a committed change has to reach the stack of the document already open. Keying
+				// the session's own remember on the value would instead discard the stack on every change.
+				val historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
+				LaunchedEffect(activeSession, historyLimit) {
+					activeSession.historyLimit = historyLimit
+				}
 				val editorState = rememberSessionEditorState(activeSession)
 				// The factory is fixed for the app's lifetime (a platform capability, not state), so the
 				// conditional composable call is stable across recompositions.

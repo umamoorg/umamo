@@ -59,17 +59,18 @@ data class Notice(val messageKey: String, val serial: Long, val placement: Notic
  * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
  *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
  *   agree from frame one (e.g. a headless dump's overridden pose is not reset to defaults).
- * @param Int historyLimit The retained-undo-step cap.
+ * @param Int initialHistoryLimit The retained-undo-step cap at open; [historyLimit] carries it and the
+ *   host reassigns it when the preference changes.
  */
 class EditorSession(
 	initialModel: PuppetModel,
 	initialPose: Pose = initialModel.parameters.associate { parameter -> parameter.id to parameter.default },
-	historyLimit: Int = DEFAULT_HISTORY_LIMIT,
+	initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
 ) {
 	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags), the
 	// overlay-request buses, and the remembered-selection memory; the members below delegate so the
 	// public API is unchanged, and every flow-write ordering stays in this facade.
-	private val history = HistoryCore(EditorSnapshot(initialModel, Selection(), initialPose), historyLimit)
+	private val history = HistoryCore(EditorSnapshot(initialModel, Selection(), initialPose), initialHistoryLimit)
 	private val requestBus = SessionRequestBus()
 	private val elementMemory = MeshElementMemory()
 	private val latches = ToolLatches(notify = ::emitNotice)
@@ -304,6 +305,22 @@ class EditorSession(
 
 	/** The undo stack projected for the history panel; updates on every edit, undo, redo, jump, and save. */
 	val historyView: StateFlow<HistoryView> = history.historyView
+
+	/**
+	 * The retained-undo-step cap.  The host writes it from the user preference - once when the document
+	 * opens and again on every committed change - so the session never reads settings itself.
+	 *
+	 * Lowering it trims the stack at once rather than waiting for the next edit, but never past the live
+	 * step, so the current state and its redo branch always survive; the excess sheds on subsequent
+	 * pushes.  The write republishes the derived flags, so the panel drops the same rows the stack did and
+	 * [canUndo] stays honest when the trim lands the cursor on the oldest entry.
+	 */
+	var historyLimit: Int
+		get() = history.limit
+		set(value) {
+			history.limit = value
+			refreshFlags()
+		}
 
 	/**
 	 * Applies a document edit: computes the new model via [transform], records it as one undo step, and
