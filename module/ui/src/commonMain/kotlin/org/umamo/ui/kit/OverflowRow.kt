@@ -39,9 +39,6 @@ private val OVERFLOW_MENU_ROW_PADDING_VERTICAL = 2.dp
  *
  * It is also not a RowScope, so Modifier.weight inside an item is a compile error - weight distribution
  * belongs to [flexibleSpace], which the packer understands.
- *
- * OverflowRow に載せる操作を宣言するスコープ。折り畳まれた操作をポップアップで描くため、
- * 各操作の本体を値として保持する必要があり、コンポーザブルにはできない。
  */
 interface OverflowRowScope {
 	/**

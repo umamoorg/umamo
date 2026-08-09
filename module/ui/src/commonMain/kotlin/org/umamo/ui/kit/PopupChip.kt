@@ -32,9 +32,6 @@ import org.umamo.ui.theme.UmamoIcon
  * pass it with [onExpandedChange] when the caller has to force the panel shut - the overflow row does,
  * since a strip that widens while the panel is open would otherwise leave it anchored to nothing.
  *
- * 開いたままのパネルを持つチップ。外側クリックか Esc でのみ閉じるので、複数の操作を一度に行える。
- * 開閉状態は内部で持つか、呼び出し側に持ち上げるかを選べる。
- *
  * @param String    contentDescription The accessible label for the chip (the face is icon-only).
  * @param Modifier  modifier           The layout modifier.
  * @param UmamoIcon icon               The chip's leading glyph, or null for a chevron-only face.
