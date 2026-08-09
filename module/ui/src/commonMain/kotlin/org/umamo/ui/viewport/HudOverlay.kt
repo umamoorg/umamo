@@ -1,6 +1,5 @@
 package org.umamo.ui.viewport
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,12 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
@@ -34,61 +28,38 @@ import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
-import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
-import org.umamo.ui.theme.drawIcon
 import kotlin.math.roundToInt
 
 /**
- * The viewport HUD layer: viewport-wide chrome drawn over every other overlay - the 2D cursor (present
- * in both modes), the modal-operator status badge (operator name plus the axis lock), the top-left
- * active-mesh info chip, and the bottom-left zoom readout.  Draw-only - it installs no pointer input,
- * so it can sit topmost without stealing gestures from the gizmo overlays.  Near-cursor notices live
- * at the shell level (ShellCursorOverlays.kt), where one instance escapes area bounds and follows the
- * pointer across areas without duplicating.
+ * The viewport HUD layer: informational chrome drawn over every other overlay - the modal-operator
+ * status badge (operator name plus the axis lock), the top-left active-mesh info chip, and the
+ * bottom-left zoom readout.  Draw-only - it installs no pointer input, so it can sit topmost without
+ * stealing gestures from the gizmo overlays.  The 2D cursor is a control marker, not HUD chrome, and
+ * draws in its own sibling overlay (Cursor2dOverlay.kt); near-cursor notices live at the shell level
+ * (ShellCursorOverlays.kt), where one instance escapes area bounds and follows the pointer across
+ * areas without duplicating.
  *
- * The cursor projects through the DISPLAYED frame's camera (like every world-anchored overlay drawing)
- * so it never swims against the raster.  The zoom readout instead reads the LIVE [liveCamera]: the
- * wheel updates it immediately, where the frame camera lags the raster by a few frames.  Only the
- * INITIATING area shows the badge: the operator latch names its area, so the gate is reactive.
+ * The zoom readout reads the LIVE [liveCamera]: the wheel updates it immediately, where the frame
+ * camera lags the raster by a few frames.  Only the INITIATING area shows the badge: the operator
+ * latch names its area, so the gate is reactive.
  *
  * @param String areaId This viewport's area id (gates the badge to the initiating area).
- * @param EditorSession session The session whose cursor / operator state this HUD surfaces.
- * @param ViewportCamera? camera The displayed frame's camera (world<->screen); null skips world-anchored drawing.
+ * @param EditorSession session The session whose operator state and selections this HUD surfaces.
  * @param ViewportCamera? liveCamera The area's live service camera feeding the zoom readout; null before the first fit.
- * @param Int widthPx The viewport width in px.
- * @param Int heightPx The viewport height in px.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
 fun ViewportHudOverlay(
 	areaId: String,
 	session: EditorSession,
-	camera: ViewportCamera?,
 	liveCamera: ViewportCamera?,
-	widthPx: Int,
-	heightPx: Int,
 	modifier: Modifier = Modifier,
 ) {
-	val cursor by session.cursor2d.collectAsState()
 	val meshOperator by session.activeMeshOperator.collectAsState()
 	val objectOperator by session.activeObjectOperator.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val proportionalEdit by session.proportionalEdit.collectAsState()
-	val hudColors = LocalUmamoColors.current
-
-	// The 2D cursor: the authored dashed-ring crosshair (LocalUmamoIcons.cursor2d, axis-colored arm
-	// tips) at its world position, in both modes (it anchors pivots and snaps regardless of mode),
-	// projected through the frame camera and drawn at a screen-constant size.
-	val cursorToDraw = cursor
-	if (cursorToDraw != null && camera != null) {
-		Canvas(modifier = Modifier.fillMaxSize()) {
-			drawCursorMarker(
-				center = worldToScreen(cursorToDraw.worldX, cursorToDraw.worldY, camera, IntSize(widthPx, heightPx)),
-				tint = hudColors.viewportBadgeText,
-			)
-		}
-	}
 
 	// The modal status badge (top center): only the INITIATING area shows it - the latch itself names
 	// the area, so the gate is reactive.  The proportional segment rides only for the operators that
@@ -108,13 +79,14 @@ fun ViewportHudOverlay(
 			axisConstraint = axisConstraint,
 			proportionalState = if (showProportional) proportionalState else null,
 			proportionalRadius = if (showProportional) proportionalState.radiusWorld.roundToInt() else null,
+			modifier = modifier,
 		)
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The
 	// UV editor gets the same chips through its own assembly, UvHudOverlay below.
-	ActiveMeshInfoLabel(session = session)
-	ViewportZoomBadge(camera = liveCamera)
+	ActiveMeshInfoLabel(session = session, modifier = modifier)
+	ViewportZoomBadge(camera = liveCamera, modifier = modifier)
 }
 
 /**
@@ -260,28 +232,6 @@ private fun ViewportZoomBadge(
 					.background(hudColors.viewportBadgeBackground, RoundedCornerShape(4.dp))
 					.padding(horizontal = 6.dp, vertical = 2.dp),
 		)
-	}
-}
-
-/**
- * The cursor crosshair marker (the authored dashed-ring icon) at a projected screen point, drawn at a
- * screen-constant size - shared by the viewport HUD (the world-space 2D cursor) and the UV editor's
- * overlay (the UV cursor).
- *
- * @param Offset center The marker's center in area-local pixels.
- * @param Color tint The icon tint.
- */
-internal fun DrawScope.drawCursorMarker(center: Offset, tint: Color) {
-	val iconSizePx = 36.dp.toPx()
-	// drawIcon fills the DrawScope's square, so shrink the bounds to an icon-sized box centered
-	// on the projected point (negative insets are fine when the cursor sits near an edge).
-	inset(
-		left = center.x - iconSizePx / 2f,
-		top = center.y - iconSizePx / 2f,
-		right = size.width - center.x - iconSizePx / 2f,
-		bottom = size.height - center.y - iconSizePx / 2f,
-	) {
-		drawIcon(LocalUmamoIcons.cursor2d, tint)
 	}
 }
 

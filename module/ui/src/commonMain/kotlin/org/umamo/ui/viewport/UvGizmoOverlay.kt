@@ -73,7 +73,9 @@ private class UvGesture(
 
 /**
  * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its atlas
- * underlay.  Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the
+ * underlay.  Self-gates to Edit mode with a camera - the mode-exclusive sibling of [UvObjectOverlay],
+ * so the host mounts both unconditionally (the viewport overlay pair's convention).
+ * Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the
  * idle element selection (click pick with Shift/Ctrl toggle, empty-drag box, sub-threshold-click
  * clear), and drives the modal G / S / R operators over raw texture coordinates through the shared
  * [ModalTransformController] - the same pointer semantics as the viewport overlays (stale discard,
@@ -114,16 +116,16 @@ internal fun UvGizmoOverlay(
 	proportionalRadiusDisplayState: MutableState<Float?>,
 	modifier: Modifier = Modifier,
 ) {
+	val mode by session.mode.collectAsState()
 	val meshSelection by session.meshSelection.collectAsState()
 	val activeOperator by session.activeUvOperator.collectAsState()
 	val activeSelectTool by session.activeSelectTool.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val proportionalEdit by session.proportionalEdit.collectAsState()
-	val uvCursor by session.uvCursor.collectAsState()
 	val renderSync = LocalPuppetRenderSync.current
 	val gizmoColors = rememberMeshEditColors()
 	val overlayColors = LocalUmamoColors.current
-	if (camera == null || geometries.isEmpty()) {
+	if (mode != EditorMode.Edit || camera == null || geometries.isEmpty()) {
 		return
 	}
 	val overlayStyle = selectionOverlayStyle(overlayColors)
@@ -527,21 +529,6 @@ internal fun UvGizmoOverlay(
 					colors = gizmoColors,
 					camera = camera,
 					size = IntSize(widthPx, heightPx),
-				)
-			}
-
-			// The UV cursor (the texture-space 2D cursor): the shared crosshair marker at its display
-			// position, under the gesture chrome so the HUD reads over it.
-			uvCursor?.let { cursor ->
-				drawCursorMarker(
-					center =
-						worldToScreen(
-							uvToDisplayX(cursor.u, pageWidth),
-							uvToDisplayY(cursor.v, pageHeight),
-							camera,
-							IntSize(widthPx, heightPx),
-						),
-					tint = overlayColors.viewportBadgeText,
 				)
 			}
 

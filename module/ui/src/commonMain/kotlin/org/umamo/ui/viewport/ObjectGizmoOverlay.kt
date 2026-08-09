@@ -16,13 +16,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isAltPressed
-import androidx.compose.ui.input.pointer.isCtrlPressed
-import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
-import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -38,7 +34,6 @@ import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.Selection
-import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.eligibleTransformDrawables
@@ -144,9 +139,6 @@ fun ObjectGizmoOverlay(
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 
-	// idleBoxing marks a non-armed box drag (started from a plain primary press rather than Blender's B),
-	// whose sub-threshold release is a click pick; the rubber-band itself lives in the marquee controller.
-	var idleBoxing by remember(areaId) { mutableStateOf(false) }
 	// Per-drawable world centroids, snapshotted at the press that starts a select gesture (the pose is fixed for
 	// the whole drag, so one snapshot serves every move) and tested against the region each frame.
 	var cachedCentroids by remember(areaId) { mutableStateOf<Map<DrawableId, FloatArray>>(emptyMap()) }
@@ -201,40 +193,6 @@ fun ObjectGizmoOverlay(
 		session.setSelection(newSelection)
 	}
 
-	// Applies a primary click to the object selection (the sub-threshold end of an un-armed drag): picks
-	// the front-most selectable drawable under the cursor - plain replaces, toggle / extend both toggle
-	// membership (Blender-style, so a second modified click deselects), an unmodified click on empty canvas
-	// clears, a modified one keeps the selection.  An Alt click instead opens the overlap picker when 2+
-	// opaque meshes are stacked under the cursor, selects directly when exactly one is hit, and does nothing
-	// on empty canvas.  Unselectable drawables are excluded, so a click passes through them.
-	fun applyClickPick(position: Offset, toggle: Boolean, extend: Boolean, alt: Boolean) {
-		val model = session.model.value
-		if (alt) {
-			val candidates =
-				service.pickAllAt(areaId, position.x, position.y)
-					.filter { candidate -> model.selectableOf(SelectionTarget.Drawable(candidate.id)) }
-			when {
-				candidates.size > 1 -> onOverlapRequest(position, candidates)
-				candidates.size == 1 -> session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(candidates.first().id)))
-				else -> {
-					// Alt-click on empty canvas: leave the selection as-is (Alt is the disambiguate gesture).
-				}
-			}
-			return
-		}
-		val hit = service.pickAt(areaId, position.x, position.y)?.takeIf { model.selectableOf(SelectionTarget.Drawable(it)) }
-		val current = session.selection.value
-		val target = hit?.let { SelectionTarget.Drawable(it) }
-		val next =
-			when {
-				target != null && (toggle || extend) -> SelectionOps.toggle(current, target)
-				target != null -> SelectionOps.replace(target)
-				toggle || extend -> current // a modified click on empty canvas keeps the selection
-				else -> SelectionOps.clear() // a plain click on empty canvas clears
-			}
-		session.setSelection(next)
-	}
-
 	// The marquee (box + circle) machinery over whole drawables: the stroke / rubber-band state and event
 	// rules are shared (MarqueeSelectController); the callbacks bind them to the drawable domain - the
 	// centroid snapshot at stroke start and the live GPU tint preview are the Object-only extras.
@@ -254,14 +212,21 @@ fun ObjectGizmoOverlay(
 			)
 		}
 
-	// Abandons an in-flight un-armed box drag, dropping the rubber-band without touching the selection.
-	fun cancelIdleBox() {
-		if (idleBoxing) {
-			marquee.cancel()
-			idleBoxing = false
-			session.setViewportGestureActive(false)
+	// The idle click-pick / un-armed box flow over whole drawables (press rubber-bands, sub-threshold
+	// release picks, Alt resolves the overlap stack, Shift+RightClick places the 2D cursor), bound to
+	// this viewport's raster pickers and centroid snapshot; see ObjectPickController.
+	val objectPick =
+		remember(areaId) {
+			ObjectPickController(
+				session = session,
+				marquee = marquee,
+				pickTopmost = { position -> service.pickAt(areaId, position.x, position.y) },
+				pickStack = { position -> service.pickAllAt(areaId, position.x, position.y) },
+				onOverlapRequest = onOverlapRequest,
+				placeCursor = session::setCursor2d,
+				onBoxBegin = { cachedCentroids = service.drawableWorldCentroids() },
+			)
 		}
-	}
 
 	// Escape resolves the in-flight select gesture: the shell routes the key through the session's cancel
 	// signal (the gesture state lives in the marquee controller, which the session cannot reach directly).
@@ -269,7 +234,7 @@ fun ObjectGizmoOverlay(
 	LaunchedEffect(session) {
 		session.meshGestureCancelRequests.collect {
 			marquee.cancel()
-			cancelIdleBox()
+			objectPick.cancel()
 		}
 	}
 
@@ -280,7 +245,7 @@ fun ObjectGizmoOverlay(
 	// carries an un-armed box drag; the pointer loop's own idle-box cancel and this one are order-independent.
 	LaunchedEffect(selectToolKind(ownedSelectTool)) {
 		marquee.cancel()
-		cancelIdleBox()
+		objectPick.cancel()
 	}
 
 	// Confirms the in-flight object transform: commit every drawable's new base positions as one undo step (a
@@ -454,9 +419,7 @@ fun ObjectGizmoOverlay(
 								(latchedTool != null && latchedTool.areaId != areaId) ||
 								session.activeUvOperator.value != null
 							) {
-								if (idleBoxing) {
-									cancelIdleBox()
-								}
+								objectPick.cancel()
 								continue
 							}
 							val operator = latchedOperator
@@ -464,9 +427,10 @@ fun ObjectGizmoOverlay(
 							val activeCamera = liveCamera.value
 							val size = liveSize.value
 							// A tool or operator armed mid-drag (via its keymap command) supersedes the un-armed box:
-							// drop the rubber-band so its release handler cannot fire into the armed gesture's state.
-							if (idleBoxing && (operator != null || tool != null)) {
-								cancelIdleBox()
+							// drop the rubber-band so its release handler cannot fire into the armed gesture's state
+							// (the controller's cancel no-ops when no box is in flight).
+							if (operator != null || tool != null) {
+								objectPick.cancel()
 							}
 							if (operator != null) {
 								// MODAL transform: the shared controller drives every captured drawable over the
@@ -509,59 +473,13 @@ fun ObjectGizmoOverlay(
 									else -> {}
 								}
 							} else {
-								// IDLE (nothing armed): the primary button owns picking here.  A press starts a provisional
-								// rubber-band; a drag past the threshold box-selects on release (Shift adds), a sub-threshold
-								// release is the click pick (replace / toggle / Alt overlap).  A right-click or Escape abandons
-								// the drag.  Only primary-driven events are consumed, so middle-drag pan and wheel zoom fall
-								// through to the navigation layer.
-								when (event.type) {
-									PointerEventType.Press ->
-										if (event.buttons.isSecondaryPressed && event.keyboardModifiers.isShiftPressed && !idleBoxing) {
-											// Shift+RightClick places the 2D cursor at the pointer (Blender's gesture); the
-											// HUD overlay draws it and the Cursor pivot mode / snap menu anchor on it.
-											val (worldX, worldY) = screenToWorld(change.position.x, change.position.y, activeCamera, size)
-											session.setCursor2d(worldX, worldY)
-											change.consume()
-										} else if (event.buttons.isSecondaryPressed) {
-											if (idleBoxing) {
-												cancelIdleBox()
-												change.consume()
-											}
-										} else if (event.buttons.isPrimaryPressed && !event.buttons.isTertiaryPressed) {
-											cachedCentroids = service.drawableWorldCentroids()
-											marquee.beginBox(change.position)
-											idleBoxing = true
-											session.setViewportGestureActive(true)
-											change.consume()
-										}
-
-									PointerEventType.Move ->
-										if (idleBoxing && marquee.dragBox(change.position)) {
-											change.consume()
-										}
-
-									PointerEventType.Release -> {
-										if (idleBoxing) {
-											val boxRelease = marquee.releaseBox(change.position, event.keyboardModifiers.isShiftPressed, activeCamera, size)
-											if (boxRelease != BoxRelease.None) {
-												if (boxRelease == BoxRelease.Click) {
-													val modifiers = event.keyboardModifiers
-													applyClickPick(
-														change.position,
-														toggle = modifiers.isCtrlPressed || modifiers.isMetaPressed,
-														extend = modifiers.isShiftPressed,
-														alt = modifiers.isAltPressed,
-													)
-												}
-												idleBoxing = false
-												session.setViewportGestureActive(false)
-												change.consume()
-											}
-										}
-									}
-
-									else -> {}
-								}
+								// IDLE (nothing armed): the primary button owns picking here, through the shared
+								// controller - a press starts a provisional rubber-band, a drag past the threshold
+								// box-selects on release (Shift adds), a sub-threshold release is the click pick
+								// (replace / toggle / Alt overlap), Shift+RightClick places the 2D cursor, and a
+								// right-click or Escape abandons the drag.  Only primary-driven events are
+								// consumed, so middle-drag pan and wheel zoom fall through to the navigation layer.
+								objectPick.handleIdleEvent(event, change, activeCamera, size)
 							}
 						}
 					}

@@ -367,20 +367,26 @@ fun rememberPuppetViewportHost(
 								areaId = areaId,
 								service = service,
 							)
-							// The HUD layer draws topmost (the 2D cursor, the modal-op status badge, the
-							// active-mesh info chip, and the zoom readout). It installs no pointer input, so it
-							// never steals a gesture from the overlays below. The zoom readout takes the LIVE
-							// camera - the wheel updates it immediately, where the frame camera lags the raster.
-							// The near-cursor notices and the radial pie menus render at the SHELL level
+							// The 2D cursor marker: a control's world-anchored marker (not HUD chrome), so it
+							// draws in its own layer above the gizmo chrome and below the HUD text.  Locked to
+							// the frame camera like every world-anchored overlay drawing.
+							Cursor2dOverlay(
+								session = session,
+								camera = image?.camera,
+								widthPx = widthPx,
+								heightPx = heightPx,
+							)
+							// The HUD layer draws topmost (the modal-op status badge, the active-mesh info chip,
+							// and the zoom readout). It installs no pointer input, so it never steals a gesture
+							// from the overlays below. The zoom readout takes the LIVE camera - the wheel
+							// updates it immediately, where the frame camera lags the raster. The near-cursor
+							// notices and the radial pie menus render at the SHELL level
 							// (ShellCursorOverlays.kt): one instance above the whole area tree, escaping this
 							// viewport's clipped bounds.
 							ViewportHudOverlay(
 								areaId = areaId,
 								session = session,
-								camera = image?.camera,
 								liveCamera = camera,
-								widthPx = widthPx,
-								heightPx = heightPx,
 							)
 						}
 					}

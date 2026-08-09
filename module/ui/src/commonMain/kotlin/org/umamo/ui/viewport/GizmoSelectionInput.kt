@@ -43,7 +43,7 @@ internal fun selectToolKind(ownedSelectTool: ActiveSelectTool?): Int =
  * The one behavioral seam is [placeCursor]: the 2D viewport places its world-space cursor, the UV editor
  * its texture-space one.  The geometry source differs too, but that is just the caller passing its own
  * projected [geometries].  Object mode is NOT a caller - its idle branch selects whole drawables with
- * click-pick semantics and its own idle-box state, a different interaction.
+ * click-pick semantics and its own idle-box latch, the sibling machinery in [ObjectPickController].
  *
  * @param PointerEvent event The full pointer event (buttons and modifiers).
  * @param PointerInputChange change The event's first change (position and consumption).
