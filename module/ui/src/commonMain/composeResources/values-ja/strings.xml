@@ -428,6 +428,7 @@
 	<string name="notice_proportional_on">プロポーショナル編集: オン</string>
 	<string name="notice_proportional_off">プロポーショナル編集: オフ</string>
 	<string name="header_proportional_falloff">プロポーショナル減衰</string>
+	<string name="header_more">その他</string>
 	<string name="cmd_mesh_proportional_connected">プロポーショナル編集の「接続のみ」を切り替え</string>
 	<string name="hud_connected">接続のみ</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>

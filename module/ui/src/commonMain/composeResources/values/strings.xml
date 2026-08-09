@@ -477,6 +477,8 @@
 	<string name="notice_proportional_on">Proportional editing on.</string>
 	<string name="notice_proportional_off">Proportional editing off.</string>
 	<string name="header_proportional_falloff">Proportional Falloff</string>
+	<!-- The overflow chip at the end of a header strip, holding the controls that did not fit. -->
+	<string name="header_more">More</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>

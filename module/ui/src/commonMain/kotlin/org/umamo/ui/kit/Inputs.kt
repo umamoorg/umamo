@@ -110,13 +110,21 @@ fun Checkbox(
  * shell's root key handler stops claiming keystrokes the field needs - notably Space (which otherwise
  * opens the command palette) and letter shortcuts - and routes Escape here (clearing focus) instead.
  *
- * @param String   value         The current text.
- * @param Function onValueChange Edit callback.
- * @param Modifier modifier      Layout modifier.
- * @param String?  placeholder   Optional dimmed hint shown while the field is empty.
+ * @param String    value         The current text.
+ * @param Function  onValueChange Edit callback.
+ * @param Modifier  modifier      Layout modifier.
+ * @param String?   placeholder   Optional dimmed hint shown while the field is empty.
+ * @param Function? trailing      Optional control pinned inside the field's trailing edge (a clear
+ *   affordance, a unit label).  It takes its width out of the text's, so it never overlaps the value.
  */
 @Composable
-fun TextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String? = null) {
+fun TextField(
+	value: String,
+	onValueChange: (String) -> Unit,
+	modifier: Modifier = Modifier,
+	placeholder: String? = null,
+	trailing: (@Composable () -> Unit)? = null,
+) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val controller = LocalInlineEditController.current
@@ -172,12 +180,21 @@ fun TextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier
 						}
 					},
 			decorationBox = { innerTextField ->
-				// Overlay the placeholder behind the field's own text so it disappears as soon as the user types.
-				Box {
-					if (placeholder != null && value.isEmpty()) {
-						Text(text = placeholder, style = LocalUmamoTypography.current.bodySmall, color = colors.textMuted)
+				Row(verticalAlignment = Alignment.CenterVertically) {
+					// The weighted box IS the text viewport - BasicTextField scrolls the caret into THIS box - so
+					// a trailing control takes its width out of the text's rather than sitting on top of it.  An
+					// overlaid control would hide the caret exactly when the value outgrows the field.
+					Box(modifier = Modifier.weight(1f)) {
+						// Overlay the placeholder behind the field's own text so it disappears as soon as the user types.
+						if (placeholder != null && value.isEmpty()) {
+							Text(text = placeholder, style = LocalUmamoTypography.current.bodySmall, color = colors.textMuted)
+						}
+						innerTextField()
 					}
-					innerTextField()
+					if (trailing != null) {
+						Spacer(modifier = Modifier.width(4.dp))
+						trailing()
+					}
 				}
 			},
 		)

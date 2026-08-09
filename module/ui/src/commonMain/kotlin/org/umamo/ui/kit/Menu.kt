@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,18 @@ private val MENU_FALLBACK_MAX_HEIGHT = 360.dp
 private val MENU_ICON_LABEL_GAP = 8.dp
 
 /**
+ * True while composing inside a popup that already owns the outside-click and Esc dismiss.  Only one
+ * popup in a tree may be focusable, so a popup opened from inside another one must not take focus and
+ * fight it for the dismiss - the inner press would otherwise read as "outside" to the outer popup, which
+ * would tear the inner one down mid-click.  Popups that host arbitrary caller content (the overflow
+ * dropdown, a filter panel) provide this so the menus and chips inside them yield automatically.
+ *
+ * 既に外側のポップアップが閉じる操作を所有していることを示す。ポップアップ内のポップアップは
+ * フォーカスを取らない（取ると閉じる操作を奪い合う）。
+ */
+val LocalPopupDismissOwned = compositionLocalOf { false }
+
+/**
  * A popup menu rendered from a [MenuItem] list - the one menu surface used across the menu bar, context
  * menus, and the area type selector.  Styled to the kit's menu look: medium rounded corners, the dark
  * panel fill, no border, and no drop shadow.  Hosted in a [Popup] so it escapes its parent's bounds,
@@ -84,6 +97,7 @@ private val MENU_ICON_LABEL_GAP = 8.dp
  * @param Modifier modifier Modifier for the menu's content column.
  * @param Boolean focusable Whether this popup owns focus and the dismiss - true for a root menu, false
  *   for a nested submenu flyout (only one popup in the tree may be focusable, or they fight over focus).
+ *   Defaults to yielding whenever an enclosing popup already owns it (see [LocalPopupDismissOwned]).
  */
 @Composable
 fun Menu(
@@ -91,7 +105,7 @@ fun Menu(
 	onDismissRequest: () -> Unit,
 	positionProvider: PopupPositionProvider,
 	modifier: Modifier = Modifier,
-	focusable: Boolean = true,
+	focusable: Boolean = !LocalPopupDismissOwned.current,
 ) {
 	Popup(
 		popupPositionProvider = positionProvider,

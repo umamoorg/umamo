@@ -1,15 +1,14 @@
 package org.umamo.ui.workspace.spaces
 
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
@@ -25,6 +24,7 @@ import org.umamo.ui.kit.FilterPopupChip
 import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
+import org.umamo.ui.kit.OverflowRowScope
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalEditorSession
@@ -49,24 +49,45 @@ import org.umamo.ui.workspace.AreaScope
  *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  */
-@Composable
-internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
-	val puppet = LocalPuppet.current
-	if (puppet == null) {
-		return
-	}
-	val liveParams = LocalLiveParams.current
-	val session = LocalEditorSession.current
+internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(PARAMETERS_VIEW_STATE_KEY) { ParametersViewState() }
-	val defaultGroupName = stringResource(Res.string.parameter_group_default_name)
+	// Add Parameter and New Group ride one item: both create, they were always 4.dp apart rather than the
+	// strip's 8.dp, and splitting a create pair across the strip and the overflow panel would read as noise.
+	item("create") {
+		if (LocalPuppet.current != null) {
+			Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+				AddParameterChip(viewState)
+				NewParameterGroupButton(viewState)
+			}
+		}
+	}
+	flexibleSpace()
+	item("resetAll") {
+		if (LocalPuppet.current != null) {
+			ResetAllParametersButton()
+		}
+	}
+	item("filter") {
+		if (LocalPuppet.current != null) {
+			ParametersFilterChip(viewState)
+		}
+	}
+}
+
+/**
+ * The Add Parameter dropdown: the rigger picks the kind up front - a key-form (circle) or a blend-shape
+ * (square) parameter.  Either creates a document edit and opens the new row for inline rename.  The full
+ * add-ticks / keyform-capture workflow is not built yet.
+ *
+ * パラメータ追加のドロップダウン。キーフォームかブレンドシェイプかを先に選ばせる。
+ *
+ * @param ParametersViewState viewState The panel's shared view state, which parks the id to rename.
+ */
+@Composable
+private fun AddParameterChip(viewState: ParametersViewState) {
+	val puppet = LocalPuppet.current ?: return
+	val session = LocalEditorSession.current
 	val defaultParameterName = stringResource(Res.string.parameter_default_name)
-	// The panel body gates every pose write on Edit mode (Edit mode is pinned to the neutral pose);
-	// this header's Reset All must replicate that lock or a locked panel becomes writable from up here.
-	// Group create / delete / rename are document edits, not pose writes, so they are NOT gated.
-	val editorMode by remember(session) { session?.mode ?: MutableStateFlow(EditorMode.Object) }.collectAsState()
-	// Add Parameter is a dropdown so the rigger picks the kind up front: a key-form (circle) or a
-	// blend-shape (square) parameter.  Both create a document edit and open the row for inline rename,
-	// exactly as the single button did.  The full add-ticks / keyform-capture workflow is not built yet.
 	var addMenuExpanded by remember { mutableStateOf(false) }
 	val addKeyFormLabel = stringResource(Res.string.parameter_menu_add_keyform)
 	val addBlendShapeLabel = stringResource(Res.string.parameter_menu_add_blendshape)
@@ -109,14 +130,40 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 			positionProvider = BelowAnchorPositionProvider,
 		)
 	}
-	Spacer(modifier = Modifier.width(4.dp))
+}
+
+/**
+ * The New Group button: creates an empty parameter group and opens it for inline rename.
+ *
+ * @param ParametersViewState viewState The panel's shared view state, which parks the id to rename.
+ */
+@Composable
+private fun NewParameterGroupButton(viewState: ParametersViewState) {
+	val session = LocalEditorSession.current
+	val defaultGroupName = stringResource(Res.string.parameter_group_default_name)
 	IconButton(
 		icon = LocalUmamoIcons.groupAdd,
 		onClick = { session?.let { viewState.renamingGroupId = it.createParameterGroup(defaultGroupName) } },
 		contentDescription = stringResource(Res.string.parameter_new_group),
 		appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 	)
-	Spacer(modifier = Modifier.weight(1f))
+}
+
+/**
+ * Reset All: returns every parameter to its default in one undo step.
+ *
+ * The panel body gates every pose write on Edit mode (Edit mode is pinned to the neutral pose), and this
+ * must replicate that lock or a locked panel becomes writable from the header.  Group create / delete /
+ * rename are document edits rather than pose writes, so they are NOT gated.
+ *
+ * 全パラメータを既定値に戻す。編集モードでは中立ポーズに固定されるためポーズ書き込みは禁止。
+ */
+@Composable
+private fun ResetAllParametersButton() {
+	val puppet = LocalPuppet.current ?: return
+	val liveParams = LocalLiveParams.current
+	val session = LocalEditorSession.current
+	val editorMode by remember(session) { session?.mode ?: MutableStateFlow(EditorMode.Object) }.collectAsState()
 	IconButton(
 		icon = LocalUmamoIcons.resetAll,
 		onClick = {
@@ -130,10 +177,17 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 		contentDescription = stringResource(Res.string.parameter_reset_all),
 		appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 	)
-	Spacer(modifier = Modifier.width(4.dp))
-	// The same stay-open filter panel the outliner uses, rather than a bare toggle button: this panel
-	// grows more view toggles as the keyform tracks land, and a shared chip keeps the two headers from
-	// drifting apart. The funnel glyph still reports the filtered / unfiltered state at a glance.
+}
+
+/**
+ * The panel's view filters.  The same stay-open filter panel the outliner uses, rather than a bare toggle
+ * button: this panel grows more view toggles as the keyform tracks land, and a shared chip keeps the two
+ * headers from drifting apart.  The funnel glyph still reports the filtered / unfiltered state at a glance.
+ *
+ * @param ParametersViewState viewState The panel's shared view state.
+ */
+@Composable
+private fun ParametersFilterChip(viewState: ParametersViewState) {
 	FilterPopupChip(
 		contentDescription = stringResource(Res.string.common_filters),
 		icon = if (viewState.showOnlySelected) LocalUmamoIcons.filterFiltered else LocalUmamoIcons.filterUnfiltered,
@@ -145,5 +199,4 @@ internal fun RowScope.ParametersHeaderControls(scope: AreaScope) {
 			label = stringResource(Res.string.parameter_filter_selected),
 		)
 	}
-	Spacer(modifier = Modifier.width(4.dp))
 }

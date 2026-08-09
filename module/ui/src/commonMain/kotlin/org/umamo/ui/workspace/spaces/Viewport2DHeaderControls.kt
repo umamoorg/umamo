@@ -1,18 +1,13 @@
 package org.umamo.ui.workspace.spaces
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
-import org.umamo.edit.TransformPivotMode
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
@@ -20,12 +15,10 @@ import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
-import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.OverflowRowScope
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
-import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
@@ -37,46 +30,24 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * Every control observes the session's own flows and mutates only by dispatching registry commands,
  * per the everything-through-the-action-registry rule - a rebind or palette invocation stays
  * consistent with these controls for free.  The Edit-mode pieces (select modes, pivot, proportional)
- * are the shared EditHeaderControls.kt composables the UV editor's header mounts too.
+ * are the shared EditHeaderControls.kt composables the UV editor's header mounts too, and each gates
+ * itself on the session's mode: an item that renders nothing measures zero and costs the strip nothing.
+ *
+ * The widest strip in the app, so it is the one that most needs the overflow behavior.  Only the mode
+ * dropdown is pinned - it is the control the whole viewport header is about, and a header that hides its
+ * own subject is worse than one that clips.
  *
  * 2D ビューポート固有のヘッダ内容。モードドロップダウン、選択モードボタン、ピボット、スナップ、
  * プロポーショナル編集の切替と減衰。変更はすべてコマンドレジストリ経由。ドキュメント未オープン時は
- * 無効表示。
+ * 無効表示。幅が足りなければモードドロップダウン以外はオーバーフローに畳み込まれる。
  */
-@Composable
-fun Viewport2DHeaderControls() {
-	val session = LocalEditorSession.current
-	val enabled = session != null
-	val editorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
-	val meshSelection = session?.meshSelection?.collectAsState()?.value
-	val model = session?.model?.collectAsState()?.value
-	val pivotMode = session?.pivotMode?.collectAsState()?.value ?: TransformPivotMode.MedianPoint
-	val proportionalEdit = session?.proportionalEdit?.collectAsState()?.value
-	Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-		EditorModeDropdown(editorMode = editorMode, enabled = enabled)
-		if (editorMode == EditorMode.Edit && meshSelection != null) {
-			MeshSelectModeButtons(selectMode = meshSelection.selectMode)
-			// The active mesh's name, so a multi-mesh session reads which drawable element clicks and
-			// operators land on as the active element hops between meshes.  A document name is user
-			// data, rendered verbatim (never localized).
-			val activeName =
-				meshSelection.activeDrawableId?.let { activeId ->
-					model?.drawables?.firstOrNull { drawable -> drawable.id == activeId }?.name
-				}
-			if (activeName != null) {
-				Text(
-					text = activeName,
-					style = LocalUmamoTypography.current.labelMedium,
-					color = LocalUmamoColors.current.textMuted,
-				)
-			}
-		}
-		PivotModeDropdown(pivotMode = pivotMode, enabled = enabled)
-		SnapDropdown(enabled = enabled)
-		if (editorMode == EditorMode.Edit) {
-			ProportionalEditControls(proportionalEdit = proportionalEdit)
-		}
-	}
+fun OverflowRowScope.viewport2DHeaderControls() {
+	pinnedItem("editorMode") { EditorModeDropdown() }
+	item("selectMode") { MeshSelectModeButtons() }
+	item("activeMesh") { ActiveMeshName() }
+	item("pivot") { PivotModeDropdown() }
+	item("snap") { SnapDropdown() }
+	item("proportional") { ProportionalEditControls() }
 }
 
 /**
@@ -88,14 +59,14 @@ fun Viewport2DHeaderControls() {
  *
  * エディタモードセレクタ（Blender 式）。現在モードのアイコンとラベルとシェブロンを表示し、クリックで
  * モードメニューを開く。選択は mode.object / mode.edit コマンドを発行する。
- *
- * @param EditorMode editorMode The session's current interaction mode.
- * @param Boolean enabled Whether a document is open (disabled chrome otherwise).
  */
 @Composable
-private fun EditorModeDropdown(editorMode: EditorMode, enabled: Boolean) {
+private fun EditorModeDropdown() {
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
+	val session = LocalEditorSession.current
+	val enabled = session != null
+	val editorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
 	val modeIcon =
 		when (editorMode) {
 			EditorMode.Object -> LocalUmamoIcons.editorModeObject
@@ -147,12 +118,11 @@ private fun EditorModeDropdown(editorMode: EditorMode, enabled: Boolean) {
  * menu stay one behavior.
  *
  * スナップメニュー（Shift+S のヘッダ版）。各行はスナップコマンドを発行する。
- *
- * @param Boolean enabled Whether a document is open (disabled chrome otherwise).
  */
 @Composable
-private fun SnapDropdown(enabled: Boolean) {
+private fun SnapDropdown() {
 	val commands = LocalCommands.current
+	val enabled = LocalEditorSession.current != null
 	var expanded by remember { mutableStateOf(false) }
 	val items =
 		listOf(

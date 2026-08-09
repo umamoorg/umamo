@@ -16,22 +16,22 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.ViewportSpaceCamera
 import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
-import org.umamo.ui.workspace.spaces.KeyformSheetHeaderControls
 import org.umamo.ui.workspace.spaces.KeyformSheetSpace
-import org.umamo.ui.workspace.spaces.LogsHeaderControls
 import org.umamo.ui.workspace.spaces.LogsSpace
-import org.umamo.ui.workspace.spaces.OutlinerHeaderControls
 import org.umamo.ui.workspace.spaces.OutlinerSpace
-import org.umamo.ui.workspace.spaces.ParametersHeaderControls
 import org.umamo.ui.workspace.spaces.ParametersSpace
 import org.umamo.ui.workspace.spaces.PlaceholderSpace
-import org.umamo.ui.workspace.spaces.PropertiesHeaderControls
 import org.umamo.ui.workspace.spaces.PropertiesSpace
-import org.umamo.ui.workspace.spaces.UvEditorHeaderControls
 import org.umamo.ui.workspace.spaces.UvEditorSpace
-import org.umamo.ui.workspace.spaces.Viewport2DHeaderControls
 import org.umamo.ui.workspace.spaces.ViewportSidebarDrawer
 import org.umamo.ui.workspace.spaces.ViewportToolbarOverlay
+import org.umamo.ui.workspace.spaces.keyformSheetHeaderControls
+import org.umamo.ui.workspace.spaces.logsHeaderControls
+import org.umamo.ui.workspace.spaces.outlinerHeaderControls
+import org.umamo.ui.workspace.spaces.parametersHeaderControls
+import org.umamo.ui.workspace.spaces.propertiesHeaderControls
+import org.umamo.ui.workspace.spaces.uvEditorHeaderControls
+import org.umamo.ui.workspace.spaces.viewport2DHeaderControls
 
 /**
  * Builds the base [SpaceRegistry] every shell starts from: a descriptor for each [SpaceKind]. The 2D
@@ -50,42 +50,42 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					SpaceKind.Viewport2D,
 					Res.string.space_viewport2d,
 					LocalUmamoIcons.spaceViewport,
-					headerContent = { Viewport2DHeaderControls() },
+					headerContent = { viewport2DHeaderControls() },
 				) { scope -> Viewport2DBody(scope) },
 			SpaceKind.UvEditor to
 				SpaceDescriptor(
 					SpaceKind.UvEditor,
 					Res.string.space_uv,
 					LocalUmamoIcons.spaceTexture,
-					headerContent = { UvEditorHeaderControls() },
+					headerContent = { uvEditorHeaderControls() },
 				) { scope -> UvEditorSpace(scope) },
 			SpaceKind.Outliner to
 				SpaceDescriptor(
 					SpaceKind.Outliner,
 					Res.string.space_outliner,
 					LocalUmamoIcons.spaceOutliner,
-					headerContent = { scope -> OutlinerHeaderControls(scope) },
+					headerContent = { scope -> outlinerHeaderControls(scope) },
 				) { scope -> OutlinerSpace(scope) },
 			SpaceKind.Parameters to
 				SpaceDescriptor(
 					SpaceKind.Parameters,
 					Res.string.space_parameters,
 					LocalUmamoIcons.spaceParameters,
-					headerContent = { scope -> ParametersHeaderControls(scope) },
+					headerContent = { scope -> parametersHeaderControls(scope) },
 				) { scope -> ParametersSpace(scope) },
 			SpaceKind.KeyformSheet to
 				SpaceDescriptor(
 					SpaceKind.KeyformSheet,
 					Res.string.space_keyformsheet,
 					LocalUmamoIcons.spaceKeyformSheet,
-					headerContent = { scope -> KeyformSheetHeaderControls(scope) },
+					headerContent = { scope -> keyformSheetHeaderControls(scope) },
 				) { scope -> KeyformSheetSpace(scope) },
 			SpaceKind.Properties to
 				SpaceDescriptor(
 					SpaceKind.Properties,
 					Res.string.space_properties,
 					LocalUmamoIcons.spaceProperties,
-					headerContent = { scope -> PropertiesHeaderControls(scope) },
+					headerContent = { scope -> propertiesHeaderControls(scope) },
 				) { scope -> PropertiesSpace(scope) },
 			SpaceKind.ToolDetails to
 				SpaceDescriptor(
@@ -104,7 +104,7 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					SpaceKind.Logs,
 					Res.string.space_logs,
 					LocalUmamoIcons.logsTerminal,
-					headerContent = { LogsHeaderControls() },
+					headerContent = { logsHeaderControls() },
 				) { LogsSpace() },
 		)
 	return SpaceRegistry(descriptors)

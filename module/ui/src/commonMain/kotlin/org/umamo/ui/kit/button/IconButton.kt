@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.runtime.Composable
@@ -46,7 +47,8 @@ import org.umamo.ui.theme.drawIcon
  * @param Modifier             modifier           Layout modifier.
  * @param IconButtonAppearance appearance         Flat glyph, or a Filled elevation chip (background plus corners).
  * @param DpSize               size               The button's box, square by default; 26x20 for header controls.
- * @param Dp                   glyphSize          The drawn glyph size inside the box.
+ * @param Dp                   glyphSize          The drawn glyph size, honored even when it exceeds [size]
+ *   (the glyph then overhangs its box rather than being capped).
  * @param Boolean              active             A lit toggle state (accent glyph when Flat, accent fill when Filled).
  * @param Boolean              enabled            When false the glyph dims to the disabled tint and clicks are inert
  *   (no-document chrome renders its controls this way rather than hiding them).
@@ -108,7 +110,9 @@ fun IconButton(
 	// doubles as the hover label - it is the human name of the control either way.
 	Tooltip(text = contentDescription, modifier = modifier) {
 		Box(modifier = faceModifier, contentAlignment = Alignment.Center) {
-			Canvas(modifier = Modifier.size(glyphSize)) {
+			// requiredSize, not size: size coerces to the box's constraints, which silently caps glyphSize at
+			// the smaller of the two and lets a starved parent shrink the glyph away entirely.
+			Canvas(modifier = Modifier.requiredSize(glyphSize)) {
 				drawIcon(icon, glyphColor)
 			}
 		}
