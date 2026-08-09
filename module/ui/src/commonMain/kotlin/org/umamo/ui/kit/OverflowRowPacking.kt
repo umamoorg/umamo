@@ -72,9 +72,6 @@ internal data class OverflowRowPacking(
  * no spacing, not collapsed, absent from the dropdown - which is how a mode-gated control that renders
  * nothing costs nothing.
  *
- * 収まるスロットと座標、可変ギャップの幅を決める純粋関数。オーバーフローチップの幅は常に確保し、
- * 何も折り畳まれなければ配置しないだけ。これは 1px のリサイズで振動しないための設計。
- *
  * @param List     slots                 The declared slots, in declaration order.
  * @param Int      availableWidthPx      The strip's width; ignored for collapsing when [boundedWidth] is false.
  * @param Boolean  boundedWidth          Whether the strip has a real width.  When false nothing collapses and

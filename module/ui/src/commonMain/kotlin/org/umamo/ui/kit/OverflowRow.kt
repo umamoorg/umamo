@@ -139,9 +139,6 @@ private class OverflowRowCollector : OverflowRowScope {
  * lossy.  It is fine under a fixed height (an area header), but do not drop it into a parent that asks
  * for intrinsics - Modifier.height(IntrinsicSize.Min), say - without checking first.
  *
- * 横並びの操作列。幅が足りなくなると、押し潰す代わりに末尾のドロップダウンへ畳み込む。各操作は自然な幅で
- * 測り、入らないものは配置せずチップに渡す。
- *
  * @param Modifier          modifier                   The layout modifier.
  * @param Dp                horizontalSpacing          The gap between adjacent controls.
  * @param Alignment         verticalAlignment          How controls align across the strip's height.

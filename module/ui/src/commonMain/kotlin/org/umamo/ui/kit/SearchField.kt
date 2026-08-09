@@ -25,9 +25,6 @@ val SEARCH_FIELD_WIDTH = 160.dp
  * Every panel that filters a list mounts this one component - the outliner and the properties panel both
  * did their own copy of the field-plus-X, which is exactly the drift the kit exists to prevent.
  *
- * 絞り込み用の検索ボックス。入力があるときだけ末尾にクリア（✕）を表示する。✕ は文字の上に重ねるのでは
- * なく末尾スロットに収まるので、文字やキャレットが下に隠れることはない。
- *
  * @param String   value                   The current query.
  * @param Function onValueChange           Edit callback; the clear affordance reports an empty string.
  * @param Modifier modifier                The layout modifier.
