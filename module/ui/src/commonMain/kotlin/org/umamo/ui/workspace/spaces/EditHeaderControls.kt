@@ -43,9 +43,6 @@ import org.umamo.ui.viewport.falloffLabel
  * viewport and the UV editor mount the same select-mode buttons, pivot dropdown, and proportional
  * controls, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates only by dispatching registry commands, per the everything-through-the-action-registry rule.
- *
- * 編集モードの共有ヘッダ操作。2D ビューポートと UV エディタが同じ部品を載せる。変更はすべて
- * コマンドレジストリ経由。
  */
 
 /** How wide the active-mesh label may get before it ellipsizes, so one long name cannot swallow the strip. */
@@ -57,8 +54,6 @@ private val ACTIVE_MESH_NAME_MAX_WIDTH = 160.dp
  * own.  A document name is user data, rendered verbatim (never localized) - and capped at
  * [ACTIVE_MESH_NAME_MAX_WIDTH] with an ellipsis, since the header is one 28.dp line and an uncapped name
  * would wrap and clip.  The tooltip carries the name in full.
- *
- * アクティブメッシュ名。編集モードでのみ表示。名前はユーザーデータなので翻訳せずそのまま描画する。
  */
 @Composable
 internal fun ActiveMeshName() {
@@ -89,8 +84,6 @@ internal fun ActiveMeshName() {
  * no-ops a same-mode set, so re-clicking the lit segment records nothing.  Renders nothing outside Edit
  * mode, so the commands' outside-Edit self-guard is belt-and-braces here but load-bearing for the bare
  * 1 / 2 / 3 key bindings.
- *
- * 頂点・辺・面の選択モードボタン。点灯セグメントが現在のモード。各セグメントはコマンドを発行する。
  */
 @Composable
 internal fun MeshSelectModeButtons() {
@@ -131,8 +124,6 @@ internal fun MeshSelectModeButtons() {
  * The transform pivot selector (Blender's pivot point dropdown, the header face of the Period pie):
  * the chip shows the current pivot's name; each row dispatches its transform.pivot command, so the
  * pie, the palette, and this dropdown stay one behavior.
- *
- * 変形ピボットのドロップダウン（Period パイのヘッダ版）。各行は transform.pivot コマンドを発行する。
  */
 @Composable
 internal fun PivotModeDropdown() {
@@ -180,9 +171,6 @@ internal fun PivotModeDropdown() {
  * The three ride one Row so the strip treats them as an indivisible group: the falloff chip and the
  * connected-only toggle exist only while the enable toggle is lit, so collapsing the toggle away while
  * leaving them behind would be incoherent.  Renders nothing outside Edit mode.
- *
- * プロポーショナル編集のヘッダ操作。トグルと、有効時のみ表示される減衰ドロップダウンおよび
- * 連結のみトグル。3 つで 1 組として扱う。
  */
 @Composable
 internal fun ProportionalEditControls() {
