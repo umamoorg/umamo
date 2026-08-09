@@ -54,12 +54,15 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
@@ -84,6 +87,7 @@ import org.umamo.ui.kit.InlineRenameField
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
+import org.umamo.ui.kit.button.IconSlot
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
@@ -975,6 +979,10 @@ private fun OutlinerRowBody(
  * triangle, the whole slot toggling expansion. Always occupies its width even when [visible] is false,
  * so leaf and parent rows align.
  *
+ * The accessible name is the action a click performs, because the row's own name never says whether the
+ * node is open - the chevron is the only place that state is exposed. It carries no tooltip for the
+ * matching reason [org.umamo.ui.kit.DisclosureChevron] carries none: the row label sits right beside it.
+ *
  * @param Boolean visible Whether to draw the chevron (false for a childless node).
  * @param Boolean expanded Whether the node is expanded.
  * @param Function onToggle Toggle callback.
@@ -986,17 +994,20 @@ private fun ChevronSlot(visible: Boolean, expanded: Boolean, onToggle: () -> Uni
 	// Consume the press so the row's whole-row selection handler skips it (the chevron only toggles).
 	val slot =
 		if (visible) {
-			base.pointerInput(Unit) {
-				awaitPointerEventScope {
-					while (true) {
-						val event = awaitPointerEvent()
-						if (event.type == PointerEventType.Press) {
-							event.changes.forEach { change -> change.consume() }
-							onToggle()
+			val toggleLabel = stringResource(if (expanded) Res.string.common_collapse else Res.string.common_expand)
+			base
+				.pointerInput(Unit) {
+					awaitPointerEventScope {
+						while (true) {
+							val event = awaitPointerEvent()
+							if (event.type == PointerEventType.Press) {
+								event.changes.forEach { change -> change.consume() }
+								onToggle()
+							}
 						}
 					}
 				}
-			}
+				.semantics { contentDescription = toggleLabel }
 		} else {
 			base
 		}
@@ -1063,6 +1074,10 @@ private fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean) {
  * (Blender parity). The slot consumes its own press so the whole-row selection handler skips it,
  * mirroring the chevron.
  *
+ * Unlike the chevron this one does take a tooltip: the eye is genuinely icon-only, and nothing else in the
+ * row says what it does. It reuses the context menu's own label so the two routes to the same edit read
+ * identically.
+ *
  * @param Boolean hidden Whether the row is dimmed (hidden or sketch).
  * @param Color tint The indicator color.
  * @param Function onToggle Flips the visibility; the argument reports whether Shift was held (subtree).
@@ -1072,29 +1087,28 @@ private fun VisibilityIndicator(hidden: Boolean, tint: Color, onToggle: (shiftHe
 	/* pointerInput(Unit) never re-captures its closures, so route through rememberUpdatedState to keep the
 	   long-lived loop pointed at the latest callback (the row body's own convention). */
 	val currentOnToggle by rememberUpdatedState(onToggle)
-	Box(
-		modifier =
-			Modifier
-				.size(RESTRICTION_SLOT_WIDTH)
-				// Consume the press so the row's whole-row selection handler skips it (the eye only toggles
-				// visibility), mirroring the chevron's own consume.
-				.pointerInput(Unit) {
-					awaitPointerEventScope {
-						while (true) {
-							val event = awaitPointerEvent()
-							if (event.type == PointerEventType.Press) {
-								event.changes.forEach { change -> change.consume() }
-								currentOnToggle(event.keyboardModifiers.isShiftPressed)
-							}
-						}
+	// Consume the press so the row's whole-row selection handler skips it (the eye only toggles visibility),
+	// mirroring the chevron's own consume.
+	val toggleGesture =
+		Modifier.pointerInput(Unit) {
+			awaitPointerEventScope {
+				while (true) {
+					val event = awaitPointerEvent()
+					if (event.type == PointerEventType.Press) {
+						event.changes.forEach { change -> change.consume() }
+						currentOnToggle(event.keyboardModifiers.isShiftPressed)
 					}
-				},
-		contentAlignment = Alignment.Center,
-	) {
-		Canvas(modifier = Modifier.size(16.dp)) {
-			drawIcon(if (hidden) LocalUmamoIcons.eyeHidden else LocalUmamoIcons.eyeVisible, tint)
+				}
+			}
 		}
-	}
+	IconSlot(
+		icon = if (hidden) LocalUmamoIcons.eyeHidden else LocalUmamoIcons.eyeVisible,
+		contentDescription = stringResource(Res.string.outliner_menu_visibility),
+		tint = tint,
+		modifier = toggleGesture,
+		slotSize = DpSize(RESTRICTION_SLOT_WIDTH, RESTRICTION_SLOT_WIDTH),
+		glyphSize = 16.dp,
+	)
 }
 
 /**
@@ -1103,6 +1117,8 @@ private fun VisibilityIndicator(hidden: Boolean, tint: Color, onToggle: (shiftHe
  * parity). An unselectable entity shows the struck-through pointer; a selectable one the plain pointer.
  * The slot consumes its own press so the whole-row selection handler skips it, mirroring the chevron and
  * the eye.
+ *
+ * Labelled and tooltipped from the context menu's own string, for the reason [VisibilityIndicator] is.
  *
  * @param Boolean selectable Whether the entity is viewport-selectable (plain vs struck-through pointer).
  * @param Color tint The base glyph color.
@@ -1113,27 +1129,25 @@ private fun SelectableIndicator(selectable: Boolean, tint: Color, onToggle: (shi
 	/* pointerInput(Unit) never re-captures its closures, so route through rememberUpdatedState to keep the
 	   long-lived loop pointed at the latest callback (the row body's own convention). */
 	val currentOnToggle by rememberUpdatedState(onToggle)
-	Box(
+	IconSlot(
+		icon = if (selectable) LocalUmamoIcons.selectable else LocalUmamoIcons.unselectable,
+		contentDescription = stringResource(Res.string.outliner_menu_selectable),
+		tint = tint,
 		modifier =
-			Modifier
-				.size(RESTRICTION_SLOT_WIDTH)
-				.pointerInput(Unit) {
-					awaitPointerEventScope {
-						while (true) {
-							val event = awaitPointerEvent()
-							if (event.type == PointerEventType.Press) {
-								event.changes.forEach { change -> change.consume() }
-								currentOnToggle(event.keyboardModifiers.isShiftPressed)
-							}
+			Modifier.pointerInput(Unit) {
+				awaitPointerEventScope {
+					while (true) {
+						val event = awaitPointerEvent()
+						if (event.type == PointerEventType.Press) {
+							event.changes.forEach { change -> change.consume() }
+							currentOnToggle(event.keyboardModifiers.isShiftPressed)
 						}
 					}
-				},
-		contentAlignment = Alignment.Center,
-	) {
-		Canvas(modifier = Modifier.size(16.dp)) {
-			drawIcon(if (selectable) LocalUmamoIcons.selectable else LocalUmamoIcons.unselectable, tint)
-		}
-	}
+				}
+			},
+		slotSize = DpSize(RESTRICTION_SLOT_WIDTH, RESTRICTION_SLOT_WIDTH),
+		glyphSize = 16.dp,
+	)
 }
 
 /**

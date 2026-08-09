@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.AtPointPositionProvider
+import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.SCROLLBAR_CORNER_RADIUS
@@ -69,7 +70,6 @@ import org.umamo.ui.kit.contextMenuGesture
 import org.umamo.ui.kit.roundToDecimals
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
-import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawCrosshairGuides
@@ -638,7 +638,8 @@ private fun TrackRowLabel(
 }
 
 /**
- * The expand / collapse chevron, reusing the same right / down pair the outliner and parameter groups use.
+ * The expand / collapse chevron, sharing the kit's [DisclosureChevron] with the outliner and parameter
+ * groups so the art and the accessible label stay in one place.
  *
  * @param Boolean expanded Whether the row's children are shown.
  * @param Function onClick Invoked on click.
@@ -646,25 +647,21 @@ private fun TrackRowLabel(
 @Composable
 private fun ExpandChevron(expanded: Boolean, onClick: () -> Unit) {
 	val colors = LocalUmamoColors.current
-	val icons = LocalUmamoIcons
-	Box(
-		modifier =
-			Modifier
-				.size(SLOT_WIDTH)
-				// NOT focusable: a row can be disposed by the very edit its chevron is next to, and a
-				// disposed focus owner leaves Compose with none, killing every keyboard shortcut.
-				.pointerInput(onClick) {
-					awaitEachGesture {
-						awaitFirstDown(requireUnconsumed = false).consume()
-						onClick()
-					}
-				},
-		contentAlignment = Alignment.Center,
-	) {
-		Canvas(modifier = Modifier.size(SLOT_WIDTH)) {
-			drawIcon(if (expanded) icons.chevronDown else icons.chevronRight, colors.textMuted)
+	// NOT focusable: a row can be disposed by the very edit its chevron is next to, and a disposed focus
+	// owner leaves Compose with none, killing every keyboard shortcut.
+	val toggleGesture =
+		Modifier.pointerInput(onClick) {
+			awaitEachGesture {
+				awaitFirstDown(requireUnconsumed = false).consume()
+				onClick()
+			}
 		}
-	}
+	DisclosureChevron(
+		expanded = expanded,
+		tint = colors.textMuted,
+		modifier = toggleGesture,
+		glyphSize = SLOT_WIDTH,
+	)
 }
 
 /**

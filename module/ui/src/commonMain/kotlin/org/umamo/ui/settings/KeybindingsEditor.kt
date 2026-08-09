@@ -58,6 +58,7 @@ import org.umamo.ui.action.unbindCommand
 import org.umamo.ui.kit.ConfirmDialog
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.Button
 import org.umamo.ui.rememberStringSetting
@@ -322,23 +323,27 @@ private fun ClearButton(enabled: Boolean, onClick: () -> Unit) {
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val description = stringResource(Res.string.settings_keybindings_clear)
-	Box(
-		modifier =
-			Modifier
-				.size(20.dp)
-				.then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier)
-				.semantics { contentDescription = description },
-		contentAlignment = Alignment.Center,
-	) {
-		Text(
-			text = "✕",
-			style = typography.labelMedium,
-			color =
-				when {
-					!enabled -> colors.textDisabled
-					hovered -> colors.text
-					else -> colors.textMuted
-				},
-		)
+	// The label doubles as the hover text, matching the kit's icon controls: the row names the command, not
+	// what the ✕ beside it does.
+	Tooltip(text = description) {
+		Box(
+			modifier =
+				Modifier
+					.size(20.dp)
+					.then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick) else Modifier)
+					.semantics { contentDescription = description },
+			contentAlignment = Alignment.Center,
+		) {
+			Text(
+				text = "✕",
+				style = typography.labelMedium,
+				color =
+					when {
+						!enabled -> colors.textDisabled
+						hovered -> colors.text
+						else -> colors.textMuted
+					},
+			)
+		}
 	}
 }

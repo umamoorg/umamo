@@ -64,9 +64,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 
 ## UV Editor
 * Bugs/Improvements
-	* Rip and Vertex Slide are activating the 2D viewport mesh rip/slide.  Needs to be implemented for UV and then properly gated.
+	* Rip and Vertex Slide could be implemented for UV.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
 	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
+		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
@@ -103,7 +104,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
-* Anywhere that we are using semantics/contentDescription we need to have a Tooltip as well.
 
 ## DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)

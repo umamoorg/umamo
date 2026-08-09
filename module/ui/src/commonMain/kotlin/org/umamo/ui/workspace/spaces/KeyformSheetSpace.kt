@@ -1,6 +1,5 @@
 package org.umamo.ui.workspace.spaces
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -58,6 +56,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.Text
@@ -73,7 +72,6 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
-import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.tracks.TRACK_MARK_RADIUS
 import org.umamo.ui.tracks.TrackAxis
@@ -456,9 +454,7 @@ private fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Unit
 				.padding(horizontal = 6.dp, vertical = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		Canvas(modifier = Modifier.size(14.dp)) {
-			drawIcon(if (collapsed) LocalUmamoIcons.chevronRight else LocalUmamoIcons.chevronDown, colors.textMuted)
-		}
+		DisclosureChevron(expanded = !collapsed, tint = colors.textMuted, glyphSize = 14.dp)
 		Spacer(modifier = Modifier.width(4.dp))
 		Text(text = name, style = LocalUmamoTypography.current.labelMedium, color = colors.textMuted)
 	}

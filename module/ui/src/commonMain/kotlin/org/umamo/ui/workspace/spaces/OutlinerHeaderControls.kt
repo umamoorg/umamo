@@ -83,7 +83,7 @@ internal fun RowScope.OutlinerHeaderControls(scope: AreaScope) {
 @Composable
 private fun FilterDropdownButton(viewState: OutlinerViewState) {
 	FilterPopupChip(
-		contentDescription = stringResource(Res.string.outliner_filters),
+		contentDescription = stringResource(Res.string.common_filters),
 		icon = if (viewState.isUnfiltered) LocalUmamoIcons.filterUnfiltered else LocalUmamoIcons.filterFiltered,
 	) {
 		FilterSectionLabel(stringResource(Res.string.outliner_restriction_toggles))
@@ -107,7 +107,7 @@ private fun FilterDropdownButton(viewState: OutlinerViewState) {
 				),
 			modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
 		)
-		FilterSectionLabel(stringResource(Res.string.outliner_filters))
+		FilterSectionLabel(stringResource(Res.string.common_filters))
 		Checkbox(
 			checked = viewState.showParts,
 			onCheckedChange = { checked -> viewState.showParts = checked },

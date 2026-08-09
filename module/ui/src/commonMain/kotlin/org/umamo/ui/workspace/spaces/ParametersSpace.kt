@@ -73,6 +73,7 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.ui.kit.ContextMenuArea
+import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.InlineRenameField
 import org.umamo.ui.kit.MenuItem
@@ -83,6 +84,7 @@ import org.umamo.ui.kit.SliderKeyMark
 import org.umamo.ui.kit.SliderKeyShape
 import org.umamo.ui.kit.StackPosition
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
@@ -786,7 +788,8 @@ private fun ParameterIsland(
  * @param Function  onCommitGesture  Called on slider release / tap to commit the gesture as one step.
  * @param Function  onCommitValue    Called by the numeric field / reset with a discrete value to commit.
  * @param UmamoIcon linkIcon         The trailing link glyph, or null when the row offers no link edit.
- * @param String    linkContentDescription The localized accessible label for the link glyph.
+ * @param String    linkContentDescription The localized accessible label for the link glyph, read only
+ *   when [linkIcon] shows one.  Non-null so the glyph can never appear unnamed and untooltipped.
  * @param Function  onLinkClick      Called when the link glyph is clicked, or null when hidden.
  */
 @Composable
@@ -806,7 +809,7 @@ private fun ParameterSlider(
 	onCommitGesture: () -> Unit,
 	onCommitValue: (Float) -> Unit,
 	linkIcon: UmamoIcon?,
-	linkContentDescription: String?,
+	linkContentDescription: String,
 	onLinkClick: (() -> Unit)?,
 ) {
 	ParameterValueRow(
@@ -872,7 +875,8 @@ private fun ParameterSlider(
  * @param Function  onCommitValue    Called by an axis field / reset with (id, value) to commit one step.
  * @param UmamoIcon linkIcon         The unlink glyph shown on the horizontal (upper) axis row - the
  *                                   link "points at the parameter below" so it sits on the upper member.
- * @param String    linkContentDescription The localized accessible label for the unlink glyph.
+ * @param String    linkContentDescription The localized accessible label for the unlink glyph, read only
+ *   on the horizontal row (the vertical one shows no glyph).
  * @param Function  onLinkClick      Called when the unlink glyph is clicked, or null when hidden.
  */
 @Composable
@@ -893,7 +897,7 @@ private fun ParameterPad2D(
 	onCommitGesture: (Set<ParameterId>) -> Unit,
 	onCommitValue: (ParameterId, Float) -> Unit,
 	linkIcon: UmamoIcon?,
-	linkContentDescription: String?,
+	linkContentDescription: String,
 	onLinkClick: (() -> Unit)?,
 ) {
 	val colors = LocalUmamoColors.current
@@ -905,12 +909,6 @@ private fun ParameterPad2D(
 	// chevron can fillMaxHeight to span both names top-to-bottom - a tall, wide hit target rather than a
 	// 12.dp dot pinned to the first row.
 	Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
-		val chevron =
-			if (rangeOpen) {
-				LocalUmamoIcons.chevronDown
-			} else {
-				LocalUmamoIcons.chevronRight
-			}
 		Box(
 			modifier =
 				Modifier
@@ -920,9 +918,9 @@ private fun ParameterPad2D(
 					.clickable(onClick = onToggleRange),
 			contentAlignment = Alignment.Center,
 		) {
-			Canvas(modifier = Modifier.size(12.dp).semantics { contentDescription = rangeToggleLabel }) {
-				drawIcon(chevron, colors.text)
-			}
+			// Named for what it discloses rather than the generic expand / collapse, and deliberately without a
+			// tooltip: the axis names it opens sit immediately to its right.
+			DisclosureChevron(expanded = rangeOpen, tint = colors.text, contentDescription = rangeToggleLabel)
 		}
 		// The two axis rows butt into one stacked field group (First / Last, hairline seam between) so a linked
 		// pair reads as a single joined control, matching the Canvas dimension stack.
@@ -971,7 +969,7 @@ private fun ParameterPad2D(
 							onCancelRename = onCancelRename,
 							onCommitValue = { newY -> onCommitValue(vertical.id, newY) },
 							linkIcon = null,
-							linkContentDescription = null,
+							linkContentDescription = linkContentDescription,
 							onLinkClick = null,
 							stackPosition = position,
 						)
@@ -1018,7 +1016,8 @@ private fun ParameterPad2D(
  * @param Function onCancelRename   Called when the inline rename is abandoned.
  * @param Function onCommitValue    Called with the new value (a discrete edit committed as one step).
  * @param UmamoIcon linkIcon        The trailing link / unlink glyph, or null for an empty slot.
- * @param String   linkContentDescription The localized accessible label for the link glyph.
+ * @param String   linkContentDescription The localized accessible label for the link glyph, read only when
+ *   [linkIcon] and [onLinkClick] are both present.
  * @param Function onLinkClick      Called when the link glyph is clicked, or null when hidden.
  * @param StackPosition stackPosition This field's position in a vertical stack: a linked pair's two axis
  *                                  rows butt into one stacked group (First / Last), while a standalone
@@ -1042,7 +1041,7 @@ private fun ParameterValueRow(
 	onCancelRename: () -> Unit,
 	onCommitValue: (Float) -> Unit,
 	linkIcon: UmamoIcon?,
-	linkContentDescription: String?,
+	linkContentDescription: String,
 	onLinkClick: (() -> Unit)?,
 	stackPosition: StackPosition = StackPosition.Single,
 ) {
@@ -1061,17 +1060,8 @@ private fun ParameterValueRow(
 		) {
 			if (showLeadingSlot) {
 				if (showRangeToggle) {
-					val chevron =
-						if (rangeOpen) {
-							LocalUmamoIcons.chevronDown
-						} else {
-							LocalUmamoIcons.chevronRight
-						}
-					Canvas(
-						modifier = Modifier.size(12.dp).semantics { contentDescription = rangeToggleLabel },
-					) {
-						drawIcon(chevron, colors.text)
-					}
+					// Named for what it discloses, tooltip-free: the parameter name sits immediately to its right.
+					DisclosureChevron(expanded = rangeOpen, tint = colors.text, contentDescription = rangeToggleLabel)
 				} else {
 					Spacer(modifier = Modifier.width(12.dp))
 				}
@@ -1119,7 +1109,7 @@ private fun ParameterValueRow(
 				IconButton(
 					icon = linkIcon,
 					onClick = onLinkClick,
-					contentDescription = linkContentDescription ?: "",
+					contentDescription = linkContentDescription,
 					size = DpSize(20.dp, 20.dp),
 					appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 					suppressFocus = true,
@@ -1254,71 +1244,76 @@ private fun ParameterGripHandle(
 	// upstream recomposed - which a drag, by moving the drop indicator, does constantly.
 	val latestSelect by rememberUpdatedState(onSelect)
 	val latestDrop by rememberUpdatedState(onDrop)
-	Box(
-		modifier =
-			Modifier
-				.size(width = 18.dp, height = 24.dp)
-				// A hand cursor on hover signals the row is grabbable here (desktop only; touch has no hover).
-				.pointerHoverIcon(PointerIcon.Hand)
-				.onGloballyPositioned { coordinates -> gripCoordinates.coordinates = coordinates }
-				// ONE handler resolving tap versus drag off a single stream.  A separate tap detector beside
-				// detectDragGestures loses the race - the drag detector consumes the press first - which is
-				// the same trap the keyform sheet's lanes fell into.
-				.pointerInput(rowKey) {
-					awaitEachGesture {
-						val down = awaitFirstDown(requireUnconsumed = false)
-						val origin = gripCoordinates.coordinates?.boundsInWindow()
-						var dragging = false
-						// Only a REAL release completes the gesture.  Everything else - the coroutine
-						// cancelled mid-drag (the row scrolled out of composition), the pointer id lost, a
-						// change consumed by another handler - must cancel a live drag rather than drop it,
-						// and must never turn a press into a click.  The finally is what runs the cancel on
-						// cancellation, which awaitEachGesture itself gives no hook for.
-						var released = false
-						try {
-							while (true) {
-								val event = awaitPointerEvent()
-								val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
-								if (change.isConsumed) {
-									break
+	// Tooltipped as well as named, unlike the disclosure chevrons: a grip's two jobs (drag to reorder, click
+	// to target the row) are not something the parameter name beside it conveys.  The wrapper only wraps -
+	// the drag's onGloballyPositioned stays on the fixed-size face, so grip coordinates are unchanged.
+	Tooltip(text = gripLabel) {
+		Box(
+			modifier =
+				Modifier
+					.size(width = 18.dp, height = 24.dp)
+					// A hand cursor on hover signals the row is grabbable here (desktop only; touch has no hover).
+					.pointerHoverIcon(PointerIcon.Hand)
+					.onGloballyPositioned { coordinates -> gripCoordinates.coordinates = coordinates }
+					// ONE handler resolving tap versus drag off a single stream.  A separate tap detector beside
+					// detectDragGestures loses the race - the drag detector consumes the press first - which is
+					// the same trap the keyform sheet's lanes fell into.
+					.pointerInput(rowKey) {
+						awaitEachGesture {
+							val down = awaitFirstDown(requireUnconsumed = false)
+							val origin = gripCoordinates.coordinates?.boundsInWindow()
+							var dragging = false
+							// Only a REAL release completes the gesture.  Everything else - the coroutine
+							// cancelled mid-drag (the row scrolled out of composition), the pointer id lost, a
+							// change consumed by another handler - must cancel a live drag rather than drop it,
+							// and must never turn a press into a click.  The finally is what runs the cancel on
+							// cancellation, which awaitEachGesture itself gives no hook for.
+							var released = false
+							try {
+								while (true) {
+									val event = awaitPointerEvent()
+									val change = event.changes.firstOrNull { candidate -> candidate.id == down.id } ?: break
+									if (change.isConsumed) {
+										break
+									}
+									if (!change.pressed) {
+										released = true
+										break
+									}
+									if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
+										dragging = true
+										dragController.start(
+											rowKey,
+											subject,
+											(origin?.left ?: 0f) + down.position.x,
+											(origin?.top ?: 0f) + down.position.y,
+										)
+									}
+									if (dragging) {
+										dragController.drag(
+											(origin?.left ?: 0f) + change.position.x,
+											(origin?.top ?: 0f) + change.position.y,
+										)
+										change.consume()
+									}
 								}
-								if (!change.pressed) {
-									released = true
-									break
+							} finally {
+								when {
+									dragging && released -> latestDrop()
+									dragging -> dragController.end()
+									released -> latestSelect()
+									// A lost pointer id or a consumed press ends the gesture with no action.
+									else -> Unit
 								}
-								if (!dragging && (change.position - down.position).getDistance() > touchSlop) {
-									dragging = true
-									dragController.start(
-										rowKey,
-										subject,
-										(origin?.left ?: 0f) + down.position.x,
-										(origin?.top ?: 0f) + down.position.y,
-									)
-								}
-								if (dragging) {
-									dragController.drag(
-										(origin?.left ?: 0f) + change.position.x,
-										(origin?.top ?: 0f) + change.position.y,
-									)
-									change.consume()
-								}
-							}
-						} finally {
-							when {
-								dragging && released -> latestDrop()
-								dragging -> dragController.end()
-								released -> latestSelect()
-								// A lost pointer id or a consumed press ends the gesture with no action.
-								else -> Unit
 							}
 						}
 					}
-				}
-				.semantics { contentDescription = gripLabel },
-		contentAlignment = Alignment.Center,
-	) {
-		Canvas(modifier = Modifier.size(14.dp)) {
-			drawIcon(LocalUmamoIcons.gripVertical, colors.textMuted)
+					.semantics { contentDescription = gripLabel },
+			contentAlignment = Alignment.Center,
+		) {
+			Canvas(modifier = Modifier.size(14.dp)) {
+				drawIcon(LocalUmamoIcons.gripVertical, colors.textMuted)
+			}
 		}
 	}
 }
@@ -1465,15 +1460,7 @@ private fun ParameterGroupHeaderBody(
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
-		val chevron =
-			if (expanded) {
-				LocalUmamoIcons.chevronDown
-			} else {
-				LocalUmamoIcons.chevronRight
-			}
-		Canvas(modifier = Modifier.size(10.dp)) {
-			drawIcon(chevron, colors.text)
-		}
+		DisclosureChevron(expanded = expanded, tint = colors.text, glyphSize = 10.dp)
 		Spacer(modifier = Modifier.width(5.dp))
 		Text(text = name, style = LocalUmamoTypography.current.labelMedium)
 	}
