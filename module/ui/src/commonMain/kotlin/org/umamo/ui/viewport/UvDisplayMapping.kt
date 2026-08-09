@@ -13,8 +13,6 @@ import org.umamo.runtime.model.Drawable
  * their true aspect.  The mapping is affine and involutive per axis, so the shared transform
  * operators, proportional falloffs, and element queries work over display arrays unchanged; edits
  * convert back per touched vertex on commit.
- *
- * UV エディタの表示座標系。テクセル単位・Y 上向き（v=0 は画像の最上段なので反転する）。
  */
 
 /**

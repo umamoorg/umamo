@@ -25,7 +25,5 @@ fun interface ViewportHost {
 /**
  * The active [ViewportHost], or null when no GL viewport is available (e.g. before a model is open, or
  * on a platform without the viewport wired). A Viewport2D area shows a placeholder when this is null.
- *
- * 有効な ViewportHost。null のときビューポートエリアはプレースホルダを表示する。
  */
 val LocalViewportHost = staticCompositionLocalOf<ViewportHost?> { null }

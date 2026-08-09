@@ -11,6 +11,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -47,13 +48,12 @@ import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
-import org.umamo.ui.viewport.ActiveMeshInfoLabel
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvGizmoOverlay
+import org.umamo.ui.viewport.UvHudOverlay
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
-import org.umamo.ui.viewport.ViewportZoomBadge
 import org.umamo.ui.viewport.atlasPageIndexFor
 import org.umamo.ui.viewport.buildHighlightSets
 import org.umamo.ui.viewport.drawMeshWireframe
@@ -82,9 +82,6 @@ import org.umamo.ui.workspace.LocalAreaCameraHub
  *
  * The working space is the display mapping of UvDisplayMapping.kt: texel units with Y up (v = 0 is the
  * image's TOP row, so the axis flips - see that file's header).
- *
- * UV エディタ空間。アクティブな描画メッシュのアトラスページを 2D ビューポートと同じ GL エンジンで描画し、
- * その上に UV ワイヤーフレームを重ねる。カメラはサービスが保持する。
  *
  * @param AreaScope scope The hosting area context (its id keys the render registration and gesture latches).
  */
@@ -176,6 +173,13 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	}
 	val image by imageFlow.collectAsState()
 	val liveCamera by cameraFlow.collectAsState()
+	// The UV editor's proportional influence radius, in display (texel) units.  The session's
+	// radiusWorld is scaled for the puppet canvas and means nothing on an atlas page, so only the
+	// falloff curve and Connected Only are shared; the radius seeds from the page size on first use
+	// and survives across gestures (the circle-select remembered-radius pattern).  Owned here, by the
+	// overlay stack's host, because two sibling overlays need it: UvGizmoOverlay's gesture machinery
+	// seeds and resizes it, UvHudOverlay's status badge reads it.
+	val proportionalRadiusDisplay = remember(scope.areaId) { mutableStateOf<Float?>(null) }
 
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
@@ -337,6 +341,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						camera = image?.camera,
 						widthPx = widthPx,
 						heightPx = heightPx,
+						proportionalRadiusDisplayState = proportionalRadiusDisplay,
 					)
 				}
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
@@ -350,13 +355,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					widthPx = widthPx,
 					heightPx = heightPx,
 				)
-				// The shared HUD chips, draw-only (no pointer input, so nothing below loses a gesture):
-				// the top-left active-mesh label and the bottom-left zoom readout.  The label uses the
-				// SAME mode-dependent resolution as the 2D viewport - deliberately not this space's
-				// first-meshed page fallback - so the two surfaces annotate the same mesh and the chip
-				// stays absent while nothing is selected.
-				ActiveMeshInfoLabel(session = session)
-				ViewportZoomBadge(camera = liveCamera)
+				// The HUD layer draws topmost, informational chrome only (draw-only, no pointer input, so
+				// nothing below loses a gesture): the modal-op status badge, the active-mesh info chip,
+				// and the zoom readout.  The chip uses the SAME mode-dependent resolution as the 2D
+				// viewport - deliberately not this space's first-meshed page fallback - so the two
+				// surfaces annotate the same mesh and the chip stays absent while nothing is selected.
+				UvHudOverlay(
+					areaId = scope.areaId,
+					session = session,
+					liveCamera = liveCamera,
+					proportionalRadiusDisplay = proportionalRadiusDisplay.value,
+				)
 			}
 		}
 	}

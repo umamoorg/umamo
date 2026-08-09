@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -45,7 +45,6 @@ import org.umamo.ui.theme.drawRubberBand
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import kotlin.math.pow
-import kotlin.math.roundToInt
 
 /** The smallest useful proportional influence radius in display (texel) units. */
 private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
@@ -89,9 +88,6 @@ private class UvGesture(
  * capture effect and pointer drive key on the UV latch's own areaId, bystander areas stay inert, and
  * teardown resyncs the raster only when this overlay owned a gesture.
  *
- * UV エディタのギズモ重畳。要素選択とモーダル G / S / R をテクスチャ座標上で駆動する。プレビューは
- * レンダ同期ハンドル経由でパペットレンダラへ流れ、確定は 1 つの取り消し段になる。
- *
  * @param String areaId The UV editor area this overlay covers.
  * @param EditorSession session The session owning the selection and the UV operator latch.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
@@ -100,6 +96,9 @@ private class UvGesture(
  * @param ViewportCamera? camera The area camera; null hides the overlay (no fit has landed yet).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
+ * @param MutableState<Float?> proportionalRadiusDisplayState The host-owned proportional radius in
+ *   display (texel) units: this overlay's gesture machinery seeds and resizes it, and the host's
+ *   UvHudOverlay badge reads it - sibling overlays share state only through the session or the host.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
@@ -112,6 +111,7 @@ internal fun UvGizmoOverlay(
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
+	proportionalRadiusDisplayState: MutableState<Float?>,
 	modifier: Modifier = Modifier,
 ) {
 	val meshSelection by session.meshSelection.collectAsState()
@@ -164,11 +164,9 @@ internal fun UvGizmoOverlay(
 	// transform capture + frozen page dimensions); preview holds each moving mesh's display-space coordinates.
 	val gesture = remember(areaId) { ModalGestureState<UvGesture>() }
 
-	// The UV editor's own proportional influence radius, in display (texel) units.  The session's
-	// radiusWorld is scaled for the puppet canvas and means nothing on an atlas page, so only the
-	// falloff curve and Connected Only are shared; the radius seeds from the page size on first use
-	// and survives across gestures (the circle-select remembered-radius pattern).
-	var proportionalRadiusDisplay by remember(areaId) { mutableStateOf<Float?>(null) }
+	// The UV editor's own proportional influence radius, in display (texel) units, delegating to the
+	// host's state so the sibling UvHudOverlay badge reads what the gesture machinery writes here.
+	var proportionalRadiusDisplay by proportionalRadiusDisplayState
 
 	/**
 	 * Resolves the effective proportional radius, seeding it from the current page on first use.
@@ -583,19 +581,6 @@ internal fun UvGizmoOverlay(
 					proportionalRadiusPx = ringRadiusPx,
 				)
 			}
-		}
-
-		// The modal status badge (top center), the shared HUD piece: only the initiating area shows
-		// it, and the proportional segment reads this space's display-unit (texel) radius.
-		val badgeOperator = activeOperator?.takeIf { operator -> operator.areaId == areaId }
-		if (badgeOperator != null) {
-			val badgeRadius = if (proportionalEdit != null) proportionalRadiusDisplay?.roundToInt() else null
-			ModalOperatorBadge(
-				operatorKind = badgeOperator.kind,
-				axisConstraint = axisConstraint,
-				proportionalState = if (badgeRadius != null) proportionalEdit else null,
-				proportionalRadius = badgeRadius,
-			)
 		}
 	}
 }

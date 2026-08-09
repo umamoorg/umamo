@@ -111,10 +111,55 @@ fun ViewportHudOverlay(
 		)
 	}
 
-	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout, both
-	// shared with the UV editor's overlay stack (which mounts them directly, like ModalOperatorBadge).
+	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The
+	// UV editor gets the same chips through its own assembly, UvHudOverlay below.
 	ActiveMeshInfoLabel(session = session)
 	ViewportZoomBadge(camera = liveCamera)
+}
+
+/**
+ * The UV editor's HUD layer, the sibling assembly of [ViewportHudOverlay]: the modal-operator status
+ * badge (gated on the UV operator latch), the top-left active-mesh info chip, and the bottom-left zoom
+ * readout.  Informational chrome only - the UV cursor and every transform affordance are gesture
+ * controls and stay in UvGizmoOverlay.  Draw-only: it installs no pointer input, so the host mounts it
+ * last and nothing below loses a gesture.
+ *
+ * The badge's proportional segment reads the UV editor's display-unit (texel) radius, not the
+ * session's world radius - the host owns that state and the gizmo overlay's gesture machinery writes
+ * it, so it is passed in rather than collected here.
+ *
+ * @param String areaId This UV editor's area id (gates the badge to the initiating area).
+ * @param EditorSession session The session whose operator state and selections this HUD surfaces.
+ * @param ViewportCamera? liveCamera The area's live service camera feeding the zoom readout; null before the first fit.
+ * @param Float? proportionalRadiusDisplay The proportional influence radius in display (texel) units, or null when unseeded.
+ * @param Modifier modifier The layout modifier (the host passes a stack fill).
+ */
+@Composable
+internal fun UvHudOverlay(
+	areaId: String,
+	session: EditorSession,
+	liveCamera: ViewportCamera?,
+	proportionalRadiusDisplay: Float?,
+	modifier: Modifier = Modifier,
+) {
+	val uvOperator by session.activeUvOperator.collectAsState()
+	val axisConstraint by session.axisConstraint.collectAsState()
+	val proportionalEdit by session.proportionalEdit.collectAsState()
+	// The modal status badge (top center): only the INITIATING area shows it - the latch itself names
+	// the area, so the gate is reactive.
+	val badgeOperator = uvOperator?.takeIf { operator -> operator.areaId == areaId }
+	if (badgeOperator != null) {
+		val badgeRadius = if (proportionalEdit != null) proportionalRadiusDisplay?.roundToInt() else null
+		ModalOperatorBadge(
+			operatorKind = badgeOperator.kind,
+			axisConstraint = axisConstraint,
+			proportionalState = if (badgeRadius != null) proportionalEdit else null,
+			proportionalRadius = badgeRadius,
+			modifier = modifier,
+		)
+	}
+	ActiveMeshInfoLabel(session = session, modifier = modifier)
+	ViewportZoomBadge(camera = liveCamera, modifier = modifier)
 }
 
 /** How wide each active-mesh info row may get before it ellipsizes, so one long name cannot cover the art. */
@@ -134,7 +179,7 @@ private val ACTIVE_MESH_INFO_MAX_WIDTH = 260.dp
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
-internal fun ActiveMeshInfoLabel(
+private fun ActiveMeshInfoLabel(
 	session: EditorSession,
 	modifier: Modifier = Modifier,
 ) {
@@ -196,7 +241,7 @@ internal fun ActiveMeshInfoLabel(
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
-internal fun ViewportZoomBadge(
+private fun ViewportZoomBadge(
 	camera: ViewportCamera?,
 	modifier: Modifier = Modifier,
 ) {
@@ -243,8 +288,9 @@ internal fun DrawScope.drawCursorMarker(center: Offset, tint: Color) {
 /**
  * The modal status badge (top center): the operator's name, the axis lock, and optionally the
  * proportional-editing segment - so the gesture's state reads without glancing at the status bar.
- * Shared by the viewport HUD and the UV editor's overlay; the caller decides whether the proportional
- * segment applies and in which units the radius reads (world px in the viewport, texels in UV).
+ * Shared by the two HUD assemblies, [ViewportHudOverlay] and [UvHudOverlay]; the assembly decides
+ * whether the proportional segment applies and in which units the radius reads (world px in the
+ * viewport, texels in UV).
  *
  * @param MeshOperatorKind operatorKind The live operator.
  * @param TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained.
@@ -253,7 +299,7 @@ internal fun DrawScope.drawCursorMarker(center: Offset, tint: Color) {
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
-internal fun ModalOperatorBadge(
+private fun ModalOperatorBadge(
 	operatorKind: MeshOperatorKind,
 	axisConstraint: TransformAxisConstraint?,
 	proportionalState: ProportionalEditState?,

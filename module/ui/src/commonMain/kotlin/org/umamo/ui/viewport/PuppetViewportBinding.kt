@@ -74,8 +74,6 @@ class PuppetViewportBinding(
  * The service is created through [serviceFactory], owned for the life of this composition (one document),
  * and disposed when it leaves; viewport areas register / resize / navigate against it by id.
  *
- * レンダサービスに支えられたビューポート。エリアごとにパン／ズームのカメラを持つ軽量な Image。
- *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
  * @param LiveParams liveParams The shared parameter hand-off.
