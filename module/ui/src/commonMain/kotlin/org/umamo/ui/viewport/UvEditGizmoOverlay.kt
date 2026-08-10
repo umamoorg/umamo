@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -453,10 +455,19 @@ internal fun UvEditGizmoOverlay(
 					},
 				),
 	) {
+		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw
+		// lambda sharing a layer, so the gesture chrome below (band, affordances, modal HUD) lives in
+		// a small layer of its own and the wireframes - the expensive pass - stay cached in this one.
+		// The chrome reads gesture.lastPointer, which updates on every pointer event (hover included),
+		// so its layer redraws per move; this layer re-records only when the geometry, the selection,
+		// or a live modal preview changes - and it composites OFFSCREEN, because a default layer
+		// retains a display list that every window repaint replays (re-stroking every edge), where the
+		// offscreen buffer rasterizes once per content change and blits per frame.
 		Canvas(
 			modifier =
 				Modifier
 					.fillMaxSize()
+					.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 					.pointerInput(areaId) {
 						awaitPointerEventScope {
 							while (true) {
@@ -531,7 +542,8 @@ internal fun UvEditGizmoOverlay(
 					size = IntSize(widthPx, heightPx),
 				)
 			}
-
+		}
+		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			drawRubberBand(marquee.boxStart, marquee.boxCurrent, overlayStyle)
 
 			// Armed select-tool affordances (Blender B / C), shared chrome with the viewport overlays.

@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,6 +42,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.eval.DrawableSpaceMapping
 import org.umamo.render.eval.drawableLocalPosed
 import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
@@ -304,13 +307,24 @@ fun ViewportEditGizmoOverlay(
 	// frame (a uniqueEdges plus a full buildDeformerWorlds per drawable) would make an all-vertex
 	// transform lag, unlike Object mode's transform, which caches.  A missing member falls the draw pass
 	// back to the session shape (a pathological transient, e.g. a hidden ancestor).
+	// The per-drawable reuse cache behind the frame-geometry derivation below: a modal drive's folded
+	// frame model replaces ONLY the moving meshes' drawables, so a bystander's posed world geometry
+	// carries over by drawable INSTANCE identity instead of re-posing every session mesh per rendered
+	// frame - the per-frame work during a drag is the moving meshes alone.  Keyed on liveGeometry so a
+	// committed model swap (new mappings / topology) drops every entry.
+	val frameGeometryReuse = remember(liveGeometry) { HashMap<DrawableId, Pair<Drawable, FrameMeshGeometry>>() }
 	val frameGeometryByDrawable =
 		remember(frameModel, liveGeometry) {
 			// One O(D) index of the frame's drawables, so the per-mesh lookups below are not an O(D^2) scan.
 			val frameDrawablesById = frameModel.drawables.associateBy { it.id }
 			liveGeometry.mapNotNull { liveEntry ->
 				val drawableId = liveEntry.drawableId
-				val frameMesh = frameDrawablesById[drawableId]?.mesh ?: return@mapNotNull null
+				val frameDrawable = frameDrawablesById[drawableId] ?: return@mapNotNull null
+				val frameMesh = frameDrawable.mesh ?: return@mapNotNull null
+				val reused = frameGeometryReuse[drawableId]
+				if (reused != null && reused.first === frameDrawable) {
+					return@mapNotNull drawableId to reused.second
+				}
 				// Topology is unchanged during a transform (indices shared by reference), so reuse the edge set;
 				// recompute only across a topology edit, where the frame briefly trails on the old indices.
 				val edges =
@@ -322,12 +336,14 @@ fun ViewportEditGizmoOverlay(
 				// The deformers do not move during a mesh drag, so liveEntry.mapping (built once from the session
 				// model) projects the frame's changed local positions correctly - no per-frame buildDeformerWorlds.
 				val frameDisplayed = drawableLocalPosed(frameModel, emptyMap(), drawableId) ?: frameMesh.positions
-				drawableId to
+				val frameGeometry =
 					FrameMeshGeometry(
 						indices = frameMesh.indices,
 						edges = edges,
 						worldPosed = liveEntry.mapping.localToWorld(frameDisplayed),
 					)
+				frameGeometryReuse[drawableId] = frameDrawable to frameGeometry
+				drawableId to frameGeometry
 			}.toMap()
 		}
 
@@ -709,10 +725,19 @@ fun ViewportEditGizmoOverlay(
 					},
 				),
 	) {
+		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw
+		// lambda sharing a layer, so the gesture chrome below (band, affordances, modal HUD) lives in
+		// a small layer of its own and the wireframes - the expensive pass - stay cached in this one.
+		// The chrome reads gesture.lastPointer, which updates on every pointer event (hover included),
+		// so its layer redraws per move; this layer re-records only when the frame geometry, the
+		// selection, or a live modal preview changes - and it composites OFFSCREEN, because a default
+		// layer retains a display list that every window repaint replays (re-stroking every edge),
+		// where the offscreen buffer rasterizes once per content change and blits per frame.
 		Canvas(
 			modifier =
 				Modifier
 					.fillMaxSize()
+					.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 					.pointerInput(areaId) {
 						awaitPointerEventScope {
 							while (true) {
@@ -790,7 +815,8 @@ fun ViewportEditGizmoOverlay(
 					size = IntSize(widthPx, heightPx),
 				)
 			}
-
+		}
+		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			// The rubber-band box (both plain and armed drags) shares the one selection-box style.
 			drawRubberBand(marquee.boxStart, marquee.boxCurrent, overlayStyle)
 

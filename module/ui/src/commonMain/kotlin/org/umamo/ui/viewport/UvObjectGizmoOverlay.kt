@@ -12,6 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
@@ -189,7 +191,18 @@ internal fun UvObjectGizmoOverlay(
 					}
 				},
 	) {
-		Canvas(modifier = Modifier.fillMaxSize()) {
+		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw
+		// lambda sharing a layer, so the per-move gesture chrome (the rubber band) lives in a small
+		// layer of its own and the island wireframes - the expensive pass - stay cached in theirs.
+		// The wireframe layer composites OFFSCREEN: a default layer retains a display list that every
+		// window repaint replays (re-stroking every edge), where the offscreen buffer rasterizes once
+		// per content change and blits per frame.
+		Canvas(
+			modifier =
+				Modifier.fillMaxSize().graphicsLayer {
+					compositingStrategy = CompositingStrategy.Offscreen
+				},
+		) {
 			val selectedIds =
 				objectSelection.targets
 					.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }
@@ -222,6 +235,8 @@ internal fun UvObjectGizmoOverlay(
 					objectOverlay = true,
 				)
 			}
+		}
+		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			drawRubberBand(marquee.boxStart, marquee.boxCurrent, overlayStyle)
 		}
 	}
