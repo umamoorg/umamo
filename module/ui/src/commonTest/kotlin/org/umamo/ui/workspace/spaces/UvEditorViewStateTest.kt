@@ -6,8 +6,12 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
+import org.umamo.render.AtlasPlacement
 import org.umamo.render.DecodedImage
+import org.umamo.render.DrawableLayerBinding
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceLayerEntry
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -284,6 +288,110 @@ class UvEditorViewStateTest {
 			UvTextureSelection.FollowSelection,
 			uvPageSelectionAfter(UvPageKind.FollowSelection, UvTextureSelection.PinnedPage(1), effectivePageIndex = 1, pageCount = 2),
 			"follow clears the pin",
+		)
+	}
+
+	/** A store fixture: one layer, sized, bound to the given drawables, with no placement (unpacked). */
+	private fun layerStoreOf(
+		layerKey: String = "layer0",
+		width: Int = 64,
+		height: Int = 32,
+		boundDrawableIds: List<String> = listOf("a"),
+		placement: AtlasPlacement? = null,
+	): LayerTextures =
+		LayerTextures(
+			layers = listOf(SourceLayerEntry(layerKey, "Art", width, height, boundDrawableIds, null)),
+			bindingsByDrawableId =
+				boundDrawableIds.associateWith { DrawableLayerBinding(layerKey, placement, 128, 128) },
+		) { null }
+
+	/** The layer view follows the active drawable, exactly as the page chain does. */
+	@Test
+	fun layerViewFollowsTheActiveDrawable() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		val resolved =
+			resolveUvEditorLayer(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				objectSelection = Selection(),
+				layers = layerStoreOf(),
+			)
+		assertNotNull(resolved, "the active drawable's layer resolves")
+		assertEquals("layer0", resolved.layerKey, "the bound layer shows")
+		assertEquals(64, resolved.width, "the layer's own width")
+		assertEquals(32, resolved.height, "the layer's own height")
+	}
+
+	/** A drawable this document retains no artwork for resolves nothing, so the space keeps its page view. */
+	@Test
+	fun layerViewResolvesNothingWithoutABinding() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		assertNull(
+			resolveUvEditorLayer(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("b")), activeDrawableId = DrawableId("b")),
+				objectSelection = Selection(),
+				layers = layerStoreOf(boundDrawableIds = listOf("a")),
+			),
+			"a drawable with no binding has no layer to show",
+		)
+		assertNull(
+			resolveUvEditorLayer(modelOf(meshedDrawable("a")), MeshSelection(), Selection(), null),
+			"no store means no layer view",
+		)
+		assertNull(
+			resolveUvEditorLayer(modelOf(meshedDrawable("a")), MeshSelection(), Selection(), LayerTextures.EMPTY),
+			"an empty store means no layer view",
+		)
+	}
+
+	/** Every drawable sharing one piece of art draws over it together; unbound ones do not. */
+	@Test
+	fun shownLayerDrawablesListsEverySharerOfTheArt() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"), meshedDrawable("a2"))
+		val shown = shownLayerDrawables(model, layerStoreOf(boundDrawableIds = listOf("a", "a2")), "layer0")
+		assertEquals(
+			listOf(DrawableId("a"), DrawableId("a2")),
+			shown.map { drawable -> drawable.id },
+			"both users of the art draw, in model order",
+		)
+	}
+
+	/**
+	 * The layer projection is the same texel display mapping the page view uses, over the LAYER's own
+	 * size - an unpacked binding passes its uvs straight through, so the mapping is uv times layer size
+	 * with the v-flip.
+	 */
+	@Test
+	fun layerGeometriesProjectIntoTheLayerFrame() {
+		val model = modelOf(meshedDrawable("a"))
+		val store = layerStoreOf(width = 64, height = 32)
+		val geometries = layerGizmoGeometries(shownLayerDrawables(model, store, "layer0"), store, 64, 32)
+		assertEquals(1, geometries.size, "one geometry per bound drawable")
+		// The same triangleUvs the page test uses: (0.25, 0.5) -> (16, 16) on a 64x32 frame, v flipped.
+		val expectedPositions = floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f)
+		for (componentIndex in expectedPositions.indices) {
+			assertEquals(expectedPositions[componentIndex], geometries.first().positions[componentIndex], 1e-4f, "component $componentIndex")
+		}
+	}
+
+	/** Cycling pages from the layer view leaves it, and asking to follow returns to following. */
+	@Test
+	fun pageCyclingLeavesTheLayerView() {
+		assertEquals(
+			UvTextureSelection.PinnedPage(0),
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.SourceLayer, effectivePageIndex = null, pageCount = 2),
+			"next from the layer view pins a page, leaving it",
+		)
+		assertEquals(
+			UvTextureSelection.FollowSelection,
+			uvPageSelectionAfter(UvPageKind.FollowSelection, UvTextureSelection.SourceLayer, effectivePageIndex = null, pageCount = 2),
+			"follow returns to following the selection",
+		)
+		assertEquals(
+			UvTextureSelection.SourceLayer,
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.SourceLayer, effectivePageIndex = null, pageCount = 0),
+			"with no pages to cycle to, the layer view holds",
 		)
 	}
 

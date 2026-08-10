@@ -38,12 +38,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * The popup picker should use the drawable name and fallback to the ID for display.
 * UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.
 
-## Texture Authoring/UV Editor
-* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
-* Follow Selection Header Control - Split it into options and images.
-	* New custom image selection control.  This will also be an entry point for adding artwork.
-	* Support renaming images.
-
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
 * Glue
@@ -72,6 +66,12 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 
+## Texture Authoring/UV Editor
+* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
+* Follow Selection Header Control - Split it into options and images.
+	* New custom image selection control.  This will also be an entry point for adding artwork.
+	* Support renaming images.
+
 ## UV Editor
 * Bugs/Improvements
 	* Rip and Vertex Slide could be implemented for UV.
@@ -82,7 +82,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
-* Multi-page sessions show only the active drawable's page; meshes on other pages are not drawn (no indicator yet).
 
 ## Context Issues
 * If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.

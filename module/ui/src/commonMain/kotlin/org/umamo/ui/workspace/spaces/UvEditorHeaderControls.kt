@@ -11,6 +11,7 @@ import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.resources.*
@@ -39,6 +40,12 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 			UvTextureSelectorDropdown(viewState)
 		}
 	}
+	item("layerPicker") {
+		// Only worth offering when the document retains artwork to search.
+		if (LocalPuppet.current != null && LocalLayerTextures.current?.isEmpty == false) {
+			UvLayerPickerChip()
+		}
+	}
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
 	item("proportional") { ProportionalEditControls() }
@@ -61,16 +68,20 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 	val model = LocalPuppet.current ?: return
 	val textures = LocalPuppetTextures.current
 	val atlases = textures?.atlases.orEmpty()
+	val layers = LocalLayerTextures.current
 	val storedSelection = viewState.textureSelection
+	// The face names what the body actually resolves: a pin the current textures cannot satisfy, or a
+	// layer view this document has no artwork for, both fall back to following the selection.
 	val effectiveSelection =
-		if (storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices) {
-			storedSelection
-		} else {
-			UvTextureSelection.FollowSelection
+		when {
+			storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices -> storedSelection
+			storedSelection is UvTextureSelection.SourceLayer && layers?.isEmpty == false -> storedSelection
+			else -> UvTextureSelection.FollowSelection
 		}
 	val currentLabel =
 		when (effectiveSelection) {
 			is UvTextureSelection.PinnedPage -> stringResource(Res.string.uv_texture_selector_page, effectiveSelection.pageIndex + 1)
+			UvTextureSelection.SourceLayer -> stringResource(Res.string.uv_texture_selector_layer)
 			UvTextureSelection.FollowSelection -> stringResource(Res.string.uv_texture_selector_follow)
 		}
 	// The inventory rows' meshed-drawable counts.  Each drawable resolves its page through
@@ -113,6 +124,16 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 				onSelect = { viewState.textureSelection = UvTextureSelection.PinnedPage(pageIndex) },
 			)
 		}
+	// Offered only when the document retains source artwork; a MOC3 origin has none.
+	val layerRow =
+		if (layers?.isEmpty == false) {
+			MenuItem.Action(
+				label = stringResource(Res.string.uv_texture_selector_layer),
+				onSelect = { viewState.textureSelection = UvTextureSelection.SourceLayer },
+			)
+		} else {
+			null
+		}
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
@@ -120,7 +141,7 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 		label = currentLabel,
 	) {
 		Menu(
-			items = listOf(followRow) + pageRows,
+			items = listOfNotNull(followRow, layerRow) + pageRows,
 			onDismissRequest = { expanded = false },
 			positionProvider = BelowAnchorPositionProvider,
 		)

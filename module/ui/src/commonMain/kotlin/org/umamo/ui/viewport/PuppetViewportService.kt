@@ -3,6 +3,7 @@ package org.umamo.ui.viewport
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -33,6 +34,30 @@ typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParam
  *           the wireframe lags with the raster during an edit instead of leading it).
  */
 data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera, val model: PuppetModel)
+
+/**
+ * What a UV-editor area draws under its wireframe overlays.
+ *
+ * Two shapes rather than one nullable image because the atlas page is addressed by INDEX into the
+ * document's pages (the engine resolves the pixels itself, and re-uses the textures it already
+ * uploaded for the puppet) while a source layer arrives as pixels the engine has never seen.  Keeping
+ * them distinct is also what lets an area switch between them without re-registering.
+ */
+sealed interface UvSceneContent {
+	/**
+	 * One of the document's packed atlas pages.
+	 *
+	 * @property Int? pageIndex The page to draw, or null for none (grid only).
+	 */
+	data class AtlasPage(val pageIndex: Int?) : UvSceneContent
+
+	/**
+	 * A source layer's own artwork, decoded by the caller.
+	 *
+	 * @property DecodedImage? image The layer raster to draw, or null for none (grid only).
+	 */
+	data class SourceLayer(val image: DecodedImage?) : UvSceneContent
+}
 
 /**
  * The platform seam between the common viewport UI and a puppet render engine. The engine owns a GPU
@@ -77,30 +102,30 @@ interface PuppetViewportService {
 	fun register(areaId: String): StateFlow<RenderedFrame?>
 
 	/**
-	 * Registers an ATLAS-PAGE area - the UV editor's flat page-under-wireframe - rather than the posed
-	 * puppet.  Same reference-counted lifecycle and [RenderedFrame] flow as [register] (the frame's bitmap
-	 * is the rendered page, its camera the one it was rendered at), driven by the same per-area camera
-	 * surface ([cameraFlow] / [resize] / [pan] / [zoomAtCursor] / [zoomCentered] / [fit] / [fitWorldRect] /
-	 * [actualSize] / [unregister]) - only the rendered content differs.  [pageIndex] indexes the document's
-	 * atlas pages; null (an untextured active drawable) renders the grid only.  Keep it current with
-	 * [setAtlasPageIndex] as the UV editor's shown page changes (following the selection, or a pinned
-	 * page).  The engine fits the page rectangle rather than the puppet content bounds.
+	 * Registers a UV-EDITOR area - the flat image-under-wireframe surface - rather than the posed puppet.
+	 * Same reference-counted lifecycle and [RenderedFrame] flow as [register] (the frame's bitmap is the
+	 * rendered image, its camera the one it was rendered at), driven by the same per-area camera surface
+	 * ([cameraFlow] / [resize] / [pan] / [zoomAtCursor] / [zoomCentered] / [fit] / [fitWorldRect] /
+	 * [actualSize] / [unregister]) - only the rendered content differs.  The engine fits that content's
+	 * rectangle rather than the puppet content bounds.
 	 *
-	 * @param String areaId The hosting UV-editor area's stable id.
-	 * @param Int pageIndex The atlas page to draw, or null for none (grid only).
+	 * Retarget it with [setUvSceneContent] as the editor's shown content changes; do NOT re-register,
+	 * which takes a second reference-counted hold the area never releases.
+	 *
+	 * @param String        areaId  The hosting UV-editor area's stable id.
+	 * @param UvSceneContent content What to draw (an atlas page or a source layer image).
 	 * @return StateFlow The frame flow (null until the first render lands).
 	 */
-	fun registerAtlasPage(areaId: String, pageIndex: Int?): StateFlow<RenderedFrame?>
+	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?>
 
 	/**
-	 * Retargets the atlas page an already-registered [registerAtlasPage] area renders, as the UV editor's
-	 * shown page changes (following the selection, or a pinned page).  A no-op for an unregistered area
-	 * or a puppet (2D) area.
+	 * Retargets what an already-registered [registerUvScene] area draws, including switching between an
+	 * atlas page and a source layer.  A no-op for an unregistered area or a puppet (2D) area.
 	 *
-	 * @param String areaId The atlas-page area to retarget.
-	 * @param Int pageIndex The new atlas page, or null for none (grid only).
+	 * @param String        areaId  The UV-editor area to retarget.
+	 * @param UvSceneContent content The new content to draw.
 	 */
-	fun setAtlasPageIndex(areaId: String, pageIndex: Int?)
+	fun setUvSceneContent(areaId: String, content: UvSceneContent)
 
 	/**
 	 * Releases one registration of [areaId]; the engine drops the area's resources at zero.

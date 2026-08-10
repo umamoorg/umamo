@@ -230,6 +230,11 @@
 	<string name="uv_texture_selector_follow">選択に追従</string>
 	<string name="uv_texture_selector_page">ページ %1$d</string>
 	<string name="uv_texture_selector_page_row">ページ %1$d · %2$d × %3$d · メッシュ %4$d</string>
+	<string name="uv_texture_selector_layer">ソースレイヤー</string>
+	<string name="uv_layer_picker_title">アートワークから検索</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · メッシュ %4$d</string>
+	<string name="uv_layer_picker_no_matches">一致するアートワークがありません</string>
+	<string name="uv_layer_picker_empty">このドキュメントにはソースアートワークがありません</string>
 	<string name="cmd_uv_page_next">次のテクスチャページ</string>
 	<string name="cmd_uv_page_previous">前のテクスチャページ</string>
 	<string name="cmd_uv_page_follow">テクスチャページ：選択に追従</string>

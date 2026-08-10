@@ -259,6 +259,11 @@
 	<string name="uv_texture_selector_follow">Follow Selection</string>
 	<string name="uv_texture_selector_page">Page %1$d</string>
 	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d meshes</string>
+	<string name="uv_texture_selector_layer">Source Layer</string>
+	<string name="uv_layer_picker_title">Find by Artwork</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d meshes</string>
+	<string name="uv_layer_picker_no_matches">No artwork matches</string>
+	<string name="uv_layer_picker_empty">This document has no source artwork</string>
 	<string name="cmd_uv_page_next">Next Texture Page</string>
 	<string name="cmd_uv_page_previous">Previous Texture Page</string>
 	<string name="cmd_uv_page_follow">Texture Page: Follow Selection</string>

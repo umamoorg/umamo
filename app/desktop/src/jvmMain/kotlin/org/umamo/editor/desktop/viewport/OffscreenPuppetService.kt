@@ -13,6 +13,7 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.RenderedFrame
+import org.umamo.ui.viewport.UvSceneContent
 
 /**
  * Renders the puppet OFF-SCREEN and publishes it as a Compose ImageBitmap per viewport area.
@@ -92,10 +93,10 @@ class OffscreenPuppetService(
 
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
 
-	override fun registerAtlasPage(areaId: String, pageIndex: Int?): StateFlow<RenderedFrame?> =
-		registry.registerAtlasPage(areaId, pageIndex)
+	override fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> =
+		registry.registerUvScene(areaId, content)
 
-	override fun setAtlasPageIndex(areaId: String, pageIndex: Int?) = registry.setAtlasPageIndex(areaId, pageIndex)
+	override fun setUvSceneContent(areaId: String, content: UvSceneContent) = registry.setUvSceneContent(areaId, content)
 
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 

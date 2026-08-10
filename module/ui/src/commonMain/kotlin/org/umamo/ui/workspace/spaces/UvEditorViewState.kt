@@ -9,7 +9,9 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
@@ -31,6 +33,14 @@ internal sealed class UvTextureSelection {
 
 	/** The space keeps showing atlas page [pageIndex] regardless of the selection. */
 	data class PinnedPage(val pageIndex: Int) : UvTextureSelection()
+
+	/**
+	 * The space shows the active drawable's own source artwork instead of a packed page - the mapping
+	 * over the art it was authored against.  Follow-active like [FollowSelection] and for the same
+	 * reason: which layer to show is a restatement of which drawable is selected, so carrying a layer
+	 * id here would be a second selection to keep in sync with the first.
+	 */
+	data object SourceLayer : UvTextureSelection()
 }
 
 /**
@@ -115,6 +125,117 @@ internal fun resolveUvEditorPage(
 		pageHeight = page?.height ?: 1,
 	)
 }
+
+/**
+ * The UV editor's resolved source-layer context: which layer the space shows and its pixel size.
+ *
+ * @property String layerKey The shown layer's key in the document's source-art store.
+ * @property Int width The layer image's width in pixels.
+ * @property Int height The layer image's height in pixels.
+ */
+internal data class UvEditorLayer(
+	val layerKey: String,
+	val width: Int,
+	val height: Int,
+)
+
+/**
+ * Resolves which source layer the UV editor shows: the one the active drawable was authored against,
+ * following the same precedence the page chain uses (Edit-mode active mesh, then the object
+ * selection's active drawable, then the first meshed drawable).
+ *
+ * Null when nothing resolves a layer - no store, no active drawable, or a drawable whose source art
+ * this document does not retain.  The space falls back to its page view then, so choosing the layer
+ * mode never blanks the editor.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
+ * @param Selection objectSelection The object selection (its active drawable is the second choice).
+ * @param LayerTextures? layers The document's source-art store, or null before one loads.
+ * @return UvEditorLayer? The resolved layer context, or null with no layer to show.
+ */
+internal fun resolveUvEditorLayer(
+	model: PuppetModel,
+	meshSelection: MeshSelection,
+	objectSelection: Selection,
+	layers: LayerTextures?,
+): UvEditorLayer? {
+	if (layers == null || layers.isEmpty) {
+		return null
+	}
+	val activeDrawable = activeUvDrawable(model, meshSelection, objectSelection) ?: return null
+	val entry = layers.layerForDrawable(activeDrawable.id.raw) ?: return null
+	if (entry.width <= 0 || entry.height <= 0) {
+		return null
+	}
+	return UvEditorLayer(entry.key, entry.width, entry.height)
+}
+
+/**
+ * The drawable the UV editor's view follows: the Edit-mode active mesh, else the object selection's
+ * active drawable, else the first meshed drawable so the space is never blank.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param MeshSelection meshSelection The mesh-element selection.
+ * @param Selection objectSelection The object selection.
+ * @return Drawable? The followed drawable, or null when the model has no meshed drawable at all.
+ */
+private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, objectSelection: Selection): Drawable? {
+	val activeDrawableId =
+		meshSelection.activeDrawableId
+			?: (objectSelection.active as? SelectionTarget.Drawable)?.id
+			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }?.id
+	return model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId }?.takeIf { it.mesh != null }
+}
+
+/**
+ * The meshes drawn over a shown source layer: every drawable bound to it that carries an editable
+ * mapping.  Usually one, but duplicated art shares a layer and all of its users draw together.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param LayerTextures layers The document's source-art store.
+ * @param String layerKey The shown layer.
+ * @return List<Drawable> The drawables whose mappings draw over the layer, in model order.
+ */
+internal fun shownLayerDrawables(model: PuppetModel, layers: LayerTextures, layerKey: String): List<Drawable> {
+	val boundIds = layers.layerFor(layerKey)?.boundDrawableIds?.toSet() ?: return emptyList()
+	return model.drawables.filter { drawable ->
+		val mesh = drawable.mesh
+		drawable.id.raw in boundIds && mesh != null && mesh.uvs.isNotEmpty() && mesh.uvs.size == mesh.positions.size
+	}
+}
+
+/**
+ * Projects the shown drawables' mappings into the SOURCE LAYER's display space: each drawable's atlas
+ * texture coordinates are recovered into its layer's own frame, then scaled to layer texels with the
+ * same v-flip the page view uses (see UvDisplayMapping.kt), so every downstream overlay, camera, and
+ * hit query works over layer geometry unchanged.
+ *
+ * A drawable whose recovery is degenerate is skipped rather than drawn at a wrong place.
+ *
+ * @param List<Drawable> shownDrawables The drawables bound to the shown layer.
+ * @param LayerTextures layers The document's source-art store (holds the recovered bindings).
+ * @param Int layerWidth The shown layer's width in pixels (the display mapping's scale).
+ * @param Int layerHeight The shown layer's height in pixels.
+ * @return List<GizmoMeshGeometry> One geometry per drawable whose mapping recovers.
+ */
+internal fun layerGizmoGeometries(
+	shownDrawables: List<Drawable>,
+	layers: LayerTextures,
+	layerWidth: Int,
+	layerHeight: Int,
+): List<GizmoMeshGeometry> =
+	shownDrawables.mapNotNull { drawable ->
+		val mesh = drawable.mesh ?: return@mapNotNull null
+		val binding = layers.bindingsByDrawableId[drawable.id.raw] ?: return@mapNotNull null
+		val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerWidth, layerHeight) ?: return@mapNotNull null
+		GizmoMeshGeometry(
+			drawable.id,
+			mesh.indices,
+			MeshTopology.uniqueEdges(mesh.indices),
+			uvToDisplay(layerUvs, layerWidth, layerHeight),
+		)
+	}
 
 /**
  * The texture-selection transition for one page-switch request: cycling pins the page adjacent to

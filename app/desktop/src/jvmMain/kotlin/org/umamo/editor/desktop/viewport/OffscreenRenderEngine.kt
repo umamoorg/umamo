@@ -4,6 +4,7 @@ import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
@@ -433,6 +434,11 @@ internal class OffscreenRenderEngine(
 								slot.renderedPageIndex == slot.pageIndex &&
 									slot.renderedCamera === camera &&
 									slot.atlasRenderBumpDone == atlasRenderBump
+
+							RenderScene.SourceLayer ->
+								slot.renderedLayerImage === slot.layerImage &&
+									slot.renderedCamera === camera &&
+									slot.atlasRenderBumpDone == atlasRenderBump
 						}
 					if (sizeFresh && restFresh) {
 						continue
@@ -547,6 +553,9 @@ internal class OffscreenRenderEngine(
 			// A UV area draws the flat atlas page instead; the pose / selection / shown state pushed above are
 			// harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
 			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
+			// A source-layer area draws artwork the engine has never uploaded, so the renderer takes the
+			// pixels rather than an index and caches the texture it makes from them.
+			RenderScene.SourceLayer -> renderer.renderUnderlayImage(drawTarget, slot.layerImage, renderWidth, renderHeight)
 		}
 
 		surface.resolve()
@@ -577,6 +586,7 @@ internal class OffscreenRenderEngine(
 		slot.puppetRenderBumpDone = puppetRenderBumpDone
 		slot.atlasRenderBumpDone = atlasRenderBumpDone
 		slot.renderedPageIndex = slot.pageIndex
+		slot.renderedLayerImage = slot.layerImage
 	}
 
 	/**
@@ -611,6 +621,21 @@ internal class OffscreenRenderEngine(
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.contentBounds()
 			RenderScene.AtlasPage -> pageContentBounds(slot.pageIndex)
+			RenderScene.SourceLayer -> imageContentBounds(slot.layerImage)
+		}
+
+	/**
+	 * The source-layer rectangle (0, 0, width, height) for the UV-editor fit, or a unit square when there
+	 * is no layer, matching [pageContentBounds]' fallback so both UV scenes frame the same way.
+	 *
+	 * @param DecodedImage image The layer raster, or null for none.
+	 * @return ContentBounds The layer rectangle, in texel/display units.
+	 */
+	private fun imageContentBounds(image: DecodedImage?): ContentBounds =
+		if (image != null) {
+			ContentBounds(0f, 0f, image.width.toFloat(), image.height.toFloat())
+		} else {
+			ContentBounds(0f, 0f, 1f, 1f)
 		}
 
 	/**

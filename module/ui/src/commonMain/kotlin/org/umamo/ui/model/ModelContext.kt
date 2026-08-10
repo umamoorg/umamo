@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
@@ -73,6 +74,19 @@ val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?
  * renderer uploads, so the two always show the same texels.
  */
 val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
+
+/**
+ * The open document's source artwork - the layers the puppet was authored against, before packing -
+ * or null when nothing is open.  The UV editor's layer view shows one of these under a drawable's
+ * mapping, which is the pre-atlas counterpart of what [LocalPuppetTextures] serves.
+ *
+ * A document whose format retains no source art (a MOC3, the packed endpoint) provides an EMPTY
+ * store rather than null, so a surface distinguishes "no document" from "this document has no source
+ * art" without a second signal.  Rasters decode on first request inside the store, so the value
+ * handed here stays stable for the document's life - which matters, because a static local's change
+ * recomposes the whole subtree.
+ */
+val LocalLayerTextures = staticCompositionLocalOf<LayerTextures?> { null }
 
 /**
  * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle].

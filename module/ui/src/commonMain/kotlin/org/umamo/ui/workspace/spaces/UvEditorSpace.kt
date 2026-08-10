@@ -31,6 +31,7 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
@@ -45,7 +46,9 @@ import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
+import org.umamo.ui.viewport.UvLayerOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.overlapStateFrom
@@ -102,6 +105,18 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// (header and body are sibling subtrees - spaceState is their one channel).
 	val viewState = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }
 
+	// The source-layer view, when the selector asks for one AND this document retains the artwork to
+	// serve it: the active drawable's own art with its mapping recovered onto it.  Null falls the space
+	// back to its page view, so choosing the mode never blanks the editor and a document with no source
+	// art (a MOC3 origin) simply keeps showing pages.
+	val layers = LocalLayerTextures.current
+	val layerView =
+		if (viewState.textureSelection is UvTextureSelection.SourceLayer) {
+			resolveUvEditorLayer(model, meshSelection, objectSelection, layers)
+		} else {
+			null
+		}
+
 	// The shown page: a pinned page the textures can satisfy wins page-first, else the page follows
 	// the session's active drawable, falling back to the first meshed drawable so the space is never
 	// blank; the precedence chain and the untextured 1x1 fallback live in resolveUvEditorPage
@@ -123,24 +138,35 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				uvPageSelectionAfter(request.kind, viewState.textureSelection, liveEffectivePageIndex.value, livePageCount.value)
 		}
 	}
-	if (resolvedPage == null) {
+	// The display space both views share: texels of whatever is shown, with the v-flip (UvDisplayMapping).
+	// One of the two resolutions must have produced a surface or there is nothing to show at all.
+	val pageIndex = resolvedPage?.pageIndex
+	val displayWidth = layerView?.width ?: resolvedPage?.pageWidth
+	val displayHeight = layerView?.height ?: resolvedPage?.pageHeight
+	if (displayWidth == null || displayHeight == null) {
 		PlaceholderSpace(stringResource(Res.string.space_uv))
 		return
 	}
-	val pageIndex = resolvedPage.pageIndex
-	val pageWidth = resolvedPage.pageWidth
-	val pageHeight = resolvedPage.pageHeight
 
-	// The meshes drawn over the page and their display-space projection (the Edit / Object candidate
-	// rules and the page filter live in shownUvDrawables), remembered so selection churn - which
-	// changes styling, never membership - rebuilds nothing here.
+	// The meshes drawn over the shown surface and their display-space projection: over a layer, every
+	// drawable bound to it with its stored coordinates recovered into the layer's frame; over a page,
+	// the Edit / Object candidate rules and the page filter (shownUvDrawables).  Remembered so
+	// selection churn - which changes styling, never membership - rebuilds nothing here.
 	val shownDrawables =
-		remember(model, textures, pageIndex, mode, meshSelection.drawableIds) {
-			shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
+		remember(model, textures, layers, layerView, pageIndex, mode, meshSelection.drawableIds) {
+			if (layerView != null && layers != null) {
+				shownLayerDrawables(model, layers, layerView.layerKey)
+			} else {
+				shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
+			}
 		}
 	val geometries =
-		remember(shownDrawables, pageWidth, pageHeight) {
-			uvGizmoGeometries(shownDrawables, pageWidth, pageHeight)
+		remember(shownDrawables, layers, layerView, displayWidth, displayHeight) {
+			if (layerView != null && layers != null) {
+				layerGizmoGeometries(shownDrawables, layers, layerView.width, layerView.height)
+			} else {
+				uvGizmoGeometries(shownDrawables, displayWidth, displayHeight)
+			}
 		}
 	val liveGeometries = rememberUpdatedState(geometries)
 
@@ -157,14 +183,25 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			)
 		}
 
-	// Register this area as an atlas-page scene on the shared GL engine and follow the frame it publishes;
-	// the page tracks the resolved texture selection via setAtlasPageIndex.  The camera is owned by the service (pan /
-	// zoom / fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.
-	val imageFlow = remember(scope.areaId) { service.registerAtlasPage(scope.areaId, pageIndex) }
+	// Register this area as a UV scene on the shared GL engine and follow the frame it publishes; the
+	// content tracks the resolved texture selection via setUvSceneContent, which is also how the area
+	// switches between a page and a layer WITHOUT re-registering (a second register would take a
+	// reference-counted hold this area never releases).  The camera is owned by the service (pan / zoom /
+	// fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.
+	//
+	// Resolving the raster here is what triggers its decode, on first sight only - the store caches
+	// thereafter, including its failures.
+	val sceneContent =
+		if (layerView != null) {
+			UvSceneContent.SourceLayer(layers?.rasterFor(layerView.layerKey))
+		} else {
+			UvSceneContent.AtlasPage(pageIndex)
+		}
+	val imageFlow = remember(scope.areaId) { service.registerUvScene(scope.areaId, sceneContent) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
 	val cameraFlow = remember(scope.areaId) { service.cameraFlow(scope.areaId) }
-	LaunchedEffect(scope.areaId, pageIndex) { service.setAtlasPageIndex(scope.areaId, pageIndex) }
+	LaunchedEffect(scope.areaId, sceneContent) { service.setUvSceneContent(scope.areaId, sceneContent) }
 	DisposableEffect(scope.areaId) {
 		onDispose { service.unregister(scope.areaId) }
 	}
@@ -279,8 +316,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				// 1.dp frame around it, or the grid placeholder before the first frame (UvPageUnderlay.kt).
 				UvPageUnderlay(
 					rendered = image,
-					pageWidth = pageWidth,
-					pageHeight = pageHeight,
+					pageWidth = displayWidth,
+					pageHeight = displayHeight,
 					widthPx = widthPx,
 					heightPx = heightPx,
 				)
@@ -298,43 +335,59 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						onDismiss = { overlap = null },
 					)
 				}
-				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
-				// viewport pair's convention, so both mount unconditionally): Object mode's island
-				// selection surface (every visible island drawn, click / box / Alt-stack picking and
-				// Shift+RightClick cursor placement over the session's object selection), then Edit
-				// mode's interaction core (element selection, box select, and the modal G / S / R
-				// operators with live GPU preview).  Both are locked to the frame camera
-				// (image?.camera) for the same pan / zoom glue as the 2D viewport's overlays;
-				// unconsumed input falls through to the navigation loop and the context menu.
-				UvObjectGizmoOverlay(
-					areaId = scope.areaId,
-					session = session,
-					geometries = geometries,
-					islandPick = islandPick,
-					pageWidth = pageWidth,
-					pageHeight = pageHeight,
-					camera = image?.camera,
-					widthPx = widthPx,
-					heightPx = heightPx,
-					onOverlapRequest = { position, candidates ->
-						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
-						overlap =
-							overlapStateFrom(service, position, candidates) { pickedId ->
-								session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
-							}
-					},
-				)
-				UvEditGizmoOverlay(
-					areaId = scope.areaId,
-					session = session,
-					geometries = geometries,
-					pageWidth = pageWidth,
-					pageHeight = pageHeight,
-					camera = image?.camera,
-					widthPx = widthPx,
-					heightPx = heightPx,
-					proportionalRadiusDisplayState = proportionalRadiusDisplay,
-				)
+				if (layerView != null) {
+					// The layer view is READ-ONLY: it draws the recovered mapping over the artwork and
+					// installs no pointer input, so the interactive overlays below are not mounted at all
+					// rather than being gated internally.  Editing here authors the vertex-to-layer
+					// mapping, which has to write back through the drawable's atlas placement to reach the
+					// stored coordinates - a different edit from the page view's, and one worth landing only
+					// after the recovery it depends on can be trusted by eye.
+					UvLayerOverlay(
+						session = session,
+						geometries = geometries,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+					)
+				} else {
+					// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
+					// viewport pair's convention, so both mount unconditionally): Object mode's island
+					// selection surface (every visible island drawn, click / box / Alt-stack picking and
+					// Shift+RightClick cursor placement over the session's object selection), then Edit
+					// mode's interaction core (element selection, box select, and the modal G / S / R
+					// operators with live GPU preview).  Both are locked to the frame camera
+					// (image?.camera) for the same pan / zoom glue as the 2D viewport's overlays;
+					// unconsumed input falls through to the navigation loop and the context menu.
+					UvObjectGizmoOverlay(
+						areaId = scope.areaId,
+						session = session,
+						geometries = geometries,
+						islandPick = islandPick,
+						pageWidth = displayWidth,
+						pageHeight = displayHeight,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+						onOverlapRequest = { position, candidates ->
+							// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
+							overlap =
+								overlapStateFrom(service, position, candidates) { pickedId ->
+									session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
+								}
+						},
+					)
+					UvEditGizmoOverlay(
+						areaId = scope.areaId,
+						session = session,
+						geometries = geometries,
+						pageWidth = displayWidth,
+						pageHeight = displayHeight,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+						proportionalRadiusDisplayState = proportionalRadiusDisplay,
+					)
+				}
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
 				// until armed.  Mounted above the gizmo overlays so an armed drag is captured over them; on
 				// release it calls the area-generic service.zoomToRegion for this UV atlas-page area.  Takes
@@ -351,14 +404,18 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				// The UV cursor marker: a control's texture-space marker (not HUD chrome), present in
 				// both modes like the viewport's 2D cursor, drawn above the gizmo chrome and below the
 				// HUD text.  Locked to the frame camera for the same pan / zoom glue as the wireframes.
-				UvCursorOverlay(
-					session = session,
-					pageWidth = pageWidth,
-					pageHeight = pageHeight,
-					camera = image?.camera,
-					widthPx = widthPx,
-					heightPx = heightPx,
-				)
+				// Absent over a layer: the cursor is stored in ATLAS coordinates, so drawing it against a
+				// layer's frame would place it somewhere it does not mean.
+				if (layerView == null) {
+					UvCursorOverlay(
+						session = session,
+						pageWidth = displayWidth,
+						pageHeight = displayHeight,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+					)
+				}
 				// The HUD layer draws topmost, informational chrome only (draw-only, no pointer input, so
 				// nothing below loses a gesture): the modal-op status badge, the active-mesh info chip,
 				// and the zoom readout.  The chip uses the SAME mode-dependent resolution as the 2D
