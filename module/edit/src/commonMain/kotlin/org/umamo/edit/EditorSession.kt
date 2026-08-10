@@ -1505,6 +1505,25 @@ class EditorSession(
 	}
 
 	/**
+	 * Fires a page switch (the uv.page.* palette commands) for one UV editor area to execute: the
+	 * per-area texture selection (the page pin) lives with the area's view state, not the session, so
+	 * the space applies the transition itself.  The payload carries the operation AND the
+	 * dispatch-time resolved area (see [UvPageRequest]), so the collector gates deterministically on
+	 * its own area id.
+	 */
+	val uvPageRequests: SharedFlow<UvPageRequest> = requestBus.uvPageRequests
+
+	/**
+	 * Requests a page switch (see [uvPageRequests]).
+	 *
+	 * @param UvPageRequest request The page operation plus the executing area, resolved at command
+	 *   dispatch; a null area (the hovered surface was not a UV editor) no-ops.
+	 */
+	fun requestUvPage(request: UvPageRequest) {
+		requestBus.requestUvPage(request)
+	}
+
+	/**
 	 * Fires "switch the edited mesh to the drawable under the cursor" (Alt+Q) for the Edit overlay to
 	 * execute - the pointer position and the pick live there (the same division as
 	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on

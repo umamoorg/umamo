@@ -226,6 +226,14 @@
 	<string name="menu_uv_mirror_x">X ミラー</string>
 	<string name="menu_uv_mirror_y">Y ミラー</string>
 
+	<!-- UV editor texture selector (area header) and its page-switch commands. -->
+	<string name="uv_texture_selector_follow">選択に追従</string>
+	<string name="uv_texture_selector_page">ページ %1$d</string>
+	<string name="uv_texture_selector_page_row">ページ %1$d · %2$d × %3$d · メッシュ %4$d</string>
+	<string name="cmd_uv_page_next">次のテクスチャページ</string>
+	<string name="cmd_uv_page_previous">前のテクスチャページ</string>
+	<string name="cmd_uv_page_follow">テクスチャページ：選択に追従</string>
+
 	<string name="cmd_undo">元に戻す</string>
 	<string name="cmd_redo">やり直す</string>
 	<string name="cmd_toggle_visibility">表示の切り替え</string>

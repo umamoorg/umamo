@@ -38,9 +38,10 @@ import org.umamo.ui.theme.selectionOverlayStyle
  * The interaction vocabulary is the viewport Object gizmo's, through the same
  * [ObjectPickController]: a sub-threshold primary click picks the front-most opaque island under
  * the cursor (plain replaces, Shift / Ctrl toggles membership, an unmodified click on empty canvas
- * clears - which may hop the shown page to the first-meshed fallback until the page pin lands), an
- * Alt click resolves the overlap stack through the host's popup, a primary drag box-selects every
- * island with a vertex inside the box (Shift adds), and Shift+RightClick places the UV cursor.
+ * clears - under Follow Selection that may hop the shown page to the first-meshed fallback, while a
+ * pinned page holds), an Alt click resolves the overlap stack through the host's popup, a primary
+ * drag box-selects every island with a vertex inside the box (Shift adds), and Shift+RightClick
+ * places the UV cursor.
  * Picking is CPU-side over [islandPick] - display-space point-in-face with the atlas alpha gate, so
  * a click on transparent triangle overhang falls through, exactly like the viewport's raster pick.
  * Only primary-driven events are consumed; pan / zoom and the plain right-click (the context menu)

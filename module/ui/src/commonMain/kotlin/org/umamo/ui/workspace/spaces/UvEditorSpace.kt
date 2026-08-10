@@ -98,15 +98,35 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val meshSelection by session.meshSelection.collectAsState()
 	val objectSelection by session.selection.collectAsState()
 
-	// The shown page follows the session's active drawable, falling back to the first meshed
-	// drawable so the space is never blank; the precedence chain and the untextured 1x1 fallback
-	// live in resolveUvEditorPage (UvEditorViewState.kt).
-	val resolvedPage = resolveUvEditorPage(model, meshSelection, objectSelection, textures)
+	// The area's texture selection, shared with the header's selector through the hosting AreaScope
+	// (header and body are sibling subtrees - spaceState is their one channel).
+	val viewState = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }
+
+	// The shown page: a pinned page the textures can satisfy wins page-first, else the page follows
+	// the session's active drawable, falling back to the first meshed drawable so the space is never
+	// blank; the precedence chain and the untextured 1x1 fallback live in resolveUvEditorPage
+	// (UvEditorViewState.kt).
+	val resolvedPage = resolveUvEditorPage(model, meshSelection, objectSelection, textures, viewState.textureSelection)
+
+	// The palette's page-switch requests (uv.page.*): the executing area was resolved at dispatch
+	// into the payload, so this gate is deterministic.  Mode-agnostic on purpose - reviewing pages is
+	// not an Edit-mode operation.  Collected ABOVE the placeholder early-return so a document with
+	// textures but nothing meshed (placeholder showing) can still pin a page into view.
+	val liveEffectivePageIndex = rememberUpdatedState(resolvedPage?.pageIndex)
+	val livePageCount = rememberUpdatedState(textures?.atlases?.size ?: 0)
+	LaunchedEffect(session, scope.areaId) {
+		session.uvPageRequests.collect { request ->
+			if (request.areaId != scope.areaId) {
+				return@collect
+			}
+			viewState.textureSelection =
+				uvPageSelectionAfter(request.kind, viewState.textureSelection, liveEffectivePageIndex.value, livePageCount.value)
+		}
+	}
 	if (resolvedPage == null) {
 		PlaceholderSpace(stringResource(Res.string.space_uv))
 		return
 	}
-	val activeDrawable = resolvedPage.activeDrawable
 	val pageIndex = resolvedPage.pageIndex
 	val pageWidth = resolvedPage.pageWidth
 	val pageHeight = resolvedPage.pageHeight
@@ -138,7 +158,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		}
 
 	// Register this area as an atlas-page scene on the shared GL engine and follow the frame it publishes;
-	// the page tracks the active drawable via setAtlasPageIndex.  The camera is owned by the service (pan /
+	// the page tracks the resolved texture selection via setAtlasPageIndex.  The camera is owned by the service (pan /
 	// zoom / fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.
 	val imageFlow = remember(scope.areaId) { service.registerAtlasPage(scope.areaId, pageIndex) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
@@ -344,6 +364,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				// and the zoom readout.  The chip uses the SAME mode-dependent resolution as the 2D
 				// viewport - deliberately not this space's first-meshed page fallback - so the two
 				// surfaces annotate the same mesh and the chip stays absent while nothing is selected.
+				// Under a pinned page that mesh may live on ANOTHER page: the chip still names it, on
+				// purpose - it annotates the session's active mesh, not this page's contents.
 				UvHudOverlay(
 					areaId = scope.areaId,
 					session = session,

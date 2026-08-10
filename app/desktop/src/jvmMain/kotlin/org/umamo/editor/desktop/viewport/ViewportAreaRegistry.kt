@@ -30,7 +30,7 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  */
 internal class AreaSlot {
 	// Whether this area renders the posed puppet or a UV-editor atlas page. Fixed at registration (register
-	// vs registerAtlasPage); pageIndex is retargeted by setAtlasPageIndex as the UV editor's active drawable
+	// vs registerAtlasPage); pageIndex is retargeted by setAtlasPageIndex as the UV editor's shown page
 	// changes. UI thread writes, render thread reads - a volatile publish.
 	@Volatile
 	var scene: RenderScene = RenderScene.Puppet2D

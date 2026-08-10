@@ -83,8 +83,8 @@ interface PuppetViewportService {
 	 * surface ([cameraFlow] / [resize] / [pan] / [zoomAtCursor] / [zoomCentered] / [fit] / [fitWorldRect] /
 	 * [actualSize] / [unregister]) - only the rendered content differs.  [pageIndex] indexes the document's
 	 * atlas pages; null (an untextured active drawable) renders the grid only.  Keep it current with
-	 * [setAtlasPageIndex] as the UV editor's active drawable (hence its page) changes.  The engine fits the
-	 * page rectangle rather than the puppet content bounds.
+	 * [setAtlasPageIndex] as the UV editor's shown page changes (following the selection, or a pinned
+	 * page).  The engine fits the page rectangle rather than the puppet content bounds.
 	 *
 	 * @param String areaId The hosting UV-editor area's stable id.
 	 * @param Int pageIndex The atlas page to draw, or null for none (grid only).
@@ -94,7 +94,8 @@ interface PuppetViewportService {
 
 	/**
 	 * Retargets the atlas page an already-registered [registerAtlasPage] area renders, as the UV editor's
-	 * active drawable changes.  A no-op for an unregistered area or a puppet (2D) area.
+	 * shown page changes (following the selection, or a pinned page).  A no-op for an unregistered area
+	 * or a puppet (2D) area.
 	 *
 	 * @param String areaId The atlas-page area to retarget.
 	 * @param Int pageIndex The new atlas page, or null for none (grid only).

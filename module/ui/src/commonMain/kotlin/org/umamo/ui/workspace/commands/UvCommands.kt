@@ -1,13 +1,17 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.UvPageKind
+import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.SpaceKind
 
 /**
- * The texture-coordinate commands: the axis mirrors and the UV editor's own snap pie.
+ * The texture-coordinate commands: the axis mirrors, the UV editor's own snap pie, and the texture
+ * page switches.
  *
  * Every snap entry runs through the session's UV snap request flow to the hovered UV editor's overlay,
  * which owns the shown page's dimensions and display geometry.  The area is resolved HERE, at dispatch,
@@ -31,6 +35,17 @@ internal fun uvCommands(
 	fun requestUvSnap(kind: UvSnapKind) {
 		editorSession?.requestUvSnap(UvSnapRequest(kind, routing.hoveredAreaIdAnyKind()))
 		editorSession?.closePieMenu()
+	}
+
+	/**
+	 * Fires one page-switch request at the hovered UV editor.  The kind-checked resolver hands a
+	 * pointer that is NOT on a UV editor a null area, which matches no collector - the Blender
+	 * hovered-area rule, resolved one step earlier than the snap helper's any-kind id.
+	 *
+	 * @param UvPageKind kind The page operation to perform.
+	 */
+	fun requestUvPage(kind: UvPageKind) {
+		editorSession?.requestUvPage(UvPageRequest(kind, routing.areaOf(SpaceKind.UvEditor)))
 	}
 	return listOf(
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
@@ -62,6 +77,19 @@ internal fun uvCommands(
 		},
 		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.inEditMode) {
 			requestUvSnap(UvSnapKind.CursorToGrid)
+		},
+		// Texture page switching (the header selector's palette path): retargets the hovered UV
+		// editor's per-area texture selection - cycling pins with wrap-around, follow clears the pin.
+		// Mode-agnostic (reviewing pages is not an Edit-mode operation), palette-discoverable, and
+		// unbound by default like the rest of the table.
+		Command("uv.page.next", title = Res.string.cmd_uv_page_next, availability = availability.hasDocument) {
+			requestUvPage(UvPageKind.NextPage)
+		},
+		Command("uv.page.previous", title = Res.string.cmd_uv_page_previous, availability = availability.hasDocument) {
+			requestUvPage(UvPageKind.PreviousPage)
+		},
+		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument) {
+			requestUvPage(UvPageKind.FollowSelection)
 		},
 	)
 }

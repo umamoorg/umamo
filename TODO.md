@@ -34,6 +34,16 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
 
+## Popup Picker
+* The popup picker should use the drawable name and fallback to the ID for display.
+* UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.
+
+## Texture Authoring/UV Editor
+* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
+* Follow Selection Header Control - Split it into options and images.
+	* New custom image selection control.  This will also be an entry point for adding artwork.
+	* Support renaming images.
+
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
 * Glue

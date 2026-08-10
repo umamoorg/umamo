@@ -255,6 +255,14 @@
 	<string name="menu_uv_mirror_x">Mirror X</string>
 	<string name="menu_uv_mirror_y">Mirror Y</string>
 
+	<!-- UV editor texture selector (area header) and its page-switch commands. Pages display 1-based. -->
+	<string name="uv_texture_selector_follow">Follow Selection</string>
+	<string name="uv_texture_selector_page">Page %1$d</string>
+	<string name="uv_texture_selector_page_row">Page %1$d · %2$d × %3$d · %4$d meshes</string>
+	<string name="cmd_uv_page_next">Next Texture Page</string>
+	<string name="cmd_uv_page_previous">Previous Texture Page</string>
+	<string name="cmd_uv_page_follow">Texture Page: Follow Selection</string>
+
 	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Undo</string>
 	<string name="cmd_redo">Redo</string>

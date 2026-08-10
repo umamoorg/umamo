@@ -5,6 +5,7 @@ import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.UvPageKind
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.BlendMode
@@ -22,10 +23,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the UV editor's pure view-state derivations ([resolveUvEditorPage], [shownUvDrawables],
- * [uvGizmoGeometries]): the active-drawable precedence chain, the untextured 1x1 fallback, the
- * Edit / Object candidate rules with the malformed-mesh and page filters, and the display-space
- * projection (texel units, v-flip).
+ * Pins the UV editor's pure view-state derivations ([resolveUvEditorPage], [uvPageSelectionAfter],
+ * [shownUvDrawables], [uvGizmoGeometries]): the pin-first page resolution with its follow-chain
+ * fallback, the active-drawable precedence chain, the untextured 1x1 fallback, the page-cycle
+ * transition, the Edit / Object candidate rules with the malformed-mesh and page filters, and the
+ * display-space projection (texel units, v-flip).
  *
  * Two atlas pages are used throughout: page 0 is 64x32 (drawable "a"), page 1 is 16x16 (drawable
  * "b"); drawable "c" is unmeshed.
@@ -88,8 +90,7 @@ class UvEditorViewStateTest {
 				textures = twoPageTextures(),
 			)
 		assertNotNull(resolved, "a meshed active drawable resolves a page")
-		assertEquals(DrawableId("b"), resolved.activeDrawable.id, "the Edit-mode active mesh wins")
-		assertEquals(1, resolved.pageIndex, "the page follows the winner")
+		assertEquals(1, resolved.pageIndex, "the page follows the Edit-mode active mesh")
 		assertEquals(16, resolved.pageWidth, "page 1's width")
 		assertEquals(16, resolved.pageHeight, "page 1's height")
 	}
@@ -106,7 +107,7 @@ class UvEditorViewStateTest {
 				textures = twoPageTextures(),
 			)
 		assertNotNull(resolved, "an object-selected meshed drawable resolves a page")
-		assertEquals(DrawableId("b"), resolved.activeDrawable.id, "the object selection's active drawable is the second choice")
+		assertEquals(1, resolved.pageIndex, "the object selection's active drawable is the second choice")
 	}
 
 	/** With nothing selected at all, the first MESHED drawable drives the page (unmeshed ones skipped). */
@@ -116,8 +117,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorPage(model = model, meshSelection = MeshSelection(), objectSelection = Selection(), textures = twoPageTextures())
 		assertNotNull(resolved, "the fallback keeps the space non-blank")
-		assertEquals(DrawableId("a"), resolved.activeDrawable.id, "the first meshed drawable is the fallback")
-		assertEquals(0, resolved.pageIndex, "the fallback's page shows")
+		assertEquals(0, resolved.pageIndex, "the first meshed drawable's page is the fallback")
 	}
 
 	/** With no meshed drawable anywhere the resolution is null (the space shows its placeholder). */
@@ -139,6 +139,152 @@ class UvEditorViewStateTest {
 		assertNull(resolved.pageIndex, "no atlas entry means no page index")
 		assertEquals(1, resolved.pageWidth, "the 1x1 fallback turns the display mapping into the unit square")
 		assertEquals(1, resolved.pageHeight, "the 1x1 fallback turns the display mapping into the unit square")
+	}
+
+	/** A pin the textures can satisfy beats the whole follow chain. */
+	@Test
+	fun validPinShowsThePinnedPageFirst() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		val resolved =
+			resolveUvEditorPage(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				objectSelection = Selection(),
+				textures = twoPageTextures(),
+				textureSelection = UvTextureSelection.PinnedPage(1),
+			)
+		assertNotNull(resolved, "a valid pin resolves a page")
+		assertEquals(1, resolved.pageIndex, "the pin beats the active drawable's page 0")
+		assertEquals(16, resolved.pageWidth, "the pinned page's width")
+		assertEquals(16, resolved.pageHeight, "the pinned page's height")
+	}
+
+	/** A valid pin needs no meshed drawable: the empty page is still reviewable. */
+	@Test
+	fun pinnedPageResolvesWithNoMeshedDrawable() {
+		val resolved =
+			resolveUvEditorPage(
+				model = modelOf(bareDrawable("c")),
+				meshSelection = MeshSelection(),
+				objectSelection = Selection(),
+				textures = twoPageTextures(),
+				textureSelection = UvTextureSelection.PinnedPage(0),
+			)
+		assertNotNull(resolved, "the pinned page shows even with nothing meshed (contrast resolvesNullWithNothingMeshed)")
+		assertEquals(0, resolved.pageIndex, "the pinned page shows")
+		assertEquals(64, resolved.pageWidth, "the pinned page's width")
+	}
+
+	/** A pin the textures cannot satisfy falls back to the follow chain without clearing anything. */
+	@Test
+	fun outOfRangePinFallsBackToFollow() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		val resolved =
+			resolveUvEditorPage(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				objectSelection = Selection(),
+				textures = twoPageTextures(),
+				textureSelection = UvTextureSelection.PinnedPage(7),
+			)
+		assertNotNull(resolved, "the follow chain still resolves")
+		assertEquals(0, resolved.pageIndex, "the stale pin defers to the active drawable's page")
+	}
+
+	/** With no textures a pin cannot resolve: the follow chain runs, untextured fallback included. */
+	@Test
+	fun pinWithNoTexturesFallsBackToFollow() {
+		val resolved =
+			resolveUvEditorPage(
+				model = modelOf(meshedDrawable("a")),
+				meshSelection = MeshSelection(),
+				objectSelection = Selection(),
+				textures = null,
+				textureSelection = UvTextureSelection.PinnedPage(0),
+			)
+		assertNotNull(resolved, "the follow chain still resolves")
+		assertNull(resolved.pageIndex, "no textures means the untextured fallback, pin or not")
+		assertEquals(1, resolved.pageWidth, "the 1x1 fallback")
+		assertNull(
+			resolveUvEditorPage(
+				model = modelOf(bareDrawable("c")),
+				meshSelection = MeshSelection(),
+				objectSelection = Selection(),
+				textures = null,
+				textureSelection = UvTextureSelection.PinnedPage(0),
+			),
+			"no textures and nothing meshed still resolves null (the placeholder)",
+		)
+	}
+
+	/** Next pins the following page, wrapping past the last back to the first. */
+	@Test
+	fun nextPinsTheFollowingPageWithWrap() {
+		assertEquals(
+			UvTextureSelection.PinnedPage(1),
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.FollowSelection, effectivePageIndex = 0, pageCount = 2),
+			"next from page 0 pins page 1",
+		)
+		assertEquals(
+			UvTextureSelection.PinnedPage(0),
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.PinnedPage(1), effectivePageIndex = 1, pageCount = 2),
+			"next from the last page wraps to the first",
+		)
+	}
+
+	/** Previous pins the preceding page, wrapping past the first back to the last. */
+	@Test
+	fun previousPinsThePrecedingPageWithWrap() {
+		assertEquals(
+			UvTextureSelection.PinnedPage(1),
+			uvPageSelectionAfter(UvPageKind.PreviousPage, UvTextureSelection.FollowSelection, effectivePageIndex = 0, pageCount = 2),
+			"previous from page 0 wraps to the last",
+		)
+		assertEquals(
+			UvTextureSelection.PinnedPage(0),
+			uvPageSelectionAfter(UvPageKind.PreviousPage, UvTextureSelection.PinnedPage(1), effectivePageIndex = 1, pageCount = 2),
+			"previous from page 1 pins page 0",
+		)
+	}
+
+	/** From the untextured fallback (null effective page) cycling lands on an end page. */
+	@Test
+	fun cycleFromTheUntexturedFallbackPinsAnEndPage() {
+		assertEquals(
+			UvTextureSelection.PinnedPage(0),
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.FollowSelection, effectivePageIndex = null, pageCount = 2),
+			"next from the fallback pins the first page",
+		)
+		assertEquals(
+			UvTextureSelection.PinnedPage(1),
+			uvPageSelectionAfter(UvPageKind.PreviousPage, UvTextureSelection.FollowSelection, effectivePageIndex = null, pageCount = 2),
+			"previous from the fallback pins the last page",
+		)
+	}
+
+	/** With no pages there is nothing to pin: cycling keeps the selection unchanged from either state. */
+	@Test
+	fun cycleNoOpsWithNoPages() {
+		assertEquals(
+			UvTextureSelection.FollowSelection,
+			uvPageSelectionAfter(UvPageKind.NextPage, UvTextureSelection.FollowSelection, effectivePageIndex = null, pageCount = 0),
+			"next with no pages keeps following",
+		)
+		assertEquals(
+			UvTextureSelection.PinnedPage(3),
+			uvPageSelectionAfter(UvPageKind.PreviousPage, UvTextureSelection.PinnedPage(3), effectivePageIndex = null, pageCount = 0),
+			"previous with no pages keeps the stored (stale) pin",
+		)
+	}
+
+	/** The FollowSelection kind clears any pin. */
+	@Test
+	fun followSelectionClearsThePin() {
+		assertEquals(
+			UvTextureSelection.FollowSelection,
+			uvPageSelectionAfter(UvPageKind.FollowSelection, UvTextureSelection.PinnedPage(1), effectivePageIndex = 1, pageCount = 2),
+			"follow clears the pin",
+		)
 	}
 
 	/** Edit mode lists the session's meshes mapped to the shown page; other pages' meshes are excluded. */

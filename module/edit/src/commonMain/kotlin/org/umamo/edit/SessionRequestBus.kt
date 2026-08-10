@@ -29,6 +29,11 @@ internal class SessionRequestBus {
 	/** The UV editor snap requests (see [EditorSession.uvSnapRequests]). */
 	val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
 
+	private val mutableUvPageRequests = MutableSharedFlow<UvPageRequest>(extraBufferCapacity = 4)
+
+	/** The UV editor page-switch requests (see [EditorSession.uvPageRequests]). */
+	val uvPageRequests: SharedFlow<UvPageRequest> = mutableUvPageRequests.asSharedFlow()
+
 	private val mutableSwitchObjectRequests = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 
 	/** The Alt+Q edited-mesh switch requests, each carrying its executing area (see [EditorSession.switchObjectRequests]). */
@@ -74,6 +79,15 @@ internal class SessionRequestBus {
 	 */
 	fun requestUvSnap(request: UvSnapRequest) {
 		mutableUvSnapRequests.tryEmit(request)
+	}
+
+	/**
+	 * Requests a page switch for one UV editor area to execute.
+	 *
+	 * @param UvPageRequest request The page operation plus the dispatch-time resolved area.
+	 */
+	fun requestUvPage(request: UvPageRequest) {
+		mutableUvPageRequests.tryEmit(request)
 	}
 
 	/**
@@ -128,6 +142,30 @@ data class SelectLinkedRequest(val fromSelection: Boolean, val areaId: String?)
  *   was not a UV editor (then no collector matches and the request is a clean no-op).
  */
 data class UvSnapRequest(val kind: UvSnapKind, val areaId: String?)
+
+/**
+ * The page operations a UV editor area's texture selection understands: cycling pins the next or
+ * previous atlas page with wrap-around from the currently shown page, and FollowSelection clears the
+ * pin back to the auto-follow default.  These retarget a VIEW (the receiving area's per-area page
+ * pin), never the model, which is why they ride the request bus rather than the Change pipeline.
+ */
+enum class UvPageKind {
+	NextPage,
+	PreviousPage,
+	FollowSelection,
+}
+
+/**
+ * One page-switch request: which operation, and which UV editor area executes it.  The area is
+ * resolved ONCE at command dispatch (the hovered surface at that instant) and carried in the payload,
+ * exactly like [UvSnapRequest] - there is no area answer anywhere else for a collector to fall back
+ * on, so gating on this id is the whole mechanism.
+ *
+ * @property UvPageKind kind The page operation to perform.
+ * @property String? areaId The UV editor area that executes, or null when the hovered surface was not
+ *   a UV editor (then no collector matches and the request is a clean no-op).
+ */
+data class UvPageRequest(val kind: UvPageKind, val areaId: String?)
 
 /**
  * One world-space snap request: which operation, and which viewport area's overlay executes it.  The area
