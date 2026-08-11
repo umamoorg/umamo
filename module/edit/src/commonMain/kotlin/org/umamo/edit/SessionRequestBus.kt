@@ -29,6 +29,11 @@ internal class SessionRequestBus {
 	/** The UV editor snap requests (see [EditorSession.uvSnapRequests]). */
 	val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
 
+	private val mutableUvMirrorRequests = MutableSharedFlow<UvMirrorRequest>(extraBufferCapacity = 4)
+
+	/** The UV editor mirror requests (see [EditorSession.uvMirrorRequests]). */
+	val uvMirrorRequests: SharedFlow<UvMirrorRequest> = mutableUvMirrorRequests.asSharedFlow()
+
 	private val mutableUvPageRequests = MutableSharedFlow<UvPageRequest>(extraBufferCapacity = 4)
 
 	/** The UV editor page-switch requests (see [EditorSession.uvPageRequests]). */
@@ -79,6 +84,15 @@ internal class SessionRequestBus {
 	 */
 	fun requestUvSnap(request: UvSnapRequest) {
 		mutableUvSnapRequests.tryEmit(request)
+	}
+
+	/**
+	 * Requests a mirror for one UV editor area's overlay to execute.
+	 *
+	 * @param UvMirrorRequest request The mirror axis plus the dispatch-time resolved area.
+	 */
+	fun requestUvMirror(request: UvMirrorRequest) {
+		mutableUvMirrorRequests.tryEmit(request)
 	}
 
 	/**
@@ -142,6 +156,21 @@ data class SelectLinkedRequest(val fromSelection: Boolean, val areaId: String?)
  *   was not a UV editor (then no collector matches and the request is a clean no-op).
  */
 data class UvSnapRequest(val kind: UvSnapKind, val areaId: String?)
+
+/**
+ * One mirror request: which axis, and which UV editor area's overlay executes it.
+ *
+ * Mirror is the one texture-coordinate operation expressed purely in normalized coordinates, so
+ * unlike the geometry-dependent snaps it could once run without knowing which editor it meant.  It
+ * cannot any more: the axis it reflects about depends on the surface being authored over, and only
+ * the overlay knows which that is.  So it takes the same route the snaps do - the area resolved ONCE
+ * at command dispatch, carried here, and the overlay supplying the frame when it executes.
+ *
+ * @property Boolean mirrorU True to mirror horizontally, false vertically.
+ * @property String? areaId The UV editor area whose overlay executes, or null when the hovered surface
+ *   was not a UV editor (then no collector matches and the request is a clean no-op).
+ */
+data class UvMirrorRequest(val mirrorU: Boolean, val areaId: String?)
 
 /**
  * The page operations a UV editor area's texture selection understands: cycling pins the next or

@@ -51,8 +51,10 @@ import org.umamo.ui.viewport.UvObjectGizmoOverlay
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.atlasPageEditFrame
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.restFrontRank
+import org.umamo.ui.viewport.sourceLayerEditFrame
 import org.umamo.ui.viewport.uvIslandPick
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
@@ -170,6 +172,28 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		}
 	val liveGeometries = rememberUpdatedState(geometries)
 
+	// The space an edit here is authored in.  Over a page the display texels ARE the stored frame; over
+	// a layer the drawable's placement stands between them, and every drawable on one layer shares the
+	// same placement-derived frame (the view shows exactly that layer's users), so one conversion covers
+	// a whole edit and the shared-pivot transform modes keep meaning something.  A layer whose mapping
+	// will not invert falls back to treating its own texels as the frame rather than editing blind.
+	val editFrame =
+		remember(layerView, layers, shownDrawables, displayWidth, displayHeight) {
+			val layerBinding =
+				if (layerView != null && layers != null) {
+					shownDrawables.firstNotNullOfOrNull { drawable -> layers.bindingForDrawable(drawable) }
+				} else {
+					null
+				}
+			val layerFrame =
+				if (layerView != null && layerBinding != null) {
+					sourceLayerEditFrame(layerBinding, layerView.width, layerView.height)
+				} else {
+					null
+				}
+			layerFrame ?: atlasPageEditFrame(displayWidth, displayHeight)
+		}
+
 	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick
 	// adapters over the shown islands and the page's decoded pixels (UvIslandPick.kt).
 	val frontRank = remember(model) { restFrontRank(model) }
@@ -208,12 +232,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val image by imageFlow.collectAsState()
 	val liveCamera by cameraFlow.collectAsState()
 	// The UV editor's proportional influence radius, in display (texel) units.  The session's
-	// radiusWorld is scaled for the puppet canvas and means nothing on an atlas page, so only the
-	// falloff curve and Connected Only are shared; the radius seeds from the page size on first use
-	// and survives across gestures (the circle-select remembered-radius pattern).  Owned here, by the
-	// overlay stack's host, because two sibling overlays need it: UvEditGizmoOverlay's gesture machinery
-	// seeds and resizes it, UvHudOverlay's status badge reads it.
-	val proportionalRadiusDisplay = remember(scope.areaId) { mutableStateOf<Float?>(null) }
+	// radiusWorld is scaled for the puppet canvas and means nothing on a texture surface, so only the
+	// falloff curve and Connected Only are shared; the radius seeds from the shown surface's size on
+	// first use and survives across gestures (the circle-select remembered-radius pattern).  Owned here,
+	// by the overlay stack's host, because two sibling overlays need it: UvEditGizmoOverlay's gesture
+	// machinery seeds and resizes it, UvHudOverlay's status badge reads it.
+	//
+	// Kept PER SURFACE, not per area: a radius seeded on an 8192-texel page means something else
+	// entirely on a 576-texel layer, so carrying one into the other would arrive absurdly large or
+	// vanishingly small.  Each surface seeds its own from what it is actually showing.
+	val proportionalRadiusDisplay =
+		remember(scope.areaId, displayWidth, displayHeight, layerView?.layerKey) { mutableStateOf<Float?>(null) }
 
 	// The overlap-picker popup's host state (the 2D viewport's pattern): the Object overlay's Alt
 	// pick requests it through overlapStateFrom, the popup mounted in the content stack resolves or
@@ -336,12 +365,22 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					)
 				}
 				if (layerView != null) {
-					// The layer view is READ-ONLY: it draws the recovered mapping over the artwork and
-					// installs no pointer input, so the interactive overlays below are not mounted at all
-					// rather than being gated internally.  Editing here authors the vertex-to-layer
-					// mapping, which has to write back through the drawable's atlas placement to reach the
-					// stored coordinates - a different edit from the page view's, and one worth landing only
-					// after the recovery it depends on can be trusted by eye.
+					// The layer view's mode-exclusive pair, mirroring the page view's: Edit mode authors the
+					// mapping over the artwork - the same interaction core, carrying the layer frame so a
+					// coordinate authored on the art commits in the frame the document stores - and Object
+					// mode shows it read-only.  Island PICKING over a layer is deliberately absent: the pick
+					// gates on the atlas page's alpha, and selecting art by clicking it is a separate feature
+					// from authoring the mapping.
+					UvEditGizmoOverlay(
+						areaId = scope.areaId,
+						session = session,
+						geometries = geometries,
+						frame = editFrame,
+						camera = image?.camera,
+						widthPx = widthPx,
+						heightPx = heightPx,
+						proportionalRadiusDisplayState = proportionalRadiusDisplay,
+					)
 					UvLayerOverlay(
 						session = session,
 						geometries = geometries,
@@ -380,8 +419,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						areaId = scope.areaId,
 						session = session,
 						geometries = geometries,
-						pageWidth = displayWidth,
-						pageHeight = displayHeight,
+						frame = editFrame,
 						camera = image?.camera,
 						widthPx = widthPx,
 						heightPx = heightPx,
@@ -404,18 +442,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				// The UV cursor marker: a control's texture-space marker (not HUD chrome), present in
 				// both modes like the viewport's 2D cursor, drawn above the gizmo chrome and below the
 				// HUD text.  Locked to the frame camera for the same pan / zoom glue as the wireframes.
-				// Absent over a layer: the cursor is stored in ATLAS coordinates, so drawing it against a
-				// layer's frame would place it somewhere it does not mean.
-				if (layerView == null) {
-					UvCursorOverlay(
-						session = session,
-						pageWidth = displayWidth,
-						pageHeight = displayHeight,
-						camera = image?.camera,
-						widthPx = widthPx,
-						heightPx = heightPx,
-					)
-				}
+				// Present in the layer view too: the cursor is stored in ATLAS coordinates, so it converts
+				// through the shown surface's frame to be drawn and converts back when placed - one shared
+				// control seen in whichever space the user is working in, rather than two cursors to keep
+				// in sync.
+				UvCursorOverlay(
+					session = session,
+					frame = editFrame,
+					camera = image?.camera,
+					widthPx = widthPx,
+					heightPx = heightPx,
+				)
 				// The HUD layer draws topmost, informational chrome only (draw-only, no pointer input, so
 				// nothing below loses a gesture): the modal-op status badge, the active-mesh info chip,
 				// and the zoom readout.  The chip uses the SAME mode-dependent resolution as the 2D

@@ -1,5 +1,6 @@
 package org.umamo.render
 
+import org.umamo.runtime.model.Drawable
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -131,6 +132,39 @@ class LayerTextures(
 		bindingsByDrawableId[drawableId]?.let { binding -> entriesByKey[binding.layerKey] }
 
 	/**
+	 * A drawable's binding, resolved through the same texture-source indirection the atlas lookup uses.
+	 *
+	 * Bindings are keyed by the SOURCE format's drawable ids, so a session-created copy has no key of
+	 * its own and finds its art through the drawable it was duplicated from - exactly as it finds its
+	 * atlas page.  Looking a drawable up by its own raw id alone would give a duplicate a page view but
+	 * no layer view.
+	 *
+	 * @param Drawable drawable The drawable to resolve.
+	 * @return DrawableLayerBinding? The binding, or null when the drawable has no recoverable source art.
+	 */
+	fun bindingForDrawable(drawable: Drawable): DrawableLayerBinding? =
+		bindingsByDrawableId[(drawable.textureSourceId ?: drawable.id).raw]
+
+	/**
+	 * The source layer a drawable samples, through the texture-source indirection.
+	 *
+	 * @param Drawable drawable The drawable to resolve.
+	 * @return SourceLayerEntry? The layer, or null when the drawable has no recoverable source art.
+	 */
+	fun layerForDrawable(drawable: Drawable): SourceLayerEntry? =
+		bindingForDrawable(drawable)?.let { binding -> entriesByKey[binding.layerKey] }
+
+	/**
+	 * Whether a drawable draws over the given layer, through the texture-source indirection.
+	 *
+	 * @param Drawable drawable The drawable to test.
+	 * @param String layerKey The layer in question.
+	 * @return Boolean True when the drawable samples that layer.
+	 */
+	fun drawsOverLayer(drawable: Drawable, layerKey: String): Boolean =
+		bindingForDrawable(drawable)?.layerKey == layerKey
+
+	/**
 	 * A layer's pixels, decoding them on first request and caching the result (failures included).
 	 *
 	 * @param String layerKey The layer's stable id.
@@ -229,18 +263,96 @@ fun layerPixelOf(placement: AtlasPlacement, atlasX: Float, atlasY: Float): Float
 }
 
 /**
+ * The whole atlas-uv to layer-uv mapping for a binding, as one 2x3 affine (m00, m01, m02, m10, m11,
+ * m12) over NORMALIZED coordinates.
+ *
+ * The per-vertex chain is uv times the page size, through the placement inverse, divided by the
+ * layer's size - all affine, so it folds into a single matrix that any consumer can apply in either
+ * direction (see [invertUvAffine]).  An unpacked drawable's stored uvs already address its layer
+ * image, so its mapping is the identity rather than a placement inverse; applying a placement there
+ * would be a double transform.
+ *
+ * @param DrawableLayerBinding binding The drawable's recovered binding.
+ * @param Int layerWidth The source layer's width in pixels.
+ * @param Int layerHeight The source layer's height in pixels.
+ * @return FloatArray? The atlas-uv to layer-uv affine, or null when it cannot be formed.
+ */
+fun layerUvAffineOf(binding: DrawableLayerBinding, layerWidth: Int, layerHeight: Int): FloatArray? {
+	val placement = binding.placement ?: return identityUvAffine()
+	if (layerWidth <= 0 || layerHeight <= 0) {
+		return null
+	}
+	val inverse = inversePlacementAffine(placement) ?: return null
+	return floatArrayOf(
+		inverse[0] * binding.pageWidth / layerWidth,
+		inverse[1] * binding.pageHeight / layerWidth,
+		inverse[2] / layerWidth,
+		inverse[3] * binding.pageWidth / layerHeight,
+		inverse[4] * binding.pageHeight / layerHeight,
+		inverse[5] / layerHeight,
+	)
+}
+
+/** The uv affine that changes nothing - the mapping of a drawable whose uvs already address its art. */
+fun identityUvAffine(): FloatArray = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
+
+/**
+ * Inverts a 2x3 uv affine, turning a mapping INTO a frame into the mapping back OUT of it.
+ *
+ * @param FloatArray affine The affine to invert (m00, m01, m02, m10, m11, m12).
+ * @return FloatArray? The inverse, or null when the affine is degenerate (a zero determinant).
+ */
+fun invertUvAffine(affine: FloatArray): FloatArray? {
+	if (affine.size < 6) {
+		return null
+	}
+	val determinant = affine[0] * affine[4] - affine[1] * affine[3]
+	if (determinant == 0f) {
+		return null
+	}
+	val m00 = affine[4] / determinant
+	val m01 = -affine[1] / determinant
+	val m10 = -affine[3] / determinant
+	val m11 = affine[0] / determinant
+	return floatArrayOf(
+		m00,
+		m01,
+		-(m00 * affine[2] + m01 * affine[5]),
+		m10,
+		m11,
+		-(m10 * affine[2] + m11 * affine[5]),
+	)
+}
+
+/**
+ * Applies a 2x3 uv affine to a whole interleaved (u, v) array.
+ *
+ * @param FloatArray uvs The coordinates to map.
+ * @param FloatArray affine The affine to apply.
+ * @return FloatArray The mapped coordinates, a fresh array.
+ */
+fun applyUvAffine(uvs: FloatArray, affine: FloatArray): FloatArray {
+	val mapped = FloatArray(uvs.size)
+	var componentIndex = 0
+	while (componentIndex + 1 < uvs.size) {
+		val u = uvs[componentIndex]
+		val v = uvs[componentIndex + 1]
+		mapped[componentIndex] = affine[0] * u + affine[1] * v + affine[2]
+		mapped[componentIndex + 1] = affine[3] * u + affine[4] * v + affine[5]
+		componentIndex += 2
+	}
+	return mapped
+}
+
+/**
  * Maps a drawable's stored texture coordinates into its source layer's own [0,1] frame - the mapping
  * a layer view draws.
- *
- * An unpacked drawable (a null placement on the binding) is already addressing its layer image, so
- * its uvs pass through untouched.  A packed drawable's uvs address the page, so they scale up to
- * page pixels, invert through the placement, and scale down by the layer's own size.
  *
  * @param FloatArray atlasUvs The drawable's stored texture coordinates, interleaved (u, v).
  * @param DrawableLayerBinding binding The drawable's recovered binding.
  * @param Int layerWidth The source layer's width in pixels.
  * @param Int layerHeight The source layer's height in pixels.
- * @return FloatArray? The layer-frame uvs, or null when the placement is degenerate.
+ * @return FloatArray? The layer-frame uvs, or null when the mapping cannot be formed.
  */
 fun layerUvsFromAtlasUvs(
 	atlasUvs: FloatArray,
@@ -248,19 +360,6 @@ fun layerUvsFromAtlasUvs(
 	layerWidth: Int,
 	layerHeight: Int,
 ): FloatArray? {
-	val placement = binding.placement ?: return atlasUvs.copyOf()
-	if (layerWidth <= 0 || layerHeight <= 0) {
-		return null
-	}
-	val inverse = inversePlacementAffine(placement) ?: return null
-	val layerUvs = FloatArray(atlasUvs.size)
-	var componentIndex = 0
-	while (componentIndex + 1 < atlasUvs.size) {
-		val atlasX = atlasUvs[componentIndex] * binding.pageWidth
-		val atlasY = atlasUvs[componentIndex + 1] * binding.pageHeight
-		layerUvs[componentIndex] = (inverse[0] * atlasX + inverse[1] * atlasY + inverse[2]) / layerWidth
-		layerUvs[componentIndex + 1] = (inverse[3] * atlasX + inverse[4] * atlasY + inverse[5]) / layerHeight
-		componentIndex += 2
-	}
-	return layerUvs
+	val affine = layerUvAffineOf(binding, layerWidth, layerHeight) ?: return null
+	return applyUvAffine(atlasUvs, affine)
 }
