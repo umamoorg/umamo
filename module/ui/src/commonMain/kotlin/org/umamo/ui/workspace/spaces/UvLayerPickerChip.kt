@@ -9,11 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,12 @@ import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+
+/** The layer panel's width; fixed so the list stays put as the search narrows it (see the panel below). */
+private val LAYER_PICKER_WIDTH = 320.dp
+
+/** How tall the layer list grows before it scrolls. */
+private val LAYER_PICKER_MAX_LIST_HEIGHT = 320.dp
 
 /**
  * Find a drawable by its artwork: a searchable list of the document's source layers whose rows select
@@ -64,29 +71,45 @@ internal fun UvLayerPickerChip() {
 		contentDescription = stringResource(Res.string.uv_layer_picker_title),
 		icon = LocalUmamoIcons.search,
 	) {
-		Column(modifier = Modifier.widthIn(min = 240.dp, max = 360.dp).padding(4.dp)) {
-			SearchField(value = query, onValueChange = { updated -> query = updated }, modifier = Modifier.padding(4.dp))
+		// A FIXED width, unlike the hugging panels the menu chips open: a search panel that re-hugs its
+		// widest surviving row would resize under the user's hands on every keystroke.  The command
+		// palette pins its width for the same reason.
+		Column(modifier = Modifier.width(LAYER_PICKER_WIDTH)) {
+			SearchField(
+				value = query,
+				onValueChange = { updated -> query = updated },
+				modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+				width = LAYER_PICKER_WIDTH - 16.dp,
+			)
 			if (filtered.isEmpty()) {
 				Text(
 					text = stringResource(if (entries.isEmpty()) Res.string.uv_layer_picker_empty else Res.string.uv_layer_picker_no_matches),
-					modifier = Modifier.padding(8.dp),
+					modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
 				)
 			} else {
-				// Capped rather than scrolling the whole popup: a real model carries hundreds of layers, so
-				// the list virtualizes and the search is how you reach the rest.
-				LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
-					items(filtered, key = { entry -> entry.key }) { entry ->
-						LayerPickerRow(
-							label = layerRowLabel(entry),
-							enabled = entry.boundDrawableIds.isNotEmpty(),
-							onClick = {
-								// The first drawable using this art: with duplicates any of them shows the same
-								// layer, and picking deterministically beats picking arbitrarily.
-								entry.boundDrawableIds.firstOrNull()?.let { drawableId ->
-									session?.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId(drawableId))))
-								}
-							},
-						)
+				// A plain scrolling column, NOT a lazy list.  The panel this opens in measures its content
+				// with IntrinsicSize.Max, and a lazy list is a SubcomposeLayout - it cannot answer an
+				// intrinsic query at all, and throws rather than degrading.  Every row therefore composes
+				// up front, which the menu here does too; the rows are single text lines and the search is
+				// what keeps the set small.  Do not reintroduce a lazy list without moving this panel off
+				// the intrinsic measurement first.
+				Column(
+					modifier = Modifier.fillMaxWidth().heightIn(max = LAYER_PICKER_MAX_LIST_HEIGHT).verticalScroll(rememberScrollState()),
+				) {
+					for (entry in filtered) {
+						key(entry.key) {
+							LayerPickerRow(
+								label = layerRowLabel(entry),
+								enabled = entry.boundDrawableIds.isNotEmpty(),
+								onClick = {
+									// The first drawable using this art: with duplicates any of them shows the same
+									// layer, and picking deterministically beats picking arbitrarily.
+									entry.boundDrawableIds.firstOrNull()?.let { drawableId ->
+										session?.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId(drawableId))))
+									}
+								},
+							)
+						}
 					}
 				}
 			}

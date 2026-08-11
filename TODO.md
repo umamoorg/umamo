@@ -71,9 +71,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
-* Bugs
-	* In source layer UV edit mode for a single drawable, it shows all drawable UVs as editable.  Attempting to edit the unselected drawable UV results in notice_uv_no_uvs.  The other drawable UVs should not appear if they are not selected when entering edit mode.
-	* The source layer search straight up crashes the application with a lovely error message.
 * Improvements
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 
