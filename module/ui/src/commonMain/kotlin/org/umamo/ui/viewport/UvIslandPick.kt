@@ -121,21 +121,18 @@ internal class UvIslandPick(
  * @return UvIslandPick The picker.
  */
 internal fun uvIslandPick(
-	shownDrawables: List<Drawable>,
 	geometries: List<GizmoMeshGeometry>,
 	frontRank: Map<DrawableId, Float>,
-	page: DecodedImage?,
+	uvsById: Map<DrawableId, FloatArray>,
+	image: DecodedImage?,
 ): UvIslandPick =
 	UvIslandPick(
 		displayPositionsById = geometries.associate { geometry -> geometry.drawableId to geometry.positions },
 		indicesById = geometries.associate { geometry -> geometry.drawableId to geometry.indices },
-		meshUvsById =
-			shownDrawables
-				.mapNotNull { drawable -> drawable.mesh?.let { mesh -> drawable.id to mesh.uvs } }
-				.toMap(),
+		meshUvsById = uvsById,
 		frontRankById = frontRank,
-		sampleAlpha = pageAlphaSampler(page),
-		atlasSizeOf = { page?.let { decodedPage -> decodedPage.width to decodedPage.height } },
+		sampleAlpha = pageAlphaSampler(image),
+		atlasSizeOf = { image?.let { decodedImage -> decodedImage.width to decodedImage.height } },
 	)
 
 /**

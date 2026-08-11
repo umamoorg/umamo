@@ -28,8 +28,6 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  *   - imageState / cameraState are thread-safe StateFlows; either thread may set them.
  *   - refCount is touched only on the UI thread (register/unregister run as composition effects).
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.
- *
- * エリアごとの描画状態。UI スレッド（レジストリ）とレンダースレッド（エンジン）で共有される。
  */
 internal class AreaSlot {
 	// Whether this area renders the posed puppet or one of the UV editor's flat surfaces. The puppet/UV

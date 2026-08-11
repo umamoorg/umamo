@@ -42,21 +42,23 @@ import org.umamo.ui.theme.selectionOverlayStyle
  * pinned page holds), an Alt click resolves the overlap stack through the host's popup, a primary
  * drag box-selects every island with a vertex inside the box (Shift adds), and Shift+RightClick
  * places the UV cursor.
- * Picking is CPU-side over [islandPick] - display-space point-in-face with the atlas alpha gate, so
- * a click on transparent triangle overhang falls through, exactly like the viewport's raster pick.
+ * Picking is CPU-side over [islandPick] - display-space point-in-face with the shown image's alpha
+ * gate, so a click on transparent triangle overhang falls through, exactly like the viewport's raster
+ * pick.  The same overlay serves both surfaces: over a source layer it gates on that artwork's own
+ * alpha and places the cursor through the layer's frame, which is the whole of the difference.
  * Only primary-driven events are consumed; pan / zoom and the plain right-click (the context menu)
  * fall through.
  *
- * Posed from the FRAME camera so it lags with the GL page during pan / zoom, and unclipped to the
- * page tile by design, so UVs outside it stay visible (the hosting area still clips to its own
- * bounds).
+ * Posed from the FRAME camera so it lags with the GL image during pan / zoom, and unclipped to the
+ * image tile by design, so a mapping reaching past it stays visible - which is normal, since a mesh
+ * rings outside the art it samples (the hosting area still clips to its own bounds).
  *
  * @param String areaId The UV editor area this overlay covers (keys the pointer loop).
  * @param EditorSession session The session owning the object selection, the model, and the latches.
  * @param List<GizmoMeshGeometry> geometries The shown islands' display-space gizmo geometry.
  * @param UvIslandPick islandPick The page's island picker (point pick, stack query, front ranks).
- * @param Int pageWidth The shown atlas page's width in texels (the display mapping's scale).
- * @param Int pageHeight The shown atlas page's height in texels.
+ * @param UvEditFrame frame The shown surface's texel size plus how a coordinate over it reaches the
+ *   stored texture coordinates (an atlas page is the stored frame itself; a source layer is not).
  * @param ViewportCamera? camera The displayed frame's camera; null hides the overlay (no frame yet).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
@@ -69,8 +71,7 @@ internal fun UvObjectGizmoOverlay(
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
 	islandPick: UvIslandPick,
-	pageWidth: Int,
-	pageHeight: Int,
+	frame: UvEditFrame,
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
@@ -93,8 +94,7 @@ internal fun UvObjectGizmoOverlay(
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 	val liveGeometries = rememberUpdatedState(geometries)
 	val liveIslandPick = rememberUpdatedState(islandPick)
-	val livePageWidth = rememberUpdatedState(pageWidth)
-	val livePageHeight = rememberUpdatedState(pageHeight)
+	val liveFrame = rememberUpdatedState(frame)
 
 	// The box machinery over whole islands.  The circle callbacks are dormant: a select tool cannot
 	// arm over a UV area in Object mode (CommandRouting.selectToolArea keeps B / C Edit-only there),
@@ -137,10 +137,8 @@ internal fun UvObjectGizmoOverlay(
 				},
 				onOverlapRequest = onOverlapRequest,
 				placeCursor = { displayX, displayY ->
-					session.setUvCursor(
-						displayToUvU(displayX, livePageWidth.value),
-						displayToUvV(displayY, livePageHeight.value),
-					)
+					val (cursorU, cursorV) = liveFrame.value.storedUvAt(displayX, displayY)
+					session.setUvCursor(cursorU, cursorV)
 				},
 			)
 		}

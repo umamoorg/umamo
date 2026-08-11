@@ -13,6 +13,7 @@ import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.render.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
@@ -109,16 +110,20 @@ internal fun resolveUvEditorPage(
 			)
 		}
 	}
+
 	val activeDrawableId =
 		meshSelection.activeDrawableId
 			?: (objectSelection.active as? SelectionTarget.Drawable)?.id
 			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }?.id
 	val activeDrawable = model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId }
+
 	if (activeDrawable?.mesh == null) {
 		return null
 	}
+
 	val pageIndex = textures?.let { puppetTextures -> atlasPageIndexFor(activeDrawable, puppetTextures) }
 	val page = if (textures != null && pageIndex != null) textures.atlases.getOrNull(pageIndex) else null
+
 	return UvEditorPage(
 		pageIndex = pageIndex,
 		pageWidth = page?.width ?: 1,
@@ -189,53 +194,61 @@ private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, o
 }
 
 /**
- * The meshes drawn over a shown source layer: every drawable bound to it that carries an editable
- * mapping.  Usually one, but duplicated art shares a layer and all of its users draw together.
+ * The meshes drawn over a shown source layer, under the same Edit / Object rule the page view uses:
+ * the session's edited meshes while editing, every visible mesh while selecting.
+ *
+ * Duplicated art shares a layer, so several drawables can draw over one image at once - which is why
+ * Object mode shows them all (they are the click targets) and Edit mode does not (only the meshes the
+ * session is editing can actually be moved).
  *
  * @param PuppetModel model The session's committed model.
+ * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
+ * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
  * @param LayerTextures layers The document's source-art store.
  * @param String layerKey The shown layer.
  * @return List<Drawable> The drawables whose mappings draw over the layer, in model order.
  */
-internal fun shownLayerDrawables(model: PuppetModel, layers: LayerTextures, layerKey: String): List<Drawable> {
-	val boundIds = layers.layerFor(layerKey)?.boundDrawableIds?.toSet() ?: return emptyList()
-	return model.drawables.filter { drawable ->
-		val mesh = drawable.mesh
-		drawable.id.raw in boundIds && mesh != null && mesh.uvs.isNotEmpty() && mesh.uvs.size == mesh.positions.size
-	}
-}
+internal fun shownLayerDrawables(
+	model: PuppetModel,
+	mode: EditorMode,
+	meshSelection: MeshSelection,
+	layers: LayerTextures,
+	layerKey: String,
+): List<Drawable> =
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> layers.drawsOverLayer(drawable, layerKey) }
 
 /**
- * Projects the shown drawables' mappings into the SOURCE LAYER's display space: each drawable's atlas
- * texture coordinates are recovered into its layer's own frame, then scaled to layer texels with the
- * same v-flip the page view uses (see UvDisplayMapping.kt), so every downstream overlay, camera, and
- * hit query works over layer geometry unchanged.
+ * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME - the coordinates that address the
+ * image the editor is drawing over.
  *
- * A drawable whose recovery is degenerate is skipped rather than drawn at a wrong place.
+ * Over a page those are the stored coordinates verbatim; over a source layer they are the stored ones
+ * recovered through the drawable's placement.  One map serves both of the things that need them: the
+ * display projection the overlays draw, and the alpha gate the island pick samples the shown image
+ * with.  Deriving them once is what keeps those two from disagreeing about where a mesh is.
  *
- * @param List<Drawable> shownDrawables The drawables bound to the shown layer.
- * @param LayerTextures layers The document's source-art store (holds the recovered bindings).
- * @param Int layerWidth The shown layer's width in pixels (the display mapping's scale).
- * @param Int layerHeight The shown layer's height in pixels.
- * @return List<GizmoMeshGeometry> One geometry per drawable whose mapping recovers.
+ * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.
+ *
+ * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
+ * @param LayerTextures? layers The document's source-art store, needed only for a layer view.
+ * @param UvEditorLayer? layerView The shown layer, or null when a page is shown.
+ * @return Map<DrawableId, FloatArray> Each drawable's mapping in the shown surface's frame.
  */
-internal fun layerGizmoGeometries(
+internal fun shownSurfaceUvs(
 	shownDrawables: List<Drawable>,
-	layers: LayerTextures,
-	layerWidth: Int,
-	layerHeight: Int,
-): List<GizmoMeshGeometry> =
-	shownDrawables.mapNotNull { drawable ->
-		val mesh = drawable.mesh ?: return@mapNotNull null
-		val binding = layers.bindingsByDrawableId[drawable.id.raw] ?: return@mapNotNull null
-		val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerWidth, layerHeight) ?: return@mapNotNull null
-		GizmoMeshGeometry(
-			drawable.id,
-			mesh.indices,
-			MeshTopology.uniqueEdges(mesh.indices),
-			uvToDisplay(layerUvs, layerWidth, layerHeight),
-		)
-	}
+	layers: LayerTextures?,
+	layerView: UvEditorLayer?,
+): Map<DrawableId, FloatArray> =
+	shownDrawables
+		.mapNotNull { drawable ->
+			val mesh = drawable.mesh ?: return@mapNotNull null
+			if (layerView == null || layers == null) {
+				return@mapNotNull drawable.id to mesh.uvs
+			}
+			val binding = layers.bindingForDrawable(drawable) ?: return@mapNotNull null
+			val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height) ?: return@mapNotNull null
+			drawable.id to layerUvs
+		}
+		.toMap()
 
 /**
  * The texture-selection transition for one page-switch request: cycling pins the page adjacent to
@@ -294,6 +307,35 @@ internal fun shownUvDrawables(
 	meshSelection: MeshSelection,
 	textures: PuppetTextures?,
 	pageIndex: Int?,
+): List<Drawable> =
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable ->
+		textures == null || atlasPageIndexFor(drawable, textures) == pageIndex
+	}
+
+/**
+ * The meshes drawn over whichever surface the UV editor is showing.
+ *
+ * The Edit / Object split is the whole rule and it belongs to the EDITOR, not to the surface: Edit
+ * mode shows the session's edited meshes, because those are the ones an operator can act on - showing
+ * more would offer the user vertices that refuse to move - and Object mode shows every visible mesh,
+ * because those are the click targets.  Only [drawsOverSurface] differs between a page and a source
+ * layer, which is what keeps the two views from drifting apart on the rule they share.
+ *
+ * Meshes without an editable UV array (empty or malformed) are excluded everywhere.  Visibility
+ * follows the Parts-panel eyeball cascade in Object mode, matching what the viewport can render and
+ * therefore pick; a hidden island neither draws nor picks.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
+ * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
+ * @param Function drawsOverSurface Whether a drawable's mapping addresses the shown surface.
+ * @return List<Drawable> The drawables whose mappings draw over it, in model order.
+ */
+internal fun shownSurfaceDrawables(
+	model: PuppetModel,
+	mode: EditorMode,
+	meshSelection: MeshSelection,
+	drawsOverSurface: (Drawable) -> Boolean,
 ): List<Drawable> {
 	val candidates =
 		if (mode == EditorMode.Edit) {
@@ -304,28 +346,32 @@ internal fun shownUvDrawables(
 		}
 	return candidates.filter { drawable ->
 		val mesh = drawable.mesh
-		mesh != null &&
-			mesh.uvs.isNotEmpty() &&
-			mesh.uvs.size == mesh.positions.size &&
-			(textures == null || atlasPageIndexFor(drawable, textures) == pageIndex)
+		mesh != null && mesh.uvs.isNotEmpty() && mesh.uvs.size == mesh.positions.size && drawsOverSurface(drawable)
 	}
 }
 
 /**
- * Projects the shown drawables' UV mappings into display-space gizmo geometry: texel units with the
+ * Projects the shown drawables' mappings into display-space gizmo geometry: texel units with the
  * v-axis flip (see UvDisplayMapping.kt), edges derived from the triangle indices.
  *
- * @param List<Drawable> shownDrawables The drawables whose mappings draw over the page.
- * @param Int pageWidth The shown page's width in texels (the display mapping's scale).
- * @param Int pageHeight The shown page's height in texels.
- * @return List<GizmoMeshGeometry> One geometry per meshed drawable.
+ * Takes the mappings rather than reading them off the drawables, because which frame they are in is
+ * the caller's business (see [shownSurfaceUvs]) - which is what lets one projection serve the page
+ * view and the layer view alike, and every overlay downstream stay unaware of the difference.
+ *
+ * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
+ * @param Map<DrawableId, FloatArray> uvsById Each drawable's mapping in the shown surface's frame.
+ * @param Int displayWidth The shown surface's width in texels (the display mapping's scale).
+ * @param Int displayHeight The shown surface's height in texels.
+ * @return List<GizmoMeshGeometry> One geometry per drawable with a mapping.
  */
 internal fun uvGizmoGeometries(
 	shownDrawables: List<Drawable>,
-	pageWidth: Int,
-	pageHeight: Int,
+	uvsById: Map<DrawableId, FloatArray>,
+	displayWidth: Int,
+	displayHeight: Int,
 ): List<GizmoMeshGeometry> =
 	shownDrawables.mapNotNull { drawable ->
 		val mesh = drawable.mesh ?: return@mapNotNull null
-		GizmoMeshGeometry(drawable.id, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(mesh.uvs, pageWidth, pageHeight))
+		val uvs = uvsById[drawable.id] ?: return@mapNotNull null
+		GizmoMeshGeometry(drawable.id, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(uvs, displayWidth, displayHeight))
 	}

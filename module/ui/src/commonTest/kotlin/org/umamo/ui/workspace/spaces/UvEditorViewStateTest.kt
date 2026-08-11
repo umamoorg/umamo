@@ -345,28 +345,72 @@ class UvEditorViewStateTest {
 		)
 	}
 
-	/** Every drawable sharing one piece of art draws over it together; unbound ones do not. */
+	/** In OBJECT mode every drawable sharing one piece of art draws over it together; unbound ones do not. */
 	@Test
-	fun shownLayerDrawablesListsEverySharerOfTheArt() {
+	fun objectModeListsEverySharerOfTheArt() {
 		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"), meshedDrawable("a2"))
-		val shown = shownLayerDrawables(model, layerStoreOf(boundDrawableIds = listOf("a", "a2")), "layer0")
+		val shown =
+			shownLayerDrawables(
+				model,
+				EditorMode.Object,
+				MeshSelection(),
+				layerStoreOf(boundDrawableIds = listOf("a", "a2")),
+				"layer0",
+			)
 		assertEquals(
 			listOf(DrawableId("a"), DrawableId("a2")),
 			shown.map { drawable -> drawable.id },
-			"both users of the art draw, in model order",
+			"both users of the art are click targets, in model order",
 		)
+	}
+
+	/**
+	 * In EDIT mode a layer shows only the meshes the SESSION is editing, exactly as a page does.
+	 *
+	 * Duplicated art means several drawables draw over one layer, but an operator can only move the
+	 * ones the session has under edit - drawing the rest as though they were editable offers vertices
+	 * that refuse to move and answers a drag with "no editable UVs".
+	 */
+	@Test
+	fun editModeListsOnlyTheSessionMeshesOverTheLayer() {
+		val model = modelOf(meshedDrawable("a"), meshedDrawable("a2"))
+		val store = layerStoreOf(boundDrawableIds = listOf("a", "a2"))
+		val shown =
+			shownLayerDrawables(
+				model,
+				EditorMode.Edit,
+				MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				store,
+				"layer0",
+			)
+		assertEquals(listOf(DrawableId("a")), shown.map { drawable -> drawable.id }, "only the edited mesh is shown")
+
+		val none = shownLayerDrawables(model, EditorMode.Edit, MeshSelection(), store, "layer0")
+		assertTrue(none.isEmpty(), "editing nothing shows nothing over the layer")
+	}
+
+	/** The layer's frame comes from the layer, so narrowing the shown set in Edit mode cannot shift it. */
+	@Test
+	fun layerBindingResolvesFromTheLayerNotTheShownSet() {
+		val store = layerStoreOf(boundDrawableIds = listOf("a", "a2"))
+		val binding = store.bindingForLayer("layer0")
+		assertNotNull(binding, "a layer with users resolves a representative binding")
+		assertEquals("layer0", binding.layerKey, "and it is that layer's")
+		assertNull(store.bindingForLayer("missing"), "an unknown layer resolves nothing")
 	}
 
 	/**
 	 * The layer projection is the same texel display mapping the page view uses, over the LAYER's own
 	 * size - an unpacked binding passes its uvs straight through, so the mapping is uv times layer size
-	 * with the v-flip.
+	 * with the v-flip.  One projection serves both views; only the uvs handed to it differ.
 	 */
 	@Test
 	fun layerGeometriesProjectIntoTheLayerFrame() {
 		val model = modelOf(meshedDrawable("a"))
 		val store = layerStoreOf(width = 64, height = 32)
-		val geometries = layerGizmoGeometries(shownLayerDrawables(model, store, "layer0"), store, 64, 32)
+		val shown = shownLayerDrawables(model, EditorMode.Object, MeshSelection(), store, "layer0")
+		val layerView = UvEditorLayer("layer0", 64, 32)
+		val geometries = uvGizmoGeometries(shown, shownSurfaceUvs(shown, store, layerView), 64, 32)
 		assertEquals(1, geometries.size, "one geometry per bound drawable")
 		// The same triangleUvs the page test uses: (0.25, 0.5) -> (16, 16) on a 64x32 frame, v flipped.
 		val expectedPositions = floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f)
@@ -494,7 +538,13 @@ class UvEditorViewStateTest {
 	@Test
 	fun projectsUvsIntoDisplaySpace() {
 		val drawable = meshedDrawable("a")
-		val geometries = uvGizmoGeometries(listOf(drawable), pageWidth = 64, pageHeight = 32)
+		val geometries =
+			uvGizmoGeometries(
+				listOf(drawable),
+				shownSurfaceUvs(listOf(drawable), layers = null, layerView = null),
+				displayWidth = 64,
+				displayHeight = 32,
+			)
 		assertEquals(1, geometries.size, "one geometry per meshed drawable")
 		val geometry = geometries.first()
 		assertEquals(DrawableId("a"), geometry.drawableId, "the geometry names its drawable")
@@ -510,8 +560,9 @@ class UvEditorViewStateTest {
 	/** Unmeshed drawables project no geometry. */
 	@Test
 	fun skipsUnmeshedDrawables() {
+		val bare = listOf(bareDrawable("c"))
 		assertTrue(
-			uvGizmoGeometries(listOf(bareDrawable("c")), pageWidth = 64, pageHeight = 32).isEmpty(),
+			uvGizmoGeometries(bare, shownSurfaceUvs(bare, layers = null, layerView = null), 64, 32).isEmpty(),
 			"a drawable with no mesh yields no geometry",
 		)
 	}

@@ -46,7 +46,6 @@ import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
-import org.umamo.ui.viewport.UvLayerOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
@@ -157,31 +156,36 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val shownDrawables =
 		remember(model, textures, layers, layerView, pageIndex, mode, meshSelection.drawableIds) {
 			if (layerView != null && layers != null) {
-				shownLayerDrawables(model, layers, layerView.layerKey)
+				shownLayerDrawables(model, mode, meshSelection, layers, layerView.layerKey)
 			} else {
 				shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
 			}
 		}
+	// Each shown mapping in the SHOWN surface's own frame - stored coordinates over a page, recovered
+	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
+	// so the wireframe and the hit test can never disagree about where a mesh is.
+	val shownUvs =
+		remember(shownDrawables, layers, layerView) {
+			shownSurfaceUvs(shownDrawables, layers, layerView)
+		}
 	val geometries =
-		remember(shownDrawables, layers, layerView, displayWidth, displayHeight) {
-			if (layerView != null && layers != null) {
-				layerGizmoGeometries(shownDrawables, layers, layerView.width, layerView.height)
-			} else {
-				uvGizmoGeometries(shownDrawables, displayWidth, displayHeight)
-			}
+		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
+			uvGizmoGeometries(shownDrawables, shownUvs, displayWidth, displayHeight)
 		}
 	val liveGeometries = rememberUpdatedState(geometries)
 
 	// The space an edit here is authored in.  Over a page the display texels ARE the stored frame; over
-	// a layer the drawable's placement stands between them, and every drawable on one layer shares the
-	// same placement-derived frame (the view shows exactly that layer's users), so one conversion covers
-	// a whole edit and the shared-pivot transform modes keep meaning something.  A layer whose mapping
-	// will not invert falls back to treating its own texels as the frame rather than editing blind.
+	// a layer the drawable's placement stands between them.  Every drawable over one layer shares that
+	// placement, so the frame comes from the LAYER rather than from whichever drawables are currently
+	// shown - it must not shift when Edit mode narrows the shown set to the session's meshes.  One
+	// conversion therefore covers a whole edit and the shared-pivot transform modes keep meaning
+	// something.  A layer whose mapping will not invert falls back to treating its own texels as the
+	// frame rather than editing blind.
 	val editFrame =
-		remember(layerView, layers, shownDrawables, displayWidth, displayHeight) {
+		remember(layerView, layers, displayWidth, displayHeight) {
 			val layerBinding =
 				if (layerView != null && layers != null) {
-					shownDrawables.firstNotNullOfOrNull { drawable -> layers.bindingForDrawable(drawable) }
+					layers.bindingForLayer(layerView.layerKey)
 				} else {
 					null
 				}
@@ -194,17 +198,20 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			layerFrame ?: atlasPageEditFrame(displayWidth, displayHeight)
 		}
 
-	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick
-	// adapters over the shown islands and the page's decoded pixels (UvIslandPick.kt).
+	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick adapters
+	// over the shown islands and the shown image's decoded pixels (UvIslandPick.kt).  The image is the
+	// atlas page or the source layer's artwork, and the alpha gate follows it - a click through
+	// transparent overhang falls to whatever is behind it on the surface actually being looked at.
 	val frontRank = remember(model) { restFrontRank(model) }
+	val shownImage =
+		if (layerView != null) {
+			layers?.rasterFor(layerView.layerKey)
+		} else {
+			pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) }
+		}
 	val islandPick =
-		remember(shownDrawables, geometries, frontRank, pageIndex, textures) {
-			uvIslandPick(
-				shownDrawables = shownDrawables,
-				geometries = geometries,
-				frontRank = frontRank,
-				page = pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) },
-			)
+		remember(geometries, frontRank, shownUvs, shownImage) {
+			uvIslandPick(geometries = geometries, frontRank = frontRank, uvsById = shownUvs, image = shownImage)
 		}
 
 	// Register this area as a UV scene on the shared GL engine and follow the frame it publishes; the
@@ -217,7 +224,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// thereafter, including its failures.
 	val sceneContent =
 		if (layerView != null) {
-			UvSceneContent.SourceLayer(layers?.rasterFor(layerView.layerKey))
+			UvSceneContent.SourceLayer(shownImage)
 		} else {
 			UvSceneContent.AtlasPage(pageIndex)
 		}
@@ -364,68 +371,46 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						onDismiss = { overlap = null },
 					)
 				}
-				if (layerView != null) {
-					// The layer view's mode-exclusive pair, mirroring the page view's: Edit mode authors the
-					// mapping over the artwork - the same interaction core, carrying the layer frame so a
-					// coordinate authored on the art commits in the frame the document stores - and Object
-					// mode shows it read-only.  Island PICKING over a layer is deliberately absent: the pick
-					// gates on the atlas page's alpha, and selecting art by clicking it is a separate feature
-					// from authoring the mapping.
-					UvEditGizmoOverlay(
-						areaId = scope.areaId,
-						session = session,
-						geometries = geometries,
-						frame = editFrame,
-						camera = image?.camera,
-						widthPx = widthPx,
-						heightPx = heightPx,
-						proportionalRadiusDisplayState = proportionalRadiusDisplay,
-					)
-					UvLayerOverlay(
-						session = session,
-						geometries = geometries,
-						camera = image?.camera,
-						widthPx = widthPx,
-						heightPx = heightPx,
-					)
-				} else {
-					// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
-					// viewport pair's convention, so both mount unconditionally): Object mode's island
-					// selection surface (every visible island drawn, click / box / Alt-stack picking and
-					// Shift+RightClick cursor placement over the session's object selection), then Edit
-					// mode's interaction core (element selection, box select, and the modal G / S / R
-					// operators with live GPU preview).  Both are locked to the frame camera
-					// (image?.camera) for the same pan / zoom glue as the 2D viewport's overlays;
-					// unconsumed input falls through to the navigation loop and the context menu.
-					UvObjectGizmoOverlay(
-						areaId = scope.areaId,
-						session = session,
-						geometries = geometries,
-						islandPick = islandPick,
-						pageWidth = displayWidth,
-						pageHeight = displayHeight,
-						camera = image?.camera,
-						widthPx = widthPx,
-						heightPx = heightPx,
-						onOverlapRequest = { position, candidates ->
-							// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
-							overlap =
-								overlapStateFrom(service, position, candidates) { pickedId ->
-									session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
-								}
-						},
-					)
-					UvEditGizmoOverlay(
-						areaId = scope.areaId,
-						session = session,
-						geometries = geometries,
-						frame = editFrame,
-						camera = image?.camera,
-						widthPx = widthPx,
-						heightPx = heightPx,
-						proportionalRadiusDisplayState = proportionalRadiusDisplay,
-					)
-				}
+				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
+				// viewport pair's convention, so both mount unconditionally): Object mode's island
+				// selection surface (every island drawn, click / box / Alt-stack picking and
+				// Shift+RightClick cursor placement over the session's object selection), then Edit
+				// mode's interaction core (element selection, box select, and the modal G / S / R
+				// operators with live GPU preview).  Both are locked to the frame camera
+				// (image?.camera) for the same pan / zoom glue as the 2D viewport's overlays;
+				// unconsumed input falls through to the navigation loop and the context menu.
+				//
+				// The SAME pair serves a page and a source layer.  What differs between the two views is
+				// carried entirely by the frame and the pick they are handed - the surface's texel size,
+				// the conversion back to the stored coordinates, and which image the alpha gate reads -
+				// so neither overlay knows which surface it is drawing over.
+				UvObjectGizmoOverlay(
+					areaId = scope.areaId,
+					session = session,
+					geometries = geometries,
+					islandPick = islandPick,
+					frame = editFrame,
+					camera = image?.camera,
+					widthPx = widthPx,
+					heightPx = heightPx,
+					onOverlapRequest = { position, candidates ->
+						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
+						overlap =
+							overlapStateFrom(service, position, candidates) { pickedId ->
+								session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
+							}
+					},
+				)
+				UvEditGizmoOverlay(
+					areaId = scope.areaId,
+					session = session,
+					geometries = geometries,
+					frame = editFrame,
+					camera = image?.camera,
+					widthPx = widthPx,
+					heightPx = heightPx,
+					proportionalRadiusDisplayState = proportionalRadiusDisplay,
+				)
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
 				// until armed.  Mounted above the gizmo overlays so an armed drag is captured over them; on
 				// release it calls the area-generic service.zoomToRegion for this UV atlas-page area.  Takes

@@ -9,9 +9,8 @@ import kotlin.math.sin
  * Where one drawable's upright source art sits on an atlas page: the transform the packer applied to
  * it, as translation / scale / rotation.
  *
- * A TRS rather than a rect because that is what the source formats actually carry and what the
- * corpus actually uses - rotation (haruto, koharu, seesaw, modelE) and non-unit scale (modelC packs
- * 170 of 187 images scaled, modelE all 97) both occur, and a rect-plus-quarter-turn model would
+ * A Transform/Rotation/Scale(TRS) rather than a rect because that is what the source formats actually carry and what the
+ * corpus actually uses.  Rotation and scale both both occur, and a rect-plus-quarter-turn model would
  * silently discard them on import.  A packer that only ever emits axis-aligned unit-scale placements
  * writes the constrained subset (scale 1, rotation 0) and loses nothing.
  *
@@ -39,10 +38,9 @@ data class AtlasPlacement(
  * One source layer the editor can show: the artwork a drawable was authored against, before packing.
  *
  * Identity and size only - the pixels come from [LayerTextures.rasterFor] on demand, because a real
- * model carries hundreds of these (Erica: 176) and decoding them all at document load would stall
- * the open.
+ * model carries hundreds of these and decoding them all at document load would stall the open.
  *
- * @property String key The layer's stable document-local id (the join key bindings reference).
+ * @property String key The layer's stable document-local identifier(the join key bindings reference).
  * @property String name The layer's display name.
  * @property Int width The layer image's width in pixels.
  * @property Int height The layer image's height in pixels.
@@ -153,6 +151,19 @@ class LayerTextures(
 	 */
 	fun layerForDrawable(drawable: Drawable): SourceLayerEntry? =
 		bindingForDrawable(drawable)?.let { binding -> entriesByKey[binding.layerKey] }
+
+	/**
+	 * The placement any drawable over a layer shares.
+	 *
+	 * Every drawable bound to one layer resolves through the same model image, so they carry the same
+	 * placement and the same page - which is what lets the editor describe a layer's frame without
+	 * first deciding which of its users to ask, and keeps that frame stable as the selection narrows.
+	 *
+	 * @param String layerKey The layer in question.
+	 * @return DrawableLayerBinding? A binding over that layer, or null when nothing is bound to it.
+	 */
+	fun bindingForLayer(layerKey: String): DrawableLayerBinding? =
+		entriesByKey[layerKey]?.boundDrawableIds?.firstNotNullOfOrNull { drawableId -> bindingsByDrawableId[drawableId] }
 
 	/**
 	 * Whether a drawable draws over the given layer, through the texture-source indirection.
