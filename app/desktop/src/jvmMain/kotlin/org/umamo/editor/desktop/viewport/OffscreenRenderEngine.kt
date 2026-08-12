@@ -508,7 +508,7 @@ internal class OffscreenRenderEngine(
 							// applied.  Equality rather than identity: AtlasPage compares its index, and
 							// SourceLayer's image compares by reference, which is the freshness test either
 							// surface wants.
-							RenderScene.AtlasPage, RenderScene.SourceLayer ->
+							RenderScene.UvScene ->
 								slot.renderedUvContent == slot.uvContent &&
 									slot.renderedCamera === camera &&
 									slot.atlasRenderBumpDone == atlasRenderBump
@@ -634,7 +634,7 @@ internal class OffscreenRenderEngine(
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
 			// A UV area draws its flat surface instead; the pose / selection / shown state pushed above are
 			// harmless no-ops for it (neither UV draw reads any of them - just the grid and the surface quad).
-			RenderScene.AtlasPage, RenderScene.SourceLayer ->
+			RenderScene.UvScene ->
 				when (uvContent) {
 					// An atlas page the engine already uploaded, addressed by index.
 					is UvSceneContent.AtlasPage -> renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight)
@@ -707,7 +707,7 @@ internal class OffscreenRenderEngine(
 	private fun contentBoundsFor(slot: AreaSlot): ContentBounds =
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.contentBounds()
-			RenderScene.AtlasPage, RenderScene.SourceLayer ->
+			RenderScene.UvScene ->
 				when (val uvContent = slot.uvContent) {
 					is UvSceneContent.AtlasPage -> pageContentBounds(uvContent.pageIndex)
 					is UvSceneContent.SourceLayer -> imageContentBounds(uvContent.image)

@@ -9,13 +9,15 @@ import org.umamo.ui.viewport.UvSceneContent
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Which content an area renders: the posed puppet (2D viewport), or one of the UV editor's flat
- * surfaces - a packed atlas page or a source layer's own artwork.
+ * Which content an area renders: the posed puppet (2D viewport), or the UV editor's flat surface.
+ *
+ * WHICH flat surface - a packed atlas page or a source layer's artwork - is not recorded here.  That
+ * belongs to [AreaSlot.uvContent], which carries the kind together with its payload; splitting it
+ * across two fields is what let a switch be observed half applied.
  */
 internal enum class RenderScene {
 	Puppet2D,
-	AtlasPage,
-	SourceLayer,
+	UvScene,
 }
 
 /** The camera and pixel size of a registered area, resolved for a CPU pick. Null-camera areas do not appear. */
@@ -32,9 +34,9 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.
  */
 internal class AreaSlot {
-	// Whether this area renders the posed puppet or one of the UV editor's flat surfaces. Fixed at
-	// registration (register vs registerUvScene) and never retargeted; WITHIN the UV family the surface is
-	// switched through uvContent below. UI thread writes, render thread reads - a volatile publish.
+	// Whether this area renders the posed puppet or the UV editor's flat surface. Fixed at registration
+	// (register vs registerUvScene) and never retargeted; WHICH flat surface is carried by uvContent
+	// below. UI thread writes, render thread reads - a volatile publish.
 	@Volatile
 	var scene: RenderScene = RenderScene.Puppet2D
 
@@ -145,7 +147,11 @@ internal class ViewportAreaRegistry {
 	 */
 	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> {
 		val slot = areas.getOrPut(areaId) { AreaSlot() }
+		// Content first, then the kind: the render thread walks the slot map, so it can see this slot
+		// mid-registration.  Publishing the content before the kind means that by the time the area reads
+		// as a UV scene it already has a surface to draw - never a UV area with nothing in it.
 		applyUvContent(slot, content)
+		slot.scene = RenderScene.UvScene
 		slot.refCount++
 		return slot.imageState
 	}
