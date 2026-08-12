@@ -51,7 +51,6 @@ import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.atlasPageEditFrame
-import org.umamo.ui.viewport.handleUvSnapRequest
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.restFrontRank
 import org.umamo.ui.viewport.sourceLayerEditFrame
