@@ -3,6 +3,7 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL12
+import org.lwjgl.opengl.GL13
 import org.lwjgl.opengl.GL15
 import org.lwjgl.opengl.GL20
 import org.lwjgl.opengl.GL21
@@ -26,6 +27,7 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
+import org.umamo.render.device.TextureWrap
 import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.atlasPageVertexShader
 import org.umamo.render.glsl.axisFragmentShader
@@ -76,10 +78,11 @@ class GlRenderDevice : RenderDevice {
 		format: TextureFormat,
 		filter: TextureFilter,
 		pixels: ByteArray?,
+		wrap: TextureWrap,
 	): GpuTexture {
 		val handle = GL11.glGenTextures()
 		GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle)
-		setTextureParameters(filter)
+		setTextureParameters(filter, wrap)
 		val pixelBuffer =
 			pixels?.let {
 				BufferUtils.createByteBuffer(it.size).apply {
@@ -104,7 +107,7 @@ class GlRenderDevice : RenderDevice {
 	override fun createFloatTexture(width: Int, height: Int, filter: TextureFilter, texels: FloatArray): GpuTexture {
 		val handle = GL11.glGenTextures()
 		GL11.glBindTexture(GL11.GL_TEXTURE_2D, handle)
-		setTextureParameters(filter)
+		setTextureParameters(filter, TextureWrap.ClampToEdge)
 		val texelBuffer =
 			BufferUtils.createFloatBuffer(texels.size).apply {
 				put(texels)
@@ -187,7 +190,7 @@ class GlRenderDevice : RenderDevice {
 		if (spec.sampled) {
 			colorTexture = GL11.glGenTextures()
 			GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorTexture)
-			setTextureParameters(TextureFilter.Linear)
+			setTextureParameters(TextureFilter.Linear, TextureWrap.ClampToEdge)
 			GL11.glTexImage2D(
 				GL11.GL_TEXTURE_2D,
 				0,
@@ -462,13 +465,28 @@ class GlRenderDevice : RenderDevice {
 			PipelinePurpose.Composite -> compositeVertexShader(DIALECT) to compositeFragmentShader(DIALECT)
 		}
 
-	/** Sets nearest/linear filtering and clamp-to-edge wrapping on the currently-bound 2D texture. */
-	private fun setTextureParameters(filter: TextureFilter) {
+	/**
+	 * Sets nearest/linear filtering and the requested wrapping on the currently-bound 2D texture.
+	 *
+	 * The border color is set only for the border mode: it is per-texture state, so leaving it alone on the
+	 * edge-clamp path costs one call less and changes nothing that path can observe.
+	 *
+	 * @param TextureFilter filter The filtering mode.
+	 * @param TextureWrap   wrap   The wrapping mode, applied to both axes.
+	 */
+	private fun setTextureParameters(filter: TextureFilter, wrap: TextureWrap) {
 		val glFilter = if (filter == TextureFilter.Nearest) GL11.GL_NEAREST else GL11.GL_LINEAR
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, glFilter)
 		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, glFilter)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE)
+		val glWrap = if (wrap == TextureWrap.ClampToTransparentBorder) GL13.GL_CLAMP_TO_BORDER else GL12.GL_CLAMP_TO_EDGE
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, glWrap)
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, glWrap)
+		if (wrap == TextureWrap.ClampToTransparentBorder) {
+			// Transparent AND black: under linear filtering the border's RGB joins the blend across the
+			// art's outermost half-texel, so a border that is merely alpha-zero but colored tints that
+			// fringe.  Zero everywhere matches what the packed atlas's own padding contributes there.
+			GL11.glTexParameterfv(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_BORDER_COLOR, floatArrayOf(0f, 0f, 0f, 0f))
+		}
 	}
 
 	private fun internalFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA8 else GL30.GL_RG32F

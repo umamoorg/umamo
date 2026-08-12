@@ -12,7 +12,6 @@ import org.umamo.render.eval.renderOrder
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.pick.pickAllDrawables
 import org.umamo.render.pick.pickDrawable
-import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 

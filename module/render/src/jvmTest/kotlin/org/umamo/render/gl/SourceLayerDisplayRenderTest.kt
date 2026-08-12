@@ -57,8 +57,13 @@ class SourceLayerDisplayRenderTest {
 	// Sampled well inside the image so a filtered lookup never straddles an edge.
 	private val quadUvs = floatArrayOf(0.05f, 0.95f, 0.95f, 0.95f, 0.05f, 0.05f, 0.95f, 0.05f)
 
-	private fun solidImage(red: Int, green: Int): DecodedImage {
-		val size = 8
+	// The same quad reaching half its own width past the art on every side, which is the shape a real
+	// drawable has: an art mesh rings outside the opaque region, so its coordinates leave [0, 1].  The art
+	// therefore covers the middle 50% of each axis - a quarter of the quad's pixels.
+	private val overhangUvs = floatArrayOf(-0.5f, 1.5f, 1.5f, 1.5f, -0.5f, -0.5f, 1.5f, -0.5f)
+	private val overhangArtAreaFraction = 0.25f
+
+	private fun solidImage(red: Int, green: Int, size: Int = 8): DecodedImage {
 		val rgba = ByteArray(size * size * 4)
 		for (pixel in rgba.indices step 4) {
 			rgba[pixel] = red.toByte()
@@ -69,7 +74,7 @@ class SourceLayerDisplayRenderTest {
 		return DecodedImage(rgba, size, size)
 	}
 
-	private fun probeModel(): PuppetModel {
+	private fun probeModel(uvs: FloatArray = quadUvs): PuppetModel {
 		val drawable =
 			Drawable(
 				id = probeId,
@@ -77,7 +82,7 @@ class SourceLayerDisplayRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), quadUvs.copyOf(), quadIndices),
+				mesh = DrawableMesh(quadPositions.copyOf(), uvs.copyOf(), quadIndices),
 				// One zero-delta keyform so the drawable is keyed; the base mesh alone drives its shape.
 				geometryGrid =
 					KeyformGrid(
@@ -96,9 +101,9 @@ class SourceLayerDisplayRenderTest {
 	}
 
 	/** The artwork set pointing the probe at its own green image, with an identity mapping. */
-	private fun artworkSet(): LayerRasterSet =
+	private fun artworkSet(imageSize: Int = 8): LayerRasterSet =
 		LayerRasterSet(
-			rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF)),
+			rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF, size = imageSize)),
 			drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("green", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
 		)
 
@@ -187,6 +192,72 @@ class SourceLayerDisplayRenderTest {
 		assertTrue(
 			statsBack.meanRed > 200f && statsBack.meanGreen < 60f,
 			"clearing the artwork should return to the atlas (r=${statsBack.meanRed} g=${statsBack.meanGreen})",
+		)
+	}
+
+	/**
+	 * A mesh overhanging the art it samples must show NOTHING past the art's frame - the streak regression.
+	 *
+	 * Every corpus drawable overhangs its layer image (the auto-mesh rings outside the opaque region and
+	 * authored meshes extend further for deformation coverage), by up to 443 layer pixels.  On an atlas page
+	 * that overhang lands on the packer's transparent padding; a layer image has no padding, so an
+	 * edge-clamped sampler repeats its border row and column across the overhang as streaks that follow the
+	 * mesh and deform with it.  The official editor's own layered display shows nothing there, and so must
+	 * this: the layer texture wraps to a transparent border.
+	 *
+	 * The probe reaches half its width past the art on all four sides, so the art covers a QUARTER of the
+	 * quad's pixels.  Edge clamping fills the whole quad instead - four times the mass - which is a margin
+	 * no filtering tolerance can blur away.
+	 */
+	@Test
+	fun artworkDisplayShowsNothingWhereTheMeshOverhangsItsArt() {
+		requireHeadlessGl("[layer-overhang]")
+		val source = probeModel(overhangUvs)
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+
+		// A layer image large enough that the border blend spans well under a pixel, so the measured mass is
+		// the art's own extent rather than a filtering skirt around it.
+		renderer.setSourceLayerRasters(artworkSet(imageSize = 256))
+		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
+
+		// The quad is 120x120 world units at zoom 1, so its full screen footprint is 120x120 pixels.
+		val quadPixels = 120 * 120
+		val expectedArtPixels = quadPixels * overhangArtAreaFraction
+		println(
+			"[layer-overhang] artwork mass ${statsArtwork.mass} px (quad $quadPixels, art ~$expectedArtPixels) " +
+				"r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen}",
+		)
+
+		assertTrue(statsArtwork.mass > expectedArtPixels * 0.7f, "the art did not render at all (mass ${statsArtwork.mass})")
+		assertTrue(
+			statsArtwork.mass < expectedArtPixels * 1.4f,
+			"the mesh's overhang sampled the layer's border instead of nothing: ${statsArtwork.mass} px lit, " +
+				"~$expectedArtPixels expected (a whole-quad $quadPixels means edge clamping)",
+		)
+		assertTrue(
+			statsArtwork.meanGreen > 200f && statsArtwork.meanRed < 60f,
+			"what did render is not the artwork (r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen})",
 		)
 	}
 

@@ -39,9 +39,17 @@ public interface RenderDevice {
 	 * @param TextureFormat format The pixel format.
 	 * @param TextureFilter filter How texels are filtered between sample points.
 	 * @param ByteArray?    pixels RGBA8888, top row first; null allocates without uploading.
+	 * @param TextureWrap   wrap   What a coordinate outside [0, 1] yields.
 	 * @return GpuTexture The texture.
 	 */
-	fun createTexture(width: Int, height: Int, format: TextureFormat, filter: TextureFilter, pixels: ByteArray?): GpuTexture
+	fun createTexture(
+		width: Int,
+		height: Int,
+		format: TextureFormat,
+		filter: TextureFilter,
+		pixels: ByteArray?,
+		wrap: TextureWrap = TextureWrap.ClampToEdge,
+	): GpuTexture
 
 	/**
 	 * Uploads float texels (RG pairs, row-major from the top) as a sampleable texture.

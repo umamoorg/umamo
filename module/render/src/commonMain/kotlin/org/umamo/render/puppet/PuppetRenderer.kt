@@ -31,6 +31,7 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
+import org.umamo.render.device.TextureWrap
 import org.umamo.render.device.WorldToNdc
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DeformerWorld
@@ -482,7 +483,19 @@ class PuppetRenderer(
 		// Upload what the new set needs; a layer already resident keeps its texture rather than churning.
 		for ((layerKey, image) in rasters.rastersByLayerKey) {
 			if (!layerTextures.containsKey(layerKey)) {
-				layerTextures[layerKey] = device.createTexture(image.width, image.height, TextureFormat.Rgba8, TextureFilter.Linear, image.rgba)
+				layerTextures[layerKey] =
+					device.createTexture(
+						image.width,
+						image.height,
+						TextureFormat.Rgba8,
+						TextureFilter.Linear,
+						image.rgba,
+						// A drawable's mesh overhangs the art it samples, so its recovered coordinates run past
+						// this image - across the corpus by up to 443 layer pixels.  An atlas page absorbs that
+						// overhang in its own padding; a layer image has no padding to absorb it, so the wrap
+						// mode is what has to supply the transparency (see TextureWrap).
+						TextureWrap.ClampToTransparentBorder,
+					)
 			}
 		}
 		val obsolete = layerTextures.keys.filter { layerKey -> layerKey !in rasters.rastersByLayerKey }
