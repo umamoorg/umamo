@@ -476,7 +476,7 @@
 	<string name="notice_display_partial_source_artwork">Some drawables have no source artwork and are still displaying from the atlas.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
-	<string name="notice_edit_no_editable_geometry">Nothing here can be edited: every selected drawable is hidden by a parent.</string>
+	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
 	<string name="cmd_mesh_proportional_toggle">Toggle Proportional Editing</string>
