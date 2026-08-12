@@ -9,7 +9,7 @@ import kotlin.math.sin
  * Where one drawable's upright source art sits on an atlas page: the transform the packer applied to
  * it, as translation / scale / rotation.
  *
- * A translation / rotation / scale (TRS) rather than a rect because that is what the source formats
+ * A Transform/Rotation/Scale(TRS) rather than a rect because that is what the source formats
  * actually carry and what the corpus actually uses.  Rotation and scale both occur, and a
  * rect-plus-quarter-turn model would silently discard them on import.  A packer that only ever emits
  * axis-aligned unit-scale placements writes the constrained subset (scale 1, rotation 0) and loses
@@ -41,7 +41,7 @@ data class AtlasPlacement(
  * Identity and size only - the pixels come from [LayerTextures.rasterFor] on demand, because a real
  * model carries hundreds of these and decoding them all at document load would stall the open.
  *
- * @property String key The layer's stable document-local identifier (the join key bindings reference).
+ * @property String key The layer's stable document-local identifier(the join key bindings reference).
  * @property String name The layer's display name.
  * @property Int width The layer image's width in pixels.
  * @property Int height The layer image's height in pixels.
