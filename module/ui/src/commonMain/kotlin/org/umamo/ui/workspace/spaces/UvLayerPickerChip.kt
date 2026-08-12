@@ -61,11 +61,16 @@ internal fun UvLayerPickerChip() {
 	val session = LocalEditorSession.current
 	var query by remember { mutableStateOf("") }
 	val entries = layers?.layers.orEmpty()
+	// Remembered on both inputs: ranking scores and sorts the document's whole layer inventory, which
+	// runs to hundreds of rows, and this chip recomposes for header state that has nothing to do with
+	// either of them.
 	val filtered =
-		if (query.isBlank()) {
-			entries
-		} else {
-			rankCommandMatches(entries, query, labelOf = { entry -> entry.name }, idOf = { entry -> entry.key })
+		remember(entries, query) {
+			if (query.isBlank()) {
+				entries
+			} else {
+				rankCommandMatches(entries, query, labelOf = { entry -> entry.name }, idOf = { entry -> entry.key })
+			}
 		}
 	PopupChip(
 		contentDescription = stringResource(Res.string.uv_layer_picker_title),

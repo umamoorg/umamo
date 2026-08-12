@@ -5,7 +5,8 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.umamo.render.DecodedImage
 import org.umamo.render.DrawableLayerDraw
-import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -57,8 +58,13 @@ class SourceLayerDisplayRenderTest {
 	// Sampled well inside the image so a filtered lookup never straddles an edge.
 	private val quadUvs = floatArrayOf(0.05f, 0.95f, 0.95f, 0.95f, 0.05f, 0.05f, 0.95f, 0.05f)
 
-	private fun solidImage(red: Int, green: Int): DecodedImage {
-		val size = 8
+	// The same quad reaching half its own width past the art on every side, which is the shape a real
+	// drawable has: an art mesh rings outside the opaque region, so its coordinates leave [0, 1].  The art
+	// therefore covers the middle 50% of each axis - a quarter of the quad's pixels.
+	private val overhangUvs = floatArrayOf(-0.5f, 1.5f, 1.5f, 1.5f, -0.5f, -0.5f, 1.5f, -0.5f)
+	private val overhangArtAreaFraction = 0.25f
+
+	private fun solidImage(red: Int, green: Int, size: Int = 8): DecodedImage {
 		val rgba = ByteArray(size * size * 4)
 		for (pixel in rgba.indices step 4) {
 			rgba[pixel] = red.toByte()
@@ -69,7 +75,7 @@ class SourceLayerDisplayRenderTest {
 		return DecodedImage(rgba, size, size)
 	}
 
-	private fun probeModel(): PuppetModel {
+	private fun probeModel(uvs: FloatArray = quadUvs): PuppetModel {
 		val drawable =
 			Drawable(
 				id = probeId,
@@ -77,7 +83,7 @@ class SourceLayerDisplayRenderTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), quadUvs.copyOf(), quadIndices),
+				mesh = DrawableMesh(quadPositions.copyOf(), uvs.copyOf(), quadIndices),
 				// One zero-delta keyform so the drawable is keyed; the base mesh alone drives its shape.
 				geometryGrid =
 					KeyformGrid(
@@ -95,12 +101,27 @@ class SourceLayerDisplayRenderTest {
 		)
 	}
 
-	/** The artwork set pointing the probe at its own green image, with an identity mapping. */
-	private fun artworkSet(): LayerRasterSet =
-		LayerRasterSet(
-			rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF)),
+	/** The mapping pointing the probe at its own green artwork, with an identity affine. */
+	private fun artworkPlan(imageSize: Int = 8): LayerDrawPlan =
+		LayerDrawPlan(
 			drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("green", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+			layerByteCostByKey = mapOf("green" to imageSize.toLong() * imageSize.toLong() * 4L),
 		)
+
+	/** The decoded pixels answering that mapping. */
+	private fun artworkBatch(imageSize: Int = 8): LayerRasterBatch =
+		LayerRasterBatch(rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF, size = imageSize)))
+
+	/**
+	 * Pushes the mapping and then its pixels, the way the producer does.
+	 *
+	 * The renderer only uploads what it has asked for, so the plan must land before the batch - which is
+	 * also the ordering the engine's render loop enforces.
+	 */
+	private fun PuppetRenderer.displayFromArtwork(imageSize: Int = 8) {
+		setSourceLayerPlan(artworkPlan(imageSize))
+		deliverSourceLayerRasters(artworkBatch(imageSize))
+	}
 
 	/**
 	 * The same model with a composite-only change (the culling toggle): positions, uvs, indices, and
@@ -145,7 +166,7 @@ class SourceLayerDisplayRenderTest {
 		val statsAtlas = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame B: displaying from the artwork (green).
-		renderer.setSourceLayerRasters(artworkSet())
+		renderer.displayFromArtwork()
 		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame C: an unrelated composite edit while still displaying from the artwork.
@@ -153,7 +174,7 @@ class SourceLayerDisplayRenderTest {
 		val statsAfterEdit = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame D: back to the atlas.
-		renderer.setSourceLayerRasters(LayerRasterSet.EMPTY)
+		renderer.setSourceLayerPlan(LayerDrawPlan.EMPTY)
 		val statsBack = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		println(
@@ -187,6 +208,145 @@ class SourceLayerDisplayRenderTest {
 		assertTrue(
 			statsBack.meanRed > 200f && statsBack.meanGreen < 60f,
 			"clearing the artwork should return to the atlas (r=${statsBack.meanRed} g=${statsBack.meanGreen})",
+		)
+	}
+
+	/**
+	 * A mesh overhanging the art it samples must show NOTHING past the art's frame - the streak regression.
+	 *
+	 * Every corpus drawable overhangs its layer image (the auto-mesh rings outside the opaque region and
+	 * authored meshes extend further for deformation coverage), by up to 443 layer pixels.  On an atlas page
+	 * that overhang lands on the packer's transparent padding; a layer image has no padding, so an
+	 * edge-clamped sampler repeats its border row and column across the overhang as streaks that follow the
+	 * mesh and deform with it.  The official editor's own layered display shows nothing there, and so must
+	 * this: the layer texture wraps to a transparent border.
+	 *
+	 * The probe reaches half its width past the art on all four sides, so the art covers a QUARTER of the
+	 * quad's pixels.  Edge clamping fills the whole quad instead - four times the mass - which is a margin
+	 * no filtering tolerance can blur away.
+	 */
+	@Test
+	fun artworkDisplayShowsNothingWhereTheMeshOverhangsItsArt() {
+		requireHeadlessGl("[layer-overhang]")
+		val source = probeModel(overhangUvs)
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+
+		// A layer image large enough that the border blend spans well under a pixel, so the measured mass is
+		// the art's own extent rather than a filtering skirt around it.
+		renderer.displayFromArtwork(imageSize = 256)
+		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
+
+		// The quad is 120x120 world units at zoom 1, so its full screen footprint is 120x120 pixels.
+		val quadPixels = 120 * 120
+		val expectedArtPixels = quadPixels * overhangArtAreaFraction
+		println(
+			"[layer-overhang] artwork mass ${statsArtwork.mass} px (quad $quadPixels, art ~$expectedArtPixels) " +
+				"r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen}",
+		)
+
+		assertTrue(statsArtwork.mass > expectedArtPixels * 0.7f, "the art did not render at all (mass ${statsArtwork.mass})")
+		assertTrue(
+			statsArtwork.mass < expectedArtPixels * 1.4f,
+			"the mesh's overhang sampled the layer's border instead of nothing: ${statsArtwork.mass} px lit, " +
+				"~$expectedArtPixels expected (a whole-quad $quadPixels means edge clamping)",
+		)
+		assertTrue(
+			statsArtwork.meanGreen > 200f && statsArtwork.meanRed < 60f,
+			"what did render is not the artwork (r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen})",
+		)
+	}
+
+	/**
+	 * The mode never shows a puppet half in artwork and half on its atlas.
+	 *
+	 * Source-artwork display exists so a rigger can INSPECT the art, so a mixed view is not a degraded
+	 * success - it is untrustworthy, because nothing on screen says which drawables are showing which.
+	 * The plan therefore engages nothing until every layer it maps has landed.
+	 *
+	 * Here the plan maps two layers and only one is delivered, so the probe must still be RED (its atlas),
+	 * never green.  It flips only once the second lands.
+	 */
+	@Test
+	fun artworkDisplayWaitsForEveryMappedLayer() {
+		requireHeadlessGl("[layer-allornothing]")
+		val source = probeModel()
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+
+		// The probe draws from "green", but the plan also maps a second layer some other drawable needs.
+		renderer.setSourceLayerPlan(
+			LayerDrawPlan(
+				drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("green", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+				layerByteCostByKey = mapOf("green" to 256L, "absent" to 256L),
+			),
+		)
+		renderer.deliverSourceLayerRasters(artworkBatch())
+		val statsPartial = artColorStats(frame(), background, viewportSize, viewportSize)
+		val (readyPartial, _, _) = renderer.sourceLayerDisplayState()
+
+		// The straggler lands: now the whole plan is covered and the mode engages.
+		renderer.deliverSourceLayerRasters(
+			LayerRasterBatch(rastersByLayerKey = mapOf("absent" to solidImage(red = 0x00, green = 0xFF))),
+		)
+		val statsComplete = artColorStats(frame(), background, viewportSize, viewportSize)
+		val (readyComplete, _, _) = renderer.sourceLayerDisplayState()
+
+		println(
+			"[layer-allornothing] partial ready=$readyPartial r=${statsPartial.meanRed} g=${statsPartial.meanGreen} | " +
+				"complete ready=$readyComplete r=${statsComplete.meanRed} g=${statsComplete.meanGreen}",
+		)
+
+		assertTrue(!readyPartial, "the mode must not engage while a mapped layer is still missing")
+		assertTrue(
+			statsPartial.meanRed > 200f && statsPartial.meanGreen < 60f,
+			"an incompletely covered plan must leave the puppet wholly on its atlas, not partly on artwork " +
+				"(r=${statsPartial.meanRed} g=${statsPartial.meanGreen})",
+		)
+		assertTrue(readyComplete, "the mode engages once every mapped layer has landed")
+		assertTrue(
+			statsComplete.meanGreen > 200f && statsComplete.meanRed < 60f,
+			"and then the puppet displays from its artwork (r=${statsComplete.meanRed} g=${statsComplete.meanGreen})",
 		)
 	}
 

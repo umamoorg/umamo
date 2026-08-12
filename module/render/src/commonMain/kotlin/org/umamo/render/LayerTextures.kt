@@ -190,18 +190,15 @@ class LayerTextures(
 	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
 	 */
 	fun rasterFor(layerKey: String): DecodedImage? {
+		if (layerKey !in entriesByKey) {
+			return null
+		}
 		if (decodedByKey.containsKey(layerKey)) {
 			return decodedByKey[layerKey]
 		}
-		val decoded =
-			readBytes(layerKey)?.let { bytes ->
-				try {
-					val image = org.umamo.format.png.PngCodec.read(bytes)
-					DecodedImage(image.rgba, image.width, image.height)
-				} catch (_: Exception) {
-					null
-				}
-			}
+		// The cached twin decodes through the uncached one: the two must produce the same image for the
+		// same bytes, because callers compare a cached result against a freshly decoded one by identity.
+		val decoded = decodeRaster(layerKey)
 		decodedByKey[layerKey] = decoded
 		return decoded
 	}

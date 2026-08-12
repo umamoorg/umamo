@@ -267,7 +267,7 @@ internal class Cmo3StructureLowering(
 							.firstOrNull()
 							?.let(::add)
 					} else {
-						add(freshTextureInputExtension(fresh, binding!!))
+						add(freshTextureInputExtension(fresh, binding!!, editedDrawable.name))
 					}
 					add(
 						CEditableMeshExtension().apply {
@@ -294,18 +294,21 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	private fun elementsOfInputs(extension: CTextureInputExtension): List<Any?> = Cmo3Import.elementsOf(extension._textureInputs)
-
 	/**
 	 * Builds the per-drawable texture-input extension for a fresh-graph binding: both input kinds
 	 * (model image + atlas region), with the one the document's display mode samples made active,
 	 * mirroring the editor's packed drawables.
 	 *
-	 * @param CArtMeshSource            owner   The drawable source under construction.
-	 * @param Cmo3DrawableTextureBinding binding The drawable's texture web (page texture + patch).
+	 * @param CArtMeshSource             owner       The drawable source under construction.
+	 * @param Cmo3DrawableTextureBinding binding     The drawable's texture web (page texture + patch).
+	 * @param String                     subjectName The drawable's display name, naming it in the display-mode notice.
 	 * @return CTextureInputExtension The fresh extension.
 	 */
-	private fun freshTextureInputExtension(owner: CArtMeshSource, binding: Cmo3DrawableTextureBinding): CTextureInputExtension {
+	private fun freshTextureInputExtension(
+		owner: CArtMeshSource,
+		binding: Cmo3DrawableTextureBinding,
+		subjectName: String,
+	): CTextureInputExtension {
 		val extension = CTextureInputExtension()
 		val atlasRegion =
 			org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
@@ -319,30 +322,36 @@ internal class Cmo3StructureLowering(
 				textureAtlasGuid = binding.textureAtlasGuid
 				inputImageLocalToCanvasTransform = binding.inputImageLocalToCanvasTransform
 			}
+		val modelImage =
+			binding.modelImageGuid?.let { imageGuid ->
+				org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage().apply {
+					// CMO3: CTextureInput_ModelImage field _modelImageGuid.
+					optionalTransformOnCanvas = CAffine()
+					_owner = extension
+					_modelImageGuid = imageGuid
+				}
+			}
+		// A layer-mode document whose created drawable has no model image keeps the atlas region active:
+		// it is the only input such a drawable has, and leaving the live pointer there is what keeps the
+		// file self-consistent.  The notice names the gap, matching what the property lowering reports
+		// for an EXISTING drawable in the same state - one reason, reported the same way from both paths.
+		if (edited.rendersFromSourceLayers && modelImage == null) {
+			unsupported(ExportEntityCategory.Drawable, subjectName, ExportNoticeReason.NoTextureInputForDisplayMode)
+		}
 		return extension.apply {
 			guid = freshGuidLike(null, "CExtensionGuid")
 			_owner = owner
 			_textureInputs =
 				CArrayList<Any?>().apply {
-					binding.modelImageGuid?.let { imageGuid ->
-						add(
-							org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage().apply {
-								// CMO3: CTextureInput_ModelImage field _modelImageGuid.
-								optionalTransformOnCanvas = CAffine()
-								_owner = extension
-								_modelImageGuid = imageGuid
-							},
-						)
-					}
+					modelImage?.let(::add)
 					add(atlasRegion)
 				}
 			// CMO3: CTextureInputExtension field currentTextureInputData - which input the document's
 			// display mode samples.  A drawable created in a layer-mode document must point at its model
-			// image, or the file's flag and its drawables disagree.  Falls back to the atlas region when
-			// there is no model image to point at, which is the only input such a drawable has.
+			// image, or the file's flag and its drawables disagree.
 			currentTextureInputData =
 				if (edited.rendersFromSourceLayers) {
-					elementsOfInputs(this).filterIsInstance<CTextureInput_ModelImage>().firstOrNull() ?: atlasRegion
+					modelImage ?: atlasRegion
 				} else {
 					atlasRegion
 				}

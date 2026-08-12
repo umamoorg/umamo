@@ -891,6 +891,10 @@ class EditorSession(
 		}
 		val selection = mutableMeshSelection.value
 		if (selection.isEmpty) {
+			// Speaks up, unlike the mode guard above: reaching Mirror with an empty selection is an ordinary
+			// mistake a rigger makes, where a request arriving outside Edit mode is stale bus traffic the
+			// palette already gates.
+			emitNotice("notice.uv.noSelection", NoticePlacement.NearCursor)
 			return
 		}
 		val model = mutableModel.value

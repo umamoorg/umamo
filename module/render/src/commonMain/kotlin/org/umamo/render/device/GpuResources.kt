@@ -63,6 +63,24 @@ public enum class TextureFilter {
 	Linear,
 }
 
+/** What a texture yields for a coordinate outside [0, 1]. */
+public enum class TextureWrap {
+	/** Repeats the nearest edge texel outward.  Correct for an atlas page, whose art never reaches its border. */
+	ClampToEdge,
+
+	/**
+	 * Yields transparent black outside the image.  Correct for art sampled in its OWN frame, which a mesh
+	 * routinely overhangs: an art mesh rings outside the opaque region and authored meshes extend further
+	 * still for deformation coverage, so a drawable's coordinates run past its layer image by tens to
+	 * hundreds of pixels.  Clamping to the edge would repeat the border row or column across that overhang
+	 * as a streak; transparent black reproduces what the packed atlas showed there, which is its padding.
+	 *
+	 * @note GL_CLAMP_TO_BORDER with a zero border color on the GL family (core in GL 3.3 and GLES 3.2),
+	 *   MTLSamplerAddressMode.clampToZero on Metal.
+	 */
+	ClampToTransparentBorder,
+}
+
 /**
  * Which draw a pipeline performs.
  *

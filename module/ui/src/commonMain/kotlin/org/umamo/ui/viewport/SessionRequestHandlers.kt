@@ -420,27 +420,25 @@ internal fun handleUvSnapRequest(
 	}
 
 	when (kind) {
-		UvSnapKind.CursorToPixels ->
-			session.setUvCursor(
-				frame.storedUvAt(cursorDisplayX.roundToInt().toFloat(), cursorDisplayY.roundToInt().toFloat()).first,
-				frame.storedUvAt(cursorDisplayX.roundToInt().toFloat(), cursorDisplayY.roundToInt().toFloat()).second,
-			)
+		UvSnapKind.CursorToPixels -> {
+			val (cursorU, cursorV) =
+				frame.storedUvAt(cursorDisplayX.roundToInt().toFloat(), cursorDisplayY.roundToInt().toFloat())
+			session.setUvCursor(cursorU, cursorV)
+		}
 
-		UvSnapKind.CursorToGrid ->
-			session.setUvCursor(
-				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStepX), snapToGrid(cursorDisplayY, 0f, gridStepY)).first,
-				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStepX), snapToGrid(cursorDisplayY, 0f, gridStepY)).second,
-			)
+		UvSnapKind.CursorToGrid -> {
+			val (cursorU, cursorV) =
+				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStepX), snapToGrid(cursorDisplayY, 0f, gridStepY))
+			session.setUvCursor(cursorU, cursorV)
+		}
 
 		UvSnapKind.CursorToSelected -> {
-			// Nothing selected on the shown page: no median to move the cursor to (a silent no-op).
+			// Nothing selected on the shown surface: no median to move the cursor to (a silent no-op).
 			if (coveredCount == 0) {
 				return
 			}
-			session.setUvCursor(
-				frame.storedUvAt(coveredSumX / coveredCount, coveredSumY / coveredCount).first,
-				frame.storedUvAt(coveredSumX / coveredCount, coveredSumY / coveredCount).second,
-			)
+			val (cursorU, cursorV) = frame.storedUvAt(coveredSumX / coveredCount, coveredSumY / coveredCount)
+			session.setUvCursor(cursorU, cursorV)
 		}
 
 		UvSnapKind.SelectionToPixels,

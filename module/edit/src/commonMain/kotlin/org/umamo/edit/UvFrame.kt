@@ -56,6 +56,16 @@ class UvFrame(private val toFrameAffine: FloatArray, private val fromFrameAffine
 		(fromFrameAffine[0] * u + fromFrameAffine[1] * v + fromFrameAffine[2]) to
 			(fromFrameAffine[3] * u + fromFrameAffine[4] * v + fromFrameAffine[5])
 
+	/**
+	 * Maps a whole interleaved uv array through a 2x3 row-major affine, into a fresh array.
+	 *
+	 * A trailing odd component is left out rather than half-mapped: the arrays are interleaved pairs, so
+	 * an odd length is malformed input, and the callers' own guards reject it upstream.
+	 *
+	 * @param FloatArray uvs The interleaved (u, v) pairs to map.
+	 * @param FloatArray affine The 2x3 row-major affine (m00, m01, m02, m10, m11, m12).
+	 * @return FloatArray The mapped pairs, in a new array of the same length.
+	 */
 	private fun applyAffine(uvs: FloatArray, affine: FloatArray): FloatArray {
 		val mapped = FloatArray(uvs.size)
 		var componentIndex = 0

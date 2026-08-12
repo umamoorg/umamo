@@ -25,6 +25,8 @@ fun noticeText(messageKey: String): String =
 		"notice.connect.refused" -> stringResource(Res.string.notice_connect_refused)
 		"notice.rip.nothing" -> stringResource(Res.string.notice_rip_nothing)
 		"notice.uv.noUvs" -> stringResource(Res.string.notice_uv_no_uvs)
+		"notice.uv.noSelection" -> stringResource(Res.string.notice_uv_no_selection)
+		"notice.edit.noEditableGeometry" -> stringResource(Res.string.notice_edit_no_editable_geometry)
 		"notice.display.partialSourceArtwork" -> stringResource(Res.string.notice_display_partial_source_artwork)
 		"notice.proportional.on" -> stringResource(Res.string.notice_proportional_on)
 		"notice.proportional.off" -> stringResource(Res.string.notice_proportional_off)
