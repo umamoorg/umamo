@@ -6,6 +6,8 @@ Umamo is early alpha.
 
 (Unreleased changes)
 
+## 0.2.1-dev - 2026-08-11
+
 ### Added
 * Diagnostic CLI: A new `:cli` module(`./gradlew :cli:run`) exposes headless `dump`, `convert`, `diff`, and `extract` for inspecting CMO3 and MOC3 files.
 * MOC3 export: A new Export Options dialog for choosing MOC3 export granularity.
