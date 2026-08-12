@@ -2,6 +2,10 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
+import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
@@ -117,6 +121,7 @@ public object Cmo3Conversion {
 					obfuscateKey,
 				),
 			)
+		rebindPageResources(chain, model)
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
 		for (drawable in effectivePuppet.drawables) {
 			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue
@@ -134,5 +139,40 @@ public object Cmo3Conversion {
 			report.copy(notices = listOf(ExportNotice.MissingSourceArt(effectivePages.size)) + report.notices),
 			effectivePuppet,
 		)
+	}
+
+	/**
+	 * Re-points each page texture at the RE-READ atlas's own page resource.
+	 *
+	 * The image chain is built over the pre-serialization skeleton, so a binding's GTexture2D still
+	 * carries that graph's CImageResource - while the reconcile hangs that texture off drawables in
+	 * the graph read back out of the assembled bytes.  Left alone the document ends up with two
+	 * equal-but-distinct resources per page (one under the atlas's cachedAtlasImage, one under the
+	 * drawables' texture) where the editor's own files share a single one by reference.
+	 *
+	 * That split is not cosmetic: whether a drawable's uvs are page-frame is decided by whether the
+	 * resource it samples IS one of the atlases' page resources (docs/format/CMO3.md section 6 - a
+	 * document can carry an atlas while its drawables sample per-layer rasters instead), and the test
+	 * is identity because a CImageResource has no value equality.  With the twin resource in place
+	 * every re-imported drawable reads as never-packed, so its source-layer view drops the packing
+	 * inverse and draws atlas-frame uvs straight onto the layer crop.
+	 *
+	 * @param Cmo3ImageChainBuilder.BuiltImageChain chain The image chain built over the skeleton.
+	 * @param Cmo3Model                             model The model read back out of the assembled bytes.
+	 */
+	private fun rebindPageResources(chain: Cmo3ImageChainBuilder.BuiltImageChain, model: Cmo3Model) {
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases ->
+		// CTextureAtlas field cachedAtlasImage - the page's own pixels.
+		val textureManager = (model.root as? CModelSource)?.textureManager as? CTextureManager ?: return
+		val pageResourceByPath = HashMap<String, CImageResource>()
+		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+			val pageResource = atlas.cachedAtlasImage as? CImageResource ?: continue
+			pageResource.imageFileBuf?.archivePath?.let { path -> pageResourceByPath[path] = pageResource }
+		}
+		// One texture per page, shared by every binding on it, so the page fallbacks reach them all.
+		for (binding in chain.pageFallbackBindings) {
+			val path = (binding.texture.srcImageResource as? CImageResource)?.imageFileBuf?.archivePath ?: continue
+			pageResourceByPath[path]?.let { pageResource -> binding.texture.srcImageResource = pageResource }
+		}
 	}
 }
