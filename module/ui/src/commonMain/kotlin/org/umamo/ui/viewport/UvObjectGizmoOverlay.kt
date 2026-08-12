@@ -30,7 +30,7 @@ import org.umamo.ui.theme.selectionOverlayStyle
 /**
  * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay]
  * (each one self-gates on the session's mode, the viewport overlay pair's convention): every
- * visible island on the shown page draws in the Blender object-overlay style - unselected islands
+ * visible island on the shown surface draws in the Blender object-overlay style - unselected islands
  * dim (the idle palette), selected islands highlighted, the active island's outline emphasized -
  * and the islands are click targets writing the ONE session object selection, so a selection made
  * here flows out to the viewport and the outliner.
@@ -56,7 +56,7 @@ import org.umamo.ui.theme.selectionOverlayStyle
  * @param String areaId The UV editor area this overlay covers (keys the pointer loop).
  * @param EditorSession session The session owning the object selection, the model, and the latches.
  * @param List<GizmoMeshGeometry> geometries The shown islands' display-space gizmo geometry.
- * @param UvIslandPick islandPick The page's island picker (point pick, stack query, front ranks).
+ * @param UvIslandPick islandPick The shown surface's island picker (point pick, stack query, front ranks).
  * @param UvEditFrame frame The shown surface's texel size plus how a coordinate over it reaches the
  *   stored texture coordinates (an atlas page is the stored frame itself; a source layer is not).
  * @param ViewportCamera? camera The displayed frame's camera; null hides the overlay (no frame yet).
@@ -89,7 +89,7 @@ internal fun UvObjectGizmoOverlay(
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	// Live values the areaId-keyed pointer loop and the remembered controllers read, so a pan /
-	// resize / page hop mid-gesture is seen without re-keying.
+	// resize / shown-surface change mid-gesture is seen without re-keying.
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 	val liveGeometries = rememberUpdatedState(geometries)

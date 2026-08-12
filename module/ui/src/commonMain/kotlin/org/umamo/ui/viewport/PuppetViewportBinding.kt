@@ -61,7 +61,7 @@ import org.umamo.ui.workspace.ViewportHost
  * @property DrawableThumbnailProvider thumbnails Art-mesh previews for the Outliner hover (LocalDrawableThumbnails).
  * @property PuppetRenderSync renderSync Streams transient preview models to the renderer (LocalPuppetRenderSync).
  * @property PuppetViewportService service The render service itself (LocalPuppetViewportService), so the UV
- *           editor can register an atlas-page area and drive its camera through the same engine.
+ *           editor can register a UV-editor area and drive its camera through the same engine.
  */
 class PuppetViewportBinding(
 	val host: ViewportHost,
@@ -79,11 +79,12 @@ class PuppetViewportBinding(
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
+ * @param LayerTextures layers The document's source-layer artwork, for the puppet's source-layer display.
  * @param LiveParams liveParams The shared parameter hand-off.
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
  * @param PuppetViewportServiceFactory serviceFactory Creates (and starts) the platform render service.
- * @return PuppetViewportBinding The host + camera controller the shell and app wire up.
+ * @return PuppetViewportBinding The host, the render service, and the preview seams the shell and app wire up.
  */
 @Composable
 fun rememberPuppetViewportHost(

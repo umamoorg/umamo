@@ -27,14 +27,16 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the UV editor's pure view-state derivations ([resolveUvEditorPage], [uvPageSelectionAfter],
- * [shownUvDrawables], [uvGizmoGeometries]): the pin-first page resolution with its follow-chain
- * fallback, the active-drawable precedence chain, the untextured 1x1 fallback, the page-cycle
- * transition, the Edit / Object candidate rules with the malformed-mesh and page filters, and the
- * display-space projection (texel units, v-flip).
+ * Pins the UV editor's pure view-state derivations ([resolveUvEditorPage], [resolveUvEditorLayer],
+ * [uvPageSelectionAfter], [shownUvDrawables], [shownLayerDrawables], [shownSurfaceUvs],
+ * [uvGizmoGeometries]): the pin-first page resolution with its follow-chain fallback, the
+ * active-drawable precedence chain both surfaces share, the untextured 1x1 fallback, the page-cycle
+ * transition (including out of the layer view), the Edit / Object candidate rules with the
+ * malformed-mesh, visibility, page, and layer filters, and the display-space projection (texel units,
+ * v-flip) over a page and over a layer alike.
  *
- * Two atlas pages are used throughout: page 0 is 64x32 (drawable "a"), page 1 is 16x16 (drawable
- * "b"); drawable "c" is unmeshed.
+ * Two atlas pages are used throughout: page 0 is 64x32 (drawables "a" and "a2"), page 1 is 16x16
+ * (drawable "b"); drawable "c" is unmeshed.  The layer fixture is one 64x32 layer, "layer0".
  */
 class UvEditorViewStateTest {
 	/** The default triangle's uvs: display (16, 16), (48, 16), (16, 24) on the 64x32 page. */

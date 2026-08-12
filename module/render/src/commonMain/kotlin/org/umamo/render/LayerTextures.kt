@@ -9,10 +9,11 @@ import kotlin.math.sin
  * Where one drawable's upright source art sits on an atlas page: the transform the packer applied to
  * it, as translation / scale / rotation.
  *
- * A Transform/Rotation/Scale(TRS) rather than a rect because that is what the source formats actually carry and what the
- * corpus actually uses.  Rotation and scale both both occur, and a rect-plus-quarter-turn model would
- * silently discard them on import.  A packer that only ever emits axis-aligned unit-scale placements
- * writes the constrained subset (scale 1, rotation 0) and loses nothing.
+ * A translation / rotation / scale (TRS) rather than a rect because that is what the source formats
+ * actually carry and what the corpus actually uses.  Rotation and scale both occur, and a
+ * rect-plus-quarter-turn model would silently discard them on import.  A packer that only ever emits
+ * axis-aligned unit-scale placements writes the constrained subset (scale 1, rotation 0) and loses
+ * nothing.
  *
  * Rotation is DEGREES, counter-clockwise, about the layer's own origin, applied after scale; the
  * frame is page pixels with y running DOWN (v = 0 is the page's top row), matching how the decoder
@@ -40,7 +41,7 @@ data class AtlasPlacement(
  * Identity and size only - the pixels come from [LayerTextures.rasterFor] on demand, because a real
  * model carries hundreds of these and decoding them all at document load would stall the open.
  *
- * @property String key The layer's stable document-local identifier(the join key bindings reference).
+ * @property String key The layer's stable document-local identifier (the join key bindings reference).
  * @property String name The layer's display name.
  * @property Int width The layer image's width in pixels.
  * @property Int height The layer image's height in pixels.
@@ -97,6 +98,7 @@ data class DrawableLayerBinding(
  * @property List<SourceLayerEntry> layers Every source layer in the document, in document order.
  * @property Map<String, DrawableLayerBinding> bindingsByDrawableId Each drawable's recovered binding,
  *   keyed by the raw drawable id; a drawable with no recoverable layer is absent.
+ * @property Function readBytes Yields a layer's PNG bytes by key, or null when it has none.
  */
 class LayerTextures(
 	val layers: List<SourceLayerEntry>,

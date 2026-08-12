@@ -24,9 +24,9 @@ import org.umamo.ui.viewport.uvToDisplay
 internal const val UV_EDITOR_VIEW_STATE_KEY = "uv.view"
 
 /**
- * What the UV editor area is showing: the auto-follow default, or one atlas page pinned regardless
- * of the selection.  Sealed so the source-layer view can join as a third mode without touching the
- * existing cases.
+ * What the UV editor area is showing: the auto-follow default, one atlas page pinned regardless of the
+ * selection, or the active drawable's own source artwork.  Sealed so a further surface joins as another
+ * case rather than by widening the existing ones.
  */
 internal sealed class UvTextureSelection {
 	/** The auto-follow default: the shown page tracks the session's active drawable. */
@@ -56,7 +56,7 @@ internal sealed class UvTextureSelection {
  * stored here.
  */
 internal class UvEditorViewState {
-	/** The area's texture selection: follow the session, or a pinned atlas page. */
+	/** The area's texture selection: follow the session, a pinned atlas page, or the source-layer view. */
 	var textureSelection by mutableStateOf<UvTextureSelection>(UvTextureSelection.FollowSelection)
 }
 

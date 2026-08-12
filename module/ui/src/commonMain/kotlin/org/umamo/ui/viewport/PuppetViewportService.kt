@@ -69,9 +69,6 @@ sealed interface UvSceneContent {
  *
  * Threading contract: everything here is called from the UI thread; implementations publish to their
  * render thread internally (volatile swaps of immutable values). Picking is CPU-side and synchronous.
- *
- * 共通ビューポート UI とレンダエンジンの継ぎ目。デスクトップはオフスクリーン GL、Android は GLES 実装が
- * この同じ面を実装する。呼び出しは UI スレッド、公開は実装側の volatile スワップで行う。
  */
 interface PuppetViewportService {
 	/** The fine zoom increment in percentage points (one wheel notch / key press), fed from settings. */

@@ -787,7 +787,7 @@ sealed interface MeshChange : Change {
 	/**
 	 * Transforms a set of mesh vertices' texture coordinates to new atlas positions, per drawable - the UV
 	 * editor's modal Grab / Scale / Rotate, the texture-mapping counterpart of [TransformVertices].  Rest
-	 * geometry and the pose are unaffected; this edits which atlas texels the mesh samples, which is
+	 * geometry and the pose are unaffected; this edits which texels the mesh samples, which is
 	 * document content.
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices whose UVs this gesture
@@ -828,8 +828,6 @@ sealed interface MeshChange : Change {
  * Changes to ephemeral editor state — selection and mode — which ride alongside the document model in
  * a history snapshot rather than inside [org.umamo.runtime.model.PuppetModel]. Selection gestures are
  * full undo steps (the user's chosen Blender-faithful granularity); a mode toggle is transient.
- *
- * 一時的なエディタ状態（選択・モード）の変更。選択はそれぞれ独立した取り消し段になる。
  */
 sealed interface EditorStateChange : Change {
 	/** A selection gesture (click, deselect, range). Its own undo step so a misclick is recoverable. */

@@ -90,8 +90,6 @@ private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
  * pose resolution, model diff) is a backend-neutral call into `org.umamo.render.puppet`.  A second
  * backend is therefore a second [RenderDevice], not a second renderer.  It runs on the render thread; the
  * host makes [device]'s context current there.
- *
- * GPU 変形パペットレンダラ。GL を直接触らず RenderDevice 経由。バックエンドはデバイス実装で差し替える。
  */
 class PuppetRenderer(
 	private val model: PuppetModel,
@@ -329,7 +327,8 @@ class PuppetRenderer(
 
 	// Underlay images uploaded on demand (the UV editor's source-layer view), keyed by image identity and
 	// insertion-ordered so eviction drops the oldest. Unlike atlasHandles these arrive after initGl, so
-	// they are the one texture family this renderer creates and destroys during its life.
+	// they are created and destroyed across the renderer's life rather than uploaded once - as the
+	// source-artwork textures below also are.
 	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
 
 	// The source artwork the puppet currently displays from, and its uploaded textures keyed by LAYER
@@ -468,8 +467,10 @@ class PuppetRenderer(
 	 * current.  The engine holds the pending value and calls this from inside the render loop, the way
 	 * every other renderer input arrives.
 	 *
-	 * The set arrives already decoded (see [LayerRasterSet]) so no frame is spent decoding, and the
-	 * switch is all-or-nothing: the puppet displays from the atlas until a complete set lands.
+	 * The set arrives already decoded (see [LayerRasterSet]) so no frame is spent decoding, and it takes
+	 * effect whole rather than resolving piecemeal across frames: the puppet displays from the atlas until
+	 * a set lands.  Coverage WITHIN a set is still per drawable - one the set does not name keeps its
+	 * atlas page.
 	 *
 	 * @param LayerRasterSet rasters The artwork to display from, or [LayerRasterSet.EMPTY] for the atlas.
 	 */
@@ -723,8 +724,6 @@ class PuppetRenderer(
 	 * Sets the grid backdrop's colors and geometry, so the viewport can follow the editor theme and the
 	 * per-document grid config.  The next [render] picks them up.
 	 *
-	 * グリッド背景の色と間隔を設定する（テーマ / ドキュメント連動）。次の render で反映。
-	 *
 	 * @param GridColors colors       The background / major / minor grid colors.
 	 * @param Float      scale        The major grid line spacing in world units.
 	 * @param Int        subdivisions The minor lines per major cell.
@@ -738,8 +737,6 @@ class PuppetRenderer(
 	/**
 	 * Sets which drawables are highlighted (object-mode selection).  The next [render] tints them.
 	 *
-	 * ハイライトするドロウアブル（選択）を設定する。
-	 *
 	 * @param Set<DrawableId> ids The selected drawable ids.
 	 */
 	fun setSelection(ids: Set<DrawableId>) {
@@ -750,8 +747,6 @@ class PuppetRenderer(
 	 * Sets which drawable is active (the last-selected object of a multi-selection), tinted toward
 	 * [activeHighlightColor] rather than [highlightColor]. Null clears the distinction.
 	 *
-	 * アクティブ（最後に選択した）ドロウアブルを設定する。
-	 *
 	 * @param DrawableId? id The active drawable id, or null when none is active.
 	 */
 	fun setActiveSelection(id: DrawableId?) {
@@ -761,8 +756,6 @@ class PuppetRenderer(
 	/**
 	 * Updates the set of drawables actually drawn (the resolved visibility cascade), so a visibility edit
 	 * takes effect on the next [render].
-	 *
-	 * 描画される drawable の集合を更新する。
 	 *
 	 * @param Set ids The drawable ids to draw.
 	 */
@@ -776,8 +769,6 @@ class PuppetRenderer(
 
 	/**
 	 * Shows or hides the world-origin axis lines (the red X / blue Z cross at the model's world origin).
-	 *
-	 * ワールド原点の軸線の表示を切り替える（エディタ用）。
 	 *
 	 * @param Boolean visible True to draw the axes each frame.
 	 */
@@ -796,8 +787,6 @@ class PuppetRenderer(
 	 *
 	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
 	 * invariant "GPU buffer contents === currentModel's arrays".
-	 *
-	 * 編集後にレンダラを現在のモデルへ整合させる。差分は commonMain、適用のみデバイス呼び出し。
 	 *
 	 * @param PuppetModel newModel The current model.
 	 */
@@ -880,8 +869,6 @@ class PuppetRenderer(
 	/**
 	 * Sets the color selected drawables are tinted toward (the selection highlight).
 	 *
-	 * 選択ハイライトの色を設定する。
-	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
 	 * @param Float blue  The tint blue,  0..1.
@@ -892,8 +879,6 @@ class PuppetRenderer(
 
 	/**
 	 * Sets the color the active drawable is tinted toward (the active-selection highlight).
-	 *
-	 * アクティブ選択ハイライトの色を設定する。
 	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
@@ -908,8 +893,6 @@ class PuppetRenderer(
 	 * first pose.  Pure CPU with no device calls, so it is safe from the UI thread; it reuses the immutable
 	 * per-pose inputs cached by the last [setPose].
 	 *
-	 * ピッキング用に現在ポーズの変形ジオメトリを CPU 評価する（UI スレッドから安全）。
-	 *
 	 * @return DeformedGeometry The current deformed geometry, or null before the first pose.
 	 */
 	fun pickGeometry(): DeformedGeometry? {
@@ -920,8 +903,6 @@ class PuppetRenderer(
 	/**
 	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose -
 	 * the hierarchy-correct front/back ranking picking uses to choose among overlapping meshes.
-	 *
-	 * 最後のフレームの解決済み描画順（背面→前面）。
 	 *
 	 * @return List<DrawableId> The drawn drawables, back-to-front.
 	 */
@@ -1332,8 +1313,9 @@ class PuppetRenderer(
 	 * puppet): the themed grid backdrop, then the whole page as a single textured quad.  A null or
 	 * out-of-range [pageIndex] paints the grid only.
 	 *
-	 * The page samples the SAME atlas texture the puppet does, through the same premultiplied fragment
-	 * shader, so the underlay matches the puppet's texel rendering exactly.
+	 * The page samples the SAME uploaded atlas texture a drawable binds while the puppet displays from the
+	 * atlas, through the same premultiplied fragment shader, so the underlay matches the puppet's texel
+	 * rendering exactly.
 	 *
 	 * @param RenderTarget target         The surface to draw into.
 	 * @param Int          pageIndex      The atlas page to draw, or null for none.

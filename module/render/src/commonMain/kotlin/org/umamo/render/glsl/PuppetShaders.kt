@@ -71,9 +71,9 @@ internal fun glueVertexShader(dialect: GlslDialect): String =
 		"}\n"
 
 /**
- * The shared puppet fragment shader: samples the atlas (or a flat color), applies the clip mask, tints
- * the selection highlight, and writes PREMULTIPLIED alpha (`rgb * alpha, alpha`) - which is why every
- * blend mode's source factor is `GL_ONE`.
+ * The shared puppet fragment shader: samples the bound art texture through the stored-to-sampled uv
+ * affine (or a flat color), applies the clip mask, tints the selection highlight, and writes
+ * PREMULTIPLIED alpha (`rgb * alpha, alpha`) - which is why every blend mode's source factor is `GL_ONE`.
  *
  * The mask is sampled by `gl_FragCoord.xy / screenTexSize` - screen space, with the divisor the mask
  * texture's ALLOCATED size (equal to the viewport size only when the texture is exactly viewport-sized;
@@ -126,16 +126,16 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		""".trimIndent()
 
 /**
- * The atlas-page underlay vertex shader (UV editor).
+ * The UV editor's underlay vertex shader, for an atlas page or a source-layer image.
  *
- * Emits the page rectangle's four corners from `gl_VertexID` (no vertex buffer, only an empty VAO),
+ * Emits the underlay rectangle's four corners from `gl_VertexID` (no vertex buffer, only an empty VAO),
  * directly in Y-up display / texel space - world X in [0, W], Y in [0, H] - with NO Cubism Y negation
- * (unlike `deformWorld`: the page is placed straight into the already-Y-up display space).  The UVs carry
- * the V-flip so atlas V=0 (the top texel row) lands at the top of the Y-up quad - corner (0, H) -> uv
- * (0, 0) - matching UvDisplayMapping's `displayY = (1-v)*H`.  Projects through the same worldToNdc affine
- * as the puppet.
+ * (unlike `deformWorld`: the image is placed straight into the already-Y-up display space).  The UVs carry
+ * the V-flip so the image's V=0 (its top texel row) lands at the top of the Y-up quad - corner (0, H) ->
+ * uv (0, 0) - matching UvDisplayMapping's `displayY = (1-v)*H`.  Projects through the same worldToNdc
+ * affine as the puppet.
  *
- * That V-flip is a CONTENT convention (Y-up display vs top-first atlas rows), not a backend one, so it is
+ * That V-flip is a CONTENT convention (Y-up display vs top-first image rows), not a backend one, so it is
  * identical in MSL - a Metal port must keep it, not "correct" it for Metal's top-left texture origin.
  *
  * @param GlslDialect dialect The target flavor.
@@ -144,12 +144,12 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 internal fun atlasPageVertexShader(dialect: GlslDialect): String =
 	glslHeader(dialect) +
 		"uniform vec4 worldToNdc;\n" + // (scaleX, scaleY, offsetX, offsetY) - the camera's world→NDC affine
-		"uniform vec2 pageSize;\n" + // the atlas page size in texels (W, H)
+		"uniform vec2 pageSize;\n" + // the underlay image's size in texels (W, H)
 		"out vec2 vUv;\n" +
 		"void main() {\n" +
 		"	float cornerX = float(gl_VertexID & 1);\n" + // 0,1,0,1 across the triangle strip
 		"	float cornerY = float((gl_VertexID >> 1) & 1);\n" + // 0,0,1,1
 		"	vec2 world = vec2(cornerX * pageSize.x, cornerY * pageSize.y);\n" +
-		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: display top (Y=H) samples the atlas top row (v=0)
+		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: display top (Y=H) samples the image's top row (v=0)
 		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
 		"}\n"

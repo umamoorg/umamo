@@ -294,16 +294,17 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
+	private fun elementsOfInputs(extension: CTextureInputExtension): List<Any?> = Cmo3Import.elementsOf(extension._textureInputs)
+
 	/**
 	 * Builds the per-drawable texture-input extension for a fresh-graph binding: both input kinds
-	 * (model image + atlas region) with the region active, mirroring the editor's packed drawables.
+	 * (model image + atlas region), with the one the document's display mode samples made active,
+	 * mirroring the editor's packed drawables.
 	 *
 	 * @param CArtMeshSource            owner   The drawable source under construction.
 	 * @param Cmo3DrawableTextureBinding binding The drawable's texture web (page texture + patch).
 	 * @return CTextureInputExtension The fresh extension.
 	 */
-	private fun elementsOfInputs(extension: CTextureInputExtension): List<Any?> = Cmo3Import.elementsOf(extension._textureInputs)
-
 	private fun freshTextureInputExtension(owner: CArtMeshSource, binding: Cmo3DrawableTextureBinding): CTextureInputExtension {
 		val extension = CTextureInputExtension()
 		val atlasRegion =

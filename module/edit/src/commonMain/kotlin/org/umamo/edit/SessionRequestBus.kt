@@ -5,11 +5,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * The session's request buses: fire-and-forget signals from command handlers to the viewport
- * overlays.  Every one exists for the same reason - the operation needs something only an overlay
- * has (the pointer position, the projected geometry, the in-flight working positions), so the
- * session cannot execute it directly; it signals here and the observing overlay executes.  Pure
- * plumbing with no other session state involved, hence a separate collaborator; [EditorSession]
+ * The session's request buses: fire-and-forget signals from command handlers to the area that
+ * executes them - a viewport or UV editor overlay, or the UV editor space itself.  Every one exists
+ * for the same reason - the operation needs something only the receiving area has (the pointer
+ * position, the projected geometry, the in-flight working positions, the area's own view state), so
+ * the session cannot execute it directly; it signals here and the observing collector executes.
+ * Pure plumbing with no other session state involved, hence a separate collaborator; [EditorSession]
  * exposes each flow and request method unchanged.
  */
 

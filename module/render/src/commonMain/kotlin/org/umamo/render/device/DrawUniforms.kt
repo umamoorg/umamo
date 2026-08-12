@@ -115,7 +115,8 @@ public class FragmentUniforms {
  * rather than allocating a bundle per drawable per frame; the device must read the fields before returning
  * and must not retain the instance (binding a texture reads its handle synchronously, so both backends can).
  *
- * @property GpuTexture? atlas             The art atlas page, or null to draw the flat color.
+ * @property GpuTexture? atlas             The art texture the draw samples - the packed atlas page, or the
+ *   drawable's source artwork when the puppet displays from that - or null to draw the flat color.
  * @property GpuTexture? maskCoverage      The clip mask's coverage, or null when unmasked.
  * @property GpuTexture? deltaTexture      The mesh's morph delta table (deform draws only).
  * @property GpuTexture? warpControlPoints The parent warp's baked control points, or null when the parent

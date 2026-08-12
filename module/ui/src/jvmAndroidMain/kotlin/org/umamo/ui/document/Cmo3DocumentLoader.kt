@@ -14,7 +14,8 @@ import org.umamo.ui.viewport.initialLiveParams
 
 /**
  * A loaded `.cmo3`: the format model (the retained graph Export CMO3 reconciles the session's edits
- * onto - Cmo3Export.apply), the runtime puppet + textures (for render), live params.
+ * onto - Cmo3Export.apply), the runtime puppet + atlas textures + source artwork (for render), live
+ * params.
  */
 class Cmo3Document(
 	override val path: String,

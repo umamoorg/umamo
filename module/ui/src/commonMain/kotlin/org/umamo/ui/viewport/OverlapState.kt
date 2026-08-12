@@ -25,8 +25,8 @@ internal data class OverlapState(
  * keep that front-to-back order; the pre-highlighted default is the highest-centrality candidate (the
  * most unambiguously clicked one). Each row gets the drawable's layer-art thumbnail from [service]
  * (cached there); an untextured drawable yields null and renders as a label-only row.  The name and
- * thumbnail lookups are pure model/texture reads, so any area kind may call this - a UV atlas-page
- * area included.
+ * thumbnail lookups are pure model/texture reads, so any area kind may call this - a UV-editor area
+ * included.
  *
  * @param PuppetViewportService service The service that supplies (and caches) the layer thumbnails.
  * @param Offset position The cursor position to anchor the popup at, in area-local pixels.

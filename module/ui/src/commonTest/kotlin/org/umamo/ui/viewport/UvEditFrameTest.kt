@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
  * show it and writing an authored one back - plus the commit discipline that keeps a vertex the user
  * never moved bit-identical to what the document stores.
  *
- * The page-view frame is the load-bearing case for "changed nothing": it must be exactly the texel
- * mapping the editor used before frames existed, or every page-view edit shifts.
+ * The page-view frame is the load-bearing case for "changed nothing": it must be exactly the bare
+ * texel mapping in UvDisplayMapping.kt, or every page-view edit shifts.
  */
 class UvEditFrameTest {
 	private fun packedBinding(
@@ -78,9 +78,9 @@ class UvEditFrameTest {
 	}
 
 	/**
-	 * THE regression this session exists to prevent: a commit must leave every vertex the operation did
-	 * not move bit-identical.  Converting whole arrays instead marks untouched meshes as edited, which
-	 * warns the user on CMO3 export about mappings they never authored.
+	 * The commit discipline's load-bearing guarantee, over both frames: a commit leaves every vertex the
+	 * operation did not move bit-identical.  Converting whole arrays instead would mark untouched meshes
+	 * as edited, warning the user on CMO3 export about mappings they never authored.
 	 */
 	@Test
 	fun commitLeavesUnmovedVerticesBitIdentical() {

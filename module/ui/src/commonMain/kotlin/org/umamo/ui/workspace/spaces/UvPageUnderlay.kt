@@ -19,19 +19,20 @@ import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.worldToScreen
 
 /**
- * The UV editor's page underlay: the atlas page rendered by the GL engine (upright, correctly
- * sampled, sharing the puppet's texture), clipped to the page's on-screen rectangle with a 1.dp
- * frame drawn around it - or the themed grid placeholder until the first GL frame lands.
+ * The UV editor's underlay: the shown surface - an atlas page or a source layer's artwork - rendered
+ * by the GL engine (upright, correctly sampled, sharing the puppet's texture), clipped to its
+ * on-screen rectangle with a 1.dp frame drawn around it - or the themed grid placeholder until the
+ * first GL frame lands.
  *
- * The page rectangle is the full UV tile (display space [0, 0]-[pageWidth, pageHeight]) projected
+ * The rectangle is the full UV tile (display space [0, 0]-[pageWidth, pageHeight]) projected
  * through the FRAME's camera, so it tracks pan / zoom glued to the rendered texture.  The grid +
  * texture raster is clipped to it so the grid does not spill past the texture onto the panel
  * elevation; the wireframe overlays above are deliberately unclipped, so UVs outside the tile stay
  * visible.
  *
  * @param RenderedFrame? rendered The displayed GL frame, or null before the first frame.
- * @param Int pageWidth The shown page's width in texels.
- * @param Int pageHeight The shown page's height in texels.
+ * @param Int pageWidth The shown surface's width in texels.
+ * @param Int pageHeight The shown surface's height in texels.
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).

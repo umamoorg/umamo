@@ -12,7 +12,7 @@ import org.umamo.render.layerUvAffineOf
  *
  * The UV editor authors one mapping over two surfaces.  Over an atlas page the display IS the stored
  * frame - the texel mapping in UvDisplayMapping.kt is the whole conversion - and [storedFromFrame] is
- * null, so that path stays exactly what it was.  Over a source layer the display is the artwork's own
+ * null, so that path carries no conversion at all.  Over a source layer the display is the artwork's own
  * pixels, and the drawable's atlas placement stands between them; [storedFromFrame] carries that step
  * so an edit authored on the art commits in the frame the document stores.
  *

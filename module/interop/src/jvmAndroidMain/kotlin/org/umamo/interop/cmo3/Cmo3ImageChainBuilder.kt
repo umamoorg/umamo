@@ -727,6 +727,8 @@ internal object Cmo3ImageChainBuilder {
 	 *                                   and the placement fit), indexed like [pages].
 	 * @param Long         nowMillis     The import timestamp the wrappers record (caller-supplied
 	 *                                   so tests stay deterministic).
+	 * @param Boolean      fromSourceLayers The document's display mode: true writes the texture
+	 *                                   manager's combined-layer mode, false the packed-atlas one.
 	 * @return BuiltImageChain The PNG entries plus the texture bindings.
 	 */
 	internal fun populate(

@@ -28,7 +28,9 @@ import kotlin.test.assertTrue
  * our AtlasPlacement out of the entry and pushing a point through [atlasPixelOf] must therefore land
  * where the file's own two affines say it lands.
  *
- * Gated on `-Dcmo3.probe` (the whole corpus, comma-separated); self-skips without it.
+ * Gated on `cmo3.probe` (the whole corpus, comma-separated; the build defaults it to the local corpus,
+ * and an explicit `-D` overrides that); self-skips by JUnit assumption when it names no readable file, so
+ * an unfed run reports skipped rather than green.
  */
 class Cmo3LayerRecoveryCorpusTest {
 	private companion object {
