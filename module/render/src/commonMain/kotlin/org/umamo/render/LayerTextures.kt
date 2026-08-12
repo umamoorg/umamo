@@ -9,10 +9,11 @@ import kotlin.math.sin
  * Where one drawable's upright source art sits on an atlas page: the transform the packer applied to
  * it, as translation / scale / rotation.
  *
- * A Transform/Rotation/Scale(TRS) rather than a rect because that is what the source formats actually carry and what the
- * corpus actually uses.  Rotation and scale both both occur, and a rect-plus-quarter-turn model would
- * silently discard them on import.  A packer that only ever emits axis-aligned unit-scale placements
- * writes the constrained subset (scale 1, rotation 0) and loses nothing.
+ * A Transform/Rotation/Scale(TRS) rather than a rect because that is what the source formats
+ * actually carry and what the corpus actually uses.  Rotation and scale both occur, and a
+ * rect-plus-quarter-turn model would silently discard them on import.  A packer that only ever emits
+ * axis-aligned unit-scale placements writes the constrained subset (scale 1, rotation 0) and loses
+ * nothing.
  *
  * Rotation is DEGREES, counter-clockwise, about the layer's own origin, applied after scale; the
  * frame is page pixels with y running DOWN (v = 0 is the page's top row), matching how the decoder
@@ -97,6 +98,7 @@ data class DrawableLayerBinding(
  * @property List<SourceLayerEntry> layers Every source layer in the document, in document order.
  * @property Map<String, DrawableLayerBinding> bindingsByDrawableId Each drawable's recovered binding,
  *   keyed by the raw drawable id; a drawable with no recoverable layer is absent.
+ * @property Function readBytes Yields a layer's PNG bytes by key, or null when it has none.
  */
 class LayerTextures(
 	val layers: List<SourceLayerEntry>,
@@ -178,6 +180,12 @@ class LayerTextures(
 	/**
 	 * A layer's pixels, decoding them on first request and caching the result (failures included).
 	 *
+	 * CALLER-CONFINED: the cache is a plain map with no synchronization, so every call must come from
+	 * the same thread (today, the UI thread).  A second caller would not merely race the map - it could
+	 * hand out a SECOND decoded instance for one layer, and both the renderer's texture cache and the
+	 * viewport's freshness test compare decoded images by identity.  Anything off that thread uses
+	 * [decodeRaster] instead, which shares nothing.
+	 *
 	 * @param String layerKey The layer's stable id.
 	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
 	 */
@@ -197,6 +205,27 @@ class LayerTextures(
 		decodedByKey[layerKey] = decoded
 		return decoded
 	}
+
+	/**
+	 * A layer's pixels, decoded fresh and cached nowhere - safe to call from any thread, including
+	 * several at once.
+	 *
+	 * The uncached twin of [rasterFor], for callers that own their own result: the bytes come from an
+	 * immutable archive and the decoder is stateless, so nothing here is shared.  Costs a repeat decode
+	 * when a layer is already cached, which is the price of not sharing a cache across threads.
+	 *
+	 * @param String layerKey The layer's stable id.
+	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
+	 */
+	fun decodeRaster(layerKey: String): DecodedImage? =
+		readBytes(layerKey)?.let { bytes ->
+			try {
+				val image = org.umamo.format.png.PngCodec.read(bytes)
+				DecodedImage(image.rgba, image.width, image.height)
+			} catch (_: Exception) {
+				null
+			}
+		}
 
 	companion object {
 		/** The store a document with no source art surfaces. */

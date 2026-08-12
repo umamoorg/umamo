@@ -246,6 +246,12 @@ sealed interface ExportNoticeReason {
 	/** The model has no canvas to reconcile a size against. */
 	data object NoCanvasToReconcile : ExportNoticeReason
 
+	/** The document carries no texture manager, so the source-artwork display mode has nowhere to go. */
+	data object NoTextureManagerToReconcile : ExportNoticeReason
+
+	/** The drawable lacks the texture input the chosen display mode samples, so its pointer was left as-is. */
+	data object NoTextureInputForDisplayMode : ExportNoticeReason
+
 	/** A fractional canvas size, where CMO3 stores whole pixels. */
 	data object FractionalCanvasSizeNotStorable : ExportNoticeReason
 }

@@ -38,7 +38,7 @@ import org.umamo.format.cmo3.model.type.GVector2
  *
  * The pixel lookup is injected rather than taken from a `Cmo3Model`, which is what keeps this in
  * commonMain - the CMO3 graph node types are all commonMain and only the archive-owning container
- * wrapper is JVM-bound.  The caller passes `Cmo3Model::extractLayerPng`; a test passes a map lookup.
+ * wrapper is JVM-bound.  The caller passes `Cmo3Model::extractLayerPng`, and so does the corpus test.
  * Same seam as [cmo3PuppetTextures], and nothing here decodes: the store decodes on demand.
  *
  * @param CModelSource modelSource The CMO3's root model source.
@@ -51,7 +51,7 @@ fun cmo3LayerTextures(modelSource: CModelSource, readPng: (CImageResource) -> By
 
 	// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas fields modelImages / width / height.
 	// The page dimensions travel with each placement (see DrawableLayerBinding) because this page order
-	// is the texture manager's, which is independently derived from PuppetTextures' encounter order.
+	// is the texture manager's, which is derived independently of PuppetTextures' encounter order.
 	val placementByModelImageGuid = HashMap<String, AtlasPlacement>()
 	val pageSizeByModelImageGuid = HashMap<String, Pair<Int, Int>>()
 	val atlases = elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()

@@ -32,9 +32,10 @@ import kotlin.test.assertTrue
  * What it answers, per corpus file: how many drawables join a model image at all, how many model
  * images were ever packed, how many packings are rotated / scaled / mirrored (the cases a
  * rect-shaped placement type would silently lose), how many model images composite MORE than one
- * source layer (where "which layer is this drawable bound to" has no unique answer), and whether
- * ACTextureInput.optionalTransformOnCanvas is ever non-null (it is modeled but read nowhere, so a
- * non-null would be an unaccounted third transform in the mapping chain).
+ * source layer (where "which layer is this drawable bound to" has no unique answer), and how many
+ * texture inputs carry an ACTextureInput.optionalTransformOnCanvas at all (it is modeled but read
+ * nowhere, and the corpus answer is all of them - whether any is non-identity, an unaccounted third
+ * transform in the mapping chain, is what [characterizesTheOptionalCanvasTransform] settles).
  *
  * Corpus-gated: self-skips when no corpus is present.  The counts print; the assertions only guard
  * against a silently broken walk (a file with an atlas whose joins all resolve to nothing).

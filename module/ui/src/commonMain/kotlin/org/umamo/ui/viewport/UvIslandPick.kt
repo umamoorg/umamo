@@ -19,7 +19,7 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The static rest-pose front rank per drawable: the index of each drawable in the resolved
  * back-to-front paint order (higher = drawn more in front), computed over the STATIC draw orders.
- * The UV page is a rest-space authoring view, so island stacking deliberately ignores any
+ * The UV editor is a rest-space authoring view, so island stacking deliberately ignores any
  * pose-blended draw-order channel - the rank a rigger sees here is the one the model rests at.
  *
  * The order rule mirrors the renderer's pose resolve exactly: the hierarchical group sort over
@@ -41,13 +41,14 @@ internal fun restFrontRank(model: PuppetModel): Map<DrawableId, Float> {
 }
 
 /**
- * An alpha sampler over the shown atlas page for the shared pick functions: (id, u, v) -> texel
- * alpha 0..1.  Atlas v = 0 is the image's TOP row, matching the decoded page's top-row-first byte
- * layout, so the sample needs no flip; out-of-range coordinates clamp to the edge texel.  A null
- * page (the untextured 1x1 fallback) samples 1f everywhere, so untextured islands stay clickable.
- * The DrawableId parameter is unused - every shown island samples the one shown page.
+ * An alpha sampler over the shown surface - the atlas page or the source layer's artwork - for the
+ * shared pick functions: (id, u, v) -> texel alpha 0..1.  v = 0 is the image's TOP row, matching the
+ * decoded image's top-row-first byte layout, so the sample needs no flip; out-of-range coordinates
+ * clamp to the edge texel.  A null image (the untextured 1x1 fallback) samples 1f everywhere, so
+ * untextured islands stay clickable.  The DrawableId parameter is unused - every shown island samples
+ * the one shown surface.
  *
- * @param DecodedImage? page The shown page's decoded pixels, or null for the untextured fallback.
+ * @param DecodedImage? page The shown surface's decoded pixels, or null for the untextured fallback.
  * @return Function The sampler the pick functions consume.
  */
 internal fun pageAlphaSampler(page: DecodedImage?): (DrawableId, Float, Float) -> Float {
@@ -64,18 +65,19 @@ internal fun pageAlphaSampler(page: DecodedImage?): (DrawableId, Float, Float) -
 
 /**
  * The UV editor's island picker: the shared alpha-gated point pick (pickDrawable /
- * pickAllDrawables) bound to the shown page's display-space islands.  The point is taken in
+ * pickAllDrawables) bound to the shown surface's display-space islands.  The point is taken in
  * display (texel) space - the caller unprojects a click through the area camera first - and the
- * hit's atlas UV is barycentric-interpolated from the STORED mesh uvs, so the alpha gate samples
- * exactly the texel the click lands on.  Front-most wins by [frontRankById]; the stack query is
- * front-to-back with per-candidate centrality for the overlap popup's default row.
+ * hit's uv is barycentric-interpolated from the mesh uvs in the SHOWN SURFACE's own frame (the
+ * stored coordinates over an atlas page, the layer-frame ones over a source layer), so the alpha
+ * gate samples exactly the texel the click lands on.  Front-most wins by [frontRankById]; the stack
+ * query is front-to-back with per-candidate centrality for the overlap popup's default row.
  *
  * @property Map<DrawableId, FloatArray> displayPositionsById Interleaved display-space (x, y) vertices per island.
  * @property Map<DrawableId, IntArray> indicesById Triangle index triples per island.
- * @property Map<DrawableId, FloatArray> meshUvsById The stored atlas uvs per island (the alpha-sample space).
+ * @property Map<DrawableId, FloatArray> meshUvsById The shown surface's uvs per island (the alpha-sample space).
  * @property Map<DrawableId, Float> frontRankById The static rest-pose front rank (higher = more front).
- * @property Function sampleAlpha (id, u, v) -> texel alpha over the shown page.
- * @property Function atlasSizeOf (id) -> the shown page's (width, height), or null for the untextured fallback
+ * @property Function sampleAlpha (id, u, v) -> texel alpha over the shown surface.
+ * @property Function atlasSizeOf (id) -> the shown image's (width, height), or null for the untextured fallback
  *   (full centrality instead of ray-marching a fake 1x1 page).
  */
 internal class UvIslandPick(
@@ -87,8 +89,8 @@ internal class UvIslandPick(
 	val atlasSizeOf: (DrawableId) -> Pair<Int, Int>?,
 ) {
 	/**
-	 * The front-most island whose mesh contains the point AND whose atlas texel there is opaque, or
-	 * null on a miss (including a click on transparent triangle overhang).
+	 * The front-most island whose mesh contains the point AND whose texel on the shown surface there is
+	 * opaque, or null on a miss (including a click on transparent triangle overhang).
 	 *
 	 * @param Float displayX The point X in display (texel) space.
 	 * @param Float displayY The point Y in display (texel) space.
@@ -110,14 +112,14 @@ internal class UvIslandPick(
 }
 
 /**
- * Builds the island picker for the shown page from what the UV space already resolves: the shown
- * drawables (for their stored uvs), their display-space gizmo geometry, the model's rest front
- * rank, and the page's decoded pixels.
+ * Builds the island picker for the shown surface from what the UV space already resolves: the shown
+ * islands' display-space gizmo geometry, their uvs in that surface's own frame, the model's rest
+ * front rank, and the surface's decoded pixels.
  *
- * @param List<Drawable> shownDrawables The drawables whose islands draw over the page.
  * @param List<GizmoMeshGeometry> geometries The islands' display-space gizmo geometry.
  * @param Map<DrawableId, Float> frontRank The model's rest-pose front rank (restFrontRank).
- * @param DecodedImage? page The shown page's decoded pixels, or null for the untextured fallback.
+ * @param Map<DrawableId, FloatArray> uvsById Each island's uvs in the shown surface's frame (the alpha-sample space).
+ * @param DecodedImage? image The shown surface's decoded pixels, or null for the untextured fallback.
  * @return UvIslandPick The picker.
  */
 internal fun uvIslandPick(

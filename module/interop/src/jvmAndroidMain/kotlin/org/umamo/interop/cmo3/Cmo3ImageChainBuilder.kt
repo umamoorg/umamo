@@ -727,6 +727,8 @@ internal object Cmo3ImageChainBuilder {
 	 *                                   and the placement fit), indexed like [pages].
 	 * @param Long         nowMillis     The import timestamp the wrappers record (caller-supplied
 	 *                                   so tests stay deterministic).
+	 * @param Boolean      fromSourceLayers The document's display mode: true writes the texture
+	 *                                   manager's combined-layer mode, false the packed-atlas one.
 	 * @return BuiltImageChain The PNG entries plus the texture bindings.
 	 */
 	internal fun populate(
@@ -734,6 +736,7 @@ internal object Cmo3ImageChainBuilder {
 		pages: List<AtlasPage>,
 		regionsByPage: List<List<DrawableRegion>>,
 		nowMillis: Long,
+		fromSourceLayers: Boolean = false,
 	): BuiltImageChain {
 		val textureManager = root.textureManager as? CTextureManager ?: error("skeleton has no texture manager")
 		val sharedBlend = CBlend_Normal()
@@ -1059,9 +1062,12 @@ internal object Cmo3ImageChainBuilder {
 			textureAtlases.add(atlas)
 		}
 		modelImageGroups.add(group)
-		// CMO3: CTextureManager field isTextureInputModelImageMode - false = atlas display mode,
-		// matching the atlas-region inputs the drawables carry.
-		textureManager.isTextureInputModelImageMode = false
+		// CMO3: CTextureManager field isTextureInputModelImageMode - the document's own display mode.
+		// The synthesized web carries BOTH inputs per drawable (a model image and an atlas region), so
+		// either mode is representable; the diff-driven lowering retargets currentTextureInputData to
+		// match.  This path is not covered by that lowering, so it reads the model directly rather than
+		// hardcoding a mode the document may not be in.
+		textureManager.isTextureInputModelImageMode = fromSourceLayers
 		return BuiltImageChain(pngEntries, bindingByDrawableId, pageFallbackBindings)
 	}
 }

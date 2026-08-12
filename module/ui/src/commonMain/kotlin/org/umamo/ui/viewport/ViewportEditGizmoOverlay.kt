@@ -297,6 +297,12 @@ fun ViewportEditGizmoOverlay(
 			}
 		}
 
+	// The per-drawable reuse cache behind the frame-geometry derivation below: a modal drive's folded
+	// frame model replaces ONLY the moving meshes' drawables, so a bystander's posed world geometry
+	// carries over by drawable INSTANCE identity instead of re-posing every session mesh per rendered
+	// frame - the per-frame work during a drag is the moving meshes alone.  Keyed on liveGeometry so a
+	// committed model swap (new mappings / topology) drops every entry.
+	val frameGeometryReuse = remember(liveGeometry) { HashMap<DrawableId, Pair<Drawable, FrameMeshGeometry>>() }
 	// The DISPLAYED frame's geometry per session mesh - what the raster under this overlay actually
 	// shows.  The draw pass poses the wireframes from this (not the live session shape / working arrays),
 	// so during a transform every mesh lags together with the raster instead of racing ahead of it.
@@ -307,12 +313,6 @@ fun ViewportEditGizmoOverlay(
 	// frame (a uniqueEdges plus a full buildDeformerWorlds per drawable) would make an all-vertex
 	// transform lag, unlike Object mode's transform, which caches.  A missing member falls the draw pass
 	// back to the session shape (a pathological transient, e.g. a hidden ancestor).
-	// The per-drawable reuse cache behind the frame-geometry derivation below: a modal drive's folded
-	// frame model replaces ONLY the moving meshes' drawables, so a bystander's posed world geometry
-	// carries over by drawable INSTANCE identity instead of re-posing every session mesh per rendered
-	// frame - the per-frame work during a drag is the moving meshes alone.  Keyed on liveGeometry so a
-	// committed model swap (new mappings / topology) drops every entry.
-	val frameGeometryReuse = remember(liveGeometry) { HashMap<DrawableId, Pair<Drawable, FrameMeshGeometry>>() }
 	val frameGeometryByDrawable =
 		remember(frameModel, liveGeometry) {
 			// One O(D) index of the frame's drawables, so the per-mesh lookups below are not an O(D^2) scan.

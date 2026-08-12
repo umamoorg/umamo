@@ -3,6 +3,7 @@ package org.umamo.render.puppet
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.WorldAxisColors
@@ -89,8 +90,6 @@ private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
  * pose resolution, model diff) is a backend-neutral call into `org.umamo.render.puppet`.  A second
  * backend is therefore a second [RenderDevice], not a second renderer.  It runs on the render thread; the
  * host makes [device]'s context current there.
- *
- * GPU 変形パペットレンダラ。GL を直接触らず RenderDevice 経由。バックエンドはデバイス実装で差し替える。
  */
 class PuppetRenderer(
 	private val model: PuppetModel,
@@ -217,6 +216,13 @@ class PuppetRenderer(
 		val indexCount: Int,
 		val cpTexture: GpuTexture?,
 		val atlasTexture: GpuTexture?,
+		// The drawable's SOURCE ARTWORK alternative to the atlas, and the affine carrying its stored
+		// coordinates into that image's frame.  Both var: a drawable acquires them when the document
+		// switches to source-artwork display, which is a state change, not a re-upload.  Null means this
+		// drawable has no recoverable art and keeps rendering from the atlas - the mode is best-effort
+		// per drawable, so a document is routinely mixed.
+		var layerTexture: GpuTexture? = null,
+		var layerUvAffine: FloatArray? = null,
 		val color: FloatArray,
 		// Static composite state: var because a composite-only edit is a ModelDiff Keep (no buffer work),
 		// which re-stamps these on the reused resident in updateModel - or the viewport would keep drawing
@@ -242,6 +248,18 @@ class PuppetRenderer(
 		/** Grid cells by linear index for the bounds walk; a keyform edit re-uploads whole (Reupload). */
 		val boundsCells: Map<Int, KeyformCell<MeshDeltaForm>>,
 	) {
+		/**
+		 * The texture this drawable actually samples: its source artwork when the document displays from
+		 * artwork AND this drawable has recoverable art, else the atlas page it was packed onto.
+		 *
+		 * The fallback is per drawable on purpose - art the document does not retain, a placement that
+		 * will not invert, or a layer that would not decode all leave a drawable on the atlas rather than
+		 * removing it from the puppet.
+		 *
+		 * @return GpuTexture? The texture to bind, or null when the drawable has neither.
+		 */
+		fun activeTexture(): GpuTexture? = layerTexture ?: atlasTexture
+
 		var corners: List<WeightedCell>? = null
 		var parentWorld: DeformerWorld? = null
 		var opacity: Float = 1f
@@ -309,8 +327,15 @@ class PuppetRenderer(
 
 	// Underlay images uploaded on demand (the UV editor's source-layer view), keyed by image identity and
 	// insertion-ordered so eviction drops the oldest. Unlike atlasHandles these arrive after initGl, so
-	// they are the one texture family this renderer creates and destroys during its life.
+	// they are created and destroyed across the renderer's life rather than uploaded once - as the
+	// source-artwork textures below also are.
 	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
+
+	// The source artwork the puppet currently displays from, and its uploaded textures keyed by LAYER
+	// (duplicated art is shared, so this is the count of distinct images, not of drawables).  Retained
+	// so a structural reconcile can re-stamp a rebuilt resident, exactly as atlasHandles is.
+	private var layerRasters: LayerRasterSet = LayerRasterSet.EMPTY
+	private val layerTextures = HashMap<String, GpuTexture>()
 
 	// Whether render() draws the world-origin axis lines. Off by default so headless render-diff tests stay
 	// line-free; the editor's viewport host opts in.
@@ -435,8 +460,62 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * Sets the source artwork the puppet displays from, uploading what it needs and dropping what it no
+	 * longer does.  An empty set returns every drawable to its atlas page.
+	 *
+	 * Render thread only: it creates and destroys GPU resources, so it must run with the context
+	 * current.  The engine holds the pending value and calls this from inside the render loop, the way
+	 * every other renderer input arrives.
+	 *
+	 * The set arrives already decoded (see [LayerRasterSet]) so no frame is spent decoding, and it takes
+	 * effect whole rather than resolving piecemeal across frames: the puppet displays from the atlas until
+	 * a set lands.  Coverage WITHIN a set is still per drawable - one the set does not name keeps its
+	 * atlas page.
+	 *
+	 * @param LayerRasterSet rasters The artwork to display from, or [LayerRasterSet.EMPTY] for the atlas.
+	 */
+	fun setSourceLayerRasters(rasters: LayerRasterSet) {
+		if (rasters === layerRasters) {
+			return
+		}
+		layerRasters = rasters
+		// Upload what the new set needs; a layer already resident keeps its texture rather than churning.
+		for ((layerKey, image) in rasters.rastersByLayerKey) {
+			if (!layerTextures.containsKey(layerKey)) {
+				layerTextures[layerKey] = device.createTexture(image.width, image.height, TextureFormat.Rgba8, TextureFilter.Linear, image.rgba)
+			}
+		}
+		val obsolete = layerTextures.keys.filter { layerKey -> layerKey !in rasters.rastersByLayerKey }
+		for (layerKey in obsolete) {
+			layerTextures.remove(layerKey)?.let { texture -> device.destroyTexture(texture) }
+		}
+		for ((drawableId, gpuDrawable) in gpuById) {
+			stampSourceLayer(gpuDrawable, drawableId)
+		}
+	}
+
+	/**
+	 * Points one resident at its source artwork, or back at its atlas page when the current set does not
+	 * cover it.
+	 *
+	 * Applied to EVERY resident, not just the drawn ones: a mask source is posed and drawn into the
+	 * coverage pass while sitting outside the shown set, and a mask sampling one frame while the art it
+	 * clips samples the other cuts the silhouette to garbage.
+	 *
+	 * @param GpuDrawable gpuDrawable The resident to stamp.
+	 * @param DrawableId  drawableId  Its id, keying into the current set.
+	 */
+	private fun stampSourceLayer(gpuDrawable: GpuDrawable, drawableId: DrawableId) {
+		val draw = layerRasters.drawsByDrawableId[drawableId.raw]
+		val texture = draw?.let { layerTextures[it.layerKey] }
+		gpuDrawable.layerTexture = texture
+		gpuDrawable.layerUvAffine = if (texture != null) draw.uvAffine else null
+	}
+
+	/**
 	 * Frees one resident drawable's device objects: its mesh and delta / control-point textures.  The atlas
-	 * is shared across drawables and stays.  Must run with the device's context current.
+	 * and any source-artwork texture are shared across drawables and stay.  Must run with the device's
+	 * context current.
 	 *
 	 * @param GpuDrawable gpuDrawable The resident drawable to free.
 	 */
@@ -645,8 +724,6 @@ class PuppetRenderer(
 	 * Sets the grid backdrop's colors and geometry, so the viewport can follow the editor theme and the
 	 * per-document grid config.  The next [render] picks them up.
 	 *
-	 * グリッド背景の色と間隔を設定する（テーマ / ドキュメント連動）。次の render で反映。
-	 *
 	 * @param GridColors colors       The background / major / minor grid colors.
 	 * @param Float      scale        The major grid line spacing in world units.
 	 * @param Int        subdivisions The minor lines per major cell.
@@ -660,8 +737,6 @@ class PuppetRenderer(
 	/**
 	 * Sets which drawables are highlighted (object-mode selection).  The next [render] tints them.
 	 *
-	 * ハイライトするドロウアブル（選択）を設定する。
-	 *
 	 * @param Set<DrawableId> ids The selected drawable ids.
 	 */
 	fun setSelection(ids: Set<DrawableId>) {
@@ -672,8 +747,6 @@ class PuppetRenderer(
 	 * Sets which drawable is active (the last-selected object of a multi-selection), tinted toward
 	 * [activeHighlightColor] rather than [highlightColor]. Null clears the distinction.
 	 *
-	 * アクティブ（最後に選択した）ドロウアブルを設定する。
-	 *
 	 * @param DrawableId? id The active drawable id, or null when none is active.
 	 */
 	fun setActiveSelection(id: DrawableId?) {
@@ -683,8 +756,6 @@ class PuppetRenderer(
 	/**
 	 * Updates the set of drawables actually drawn (the resolved visibility cascade), so a visibility edit
 	 * takes effect on the next [render].
-	 *
-	 * 描画される drawable の集合を更新する。
 	 *
 	 * @param Set ids The drawable ids to draw.
 	 */
@@ -698,8 +769,6 @@ class PuppetRenderer(
 
 	/**
 	 * Shows or hides the world-origin axis lines (the red X / blue Z cross at the model's world origin).
-	 *
-	 * ワールド原点の軸線の表示を切り替える（エディタ用）。
 	 *
 	 * @param Boolean visible True to draw the axes each frame.
 	 */
@@ -718,8 +787,6 @@ class PuppetRenderer(
 	 *
 	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
 	 * invariant "GPU buffer contents === currentModel's arrays".
-	 *
-	 * 編集後にレンダラを現在のモデルへ整合させる。差分は commonMain、適用のみデバイス呼び出し。
 	 *
 	 * @param PuppetModel newModel The current model.
 	 */
@@ -766,6 +833,11 @@ class PuppetRenderer(
 			gpuById[drawableId]?.let { deleteDrawable(it) }
 		}
 		gpuById = reconciled
+		// A rebuilt resident comes back on its atlas page, so re-point the whole set at the artwork the
+		// document is displaying from - otherwise an edit silently drops that drawable back to the atlas.
+		for ((drawableId, resident) in reconciled) {
+			stampSourceLayer(resident, drawableId)
+		}
 		glueDeformList = reconciled.values.filter { it.isGlueMesh }
 		renderableById = reconciled.mapValues { (_, resident) -> resident.indexCount > 0 }
 		currentModel = newModel
@@ -797,8 +869,6 @@ class PuppetRenderer(
 	/**
 	 * Sets the color selected drawables are tinted toward (the selection highlight).
 	 *
-	 * 選択ハイライトの色を設定する。
-	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
 	 * @param Float blue  The tint blue,  0..1.
@@ -809,8 +879,6 @@ class PuppetRenderer(
 
 	/**
 	 * Sets the color the active drawable is tinted toward (the active-selection highlight).
-	 *
-	 * アクティブ選択ハイライトの色を設定する。
 	 *
 	 * @param Float red   The tint red,   0..1.
 	 * @param Float green The tint green, 0..1.
@@ -825,8 +893,6 @@ class PuppetRenderer(
 	 * first pose.  Pure CPU with no device calls, so it is safe from the UI thread; it reuses the immutable
 	 * per-pose inputs cached by the last [setPose].
 	 *
-	 * ピッキング用に現在ポーズの変形ジオメトリを CPU 評価する（UI スレッドから安全）。
-	 *
 	 * @return DeformedGeometry The current deformed geometry, or null before the first pose.
 	 */
 	fun pickGeometry(): DeformedGeometry? {
@@ -837,8 +903,6 @@ class PuppetRenderer(
 	/**
 	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose -
 	 * the hierarchy-correct front/back ranking picking uses to choose among overlapping meshes.
-	 *
-	 * 最後のフレームの解決済み描画順（背面→前面）。
 	 *
 	 * @return List<DrawableId> The drawn drawables, back-to-front.
 	 */
@@ -1249,8 +1313,9 @@ class PuppetRenderer(
 	 * puppet): the themed grid backdrop, then the whole page as a single textured quad.  A null or
 	 * out-of-range [pageIndex] paints the grid only.
 	 *
-	 * The page samples the SAME atlas texture the puppet does, through the same premultiplied fragment
-	 * shader, so the underlay matches the puppet's texel rendering exactly.
+	 * The page samples the SAME uploaded atlas texture a drawable binds while the puppet displays from the
+	 * atlas, through the same premultiplied fragment shader, so the underlay matches the puppet's texel
+	 * rendering exactly.
 	 *
 	 * @param RenderTarget target         The surface to draw into.
 	 * @param Int          pageIndex      The atlas page to draw, or null for none.
@@ -1450,7 +1515,7 @@ class PuppetRenderer(
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, isActive, masked)
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
 		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
-		texturesScratch.atlas = gpuDrawable.atlasTexture
+		texturesScratch.atlas = gpuDrawable.activeTexture()
 		texturesScratch.maskCoverage = maskCoverage
 		if (gpuDrawable.isGlueMesh) {
 			texturesScratch.deltaTexture = null
@@ -1531,8 +1596,16 @@ class PuppetRenderer(
 		masked: Boolean,
 	) {
 		fragment.reset()
-		if (gpuDrawable.atlasTexture != null) {
+		// The CHOSEN handle, not the atlas one: a drawable rendering from its source artwork has no atlas
+		// binding in play, and keying off the wrong field would draw it as a flat color.
+		val activeTexture = gpuDrawable.activeTexture()
+		if (activeTexture != null) {
 			fragment.useTexture = true
+			// Identity unless this drawable is sampling its artwork, in which case the affine is what
+			// makes its stored (atlas-frame) coordinates address that image instead.
+			if (activeTexture === gpuDrawable.layerTexture) {
+				gpuDrawable.layerUvAffine?.copyInto(fragment.uvAffine)
+			}
 		} else {
 			fragment.colorRed = gpuDrawable.color[0]
 			fragment.colorGreen = gpuDrawable.color[1]
@@ -1725,4 +1798,21 @@ private fun FragmentUniforms.reset() {
 	highlightRed = 0f
 	highlightGreen = 0f
 	highlightBlue = 0f
+	// IDENTITY, not zero.  Every other field here resets to a harmless zero; this one cannot - a zeroed
+	// affine maps every texture coordinate onto texel (0, 0), so the whole draw samples one pixel.
+	setIdentityUvAffine(uvAffine)
+}
+
+/**
+ * Writes the identity 2x3 affine into a uv-affine array in place.
+ *
+ * @param FloatArray affine The six-float affine to overwrite.
+ */
+private fun setIdentityUvAffine(affine: FloatArray) {
+	affine[0] = 1f
+	affine[1] = 0f
+	affine[2] = 0f
+	affine[3] = 0f
+	affine[4] = 1f
+	affine[5] = 0f
 }

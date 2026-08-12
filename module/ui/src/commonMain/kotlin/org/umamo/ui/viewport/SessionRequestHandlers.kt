@@ -30,8 +30,6 @@ import kotlin.math.roundToInt
  * flows, and only the overlay knows the pointer position and the projected geometry to execute them
  * against.  Each overlay keeps a thin, area-gated collector; the work lives here as plain functions,
  * testable without Compose.
- *
- * キーマップコマンド由来のセッションリクエストの実体。各オーバーレイは薄いコレクタだけを持つ。
  */
 
 /**
@@ -363,18 +361,18 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 }
 
 /**
- * Executes the UV editor's Shift+S snaps over the shown atlas page's texture coordinates: the cursor
+ * Executes the UV editor's Shift+S snaps over the shown surface's texture coordinates: the cursor
  * moves read the UV cursor or the covered median and write the UV cursor directly, and the selection
  * moves transform the covered vertices in the texel display space and commit ONE TransformUvs step (the
  * same commit path a finished modal UV gesture uses).  All math is identity display space - no deformer
  * inverse, no movement transfer - since UVs live in one flat space; only the covered vertices of the
- * meshes on the shown page participate (the overlay only shows one page at a time, exactly as the modal
- * capture scopes).
+ * meshes on the shown surface participate (the overlay only shows one surface at a time, exactly as the
+ * modal capture scopes).
  *
- * The grid snaps target the drawn atlas grid: its major lines fall on the page tile and the minor lines
- * subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to
- * pageExtent / subdivisions, anchored at the page origin.  The pixel snaps round to the nearest integer
- * texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
+ * The grid snaps target the drawn UV grid: its major lines fall on the shown image's tile and the minor
+ * lines subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to the
+ * surface extent / subdivisions, anchored at the image origin.  The pixel snaps round to the nearest
+ * integer texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
@@ -397,14 +395,14 @@ internal fun handleUvSnapRequest(
 			if (covered.isEmpty()) null else geometry to covered
 		}
 
-	// The UV grid subdivides the atlas page (its major lines are the page tile, minor lines the document
-	// subdivisions), anchored at the page origin - so a grid snap rounds to page / subdivisions in
-	// display space, targeting the same lines the atlas backdrop draws.
+	// The UV grid subdivides the shown image (its major lines are the image tile, minor lines the document
+	// subdivisions), anchored at the image origin - so a grid snap rounds to the surface extent /
+	// subdivisions in display space, targeting the same lines the backdrop draws.
 	val subdivisions = session.gridConfig.value.subdivisions.coerceAtLeast(1)
 	val gridStepX = frame.displayWidth.toFloat() / subdivisions
 	val gridStepY = frame.displayHeight.toFloat() / subdivisions
 
-	// The UV cursor in display space; an unplaced cursor rests at the page origin (UV 0,0), the mesh
+	// The UV cursor in display space; an unplaced cursor rests at the stored origin (UV 0,0), the mesh
 	// snap's "an unplaced cursor snaps from its resting place" rule in this space.
 	val cursor = session.uvCursor.value ?: UvCursor(0f, 0f)
 	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursor.u, cursor.v)

@@ -15,7 +15,7 @@ import org.umamo.ui.workspace.SpaceKind
  * page switches.
  *
  * Every snap entry runs through the session's UV snap request flow to the hovered UV editor's overlay,
- * which owns the shown page's dimensions and display geometry.  The area is resolved HERE, at dispatch,
+ * which owns the shown surface's dimensions and display geometry.  The area is resolved HERE, at dispatch,
  * into the payload (like Select Linked), so the collector gates deterministically on its own area id.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
