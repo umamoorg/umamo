@@ -126,20 +126,15 @@ internal val DisplaySection =
 		rows = { context ->
 			val puppet = context.puppet
 			val session = context.session
-			if (!context.hasSourceArtwork) {
-				// No artwork retained, so the section has no rows and the panel hides it entirely.
-				emptyList()
-			} else {
-				listOf(
-					PropertyRow(terms = listOf(Res.string.properties_field_source_layer_display)) { _ ->
-						PropertyCheckboxRow(
-							checked = puppet.rendersFromSourceLayers,
-							onCheckedChange = { enabled -> session?.setSourceLayerDisplay(enabled) },
-							label = stringResource(Res.string.properties_field_source_layer_display),
-						)
-					},
-				)
-			}
+			listOf(
+				PropertyRow(terms = listOf(Res.string.properties_field_source_layer_display)) { _ ->
+					PropertyCheckboxRow(
+						checked = puppet.rendersFromSourceLayers,
+						onCheckedChange = { enabled -> session?.setSourceLayerDisplay(enabled) },
+						label = stringResource(Res.string.properties_field_source_layer_display),
+					)
+				},
+			)
 		},
 	)
 

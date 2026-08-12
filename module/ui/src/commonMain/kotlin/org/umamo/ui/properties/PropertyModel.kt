@@ -29,12 +29,6 @@ class PropertyContext(
 	val selection: Selection,
 	val activeTarget: SelectionTarget?,
 	val session: EditorSession?,
-	/**
-	 * Whether the document retains the source artwork its drawables were authored against.  A format
-	 * that stores only packed atlases (a MOC3) retains none, so rows about displaying from artwork have
-	 * nothing to offer and hide rather than presenting a switch with one side missing.
-	 */
-	val hasSourceArtwork: Boolean = false,
 )
 
 /**

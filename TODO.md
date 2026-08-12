@@ -73,6 +73,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Support renaming images.
 * Improvements
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
+	* Add tooltip for properties_field_source_layer_display.
 
 ## UV Editor
 * Bugs/Improvements

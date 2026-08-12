@@ -533,7 +533,7 @@
 	<string name="properties_tab_data">Data</string>
 	<string name="properties_section_canvas">Canvas</string>
 	<string name="properties_section_display">Display</string>
-	<string name="properties_field_source_layer_display">Display from source artwork</string>
+	<string name="properties_field_source_layer_display">Show source artwork</string>
 	<string name="properties_section_runtime">Runtime</string>
 	<string name="properties_section_transform">Transform</string>
 	<string name="properties_section_relations">Relations</string>
