@@ -212,4 +212,51 @@ class UvIslandPickTest {
 		assertTrue(result.isEmpty, "an empty plain box clears the selection")
 		assertNull(result.active, "no active target survives")
 	}
+
+	/**
+	 * The builder serves BOTH surfaces from one construction: it gates on whichever image the editor is
+	 * showing, indexed by whichever mapping addresses it.  This is what lets one Object overlay cover
+	 * the page view and the source-layer view - the alpha gate follows the surface, so a click through
+	 * transparent art falls through on the artwork exactly as it does on the page.
+	 */
+	@Test
+	fun builderGatesOnWhicheverImageIsShown() {
+		val geometries =
+			listOf(
+				GizmoMeshGeometry(frontId, intArrayOf(0, 1, 2), emptyList(), displayTriangle),
+				GizmoMeshGeometry(backId, intArrayOf(0, 1, 2), emptyList(), displayTriangle),
+			)
+		val frontRank = mapOf(frontId to 1f, backId to 0f)
+
+		// Front island mapped onto the transparent texel, back island onto an opaque one: the gate must
+		// reject the front and fall through, whatever the image happens to be.
+		val gated =
+			uvIslandPick(
+				geometries = geometries,
+				frontRank = frontRank,
+				uvsById = mapOf(frontId to uvsHittingTransparentTexel, backId to uvsHittingOpaqueTexel),
+				image = fourByFourPage(),
+			)
+		assertEquals(backId, gated.topmostAt(1f, 3f), "the shown image's alpha decides the pick")
+
+		// The SAME geometry with both mapped onto opaque art: front rank decides instead.
+		val ungated =
+			uvIslandPick(
+				geometries = geometries,
+				frontRank = frontRank,
+				uvsById = mapOf(frontId to uvsHittingOpaqueTexel, backId to uvsHittingOpaqueTexel),
+				image = fourByFourPage(),
+			)
+		assertEquals(frontId, ungated.topmostAt(1f, 3f), "with no alpha rejection the front island wins")
+
+		// No image at all (an untextured surface): everything reads opaque, so islands stay clickable.
+		val imageless =
+			uvIslandPick(
+				geometries = geometries,
+				frontRank = frontRank,
+				uvsById = mapOf(frontId to uvsHittingTransparentTexel, backId to uvsHittingOpaqueTexel),
+				image = null,
+			)
+		assertEquals(frontId, imageless.topmostAt(1f, 3f), "with no image there is nothing to gate on")
+	}
 }

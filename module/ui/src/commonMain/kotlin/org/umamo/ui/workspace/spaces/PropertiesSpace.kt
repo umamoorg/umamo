@@ -54,9 +54,10 @@ private val TAB_STRIP_WIDTH = 32.dp
  * renders the active tab's collapsible sections.  The header's search box (mounted separately via
  * [propertiesHeaderControls]) filters sections and auto-switches to a tab that has matches.
  *
- * Reads [LocalPuppet] for the document + object graph and [LocalSelection] for the active item; read-only
- * in this first cut.  Its search / active-tab / expanded state lives on the area's [PropertiesViewState],
- * shared with the header controls, so it survives switching the space away and back.
+ * Reads [LocalPuppet] for the document + object graph, [LocalSelection] for the active item, and
+ * [LocalEditorSession] for the session an editable row writes its change through.  Its search /
+ * active-tab / expanded state lives on the area's [PropertiesViewState], shared with the header
+ * controls, so it survives switching the space away and back.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  * @param Modifier modifier The layout modifier.
@@ -75,7 +76,13 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		} else {
 			null
 		}
-	val context = PropertyContext(puppet, selection, activeTarget, LocalEditorSession.current)
+	val context =
+		PropertyContext(
+			puppet,
+			selection,
+			activeTarget,
+			LocalEditorSession.current,
+		)
 	val viewState = scope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }
 	val registry = LocalPropertyTabRegistry.current
 	val colors = LocalUmamoColors.current

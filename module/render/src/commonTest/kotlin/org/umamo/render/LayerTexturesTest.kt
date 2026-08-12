@@ -2,6 +2,9 @@ package org.umamo.render
 
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -118,6 +121,64 @@ class LayerTexturesTest {
 		assertTrue(layerUvs.contentEquals(atlasUvs), "unpacked uvs must survive verbatim")
 	}
 
+	/**
+	 * The uv affine and its inverse are the round trip a layer-view EDIT depends on: a coordinate
+	 * authored over the art must reach the stored atlas frame and back unchanged.  Checked over every
+	 * placement shape the corpus contains, since a rotation or a mirror is exactly where an inverse
+	 * goes wrong quietly.
+	 */
+	@Test
+	fun uvAffineRoundTripsThroughItsInverse() {
+		val shapes =
+			listOf(
+				"identity" to placementOf(),
+				"translation" to placementOf(positionX = 640f, positionY = 128f),
+				"fractional origin" to placementOf(positionX = 6742.03f, positionY = 6710.03f),
+				"quarter turn" to placementOf(rotationDegrees = 90f),
+				"free angle" to placementOf(rotationDegrees = 37.5f, positionY = 9f),
+				"uniform scale" to placementOf(scaleX = 0.8588867f, scaleY = 0.8588867f),
+				"anisotropic scale" to placementOf(scaleX = 2f, scaleY = 0.5f),
+				"horizontal mirror" to placementOf(scaleX = -1f),
+				"rotated, scaled and offset" to
+					placementOf(positionX = 292f, positionY = 409.0863f, scaleX = 1.16431f, scaleY = 1.16431f, rotationDegrees = 90f),
+			)
+		val storedUvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.8f, 0.5f, 0.5f)
+		for ((label, placement) in shapes) {
+			val binding = DrawableLayerBinding("layer", placement, pageWidth = 2048, pageHeight = 1024)
+			val toLayer = layerUvAffineOf(binding, layerWidth = 576, layerHeight = 646)
+			assertNotNull(toLayer, "$label: the layer affine resolves")
+			val toStored = invertUvAffine(toLayer)
+			assertNotNull(toStored, "$label: the affine inverts")
+			val roundTripped = applyUvAffine(applyUvAffine(storedUvs, toLayer), toStored)
+			for (componentIndex in storedUvs.indices) {
+				assertEquals(storedUvs[componentIndex], roundTripped[componentIndex], 1e-4f, "$label: component $componentIndex")
+			}
+		}
+	}
+
+	/** An unpacked drawable's mapping is the identity in BOTH directions, not a placement inverse. */
+	@Test
+	fun unpackedBindingYieldsTheIdentityAffine() {
+		val binding = DrawableLayerBinding("layer", placement = null, pageWidth = 0, pageHeight = 0)
+		val toLayer = layerUvAffineOf(binding, layerWidth = 64, layerHeight = 64)
+		assertNotNull(toLayer, "an unpacked binding still maps")
+		assertTrue(toLayer.contentEquals(identityUvAffine()), "an unpacked mapping is the identity")
+		val toStored = invertUvAffine(toLayer)
+		assertNotNull(toStored, "the identity inverts")
+		val storedUvs = floatArrayOf(0.1f, 0.2f, 0.9f, 0.8f)
+		assertTrue(applyUvAffine(storedUvs, toStored).contentEquals(storedUvs), "and changes nothing coming back")
+	}
+
+	/** A mapping that cannot be formed reports it rather than producing a wrong one. */
+	@Test
+	fun degenerateMappingsResolveToNothing() {
+		val degenerate = DrawableLayerBinding("layer", placementOf(scaleX = 0f), pageWidth = 512, pageHeight = 512)
+		assertNull(layerUvAffineOf(degenerate, 64, 64), "a collapsed placement axis has no mapping")
+		val sane = DrawableLayerBinding("layer", placementOf(), pageWidth = 512, pageHeight = 512)
+		assertNull(layerUvAffineOf(sane, layerWidth = 0, layerHeight = 64), "a zero-width layer has no mapping")
+		assertNull(invertUvAffine(floatArrayOf(0f, 0f, 5f, 0f, 0f, 5f)), "a collapsed affine does not invert")
+	}
+
 	/** A layer with no usable size cannot host a mapping; report it rather than dividing by zero. */
 	@Test
 	fun zeroSizedLayerHasNoMapping() {
@@ -180,5 +241,39 @@ class LayerTexturesTest {
 		assertNull(store.layerForDrawable("d1"), "a drawable with no binding resolves to nothing")
 		assertTrue(LayerTextures.EMPTY.isEmpty, "the empty store reports empty")
 		assertNull(LayerTextures.EMPTY.rasterFor("a"), "the empty store has no rasters")
+	}
+
+	private fun drawableWith(rawId: String, textureSourceId: String? = null): Drawable =
+		Drawable(
+			id = DrawableId(rawId),
+			name = rawId,
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh = null,
+			geometryGrid = null,
+			textureSourceId = textureSourceId?.let { source -> DrawableId(source) },
+		)
+
+	/**
+	 * A session-created duplicate finds its art through the drawable it was copied from, exactly as it
+	 * finds its atlas page - bindings are keyed by the SOURCE format's ids, so a copy has none of its own.
+	 */
+	@Test
+	fun duplicateResolvesItsArtThroughItsTextureSource() {
+		val entry = SourceLayerEntry("layer0", "Art", 64, 32, listOf("a"), null)
+		val store =
+			LayerTextures(
+				layers = listOf(entry),
+				bindingsByDrawableId = mapOf("a" to DrawableLayerBinding("layer0", null, 0, 0)),
+			) { null }
+		val original = drawableWith("a")
+		val duplicate = drawableWith("a copy", textureSourceId = "a")
+		val unrelated = drawableWith("b")
+		assertNotNull(store.bindingForDrawable(original), "the original resolves its own binding")
+		assertNotNull(store.bindingForDrawable(duplicate), "the duplicate resolves through its texture source")
+		assertEquals(entry, store.layerForDrawable(duplicate), "and reaches the same layer")
+		assertTrue(store.drawsOverLayer(duplicate, "layer0"), "so it draws over that layer too")
+		assertNull(store.bindingForDrawable(unrelated), "an unrelated drawable resolves nothing")
 	}
 }

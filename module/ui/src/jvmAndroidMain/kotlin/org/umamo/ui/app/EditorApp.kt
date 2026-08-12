@@ -108,9 +108,6 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * every platform and can sit on the workspace tab row to save vertical space - the Blender-style
  * choice. The trade-off is deliberate: there is no macOS system menu strip.
  *
- * 共有エディタシェル。OS ネイティブではなく自前のメニューバーを描画する（全プラットフォーム共通、
- * タブ行に同居して縦幅を節約）。デスクトップは GL ファクトリを渡し、Android は GLES 実装が載るまで null。
- *
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
  *   undo/redo, the Edit-menu enabled state, and the saved marker.
@@ -189,7 +186,7 @@ fun EditorApp(
 		}
 	}
 
-	// Replacing the document discards its session - the undo history and any unexported edits go with
+	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
@@ -605,7 +602,14 @@ private fun DocumentViewport(
 				// conditional composable call is stable across recompositions.
 				val viewport =
 					if (viewportServiceFactory != null) {
-						rememberPuppetViewportHost(document.puppet, document.textures, document.liveParams, activeSession, viewportServiceFactory)
+						rememberPuppetViewportHost(
+							document.puppet,
+							document.textures,
+							document.layers,
+							document.liveParams,
+							activeSession,
+							viewportServiceFactory,
+						)
 					} else {
 						null
 					}

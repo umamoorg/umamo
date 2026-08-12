@@ -53,8 +53,6 @@ data class Notice(val messageKey: String, val serial: Long, val placement: Notic
  * Held on the UI thread (Compose drives it); the render host observes [model] / [selection] as flows.
  * Compose-free by design (its module mandate), so it exposes coroutines flows, not Compose state.
  *
- * 開いているドキュメントの唯一の可変所有者。モデル・選択・モード・履歴・変更イベントを束ねる。
- *
  * @param PuppetModel initialModel The document model at open.
  * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
  *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
@@ -68,8 +66,8 @@ class EditorSession(
 	initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
 ) {
 	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags), the
-	// overlay-request buses, and the remembered-selection memory; the members below delegate so the
-	// public API is unchanged, and every flow-write ordering stays in this facade.
+	// area-request buses, the remembered-selection memory, and the tool latches; the members below
+	// delegate so the public API is unchanged, and every flow-write ordering stays in this facade.
 	private val history = HistoryCore(EditorSnapshot(initialModel, Selection(), initialPose), initialHistoryLimit)
 	private val requestBus = SessionRequestBus()
 	private val elementMemory = MeshElementMemory()
@@ -852,7 +850,7 @@ class EditorSession(
 	 * The texture-mapping twin of [commitMeshPositions] - the per-drawable copy-on-write [withMeshUvs]
 	 * edits fold into a single model, so N edited meshes are one history step.  Mid-gesture preview
 	 * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
-	 * (the sampled atlas texels are document content), so it marks the document dirty; a no-op (every
+	 * (the sampled texels are document content), so it marks the document dirty; a no-op (every
 	 * array unchanged / mismatched) records nothing.
 	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformUvs] or [MeshChange.MirrorUvs]).
@@ -875,12 +873,19 @@ class EditorSession(
 	 * on the active element's median, and Cursor anchors on the UV cursor (each falling back to the
 	 * combined median when unresolvable - a mirror should never silently do nothing because a pivot was
 	 * never placed).  Mirroring is axis-aligned, so operating directly in normalized UV space matches
-	 * the on-screen result regardless of the atlas page's size.  A no-op outside Edit mode or with an
+	 * the on-screen result regardless of the shown surface's size.  A no-op outside Edit mode or with an
 	 * empty selection; a notice explains when no covered mesh carries an editable UV array.
 	 *
+	 * [frame] names the space the user is mirroring in, which for this operation is the whole question:
+	 * an axis in the atlas page's frame is a different axis in a rotated or mirrored source layer's.
+	 * With no frame the stored coordinates ARE the authoring space (the page view), and the whole
+	 * conversion drops out.  Untouched vertices keep their exact stored values either way, so a mirror
+	 * never marks a vertex changed that it did not move.
+	 *
 	 * @param Boolean mirrorU True to mirror horizontally (u about the pivot), false vertically (v).
+	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
 	 */
-	fun mirrorSelectedUvs(mirrorU: Boolean) {
+	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null) {
 		if (mutableMode.value != EditorMode.Edit) {
 			return
 		}
@@ -909,22 +914,27 @@ class EditorSession(
 			emitNotice("notice.uv.noUvs", NoticePlacement.NearCursor)
 			return
 		}
+		// The whole operation runs in the authoring frame: pivots, island medians, and the reflection
+		// itself.  With no frame these arrays are the stored ones and the conversions are absent.
+		val frameUvsByDrawable =
+			meshByDrawable.mapValues { (_, mesh) -> frame?.toFrame(mesh.uvs) ?: mesh.uvs }
 		val sharedPivot =
 			if (latches.pivotMode.value == TransformPivotMode.IndividualOrigins) {
 				null
 			} else {
-				resolveUvMirrorPivot(coveredByDrawable, meshByDrawable, selection)
+				resolveUvMirrorPivot(coveredByDrawable, meshByDrawable, frameUvsByDrawable, selection, frame)
 			}
 		val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>()
 		for ((drawableId, covered) in coveredByDrawable) {
 			val mesh = meshByDrawable.getValue(drawableId)
+			val frameUvs = frameUvsByDrawable.getValue(drawableId)
 			val groups =
 				if (sharedPivot == null) {
-					TransformPivots.islandGroups(mesh.uvs, covered, mesh.indices)
+					TransformPivots.islandGroups(frameUvs, covered, mesh.indices)
 				} else {
 					TransformPivots.sharedGroup(covered, sharedPivot.first, sharedPivot.second)
 				}
-			var mirroredUvs = mesh.uvs
+			var mirroredUvs = frameUvs
 			for (group in groups) {
 				mirroredUvs =
 					MeshTransforms.scaleVerticesAxis(
@@ -936,7 +946,18 @@ class EditorSession(
 						group.pivotY,
 					)
 			}
-			newUvsByDrawable[drawableId] = mirroredUvs
+			// Back to the stored form, then overwrite ONLY the covered vertices onto the current stored
+			// array: a frame round trip is exact in the reals but not in floats, so rebuilding from the
+			// stored values is what keeps an untouched vertex bit-identical (and out of the export's
+			// changed-uv set).  Without a frame the mirrored array is already stored-form and this is a
+			// straight copy of the moved components.
+			val storedMirrored = frame?.fromFrame(mirroredUvs) ?: mirroredUvs
+			val newUvs = mesh.uvs.copyOf()
+			for (vertexIndex in covered) {
+				newUvs[vertexIndex * 2] = storedMirrored[vertexIndex * 2]
+				newUvs[vertexIndex * 2 + 1] = storedMirrored[vertexIndex * 2 + 1]
+			}
+			newUvsByDrawable[drawableId] = newUvs
 		}
 		commitMeshUvs(MeshChange.MirrorUvs(newUvsByDrawable.keys.toList(), mirrorU), newUvsByDrawable)
 	}
@@ -946,31 +967,40 @@ class EditorSession(
 	 * cursor and Active Element on the active element's covered median, each falling back to the
 	 * combined covered median across every edited mesh - which is also the Median Point result.
 	 *
+	 * Resolved in the AUTHORING frame throughout, so every anchor means the same thing the reflection
+	 * does - including the UV cursor, which is stored in atlas coordinates and converts in like the
+	 * meshes do.
+	 *
 	 * @param Map<DrawableId, Set<Int>> coveredByDrawable Each edited mesh's covered vertex indices.
 	 * @param Map<DrawableId, DrawableMesh> meshByDrawable Each edited mesh, keyed like the covered map.
+	 * @param Map<DrawableId, FloatArray> frameUvsByDrawable Each edited mesh's uvs in the authoring frame.
 	 * @param MeshSelection selection The live selection (for the active element).
-	 * @return Pair<Float, Float> The pivot's (u, v).
+	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
+	 * @return Pair<Float, Float> The pivot's (u, v), in the authoring frame.
 	 */
 	private fun resolveUvMirrorPivot(
 		coveredByDrawable: Map<DrawableId, Set<Int>>,
 		meshByDrawable: Map<DrawableId, DrawableMesh>,
+		frameUvsByDrawable: Map<DrawableId, FloatArray>,
 		selection: MeshSelection,
+		frame: UvFrame?,
 	): Pair<Float, Float> {
 		when (latches.pivotMode.value) {
 			TransformPivotMode.Cursor -> {
 				val cursor = latches.uvCursor.value
 				if (cursor != null) {
-					return cursor.u to cursor.v
+					return frame?.pointToFrame(cursor.u, cursor.v) ?: (cursor.u to cursor.v)
 				}
 			}
 
 			TransformPivotMode.ActiveElement -> {
 				val active = selection.activeElement
 				val activeMesh = active?.let { activeElement -> meshByDrawable[activeElement.drawableId] }
-				if (active != null && activeMesh != null) {
+				val activeFrameUvs = active?.let { activeElement -> frameUvsByDrawable[activeElement.drawableId] }
+				if (active != null && activeMesh != null && activeFrameUvs != null) {
 					val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeMesh.indices)
 					if (activeCovered.isNotEmpty()) {
-						return MeshTransforms.medianPivot(activeMesh.uvs, activeCovered)
+						return MeshTransforms.medianPivot(activeFrameUvs, activeCovered)
 					}
 				}
 			}
@@ -981,7 +1011,7 @@ class EditorSession(
 		var sumV = 0f
 		var coveredCount = 0
 		for ((drawableId, covered) in coveredByDrawable) {
-			val uvs = meshByDrawable.getValue(drawableId).uvs
+			val uvs = frameUvsByDrawable.getValue(drawableId)
 			for (vertexIndex in covered) {
 				sumU += uvs[vertexIndex * 2]
 				sumV += uvs[vertexIndex * 2 + 1]
@@ -989,7 +1019,8 @@ class EditorSession(
 			}
 		}
 		if (coveredCount == 0) {
-			// Unreachable today (callers pre-filter empty covered sets); the page center is a safe anchor.
+			// Unreachable today (callers pre-filter empty covered sets); the authoring frame's center is
+			// a safe anchor.
 			return 0.5f to 0.5f
 		}
 		return (sumU / coveredCount) to (sumV / coveredCount)
@@ -1487,7 +1518,7 @@ class EditorSession(
 
 	/**
 	 * Fires a UV snap (the UV editor's Shift+S pie) for one UV editor overlay to execute: the shown
-	 * atlas page's dimensions and display geometry live with the overlay, so it performs the snap over
+	 * surface's dimensions and display geometry live with the overlay, so it performs the snap over
 	 * the texture coordinates (the texture-space sibling of [snapRequests]).  The payload carries the
 	 * operation AND the dispatch-time resolved area (see [UvSnapRequest]), so the collector gates
 	 * deterministically on its own area id.
@@ -1502,6 +1533,25 @@ class EditorSession(
 	 */
 	fun requestUvSnap(request: UvSnapRequest) {
 		requestBus.requestUvSnap(request)
+	}
+
+	/**
+	 * Fires a mirror (the uv.mirrorU / uv.mirrorV commands) for one UV editor overlay to execute: the
+	 * axis a mirror reflects about depends on the surface being authored over - an atlas page or a
+	 * source layer - and only the overlay knows which it is showing, so it supplies the frame and calls
+	 * [mirrorSelectedUvs].  The payload carries the axis AND the dispatch-time resolved area (see
+	 * [UvMirrorRequest]), so the collector gates deterministically on its own area id.
+	 */
+	val uvMirrorRequests: SharedFlow<UvMirrorRequest> = requestBus.uvMirrorRequests
+
+	/**
+	 * Requests a mirror (see [uvMirrorRequests]).
+	 *
+	 * @param UvMirrorRequest request The mirror axis plus the executing overlay's area, resolved at
+	 *   command dispatch; a null area (the hovered surface was not a UV editor) no-ops.
+	 */
+	fun requestUvMirror(request: UvMirrorRequest) {
+		requestBus.requestUvMirror(request)
 	}
 
 	/**

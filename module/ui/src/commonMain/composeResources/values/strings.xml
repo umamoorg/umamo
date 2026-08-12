@@ -93,7 +93,7 @@
 	<string name="dialog_cancel">Cancel</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
-	<string name="confirm_discard_unexported">The current document has unexported changes.  Discard them?</string>
+	<string name="confirm_discard_unsaved">The document has unsaved changes.  Discard them?</string>
 	<!-- Export report alert (the document.exportReport command).  One header per export format,
 	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
 	     %1$s in the weld line is the affected drawable names. -->
@@ -178,6 +178,8 @@
 	<string name="export_reason_no_parameter_source_set">The model has no parameter set, so the parameter order was not written.</string>
 	<string name="export_reason_combined_pair_reordered">The parameter order was adjusted so the combined pair %1$s + %2$s stays adjacent.</string>
 	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
+	<string name="export_reason_no_texture_manager">This document has no texture manager, so the source-artwork display mode could not be written.</string>
+	<string name="export_reason_no_texture_input_for_display">This drawable has no texture input for the chosen display mode, so it keeps the one it had.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -263,7 +265,8 @@
 	<string name="uv_layer_picker_title">Find by Artwork</string>
 	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · %4$d meshes</string>
 	<string name="uv_layer_picker_no_matches">No artwork matches</string>
-	<string name="uv_layer_picker_empty">This document has no source artwork</string>
+	<string name="uv_layer_picker_empty">This document has no source artwork.</string>
+	<string name="cmd_document_toggle_source_artwork">Toggle Source Artwork Display</string>
 	<string name="cmd_uv_page_next">Next Texture Page</string>
 	<string name="cmd_uv_page_previous">Previous Texture Page</string>
 	<string name="cmd_uv_page_follow">Texture Page: Follow Selection</string>
@@ -362,6 +365,7 @@
 	<string name="history_deformer_quad_transform">Toggle Bilinear Warp</string>
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
+	<string name="history_document_source_layer_display">Change Texture Display</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
@@ -469,6 +473,7 @@
 	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>
 	<string name="notice_connect_refused">Can't connect: The cut crosses nothing, or the geometry is degenerate.</string>
 	<string name="notice_rip_nothing">Nothing to rip here: The selection has no fan to split.</string>
+	<string name="notice_display_partial_source_artwork">Some drawables have no source artwork and are still displaying from the atlas.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -527,6 +532,8 @@
 	<string name="properties_tab_object">Object</string>
 	<string name="properties_tab_data">Data</string>
 	<string name="properties_section_canvas">Canvas</string>
+	<string name="properties_section_display">Display</string>
+	<string name="properties_field_source_layer_display">Show source artwork</string>
 	<string name="properties_section_runtime">Runtime</string>
 	<string name="properties_section_transform">Transform</string>
 	<string name="properties_section_relations">Relations</string>

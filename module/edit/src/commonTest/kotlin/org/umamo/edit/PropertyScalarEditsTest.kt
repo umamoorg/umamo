@@ -304,6 +304,27 @@ class PropertyScalarEditsTest {
 		assertFalse(session.dirty.value)
 	}
 
+	/** The display mode is document content: one undo step, dirties, and a no-op change records nothing. */
+	@Test
+	fun sessionSetSourceLayerDisplayCommitsOneStep() {
+		val session = EditorSession(model())
+		assertFalse(session.model.value.rendersFromSourceLayers, "documents display from the atlas by default")
+
+		session.setSourceLayerDisplay(true)
+		assertTrue(session.model.value.rendersFromSourceLayers)
+		assertTrue(session.dirty.value, "a display-mode change is document content, so it dirties")
+		assertEquals("change.document.sourceLayerDisplay", DocumentChange.SetSourceLayerDisplay(true).labelKey)
+
+		session.undo()
+		assertFalse(session.model.value.rendersFromSourceLayers)
+		assertFalse(session.dirty.value, "undo restores the saved model instance")
+
+		// Already displaying from the atlas, so this edit changes nothing.
+		session.setSourceLayerDisplay(false)
+		assertFalse(session.canUndo.value)
+		assertFalse(session.dirty.value)
+	}
+
 	@Test
 	fun sessionSetPartCompositeCommitsOneStep() {
 		val session = EditorSession(model())

@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvPageKind
 import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
@@ -14,7 +15,7 @@ import org.umamo.ui.workspace.SpaceKind
  * page switches.
  *
  * Every snap entry runs through the session's UV snap request flow to the hovered UV editor's overlay,
- * which owns the shown page's dimensions and display geometry.  The area is resolved HERE, at dispatch,
+ * which owns the shown surface's dimensions and display geometry.  The area is resolved HERE, at dispatch,
  * into the payload (like Select Linked), so the collector gates deterministically on its own area id.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
@@ -38,6 +39,15 @@ internal fun uvCommands(
 	}
 
 	/**
+	 * Fires one mirror request at the hovered UV editor, which supplies the frame it is authoring in.
+	 *
+	 * @param Boolean mirrorU True to mirror horizontally, false vertically.
+	 */
+	fun requestUvMirror(mirrorU: Boolean) {
+		editorSession?.requestUvMirror(UvMirrorRequest(mirrorU, routing.areaOf(SpaceKind.UvEditor)))
+	}
+
+	/**
 	 * Fires one page-switch request at the hovered UV editor.  The kind-checked resolver hands a
 	 * pointer that is NOT on a UV editor a null area, which matches no collector - the Blender
 	 * hovered-area rule, resolved one step earlier than the snap helper's any-kind id.
@@ -52,10 +62,10 @@ internal fun uvCommands(
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
 		// unbound by default - an interactive flip is already S + axis + drag through the pivot.
 		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode) {
-			editorSession?.mirrorSelectedUvs(mirrorU = true)
+			requestUvMirror(mirrorU = true)
 		},
 		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode) {
-			editorSession?.mirrorSelectedUvs(mirrorU = false)
+			requestUvMirror(mirrorU = false)
 		},
 		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.inEditMode) {
 			requestUvSnap(UvSnapKind.SelectionToPixels)
