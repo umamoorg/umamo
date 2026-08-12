@@ -2,6 +2,10 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
+import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
@@ -15,19 +19,21 @@ import kotlin.math.roundToInt
  * baseline as created entities.  Stateless - each call builds a new graph; the caller writes the
  * result with Cmo3.write.
  *
- * KNOWN GAP (2026-08-03): the file this produces LOADS cleanly in the official Cubism Editor -
- * correct part/deformer hierarchy, parameters, and texture atlas - but the puppet does NOT render
- * there.  It is a documented functionality gap rather than an open defect, because a .moc3 does
- * not carry the SOURCE ART a CMO3 is built around: [Cmo3ImageChainBuilder] can only fabricate a
- * source document by slicing the packed atlas back apart, and that reconstruction is what the
- * art-sourcing pipeline replaces (docs/plan/art-sourcing-pipeline.md Phase H - an imported MOC3
- * will reconcile its original PSD/CLIP/KRA before it can emit a valid CMO3).  CMO3.md section
- * Fresh-Graph Synthesis records what differential testing against Cubism's own golden file and a
- * third-party converter already RULED OUT (geometry, coordinate-frame sign, element shape, null
- * coverage, and the source-art web itself), so start there rather than re-deriving it.
+ * The file this produces opens and renders in the official Cubism Editor and switches between its
+ * layered-art and texture-atlas display modes.  What it cannot carry is real SOURCE ART: a .moc3
+ * has none, so [Cmo3ImageChainBuilder] fabricates a source document by slicing the packed atlas
+ * back apart, and every layer in the output is a slice of a baked page rather than the artwork the
+ * rig was drawn from.  The art-sourcing pipeline replaces that reconstruction outright
+ * (docs/plan/art-sourcing-pipeline.md Phase H - an imported MOC3 reconciles its original
+ * PSD/CLIP/KRA first), which is why every conversion leads its report with MissingSourceArt.
  *
- * The CMO3-origin path ([Cmo3Export.apply] onto a retained graph) is unaffected - it keeps the
- * document's real layered art, and its byte-identity gates hold.
+ * One open issue at scale: modelF (~850 MB, several hundred layers) OOMs the official editor when
+ * switched back to texture-atlas mode.  Atlas mode recomposites the page from the materials, so
+ * peak memory tracks the TOTAL crop area this builder emits rather than the page size - measure
+ * that ratio before treating it as an editor limit.
+ *
+ * The CMO3-origin path ([Cmo3Export.apply] onto a retained graph) keeps the document's real
+ * layered art, and its byte-identity gates hold.
  */
 public object Cmo3Conversion {
 	/** One atlas page: the original PNG bytes (model3 texture order) plus its pixel dimensions. */
@@ -102,6 +108,7 @@ public object Cmo3Conversion {
 				effectivePages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
 				regionsByPage,
 				nowMillis,
+				fromSourceLayers = effectivePuppet.rendersFromSourceLayers,
 			)
 		val model =
 			Cmo3.read(
@@ -116,6 +123,7 @@ public object Cmo3Conversion {
 					obfuscateKey,
 				),
 			)
+		rebindPageResources(chain, model)
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
 		for (drawable in effectivePuppet.drawables) {
 			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue
@@ -126,12 +134,47 @@ public object Cmo3Conversion {
 		val report = Cmo3Export.apply(effectivePuppet, model, bindings)
 		// Every fresh-graph export is by definition source-art-less - the stand-in document above is
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
-		// per-entity findings.  It is the one finding that explains why the file will not render in
-		// the official editor, which no amount of per-drawable detail would tell the user.
+		// per-entity findings.  It is the one finding that describes the WHOLE file rather than an
+		// entity in it, which no amount of per-drawable detail would tell the user.
 		return Result(
 			model,
 			report.copy(notices = listOf(ExportNotice.MissingSourceArt(effectivePages.size)) + report.notices),
 			effectivePuppet,
 		)
+	}
+
+	/**
+	 * Re-points each page texture at the RE-READ atlas's own page resource.
+	 *
+	 * The image chain is built over the pre-serialization skeleton, so a binding's GTexture2D still
+	 * carries that graph's CImageResource - while the reconcile hangs that texture off drawables in
+	 * the graph read back out of the assembled bytes.  Left alone the document ends up with two
+	 * equal-but-distinct resources per page (one under the atlas's cachedAtlasImage, one under the
+	 * drawables' texture) where the editor's own files share a single one by reference.
+	 *
+	 * That split is not cosmetic: whether a drawable's uvs are page-frame is decided by whether the
+	 * resource it samples IS one of the atlases' page resources (docs/format/CMO3.md section 6 - a
+	 * document can carry an atlas while its drawables sample per-layer rasters instead), and the test
+	 * is identity because a CImageResource has no value equality.  With the twin resource in place
+	 * every re-imported drawable reads as never-packed, so its source-layer view drops the packing
+	 * inverse and draws atlas-frame uvs straight onto the layer crop.
+	 *
+	 * @param Cmo3ImageChainBuilder.BuiltImageChain chain The image chain built over the skeleton.
+	 * @param Cmo3Model                             model The model read back out of the assembled bytes.
+	 */
+	private fun rebindPageResources(chain: Cmo3ImageChainBuilder.BuiltImageChain, model: Cmo3Model) {
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases ->
+		// CTextureAtlas field cachedAtlasImage - the page's own pixels.
+		val textureManager = (model.root as? CModelSource)?.textureManager as? CTextureManager ?: return
+		val pageResourceByPath = HashMap<String, CImageResource>()
+		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+			val pageResource = atlas.cachedAtlasImage as? CImageResource ?: continue
+			pageResource.imageFileBuf?.archivePath?.let { path -> pageResourceByPath[path] = pageResource }
+		}
+		// One texture per page, shared by every binding on it, so the page fallbacks reach them all.
+		for (binding in chain.pageFallbackBindings) {
+			val path = (binding.texture.srcImageResource as? CImageResource)?.imageFileBuf?.archivePath ?: continue
+			pageResourceByPath[path]?.let { pageResource -> binding.texture.srcImageResource = pageResource }
+		}
 	}
 }

@@ -16,6 +16,7 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
+import org.umamo.render.device.TextureWrap
 
 /**
  * The iPadOS Metal [RenderDevice] - a STUB marking the port's entry point; nothing is implemented.
@@ -52,12 +53,20 @@ import org.umamo.render.device.TextureFormat
  *  - The uniform structs ([org.umamo.render.device.DeformUniforms] etc.) are MUTABLE AND REUSED per
  *    draw: marshal every field before returning (`setVertexBytes` copies, so that is natural) and
  *    never retain the instance.
- *
- * iPadOS Metal デバイスのスタブ。ポートの入口。この 1 インターフェースの実装がポートの全て。未実装。
  */
 class MetalRenderDevice : RenderDevice {
-	override fun createTexture(width: Int, height: Int, format: TextureFormat, filter: TextureFilter, pixels: ByteArray?): GpuTexture =
-		TODO("Metal port: MTLTexture (RGBA8Unorm / RG32Float), top-first upload needs no flip")
+	override fun createTexture(
+		width: Int,
+		height: Int,
+		format: TextureFormat,
+		filter: TextureFilter,
+		pixels: ByteArray?,
+		wrap: TextureWrap,
+	): GpuTexture =
+		TODO(
+			"Metal port: MTLTexture (RGBA8Unorm / RG32Float), top-first upload needs no flip; wrap is the " +
+				"sampler's addressMode - clampToEdge or clampToZero, and a sampler is per-texture here",
+		)
 
 	override fun createFloatTexture(width: Int, height: Int, filter: TextureFilter, texels: FloatArray): GpuTexture =
 		TODO("Metal port: RG32Float MTLTexture")

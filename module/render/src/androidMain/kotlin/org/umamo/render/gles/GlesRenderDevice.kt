@@ -16,6 +16,7 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.ScissorRect
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
+import org.umamo.render.device.TextureWrap
 
 /**
  * The Android GLES 3.0 [RenderDevice] - a STUB marking the port's entry point; nothing is implemented.
@@ -45,7 +46,14 @@ import org.umamo.render.device.TextureFormat
  * Android GLES 3.0 デバイスのスタブ。デスクトップ GL デバイスの移植入口。未実装。
  */
 class GlesRenderDevice : RenderDevice {
-	override fun createTexture(width: Int, height: Int, format: TextureFormat, filter: TextureFilter, pixels: ByteArray?): GpuTexture =
+	override fun createTexture(
+		width: Int,
+		height: Int,
+		format: TextureFormat,
+		filter: TextureFilter,
+		pixels: ByteArray?,
+		wrap: TextureWrap,
+	): GpuTexture =
 		TODO("GLES port: transliterate GlRenderDevice.createTexture (GLES30.glGenTextures out-param form)")
 
 	override fun createFloatTexture(width: Int, height: Int, filter: TextureFilter, texels: FloatArray): GpuTexture =

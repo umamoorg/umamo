@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -22,31 +23,36 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.GridConfig
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
-import org.umamo.render.pick.PickCandidate
+import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.model.DrawableThumbnailProvider
-import org.umamo.ui.model.OverlapEntry
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.workspace.ViewportHost
-import kotlin.math.roundToInt
 
 /**
  * The viewport host plus its render service and preview seams, returned together so the app can inject
@@ -58,7 +64,7 @@ import kotlin.math.roundToInt
  * @property DrawableThumbnailProvider thumbnails Art-mesh previews for the Outliner hover (LocalDrawableThumbnails).
  * @property PuppetRenderSync renderSync Streams transient preview models to the renderer (LocalPuppetRenderSync).
  * @property PuppetViewportService service The render service itself (LocalPuppetViewportService), so the UV
- *           editor can register an atlas-page area and drive its camera through the same engine.
+ *           editor can register a UV-editor area and drive its camera through the same engine.
  */
 class PuppetViewportBinding(
 	val host: ViewportHost,
@@ -66,6 +72,57 @@ class PuppetViewportBinding(
 	val renderSync: PuppetRenderSync,
 	val service: PuppetViewportService,
 )
+
+/** How many layers one fill pass decodes before handing them over, so visible art lands early. */
+private const val SOURCE_LAYER_FILL_CHUNK = 8
+
+/**
+ * How much of the puppet has no source artwork to display from, across a whole display-mode session.
+ *
+ * Two sources that only make sense added together: drawables the document retains no recoverable art
+ * for (known when the mapping is built) and drawables whose art will not decode (discovered only when
+ * something tries).  Residency is deliberately NOT one of them - artwork the renderer left on the
+ * atlas for budget is still artwork the document has, and reporting that as a gap would turn a memory
+ * decision into a fidelity warning.
+ */
+private class SourceArtworkGaps {
+	private var plan: LayerDrawPlan = LayerDrawPlan.EMPTY
+	private val undecodable = HashSet<String>()
+	private var reportedCount = 0
+
+	/** Starts over against a new mapping. */
+	fun reset(plan: LayerDrawPlan) {
+		this.plan = plan
+		undecodable.clear()
+		reportedCount = 0
+	}
+
+	/**
+	 * Records layers that would not decode.
+	 *
+	 * @param Set<String> layerKeys The layers that failed.
+	 * @return Boolean True when this added something not already known.
+	 */
+	fun addUndecodable(layerKeys: Set<String>): Boolean = undecodable.addAll(layerKeys)
+
+	/**
+	 * Tells the rigger once per increase, so a chunked fill does not repeat itself.
+	 *
+	 * @param EditorSession session The session carrying the notice.
+	 */
+	fun report(session: EditorSession) {
+		val total = plan.unresolvedDrawableCount + plan.drawableIdsUsing(undecodable).size
+		if (total <= reportedCount) {
+			return
+		}
+		reportedCount = total
+		// A partly-recoverable document displays from a mix, which must not read as a clean switch.  The
+		// count goes to the log because the notice carries no arguments; the message's job is only to stop
+		// the mix from being silent.
+		UmamoLog.warn("source-artwork display: $total drawable(s) have no usable artwork and stay on the atlas")
+		session.emitNotice("notice.display.partialSourceArtwork")
+	}
+}
 
 /**
  * Builds a [PuppetViewportBinding] backed by a [PuppetViewportService]: the puppet renders on the
@@ -76,16 +133,18 @@ class PuppetViewportBinding(
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
+ * @param LayerTextures layers The document's source-layer artwork, for the puppet's source-layer display.
  * @param LiveParams liveParams The shared parameter hand-off.
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
  * @param PuppetViewportServiceFactory serviceFactory Creates (and starts) the platform render service.
- * @return PuppetViewportBinding The host + camera controller the shell and app wire up.
+ * @return PuppetViewportBinding The host, the render service, and the preview seams the shell and app wire up.
  */
 @Composable
 fun rememberPuppetViewportHost(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
+	layers: LayerTextures,
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
@@ -140,6 +199,68 @@ fun rememberPuppetViewportHost(
 			service.setModel(model)
 			service.setShownDrawables(model.visibleDrawableIds())
 		}
+	}
+	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
+	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
+	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
+	// with.
+	val artworkGaps = remember(service, layers) { SourceArtworkGaps() }
+
+	// Source-artwork display, end to end: work out the mapping, then stream the pixels in behind it.
+	//
+	// The mapping is cheap (it decodes nothing) so it is built for the whole document and published
+	// whole, and rebuilt whenever the mode flips or the drawable set changes - a duplicate needs its own
+	// mapping.  The pixels then follow in chunks, each handed over and released before the next is
+	// decoded, so the heap holds one chunk rather than the document's whole artwork; a rig whose layers
+	// would be a gigabyte decoded streams in a few tens of megabytes.
+	//
+	// The renderer engages nothing until the last chunk lands, so this is a fill, not a fade-in: the
+	// puppet shows its atlas throughout and then flips whole.  That is the mode's contract - it exists
+	// to inspect the artwork, and a puppet drawn half from each would say nothing trustworthy about it.
+	//
+	// `delivered` is what makes a mapping rebuild cheap: the renderer keeps every layer the new plan
+	// still maps, so only genuinely new ones need decoding.  collectLatest abandons an in-flight stream
+	// when the mapping changes under it.
+	LaunchedEffect(service, layers) {
+		val delivered = HashSet<String>()
+		session.model
+			.map { model -> model.rendersFromSourceLayers to model.drawables.map { drawable -> drawable.id } }
+			.distinctUntilChanged()
+			.collectLatest { (fromSourceLayers, _) ->
+				if (!fromSourceLayers || layers.isEmpty) {
+					delivered.clear()
+					artworkGaps.reset(LayerDrawPlan.EMPTY)
+					service.setSourceLayerPlan(LayerDrawPlan.EMPTY)
+					return@collectLatest
+				}
+				val model = session.model.value
+				val plan = withContext(Dispatchers.Default) { buildLayerDrawPlan(model, layers) }
+				artworkGaps.reset(plan)
+				service.setSourceLayerPlan(plan)
+				artworkGaps.report(session)
+
+				delivered.retainAll(plan.layerByteCostByKey.keys)
+				val outstanding = plan.layerByteCostByKey.keys.filterNot { layerKey -> layerKey in delivered }
+				for (chunk in outstanding.chunked(SOURCE_LAYER_FILL_CHUNK)) {
+					val decoded = HashMap<String, DecodedImage>()
+					val undecodable = HashSet<String>()
+					withContext(Dispatchers.Default) {
+						for (layerKey in chunk) {
+							val image = layers.decodeRaster(layerKey)
+							if (image == null) {
+								undecodable.add(layerKey)
+							} else {
+								decoded[layerKey] = image
+							}
+						}
+					}
+					delivered.addAll(chunk)
+					service.deliverSourceLayerRasters(LayerRasterBatch(decoded, undecodable))
+					if (artworkGaps.addUndecodable(undecodable)) {
+						artworkGaps.report(session)
+					}
+				}
+			}
 	}
 	// Mirror the session's pose into the render-thread hand-off so undo / redo (and any committed scrub)
 	// re-poses the viewport. Mid-drag previews already take the faster direct path (the Parameters panel
@@ -268,6 +389,12 @@ fun rememberPuppetViewportHost(
 					val grabCursor = remember(panCursor) { umamoPointerIcon(panCursor) }
 					var panning by remember(areaId) { mutableStateOf(false) }
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
+					// Where the pointer last was in this area, tracked at the HOST rather than inside a gizmo
+					// overlay.  A pointer-addressed command (Alt+Q switch-object, rip, select-linked) has to
+					// know where the cursor is, and the overlays that used to own that knowledge do not mount
+					// in the very states those commands exist to escape - Edit mode with every selected
+					// drawable behind a hidden ancestor, say.  Tracked here, it survives them.
+					val areaPointer = remember(areaId) { mutableStateOf(Offset.Zero) }
 					BoxWithConstraints(modifier = modifier.fillMaxSize()) {
 						val widthPx = constraints.maxWidth
 						val heightPx = constraints.maxHeight
@@ -279,6 +406,17 @@ fun rememberPuppetViewportHost(
 								Modifier
 									.fillMaxSize()
 									.pointerHoverIcon(if (panning) grabCursor else PointerIcon.Default)
+									// Watch-only: it consumes nothing, so the navigation loop below and the
+									// gizmo overlays above all still see every event.  Initial pass so the
+									// position is current even while a child owns the gesture.
+									.pointerInput(areaId) {
+										awaitPointerEventScope {
+											while (true) {
+												val event = awaitPointerEvent(PointerEventPass.Initial)
+												event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
+											}
+										}
+									}
 									.pointerInput(areaId) {
 										viewportNavigation(service, areaId, session) { panning = it }
 									},
@@ -312,7 +450,7 @@ fun rememberPuppetViewportHost(
 							// gesture together as one unit instead of racing ahead). camera and model come from the
 							// same image in one composition, so they are always the same frame. In a static view
 							// at rest the frame equals the live state, so there is no lag.
-							EditGizmoOverlay(
+							ViewportEditGizmoOverlay(
 								areaId = areaId,
 								service = service,
 								session = session,
@@ -320,6 +458,7 @@ fun rememberPuppetViewportHost(
 								frameModel = image?.model,
 								widthPx = widthPx,
 								heightPx = heightPx,
+								areaPointer = areaPointer,
 								onOverlapRequest = { position, candidates ->
 									// Edit mode's Alt+Q over a stack: picking a row switches the edited mesh
 									// (never the object selection - that follows inside switchEditDrawable).
@@ -335,7 +474,7 @@ fun rememberPuppetViewportHost(
 							// tools and object G / S / R. Same frame-camera projection as the Edit gizmo so the
 							// affordance stays glued to the art. It draws no posed mesh (only the rubber-band,
 							// affordances, and pivot HUD), so it needs the frame camera but no frame model.
-							ObjectGizmoOverlay(
+							ViewportObjectGizmoOverlay(
 								areaId = areaId,
 								service = service,
 								session = session,
@@ -367,20 +506,26 @@ fun rememberPuppetViewportHost(
 								areaId = areaId,
 								service = service,
 							)
-							// The HUD layer draws topmost (the 2D cursor, the modal-op status badge, the
-							// active-mesh info chip, and the zoom readout). It installs no pointer input, so it
-							// never steals a gesture from the overlays below. The zoom readout takes the LIVE
-							// camera - the wheel updates it immediately, where the frame camera lags the raster.
-							// The near-cursor notices and the radial pie menus render at the SHELL level
+							// The 2D cursor marker: a control's world-anchored marker (not HUD chrome), so it
+							// draws in its own layer above the gizmo chrome and below the HUD text.  Locked to
+							// the frame camera like every world-anchored overlay drawing.
+							Cursor2dOverlay(
+								session = session,
+								camera = image?.camera,
+								widthPx = widthPx,
+								heightPx = heightPx,
+							)
+							// The HUD layer draws topmost (the modal-op status badge, the active-mesh info chip,
+							// and the zoom readout). It installs no pointer input, so it never steals a gesture
+							// from the overlays below. The zoom readout takes the LIVE camera - the wheel
+							// updates it immediately, where the frame camera lags the raster. The near-cursor
+							// notices and the radial pie menus render at the SHELL level
 							// (ShellCursorOverlays.kt): one instance above the whole area tree, escaping this
 							// viewport's clipped bounds.
 							ViewportHudOverlay(
 								areaId = areaId,
 								session = session,
-								camera = image?.camera,
 								liveCamera = camera,
-								widthPx = widthPx,
-								heightPx = heightPx,
 							)
 						}
 					}
@@ -503,47 +648,3 @@ private suspend fun PointerInputScope.viewportNavigation(
 		}
 	}
 }
-
-/**
- * The overlap-picker popup's state: where to anchor it, the candidate rows, the pre-highlighted row,
- * and the mode's pick action (Object mode replaces the object selection; Edit mode's Alt+Q switches
- * the edited mesh) - the popup itself is mode-agnostic.
- */
-private data class OverlapState(
-	val anchor: IntOffset,
-	val entries: List<OverlapEntry>,
-	val defaultIndex: Int,
-	val pick: (DrawableId) -> Unit,
-)
-
-/**
- * Builds the overlap-popup state from a hit at [position] with [candidates] (front-to-back). The rows
- * keep that front-to-back order; the pre-highlighted default is the highest-centrality candidate (the
- * most unambiguously clicked one). Each row gets the drawable's layer-art thumbnail from [service]
- * (cached there); an untextured drawable yields null and renders as a label-only row.
- *
- * @param PuppetViewportService service The service that supplies (and caches) the layer thumbnails.
- * @param Offset position The cursor position to anchor the popup at.
- * @param List candidates The opaque candidates under the cursor, front-to-back.
- * @param Function pick Applies the chosen drawable per the requesting overlay's mode.
- * @return OverlapState The popup state.
- */
-private fun overlapStateFrom(
-	service: PuppetViewportService,
-	position: Offset,
-	candidates: List<PickCandidate>,
-	pick: (DrawableId) -> Unit,
-): OverlapState =
-	OverlapState(
-		anchor = IntOffset(position.x.roundToInt(), position.y.roundToInt()),
-		entries =
-			candidates.map { candidate ->
-				// "Raw (Part)" - the stable drawable id plus the owning part's name, so the rigger can tell
-				// what they are selecting; falls back to just the id for a drawable with no owning part.
-				val partName = service.partNameFor(candidate.id)
-				val label = if (partName != null) "${candidate.id.raw} ($partName)" else candidate.id.raw
-				OverlapEntry(candidate.id, label, service.thumbnailFor(candidate.id))
-			},
-		defaultIndex = candidates.indices.maxByOrNull { index -> candidates[index].centrality } ?: 0,
-		pick = pick,
-	)

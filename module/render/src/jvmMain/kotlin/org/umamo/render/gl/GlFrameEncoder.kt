@@ -247,6 +247,10 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.screenColor, fragment.screenRed, fragment.screenGreen, fragment.screenBlue)
 		GL20.glUniform1f(locations.highlight, fragment.highlight)
 		GL20.glUniform3f(locations.highlightColor, fragment.highlightRed, fragment.highlightGreen, fragment.highlightBlue)
+		// Sent every draw, like the rest of these - a program that does not declare them resolves -1, and
+		// glUniform* with -1 is a defined no-op, so the grid / composite / axis pipelines ignore it.
+		GL20.glUniform3f(locations.uvAffineRow0, fragment.uvAffine[0], fragment.uvAffine[1], fragment.uvAffine[2])
+		GL20.glUniform3f(locations.uvAffineRow1, fragment.uvAffine[3], fragment.uvAffine[4], fragment.uvAffine[5])
 		GL20.glUniform1i(locations.useMask, if (fragment.useMask) 1 else 0)
 		GL20.glUniform1i(locations.invertMask, if (fragment.invertMask) 1 else 0)
 		if (fragment.useMask) {

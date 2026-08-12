@@ -72,12 +72,12 @@
 	<string name="dialog_cancel">キャンセル</string>
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
-	<string name="confirm_discard_unexported">現在のドキュメントには書き出していない変更があります。破棄しますか？</string>
+	<string name="confirm_discard_unsaved">現在のドキュメントには保存していない変更があります。破棄しますか？</string>
 	<!-- 書き出し結果の通知（document.exportReport コマンド。見出しは書き出した形式ごと。%1$s は対象メッシュ名）。 -->
 	<string name="export_report_message_cmo3">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
 	<string name="export_report_message_moc3">ファイルは書き出されましたが、以下は MOC3 に引き継げませんでした:</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
-	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamoでは正しく開けますが、Cubism Editor では表示されません。Cubismで表示できるファイルを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
+	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamo でも Cubism Editor でも開けますが、収録されているレイヤーはすべて焼き込み済みアトラスの切り出しであり、このリグの元になった原画ではありません。編集可能な本来のレイヤーを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
 	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
 	<string name="export_more_subjects">(ほか %1$d 件)</string>
 	<!-- 書き出し通知の対象種別（各行の先頭に [ ] で表示）。 -->
@@ -152,6 +152,8 @@
 	<string name="export_reason_no_parameter_source_set">モデルにパラメータの格納先がないため、パラメータの並び順は書き出されませんでした。</string>
 	<string name="export_reason_combined_pair_reordered">組み合わせパラメータ %1$s ・ %2$s が隣り合うように、パラメータの並び順を調整しました。</string>
 	<string name="export_reason_no_canvas_to_reconcile">モデルにキャンバスがないため、キャンバスサイズは書き出されませんでした。</string>
+	<string name="export_reason_no_texture_manager">このドキュメントにはテクスチャマネージャがないため、原画表示モードを書き出せませんでした。</string>
+	<string name="export_reason_no_texture_input_for_display">この描画オブジェクトには選択した表示モード用のテクスチャ入力がないため、元の入力を維持しました。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- 書き出しの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
 	     %2$s は省略表示のファイル一覧）。 -->
@@ -225,6 +227,20 @@
 	<!-- UV editor viewport context menu. -->
 	<string name="menu_uv_mirror_x">X ミラー</string>
 	<string name="menu_uv_mirror_y">Y ミラー</string>
+
+	<!-- UV editor texture selector (area header) and its page-switch commands. -->
+	<string name="uv_texture_selector_follow">選択に追従</string>
+	<string name="uv_texture_selector_page">ページ %1$d</string>
+	<string name="uv_texture_selector_page_row">ページ %1$d · %2$d × %3$d · メッシュ %4$d</string>
+	<string name="uv_texture_selector_layer">ソースレイヤー</string>
+	<string name="uv_layer_picker_title">アートワークから検索</string>
+	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · メッシュ %4$d</string>
+	<string name="uv_layer_picker_no_matches">一致するアートワークがありません</string>
+	<string name="uv_layer_picker_empty">このドキュメントにはソースアートワークがありません</string>
+	<string name="cmd_document_toggle_source_artwork">原画表示を切り替え</string>
+	<string name="cmd_uv_page_next">次のテクスチャページ</string>
+	<string name="cmd_uv_page_previous">前のテクスチャページ</string>
+	<string name="cmd_uv_page_follow">テクスチャページ：選択に追従</string>
 
 	<string name="cmd_undo">元に戻す</string>
 	<string name="cmd_redo">やり直す</string>
@@ -311,6 +327,7 @@
 	<string name="history_deformer_quad_transform">バイリニアワープを切り替え</string>
 	<string name="history_document_canvas_size">キャンバスサイズを設定</string>
 	<string name="history_document_world_origin">ワールド原点を設定</string>
+	<string name="history_document_source_layer_display">テクスチャ表示を変更</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
@@ -409,7 +426,10 @@
 	<string name="notice_connect_needs_two_vertices">連結にはちょうど2つの選択頂点が必要です（頂点モード）。</string>
 	<string name="notice_connect_refused">連結できません。カットが何も横断しないか、形状が退化しています。</string>
 	<string name="notice_rip_nothing">ここではリップできません。分割できる面の扇がありません。</string>
+	<string name="notice_display_partial_source_artwork">一部の描画オブジェクトには原画がないため、アトラスから表示しています。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
+	<string name="notice_uv_no_selection">ミラーする対象が選択されていません。</string>
+	<string name="notice_edit_no_editable_geometry">ここでは編集できません。選択中の描画オブジェクトはすべて親によって非表示です。</string>
 
 	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
 	<string name="cmd_mesh_proportional_falloff_smooth">プロポーショナル減衰: スムーズ</string>
@@ -458,6 +478,8 @@
 	<string name="properties_tab_object">オブジェクト</string>
 	<string name="properties_tab_data">データ</string>
 	<string name="properties_section_canvas">キャンバス</string>
+	<string name="properties_section_display">表示</string>
+	<string name="properties_field_source_layer_display">原画から表示</string>
 	<string name="properties_section_runtime">ランタイム</string>
 	<string name="properties_section_transform">トランスフォーム</string>
 	<string name="properties_section_relations">リレーション</string>

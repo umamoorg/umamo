@@ -56,11 +56,12 @@ sealed interface ExportNotice {
 	 *
 	 * A CMO3 is organised around the layered art it was imported from; a MOC3 carries only packed
 	 * atlas pages, so the export reconstructs a stand-in source document by slicing each drawable's
-	 * patch back out of the atlas.  The result opens in the official Cubism Editor with the right
-	 * hierarchy, parameters, and atlas, but the puppet does NOT render there - a documented
-	 * functionality gap that reconciling the ORIGINAL layered art (PSD/CLIP/KRA) into the document
-	 * resolves.  The export still writes: the file is a faithful carrier of the rig, and Umamo
-	 * itself reads it back losslessly.
+	 * patch back out of the atlas.  The result opens and renders in the official Cubism Editor, and
+	 * switches between its layered-art and texture-atlas display modes - but every layer in it is a
+	 * slice of a baked page, not the artwork the rig was drawn from.  What that costs is editable
+	 * art: the layers cannot be redrawn upstream and refreshed, and their quality is capped by the
+	 * page they were cut from.  Reconciling the ORIGINAL layered art (PSD/CLIP/KRA) into the
+	 * document is what replaces them with the real thing.
 	 *
 	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
 	 */

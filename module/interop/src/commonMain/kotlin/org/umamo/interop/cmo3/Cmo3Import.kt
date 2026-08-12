@@ -27,6 +27,7 @@ import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
@@ -97,8 +98,6 @@ import org.umamo.runtime.model.deriveRenderRoot
  * structure is encoded as GUID strings (`targetDeformerGuid`, `parentGuid`, `clipGuidList`), not
  * object links. So mapping is two passes: (1) index every source by its GUID uuid → runtime id;
  * (2) build the runtime entities, resolving each cross-reference through those indices.
- *
- * CMO3: CModelSource は :format の各 model クラスを GUID 文字列で結ぶ疎結合グラフ。2 パスで変換する。
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Model object graph</a>
  */
@@ -513,6 +512,10 @@ object Cmo3Import {
 				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
 				// restricted.
 				runtimeTarget = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelSource.targetVersionNo as? Int)),
+				// CMO3: CTextureManager field isTextureInputModelImageMode - true displays the combined
+				// layer images, false the packed atlas.  The texture manager is mandatory even when empty
+				// (docs/format/CMO3.md §3), so an absent one falls back to the atlas default.
+				rendersFromSourceLayers = (modelSource.textureManager as? CTextureManager)?.isTextureInputModelImageMode ?: false,
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
@@ -525,8 +528,6 @@ object Cmo3Import {
 	 * latter.  A `visited` set guards against a malformed cyclic group reference, mirroring the parts-tree
 	 * walk.  Returns an empty list when there is no root group (a group-less model), so callers fall back
 	 * to the flat parameter list.
-	 *
-	 * CMO3: CParameterGroup グループツリーを rootParameterGroup から構築する（パネル表示順）。
 	 *
 	 * @param CParameterGroup? rootGroup     The hidden top group (CModelSource.rootParameterGroup), or null.
 	 * @param Map              groupByUuid   uuid → CParameterGroup, for resolving nested-group references.

@@ -4,6 +4,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
 import org.umamo.render.GridColors
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
@@ -13,6 +15,7 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.RenderedFrame
+import org.umamo.ui.viewport.UvSceneContent
 
 /**
  * Renders the puppet OFF-SCREEN and publishes it as a Compose ImageBitmap per viewport area.
@@ -24,11 +27,12 @@ import org.umamo.ui.viewport.RenderedFrame
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
- *     async read-back, plus the render-input state (selection / shown / model / grid / highlight colors).
+ *     async read-back, plus the render-input state (selection / shown / model / source artwork / grid /
+ *     highlight colors).
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
  *
- * The GL context is chosen per OS behind [OffscreenGlContext]: a hidden GLFW window on Windows / Linux, CGL
- * on MacOS.
+ * The GL context is chosen per OS behind [OffscreenGlContext], which is a hidden GLFW window on every
+ * desktop OS today (macOS only differs by loading the async GLFW library).
  *
  * Threading: every method here is called on the UI thread; the engine publishes frames from its render
  * thread via the areas' StateFlows. Picking is CPU-side and synchronous.
@@ -92,10 +96,10 @@ class OffscreenPuppetService(
 
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
 
-	override fun registerAtlasPage(areaId: String, pageIndex: Int?): StateFlow<RenderedFrame?> =
-		registry.registerAtlasPage(areaId, pageIndex)
+	override fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> =
+		registry.registerUvScene(areaId, content)
 
-	override fun setAtlasPageIndex(areaId: String, pageIndex: Int?) = registry.setAtlasPageIndex(areaId, pageIndex)
+	override fun setUvSceneContent(areaId: String, content: UvSceneContent) = registry.setUvSceneContent(areaId, content)
 
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 
@@ -126,6 +130,10 @@ class OffscreenPuppetService(
 	override fun setActiveSelection(id: DrawableId?) = engine.setActiveSelection(id)
 
 	override fun setShownDrawables(ids: Set<DrawableId>) = engine.setShownDrawables(ids)
+
+	override fun setSourceLayerPlan(plan: LayerDrawPlan) = engine.setSourceLayerPlan(plan)
+
+	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
 
 	/**
 	 * Pushes the latest model to the render engine and, when it actually changed, rebuilds the picker's

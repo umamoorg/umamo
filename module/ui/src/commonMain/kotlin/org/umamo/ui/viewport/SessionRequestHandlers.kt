@@ -30,8 +30,6 @@ import kotlin.math.roundToInt
  * flows, and only the overlay knows the pointer position and the projected geometry to execute them
  * against.  Each overlay keeps a thin, area-gated collector; the work lives here as plain functions,
  * testable without Compose.
- *
- * キーマップコマンド由来のセッションリクエストの実体。各オーバーレイは薄いコレクタだけを持つ。
  */
 
 /**
@@ -363,30 +361,31 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 }
 
 /**
- * Executes the UV editor's Shift+S snaps over the shown atlas page's texture coordinates: the cursor
+ * Executes the UV editor's Shift+S snaps over the shown surface's texture coordinates: the cursor
  * moves read the UV cursor or the covered median and write the UV cursor directly, and the selection
  * moves transform the covered vertices in the texel display space and commit ONE TransformUvs step (the
  * same commit path a finished modal UV gesture uses).  All math is identity display space - no deformer
  * inverse, no movement transfer - since UVs live in one flat space; only the covered vertices of the
- * meshes on the shown page participate (the overlay only shows one page at a time, exactly as the modal
- * capture scopes).
+ * meshes on the shown surface participate (the overlay only shows one surface at a time, exactly as the
+ * modal capture scopes).
  *
- * The grid snaps target the drawn atlas grid: its major lines fall on the page tile and the minor lines
- * subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to
- * pageExtent / subdivisions, anchored at the page origin.  The pixel snaps round to the nearest integer
- * texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
+ * The grid snaps target the drawn UV grid: its major lines fall on the shown image's tile and the minor
+ * lines subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to the
+ * surface extent / subdivisions, anchored at the image origin.  The pixel snaps round to the nearest
+ * integer texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
- * @param Int pageWidth The shown atlas page width in texels (the display mapping's scale).
- * @param Int pageHeight The shown atlas page height in texels.
+ * @param UvEditFrame frame The shown surface's texel size plus how a coordinate over it reaches the
+ *   stored texture coordinates.  Snap-to-pixel therefore targets the SHOWN surface's texel lattice -
+ *   an atlas texel over a page, an artwork texel over a source layer - which is the right target in
+ *   each, though a placement that scales makes them different lattices.
  * @param UvSnapKind kind The requested snap.
  */
 internal fun handleUvSnapRequest(
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
-	pageWidth: Int,
-	pageHeight: Int,
+	frame: UvEditFrame,
 	kind: UvSnapKind,
 ) {
 	val selection = session.meshSelection.value
@@ -396,18 +395,17 @@ internal fun handleUvSnapRequest(
 			if (covered.isEmpty()) null else geometry to covered
 		}
 
-	// The UV grid subdivides the atlas page (its major lines are the page tile, minor lines the document
-	// subdivisions), anchored at the page origin - so a grid snap rounds to page / subdivisions in
-	// display space, targeting the same lines the atlas backdrop draws.
+	// The UV grid subdivides the shown image (its major lines are the image tile, minor lines the document
+	// subdivisions), anchored at the image origin - so a grid snap rounds to the surface extent /
+	// subdivisions in display space, targeting the same lines the backdrop draws.
 	val subdivisions = session.gridConfig.value.subdivisions.coerceAtLeast(1)
-	val gridStepX = pageWidth.toFloat() / subdivisions
-	val gridStepY = pageHeight.toFloat() / subdivisions
+	val gridStepX = frame.displayWidth.toFloat() / subdivisions
+	val gridStepY = frame.displayHeight.toFloat() / subdivisions
 
-	// The UV cursor in display space; an unplaced cursor rests at the page origin (UV 0,0), the mesh
+	// The UV cursor in display space; an unplaced cursor rests at the stored origin (UV 0,0), the mesh
 	// snap's "an unplaced cursor snaps from its resting place" rule in this space.
 	val cursor = session.uvCursor.value ?: UvCursor(0f, 0f)
-	val cursorDisplayX = uvToDisplayX(cursor.u, pageWidth)
-	val cursorDisplayY = uvToDisplayY(cursor.v, pageHeight)
+	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursor.u, cursor.v)
 
 	// The covered vertices' median in display space, across the shown meshes.
 	var coveredSumX = 0f
@@ -422,27 +420,25 @@ internal fun handleUvSnapRequest(
 	}
 
 	when (kind) {
-		UvSnapKind.CursorToPixels ->
-			session.setUvCursor(
-				displayToUvU(cursorDisplayX.roundToInt().toFloat(), pageWidth),
-				displayToUvV(cursorDisplayY.roundToInt().toFloat(), pageHeight),
-			)
+		UvSnapKind.CursorToPixels -> {
+			val (cursorU, cursorV) =
+				frame.storedUvAt(cursorDisplayX.roundToInt().toFloat(), cursorDisplayY.roundToInt().toFloat())
+			session.setUvCursor(cursorU, cursorV)
+		}
 
-		UvSnapKind.CursorToGrid ->
-			session.setUvCursor(
-				displayToUvU(snapToGrid(cursorDisplayX, 0f, gridStepX), pageWidth),
-				displayToUvV(snapToGrid(cursorDisplayY, 0f, gridStepY), pageHeight),
-			)
+		UvSnapKind.CursorToGrid -> {
+			val (cursorU, cursorV) =
+				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStepX), snapToGrid(cursorDisplayY, 0f, gridStepY))
+			session.setUvCursor(cursorU, cursorV)
+		}
 
 		UvSnapKind.CursorToSelected -> {
-			// Nothing selected on the shown page: no median to move the cursor to (a silent no-op).
+			// Nothing selected on the shown surface: no median to move the cursor to (a silent no-op).
 			if (coveredCount == 0) {
 				return
 			}
-			session.setUvCursor(
-				displayToUvU(coveredSumX / coveredCount, pageWidth),
-				displayToUvV(coveredSumY / coveredCount, pageHeight),
-			)
+			val (cursorU, cursorV) = frame.storedUvAt(coveredSumX / coveredCount, coveredSumY / coveredCount)
+			session.setUvCursor(cursorU, cursorV)
 		}
 
 		UvSnapKind.SelectionToPixels,
@@ -491,15 +487,10 @@ internal fun handleUvSnapRequest(
 						// The cursor moves were handled above; nothing else reaches here.
 						UvSnapKind.CursorToPixels, UvSnapKind.CursorToSelected, UvSnapKind.CursorToGrid -> display
 					}
-				// Build the new uv array from the CURRENT stored uvs and overwrite only the covered
-				// vertices, so untouched vertices keep their exact values (no display round-trip drift).
+				// Only the covered vertices are written; untouched ones keep their exact stored values
+				// (see storedUvsWithMoved).
 				val currentUvs = model.drawables.firstOrNull { drawable -> drawable.id == geometry.drawableId }?.mesh?.uvs ?: continue
-				val newUvs = currentUvs.copyOf()
-				for (vertexIndex in covered) {
-					newUvs[vertexIndex * 2] = displayToUvU(transformedDisplay[vertexIndex * 2], pageWidth)
-					newUvs[vertexIndex * 2 + 1] = displayToUvV(transformedDisplay[vertexIndex * 2 + 1], pageHeight)
-				}
-				newUvsByDrawable[geometry.drawableId] = newUvs
+				newUvsByDrawable[geometry.drawableId] = storedUvsWithMoved(currentUvs, covered, transformedDisplay, frame)
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
 			if (newUvsByDrawable.isNotEmpty()) {

@@ -6,6 +6,19 @@ Umamo is early alpha.
 
 (Unreleased changes)
 
+### Added
+* Texture Authoring: The UV Editor now has object mode.  Click an UV island to select the drawable it belongs to, box select multiple, and Alt+Left=Click through overlapping islands, mirroring how object selection already works in the 2D viewport.
+* Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
+* Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
+* Texture Authoring: A new "Show source artwork" document property switches the puppet between rendering from its packed texture atlas and rendering straight from each drawable's individual source layer, for checking the atlas mapping by eye before it's finalized.
+
+### Changed
+* MOC3 to CMO3 conversion: The stand-in source document rebuilt from a MOC3's atlas pages now also opens and renders correctly in the official Cubism Editor, including switching between its layered-art and texture-atlas display modes.  The export notice wording was updated to describe what's actually still lost this way(the layers are baked-atlas slices, not the original editable artwork) instead of claiming the file wouldn't render at all.
+
+### Fixed
+* UV Editor: Committing an edit could report vertices nobody moved as changed, because the display round trip wasn't bit-exact; this triggered spurious weld-divergence warnings on mappings that were never touched.
+* MOC3 to CMO3 conversion: Reimported drawables were bound to a duplicate of the atlas page resource instead of the shared one the editor itself writes, which made every one of them look never packed and draw the wrong crop in the source layer view.
+
 ## 0.2.1-dev - 2026-08-11
 
 ### Added

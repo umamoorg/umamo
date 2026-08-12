@@ -15,9 +15,12 @@ import org.umamo.runtime.model.RuntimeTarget
  * applies one field change as a single undo step via mutate, dispatching the typed Change plus its
  * PuppetModelEdits transform, and short-circuits to nothing on a no-op (the builder returns the same
  * model instance).  These are the write half of the Properties panel: a checkbox / dropdown / numeric
- * field commit calls exactly one of these.  Continuous numeric scrubbing previews in the widget and
- * commits one of these on release, so there is no per-frame mutation and no history-side coalescing (the
- * same single-commit-per-gesture granularity the parameter scrub documents in ParameterChange.SetValue).
+ * field commit calls exactly one of these, and a registry command flipping the same document field
+ * (document.toggleSourceArtworkDisplay) goes through the same entry point rather than mutating in
+ * parallel, so both routes produce the one identical undo step.  Continuous numeric scrubbing previews
+ * in the widget and commits one of these on release, so there is no per-frame mutation and no
+ * history-side coalescing (the same single-commit-per-gesture granularity the parameter scrub documents
+ * in ParameterChange.SetValue).
  */
 
 /**
@@ -274,4 +277,17 @@ fun EditorSession.setWorldOrigin(x: Float, y: Float) {
  */
 fun EditorSession.setRuntimeTarget(target: RuntimeTarget) {
 	mutate(DocumentChange.SetRuntimeTarget(target)) { model -> model.withRuntimeTarget(target) }
+}
+
+/**
+ * Switches the puppet between displaying from its source artwork and from the packed atlas, as one
+ * undo step.
+ *
+ * A display choice that is document content rather than an app preference: the source formats author
+ * it, so it round-trips and it marks the document dirty like any other authored value.
+ *
+ * @param Boolean fromSourceLayers True to display from the source artwork, false from the atlas.
+ */
+fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
+	mutate(DocumentChange.SetSourceLayerDisplay(fromSourceLayers)) { model -> model.withSourceLayerDisplay(fromSourceLayers) }
 }

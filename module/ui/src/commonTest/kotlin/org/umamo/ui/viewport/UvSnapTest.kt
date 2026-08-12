@@ -78,7 +78,7 @@ class UvSnapTest {
 		}
 
 	private fun snap(session: EditorSession, kind: UvSnapKind) {
-		handleUvSnapRequest(session, geometriesOf(session), pageWidth, pageHeight, kind)
+		handleUvSnapRequest(session, geometriesOf(session), atlasPageEditFrame(pageWidth, pageHeight), kind)
 	}
 
 	private fun currentUvs(session: EditorSession): FloatArray = session.model.value.drawables[0].mesh!!.uvs

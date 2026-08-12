@@ -91,6 +91,7 @@ enum class DocumentField {
 	CANVAS_SIZE,
 	WORLD_ORIGIN,
 	RUNTIME_TARGET,
+	SOURCE_LAYER_DISPLAY,
 	PARAMETER_ORDER,
 	PARAMETER_LINKS,
 	PARAMETER_TREE,
@@ -523,6 +524,9 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
 		}
 		if (baseline.runtimeTarget != edited.runtimeTarget) {
 			add(DocumentField.RUNTIME_TARGET)
+		}
+		if (baseline.rendersFromSourceLayers != edited.rendersFromSourceLayers) {
+			add(DocumentField.SOURCE_LAYER_DISPLAY)
 		}
 		// Document order of the flat parameter list is semantic in CMO3: combined (2D) pairs are
 		// encoded positionally (the Y axis is the next source after its combined X).

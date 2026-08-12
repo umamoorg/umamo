@@ -13,9 +13,6 @@ import org.umamo.render.eval.drawableSpaceMapping
  * registers one of these into the AreaCameraHub for its area's lifetime; the shell's view commands
  * resolve the hovered area's controller through the hub at dispatch time.  A new camera-bearing space
  * reuses this by registering its own implementation - never by adding a branch to the view commands.
- *
- * ビューコマンド（フィット／等倍／ズーム／ズーム領域／選択をフレーム）へエリアが公開するカメラ操作。
- * 2D ビューポートと UV エディタが各エリアの分を登録し、コマンドはホバー中のエリアの分を解決する。
  */
 internal interface CameraController {
 	/** Frames the area's content to fit. */
@@ -151,7 +148,7 @@ internal class ViewportSpaceCamera(
 }
 
 /**
- * The UV editor's camera controller for one UV atlas-page area.  Frame Selected frames the covered UV
+ * The UV editor's camera controller for one UV-editor area.  Frame Selected frames the covered UV
  * bounds in the editor's display space: in Edit mode the covered vertices of the mesh selection, in
  * Object mode every vertex of the shown geometries (the selected drawables).  A one-texel floor keeps a
  * single-vertex frame from exploding the zoom to its clamp.
@@ -159,7 +156,8 @@ internal class ViewportSpaceCamera(
  * @property PuppetViewportService service The render service holding this area's camera.
  * @property EditorSession session The session whose mode / mesh selection Frame Selected reads.
  * @property String areaId The UV editor area this controller drives.
- * @property Function geometries The live shown UV geometries in display space, re-read on each call.
+ * @property Function geometries The display-space geometries Frame Selected frames, re-read on each
+ *   call; the host's supplier narrows Object mode to the selected islands.
  */
 internal class UvSpaceCamera(
 	service: PuppetViewportService,
@@ -169,10 +167,11 @@ internal class UvSpaceCamera(
 ) : ServiceCameraController(service, session, areaId) {
 	override fun frameSelected() {
 		// Mirror the 2D viewport's mode split (ViewportSpaceCamera.frameSelected): Edit mode frames the
-		// covered (selected) vertices; Object mode has no element selection, so it frames every vertex of
-		// the shown geometries - which in Object mode are exactly the selected drawables.  Without this
-		// branch Object-mode Frame Selected is a no-op, because meshSelection is empty there and
-		// coveredVertexIndices returns nothing.
+		// covered (selected) vertices; Object mode has no element selection, so it frames every vertex
+		// of the supplied geometries - the host's supplier narrows Object mode to the SELECTED islands
+		// (the shown list is every visible island on the surface).  Without this branch Object-mode Frame
+		// Selected is a no-op, because meshSelection is empty there and coveredVertexIndices returns
+		// nothing.
 		val editMode = session.mode.value == EditorMode.Edit
 		val selection = session.meshSelection.value
 		var minX = Float.MAX_VALUE

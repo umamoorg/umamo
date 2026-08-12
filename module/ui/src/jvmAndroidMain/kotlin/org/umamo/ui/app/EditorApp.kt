@@ -54,6 +54,7 @@ import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetRenderSync
@@ -106,9 +107,6 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * The menu bar is drawn in-window (not a host-OS menu strip) so it looks and behaves identically on
  * every platform and can sit on the workspace tab row to save vertical space - the Blender-style
  * choice. The trade-off is deliberate: there is no macOS system menu strip.
- *
- * 共有エディタシェル。OS ネイティブではなく自前のメニューバーを描画する（全プラットフォーム共通、
- * タブ行に同居して縦幅を節約）。デスクトップは GL ファクトリを渡し、Android は GLES 実装が載るまで null。
  *
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
@@ -188,7 +186,7 @@ fun EditorApp(
 		}
 	}
 
-	// Replacing the document discards its session - the undo history and any unexported edits go with
+	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
@@ -558,8 +556,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
 				notice.subjects.take(8).joinToString() +
 				if (notice.subjects.size > 8) " (+${notice.subjects.size - 8} more)" else ""
 		is ExportNotice.MissingSourceArt ->
-			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s); " +
-				"it will not render in the Cubism Editor until the original layered art is reconciled in"
+			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
+				"so its layers are atlas slices rather than the original artwork"
 	}
 
 /**
@@ -604,7 +602,14 @@ private fun DocumentViewport(
 				// conditional composable call is stable across recompositions.
 				val viewport =
 					if (viewportServiceFactory != null) {
-						rememberPuppetViewportHost(document.puppet, document.textures, document.liveParams, activeSession, viewportServiceFactory)
+						rememberPuppetViewportHost(
+							document.puppet,
+							document.textures,
+							document.layers,
+							document.liveParams,
+							activeSession,
+							viewportServiceFactory,
+						)
 					} else {
 						null
 					}
@@ -619,6 +624,7 @@ private fun DocumentViewport(
 					LocalLiveParams provides liveParamsHandle,
 					LocalDrawableThumbnails provides thumbnails,
 					LocalPuppetTextures provides document.textures,
+					LocalLayerTextures provides document.layers,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,

@@ -89,8 +89,8 @@ class Cmo3ConversionRoundTripTest {
 				obfuscateKey = 0x5EEDBEEF,
 			)
 		// Every MOC3-origin conversion MUST warn that it has no source artwork - that is the one
-		// notice explaining why the file will not render in the official editor, so its absence is
-		// as much a defect as a spurious notice would be.
+		// notice describing the whole file rather than an entity in it, so its absence is as much a
+		// defect as a spurious notice would be.
 		if (result.report.notices.none { notice -> notice is ExportNotice.MissingSourceArt }) {
 			failures.add("$label: missing the MissingSourceArt notice")
 		}
@@ -133,6 +133,7 @@ class Cmo3ConversionRoundTripTest {
 					failures.add("$label: re-read root is not a CModelSource")
 					return
 				}
+		checkDrawablesSampleTheAtlasPages(label, reimportedSource, failures)
 		// Diff against the puppet the conversion ENCODED: the atlas un-dedup prepass remaps a
 		// baked twin's uvs onto its own synthesized slot, so the caller's puppet is not the
 		// round-trip target wherever twins existed.
@@ -173,6 +174,57 @@ class Cmo3ConversionRoundTripTest {
 			if (drift > geometryUlpTolerance) {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}
+		}
+	}
+
+	/**
+	 * Asserts every re-read drawable samples one of the document's own atlas page resources, by
+	 * IDENTITY rather than by dimensions or archive path.
+	 *
+	 * This is the invariant that decides whether a drawable's stored uvs are page-frame
+	 * (docs/format/CMO3.md section 6): a document may carry an atlas while its drawables sample
+	 * per-layer rasters instead, so the reader compares the sampled resource against the atlases'
+	 * cachedAtlasImage - and a CImageResource has no value equality, which makes that comparison
+	 * identity.  A conversion that hands the drawables their own equal-but-distinct twin of the page
+	 * therefore writes a file whose every drawable re-imports as never-packed, dropping the packing
+	 * inverse that maps its mesh onto its source layer.  Nothing in the model diff sees that - the
+	 * uvs themselves round-trip fine - so it needs its own check.
+	 *
+	 * @param String      label      The corpus model name, for failure text.
+	 * @param CModelSource source    The re-read model root.
+	 * @param ArrayList    failures  The shared violation collector.
+	 */
+	private fun checkDrawablesSampleTheAtlasPages(label: String, source: CModelSource, failures: ArrayList<String>) {
+		// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
+		val textureManager = source.textureManager as? org.umamo.format.cmo3.model.gen.CTextureManager ?: return
+		val pageResources =
+			Cmo3Import
+				.elementsOf(textureManager._textureAtlases)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.mapNotNull { atlas -> atlas.cachedAtlasImage as? org.umamo.format.cmo3.model.custom.CImageResource }
+		if (pageResources.isEmpty()) {
+			return
+		}
+		val pageIdentities = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		pageIdentities.addAll(pageResources)
+		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field texture -> GTexture2D field
+		// srcImageResource.
+		val meshes =
+			Cmo3Import
+				.elementsOf((source.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet)?._sources)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CArtMeshSource>()
+		val strays =
+			meshes.filter { mesh ->
+				val sampled =
+					(mesh.texture as? org.umamo.format.cmo3.model.gen.GTexture2D)
+						?.srcImageResource as? org.umamo.format.cmo3.model.custom.CImageResource
+				sampled != null && sampled !in pageIdentities
+			}
+		if (strays.isNotEmpty()) {
+			failures.add(
+				"$label: ${strays.size} of ${meshes.size} drawables sample a resource that is not one of the " +
+					"${pageResources.size} atlas page resources",
+			)
 		}
 	}
 

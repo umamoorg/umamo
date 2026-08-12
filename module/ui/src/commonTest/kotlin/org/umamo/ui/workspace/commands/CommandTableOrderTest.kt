@@ -130,7 +130,8 @@ class CommandTableOrderTest {
 				snapCommands(null, routing, availability) +
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
-				proportionalCommands(null, availability)
+				proportionalCommands(null, availability) +
+				displayCommands(null, availability)
 		assertEquals(
 			listOf(
 				"edit.undo",
@@ -176,6 +177,9 @@ class CommandTableOrderTest {
 				"uv.snap.cursorToPixels",
 				"uv.snap.cursorToSelected",
 				"uv.snap.cursorToGrid",
+				"uv.page.next",
+				"uv.page.previous",
+				"uv.page.followSelection",
 				"mesh.duplicate",
 				"mesh.merge",
 				"mesh.merge.atCenter",
@@ -192,6 +196,7 @@ class CommandTableOrderTest {
 				"mesh.proportional.falloff.sharp",
 				"mesh.proportional.falloff.linear",
 				"mesh.proportional.falloff.constant",
+				"document.toggleSourceArtworkDisplay",
 			),
 			commands.map { command -> command.id },
 		)
