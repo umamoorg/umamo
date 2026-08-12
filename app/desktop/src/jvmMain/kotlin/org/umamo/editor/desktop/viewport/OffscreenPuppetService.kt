@@ -133,8 +133,6 @@ class OffscreenPuppetService(
 
 	override fun setSourceLayerPlan(plan: LayerDrawPlan) = engine.setSourceLayerPlan(plan)
 
-	override val sourceLayerRequests: StateFlow<Pair<Set<String>, Long>> get() = engine.sourceLayerRequests
-
 	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
 
 	/**

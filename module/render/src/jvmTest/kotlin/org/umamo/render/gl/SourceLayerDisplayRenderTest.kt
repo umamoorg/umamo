@@ -27,7 +27,6 @@ import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -279,19 +278,18 @@ class SourceLayerDisplayRenderTest {
 	}
 
 	/**
-	 * A drawable evicted for budget falls back to its atlas page and keeps rendering.
+	 * The mode never shows a puppet half in artwork and half on its atlas.
 	 *
-	 * The hazard this pins is the one that would corrupt frames silently: freeing a layer texture while a
-	 * drawable still points at it leaves a dangling handle, which draws garbage rather than failing.  So
-	 * this shrinks the budget below what the artwork costs and asserts the probe comes back RED - the
-	 * atlas it was uploaded with - rather than green, black, or noise.
+	 * Source-artwork display exists so a rigger can INSPECT the art, so a mixed view is not a degraded
+	 * success - it is untrustworthy, because nothing on screen says which drawables are showing which.
+	 * The plan therefore engages nothing until every layer it maps has landed.
 	 *
-	 * The budget is deliberately a test-shrinkable knob for exactly this reason: forcing real eviction on
-	 * a real device otherwise needs a fixture too large to keep in the suite.
+	 * Here the plan maps two layers and only one is delivered, so the probe must still be RED (its atlas),
+	 * never green.  It flips only once the second lands.
 	 */
 	@Test
-	fun budgetEvictionReturnsTheDrawableToItsAtlasPage() {
-		requireHeadlessGl("[layer-evict]")
+	fun artworkDisplayWaitsForEveryMappedLayer() {
+		requireHeadlessGl("[layer-allornothing]")
 		val source = probeModel()
 		val device = GlRenderDevice()
 		val renderer =
@@ -316,36 +314,39 @@ class SourceLayerDisplayRenderTest {
 		val background = frame()
 		renderer.setShownDrawables(setOf(probeId))
 
-		renderer.displayFromArtwork()
-		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
-		assertTrue(
-			statsArtwork.meanGreen > 200f && statsArtwork.meanRed < 60f,
-			"the probe should be displaying from its green artwork first (r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen})",
+		// The probe draws from "green", but the plan also maps a second layer some other drawable needs.
+		renderer.setSourceLayerPlan(
+			LayerDrawPlan(
+				drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("green", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+				layerByteCostByKey = mapOf("green" to 256L, "absent" to 256L),
+			),
 		)
+		renderer.deliverSourceLayerRasters(artworkBatch())
+		val statsPartial = artColorStats(frame(), background, viewportSize, viewportSize)
+		val (readyPartial, _, _) = renderer.sourceLayerDisplayState()
 
-		// No room for even one layer: the next residency pass must admit nothing and free what it holds.
-		renderer.sourceLayerByteBudget = 0L
-		renderer.setShownDrawables(emptySet())
-		renderer.setShownDrawables(setOf(probeId))
-		val statsEvicted = artColorStats(frame(), background, viewportSize, viewportSize)
+		// The straggler lands: now the whole plan is covered and the mode engages.
+		renderer.deliverSourceLayerRasters(
+			LayerRasterBatch(rastersByLayerKey = mapOf("absent" to solidImage(red = 0x00, green = 0xFF))),
+		)
+		val statsComplete = artColorStats(frame(), background, viewportSize, viewportSize)
+		val (readyComplete, _, _) = renderer.sourceLayerDisplayState()
 
-		val (residentCount, residentBytes, mappedCount) = renderer.sourceLayerResidencyStats()
 		println(
-			"[layer-evict] artwork r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen} | " +
-				"evicted r=${statsEvicted.meanRed} g=${statsEvicted.meanGreen} | " +
-				"resident $residentCount/$mappedCount layers, $residentBytes bytes",
+			"[layer-allornothing] partial ready=$readyPartial r=${statsPartial.meanRed} g=${statsPartial.meanGreen} | " +
+				"complete ready=$readyComplete r=${statsComplete.meanRed} g=${statsComplete.meanGreen}",
 		)
 
-		assertEquals(0, residentCount, "the budget admits nothing, so nothing stays resident")
-		assertEquals(1, mappedCount, "but the mapping still covers the layer, so it can be promoted again")
+		assertTrue(!readyPartial, "the mode must not engage while a mapped layer is still missing")
 		assertTrue(
-			statsEvicted.mass > 0,
-			"the drawable vanished instead of falling back to its atlas page",
+			statsPartial.meanRed > 200f && statsPartial.meanGreen < 60f,
+			"an incompletely covered plan must leave the puppet wholly on its atlas, not partly on artwork " +
+				"(r=${statsPartial.meanRed} g=${statsPartial.meanGreen})",
 		)
+		assertTrue(readyComplete, "the mode engages once every mapped layer has landed")
 		assertTrue(
-			statsEvicted.meanRed > 200f && statsEvicted.meanGreen < 60f,
-			"an evicted drawable must draw its ATLAS page, not a freed texture " +
-				"(r=${statsEvicted.meanRed} g=${statsEvicted.meanGreen})",
+			statsComplete.meanGreen > 200f && statsComplete.meanRed < 60f,
+			"and then the puppet displays from its artwork (r=${statsComplete.meanRed} g=${statsComplete.meanGreen})",
 		)
 	}
 

@@ -62,22 +62,22 @@ class LayerDrawPlan(
  * A delivery of decoded artwork answering what the renderer asked for - the pixel half, transient by
  * design.
  *
- * Pixels arrive in batches rather than as one complete set, because holding every layer a document
- * references at once is what this split exists to avoid.  The producer decodes only what the
- * renderer's current working set wants, hands it over, and drops its own reference immediately.
+ * Pixels arrive in batches rather than as one complete set, and THAT is what keeps this affordable:
+ * the producer decodes a chunk, hands it over, and drops its reference before decoding the next, so
+ * the heap holds one chunk rather than the document's whole artwork.  A rig whose layers would be a
+ * gigabyte decoded costs a few tens of megabytes to stream.
  *
- * [generation] stamps which request this answers, so a batch prepared for a working set that has
- * since moved can be recognized and discarded rather than uploaded for nothing.
+ * Batches are additive and order-independent - the renderer uploads whatever a batch carries that its
+ * current plan still maps, and ignores the rest - so a late batch from a superseded plan is harmless
+ * rather than something to detect.
  *
  * @property Map<String, DecodedImage> rastersByLayerKey The decoded images, by layer key.
  * @property Set<String> undecodableLayerKeys Layers whose pixels would not decode.  Reported so the
  *   drawables over them can be counted as artwork-less rather than merely absent from this batch.
- * @property Long generation The wanted-keys generation this batch was prepared against.
  */
 class LayerRasterBatch(
 	val rastersByLayerKey: Map<String, DecodedImage>,
 	val undecodableLayerKeys: Set<String> = emptySet(),
-	val generation: Long = 0L,
 )
 
 /**

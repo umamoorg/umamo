@@ -1,7 +1,5 @@
 package org.umamo.editor.desktop.viewport
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
@@ -150,9 +148,6 @@ internal class OffscreenRenderEngine(
 	// taken up, where a slot would silently drop the first.
 	private val pendingRasterBatches = java.util.concurrent.ConcurrentLinkedQueue<LayerRasterBatch>()
 
-	// What the renderer wants decoded next, republished from the render loop for the producer to answer.
-	private val sourceLayerRequestsBacking = MutableStateFlow<Pair<Set<String>, Long>>(emptySet<String>() to 0L)
-
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
 	@Volatile
@@ -289,9 +284,6 @@ internal class OffscreenRenderEngine(
 			doPuppetRenderBump()
 		}
 	}
-
-	/** What the renderer wants decoded next, for the producer to answer with [deliverSourceLayerRasters]. */
-	val sourceLayerRequests: StateFlow<Pair<Set<String>, Long>> get() = sourceLayerRequestsBacking
 
 	/**
 	 * Queues decoded artwork for upload on the render thread.
@@ -431,12 +423,6 @@ internal class OffscreenRenderEngine(
 				while (true) {
 					val batch = pendingRasterBatches.poll() ?: break
 					renderer.deliverSourceLayerRasters(batch)
-				}
-				// Republish what the renderer now wants.  Both of the calls above can move it - a new plan
-				// changes what is admissible, and an upload can free room for more - so this sits after them.
-				val wanted = renderer.wantedSourceLayerKeys()
-				if (wanted != sourceLayerRequestsBacking.value) {
-					sourceLayerRequestsBacking.value = wanted
 				}
 				// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
 				// the render order - when the pose, the visibility cascade, OR the render order changes. A

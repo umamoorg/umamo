@@ -201,68 +201,66 @@ fun rememberPuppetViewportHost(
 		}
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
-	// ones whose layer turned out not to decode, which only a delivery can discover.  Held across both
-	// effects below because that total is what the notice speaks for, and it must never count a drawable
-	// the renderer merely chose not to keep resident.
+	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
+	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
+	// with.
 	val artworkGaps = remember(service, layers) { SourceArtworkGaps() }
 
-	// Which artwork the puppet's drawables map onto.  Cheap - it decodes nothing - so it is built for the
-	// whole document and rebuilt whenever the mode flips or the drawable set changes (a duplicate needs
-	// its own mapping).  Published whole, so the mapping switch is atomic.
+	// Source-artwork display, end to end: work out the mapping, then stream the pixels in behind it.
+	//
+	// The mapping is cheap (it decodes nothing) so it is built for the whole document and published
+	// whole, and rebuilt whenever the mode flips or the drawable set changes - a duplicate needs its own
+	// mapping.  The pixels then follow in chunks, each handed over and released before the next is
+	// decoded, so the heap holds one chunk rather than the document's whole artwork; a rig whose layers
+	// would be a gigabyte decoded streams in a few tens of megabytes.
+	//
+	// The renderer engages nothing until the last chunk lands, so this is a fill, not a fade-in: the
+	// puppet shows its atlas throughout and then flips whole.  That is the mode's contract - it exists
+	// to inspect the artwork, and a puppet drawn half from each would say nothing trustworthy about it.
+	//
+	// `delivered` is what makes a mapping rebuild cheap: the renderer keeps every layer the new plan
+	// still maps, so only genuinely new ones need decoding.  collectLatest abandons an in-flight stream
+	// when the mapping changes under it.
 	LaunchedEffect(service, layers) {
+		val delivered = HashSet<String>()
 		session.model
 			.map { model -> model.rendersFromSourceLayers to model.drawables.map { drawable -> drawable.id } }
 			.distinctUntilChanged()
 			.collectLatest { (fromSourceLayers, _) ->
 				if (!fromSourceLayers || layers.isEmpty) {
+					delivered.clear()
 					artworkGaps.reset(LayerDrawPlan.EMPTY)
 					service.setSourceLayerPlan(LayerDrawPlan.EMPTY)
-				} else {
-					val model = session.model.value
-					val plan = withContext(Dispatchers.Default) { buildLayerDrawPlan(model, layers) }
-					artworkGaps.reset(plan)
-					service.setSourceLayerPlan(plan)
-					artworkGaps.report(session)
+					return@collectLatest
 				}
-			}
-	}
+				val model = session.model.value
+				val plan = withContext(Dispatchers.Default) { buildLayerDrawPlan(model, layers) }
+				artworkGaps.reset(plan)
+				service.setSourceLayerPlan(plan)
+				artworkGaps.report(session)
 
-	// Decode what the renderer asks for, off both the UI and the render threads, and hand it back.
-	//
-	// A reverse hand-off: the renderer bounds how much artwork stays resident, so it publishes the
-	// working set it wants rather than being handed the whole document - which is what keeps a
-	// hundreds-of-layers rig from decoding gigabytes to switch display mode.  Delivered in chunks so the
-	// puppet fills in progressively instead of waiting on the slowest layer, and each batch's images are
-	// released as soon as they are handed over.  collectLatest abandons an in-flight fill when the
-	// working set moves again.
-	LaunchedEffect(service, layers) {
-		val delivered = HashSet<String>()
-		service.sourceLayerRequests.collectLatest { (wanted, generation) ->
-			delivered.retainAll(wanted)
-			val outstanding = wanted.filterNot { layerKey -> layerKey in delivered }
-			if (outstanding.isEmpty()) {
-				return@collectLatest
-			}
-			for (chunk in outstanding.chunked(SOURCE_LAYER_FILL_CHUNK)) {
-				val decoded = HashMap<String, DecodedImage>()
-				val undecodable = HashSet<String>()
-				withContext(Dispatchers.Default) {
-					for (layerKey in chunk) {
-						val image = layers.decodeRaster(layerKey)
-						if (image == null) {
-							undecodable.add(layerKey)
-						} else {
-							decoded[layerKey] = image
+				delivered.retainAll(plan.layerByteCostByKey.keys)
+				val outstanding = plan.layerByteCostByKey.keys.filterNot { layerKey -> layerKey in delivered }
+				for (chunk in outstanding.chunked(SOURCE_LAYER_FILL_CHUNK)) {
+					val decoded = HashMap<String, DecodedImage>()
+					val undecodable = HashSet<String>()
+					withContext(Dispatchers.Default) {
+						for (layerKey in chunk) {
+							val image = layers.decodeRaster(layerKey)
+							if (image == null) {
+								undecodable.add(layerKey)
+							} else {
+								decoded[layerKey] = image
+							}
 						}
 					}
-				}
-				delivered.addAll(chunk)
-				service.deliverSourceLayerRasters(LayerRasterBatch(decoded, undecodable, generation))
-				if (artworkGaps.addUndecodable(undecodable)) {
-					artworkGaps.report(session)
+					delivered.addAll(chunk)
+					service.deliverSourceLayerRasters(LayerRasterBatch(decoded, undecodable))
+					if (artworkGaps.addUndecodable(undecodable)) {
+						artworkGaps.report(session)
+					}
 				}
 			}
-		}
 	}
 	// Mirror the session's pose into the render-thread hand-off so undo / redo (and any committed scrub)
 	// re-poses the viewport. Mid-drag previews already take the faster direct path (the Parameters panel

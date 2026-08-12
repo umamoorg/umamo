@@ -248,21 +248,11 @@ interface PuppetViewportService {
 	fun setSourceLayerPlan(plan: LayerDrawPlan)
 
 	/**
-	 * The artwork the engine wants decoded next, republished whenever its working set moves.
-	 *
-	 * A reverse hand-off: the renderer bounds how much artwork is resident, so it - not the producer -
-	 * decides what is worth decoding.  Each emission carries a generation, so a producer can tell a new
-	 * ask from a repeat of one it is already serving.
-	 *
-	 * @return StateFlow The wanted layer keys and the generation they were published at.
-	 */
-	val sourceLayerRequests: StateFlow<Pair<Set<String>, Long>>
-
-	/**
-	 * Hands decoded artwork to the engine, answering [sourceLayerRequests].
+	 * Hands decoded artwork to the engine, filling in the plan pushed by [setSourceLayerPlan].
 	 *
 	 * Decoding must happen off both the UI and render threads, and the batch is consumed rather than
-	 * retained, so the caller may drop its own reference as soon as this returns.
+	 * retained, so the caller may - and should - drop its own reference as soon as this returns.  That
+	 * is what lets a document's artwork be streamed in chunks instead of held decoded all at once.
 	 *
 	 * @param LayerRasterBatch batch The decoded artwork.
 	 */
