@@ -70,9 +70,9 @@ private class ObjectGesture(
 )
 
 /**
- * The Object-mode gizmo overlay: the Object-mode counterpart to [EditGizmoOverlay], driving whole-drawable
+ * The Object-mode gizmo overlay: the Object-mode counterpart to [ViewportEditGizmoOverlay], driving whole-drawable
  * selection and transforms over the puppet image.  Composed whenever Object mode is active with a camera.
- * Gated to Object mode (returns in Edit, where [EditGizmoOverlay] owns the viewport), so the two overlays
+ * Gated to Object mode (returns in Edit, where [ViewportEditGizmoOverlay] owns the viewport), so the two overlays
  * are mutually exclusive by mode and never both drive the pointer.  Middle-drag pan and wheel zoom are
  * never consumed here, so they fall through to the navigation layer beneath.
  *
@@ -108,7 +108,7 @@ private class ObjectGesture(
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-fun ObjectGizmoOverlay(
+fun ViewportObjectGizmoOverlay(
 	areaId: String,
 	service: PuppetViewportService,
 	session: EditorSession,
@@ -128,9 +128,9 @@ fun ObjectGizmoOverlay(
 		return
 	}
 	// Armed = a select tool or an object operator LATCHED IN THIS AREA owns the pointer; only then does the
-	// overlay hide the OS cursor and consume input.  When idle the loop still runs (to keep the operator
-	// teardown effect mounted) but consumes nothing, so a plain click falls through to the navigation
-	// layer's object picker.  A gesture owned by another viewport leaves this area idle and inert.
+	// overlay hide the OS cursor.  Idle is not inert: the loop still owns the click pick and the un-armed
+	// box, consuming only primary-driven events, so middle-drag pan and wheel zoom fall through to the
+	// navigation layer.  A gesture owned by another viewport leaves this area idle and inert.
 	val ownedSelectTool = activeSelectTool?.takeIf { it.areaId == areaId }
 	val armed = ownedSelectTool != null || activeObjectOperator?.areaId == areaId
 	val overlayStyle = selectionOverlayStyle(overlayColors)

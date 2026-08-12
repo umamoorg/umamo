@@ -93,7 +93,7 @@ fun ViewportHudOverlay(
  * The UV editor's HUD layer, the sibling assembly of [ViewportHudOverlay]: the modal-operator status
  * badge (gated on the UV operator latch), the top-left active-mesh info chip, and the bottom-left zoom
  * readout.  Informational chrome only - the UV cursor and every transform affordance are gesture
- * controls and stay in UvGizmoOverlay.  Draw-only: it installs no pointer input, so the host mounts it
+ * controls and stay in UvEditGizmoOverlay.  Draw-only: it installs no pointer input, so the host mounts it
  * last and nothing below loses a gesture.
  *
  * The badge's proportional segment reads the UV editor's display-unit (texel) radius, not the

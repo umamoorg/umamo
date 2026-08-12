@@ -10,6 +10,7 @@ import org.umamo.format.cmo3.model.gen.CParameterGroupSet
 import org.umamo.format.cmo3.model.gen.CParameterSource
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
+import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
@@ -293,9 +294,12 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
+	private fun elementsOfInputs(extension: CTextureInputExtension): List<Any?> = Cmo3Import.elementsOf(extension._textureInputs)
+
 	/**
 	 * Builds the per-drawable texture-input extension for a fresh-graph binding: both input kinds
-	 * (model image + atlas region) with the region active, mirroring the editor's packed drawables.
+	 * (model image + atlas region), with the one the document's display mode samples made active,
+	 * mirroring the editor's packed drawables.
 	 *
 	 * @param CArtMeshSource            owner   The drawable source under construction.
 	 * @param Cmo3DrawableTextureBinding binding The drawable's texture web (page texture + patch).
@@ -332,7 +336,16 @@ internal class Cmo3StructureLowering(
 					}
 					add(atlasRegion)
 				}
-			currentTextureInputData = atlasRegion
+			// CMO3: CTextureInputExtension field currentTextureInputData - which input the document's
+			// display mode samples.  A drawable created in a layer-mode document must point at its model
+			// image, or the file's flag and its drawables disagree.  Falls back to the atlas region when
+			// there is no model image to point at, which is the only input such a drawable has.
+			currentTextureInputData =
+				if (edited.rendersFromSourceLayers) {
+					elementsOfInputs(this).filterIsInstance<CTextureInput_ModelImage>().firstOrNull() ?: atlasRegion
+				} else {
+					atlasRegion
+				}
 		}
 	}
 

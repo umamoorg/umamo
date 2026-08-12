@@ -64,7 +64,9 @@ data class OverlapEntry(val id: DrawableId, val label: String, val thumbnail: Im
  * intended for once its GLES viewport and gizmo overlay land. The popup never touches the selection
  * state; it reports the chosen drawable through [onPick] and closure through [onDismiss].
  *
- * @param IntOffset anchor          The cursor position to anchor the popup at, in window pixels.
+ * @param IntOffset anchor          The cursor position to anchor the popup at, local to the popup's
+ *                                  parent layout node (AtPointPositionProvider offsets from the
+ *                                  parent's bounds, clamped into the window).
  * @param List entries              The candidates, front-to-back.
  * @param Int defaultIndex          The pre-highlighted row (the centrality winner).
  * @param Function onPick           Called with the chosen drawable id.

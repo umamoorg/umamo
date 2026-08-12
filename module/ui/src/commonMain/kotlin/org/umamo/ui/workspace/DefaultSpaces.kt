@@ -57,7 +57,7 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					SpaceKind.UvEditor,
 					Res.string.space_uv,
 					LocalUmamoIcons.spaceTexture,
-					headerContent = { uvEditorHeaderControls() },
+					headerContent = { scope -> uvEditorHeaderControls(scope) },
 				) { scope -> UvEditorSpace(scope) },
 			SpaceKind.Outliner to
 				SpaceDescriptor(

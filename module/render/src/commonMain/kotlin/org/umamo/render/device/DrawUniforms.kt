@@ -76,6 +76,12 @@ public class DeformUniforms {
  * @property Float   highlightRed   Highlight tint red.
  * @property Float   highlightGreen Highlight tint green.
  * @property Float   highlightBlue  Highlight tint blue.
+ * @property FloatArray uvAffine   The 2x3 row-major affine (m00, m01, m02, m10, m11, m12) applied to the
+ *   interpolated texture coordinate before sampling.  Identity leaves the stored mapping alone; a
+ *   drawable sampling its SOURCE ARTWORK instead of the packed atlas carries the transform between
+ *   those two frames here, so the same stored coordinates address either image.  Rides on the fragment
+ *   uniforms deliberately: the glue draw path marshals only these, so a vertex-stage home would
+ *   silently miss glue meshes.
  */
 public class FragmentUniforms {
 	var useTexture: Boolean = false
@@ -96,6 +102,10 @@ public class FragmentUniforms {
 	var highlightRed: Float = 0f
 	var highlightGreen: Float = 0f
 	var highlightBlue: Float = 0f
+
+	// Six floats reused in place, like every other value here - see the class contract.  Identity, NOT
+	// zeroes: a zeroed affine collapses every coordinate onto one texel.
+	val uvAffine: FloatArray = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
 }
 
 /**
@@ -105,7 +115,8 @@ public class FragmentUniforms {
  * rather than allocating a bundle per drawable per frame; the device must read the fields before returning
  * and must not retain the instance (binding a texture reads its handle synchronously, so both backends can).
  *
- * @property GpuTexture? atlas             The art atlas page, or null to draw the flat color.
+ * @property GpuTexture? atlas             The art texture the draw samples - the packed atlas page, or the
+ *   drawable's source artwork when the puppet displays from that - or null to draw the flat color.
  * @property GpuTexture? maskCoverage      The clip mask's coverage, or null when unmasked.
  * @property GpuTexture? deltaTexture      The mesh's morph delta table (deform draws only).
  * @property GpuTexture? warpControlPoints The parent warp's baked control points, or null when the parent

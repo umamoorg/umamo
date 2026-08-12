@@ -8,6 +8,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
@@ -41,6 +42,15 @@ sealed interface PuppetDocument : Document {
 
 	/** The decoded atlas pages + per-drawable page index backing the puppet's preview. */
 	val textures: PuppetTextures
+
+	/**
+	 * The source artwork the puppet was authored against, plus each drawable's recovered link to it.
+	 *
+	 * Empty by default because only a format that retains its source art can surface any: a CMO3 keeps
+	 * every layer's pixels in its graph, while a MOC3 is the packed endpoint of that pipeline and has
+	 * none.  A surface that shows source art therefore checks for emptiness rather than assuming.
+	 */
+	val layers: LayerTextures get() = LayerTextures.EMPTY
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams

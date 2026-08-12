@@ -15,8 +15,6 @@ import org.umamo.render.pick.worldToScreenY
  * this file is the only place the two meet.  Every function here is a thin projection or an
  * ordinal-to-element mapping - the actual math lives (and is tested) in :render, where the UV editor
  * reuses it through its own camera.
- *
- * Compose 型と :render の純粋な画面空間幾何をつなぐ薄いアダプタ層。数学は :render 側にある。
  */
 
 /** Pointer distance (px) within which a click selects a vertex or an edge. */

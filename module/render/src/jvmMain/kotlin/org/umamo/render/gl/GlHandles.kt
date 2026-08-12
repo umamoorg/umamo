@@ -112,6 +112,8 @@ internal class GlUniformLocations(program: Int) {
 	val invertMask = GL20.glGetUniformLocation(program, "invertMask")
 	val highlight = GL20.glGetUniformLocation(program, "highlight")
 	val highlightColor = GL20.glGetUniformLocation(program, "highlightColor")
+	val uvAffineRow0 = GL20.glGetUniformLocation(program, "uvAffineRow0")
+	val uvAffineRow1 = GL20.glGetUniformLocation(program, "uvAffineRow1")
 
 	// Atlas page
 	val pageSize = GL20.glGetUniformLocation(program, "pageSize")

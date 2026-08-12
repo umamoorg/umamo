@@ -23,8 +23,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * so producing a snapshot costs O(changed spine), not O(model). They never mutate their input, so they
  * are trivially unit-testable and safe to use as undo snapshots. This is the model-mutation half of the
  * editing core; the EditorSession wraps these with history and change events.
- *
- * 不変な PuppetModel への純粋変換。変更点だけを差し替え、残りは構造共有する。入力は変更しない。
  */
 
 /**
@@ -731,4 +729,18 @@ fun PuppetModel.withRuntimeTarget(target: RuntimeTarget): PuppetModel {
 		return this
 	}
 	return copy(runtimeTarget = target)
+}
+
+/**
+ * This model displaying from its source artwork rather than from the packed atlas, or itself when the
+ * mode already matches.
+ *
+ * @param Boolean fromSourceLayers True to display from the source artwork, false from the atlas.
+ * @return PuppetModel The model with the display mode applied.
+ */
+fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
+	if (rendersFromSourceLayers == fromSourceLayers) {
+		return this
+	}
+	return copy(rendersFromSourceLayers = fromSourceLayers)
 }

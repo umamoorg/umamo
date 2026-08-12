@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -52,36 +54,36 @@ private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
 /**
  * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
  * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
- * moved sets) together with the atlas page dimensions.  The texture-space sibling of the Edit gesture, minus
- * every deformer concern: UVs live in one flat display space, so there is no space mapping, no movement
- * transfer, and no world/local split - the operator transforms the display coordinates directly and the
- * result converts straight back to normalized UV.
+ * moved sets) together with the frame those coordinates were mapped in.  The texture-space sibling of the
+ * Edit gesture, minus every deformer concern: UVs live in one flat display space, so there is no deformer
+ * space mapping, no movement transfer, and no world/local split - the operator transforms the display
+ * coordinates directly and the result converts back through the frame to the stored coordinates.
  *
- * The page dimensions freeze here so the display-to-uv conversion at drive and commit always matches the
- * space the originals were mapped in (the shown page can hop mid-gesture if the active drawable changes from
+ * The frame freezes here so the display-to-uv conversion at drive and commit always matches the space the
+ * originals were mapped in (the shown surface can hop mid-gesture if the active drawable changes from
  * another area).
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
- * @property Int pageWidth The atlas page width the display mapping used, in texels.
- * @property Int pageHeight The atlas page height the display mapping used, in texels.
+ * @property UvEditFrame frame The space the gesture is authored in (its texel size and the conversion
+ *   back to the stored coordinates).
  */
 private class UvGesture(
 	val transform: ModalTransformCapture,
-	val pageWidth: Int,
-	val pageHeight: Int,
+	val frame: UvEditFrame,
 )
 
 /**
- * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its atlas
- * underlay.  Self-gates to Edit mode with a camera - the mode-exclusive sibling of [UvObjectOverlay],
- * so the host mounts both unconditionally (the viewport overlay pair's convention).
+ * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its texture
+ * underlay - the atlas page or the source layer's artwork the area is showing.  Self-gates to Edit mode
+ * with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay], so the host mounts both
+ * unconditionally (the viewport overlay pair's convention).
  * Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the
  * idle element selection (click pick with Shift/Ctrl toggle, empty-drag box, sub-threshold-click
  * clear), and drives the modal G / S / R operators over raw texture coordinates through the shared
  * [ModalTransformController] - the same pointer semantics as the viewport overlays (stale discard,
- * virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with an identity space mapping: the
- * transformed display arrays convert straight back to normalized UV on drive and commit, no deformer
- * inverse involved.
+ * virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with no deformer inverse involved: the
+ * transformed display arrays convert back through the shown surface's frame to the stored coordinates
+ * on drive and commit.
  *
  * Live preview streams through [LocalPuppetRenderSync]: each pointer frame folds the transformed UVs
  * into an uncommitted model and pushes it to the puppet renderer, so the 2D viewport shows the art
@@ -93,8 +95,8 @@ private class UvGesture(
  * @param String areaId The UV editor area this overlay covers.
  * @param EditorSession session The session owning the selection and the UV operator latch.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
- * @param Int pageWidth The shown atlas page's width in texels (the display mapping's scale).
- * @param Int pageHeight The shown atlas page's height in texels.
+ * @param UvEditFrame frame The shown surface's texel size plus how a coordinate over it reaches the
+ *   stored texture coordinates (an atlas page is the stored frame itself; a source layer is not).
  * @param ViewportCamera? camera The area camera; null hides the overlay (no fit has landed yet).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
@@ -104,12 +106,11 @@ private class UvGesture(
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-internal fun UvGizmoOverlay(
+internal fun UvEditGizmoOverlay(
 	areaId: String,
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
-	pageWidth: Int,
-	pageHeight: Int,
+	frame: UvEditFrame,
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
@@ -131,12 +132,11 @@ internal fun UvGizmoOverlay(
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	// Live values the long-running pointer loop and effects read (they are keyed only on areaId, so
-	// they must not close over a stale camera / size / geometry / page when those change mid-edit).
+	// they must not close over a stale camera / size / geometry / frame when those change mid-edit).
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 	val liveGeometries = rememberUpdatedState(geometries)
-	val livePageWidth = rememberUpdatedState(pageWidth)
-	val livePageHeight = rememberUpdatedState(pageHeight)
+	val liveFrame = rememberUpdatedState(frame)
 	val liveRenderSync = rememberUpdatedState(renderSync)
 
 	// The box-select and circle-select machinery over the shared session selection.
@@ -163,7 +163,7 @@ internal fun UvGizmoOverlay(
 
 	// The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	// cursor wrap, pointer controller), the Edit overlay's shape.  The capture is the UV gesture (shared
-	// transform capture + frozen page dimensions); preview holds each moving mesh's display-space coordinates.
+	// transform capture + the frozen authoring frame); preview holds each moving mesh's display-space coordinates.
 	val gesture = remember(areaId) { ModalGestureState<UvGesture>() }
 
 	// The UV editor's own proportional influence radius, in display (texel) units, delegating to the
@@ -171,7 +171,7 @@ internal fun UvGizmoOverlay(
 	var proportionalRadiusDisplay by proportionalRadiusDisplayState
 
 	/**
-	 * Resolves the effective proportional radius, seeding it from the current page on first use.
+	 * Resolves the effective proportional radius, seeding it from the shown surface's size on first use.
 	 *
 	 * @return Float The influence radius in display units.
 	 */
@@ -181,7 +181,7 @@ internal fun UvGizmoOverlay(
 			return current
 		}
 		val seeded =
-			(minOf(livePageWidth.value, livePageHeight.value) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
+			(minOf(liveFrame.value.displayWidth, liveFrame.value.displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
 		proportionalRadiusDisplay = seeded
 		return seeded
 	}
@@ -198,7 +198,16 @@ internal fun UvGizmoOverlay(
 			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(transform.entries.size)
 			for (entry in transform.entries) {
 				val transformed = committed[entry.drawableId] ?: continue
-				newUvsByDrawable[entry.drawableId] = displayToUv(transformed, gestureData.pageWidth, gestureData.pageHeight)
+				// Only the moved vertices are written; untouched ones keep their exact stored values (see
+				// storedUvsWithMoved).  Same discipline as the snap path, and the reason a gesture over a
+				// wide selection does not report every mesh it covered as edited.
+				val storedUvs = session.model.value.drawables.firstOrNull { drawable -> drawable.id == entry.drawableId }?.mesh?.uvs
+				newUvsByDrawable[entry.drawableId] =
+					if (storedUvs == null) {
+						gestureData.frame.storedUvs(transformed)
+					} else {
+						storedUvsWithMoved(storedUvs, entry.movedIndices, transformed, gestureData.frame)
+					}
 				// The moved set, not just the covered set: proportional editing moves weighted
 				// unselected vertices too, and the change metadata must name every vertex touched.
 				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
@@ -211,8 +220,8 @@ internal fun UvGizmoOverlay(
 	}
 
 	// Drives the modal preview for one virtual-pointer position: the shared operator math over the
-	// frozen display arrays (identity space - no inverse), converted back to UV and folded into an
-	// uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.  False when
+	// frozen display arrays (no deformer inverse), converted back to stored coordinates and folded into
+	// an uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.  False when
 	// the capture has not landed yet.
 	fun driveModalPreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
 		val start = gesture.gestureStart ?: return false
@@ -232,7 +241,9 @@ internal fun UvGizmoOverlay(
 					transform.rotationTracker,
 				)
 			newPreview[entry.drawableId] = transformedDisplay
-			folded = folded.withMeshUvs(entry.drawableId, displayToUv(transformedDisplay, gestureData.pageWidth, gestureData.pageHeight))
+			// The preview converts whole arrays: it is transient and never committed, so the drift the
+			// commit above avoids is invisible here.
+			folded = folded.withMeshUvs(entry.drawableId, gestureData.frame.storedUvs(transformedDisplay))
 		}
 		gesture.preview = newPreview
 		liveRenderSync.value?.previewModel(folded)
@@ -264,7 +275,7 @@ internal fun UvGizmoOverlay(
 				val proportional = session.proportionalEdit.value
 				val gestureData = gesture.capture
 				if (steps != 0f && proportional != null && gestureData != null) {
-					val maxRadius = 4f * maxOf(gestureData.pageWidth, gestureData.pageHeight)
+					val maxRadius = 4f * maxOf(gestureData.frame.displayWidth, gestureData.frame.displayHeight)
 					val resized =
 						(effectiveProportionalRadius() * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 							.coerceIn(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY, maxRadius)
@@ -294,6 +305,20 @@ internal fun UvGizmoOverlay(
 		}
 	}
 
+	// Mirror U / V: the executing area was resolved at dispatch into the payload, so this gate is
+	// deterministic.  It routes through the overlay rather than straight to the session because the
+	// axis a mirror reflects about is a property of the SHOWN surface - reflecting a source layer's
+	// art about the atlas page's axis would be a different operation - and only this overlay knows
+	// which surface it is showing.
+	LaunchedEffect(session) {
+		session.uvMirrorRequests.collect { request ->
+			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
+				return@collect
+			}
+			session.mirrorSelectedUvs(request.mirrorU, liveFrame.value.asUvFrame())
+		}
+	}
+
 	// Select Linked (Blender's L / Ctrl+L): the executing area was resolved at dispatch into the
 	// payload, so this gate is deterministic.  UV islands are topology islands (UVs share the vertex
 	// index space), so the shared flood runs verbatim over the display geometry.
@@ -307,14 +332,14 @@ internal fun UvGizmoOverlay(
 	}
 
 	// The UV snap pie (Shift+S over the UV editor): the executing area was resolved at dispatch into
-	// the payload, so this gate is deterministic.  The executor owns the shown page's dimensions and
-	// the covered display geometry, so it performs the snap over the texture coordinates here.
+	// the payload, so this gate is deterministic.  The executor owns the shown surface's frame and the
+	// covered display geometry, so it performs the snap over the texture coordinates here.
 	LaunchedEffect(session) {
 		session.uvSnapRequests.collect { request ->
 			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 				return@collect
 			}
-			handleUvSnapRequest(session, liveGeometries.value, livePageWidth.value, livePageHeight.value, request.kind)
+			handleUvSnapRequest(session, liveGeometries.value, liveFrame.value, request.kind)
 		}
 	}
 
@@ -374,7 +399,7 @@ internal fun UvGizmoOverlay(
 				}
 			val cursorAnchor =
 				session.uvCursor.value?.let { cursor ->
-					uvToDisplayX(cursor.u, livePageWidth.value) to uvToDisplayY(cursor.v, livePageHeight.value)
+					liveFrame.value.displayAt(cursor.u, cursor.v)
 				}
 			val transform =
 				buildModalTransformCapture(
@@ -387,12 +412,12 @@ internal fun UvGizmoOverlay(
 					cursorAnchor = cursorAnchor,
 				)
 			if (transform == null) {
-				// Nothing movable on the shown page (the selection's covered meshes live elsewhere or
+				// Nothing movable on the shown surface (the selection's covered meshes live elsewhere or
 				// carry no editable UVs): drop the operator.
 				session.clearUvOperator()
 			} else {
 				transform.applyProportional(session.proportionalEdit.value, effectiveProportionalRadius())
-				gesture.begin(UvGesture(transform, livePageWidth.value, livePageHeight.value), gesture.lastPointer)
+				gesture.begin(UvGesture(transform, liveFrame.value), gesture.lastPointer)
 			}
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the else branch also runs at
@@ -453,10 +478,19 @@ internal fun UvGizmoOverlay(
 					},
 				),
 	) {
+		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw
+		// lambda sharing a layer, so the gesture chrome below (band, affordances, modal HUD) lives in
+		// a small layer of its own and the wireframes - the expensive pass - stay cached in this one.
+		// The chrome reads gesture.lastPointer, which updates on every pointer event (hover included),
+		// so its layer redraws per move; this layer re-records only when the geometry, the selection,
+		// or a live modal preview changes - and it composites OFFSCREEN, because a default layer
+		// retains a display list that every window repaint replays (re-stroking every edge), where the
+		// offscreen buffer rasterizes once per content change and blits per frame.
 		Canvas(
 			modifier =
 				Modifier
 					.fillMaxSize()
+					.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
 					.pointerInput(areaId) {
 						awaitPointerEventScope {
 							while (true) {
@@ -503,9 +537,10 @@ internal fun UvGizmoOverlay(
 										camera = activeCamera,
 										size = size,
 										placeCursor = { displayX, displayY ->
+											val (cursorU, cursorV) = liveFrame.value.storedUvAt(displayX, displayY)
 											session.setUvCursor(
-												displayToUvU(displayX, livePageWidth.value),
-												displayToUvV(displayY, livePageHeight.value),
+												cursorU,
+												cursorV,
 											)
 										},
 									)
@@ -531,7 +566,8 @@ internal fun UvGizmoOverlay(
 					size = IntSize(widthPx, heightPx),
 				)
 			}
-
+		}
+		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			drawRubberBand(marquee.boxStart, marquee.boxCurrent, overlayStyle)
 
 			// Armed select-tool affordances (Blender B / C), shared chrome with the viewport overlays.
