@@ -29,7 +29,7 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
 		Command("document.confirmReplace", title = null) { argument ->
 			(argument as? Function0<*>)?.let { proceed ->
-				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unexported) { proceed.invoke() }
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unsaved) { proceed.invoke() }
 			}
 		},
 		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a non-blocking alert.

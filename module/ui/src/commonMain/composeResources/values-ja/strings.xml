@@ -72,7 +72,7 @@
 	<string name="dialog_cancel">キャンセル</string>
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
-	<string name="confirm_discard_unexported">現在のドキュメントには書き出していない変更があります。破棄しますか？</string>
+	<string name="confirm_discard_unsaved">現在のドキュメントには書き出していない変更があります。破棄しますか？</string>
 	<!-- 書き出し結果の通知（document.exportReport コマンド。見出しは書き出した形式ごと。%1$s は対象メッシュ名）。 -->
 	<string name="export_report_message_cmo3">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
 	<string name="export_report_message_moc3">ファイルは書き出されましたが、以下は MOC3 に引き継げませんでした:</string>

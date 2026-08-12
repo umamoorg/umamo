@@ -34,6 +34,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
 
+## UI - Dialogs
+* The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
+	* This can have better wording if the buttons are configurable.
+
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.
 * UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.

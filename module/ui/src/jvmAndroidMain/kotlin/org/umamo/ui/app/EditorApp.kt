@@ -189,7 +189,7 @@ fun EditorApp(
 		}
 	}
 
-	// Replacing the document discards its session - the undo history and any unexported edits go with
+	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {

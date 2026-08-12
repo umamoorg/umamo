@@ -93,7 +93,7 @@
 	<string name="dialog_cancel">Cancel</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
-	<string name="confirm_discard_unexported">The current document has unexported changes.  Discard them?</string>
+	<string name="confirm_discard_unsaved">The document has unsaved changes.  Discard them?</string>
 	<!-- Export report alert (the document.exportReport command).  One header per export format,
 	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
 	     %1$s in the weld line is the affected drawable names. -->
