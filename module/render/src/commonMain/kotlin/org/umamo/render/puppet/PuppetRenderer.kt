@@ -318,13 +318,6 @@ class PuppetRenderer(
 	internal var compositeFlattenEnabled = true
 	internal var compositeBoundsScissorEnabled = true
 
-	// NO residency budget here, deliberately.  Source-artwork display exists to INSPECT the art, so a
-	// puppet drawn partly from its artwork and partly from its atlas is not a degraded view of the mode -
-	// it defeats the mode, because nothing on screen says which half is which.  Whether the document's
-	// artwork is affordable is decided ONCE, before any of it is decoded, by the producer that owns the
-	// plan's byte cost; if it does not fit, the mode is refused outright and the rigger is told.  By the
-	// time a plan reaches this renderer the answer is already yes.
-
 	// Glue weld partners by drawable (both directions), rebuilt with residency: a glue mesh's welded
 	// vertices stay inside the hull of its own and its partners' unwelded bounds, so the bounds walk
 	// unions the partner extents in.
