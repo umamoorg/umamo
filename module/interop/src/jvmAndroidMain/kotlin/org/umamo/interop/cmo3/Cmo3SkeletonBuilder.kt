@@ -132,6 +132,9 @@ internal object Cmo3SkeletonBuilder {
 						_rawImages = CArrayList<Any?>()
 						_modelImageGroups = CArrayList<Any?>()
 						_textureAtlases = CArrayList<Any?>()
+						// CMO3: CTextureManager field isTextureInputModelImageMode - the blank 5.4 document's
+						// own value.  A skeleton has no drawables, so the mode selects nothing; whoever
+						// populates the image chain writes the document's real one over this.
 						isTextureInputModelImageMode = true
 						previewReductionRatio = 1
 						artPathBrushUsingLayeredImageIds = CArrayList<Any?>()

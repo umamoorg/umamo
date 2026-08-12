@@ -76,6 +76,7 @@ import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.chromeCommands
+import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
@@ -236,7 +237,7 @@ fun EditorShell(
 	// current session.  They do not key on the render service: the pointer's area resolves through the
 	// shared routing seam, which reads it live, so a renderer change has nothing to re-register here.
 	val editorSession = LocalEditorSession.current
-	// One tier set shared by every document-scoped group below, so the nine tables hold the same three
+	// One tier set shared by every document-scoped group below, so the ten tables hold the same three
 	// availability objects rather than three apiece.  Keyed on the session exactly as their effects are.
 	val availability = remember(editorSession) { SessionAvailability(editorSession) }
 	DisposableEffect(commandRegistry, editorSession, selection) {
@@ -249,7 +250,8 @@ fun EditorShell(
 					snapCommands(editorSession, routing, availability) +
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
-					proportionalCommands(editorSession, availability),
+					proportionalCommands(editorSession, availability) +
+					displayCommands(editorSession, availability),
 			)
 		onDispose { cleanup() }
 	}

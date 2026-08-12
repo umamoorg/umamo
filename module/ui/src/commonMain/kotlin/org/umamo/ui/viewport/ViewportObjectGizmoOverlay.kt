@@ -128,9 +128,9 @@ fun ViewportObjectGizmoOverlay(
 		return
 	}
 	// Armed = a select tool or an object operator LATCHED IN THIS AREA owns the pointer; only then does the
-	// overlay hide the OS cursor and consume input.  When idle the loop still runs (to keep the operator
-	// teardown effect mounted) but consumes nothing, so a plain click falls through to the navigation
-	// layer's object picker.  A gesture owned by another viewport leaves this area idle and inert.
+	// overlay hide the OS cursor.  Idle is not inert: the loop still owns the click pick and the un-armed
+	// box, consuming only primary-driven events, so middle-drag pan and wheel zoom fall through to the
+	// navigation layer.  A gesture owned by another viewport leaves this area idle and inert.
 	val ownedSelectTool = activeSelectTool?.takeIf { it.areaId == areaId }
 	val armed = ownedSelectTool != null || activeObjectOperator?.areaId == areaId
 	val overlayStyle = selectionOverlayStyle(overlayColors)

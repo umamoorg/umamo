@@ -12,8 +12,8 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the object-pick decision tables ([resolveObjectClickSelection], [resolveAltOverlapPick]): the
- * Blender click semantics the 2D viewport ships and a future UV object mode must reproduce verbatim,
- * since both feed the SAME session selection.
+ * Blender click semantics the 2D viewport and the UV editor's Object mode both ship verbatim, since
+ * both feed the SAME session selection.
  */
 class ObjectPickControllerTest {
 	private val drawableA = SelectionTarget.Drawable(DrawableId("a"))

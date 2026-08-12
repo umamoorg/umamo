@@ -4,9 +4,6 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.PuppetModel
 
-/** A decoded RGBA image (top row first), ready for GL upload. */
-class DecodedImage(val rgba: ByteArray, val width: Int, val height: Int)
-
 /**
  * The texture data backing a puppet preview: the distinct atlas page(s) the art meshes sample, plus a
  * per-drawable index into them.  Art meshes typically share one atlas page in `TEXTURE_ATLAS` mode, but
