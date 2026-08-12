@@ -22,7 +22,7 @@ Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this to
 Commands:
   dump <file>      Print a cmo3/moc3/artwork file's contents.  MOC3 defaults to printing
                    a static rig summary.  CMO3 defaults to the archive entry table plus
-                   the parsed main.xml overview.  Source artwork (psd, clip, kra, or a
+                   the parsed main.xml overview.  Source artwork(PSD, CLIP, KRA, or a
                    flat raster) prints its canvas, folders, and per-layer inventory with
                    each layer's trimmed opaque bounds.
                      --sections  MOC3 container tier: per-section presence and counts.
@@ -34,7 +34,7 @@ Commands:
                    after the model, created under <directory> (Default: The file's own
                    directory) - `extract Model.cmo3 test/work/` writes test/work/Model/.
   atlas <file> [<directory>]
-                   Pack a source artwork document (psd, clip, kra, or a flat raster) into
+                   Pack a source artwork document(PSD, CLIP, KRA, or a flat raster) into
                    texture atlas pages.  Writes page_NN.png plus placements.txt to a NEW
                    subdirectory named after the input, then reads every packed tile back
                    out of its page and fails if any byte differs.  Layers with no opaque
