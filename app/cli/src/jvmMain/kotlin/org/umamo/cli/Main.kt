@@ -15,13 +15,16 @@ private const val USAGE = """Umamo diagnostic CLI
 Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this tool's):
   ./gradlew -q :cli:run --args="dump <file> [--sections] [--xml] [--puppet]"
   ./gradlew -q :cli:run --args="extract <file> [<directory>]"
+  ./gradlew -q :cli:run --args="atlas <file> [<directory>] [options]"
   ./gradlew -q :cli:run --args="convert <in> <out>"
   ./gradlew -q :cli:run --args="diff <a> <b>"
 
 Commands:
-  dump <file>      Print a cmo3/moc3's contents.  MOC3 defaults to printing a static
-                   rig summary.  CMO3 defaults to the archive entry table plus the
-                   parsed main.xml overview.
+  dump <file>      Print a cmo3/moc3/artwork file's contents.  MOC3 defaults to printing
+                   a static rig summary.  CMO3 defaults to the archive entry table plus
+                   the parsed main.xml overview.  Source artwork (psd, clip, kra, or a
+                   flat raster) prints its canvas, folders, and per-layer inventory with
+                   each layer's trimmed opaque bounds.
                      --sections  MOC3 container tier: per-section presence and counts.
                      --xml       CMO3 only: the decompressed main.xml, byte-for-byte.
                      --puppet    Either format: import to a PuppetModel and summarize.
@@ -30,6 +33,21 @@ Commands:
                    every embedded layer PNG.  Files write to a NEW subdirectory named
                    after the model, created under <directory> (Default: The file's own
                    directory) - `extract Model.cmo3 test/work/` writes test/work/Model/.
+  atlas <file> [<directory>]
+                   Pack a source artwork document (psd, clip, kra, or a flat raster) into
+                   texture atlas pages.  Writes page_NN.png plus placements.txt to a NEW
+                   subdirectory named after the input, then reads every packed tile back
+                   out of its page and fails if any byte differs.  Layers with no opaque
+                   pixels, or too large for a page, are reported rather than dropped.
+                     --page-size=N   Page side to pack against (Default: 4096).
+                     --gutter=N      Transparent spacing around every tile (Default: 2).
+                     --extrude=N     Edge pixels replicated into the gutter (Default: 2).
+                     --rotate        Allow quarter-turning tiles to pack tighter.
+                     --visible-only  Skip layers hidden by their own or a folder's eye.
+                     --no-shrink     Keep full --page-size pages instead of cropping.
+                     --preview       Also write preview.png: the canvas recomposited
+                                     from the packed pages (Source-over; blend modes
+                                     and layer opacity ignored).
   convert <in> <out>
                    Direction by input format and output extension:
                      cmo3 -> cmo3  Resave (An unedited main.xml will reemit byte-identical.)
@@ -72,6 +90,7 @@ internal fun runCli(arguments: List<String>): Int {
 		when (arguments[0]) {
 			"dump" -> runDump(arguments.drop(1))
 			"extract" -> runExtract(arguments.drop(1))
+			"atlas" -> runAtlas(arguments.drop(1))
 			"convert" -> runConvert(arguments.drop(1))
 			"diff" -> runDiff(arguments.drop(1))
 			else -> {

@@ -1,5 +1,7 @@
 package org.umamo.cli
 
+import org.umamo.format.art.SourceLayerKind
+import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.serialize.ModelDocument
@@ -50,6 +52,13 @@ internal fun runDump(arguments: List<String>): Int {
 				return 0
 			}
 			dumpCmo3Overview(loaded.model)
+		}
+
+		is LoadedInput.SourceArtInput -> {
+			if ("--sections" in flags || "--xml" in flags) {
+				throw CliUsageException("--sections and --xml do not apply to source artwork")
+			}
+			dumpSourceArt(loaded)
 		}
 	}
 	if ("--puppet" in flags) {
@@ -194,6 +203,47 @@ private fun dumpPuppetSummary(puppet: PuppetModel) {
 		println(
 			"P $parameterIndex id=${parameter.id.raw} min=${formatSixSignificant(parameter.min)} " +
 				"max=${formatSixSignificant(parameter.max)} def=${formatSixSignificant(parameter.default)}",
+		)
+	}
+}
+
+/**
+ * The source-artwork summary: canvas, folder attributes, and one line per layer.
+ *
+ * The layer inventory a PSD/CLIP/KRA reader produces has had no way to be seen until now, which is
+ * the same gap the atlas command closes on the packing side - this is what you read to judge whether
+ * a pack skipped the layers it should have.  The alpha column is the packer's own view: the trimmed
+ * opaque bounds, or `empty` for a layer with no opaque pixel (which never reaches a page).
+ *
+ * @param LoadedInput.SourceArtInput loaded The loaded artwork document.
+ */
+private fun dumpSourceArt(loaded: LoadedInput.SourceArtInput) {
+	val art = loaded.art
+	val rasterLayerCount = art.layers.count { layer -> layer.kind == SourceLayerKind.Raster }
+	println("[artwork] ${loaded.file.name}")
+	println("# canvas ${art.widthPx}x${art.heightPx}")
+	println("# counts layers=${art.layers.size} raster=$rasterLayerCount groups=${art.groups.size}")
+	art.groups.forEach { group ->
+		println(
+			"G path=${group.path} name=${group.name} vis=${if (group.visible) 1 else 0} " +
+				"op=${formatSixSignificant(group.opacity)} blend=${group.blend} " +
+				"clip=${if (group.clipped) 1 else 0} through=${if (group.passThrough) 1 else 0}",
+		)
+	}
+	art.layers.forEachIndexed { layerIndex, layer ->
+		val trimmed = layer.analyzeAlpha(contourEpsilon = 0f)
+		val alphaColumn =
+			if (trimmed == null) {
+				"empty"
+			} else {
+				"${trimmed.opaqueBounds.width}x${trimmed.opaqueBounds.height}" +
+					"+${trimmed.opaqueBounds.left}+${trimmed.opaqueBounds.top}"
+			}
+		println(
+			"L $layerIndex order=${layer.order} kind=${layer.kind} id=${layer.id.raw} name=${layer.name} " +
+				"at=${layer.bounds.left},${layer.bounds.top} size=${layer.bounds.width}x${layer.bounds.height} " +
+				"alpha=$alphaColumn op=${formatSixSignificant(layer.opacity)} blend=${layer.blend} " +
+				"vis=${if (layer.visible) 1 else 0} clip=${if (layer.clipped) 1 else 0} group=${layer.groupPath}",
 		)
 	}
 }

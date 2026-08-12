@@ -37,4 +37,8 @@ tasks.register<JavaExec>("run") {
 	// Relative file arguments should resolve against the repo root the operator invoked from, not
 	// this subproject's directory (JavaExec's default).
 	workingDir = repositoryRoot
+	// The atlas packer holds every source layer's pixels plus the pages it composes, and a real
+	// document is hundreds of megabytes of raster before a single page is allocated.  The JVM
+	// default (a quarter of RAM) is not something to leave to the operator's machine.
+	maxHeapSize = "6g"
 }

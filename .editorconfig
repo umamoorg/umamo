@@ -34,7 +34,6 @@ ktlint_function_naming_ignore_when_annotated_with = Composable
 # (wildcard) import for that single generated package so consumers write `import …resources.*`
 # instead of one line per string; no-wildcard-imports stays strict for every other package. This is
 # the precise form of the gen/ subtree's blanket disable — exempt the generated package, not the file.
-# EN: wildcard allowed only for the generated resources package. JA: 生成リソースパッケージのみ一括インポート許可。
 ij_kotlin_packages_to_use_import_on_demand = org.umamo.ui.resources.**
 
 [*.{yml,yaml,json,toml}]

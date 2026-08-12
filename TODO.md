@@ -310,10 +310,14 @@ is still ahead.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
 	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
 	contour) comes from `analyzeAlpha` in `:format` — Phase B, shared with step 3.
-3. Atlas generation / packing. Pending: no packer exists yet (today the atlas is inherited from the imported
-	CMO3 — `extractPuppetTextures`). Pack layer tiles into page(s), emit UVs pointing at the tiles; hold the
-	vertex→art-pixel binding invariant across every repack. Foundation built: the trimmed pack rects come from
-	`analyzeAlpha` (Phase B).
+3. Atlas generation / packing. Built (Phase C session C1, 2026-08-12): `packAtlas` in `:format` commonMain
+	(`org.umamo.format.atlas`) trims via `analyzeAlpha`, MaxRects-packs with a configurable gutter/extrusion,
+	composes and encodes the pages, and reports every layer it could not pack. Verified byte-exact by
+	`AtlasPackCorpusTest` and by the `atlas` CLI subcommand on every run. Pending: the AUTHORED placement model
+	(session C2) — the packer emits a packing report, nothing persists it, and `PuppetTextures` still stores
+	only a page index — plus emitting UVs from placements, which is Phase E's. Also pending: downscale-to-fit
+	(a source layer larger than the page cap is reported, not packed) and refitting `Cmo3AtlasUndedup`'s
+	private shelf packer onto the shared one (session C3).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
