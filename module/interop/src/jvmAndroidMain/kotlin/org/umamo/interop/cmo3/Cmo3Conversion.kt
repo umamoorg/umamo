@@ -19,19 +19,21 @@ import kotlin.math.roundToInt
  * baseline as created entities.  Stateless - each call builds a new graph; the caller writes the
  * result with Cmo3.write.
  *
- * KNOWN GAP (2026-08-03): the file this produces LOADS cleanly in the official Cubism Editor -
- * correct part/deformer hierarchy, parameters, and texture atlas - but the puppet does NOT render
- * there.  It is a documented functionality gap rather than an open defect, because a .moc3 does
- * not carry the SOURCE ART a CMO3 is built around: [Cmo3ImageChainBuilder] can only fabricate a
- * source document by slicing the packed atlas back apart, and that reconstruction is what the
- * art-sourcing pipeline replaces (docs/plan/art-sourcing-pipeline.md Phase H - an imported MOC3
- * will reconcile its original PSD/CLIP/KRA before it can emit a valid CMO3).  CMO3.md section
- * Fresh-Graph Synthesis records what differential testing against Cubism's own golden file and a
- * third-party converter already RULED OUT (geometry, coordinate-frame sign, element shape, null
- * coverage, and the source-art web itself), so start there rather than re-deriving it.
+ * The file this produces opens and renders in the official Cubism Editor and switches between its
+ * layered-art and texture-atlas display modes.  What it cannot carry is real SOURCE ART: a .moc3
+ * has none, so [Cmo3ImageChainBuilder] fabricates a source document by slicing the packed atlas
+ * back apart, and every layer in the output is a slice of a baked page rather than the artwork the
+ * rig was drawn from.  The art-sourcing pipeline replaces that reconstruction outright
+ * (docs/plan/art-sourcing-pipeline.md Phase H - an imported MOC3 reconciles its original
+ * PSD/CLIP/KRA first), which is why every conversion leads its report with MissingSourceArt.
  *
- * The CMO3-origin path ([Cmo3Export.apply] onto a retained graph) is unaffected - it keeps the
- * document's real layered art, and its byte-identity gates hold.
+ * One open issue at scale: modelF (~850 MB, several hundred layers) OOMs the official editor when
+ * switched back to texture-atlas mode.  Atlas mode recomposites the page from the materials, so
+ * peak memory tracks the TOTAL crop area this builder emits rather than the page size - measure
+ * that ratio before treating it as an editor limit.
+ *
+ * The CMO3-origin path ([Cmo3Export.apply] onto a retained graph) keeps the document's real
+ * layered art, and its byte-identity gates hold.
  */
 public object Cmo3Conversion {
 	/** One atlas page: the original PNG bytes (model3 texture order) plus its pixel dimensions. */
@@ -132,8 +134,8 @@ public object Cmo3Conversion {
 		val report = Cmo3Export.apply(effectivePuppet, model, bindings)
 		// Every fresh-graph export is by definition source-art-less - the stand-in document above is
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
-		// per-entity findings.  It is the one finding that explains why the file will not render in
-		// the official editor, which no amount of per-drawable detail would tell the user.
+		// per-entity findings.  It is the one finding that describes the WHOLE file rather than an
+		// entity in it, which no amount of per-drawable detail would tell the user.
 		return Result(
 			model,
 			report.copy(notices = listOf(ExportNotice.MissingSourceArt(effectivePages.size)) + report.notices),

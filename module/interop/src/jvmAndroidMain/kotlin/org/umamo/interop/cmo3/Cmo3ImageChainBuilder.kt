@@ -67,17 +67,15 @@ import org.umamo.format.raster.RasterImage
  * despite geometry that is offset by a constant from Cubism's own golden file for the same model.
  * The web here exists for the editor's texture-atlas and mesh-edit VIEWS, which derive
  * mesh-over-texture placement from the model images; a single whole-page image cannot place
- * hundreds of drawables and drew every mesh at its assembled canvas position instead.
+ * hundreds of drawables and drew every mesh at its assembled canvas position instead.  Do not
+ * "simplify" by deleting the web: that shape was tested and the editor errors with an empty atlas.
  *
- * KNOWN GAP (2026-08-03): a MOC3-origin export LOADS cleanly in the official editor - correct
- * hierarchy, parameters, and atlas - but the puppet does NOT render.  This is a documented
- * functionality gap, not an open defect: the real fix is the art-sourcing pipeline
- * (docs/plan/art-sourcing-pipeline.md Phase H), where an imported MOC3 reconciles its ORIGINAL
- * layered art into Umamo and this synthetic web is replaced by real source images.  Before
- * re-opening the hunt, read CMO3.md section Fresh-Graph Synthesis: geometry (ours matches the
- * golden to the digit), coordinate-frame sign, element shape, null coverage, and the presence of
- * the source-art web are ALL ruled out by differential testing.  Do not "fix" this by deleting
- * the web either - that shape was tested and the editor errors with an empty atlas.
+ * The output renders in the official editor and switches between layered-art and texture-atlas
+ * display modes.  The one known failure is scale: modelF (~850 MB, several hundred layers) OOMs
+ * the editor on the switch BACK to atlas mode.  Atlas mode recomposites the page out of the
+ * materials, so peak memory tracks the total area of the crops cut below, not the page size - a uv
+ * bounding box overlaps its neighbours, so that total can run to a multiple of the page.  Measure
+ * it before concluding the editor is simply out of room.
  *
  * WHAT IT BUILDS, mirroring the official ATLAS-MODE shape (EricaTamamo,
  * isTextureInputModelImageMode=false): one CTextureAtlas + ONE SHARED GTexture2D per page that

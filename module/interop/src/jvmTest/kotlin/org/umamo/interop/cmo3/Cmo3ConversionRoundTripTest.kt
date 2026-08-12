@@ -89,8 +89,8 @@ class Cmo3ConversionRoundTripTest {
 				obfuscateKey = 0x5EEDBEEF,
 			)
 		// Every MOC3-origin conversion MUST warn that it has no source artwork - that is the one
-		// notice explaining why the file will not render in the official editor, so its absence is
-		// as much a defect as a spurious notice would be.
+		// notice describing the whole file rather than an entity in it, so its absence is as much a
+		// defect as a spurious notice would be.
 		if (result.report.notices.none { notice -> notice is ExportNotice.MissingSourceArt }) {
 			failures.add("$label: missing the MissingSourceArt notice")
 		}

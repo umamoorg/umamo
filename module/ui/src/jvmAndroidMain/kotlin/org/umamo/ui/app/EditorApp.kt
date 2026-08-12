@@ -556,8 +556,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
 				notice.subjects.take(8).joinToString() +
 				if (notice.subjects.size > 8) " (+${notice.subjects.size - 8} more)" else ""
 		is ExportNotice.MissingSourceArt ->
-			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s); " +
-				"it will not render in the Cubism Editor until the original layered art is reconciled in"
+			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
+				"so its layers are atlas slices rather than the original artwork"
 	}
 
 /**
