@@ -3,7 +3,8 @@ package org.umamo.render.puppet
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
-import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.WorldAxisColors
@@ -317,6 +318,18 @@ class PuppetRenderer(
 	internal var compositeFlattenEnabled = true
 	internal var compositeBoundsScissorEnabled = true
 
+	// How much source artwork may be resident at once.  A document can reference hundreds of layers -
+	// modelA's inventory alone would be gigabytes decoded - so displaying from artwork admits a WORKING
+	// SET rather than the whole document, and everything outside it keeps drawing from the atlas page it
+	// was already drawing from.
+	//
+	// Bytes lead because layer sizes span three orders of magnitude, so a count alone cannot bound
+	// memory; the count is a second ceiling because each texture is also a driver object.  Both are
+	// internal so a test can shrink them to force eviction on a small fixture, exactly as the two
+	// composite switches above are.
+	internal var sourceLayerByteBudget: Long = 512L * 1024 * 1024
+	internal var sourceLayerTextureCap: Int = 256
+
 	// Glue weld partners by drawable (both directions), rebuilt with residency: a glue mesh's welded
 	// vertices stay inside the hull of its own and its partners' unwelded bounds, so the bounds walk
 	// unions the partner extents in.
@@ -332,11 +345,30 @@ class PuppetRenderer(
 	// source-artwork textures below also are.
 	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
 
-	// The source artwork the puppet currently displays from, and its uploaded textures keyed by LAYER
-	// (duplicated art is shared, so this is the count of distinct images, not of drawables).  Retained
-	// so a structural reconcile can re-stamp a rebuilt resident, exactly as atlasHandles is.
-	private var layerRasters: LayerRasterSet = LayerRasterSet.EMPTY
+	// Which artwork every drawable would display from - the mapping, complete for the whole document and
+	// carrying no pixels.  Retained so a structural reconcile can re-stamp a rebuilt resident, exactly as
+	// atlasHandles is, and so a layer dropped for budget can be promoted again without rebuilding it.
+	private var layerPlan: LayerDrawPlan = LayerDrawPlan.EMPTY
+
+	// The uploaded artwork, keyed by LAYER (duplicated art is shared, so this is the count of distinct
+	// images, not of drawables).  Bounded: see applySourceLayerResidency, which is the ONLY thing allowed
+	// to add to or remove from these three, because eviction is only safe together with the re-stamp.
 	private val layerTextures = HashMap<String, GpuTexture>()
+	private val layerTextureBytes = HashMap<String, Long>()
+	private val layerRecency = HashMap<String, Long>()
+	private var residencyTick = 0L
+
+	// Layers the document references but whose pixels would not decode.  Held so residency stops asking
+	// for them every pass; cleared with the plan, because a new document may well decode them.
+	private val undecodableLayerKeys = HashSet<String>()
+
+	// What the producer should decode next, and which request that answers.  Written on the render thread
+	// and read off it, so both publish volatile - the same shape as currentModel above.
+	@Volatile
+	private var wantedLayerKeysBacking: Set<String> = emptySet()
+
+	@Volatile
+	private var wantedLayerGenerationBacking: Long = 0L
 
 	// Whether render() draws the world-origin axis lines. Off by default so headless render-diff tests stay
 	// line-free; the editor's viewport host opts in.
@@ -461,51 +493,229 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * Sets the source artwork the puppet displays from, uploading what it needs and dropping what it no
-	 * longer does.  An empty set returns every drawable to its atlas page.
+	 * Sets which artwork every drawable would display from.  An empty plan returns the whole puppet to
+	 * its atlas pages.
+	 *
+	 * The plan carries no pixels, so this is cheap: it decides the mapping and republishes what the
+	 * producer should decode next ([wantedSourceLayerKeys]).  Pixels arrive separately, through
+	 * [deliverSourceLayerRasters].
+	 *
+	 * Render thread only - it can destroy GPU resources through the residency pass below.
+	 *
+	 * @param LayerDrawPlan plan The mapping to display by, or [LayerDrawPlan.EMPTY] for the atlas.
+	 */
+	fun setSourceLayerPlan(plan: LayerDrawPlan) {
+		if (plan === layerPlan) {
+			return
+		}
+		layerPlan = plan
+		// A new plan is a new document or a new drawable set; a layer that would not decode for the old
+		// one deserves another chance rather than being written off for the renderer's life.
+		undecodableLayerKeys.clear()
+		applySourceLayerResidency()
+	}
+
+	/**
+	 * Takes delivery of decoded artwork, uploading what the current working set still wants.
 	 *
 	 * Render thread only: it creates and destroys GPU resources, so it must run with the context
 	 * current.  The engine holds the pending value and calls this from inside the render loop, the way
 	 * every other renderer input arrives.
 	 *
-	 * The set arrives already decoded (see [LayerRasterSet]) so no frame is spent decoding, and it takes
-	 * effect whole rather than resolving piecemeal across frames: the puppet displays from the atlas until
-	 * a set lands.  Coverage WITHIN a set is still per drawable - one the set does not name keeps its
-	 * atlas page.
+	 * The batch is consumed, never retained - its images are uploaded and the reference dropped, so the
+	 * decoded bytes do not outlive the call.  A batch prepared against a superseded working set is not
+	 * discarded wholesale: whatever it carries that is STILL wanted is uploaded anyway, since it is
+	 * already decoded and throwing it away would only force the producer to decode it again.
 	 *
-	 * @param LayerRasterSet rasters The artwork to display from, or [LayerRasterSet.EMPTY] for the atlas.
+	 * @param LayerRasterBatch batch The decoded artwork to take up.
 	 */
-	fun setSourceLayerRasters(rasters: LayerRasterSet) {
-		if (rasters === layerRasters) {
-			return
-		}
-		layerRasters = rasters
-		// Upload what the new set needs; a layer already resident keeps its texture rather than churning.
-		for ((layerKey, image) in rasters.rastersByLayerKey) {
-			if (!layerTextures.containsKey(layerKey)) {
-				layerTextures[layerKey] =
-					device.createTexture(
-						image.width,
-						image.height,
-						TextureFormat.Rgba8,
-						TextureFilter.Linear,
-						image.rgba,
-						// A drawable's mesh overhangs the art it samples, so its recovered coordinates run past
-						// this image - across the corpus by up to 443 layer pixels.  An atlas page absorbs that
-						// overhang in its own padding; a layer image has no padding to absorb it, so the wrap
-						// mode is what has to supply the transparency (see TextureWrap).
-						TextureWrap.ClampToTransparentBorder,
-					)
+	fun deliverSourceLayerRasters(batch: LayerRasterBatch) {
+		undecodableLayerKeys.addAll(batch.undecodableLayerKeys)
+		for ((layerKey, image) in batch.rastersByLayerKey) {
+			if (layerKey in layerTextures || layerKey !in wantedLayerKeysBacking) {
+				continue
 			}
+			layerTextures[layerKey] =
+				device.createTexture(
+					image.width,
+					image.height,
+					TextureFormat.Rgba8,
+					TextureFilter.Linear,
+					image.rgba,
+					// A drawable's mesh overhangs the art it samples, so its recovered coordinates run past
+					// this image - across the corpus by up to 443 layer pixels.  An atlas page absorbs that
+					// overhang in its own padding; a layer image has no padding to absorb it, so the wrap
+					// mode is what has to supply the transparency (see TextureWrap).
+					TextureWrap.ClampToTransparentBorder,
+				)
+			layerTextureBytes[layerKey] = image.width.toLong() * image.height.toLong() * 4L
 		}
-		val obsolete = layerTextures.keys.filter { layerKey -> layerKey !in rasters.rastersByLayerKey }
-		for (layerKey in obsolete) {
-			layerTextures.remove(layerKey)?.let { texture -> device.destroyTexture(texture) }
+		applySourceLayerResidency()
+	}
+
+	/**
+	 * Recomputes which artwork stays resident, frees what fell out, and re-points every resident at what
+	 * it should now sample.
+	 *
+	 * THE ONLY MUTATOR of [layerTextures]: freeing a texture while a drawable still points at it leaves a
+	 * dangling handle that draws garbage, so eviction and the re-stamp are one operation rather than two
+	 * a caller must remember to pair.  Anything that changes the working set calls this instead of
+	 * touching the map.
+	 *
+	 * Admission is by GROUP, not by layer.  A drawable and the masks that clip it must sample the same
+	 * frame - a mask on its atlas page against art on its layer raster cuts the silhouette to garbage
+	 * (see [stampSourceLayer]) - so drawables joined by masking or glue are admitted or dropped together.
+	 * Groups touching a shown drawable go first, then the rest in draw order, so what the rigger is
+	 * looking at wins the budget.
+	 *
+	 * Eviction is on demand: a group leaving the working set keeps its textures until the room is
+	 * actually needed, so toggling a part's visibility back and forth does not re-upload every time.
+	 */
+	private fun applySourceLayerResidency() {
+		residencyTick++
+		val admitted = admissibleLayerKeys()
+		// Publish the ask BEFORE freeing anything: the producer decodes off-thread, and a layer it is
+		// already working on should not be asked for twice.
+		if (admitted != wantedLayerKeysBacking) {
+			wantedLayerKeysBacking = admitted
+			wantedLayerGenerationBacking++
 		}
+		for (layerKey in admitted) {
+			layerRecency[layerKey] = residencyTick
+		}
+		evictBeyondBudget(admitted)
 		for ((drawableId, gpuDrawable) in gpuById) {
 			stampSourceLayer(gpuDrawable, drawableId)
 		}
 	}
+
+	/**
+	 * The layers the working set wants, in priority order, cut off where the budget runs out.
+	 *
+	 * @return Set The layer keys admitted for residency.
+	 */
+	private fun admissibleLayerKeys(): Set<String> {
+		if (layerPlan.isEmpty) {
+			return emptySet()
+		}
+		val groups = sourceLayerGroups()
+		val admitted = LinkedHashSet<String>()
+		var admittedBytes = 0L
+		for (group in groups) {
+			val groupKeys =
+				group.mapNotNullTo(LinkedHashSet()) { drawableId -> layerPlan.drawsByDrawableId[drawableId.raw]?.layerKey }
+					.filterTo(LinkedHashSet()) { layerKey -> layerKey !in undecodableLayerKeys }
+			// Only what this group ADDS costs anything; art it shares with an already-admitted group is
+			// paid for once, which is what keeps a widely-reused layer from crowding the budget.
+			val marginalKeys = groupKeys.filterTo(LinkedHashSet()) { layerKey -> layerKey !in admitted }
+			if (marginalKeys.isEmpty()) {
+				continue
+			}
+			val marginalBytes = marginalKeys.sumOf { layerKey -> layerPlan.layerByteCostByKey[layerKey] ?: 0L }
+			if (admittedBytes + marginalBytes > sourceLayerByteBudget || admitted.size + marginalKeys.size > sourceLayerTextureCap) {
+				// Skip rather than stop: a later group may be small enough to fit in what is left, and one
+				// oversized group should not starve everything behind it.
+				continue
+			}
+			admitted.addAll(marginalKeys)
+			admittedBytes += marginalBytes
+		}
+		return admitted
+	}
+
+	/**
+	 * The drawables that must sample the same frame as each other, most wanted group first.
+	 *
+	 * Connected components over masking and glue, restricted to drawables the plan maps.  A group is
+	 * prioritized when any of its members is shown, so the visible puppet is served before art that is
+	 * only posed for a mask or held for a glue partner.
+	 *
+	 * @return List The groups, in admission priority order.
+	 */
+	private fun sourceLayerGroups(): List<List<DrawableId>> {
+		val mapped = baseOrder.filter { drawableId -> drawableId.raw in layerPlan.drawsByDrawableId }
+		val neighbors = HashMap<DrawableId, MutableSet<DrawableId>>()
+
+		fun link(first: DrawableId, second: DrawableId) {
+			if (first == second) {
+				return
+			}
+			neighbors.getOrPut(first) { mutableSetOf() }.add(second)
+			neighbors.getOrPut(second) { mutableSetOf() }.add(first)
+		}
+		for (drawableId in mapped) {
+			gpuById[drawableId]?.maskIds?.forEach { maskId -> link(drawableId, maskId) }
+			gluePartnersById[drawableId]?.forEach { partnerId -> link(drawableId, partnerId) }
+		}
+		val mappedSet = mapped.toHashSet()
+		val seen = HashSet<DrawableId>()
+		val groups = ArrayList<List<DrawableId>>()
+		for (drawableId in mapped) {
+			if (!seen.add(drawableId)) {
+				continue
+			}
+			val group = ArrayList<DrawableId>()
+			val pending = ArrayDeque<DrawableId>()
+			pending.addLast(drawableId)
+			while (pending.isNotEmpty()) {
+				val current = pending.removeFirst()
+				group.add(current)
+				for (neighbor in neighbors[current].orEmpty()) {
+					// A mask source the plan does not map draws from its atlas either way, so it constrains
+					// nothing and is left out of the group rather than dragging it wider.
+					if (neighbor in mappedSet && seen.add(neighbor)) {
+						pending.addLast(neighbor)
+					}
+				}
+			}
+			groups.add(group)
+		}
+		return groups.sortedByDescending { group -> group.any { drawableId -> drawableId in shownDrawableIds } }
+	}
+
+	/**
+	 * Frees resident artwork outside [admitted], least recently admitted first, until both ceilings hold.
+	 *
+	 * @param Set admitted The layers residency wants to keep.
+	 */
+	private fun evictBeyondBudget(admitted: Set<String>) {
+		fun residentBytes(): Long = layerTextureBytes.values.sum()
+		val evictable =
+			layerTextures.keys
+				.filter { layerKey -> layerKey !in admitted }
+				.sortedBy { layerKey -> layerRecency[layerKey] ?: 0L }
+		for (layerKey in evictable) {
+			if (residentBytes() <= sourceLayerByteBudget && layerTextures.size <= sourceLayerTextureCap) {
+				break
+			}
+			layerTextures.remove(layerKey)?.let { texture -> device.destroyTexture(texture) }
+			layerTextureBytes.remove(layerKey)
+			layerRecency.remove(layerKey)
+		}
+	}
+
+	/**
+	 * The layers the producer should decode next, and the request they answer.
+	 *
+	 * Published for the fill side, which decodes off-thread and answers with
+	 * [deliverSourceLayerRasters].  The generation changes whenever the ask does, so a producer can tell
+	 * a fresh request from a repeat of one it is already serving.
+	 *
+	 * @return Pair The wanted layer keys and the generation they were published at.
+	 */
+	fun wantedSourceLayerKeys(): Pair<Set<String>, Long> = wantedLayerKeysBacking to wantedLayerGenerationBacking
+
+	/**
+	 * What source artwork is currently resident, for tests and diagnostics.
+	 *
+	 * Deliberately not a notice: residency is a memory-management outcome, not a fidelity one, and a
+	 * rigger should never be told about eviction.  What they ARE told about - artwork that does not
+	 * exist or will not decode - is counted on the producer side instead.
+	 *
+	 * @return Triple The resident layer count, the bytes they occupy, and how many layers the plan maps.
+	 */
+	internal fun sourceLayerResidencyStats(): Triple<Int, Long, Int> =
+		Triple(layerTextures.size, layerTextureBytes.values.sum(), layerPlan.layerByteCostByKey.size)
 
 	/**
 	 * Points one resident at its source artwork, or back at its atlas page when the current set does not
@@ -515,11 +725,15 @@ class PuppetRenderer(
 	 * coverage pass while sitting outside the shown set, and a mask sampling one frame while the art it
 	 * clips samples the other cuts the silhouette to garbage.
 	 *
+	 * Mapped but not resident is a NORMAL state, not a failure: the plan covers the whole document while
+	 * residency is bounded, so a drawable outside the current working set draws from its atlas page until
+	 * its artwork is admitted.  That is the same per-drawable fallback artwork-less drawables take.
+	 *
 	 * @param GpuDrawable gpuDrawable The resident to stamp.
-	 * @param DrawableId  drawableId  Its id, keying into the current set.
+	 * @param DrawableId  drawableId  Its id, keying into the current plan.
 	 */
 	private fun stampSourceLayer(gpuDrawable: GpuDrawable, drawableId: DrawableId) {
-		val draw = layerRasters.drawsByDrawableId[drawableId.raw]
+		val draw = layerPlan.drawsByDrawableId[drawableId.raw]
 		val texture = draw?.let { layerTextures[it.layerKey] }
 		gpuDrawable.layerTexture = texture
 		gpuDrawable.layerUvAffine = if (texture != null) draw.uvAffine else null
@@ -536,6 +750,39 @@ class PuppetRenderer(
 		device.destroyMesh(gpuDrawable.mesh)
 		device.destroyTexture(gpuDrawable.deltaTexture)
 		gpuDrawable.cpTexture?.let { device.destroyTexture(it) }
+	}
+
+	/**
+	 * Frees every device object this renderer owns.  Must run with the context current, and nothing may
+	 * render afterwards.
+	 *
+	 * The artwork and underlay caches are created and destroyed across the renderer's life rather than
+	 * uploaded once, so letting them die with the context is no longer enough: an engine that outlives
+	 * one renderer would leak everything the previous one had admitted.  The pipelines and the shared
+	 * position store are not freed here because the device seam exposes no way to - they remain
+	 * context-lifetime objects.
+	 */
+	fun disposeGl() {
+		for (gpuDrawable in gpuById.values) {
+			deleteDrawable(gpuDrawable)
+		}
+		gpuById = emptyMap()
+		glueDeformList = emptyList()
+		renderableById = emptyMap()
+		for (texture in layerTextures.values) {
+			device.destroyTexture(texture)
+		}
+		layerTextures.clear()
+		layerTextureBytes.clear()
+		layerRecency.clear()
+		for (texture in underlayTextures.values) {
+			device.destroyTexture(texture)
+		}
+		underlayTextures.clear()
+		for (texture in atlasHandles) {
+			device.destroyTexture(texture)
+		}
+		atlasHandles = emptyList()
 	}
 
 	fun setPose(parameters: Map<ParameterId, Float>, channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap()) {
@@ -773,11 +1020,17 @@ class PuppetRenderer(
 	 * @param Set ids The drawable ids to draw.
 	 */
 	fun setShownDrawables(ids: Set<DrawableId>) {
-		if (ids != shownDrawableIds) {
+		val changed = ids != shownDrawableIds
+		if (changed) {
 			// The bbox skips hidden drawables, so a visibility change invalidates the cached framing.
 			bboxReady = false
 		}
 		shownDrawableIds = ids
+		if (changed) {
+			// Residency is prioritized by what is shown, so revealing a part is what earns its artwork a
+			// place in the budget - and hiding one is what releases the room for something else.
+			applySourceLayerResidency()
+		}
 	}
 
 	/**
@@ -846,17 +1099,16 @@ class PuppetRenderer(
 			gpuById[drawableId]?.let { deleteDrawable(it) }
 		}
 		gpuById = reconciled
-		// A rebuilt resident comes back on its atlas page, so re-point the whole set at the artwork the
-		// document is displaying from - otherwise an edit silently drops that drawable back to the atlas.
-		for ((drawableId, resident) in reconciled) {
-			stampSourceLayer(resident, drawableId)
-		}
 		glueDeformList = reconciled.values.filter { it.isGlueMesh }
 		renderableById = reconciled.mapValues { (_, resident) -> resident.indexCount > 0 }
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
 		baseOrder = newModel.drawables.map { it.id }
 		rebuildGluePartners(newModel)
+		// After baseOrder and the glue partners, both of which residency groups by.  A rebuilt resident
+		// comes back on its atlas page, so this re-points the whole set at the artwork the document
+		// displays from - otherwise an edit silently drops that drawable back to the atlas.
+		applySourceLayerResidency()
 		bboxReady = false
 	}
 

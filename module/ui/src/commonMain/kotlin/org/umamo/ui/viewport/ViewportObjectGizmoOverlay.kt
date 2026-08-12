@@ -124,6 +124,24 @@ fun ViewportObjectGizmoOverlay(
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val overlayColors = LocalUmamoColors.current
 
+	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' centroids.
+	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
+	// ungated request would commit once per viewport.
+	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
+	//
+	// ABOVE the guard below on purpose.  A snap acts on the session's selection and needs neither this
+	// overlay's camera nor its geometry, so collecting it past the guard would make Shift+S do nothing
+	// while the camera is briefly null (before the first fit) - silently, since a request no collector
+	// receives leaves no trace.  Keep it here if this file is refactored.
+	LaunchedEffect(session) {
+		session.snapRequests.collect { request ->
+			if (session.mode.value != EditorMode.Object || request.areaId != areaId) {
+				return@collect
+			}
+			handleObjectSnapRequest(session, request.kind)
+		}
+	}
+
 	if (mode != EditorMode.Object || camera == null) {
 		return
 	}
@@ -374,19 +392,6 @@ fun ViewportObjectGizmoOverlay(
 	LaunchedEffect(session) {
 		collectModalConfirmRequests(session, { session.activeObjectOperator.value?.areaId == areaId }) {
 			confirmObjectGesture()
-		}
-	}
-
-	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' centroids.
-	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
-	// ungated request would commit once per viewport.
-	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
-	LaunchedEffect(session) {
-		session.snapRequests.collect { request ->
-			if (session.mode.value != EditorMode.Object || request.areaId != areaId) {
-				return@collect
-			}
-			handleObjectSnapRequest(session, request.kind)
 		}
 	}
 

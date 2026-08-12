@@ -324,6 +324,29 @@ class UvEditorViewStateTest {
 		assertEquals(32, resolved.height, "the layer's own height")
 	}
 
+	/**
+	 * A session-created duplicate reaches the same layer as the drawable it was copied from.
+	 *
+	 * Bindings are keyed by the SOURCE format's drawable ids, so a copy has no key of its own and must
+	 * resolve through textureSourceId - the same indirection shownSurfaceUvs and the atlas lookup use.
+	 * Resolving by the copy's own raw id instead finds nothing, which shows up as a duplicate that has
+	 * a page view but silently refuses the layer view.
+	 */
+	@Test
+	fun layerViewFollowsADuplicateThroughItsTextureSource() {
+		val duplicate = meshedDrawable("a copy").copy(textureSourceId = DrawableId("a"))
+		val model = modelOf(meshedDrawable("a"), duplicate)
+		val resolved =
+			resolveUvEditorLayer(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(duplicate.id), activeDrawableId = duplicate.id),
+				objectSelection = Selection(),
+				layers = layerStoreOf(),
+			)
+		assertNotNull(resolved, "the duplicate resolves its source's layer")
+		assertEquals("layer0", resolved.layerKey, "the same layer the original shows")
+	}
+
 	/** A drawable this document retains no artwork for resolves nothing, so the space keeps its page view. */
 	@Test
 	fun layerViewResolvesNothingWithoutABinding() {

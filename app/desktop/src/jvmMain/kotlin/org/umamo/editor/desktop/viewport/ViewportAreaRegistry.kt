@@ -3,7 +3,6 @@ package org.umamo.editor.desktop.viewport
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.render.ContentBounds
-import org.umamo.render.DecodedImage
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
@@ -27,27 +26,29 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  * ([OffscreenRenderEngine]). Field-ownership contract:
  *
  *   - The @Volatile fields are written by the UI thread and read by the render thread (a volatile publish of
- *     immutable values or plain scalars): scene, pageIndex, layerImage, width, height, camera,
- *     refitRequested.
+ *     immutable values or plain scalars): scene, uvContent, width, height, camera, refitRequested.
  *   - imageState / cameraState are thread-safe StateFlows; either thread may set them.
  *   - refCount is touched only on the UI thread (register/unregister run as composition effects).
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.
  */
 internal class AreaSlot {
-	// Whether this area renders the posed puppet or one of the UV editor's flat surfaces. The puppet/UV
-	// split is fixed at registration (register vs registerUvScene); WITHIN the UV family the scene and its
-	// content are retargeted together by setUvSceneContent, so an editor switches between an atlas page
-	// and a source layer without re-registering. UI thread writes, render thread reads - a volatile publish.
+	// Whether this area renders the posed puppet or one of the UV editor's flat surfaces. Fixed at
+	// registration (register vs registerUvScene) and never retargeted; WITHIN the UV family the surface is
+	// switched through uvContent below. UI thread writes, render thread reads - a volatile publish.
 	@Volatile
 	var scene: RenderScene = RenderScene.Puppet2D
 
+	// What a UV-editor area draws, as ONE value: which kind and its payload inseparably.
+	//
+	// Publishing the kind and the payload as separate fields would let the render thread observe a
+	// half-applied switch - the old kind against the new payload - which reads as a legitimately stale
+	// frame, renders grid-only, and then stamps itself fresh against the payload that landed meanwhile.
+	// The area would sit on an empty grid until a pan or resize happened to dislodge it, and nothing
+	// would look wrong anywhere. A single reference cannot tear, so the switch is all-or-nothing.
+	//
+	// Null for a puppet area, which has no UV surface.
 	@Volatile
-	var pageIndex: Int? = null
-
-	// The source-layer raster this area draws (RenderScene.SourceLayer only). An immutable decoded image
-	// the store owns, published by reference; the renderer uploads it on first sight.
-	@Volatile
-	var layerImage: DecodedImage? = null
+	var uvContent: UvSceneContent? = null
 
 	@Volatile
 	var width: Int = 0
@@ -82,8 +83,7 @@ internal class AreaSlot {
 	var renderedCamera: ViewportCamera? = null
 	var puppetRenderBumpDone: Long = -1
 	var atlasRenderBumpDone: Long = -1
-	var renderedPageIndex: Int? = null
-	var renderedLayerImage: DecodedImage? = null
+	var renderedUvContent: UvSceneContent? = null
 
 	// Render-thread-only resize-throttle bookkeeping: the last size the loop observed, when it last
 	// changed, when the last resize-driven render was issued (all System.nanoTime), and the
@@ -167,25 +167,16 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Publishes one UV content choice onto a slot: the scene kind and its payload together, with the
-	 * unused payload cleared so a stale image cannot be revived by a later switch back.
+	 * Publishes one UV content choice onto a slot, kind and payload inseparably.
+	 *
+	 * One volatile store of one immutable value, which is what makes the switch atomic - see
+	 * [AreaSlot.uvContent] for what publishing them separately would cost.
 	 *
 	 * @param AreaSlot       slot    The slot to retarget.
 	 * @param UvSceneContent content What the area draws.
 	 */
 	private fun applyUvContent(slot: AreaSlot, content: UvSceneContent) {
-		when (content) {
-			is UvSceneContent.AtlasPage -> {
-				slot.layerImage = null
-				slot.pageIndex = content.pageIndex
-				slot.scene = RenderScene.AtlasPage
-			}
-			is UvSceneContent.SourceLayer -> {
-				slot.pageIndex = null
-				slot.layerImage = content.image
-				slot.scene = RenderScene.SourceLayer
-			}
-		}
+		slot.uvContent = content
 	}
 
 	/**

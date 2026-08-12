@@ -5,7 +5,8 @@ import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
-import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
@@ -234,17 +235,38 @@ interface PuppetViewportService {
 	fun setActiveSelection(id: DrawableId?)
 
 	/**
-	 * Pushes the source artwork the puppet displays from, already decoded, or
-	 * [LayerRasterSet.EMPTY] to display from the packed atlas.
+	 * Pushes which artwork every drawable would display from, or [LayerDrawPlan.EMPTY] to display from
+	 * the packed atlas.
 	 *
-	 * Handed over whole rather than resolved lazily: decoding stalls a frame, and the engine's own
-	 * store is not safe to read from the render thread.  Publishing one complete set is also what makes
-	 * the switch atomic - the puppet keeps displaying from the atlas until the set lands, instead of
-	 * resolving piece by piece.
+	 * The mapping is published whole and takes effect at once; the PIXELS follow separately and
+	 * progressively, through [sourceLayerRequests] and [deliverSourceLayerRasters].  That split is
+	 * deliberate: a document can reference hundreds of layers, and decoding them all to switch display
+	 * mode is what would stall the switch - or exhaust memory before it finished.
 	 *
-	 * @param LayerRasterSet rasters The decoded artwork plus each drawable's mapping into it.
+	 * @param LayerDrawPlan plan Each drawable's mapping into the document's artwork.
 	 */
-	fun setSourceLayerRasters(rasters: LayerRasterSet)
+	fun setSourceLayerPlan(plan: LayerDrawPlan)
+
+	/**
+	 * The artwork the engine wants decoded next, republished whenever its working set moves.
+	 *
+	 * A reverse hand-off: the renderer bounds how much artwork is resident, so it - not the producer -
+	 * decides what is worth decoding.  Each emission carries a generation, so a producer can tell a new
+	 * ask from a repeat of one it is already serving.
+	 *
+	 * @return StateFlow The wanted layer keys and the generation they were published at.
+	 */
+	val sourceLayerRequests: StateFlow<Pair<Set<String>, Long>>
+
+	/**
+	 * Hands decoded artwork to the engine, answering [sourceLayerRequests].
+	 *
+	 * Decoding must happen off both the UI and render threads, and the batch is consumed rather than
+	 * retained, so the caller may drop its own reference as soon as this returns.
+	 *
+	 * @param LayerRasterBatch batch The decoded artwork.
+	 */
+	fun deliverSourceLayerRasters(batch: LayerRasterBatch)
 
 	/**
 	 * Pushes the drawables actually shown (the resolved Parts-panel visibility cascade).

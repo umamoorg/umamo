@@ -14,6 +14,7 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
@@ -58,17 +59,23 @@ class Cmo3LayerWebProbeTest {
 		val optionalTransformsOnCanvas: Int,
 	)
 
-	private fun corpusDirectory(): File? {
-		var directory: File? = File(System.getProperty("user.dir"))
-		while (directory != null) {
-			val corpus = File(directory, "test/corpus")
-			if (corpus.isDirectory) {
-				return corpus
-			}
-			directory = directory.parentFile
-		}
-		return null
-	}
+	/**
+	 * The corpus samples this probe runs over, from the `cmo3.probe` property the `umamo.test-corpus`
+	 * plugin forwards (comma-separated, resolved against the repo root).
+	 *
+	 * Read from the property rather than discovered by walking up from `user.dir`: an explicit `-D`
+	 * pointing at a corpus outside the working tree is exactly the case a directory walk misses, and a
+	 * probe that cannot find its input returns early and reports PASSED while covering nothing.
+	 *
+	 * @return List The readable samples, empty when the property names none.
+	 */
+	private fun corpusFiles(): List<File> =
+		System.getProperty("cmo3.probe")
+			?.split(',')
+			?.map { entry -> File(entry.trim()) }
+			?.filter { file -> file.isFile }
+			?.sortedBy { file -> file.name }
+			.orEmpty()
 
 	private fun elements(collection: Any?): List<Any?> =
 		when (collection) {
@@ -175,14 +182,9 @@ class Cmo3LayerWebProbeTest {
 
 	@Test
 	fun surveysTheLayeredArtWebAcrossTheCorpus() {
-		val corpus =
-			corpusDirectory() ?: run {
-				println("no test/corpus directory; skipping the layered-art web probe")
-				return
-			}
-		val files = corpus.walkTopDown().filter { it.isFile && it.extension == "cmo3" }.sortedBy { it.name }.toList()
+		val files = corpusFiles()
 		if (files.isEmpty()) {
-			println("no .cmo3 corpus samples; skipping the layered-art web probe")
+			println("cmo3.probe lists no readable samples; skipping the layered-art web probe")
 			return
 		}
 
@@ -224,14 +226,9 @@ class Cmo3LayerWebProbeTest {
 	 */
 	@Test
 	fun characterizesTheOptionalCanvasTransform() {
-		val corpus =
-			corpusDirectory() ?: run {
-				println("no test/corpus directory; skipping the optional-canvas-transform probe")
-				return
-			}
-		val files = corpus.walkTopDown().filter { it.isFile && it.extension == "cmo3" }.sortedBy { it.name }.toList()
+		val files = corpusFiles()
 		if (files.isEmpty()) {
-			println("no .cmo3 corpus samples; skipping the optional-canvas-transform probe")
+			println("cmo3.probe lists no readable samples; skipping the optional-canvas-transform probe")
 			return
 		}
 		val typeCounts = mutableMapOf<String, Int>()
@@ -274,17 +271,77 @@ class Cmo3LayerWebProbeTest {
 		assertTrue(typeCounts.isNotEmpty(), "no optionalTransformOnCanvas values were seen; the walk is broken")
 	}
 
+	/**
+	 * Counts model images whose bound drawables DISAGREE about sampling an atlas page.
+	 *
+	 * `LayerTextures.bindingForLayer` hands out the first bound drawable's binding and documents that
+	 * every drawable over one layer shares a placement.  But `cmo3LayerTextures` derives that placement
+	 * per drawable, from whether THAT drawable's own `srcImageResource` is one of the atlas pages - so
+	 * two drawables on one model image could in principle disagree, one getting a placement and one
+	 * getting null.  If that happens, the UV editor builds its authoring frame from one drawable's
+	 * placement while projecting another through its own, and an edit commits through the wrong frame.
+	 *
+	 * This settles whether the shape occurs in real files rather than only in the type system.  A
+	 * non-zero count here is a bug report; zero makes the shared-placement assumption an invariant worth
+	 * asserting rather than a guess.
+	 */
+	@Test
+	fun boundDrawablesAgreeOnSamplingTheAtlas() {
+		val files = corpusFiles()
+		if (files.isEmpty()) {
+			println("cmo3.probe lists no readable samples; skipping the placement-agreement probe")
+			return
+		}
+		var checkedModelImages = 0
+		var sharedModelImages = 0
+		val disagreements = mutableListOf<String>()
+		for (file in files) {
+			val root = Cmo3.read(file).root as? CModelSource ?: continue
+			// CMO3: CTextureAtlas field cachedAtlasImage - identity membership is the test the real
+			// derivation uses (CImageResource is a plain class, so equality is identity).
+			val textureManager = root.textureManager as? CTextureManager
+			val atlasPageResources =
+				elements(textureManager?._textureAtlases)
+					.filterIsInstance<CTextureAtlas>()
+					.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
+					.toHashSet()
+			// Per model image, the distinct samplesAtlasPage answers its drawables give.
+			val answersByModelImage = HashMap<String, MutableSet<Boolean>>()
+			for (mesh in artMeshes(root)) {
+				// CMO3: CArtMeshSource field _extensions -> CTextureInputExtension field _textureInputs ->
+				// CTextureInput_ModelImage field _modelImageGuid
+				val extension = elements(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull()
+				val modelImageInput =
+					elements(extension?._textureInputs).filterIsInstance<CTextureInput_ModelImage>().firstOrNull() ?: continue
+				val key = (modelImageInput._modelImageGuid as? Guid)?.uuid?.takeIf { it.isNotEmpty() } ?: continue
+				// CMO3: CArtMeshSource field texture -> GTexture2D field srcImageResource
+				val sampledResource = (mesh.texture as? GTexture2D)?.srcImageResource as? CImageResource
+				answersByModelImage.getOrPut(key) { mutableSetOf() }.add(sampledResource != null && sampledResource in atlasPageResources)
+			}
+			for ((key, answers) in answersByModelImage) {
+				checkedModelImages++
+				if (answers.size > 1) {
+					disagreements.add("${file.name}: model image $key has drawables on both sides")
+				}
+			}
+			sharedModelImages += answersByModelImage.count { (_, answers) -> answers.isNotEmpty() }
+		}
+		println("[placement-agreement] $checkedModelImages model images across ${files.size} files, $sharedModelImages bound")
+		disagreements.forEach { line -> println("[placement-agreement] DISAGREEMENT $line") }
+		assertTrue(checkedModelImages > 0, "the walk found no bound model images at all, so it proved nothing")
+		assertTrue(
+			disagreements.isEmpty(),
+			"drawables over one model image disagree about sampling the atlas, so a layer has no single " +
+				"placement and bindingForLayer's shared-placement contract does not hold:\n${disagreements.joinToString("\n")}",
+		)
+	}
+
 	/** The drawable id every join keys on must survive; a blank id would silently orphan the binding. */
 	@Test
 	fun everyArtMeshCarriesAJoinableId() {
-		val corpus =
-			corpusDirectory() ?: run {
-				println("no test/corpus directory; skipping the art-mesh id probe")
-				return
-			}
-		val files = corpus.walkTopDown().filter { it.isFile && it.extension == "cmo3" }.sortedBy { it.name }.toList()
+		val files = corpusFiles()
 		if (files.isEmpty()) {
-			println("no .cmo3 corpus samples; skipping the art-mesh id probe")
+			println("cmo3.probe lists no readable samples; skipping the art-mesh id probe")
 			return
 		}
 		var checked = 0

@@ -1,12 +1,15 @@
 package org.umamo.editor.desktop.viewport
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
-import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
@@ -24,6 +27,7 @@ import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
+import org.umamo.ui.viewport.UvSceneContent
 import java.io.File
 import java.util.ArrayDeque
 
@@ -135,10 +139,19 @@ internal class OffscreenRenderEngine(
 	@Volatile
 	private var shownBacking: Set<DrawableId> = puppet.visibleDrawableIds()
 
-	// The source artwork the puppet displays from, published whole and already decoded.  EMPTY is the
-	// atlas, which is where every document starts until a set is prepared for it.
+	// Which artwork the puppet's drawables map onto, published whole.  EMPTY is the atlas, which is where
+	// every document starts until a plan is prepared for it.  The pixels are NOT here: they arrive
+	// through the queue below, in answer to what the renderer asks for.
 	@Volatile
-	private var layerRastersBacking: LayerRasterSet = LayerRasterSet.EMPTY
+	private var layerPlanBacking: LayerDrawPlan = LayerDrawPlan.EMPTY
+
+	// Decoded artwork waiting to be uploaded, drained on the render thread.  A queue rather than a
+	// volatile slot because deliveries are chunked - two batches landing between frames must both be
+	// taken up, where a slot would silently drop the first.
+	private val pendingRasterBatches = java.util.concurrent.ConcurrentLinkedQueue<LayerRasterBatch>()
+
+	// What the renderer wants decoded next, republished from the render loop for the producer to answer.
+	private val sourceLayerRequestsBacking = MutableStateFlow<Pair<Set<String>, Long>>(emptySet<String>() to 0L)
 
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
@@ -263,18 +276,31 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
-	 * Sets the source artwork the puppet displays from; an empty set displays from the atlas.
+	 * Sets which artwork the puppet's drawables map onto; an empty plan displays from the atlas.
 	 *
 	 * A volatile publish of one immutable value, like every other render input.  The render loop hands
-	 * it to the renderer, which is where the GPU uploads happen - this must not touch the device.
+	 * it to the renderer, which is where the GPU work happens - this must not touch the device.
 	 *
-	 * @param LayerRasterSet rasters The decoded artwork plus each drawable's mapping into it.
+	 * @param LayerDrawPlan plan Each drawable's mapping into the document's artwork.
 	 */
-	fun setSourceLayerRasters(rasters: LayerRasterSet) {
-		if (rasters !== layerRastersBacking) {
-			layerRastersBacking = rasters
+	fun setSourceLayerPlan(plan: LayerDrawPlan) {
+		if (plan !== layerPlanBacking) {
+			layerPlanBacking = plan
 			doPuppetRenderBump()
 		}
+	}
+
+	/** What the renderer wants decoded next, for the producer to answer with [deliverSourceLayerRasters]. */
+	val sourceLayerRequests: StateFlow<Pair<Set<String>, Long>> get() = sourceLayerRequestsBacking
+
+	/**
+	 * Queues decoded artwork for upload on the render thread.
+	 *
+	 * @param LayerRasterBatch batch The decoded artwork.
+	 */
+	fun deliverSourceLayerRasters(batch: LayerRasterBatch) {
+		pendingRasterBatches.add(batch)
+		doPuppetRenderBump()
 	}
 
 	/**
@@ -385,19 +411,32 @@ internal class OffscreenRenderEngine(
 			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
 			var lastModel: PuppetModel? = null
-			var lastLayerRasters: LayerRasterSet? = null
+			var lastLayerPlan: LayerDrawPlan? = null
 			var paramsVersion = 0L
 			while (running) {
 				collectCompleted()
 				val params = liveParams.values
 				val shown = shownBacking
 				val orderModel = modelBacking
-				// The artwork hand-off, on the render thread where the uploads belong.  Compared by
-				// identity: the set is published whole, so a new reference IS the change.
-				val layerRasters = layerRastersBacking
-				if (layerRasters !== lastLayerRasters) {
-					renderer.setSourceLayerRasters(layerRasters)
-					lastLayerRasters = layerRasters
+				// The artwork hand-off, on the render thread where the uploads belong.  The mapping is
+				// compared by identity: it is published whole, so a new reference IS the change.
+				val layerPlan = layerPlanBacking
+				if (layerPlan !== lastLayerPlan) {
+					renderer.setSourceLayerPlan(layerPlan)
+					lastLayerPlan = layerPlan
+				}
+				// Then any decoded pixels that arrived since the last frame.  Drained rather than sampled:
+				// the producer chunks its deliveries so visible art lands first, and skipping a batch would
+				// strand whatever it carried on the atlas until the working set happened to move again.
+				while (true) {
+					val batch = pendingRasterBatches.poll() ?: break
+					renderer.deliverSourceLayerRasters(batch)
+				}
+				// Republish what the renderer now wants.  Both of the calls above can move it - a new plan
+				// changes what is admissible, and an upload can free room for more - so this sits after them.
+				val wanted = renderer.wantedSourceLayerKeys()
+				if (wanted != sourceLayerRequestsBacking.value) {
+					sourceLayerRequestsBacking.value = wanted
 				}
 				// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
 				// the render order - when the pose, the visibility cascade, OR the render order changes. A
@@ -465,13 +504,12 @@ internal class OffscreenRenderEngine(
 									slot.renderedCamera === camera &&
 									slot.puppetRenderBumpDone == puppetRenderBump
 
-							RenderScene.AtlasPage ->
-								slot.renderedPageIndex == slot.pageIndex &&
-									slot.renderedCamera === camera &&
-									slot.atlasRenderBumpDone == atlasRenderBump
-
-							RenderScene.SourceLayer ->
-								slot.renderedLayerImage === slot.layerImage &&
+							// Kind and payload are read as ONE value, so a switch can never be observed half
+							// applied.  Equality rather than identity: AtlasPage compares its index, and
+							// SourceLayer's image compares by reference, which is the freshness test either
+							// surface wants.
+							RenderScene.AtlasPage, RenderScene.SourceLayer ->
+								slot.renderedUvContent == slot.uvContent &&
 									slot.renderedCamera === camera &&
 									slot.atlasRenderBumpDone == atlasRenderBump
 						}
@@ -512,6 +550,11 @@ internal class OffscreenRenderEngine(
 			while (pendingFrames.isNotEmpty()) {
 				device.cancelReadback(pendingFrames.removeFirst().ticket)
 			}
+			// The renderer's own device objects.  Source artwork and underlay images are created and
+			// destroyed across its life rather than uploaded once, so they need releasing explicitly
+			// rather than being left to die with the context.
+			renderer.disposeGl()
+			pendingRasterBatches.clear()
 			surface.dispose()
 			context.destroy()
 		}
@@ -583,14 +626,23 @@ internal class OffscreenRenderEngine(
 		renderer.setActiveSelectionHighlightColor(activeHighlightRed, activeHighlightGreen, activeHighlightBlue)
 		renderer.setCamera(camera.copy(zoom = camera.zoom * renderScale))
 
+		// Read once, drawn and stamped from the same value: re-reading slot.uvContent between the draw and
+		// the stamp below would let a switch land in between and mark the frame fresh for content it does
+		// not show.
+		val uvContent = slot.uvContent
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
-			// An atlas-page UV area draws the flat page instead; the pose / selection / shown state pushed above
-			// are harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
-			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
-			// A source-layer area draws artwork the engine has never uploaded, so the renderer takes the
-			// pixels rather than an index and caches the texture it makes from them.
-			RenderScene.SourceLayer -> renderer.renderUnderlayImage(drawTarget, slot.layerImage, renderWidth, renderHeight)
+			// A UV area draws its flat surface instead; the pose / selection / shown state pushed above are
+			// harmless no-ops for it (neither UV draw reads any of them - just the grid and the surface quad).
+			RenderScene.AtlasPage, RenderScene.SourceLayer ->
+				when (uvContent) {
+					// An atlas page the engine already uploaded, addressed by index.
+					is UvSceneContent.AtlasPage -> renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight)
+					// Artwork the engine has never uploaded, so the renderer takes the pixels rather than an
+					// index and caches the texture it makes from them.
+					is UvSceneContent.SourceLayer -> renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight)
+					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight)
+				}
 		}
 
 		surface.resolve()
@@ -620,8 +672,7 @@ internal class OffscreenRenderEngine(
 		slot.renderedCamera = camera
 		slot.puppetRenderBumpDone = puppetRenderBumpDone
 		slot.atlasRenderBumpDone = atlasRenderBumpDone
-		slot.renderedPageIndex = slot.pageIndex
-		slot.renderedLayerImage = slot.layerImage
+		slot.renderedUvContent = uvContent
 	}
 
 	/**
@@ -656,8 +707,12 @@ internal class OffscreenRenderEngine(
 	private fun contentBoundsFor(slot: AreaSlot): ContentBounds =
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.contentBounds()
-			RenderScene.AtlasPage -> pageContentBounds(slot.pageIndex)
-			RenderScene.SourceLayer -> imageContentBounds(slot.layerImage)
+			RenderScene.AtlasPage, RenderScene.SourceLayer ->
+				when (val uvContent = slot.uvContent) {
+					is UvSceneContent.AtlasPage -> pageContentBounds(uvContent.pageIndex)
+					is UvSceneContent.SourceLayer -> imageContentBounds(uvContent.image)
+					null -> pageContentBounds(null)
+				}
 		}
 
 	/**

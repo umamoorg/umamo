@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.launch
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -35,6 +37,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.withMeshPositions
@@ -188,6 +191,8 @@ private class SlideContext(
  *        overlay (no frame has landed yet - nothing to glue to).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
+ * @param State areaPointer Where the pointer last was in this area, tracked by the HOST so the
+ *        pointer-addressed commands still resolve while this overlay is unmounted.
  * @param Function onOverlapRequest Opens the overlap-picker popup for an Alt+Q over 2+ stacked
  *        candidates (the pick switches the edited mesh).
  * @param Modifier modifier The layout modifier.
@@ -201,6 +206,7 @@ fun ViewportEditGizmoOverlay(
 	frameModel: PuppetModel?,
 	widthPx: Int,
 	heightPx: Int,
+	areaPointer: State<Offset>,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -217,32 +223,95 @@ fun ViewportEditGizmoOverlay(
 	val overlayColors = LocalUmamoColors.current
 
 	val sessionDrawableIds = meshSelection.drawableIds
+
+	// The pointer-addressed and geometry-addressed request collectors, mounted ABOVE both guards below.
+	//
+	// Every one of these is a keymap command with no pointer of its own, so it lands here where the
+	// pointer and the projected geometry live.  Mounting them past the guards is what made them
+	// silently dead in the states they matter most: Alt+Q switch-object is the command you would use to
+	// ESCAPE a selection whose every drawable sits behind a hidden ancestor, and that is exactly when
+	// liveGeometry is empty and this overlay returns early.  A request no collector receives leaves no
+	// trace at all, so it reads as a broken key rather than an unavailable one.
+	//
+	// Each therefore resolves what it needs at REQUEST time instead of closing over composed state: the
+	// geometry from the session (rebuilt per request, which is a keypress, not a frame), and the pointer
+	// from the host area, which keeps tracking while this overlay is unmounted.  The executing area was
+	// resolved at dispatch into the payload, so every gate is deterministic - two collectors can never
+	// double- or zero-execute on a pointer-side volatile racing the collect.
+	val liveCameraForRequests = rememberUpdatedState(camera)
+	val liveSizeForRequests = rememberUpdatedState(IntSize(widthPx, heightPx))
+	LaunchedEffect(session, areaId, service) {
+		// Select Linked (Blender's L / Ctrl+L).
+		launch {
+			session.selectLinkedRequests.collect { request ->
+				if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
+					return@collect
+				}
+				val requestCamera = liveCameraForRequests.value ?: return@collect
+				handleSelectLinkedRequest(
+					session,
+					editMeshGeometries(session).map { it.gizmo },
+					request.fromSelection,
+					areaPointer.value,
+					requestCamera,
+					liveSizeForRequests.value,
+				)
+			}
+		}
+		// Alt+Q: switch the edited mesh to the drawable under the pointer (or the overlap picker for a
+		// stack).  Needs no geometry and no camera, only the pointer - which is why it must outlive both
+		// guards rather than sharing their fate.
+		launch {
+			session.switchObjectRequests.collect { requestedAreaId ->
+				if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
+					return@collect
+				}
+				handleSwitchEditDrawableRequest(session, service, areaId, areaPointer.value, onOverlapRequest)
+			}
+		}
+		// Rip (Blender's V): duplicate the covered vertices, re-point the pointer-side triangles, auto-grab.
+		launch {
+			session.ripRequests.collect { requestedAreaId ->
+				if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
+					return@collect
+				}
+				val requestCamera = liveCameraForRequests.value ?: return@collect
+				val geometry = editMeshGeometries(session)
+				if (geometry.isEmpty()) {
+					session.emitNotice("notice.edit.noEditableGeometry", NoticePlacement.NearCursor)
+					return@collect
+				}
+				handleRipRequest(session, geometry, areaId, areaPointer.value, requestCamera, liveSizeForRequests.value)
+			}
+		}
+		// The geometry-dependent Shift+S snaps for Edit mode.  Only the pointer's own area executes: every
+		// open 2D viewport composes this collector, and an ungated request would commit once per viewport.
+		// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
+		launch {
+			session.snapRequests.collect { request ->
+				if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
+					return@collect
+				}
+				val geometry = editMeshGeometries(session)
+				if (geometry.isEmpty()) {
+					session.emitNotice("notice.edit.noEditableGeometry", NoticePlacement.NearCursor)
+					return@collect
+				}
+				handleEditSnapRequest(session, geometry, request.kind)
+			}
+		}
+	}
+
 	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null || frameModel == null) {
 		return
 	}
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
-	// Per-session-mesh geometry at the constant neutral pose Edit mode is pinned to: each mesh's rest
-	// shape (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world
-	// projection, computed for every mesh in the session's selection.  A drawable whose mapping cannot
-	// be built (a hidden ancestor) is skipped: it cannot be drawn, so it cannot be edited.
-	// Keyed on the model (a commit swaps it) and the session's mesh list; NOT per rendered frame.
-	val liveGeometry =
-		remember(model, sessionDrawableIds) {
-			sessionDrawableIds.mapNotNull { drawableId ->
-				val mesh = model.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@mapNotNull null
-				// Edit mode is pinned to the neutral pose, so the three-space geometry is captured at emptyMap().
-				// Null when the drawable has no world mapping (a hidden ancestor): it cannot be drawn, so it
-				// cannot be edited - skip it, the same three-space primitive the object gizmo and Properties use.
-				val worldGeometry = captureDrawableWorld(model, emptyMap(), drawableId) ?: return@mapNotNull null
-				EditMeshGeometry(
-					worldGeometry = worldGeometry,
-					mesh = mesh,
-					edges = MeshTopology.uniqueEdges(mesh.indices),
-				)
-			}
-		}
+	// Per-session-mesh geometry at the constant neutral pose Edit mode is pinned to.  Same derivation the
+	// request collectors above run on demand, remembered here because the draw path needs it every
+	// recomposition.  Keyed on the model (a commit swaps it) and the session's mesh list; NOT per frame.
+	val liveGeometry = remember(model, sessionDrawableIds) { editMeshGeometries(model, sessionDrawableIds) }
 	if (liveGeometry.isEmpty()) {
 		return
 	}
@@ -546,60 +615,6 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 
-	// Select Linked (Blender's L / Ctrl+L): a keymap command carries no pointer, so the request lands
-	// here where the pointer and the projected geometry live.  The executing area was resolved at
-	// dispatch into the payload, so this gate is deterministic - two collectors can never double- or
-	// zero-execute on a pointer-side volatile racing the collect.
-	LaunchedEffect(session) {
-		session.selectLinkedRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
-				return@collect
-			}
-			handleSelectLinkedRequest(
-				session,
-				liveGeometryState.value.map { it.gizmo },
-				request.fromSelection,
-				gesture.lastPointer,
-				liveCamera.value,
-				liveSize.value,
-			)
-		}
-	}
-
-	// Alt+Q: switch the edited mesh to the drawable under the pointer (or the overlap picker for a stack).
-	// Gated on the payload's area, resolved at dispatch, like Select Linked above.
-	LaunchedEffect(session) {
-		session.switchObjectRequests.collect { requestedAreaId ->
-			if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
-				return@collect
-			}
-			handleSwitchEditDrawableRequest(session, service, areaId, gesture.lastPointer, onOverlapRequest)
-		}
-	}
-
-	// Rip (Blender's V): duplicate the covered vertices, re-point the pointer-side triangles, auto-grab.
-	// Gated on the payload's area, resolved at dispatch, like Select Linked above.
-	LaunchedEffect(session) {
-		session.ripRequests.collect { requestedAreaId ->
-			if (session.mode.value != EditorMode.Edit || requestedAreaId != areaId) {
-				return@collect
-			}
-			handleRipRequest(session, liveGeometryState.value, areaId, gesture.lastPointer, liveCamera.value, liveSize.value)
-		}
-	}
-
-	// The geometry-dependent Shift+S snaps for Edit mode.  Only the pointer's own area executes: every
-	// open 2D viewport composes this collector, and an ungated request would commit once per viewport.
-	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
-	LaunchedEffect(session) {
-		session.snapRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
-				return@collect
-			}
-			handleEditSnapRequest(session, liveGeometryState.value, request.kind)
-		}
-	}
-
 	// Start the modal gesture as an operator latches IN THIS AREA; tear it down (re-syncing the renderer
 	// to the committed model) as it clears.  The capture covers only the session meshes with covered
 	// vertices (an edge or face selection moves the union of vertices its elements cover); a mesh with
@@ -863,3 +878,41 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 }
+
+/**
+ * Each session mesh's geometry at the constant neutral pose Edit mode is pinned to: its rest shape
+ * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection.
+ *
+ * A drawable whose mapping cannot be built (a hidden ancestor) is skipped: it cannot be drawn, so it
+ * cannot be edited - the same three-space primitive the object gizmo and Properties use.  An empty
+ * result is therefore a real state, not a failure, and it is exactly the state the pointer-addressed
+ * commands have to keep working in.
+ *
+ * @param PuppetModel model The model to project.
+ * @param List<DrawableId> drawableIds The session's mesh selection.
+ * @return List The per-mesh geometry, skipping what cannot be projected.
+ */
+private fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId>): List<EditMeshGeometry> =
+	drawableIds.mapNotNull { drawableId ->
+		val mesh = model.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@mapNotNull null
+		// Edit mode is pinned to the neutral pose, so the three-space geometry is captured at emptyMap().
+		val worldGeometry = captureDrawableWorld(model, emptyMap(), drawableId) ?: return@mapNotNull null
+		EditMeshGeometry(
+			worldGeometry = worldGeometry,
+			mesh = mesh,
+			edges = MeshTopology.uniqueEdges(mesh.indices),
+		)
+	}
+
+/**
+ * The same geometry, resolved from the session's CURRENT state rather than from composed values.
+ *
+ * The request collectors use this so they do not have to close over state a guarded composable may
+ * never have produced.  Rebuilding per request is cheap in context: a request is a keypress, not a
+ * frame.
+ *
+ * @param EditorSession session The session to read the model and mesh selection from.
+ * @return List The per-mesh geometry, skipping what cannot be projected.
+ */
+private fun editMeshGeometries(session: EditorSession): List<EditMeshGeometry> =
+	editMeshGeometries(session.model.value, session.meshSelection.value.drawableIds)

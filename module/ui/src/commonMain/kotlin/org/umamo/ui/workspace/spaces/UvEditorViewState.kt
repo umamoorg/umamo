@@ -169,7 +169,10 @@ internal fun resolveUvEditorLayer(
 		return null
 	}
 	val activeDrawable = activeUvDrawable(model, meshSelection, objectSelection) ?: return null
-	val entry = layers.layerForDrawable(activeDrawable.id.raw) ?: return null
+	// Resolved through the texture-source indirection, not by the drawable's own raw id: bindings are
+	// keyed by the SOURCE format's ids, so a session-created duplicate finds its art through the
+	// drawable it was copied from - the same resolution shownSurfaceUvs and the atlas lookup use.
+	val entry = layers.layerForDrawable(activeDrawable) ?: return null
 	if (entry.width <= 0 || entry.height <= 0) {
 		return null
 	}

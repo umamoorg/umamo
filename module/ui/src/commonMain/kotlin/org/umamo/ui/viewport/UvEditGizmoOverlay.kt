@@ -305,41 +305,23 @@ internal fun UvEditGizmoOverlay(
 		}
 	}
 
-	// Mirror U / V: the executing area was resolved at dispatch into the payload, so this gate is
-	// deterministic.  It routes through the overlay rather than straight to the session because the
-	// axis a mirror reflects about is a property of the SHOWN surface - reflecting a source layer's
-	// art about the atlas page's axis would be a different operation - and only this overlay knows
-	// which surface it is showing.
-	LaunchedEffect(session) {
-		session.uvMirrorRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
-				return@collect
-			}
-			session.mirrorSelectedUvs(request.mirrorU, liveFrame.value.asUvFrame())
-		}
-	}
+	// Mirror U / V and the UV snap pie are collected by the HOST space (UvEditorSpace), not here: this
+	// overlay does not mount when the shown surface has no islands, and both commands must still work
+	// then.  The host owns the authoring frame either way, so nothing is lost by collecting them there.
 
 	// Select Linked (Blender's L / Ctrl+L): the executing area was resolved at dispatch into the
 	// payload, so this gate is deterministic.  UV islands are topology islands (UVs share the vertex
 	// index space), so the shared flood runs verbatim over the display geometry.
+	//
+	// This one CANNOT move to the host with its siblings: it flood-fills from whatever is under the
+	// pointer, and the pointer position lives in this overlay's own gesture state.  With no islands
+	// shown there is nothing to flood from, so collecting it here loses nothing.
 	LaunchedEffect(session) {
 		session.selectLinkedRequests.collect { request ->
 			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 				return@collect
 			}
 			handleSelectLinkedRequest(session, liveGeometries.value, request.fromSelection, gesture.lastPointer, liveCamera.value, liveSize.value)
-		}
-	}
-
-	// The UV snap pie (Shift+S over the UV editor): the executing area was resolved at dispatch into
-	// the payload, so this gate is deterministic.  The executor owns the shown surface's frame and the
-	// covered display geometry, so it performs the snap over the texture coordinates here.
-	LaunchedEffect(session) {
-		session.uvSnapRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
-				return@collect
-			}
-			handleUvSnapRequest(session, liveGeometries.value, liveFrame.value, request.kind)
 		}
 	}
 

@@ -5,7 +5,8 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.umamo.render.DecodedImage
 import org.umamo.render.DrawableLayerDraw
-import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -26,6 +27,7 @@ import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -100,12 +102,27 @@ class SourceLayerDisplayRenderTest {
 		)
 	}
 
-	/** The artwork set pointing the probe at its own green image, with an identity mapping. */
-	private fun artworkSet(imageSize: Int = 8): LayerRasterSet =
-		LayerRasterSet(
-			rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF, size = imageSize)),
+	/** The mapping pointing the probe at its own green artwork, with an identity affine. */
+	private fun artworkPlan(imageSize: Int = 8): LayerDrawPlan =
+		LayerDrawPlan(
 			drawsByDrawableId = mapOf(probeId.raw to DrawableLayerDraw("green", floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+			layerByteCostByKey = mapOf("green" to imageSize.toLong() * imageSize.toLong() * 4L),
 		)
+
+	/** The decoded pixels answering that mapping. */
+	private fun artworkBatch(imageSize: Int = 8): LayerRasterBatch =
+		LayerRasterBatch(rastersByLayerKey = mapOf("green" to solidImage(red = 0x00, green = 0xFF, size = imageSize)))
+
+	/**
+	 * Pushes the mapping and then its pixels, the way the producer does.
+	 *
+	 * The renderer only uploads what it has asked for, so the plan must land before the batch - which is
+	 * also the ordering the engine's render loop enforces.
+	 */
+	private fun PuppetRenderer.displayFromArtwork(imageSize: Int = 8) {
+		setSourceLayerPlan(artworkPlan(imageSize))
+		deliverSourceLayerRasters(artworkBatch(imageSize))
+	}
 
 	/**
 	 * The same model with a composite-only change (the culling toggle): positions, uvs, indices, and
@@ -150,7 +167,7 @@ class SourceLayerDisplayRenderTest {
 		val statsAtlas = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame B: displaying from the artwork (green).
-		renderer.setSourceLayerRasters(artworkSet())
+		renderer.displayFromArtwork()
 		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame C: an unrelated composite edit while still displaying from the artwork.
@@ -158,7 +175,7 @@ class SourceLayerDisplayRenderTest {
 		val statsAfterEdit = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// Frame D: back to the atlas.
-		renderer.setSourceLayerRasters(LayerRasterSet.EMPTY)
+		renderer.setSourceLayerPlan(LayerDrawPlan.EMPTY)
 		val statsBack = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		println(
@@ -238,7 +255,7 @@ class SourceLayerDisplayRenderTest {
 
 		// A layer image large enough that the border blend spans well under a pixel, so the measured mass is
 		// the art's own extent rather than a filtering skirt around it.
-		renderer.setSourceLayerRasters(artworkSet(imageSize = 256))
+		renderer.displayFromArtwork(imageSize = 256)
 		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
 
 		// The quad is 120x120 world units at zoom 1, so its full screen footprint is 120x120 pixels.
@@ -258,6 +275,77 @@ class SourceLayerDisplayRenderTest {
 		assertTrue(
 			statsArtwork.meanGreen > 200f && statsArtwork.meanRed < 60f,
 			"what did render is not the artwork (r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen})",
+		)
+	}
+
+	/**
+	 * A drawable evicted for budget falls back to its atlas page and keeps rendering.
+	 *
+	 * The hazard this pins is the one that would corrupt frames silently: freeing a layer texture while a
+	 * drawable still points at it leaves a dangling handle, which draws garbage rather than failing.  So
+	 * this shrinks the budget below what the artwork costs and asserts the probe comes back RED - the
+	 * atlas it was uploaded with - rather than green, black, or noise.
+	 *
+	 * The budget is deliberately a test-shrinkable knob for exactly this reason: forcing real eviction on
+	 * a real device otherwise needs a fixture too large to keep in the suite.
+	 */
+	@Test
+	fun budgetEvictionReturnsTheDrawableToItsAtlasPage() {
+		requireHeadlessGl("[layer-evict]")
+		val source = probeModel()
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+
+		renderer.displayFromArtwork()
+		val statsArtwork = artColorStats(frame(), background, viewportSize, viewportSize)
+		assertTrue(
+			statsArtwork.meanGreen > 200f && statsArtwork.meanRed < 60f,
+			"the probe should be displaying from its green artwork first (r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen})",
+		)
+
+		// No room for even one layer: the next residency pass must admit nothing and free what it holds.
+		renderer.sourceLayerByteBudget = 0L
+		renderer.setShownDrawables(emptySet())
+		renderer.setShownDrawables(setOf(probeId))
+		val statsEvicted = artColorStats(frame(), background, viewportSize, viewportSize)
+
+		val (residentCount, residentBytes, mappedCount) = renderer.sourceLayerResidencyStats()
+		println(
+			"[layer-evict] artwork r=${statsArtwork.meanRed} g=${statsArtwork.meanGreen} | " +
+				"evicted r=${statsEvicted.meanRed} g=${statsEvicted.meanGreen} | " +
+				"resident $residentCount/$mappedCount layers, $residentBytes bytes",
+		)
+
+		assertEquals(0, residentCount, "the budget admits nothing, so nothing stays resident")
+		assertEquals(1, mappedCount, "but the mapping still covers the layer, so it can be promoted again")
+		assertTrue(
+			statsEvicted.mass > 0,
+			"the drawable vanished instead of falling back to its atlas page",
+		)
+		assertTrue(
+			statsEvicted.meanRed > 200f && statsEvicted.meanGreen < 60f,
+			"an evicted drawable must draw its ATLAS page, not a freed texture " +
+				"(r=${statsEvicted.meanRed} g=${statsEvicted.meanGreen})",
 		)
 	}
 
