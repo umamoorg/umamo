@@ -196,35 +196,6 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			layerFrame ?: atlasPageEditFrame(displayWidth, displayHeight)
 		}
 
-	// Mirror U / V and the UV snap pie, collected HERE rather than in UvEditGizmoOverlay, and above the
-	// overlay mount for the same reason uv.page.* sits above the placeholder return: the overlay does not
-	// mount when the shown surface has no islands, so a collector inside it would leave both commands
-	// silently doing nothing in exactly the state a rigger would reach for them - a page pinned that the
-	// edited mesh is not on.  This space is where the authoring frame is decided, so it has everything
-	// they need and no early return between here and the overlay.
-	//
-	// The executing area was resolved at dispatch into the payload, so both gates are deterministic.
-	val liveEditFrame = rememberUpdatedState(editFrame)
-	LaunchedEffect(session, scope.areaId) {
-		session.uvMirrorRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != scope.areaId) {
-				return@collect
-			}
-			// The axis a mirror reflects about is a property of the SHOWN surface - reflecting a source
-			// layer's art about the atlas page's axis would be a different operation - which is why this
-			// carries the frame rather than letting the session assume one.
-			session.mirrorSelectedUvs(request.mirrorU, liveEditFrame.value.asUvFrame())
-		}
-	}
-	LaunchedEffect(session, scope.areaId) {
-		session.uvSnapRequests.collect { request ->
-			if (session.mode.value != EditorMode.Edit || request.areaId != scope.areaId) {
-				return@collect
-			}
-			handleUvSnapRequest(session, liveGeometries.value, liveEditFrame.value, request.kind)
-		}
-	}
-
 	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick adapters
 	// over the shown islands and the shown image's decoded pixels (UvIslandPick.kt).  The image is the
 	// atlas page or the source layer's artwork, and the alpha gate follows it - a click through
