@@ -109,11 +109,6 @@ class LayerTextures(
 
 	// A null value is a remembered failure (no bytes, or bytes that will not decode), which is why this
 	// is not a getOrPut - getOrPut treats a stored null as absent and would retry the decode every time.
-	//
-	// Unbounded, and left that way: it holds only what [rasterFor]'s callers ask for, and those are the
-	// UV editor's single-layer views - a handful of layers over a session, not the document.  The puppet
-	// display path decodes through [decodeRaster] and caches nothing here, so the hundreds-of-layers
-	// case never lands in this map.
 	private val decodedByKey = HashMap<String, DecodedImage?>()
 
 	/** True when the document surfaces no source layers at all (a MOC3 origin, or art-less CMO3). */
@@ -166,14 +161,6 @@ class LayerTextures(
 	 * placement and the same page - which is what lets the editor describe a layer's frame without
 	 * first deciding which of its users to ask, and keeps that frame stable as the selection narrows.
 	 *
-	 * That is an invariant of the DOCUMENTS, not of the types.  `cmo3LayerTextures` derives each
-	 * placement per drawable, from whether that drawable's own sampled resource is an atlas page, so
-	 * nothing in the code stops two drawables on one model image from disagreeing - and if they did, the
-	 * UV editor would author in one drawable's frame while projecting another through its own.  The
-	 * corpus says they never do: `Cmo3LayerWebProbeTest.boundDrawablesAgreeOnSamplingTheAtlas` checks
-	 * every bound model image in every sample (985 across 32 files) and asserts the agreement, so a file
-	 * that broke it would fail the gate rather than quietly mis-author an edit.
-	 *
 	 * @param String layerKey The layer in question.
 	 * @return DrawableLayerBinding? A binding over that layer, or null when nothing is bound to it.
 	 */
@@ -198,10 +185,6 @@ class LayerTextures(
 	 * hand out a SECOND decoded instance for one layer, and both the renderer's texture cache and the
 	 * viewport's freshness test compare decoded images by identity.  Anything off that thread uses
 	 * [decodeRaster] instead, which shares nothing.
-	 *
-	 * An unknown key never reaches the cache.  A store with no inventory - [EMPTY], which every MOC3
-	 * document and every art-less CMO3 shares - would otherwise accumulate one remembered failure per
-	 * key asked of it, for the life of the process, on a static reachable from any thread.
 	 *
 	 * @param String layerKey The layer's stable id.
 	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
