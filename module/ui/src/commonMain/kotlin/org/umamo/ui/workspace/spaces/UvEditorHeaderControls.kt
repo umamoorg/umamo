@@ -11,6 +11,7 @@ import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.resources.*
@@ -19,14 +20,15 @@ import org.umamo.ui.workspace.AreaScope
 
 /**
  * The UV editor's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
- * texture selector naming what the space shows (follow the selection, or a pinned atlas page),
- * then the vertex / edge / face select-mode buttons, the transform pivot dropdown, and the
- * proportional-editing controls - the shared EditHeaderControls.kt composables the 2D viewport's
- * header also mounts, so the two surfaces stay one behavior.  The shared controls drive the SHARED
- * session state (the selection and its select mode are one, Blender's UV sync selection): switching
- * to face mode here switches the viewport too, by design.  The texture selector instead reads and
- * writes the area's own UvEditorViewState, so two UV editors pin independently.  Each control gates
- * itself, and one that renders nothing measures zero and costs the strip nothing.
+ * texture selector naming what the space shows (follow the selection, a pinned atlas page, or the
+ * source-layer view) and the layer picker that finds a drawable by its artwork, then the vertex /
+ * edge / face select-mode buttons, the transform pivot dropdown, and the proportional-editing
+ * controls - the shared EditHeaderControls.kt composables the 2D viewport's header also mounts, so
+ * the two surfaces stay one behavior.  The shared controls drive the SHARED session state (the
+ * selection and its select mode are one, Blender's UV sync selection): switching to face mode here
+ * switches the viewport too, by design.  The texture selector instead reads and writes the area's own
+ * UvEditorViewState, so two UV editors pin independently.  Each control gates itself, and one that
+ * renders nothing measures zero and costs the strip nothing.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  */
@@ -39,20 +41,28 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 			UvTextureSelectorDropdown(viewState)
 		}
 	}
+	item("layerPicker") {
+		// Only worth offering when the document retains artwork to search.
+		if (LocalPuppet.current != null && LocalLayerTextures.current?.isEmpty == false) {
+			UvLayerPickerChip()
+		}
+	}
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
 	item("proportional") { ProportionalEditControls() }
 }
 
 /**
- * The texture selector: a label chip naming what the space shows, opening a menu of Follow Selection
- * plus one row per atlas page (number, texel dimensions, meshed-drawable count - the page inventory).
- * Choosing a row mutates the area's [UvEditorViewState] directly - a per-area view choice, not a
- * session operation, so no registry dispatch (the uv.page.* palette commands are the separate,
- * hovered-area-routed path onto the same state).
+ * The texture selector: a label chip naming what the space shows, opening a menu of Follow Selection,
+ * the source-layer row when this document retains artwork, and one row per atlas page (number, texel
+ * dimensions, meshed-drawable count - the page inventory).  Choosing a row mutates the area's
+ * [UvEditorViewState] directly - a per-area view choice, not a session operation, so no registry
+ * dispatch (the uv.page.* palette commands are the separate, hovered-area-routed path onto the same
+ * state).
  *
- * The chip face labels the EFFECTIVE selection: a pin the current textures cannot satisfy reads as
- * Follow Selection - matching what the body resolves - without clearing what is stored.
+ * The chip face labels the EFFECTIVE selection: a pin the current textures cannot satisfy, or a layer
+ * view a document with no retained artwork cannot serve, reads as Follow Selection - matching what the
+ * body resolves - without clearing what is stored.
  *
  * @param UvEditorViewState viewState The area's shared texture-selection state.
  */
@@ -61,16 +71,20 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 	val model = LocalPuppet.current ?: return
 	val textures = LocalPuppetTextures.current
 	val atlases = textures?.atlases.orEmpty()
+	val layers = LocalLayerTextures.current
 	val storedSelection = viewState.textureSelection
+	// The face names what the body actually resolves: a pin the current textures cannot satisfy, or a
+	// layer view this document has no artwork for, both fall back to following the selection.
 	val effectiveSelection =
-		if (storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices) {
-			storedSelection
-		} else {
-			UvTextureSelection.FollowSelection
+		when {
+			storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices -> storedSelection
+			storedSelection is UvTextureSelection.SourceLayer && layers?.isEmpty == false -> storedSelection
+			else -> UvTextureSelection.FollowSelection
 		}
 	val currentLabel =
 		when (effectiveSelection) {
 			is UvTextureSelection.PinnedPage -> stringResource(Res.string.uv_texture_selector_page, effectiveSelection.pageIndex + 1)
+			UvTextureSelection.SourceLayer -> stringResource(Res.string.uv_texture_selector_layer)
 			UvTextureSelection.FollowSelection -> stringResource(Res.string.uv_texture_selector_follow)
 		}
 	// The inventory rows' meshed-drawable counts.  Each drawable resolves its page through
@@ -92,8 +106,9 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 			counts
 		}
 	var expanded by remember { mutableStateOf(false) }
-	// Follow Selection first, then one row per page; with no textures the menu is the Follow row
-	// alone.  The menu's own dismiss closes the popup, so onSelect need not toggle `expanded`.
+	// Follow Selection first, then the source-layer row when there is artwork behind it, then one row
+	// per page; with neither the menu is the Follow row alone.  The menu's own dismiss closes the popup,
+	// so onSelect need not toggle `expanded`.
 	val followRow =
 		MenuItem.Action(
 			label = stringResource(Res.string.uv_texture_selector_follow),
@@ -113,6 +128,16 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 				onSelect = { viewState.textureSelection = UvTextureSelection.PinnedPage(pageIndex) },
 			)
 		}
+	// Offered only when the document retains source artwork; a MOC3 origin has none.
+	val layerRow =
+		if (layers?.isEmpty == false) {
+			MenuItem.Action(
+				label = stringResource(Res.string.uv_texture_selector_layer),
+				onSelect = { viewState.textureSelection = UvTextureSelection.SourceLayer },
+			)
+		} else {
+			null
+		}
 	DropdownChip(
 		expanded = expanded,
 		onExpandRequest = { expanded = true },
@@ -120,7 +145,7 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 		label = currentLabel,
 	) {
 		Menu(
-			items = listOf(followRow) + pageRows,
+			items = listOfNotNull(followRow, layerRow) + pageRows,
 			onDismissRequest = { expanded = false },
 			positionProvider = BelowAnchorPositionProvider,
 		)

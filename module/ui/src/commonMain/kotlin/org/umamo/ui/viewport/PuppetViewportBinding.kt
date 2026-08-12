@@ -22,19 +22,26 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.GridConfig
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
+import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.buildLayerRasterSet
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.model.OverlapPickerPopup
@@ -54,7 +61,7 @@ import org.umamo.ui.workspace.ViewportHost
  * @property DrawableThumbnailProvider thumbnails Art-mesh previews for the Outliner hover (LocalDrawableThumbnails).
  * @property PuppetRenderSync renderSync Streams transient preview models to the renderer (LocalPuppetRenderSync).
  * @property PuppetViewportService service The render service itself (LocalPuppetViewportService), so the UV
- *           editor can register an atlas-page area and drive its camera through the same engine.
+ *           editor can register a UV-editor area and drive its camera through the same engine.
  */
 class PuppetViewportBinding(
 	val host: ViewportHost,
@@ -72,16 +79,18 @@ class PuppetViewportBinding(
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
+ * @param LayerTextures layers The document's source-layer artwork, for the puppet's source-layer display.
  * @param LiveParams liveParams The shared parameter hand-off.
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
  * @param PuppetViewportServiceFactory serviceFactory Creates (and starts) the platform render service.
- * @return PuppetViewportBinding The host + camera controller the shell and app wire up.
+ * @return PuppetViewportBinding The host, the render service, and the preview seams the shell and app wire up.
  */
 @Composable
 fun rememberPuppetViewportHost(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
+	layers: LayerTextures,
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
@@ -136,6 +145,40 @@ fun rememberPuppetViewportHost(
 			service.setModel(model)
 			service.setShownDrawables(model.visibleDrawableIds())
 		}
+	}
+	// Prepare the artwork the puppet displays from, off both the UI and the render threads, and hand it
+	// over whole.  Rebuilt when the mode flips or the drawable set changes (a duplicate needs its own
+	// mapping), reusing already-decoded images so an edit does not re-decode the document.  collectLatest
+	// abandons an in-flight preparation if the mode flips again mid-decode.
+	//
+	// Until a set lands the service holds EMPTY and the puppet displays from its atlas, which is what
+	// makes the switch atomic rather than a puppet resolving piece by piece.
+	LaunchedEffect(service, layers) {
+		var prepared = LayerRasterSet.EMPTY
+		session.model
+			.map { model -> model.rendersFromSourceLayers to model.drawables.map { drawable -> drawable.id } }
+			.distinctUntilChanged()
+			.collectLatest { (fromSourceLayers, _) ->
+				if (!fromSourceLayers || layers.isEmpty) {
+					prepared = LayerRasterSet.EMPTY
+					service.setSourceLayerRasters(LayerRasterSet.EMPTY)
+				} else {
+					val model = session.model.value
+					val reuse = prepared
+					val next = withContext(Dispatchers.Default) { buildLayerRasterSet(model, layers, reuse) }
+					prepared = next
+					service.setSourceLayerRasters(next)
+					// A partly-recoverable document displays from a mix, which must not read as a clean
+					// switch.  The count goes to the log because the notice carries no arguments; the
+					// message's job is only to stop the mix from being silent.
+					if (next.unresolvedDrawableCount > 0) {
+						UmamoLog.warn(
+							"source-artwork display: ${next.unresolvedDrawableCount} drawable(s) have no usable artwork and stay on the atlas",
+						)
+						session.emitNotice("notice.display.partialSourceArtwork")
+					}
+				}
+			}
 	}
 	// Mirror the session's pose into the render-thread hand-off so undo / redo (and any committed scrub)
 	// re-poses the viewport. Mid-drag previews already take the faster direct path (the Parameters panel

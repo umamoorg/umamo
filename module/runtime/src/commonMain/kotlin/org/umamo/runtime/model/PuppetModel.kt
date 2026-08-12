@@ -80,6 +80,19 @@ data class PuppetModel(
 	 * editing controls only - never rendering or saving.  See [RuntimeTarget].
 	 */
 	val runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+	/**
+	 * Whether the puppet displays from its SOURCE ARTWORK rather than from the packed atlas pages.
+	 *
+	 * A display choice, but document content: the source formats author it (CMO3 stores it on its
+	 * texture manager) and a rigger's answer to "am I looking at the art or at the pack?" belongs to
+	 * the document, not to the app.  Nothing in the evaluator reads it - it selects which texture the
+	 * renderer samples, and false (the atlas) is the default because that is what a document carrying
+	 * no such flag means.
+	 *
+	 * Honoring it is best-effort per drawable: art the document does not retain keeps rendering from
+	 * the atlas, so the puppet stays whole rather than developing holes.
+	 */
+	val rendersFromSourceLayers: Boolean = false,
 ) {
 	/**
 	 * Every part by id, built once per model instance.

@@ -63,9 +63,12 @@ internal fun Cursor2dOverlay(
  * the gizmo chrome for viewport parity.  Draw-only; placement stays a gizmo gesture
  * (Shift+RightClick, handled by the mode's own overlay in both modes).
  *
+ * The cursor is stored in ATLAS coordinates, so the shown surface's frame is what puts it in the
+ * right place: over a page that is the plain texel mapping, and over a source layer it also carries
+ * the drawable's placement.  One cursor either way - the same point on the art, wherever it is seen.
+ *
  * @param EditorSession session The session whose UV cursor this overlay draws.
- * @param Int pageWidth The shown atlas page's width in texels (the display mapping's scale).
- * @param Int pageHeight The shown atlas page's height in texels.
+ * @param UvEditFrame frame The shown surface's texel size plus its conversion from stored coordinates.
  * @param ViewportCamera? camera The displayed frame's camera; null skips drawing.
  * @param Int widthPx The area width in px.
  * @param Int heightPx The area height in px.
@@ -74,8 +77,7 @@ internal fun Cursor2dOverlay(
 @Composable
 internal fun UvCursorOverlay(
 	session: EditorSession,
-	pageWidth: Int,
-	pageHeight: Int,
+	frame: UvEditFrame,
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
@@ -87,15 +89,10 @@ internal fun UvCursorOverlay(
 	if (cursorToDraw == null || camera == null) {
 		return
 	}
+	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursorToDraw.u, cursorToDraw.v)
 	Canvas(modifier = modifier.fillMaxSize()) {
 		drawCursorMarker(
-			center =
-				worldToScreen(
-					uvToDisplayX(cursorToDraw.u, pageWidth),
-					uvToDisplayY(cursorToDraw.v, pageHeight),
-					camera,
-					IntSize(widthPx, heightPx),
-				),
+			center = worldToScreen(cursorDisplayX, cursorDisplayY, camera, IntSize(widthPx, heightPx)),
 			tint = cursorColors.viewportBadgeText,
 		)
 	}

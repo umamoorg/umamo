@@ -290,4 +290,77 @@ class UvEditsTest {
 		val mirrored = session.model.value.drawables[0].mesh!!.uvs
 		assertUvsEqual(listOf(0.8f, 0.1f, 0.6f, 0.1f, 0.4f, 0.4f), mirrored, "u reflects about the cursor's 0.5")
 	}
+
+	/**
+	 * A quarter-turn frame: stored (u, v) reads as (v, -u) in the authoring space.  Enough to catch a
+	 * mirror that reflects about the STORED axis while claiming to reflect about the shown one - under
+	 * this frame the two are perpendicular, so the mistake cannot pass.
+	 */
+	private fun quarterTurnFrame(): UvFrame =
+		UvFrame(toFrameAffine = floatArrayOf(0f, 1f, 0f, -1f, 0f, 0f), fromFrameAffine = floatArrayOf(0f, -1f, 0f, 1f, 0f, 0f))
+
+	/** With no frame the mirror is exactly what it always was - the page view must not shift at all. */
+	@Test
+	fun mirrorWithoutAFrameIsUnchanged() {
+		val withoutFrame = editSession()
+		withoutFrame.mirrorSelectedUvs(mirrorU = true)
+		val plain = withoutFrame.model.value.drawables[0].mesh!!.uvs
+
+		val withIdentity = editSession()
+		withIdentity.mirrorSelectedUvs(mirrorU = true, frame = null)
+		assertUvsEqual(plain.toList(), withIdentity.model.value.drawables[0].mesh!!.uvs, "an absent frame changes nothing")
+	}
+
+	/**
+	 * Under a frame the mirror reflects about the AUTHORING axis, not the stored one.  Mirroring
+	 * horizontally through a quarter turn therefore moves v and leaves u alone - the opposite of what
+	 * the same command does with no frame.
+	 */
+	@Test
+	fun mirrorReflectsAboutTheAuthoringAxis() {
+		val session = editSession()
+		val original = session.model.value.drawables[0].mesh!!.uvs.copyOf()
+		session.mirrorSelectedUvs(mirrorU = true, frame = quarterTurnFrame())
+		val mirrored = session.model.value.drawables[0].mesh!!.uvs
+
+		// Frame u is stored v, so a horizontal mirror in the frame reflects the stored v about its own
+		// covered median (0.1 / 0.1 / 0.4 -> 0.2) and leaves stored u untouched.
+		assertEquals(original[0], mirrored[0], 1e-5f, "stored u is untouched by a frame-horizontal mirror")
+		assertEquals(original[2], mirrored[2], 1e-5f, "stored u is untouched by a frame-horizontal mirror")
+		assertEquals(0.3f, mirrored[1], 1e-5f, "stored v reflects about the covered median")
+		assertEquals(0.3f, mirrored[3], 1e-5f, "stored v reflects about the covered median")
+		assertEquals(0.0f, mirrored[5], 1e-5f, "stored v reflects about the covered median")
+	}
+
+	/** The Cursor pivot converts into the frame too, so the anchor means the same place in both spaces. */
+	@Test
+	fun mirrorResolvesTheCursorPivotInTheFrame() {
+		val session = editSession()
+		session.setPivotMode(TransformPivotMode.Cursor)
+		session.setUvCursor(0.5f, 0.25f)
+		session.mirrorSelectedUvs(mirrorU = true, frame = quarterTurnFrame())
+		val mirrored = session.model.value.drawables[0].mesh!!.uvs
+		// The cursor's stored (0.5, 0.25) is frame (0.25, -0.5); a frame-horizontal mirror reflects the
+		// frame u - stored v - about 0.25.
+		assertEquals(0.4f, mirrored[1], 1e-5f, "stored v reflects about the cursor's frame position")
+		assertEquals(0.1f, mirrored[5], 1e-5f, "stored v reflects about the cursor's frame position")
+	}
+
+	/** A frame round trip must not disturb a vertex the mirror never moved. */
+	@Test
+	fun mirrorLeavesUnselectedVerticesBitIdentical() {
+		val session = editSession()
+		// Select only vertex 0, so vertices 1 and 2 must survive the frame conversion untouched.
+		session.setMeshSelection(MeshSelectionOps.replace(MeshSelection(), DrawableId("a"), MeshElement.Vertex(0)))
+		val original = session.model.value.drawables[0].mesh!!.uvs.copyOf()
+		session.mirrorSelectedUvs(mirrorU = true, frame = quarterTurnFrame())
+		val mirrored = session.model.value.drawables[0].mesh!!.uvs
+		for (componentIndex in 2 until original.size) {
+			assertEquals(
+				original[componentIndex].toRawBits(),
+				mirrored[componentIndex].toRawBits(),
+				"untouched component $componentIndex must keep its exact stored value",
+			)
+		}
+	}
 }

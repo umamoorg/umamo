@@ -4,7 +4,9 @@ import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
@@ -25,7 +27,10 @@ import org.umamo.ui.viewport.RenderedFrame
 import java.io.File
 import java.util.ArrayDeque
 
-/** Framebuffer pixels per display pixel: the whole pipeline renders 2x and box-downscales on resolve. */
+/**
+ * Framebuffer pixels per display pixel while supersampling is on: the whole pipeline renders 2x and
+ * box-downscales on resolve.  Supersampling off collapses the scale to 1.
+ */
 internal const val RENDER_SUPERSAMPLE = 2
 
 /** Idle poll when nothing changed and no read-back is in flight (about 60 Hz wake to pick up new params). */
@@ -47,12 +52,14 @@ private const val RESIZE_SETTLE_NANOS = 25_000_000L
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
- * UI thread pushes (selection, shown set, model, grid, highlight colors), renders each registered area whose
- * pose / size / camera / backdrop changed, and publishes finished frames to the area's slot.
+ * UI thread pushes (selection, shown set, model, source artwork, grid, highlight colors), renders each
+ * registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
+ * area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
- * All viewport areas of one document show the same puppet at the same pose (the shared [liveParams]), so
- * areas differ only by SIZE; re-renders happen only when the pose or an area's size/camera/backdrop changes.
+ * Every 2D area of one document shows the same puppet at the same pose (the shared [liveParams]), so those
+ * areas differ only by size and camera; re-renders happen only when the pose or an area's
+ * size / camera / scene content / backdrop changes.
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).
@@ -128,6 +135,11 @@ internal class OffscreenRenderEngine(
 	@Volatile
 	private var shownBacking: Set<DrawableId> = puppet.visibleDrawableIds()
 
+	// The source artwork the puppet displays from, published whole and already decoded.  EMPTY is the
+	// atlas, which is where every document starts until a set is prepared for it.
+	@Volatile
+	private var layerRastersBacking: LayerRasterSet = LayerRasterSet.EMPTY
+
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
 	@Volatile
@@ -136,7 +148,8 @@ internal class OffscreenRenderEngine(
 	@Volatile
 	private var puppetRenderBump: Long = 0
 
-	// Atlas changes bump the renderer separately so the puppet updating does not needlessly update the atlas.
+	// The UV editor's flat scenes (atlas page, source layer) bump separately from the puppet, so a puppet
+	// update does not needlessly re-render them.
 	@Volatile
 	private var atlasRenderBump: Long = 0
 
@@ -250,6 +263,21 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * Sets the source artwork the puppet displays from; an empty set displays from the atlas.
+	 *
+	 * A volatile publish of one immutable value, like every other render input.  The render loop hands
+	 * it to the renderer, which is where the GPU uploads happen - this must not touch the device.
+	 *
+	 * @param LayerRasterSet rasters The decoded artwork plus each drawable's mapping into it.
+	 */
+	fun setSourceLayerRasters(rasters: LayerRasterSet) {
+		if (rasters !== layerRastersBacking) {
+			layerRastersBacking = rasters
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
 	 * Pushes the latest model so the render thread can reconcile it after an edit (a layer reorder
 	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs). A new (different)
 	 * instance bumps the puppet render version so every area re-renders once.
@@ -357,12 +385,20 @@ internal class OffscreenRenderEngine(
 			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
 			var lastModel: PuppetModel? = null
+			var lastLayerRasters: LayerRasterSet? = null
 			var paramsVersion = 0L
 			while (running) {
 				collectCompleted()
 				val params = liveParams.values
 				val shown = shownBacking
 				val orderModel = modelBacking
+				// The artwork hand-off, on the render thread where the uploads belong.  Compared by
+				// identity: the set is published whole, so a new reference IS the change.
+				val layerRasters = layerRastersBacking
+				if (layerRasters !== lastLayerRasters) {
+					renderer.setSourceLayerRasters(layerRasters)
+					lastLayerRasters = layerRasters
+				}
 				// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
 				// the render order - when the pose, the visibility cascade, OR the render order changes. A
 				// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
@@ -417,10 +453,10 @@ internal class OffscreenRenderEngine(
 					// Freshness splits into the size axis (throttled during an active resize) and the rest.
 					// A frame rendered below the settle scale stays size-stale on purpose, so the settle
 					// pass re-renders it at full quality once the size holds still.
-					// An atlas page is model-independent, so its freshness ignores the pose version and
-					// puppetRenderBump: it re-renders only on size / camera / pageIndex, plus the grid colors and
-					// geometry it draws its backdrop with - tracked by atlasRenderBump. The puppet keeps the full
-					// freshness via puppetRenderBump.
+					// A UV scene is model-independent, so its freshness ignores the pose version and
+					// puppetRenderBump: it re-renders only on size / camera / the surface it shows (the page index
+					// or the layer raster), plus the grid colors and geometry it draws its backdrop with - tracked
+					// by atlasRenderBump. The puppet keeps the full freshness via puppetRenderBump.
 					val sizeFresh = slot.renderedWidth == width && slot.renderedHeight == height && slot.renderedScale == settleScale
 					val restFresh =
 						when (slot.scene) {
@@ -431,6 +467,11 @@ internal class OffscreenRenderEngine(
 
 							RenderScene.AtlasPage ->
 								slot.renderedPageIndex == slot.pageIndex &&
+									slot.renderedCamera === camera &&
+									slot.atlasRenderBumpDone == atlasRenderBump
+
+							RenderScene.SourceLayer ->
+								slot.renderedLayerImage === slot.layerImage &&
 									slot.renderedCamera === camera &&
 									slot.atlasRenderBumpDone == atlasRenderBump
 						}
@@ -544,9 +585,12 @@ internal class OffscreenRenderEngine(
 
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
-			// A UV area draws the flat atlas page instead; the pose / selection / shown state pushed above are
-			// harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
+			// An atlas-page UV area draws the flat page instead; the pose / selection / shown state pushed above
+			// are harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
 			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
+			// A source-layer area draws artwork the engine has never uploaded, so the renderer takes the
+			// pixels rather than an index and caches the texture it makes from them.
+			RenderScene.SourceLayer -> renderer.renderUnderlayImage(drawTarget, slot.layerImage, renderWidth, renderHeight)
 		}
 
 		surface.resolve()
@@ -577,6 +621,7 @@ internal class OffscreenRenderEngine(
 		slot.puppetRenderBumpDone = puppetRenderBumpDone
 		slot.atlasRenderBumpDone = atlasRenderBumpDone
 		slot.renderedPageIndex = slot.pageIndex
+		slot.renderedLayerImage = slot.layerImage
 	}
 
 	/**
@@ -602,7 +647,8 @@ internal class OffscreenRenderEngine(
 
 	/**
 	 * The content rectangle an area's camera fits: the puppet's rest-pose bounds for a 2D area, or the
-	 * atlas page rectangle for a UV-editor area.  Render thread only (reads the renderer's bounds).
+	 * shown surface's rectangle for a UV-editor area (the atlas page, or the source layer's raster).
+	 * Render thread only (reads the renderer's bounds).
 	 *
 	 * @param AreaSlot slot The area being framed.
 	 * @return ContentBounds The rectangle to fit.
@@ -611,6 +657,21 @@ internal class OffscreenRenderEngine(
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.contentBounds()
 			RenderScene.AtlasPage -> pageContentBounds(slot.pageIndex)
+			RenderScene.SourceLayer -> imageContentBounds(slot.layerImage)
+		}
+
+	/**
+	 * The source-layer rectangle (0, 0, width, height) for the UV-editor fit, or a unit square when there
+	 * is no layer, matching [pageContentBounds]' fallback so both UV scenes frame the same way.
+	 *
+	 * @param DecodedImage image The layer raster, or null for none.
+	 * @return ContentBounds The layer rectangle, in texel/display units.
+	 */
+	private fun imageContentBounds(image: DecodedImage?): ContentBounds =
+		if (image != null) {
+			ContentBounds(0f, 0f, image.width.toFloat(), image.height.toFloat())
+		} else {
+			ContentBounds(0f, 0f, 1f, 1f)
 		}
 
 	/**

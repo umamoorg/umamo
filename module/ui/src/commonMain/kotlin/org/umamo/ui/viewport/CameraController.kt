@@ -13,9 +13,6 @@ import org.umamo.render.eval.drawableSpaceMapping
  * registers one of these into the AreaCameraHub for its area's lifetime; the shell's view commands
  * resolve the hovered area's controller through the hub at dispatch time.  A new camera-bearing space
  * reuses this by registering its own implementation - never by adding a branch to the view commands.
- *
- * ビューコマンド（フィット／等倍／ズーム／ズーム領域／選択をフレーム）へエリアが公開するカメラ操作。
- * 2D ビューポートと UV エディタが各エリアの分を登録し、コマンドはホバー中のエリアの分を解決する。
  */
 internal interface CameraController {
 	/** Frames the area's content to fit. */
@@ -151,7 +148,7 @@ internal class ViewportSpaceCamera(
 }
 
 /**
- * The UV editor's camera controller for one UV atlas-page area.  Frame Selected frames the covered UV
+ * The UV editor's camera controller for one UV-editor area.  Frame Selected frames the covered UV
  * bounds in the editor's display space: in Edit mode the covered vertices of the mesh selection, in
  * Object mode every vertex of the shown geometries (the selected drawables).  A one-texel floor keeps a
  * single-vertex frame from exploding the zoom to its clamp.
@@ -172,7 +169,7 @@ internal class UvSpaceCamera(
 		// Mirror the 2D viewport's mode split (ViewportSpaceCamera.frameSelected): Edit mode frames the
 		// covered (selected) vertices; Object mode has no element selection, so it frames every vertex
 		// of the supplied geometries - the host's supplier narrows Object mode to the SELECTED islands
-		// (the shown list is every visible island on the page).  Without this branch Object-mode Frame
+		// (the shown list is every visible island on the surface).  Without this branch Object-mode Frame
 		// Selected is a no-op, because meshSelection is empty there and coveredVertexIndices returns
 		// nothing.
 		val editMode = session.mode.value == EditorMode.Edit
