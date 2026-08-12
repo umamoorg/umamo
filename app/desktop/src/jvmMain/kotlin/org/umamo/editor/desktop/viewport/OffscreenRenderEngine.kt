@@ -27,7 +27,10 @@ import org.umamo.ui.viewport.RenderedFrame
 import java.io.File
 import java.util.ArrayDeque
 
-/** Framebuffer pixels per display pixel: the whole pipeline renders 2x and box-downscales on resolve. */
+/**
+ * Framebuffer pixels per display pixel while supersampling is on: the whole pipeline renders 2x and
+ * box-downscales on resolve.  Supersampling off collapses the scale to 1.
+ */
 internal const val RENDER_SUPERSAMPLE = 2
 
 /** Idle poll when nothing changed and no read-back is in flight (about 60 Hz wake to pick up new params). */
@@ -49,12 +52,14 @@ private const val RESIZE_SETTLE_NANOS = 25_000_000L
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
- * UI thread pushes (selection, shown set, model, grid, highlight colors), renders each registered area whose
- * pose / size / camera / backdrop changed, and publishes finished frames to the area's slot.
+ * UI thread pushes (selection, shown set, model, source artwork, grid, highlight colors), renders each
+ * registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
+ * area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
- * All viewport areas of one document show the same puppet at the same pose (the shared [liveParams]), so
- * areas differ only by SIZE; re-renders happen only when the pose or an area's size/camera/backdrop changes.
+ * Every 2D area of one document shows the same puppet at the same pose (the shared [liveParams]), so those
+ * areas differ only by size and camera; re-renders happen only when the pose or an area's
+ * size / camera / scene content / backdrop changes.
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).
@@ -143,7 +148,8 @@ internal class OffscreenRenderEngine(
 	@Volatile
 	private var puppetRenderBump: Long = 0
 
-	// Atlas changes bump the renderer separately so the puppet updating does not needlessly update the atlas.
+	// The UV editor's flat scenes (atlas page, source layer) bump separately from the puppet, so a puppet
+	// update does not needlessly re-render them.
 	@Volatile
 	private var atlasRenderBump: Long = 0
 
@@ -447,10 +453,10 @@ internal class OffscreenRenderEngine(
 					// Freshness splits into the size axis (throttled during an active resize) and the rest.
 					// A frame rendered below the settle scale stays size-stale on purpose, so the settle
 					// pass re-renders it at full quality once the size holds still.
-					// An atlas page is model-independent, so its freshness ignores the pose version and
-					// puppetRenderBump: it re-renders only on size / camera / pageIndex, plus the grid colors and
-					// geometry it draws its backdrop with - tracked by atlasRenderBump. The puppet keeps the full
-					// freshness via puppetRenderBump.
+					// A UV scene is model-independent, so its freshness ignores the pose version and
+					// puppetRenderBump: it re-renders only on size / camera / the surface it shows (the page index
+					// or the layer raster), plus the grid colors and geometry it draws its backdrop with - tracked
+					// by atlasRenderBump. The puppet keeps the full freshness via puppetRenderBump.
 					val sizeFresh = slot.renderedWidth == width && slot.renderedHeight == height && slot.renderedScale == settleScale
 					val restFresh =
 						when (slot.scene) {
@@ -579,8 +585,8 @@ internal class OffscreenRenderEngine(
 
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
-			// A UV area draws the flat atlas page instead; the pose / selection / shown state pushed above are
-			// harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
+			// An atlas-page UV area draws the flat page instead; the pose / selection / shown state pushed above
+			// are harmless no-ops for it (renderAtlasPage reads none of them - just the grid + the page quad).
 			RenderScene.AtlasPage -> renderer.renderAtlasPage(drawTarget, slot.pageIndex, renderWidth, renderHeight)
 			// A source-layer area draws artwork the engine has never uploaded, so the renderer takes the
 			// pixels rather than an index and caches the texture it makes from them.
@@ -641,7 +647,8 @@ internal class OffscreenRenderEngine(
 
 	/**
 	 * The content rectangle an area's camera fits: the puppet's rest-pose bounds for a 2D area, or the
-	 * atlas page rectangle for a UV-editor area.  Render thread only (reads the renderer's bounds).
+	 * shown surface's rectangle for a UV-editor area (the atlas page, or the source layer's raster).
+	 * Render thread only (reads the renderer's bounds).
 	 *
 	 * @param AreaSlot slot The area being framed.
 	 * @return ContentBounds The rectangle to fit.

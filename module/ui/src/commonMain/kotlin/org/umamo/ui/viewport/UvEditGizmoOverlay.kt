@@ -54,13 +54,13 @@ private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
 /**
  * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
  * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
- * moved sets) together with the atlas page dimensions.  The texture-space sibling of the Edit gesture, minus
- * every deformer concern: UVs live in one flat display space, so there is no space mapping, no movement
- * transfer, and no world/local split - the operator transforms the display coordinates directly and the
- * result converts straight back to normalized UV.
+ * moved sets) together with the frame those coordinates were mapped in.  The texture-space sibling of the
+ * Edit gesture, minus every deformer concern: UVs live in one flat display space, so there is no deformer
+ * space mapping, no movement transfer, and no world/local split - the operator transforms the display
+ * coordinates directly and the result converts back through the frame to the stored coordinates.
  *
- * The page dimensions freeze here so the display-to-uv conversion at drive and commit always matches the
- * space the originals were mapped in (the shown page can hop mid-gesture if the active drawable changes from
+ * The frame freezes here so the display-to-uv conversion at drive and commit always matches the space the
+ * originals were mapped in (the shown surface can hop mid-gesture if the active drawable changes from
  * another area).
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
@@ -73,16 +73,17 @@ private class UvGesture(
 )
 
 /**
- * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its atlas
- * underlay.  Self-gates to Edit mode with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay],
- * so the host mounts both unconditionally (the viewport overlay pair's convention).
+ * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its texture
+ * underlay - the atlas page or the source layer's artwork the area is showing.  Self-gates to Edit mode
+ * with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay], so the host mounts both
+ * unconditionally (the viewport overlay pair's convention).
  * Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the
  * idle element selection (click pick with Shift/Ctrl toggle, empty-drag box, sub-threshold-click
  * clear), and drives the modal G / S / R operators over raw texture coordinates through the shared
  * [ModalTransformController] - the same pointer semantics as the viewport overlays (stale discard,
- * virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with an identity space mapping: the
- * transformed display arrays convert straight back to normalized UV on drive and commit, no deformer
- * inverse involved.
+ * virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with no deformer inverse involved: the
+ * transformed display arrays convert back through the shown surface's frame to the stored coordinates
+ * on drive and commit.
  *
  * Live preview streams through [LocalPuppetRenderSync]: each pointer frame folds the transformed UVs
  * into an uncommitted model and pushes it to the puppet renderer, so the 2D viewport shows the art
@@ -131,7 +132,7 @@ internal fun UvEditGizmoOverlay(
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	// Live values the long-running pointer loop and effects read (they are keyed only on areaId, so
-	// they must not close over a stale camera / size / geometry / page when those change mid-edit).
+	// they must not close over a stale camera / size / geometry / frame when those change mid-edit).
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 	val liveGeometries = rememberUpdatedState(geometries)
@@ -162,7 +163,7 @@ internal fun UvEditGizmoOverlay(
 
 	// The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	// cursor wrap, pointer controller), the Edit overlay's shape.  The capture is the UV gesture (shared
-	// transform capture + frozen page dimensions); preview holds each moving mesh's display-space coordinates.
+	// transform capture + the frozen authoring frame); preview holds each moving mesh's display-space coordinates.
 	val gesture = remember(areaId) { ModalGestureState<UvGesture>() }
 
 	// The UV editor's own proportional influence radius, in display (texel) units, delegating to the
@@ -170,7 +171,7 @@ internal fun UvEditGizmoOverlay(
 	var proportionalRadiusDisplay by proportionalRadiusDisplayState
 
 	/**
-	 * Resolves the effective proportional radius, seeding it from the current page on first use.
+	 * Resolves the effective proportional radius, seeding it from the shown surface's size on first use.
 	 *
 	 * @return Float The influence radius in display units.
 	 */
@@ -219,8 +220,8 @@ internal fun UvEditGizmoOverlay(
 	}
 
 	// Drives the modal preview for one virtual-pointer position: the shared operator math over the
-	// frozen display arrays (identity space - no inverse), converted back to UV and folded into an
-	// uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.  False when
+	// frozen display arrays (no deformer inverse), converted back to stored coordinates and folded into
+	// an uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.  False when
 	// the capture has not landed yet.
 	fun driveModalPreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
 		val start = gesture.gestureStart ?: return false
@@ -331,8 +332,8 @@ internal fun UvEditGizmoOverlay(
 	}
 
 	// The UV snap pie (Shift+S over the UV editor): the executing area was resolved at dispatch into
-	// the payload, so this gate is deterministic.  The executor owns the shown page's dimensions and
-	// the covered display geometry, so it performs the snap over the texture coordinates here.
+	// the payload, so this gate is deterministic.  The executor owns the shown surface's frame and the
+	// covered display geometry, so it performs the snap over the texture coordinates here.
 	LaunchedEffect(session) {
 		session.uvSnapRequests.collect { request ->
 			if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
@@ -411,7 +412,7 @@ internal fun UvEditGizmoOverlay(
 					cursorAnchor = cursorAnchor,
 				)
 			if (transform == null) {
-				// Nothing movable on the shown page (the selection's covered meshes live elsewhere or
+				// Nothing movable on the shown surface (the selection's covered meshes live elsewhere or
 				// carry no editable UVs): drop the operator.
 				session.clearUvOperator()
 			} else {

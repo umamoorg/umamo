@@ -53,8 +53,6 @@ data class Notice(val messageKey: String, val serial: Long, val placement: Notic
  * Held on the UI thread (Compose drives it); the render host observes [model] / [selection] as flows.
  * Compose-free by design (its module mandate), so it exposes coroutines flows, not Compose state.
  *
- * 開いているドキュメントの唯一の可変所有者。モデル・選択・モード・履歴・変更イベントを束ねる。
- *
  * @param PuppetModel initialModel The document model at open.
  * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
  *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
@@ -68,8 +66,8 @@ class EditorSession(
 	initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
 ) {
 	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags), the
-	// overlay-request buses, and the remembered-selection memory; the members below delegate so the
-	// public API is unchanged, and every flow-write ordering stays in this facade.
+	// area-request buses, the remembered-selection memory, and the tool latches; the members below
+	// delegate so the public API is unchanged, and every flow-write ordering stays in this facade.
 	private val history = HistoryCore(EditorSnapshot(initialModel, Selection(), initialPose), initialHistoryLimit)
 	private val requestBus = SessionRequestBus()
 	private val elementMemory = MeshElementMemory()
@@ -852,7 +850,7 @@ class EditorSession(
 	 * The texture-mapping twin of [commitMeshPositions] - the per-drawable copy-on-write [withMeshUvs]
 	 * edits fold into a single model, so N edited meshes are one history step.  Mid-gesture preview
 	 * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
-	 * (the sampled atlas texels are document content), so it marks the document dirty; a no-op (every
+	 * (the sampled texels are document content), so it marks the document dirty; a no-op (every
 	 * array unchanged / mismatched) records nothing.
 	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformUvs] or [MeshChange.MirrorUvs]).
@@ -1021,7 +1019,8 @@ class EditorSession(
 			}
 		}
 		if (coveredCount == 0) {
-			// Unreachable today (callers pre-filter empty covered sets); the page center is a safe anchor.
+			// Unreachable today (callers pre-filter empty covered sets); the authoring frame's center is
+			// a safe anchor.
 			return 0.5f to 0.5f
 		}
 		return (sumU / coveredCount) to (sumV / coveredCount)
@@ -1519,7 +1518,7 @@ class EditorSession(
 
 	/**
 	 * Fires a UV snap (the UV editor's Shift+S pie) for one UV editor overlay to execute: the shown
-	 * atlas page's dimensions and display geometry live with the overlay, so it performs the snap over
+	 * surface's dimensions and display geometry live with the overlay, so it performs the snap over
 	 * the texture coordinates (the texture-space sibling of [snapRequests]).  The payload carries the
 	 * operation AND the dispatch-time resolved area (see [UvSnapRequest]), so the collector gates
 	 * deterministically on its own area id.

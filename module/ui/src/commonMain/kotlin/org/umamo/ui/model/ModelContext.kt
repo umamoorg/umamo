@@ -61,9 +61,9 @@ val LocalPuppetRenderSync = staticCompositionLocalOf<PuppetRenderSync?> { null }
 /**
  * The platform render service for the composition, or null when no puppet renderer is present (no
  * document, or a platform without the offscreen GL engine - Android until the GLES sibling lands).  The
- * UV editor requires it: it registers an atlas-page area to render its underlay through the same engine
- * the 2D viewport uses, and owns its camera through it; with no service the UV editor shows the grid
- * placeholder, exactly like the 2D viewport's body.
+ * UV editor requires it: it registers a UV scene - an atlas page or a source layer - to render its
+ * underlay through the same engine the 2D viewport uses, and owns its camera through it; with no service
+ * the UV editor shows the grid placeholder, exactly like the 2D viewport's body.
  */
 val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?> { null }
 
@@ -119,8 +119,6 @@ interface DrawableThumbnailProvider {
 /**
  * The drawable-thumbnail provider for the composition, or null when none is wired (e.g. no document open,
  * or a platform without the renderer). The Outliner hover preview no-ops when it is null.
- *
- * コンポジションのサムネイル供給元。未配線時は null（プレビュー無し）。
  */
 val LocalDrawableThumbnails = staticCompositionLocalOf<DrawableThumbnailProvider?> { null }
 

@@ -59,22 +59,22 @@ import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 
 /**
- * The UV editor space: the shown atlas page drawn under its UV islands, with the session's selections
- * shared 1:1 (Blender's UV sync selection, always on - Umamo UVs are strictly per-vertex, so the
- * viewport and the UV editor agree by construction).  In Edit mode the composed [UvEditGizmoOverlay]
- * owns the interactions: element picking and box select over the shared mesh selection, and the modal
- * G / S / R operators over the texture coordinates with live GPU preview.  In Object mode
- * [UvObjectGizmoOverlay] draws every visible island on the page and owns island selection - click,
- * box, and the Alt overlap stack, writing the session's object selection, so a selection made here
- * flows out to the viewport and the outliner.  Middle-drag pans and the wheel zooms in both modes,
- * through this space's own navigation loop.
+ * The UV editor space: the shown surface - an atlas page, or the source layer the art was authored on -
+ * drawn under its UV islands, with the session's selections shared 1:1 (Blender's UV sync selection,
+ * always on - Umamo UVs are strictly per-vertex, so the viewport and the UV editor agree by
+ * construction).  In Edit mode the composed [UvEditGizmoOverlay] owns the interactions: element picking
+ * and box select over the shared mesh selection, and the modal G / S / R operators over the texture
+ * coordinates with live GPU preview.  In Object mode [UvObjectGizmoOverlay] draws every visible island
+ * on the shown surface and owns island selection - click, box, and the Alt overlap stack, writing the
+ * session's object selection, so a selection made here flows out to the viewport and the outliner.
+ * Middle-drag pans and the wheel zooms in both modes, through this space's own navigation loop.
  *
- * FULL VIEWPORT-SERVICE PARITY: the atlas page underlay is rendered by the SAME offscreen GL engine the
- * 2D viewport uses (a per-area "atlas page" render scene), blitted here by [UvPageUnderlay]; the UV
- * camera is owned by that service, and the Compose wireframe / gizmo overlays lock to the frame camera so
- * they stay glued to the (asynchronously produced) raster during pan / zoom.  With no service present
- * (Android until the GLES engine lands) the space shows the grid placeholder, exactly like the 2D
- * viewport - there is no CPU underlay fallback.
+ * FULL VIEWPORT-SERVICE PARITY: the underlay is rendered by the SAME offscreen GL engine the 2D viewport
+ * uses (a per-area UV render scene, whose content is either an atlas page or a source layer's raster),
+ * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose wireframe /
+ * gizmo overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster
+ * during pan / zoom.  With no service present (Android until the GLES engine lands) the space shows the
+ * grid placeholder, exactly like the 2D viewport - there is no CPU underlay fallback.
  *
  * The working space is the display mapping of UvDisplayMapping.kt: texel units with Y up (v = 0 is the
  * image's TOP row, so the axis flips - see that file's header).
@@ -91,7 +91,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		PlaceholderSpace(stringResource(Res.string.space_uv))
 		return
 	}
-	// STRICT PARITY: the UV editor renders its page through the GL engine, exactly like the 2D viewport.
+	// STRICT PARITY: the UV editor renders its surface through the GL engine, exactly like the 2D viewport.
 	// With no service (Android until the GLES engine lands) show the grid placeholder - no underlay, no
 	// editing camera - mirroring Viewport2DBody's null-host branch.
 	if (service == null) {
@@ -282,8 +282,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	DisposableEffect(scope.areaId, areaCameraHub, session, service) {
 		// The UV camera reads the supplier lazily each Frame Selected, so it always frames the current
 		// shown geometries without re-registering on every mesh change.  Object mode narrows to the
-		// SELECTED islands - the shown list is every visible island on the page, and framing all of
-		// them would just frame the page; an empty selection yields an empty list, keeping Frame
+		// SELECTED islands - the shown list is every visible island on the surface, and framing all of
+		// them would just frame the surface; an empty selection yields an empty list, keeping Frame
 		// Selected a no-op then.
 		val ops =
 			UvSpaceCamera(service, session, scope.areaId) {
@@ -348,8 +348,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 							uvEditorNavigation(session = session, service = service, areaId = scope.areaId)
 						},
 			) {
-				// The page underlay: the GL-rendered atlas page clipped to its on-screen tile with the
-				// 1.dp frame around it, or the grid placeholder before the first frame (UvPageUnderlay.kt).
+				// The underlay: the GL-rendered surface - atlas page or source layer - clipped to its
+				// on-screen tile with the 1.dp frame around it, or the grid placeholder before the first
+				// frame (UvPageUnderlay.kt).
 				UvPageUnderlay(
 					rendered = image,
 					pageWidth = displayWidth,
@@ -413,7 +414,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				)
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
 				// until armed.  Mounted above the gizmo overlays so an armed drag is captured over them; on
-				// release it calls the area-generic service.zoomToRegion for this UV atlas-page area.  Takes
+				// release it calls the area-generic service.zoomToRegion for this UV editor area.  Takes
 				// the LIVE camera like the 2D viewport's mount - the overlay reads it only as its
 				// area-initialized gate, never for projection.
 				ViewportRegionOverlay(

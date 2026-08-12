@@ -42,8 +42,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * (the redo branch) are dimmed. A trailing dot marks the last-saved step. The whole list is a projection
  * the session republishes ([org.umamo.edit.EditorSession.historyView]), so it tracks edits made anywhere.
  *
- * 履歴空間。取り消しスタックをクリック可能な一覧として表示（最古が上、現在段を強調）。行をクリックでその段へ移動。
- *
  * @param Modifier modifier The layout modifier.
  */
 @Composable

@@ -25,7 +25,7 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		Command("document.openFailed", title = null) { argument ->
 			(argument as? DocumentOpenFailure)?.let { failure -> overlays.openFailure = failure }
 		},
-		// The document layer asks before replacing a dirty document (an import discards unexported
+		// The document layer asks before replacing a dirty document (an import discards its unsaved
 		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
 		Command("document.confirmReplace", title = null) { argument ->
 			(argument as? Function0<*>)?.let { proceed ->

@@ -9,7 +9,10 @@ import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
 import java.util.concurrent.ConcurrentHashMap
 
-/** Which content an area renders: the posed puppet (2D viewport) or a flat atlas page (UV editor). */
+/**
+ * Which content an area renders: the posed puppet (2D viewport), or one of the UV editor's flat
+ * surfaces - a packed atlas page or a source layer's own artwork.
+ */
 internal enum class RenderScene {
 	Puppet2D,
 	AtlasPage,
@@ -24,7 +27,8 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  * ([OffscreenRenderEngine]). Field-ownership contract:
  *
  *   - The @Volatile fields are written by the UI thread and read by the render thread (a volatile publish of
- *     immutable values or plain scalars): scene, pageIndex, width, height, camera, refitRequested.
+ *     immutable values or plain scalars): scene, pageIndex, layerImage, width, height, camera,
+ *     refitRequested.
  *   - imageState / cameraState are thread-safe StateFlows; either thread may set them.
  *   - refCount is touched only on the UI thread (register/unregister run as composition effects).
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.

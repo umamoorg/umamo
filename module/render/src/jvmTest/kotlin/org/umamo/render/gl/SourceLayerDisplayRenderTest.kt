@@ -103,9 +103,9 @@ class SourceLayerDisplayRenderTest {
 		)
 
 	/**
-	 * The same model with a composite-only change (opacity via a renamed drawable is not available, so
-	 * the blend mode is flipped): positions, uvs, indices, and keyforms all shared BY REFERENCE, which
-	 * is exactly the shape that produces a Keep with no buffer work.
+	 * The same model with a composite-only change (the culling toggle): positions, uvs, indices, and
+	 * keyforms all shared BY REFERENCE, which is exactly the shape that produces a Keep with no buffer
+	 * work.
 	 */
 	private fun compositeEditedModel(source: PuppetModel): PuppetModel {
 		val drawable = source.drawables.single()

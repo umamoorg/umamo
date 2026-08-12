@@ -23,8 +23,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * so producing a snapshot costs O(changed spine), not O(model). They never mutate their input, so they
  * are trivially unit-testable and safe to use as undo snapshots. This is the model-mutation half of the
  * editing core; the EditorSession wraps these with history and change events.
- *
- * 不変な PuppetModel への純粋変換。変更点だけを差し替え、残りは構造共有する。入力は変更しない。
  */
 
 /**

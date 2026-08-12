@@ -114,10 +114,11 @@ internal val CanvasSection =
  * Document content rather than an app preference - the source formats author it, and a CMO3 carries it
  * on its texture manager - so the toggle writes the model as one undo step and round-trips on export.
  *
- * Present only when the document retains artwork to display: a MOC3 origin is the packed endpoint of
- * that pipeline and has none, so the row would be a switch with nothing on its other side.  Honoring
- * it is best-effort per drawable, so a document whose artwork is only partly recoverable displays from
- * a mix and says so.
+ * Shown for every open document, including one whose artwork the renderer cannot display from (a MOC3
+ * origin is the packed endpoint of that pipeline and retains none): the toggle records authored INTENT,
+ * which round-trips and applies once the artwork is there, so it is not gated on today's recoverability.
+ * Honoring it is best-effort per drawable, so a document whose artwork is only partly recoverable
+ * displays from a mix and says so.
  */
 internal val DisplaySection =
 	PropertySection(

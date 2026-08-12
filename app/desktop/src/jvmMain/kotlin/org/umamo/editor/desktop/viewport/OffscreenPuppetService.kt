@@ -26,11 +26,12 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
- *     async read-back, plus the render-input state (selection / shown / model / grid / highlight colors).
+ *     async read-back, plus the render-input state (selection / shown / model / source artwork / grid /
+ *     highlight colors).
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
  *
- * The GL context is chosen per OS behind [OffscreenGlContext]: a hidden GLFW window on Windows / Linux, CGL
- * on MacOS.
+ * The GL context is chosen per OS behind [OffscreenGlContext], which is a hidden GLFW window on every
+ * desktop OS today (macOS only differs by loading the async GLFW library).
  *
  * Threading: every method here is called on the UI thread; the engine publishes frames from its render
  * thread via the areas' StateFlows. Picking is CPU-side and synchronous.
