@@ -102,6 +102,7 @@ public object Cmo3Conversion {
 				effectivePages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
 				regionsByPage,
 				nowMillis,
+				fromSourceLayers = effectivePuppet.rendersFromSourceLayers,
 			)
 		val model =
 			Cmo3.read(

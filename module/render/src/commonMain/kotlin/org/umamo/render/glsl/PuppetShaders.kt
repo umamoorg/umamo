@@ -103,8 +103,16 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		uniform vec3 screenColor;
 		uniform float highlight;
 		uniform vec3 highlightColor;
+		// The stored-to-sampled texture-coordinate affine, as two row vectors (m00 m01 m02 / m10 m11 m12).
+		// Rows rather than a mat3 because the value arrives row-major and a GLSL mat3 is column-major -
+		// passing rows keeps one convention end to end, and transliterates to MSL unchanged.  Identity
+		// for a drawable sampling the atlas it was authored against.
+		uniform vec3 uvAffineRow0;
+		uniform vec3 uvAffineRow1;
 		void main() {
-			vec4 base = (useTexture == 1) ? texture(atlas, vUv) : drawColor;
+			vec3 uvHomogeneous = vec3(vUv, 1.0);
+			vec2 sampleUv = vec2(dot(uvAffineRow0, uvHomogeneous), dot(uvAffineRow1, uvHomogeneous));
+			vec4 base = (useTexture == 1) ? texture(atlas, sampleUv) : drawColor;
 			float alpha = base.a * opacity;
 			if (useMask == 1) {
 				float coverage = texture(maskTexture, gl_FragCoord.xy / screenTexSize).a;

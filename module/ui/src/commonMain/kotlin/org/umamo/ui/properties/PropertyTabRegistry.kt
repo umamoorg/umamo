@@ -118,7 +118,7 @@ fun defaultPropertyTabRegistry(): PropertyTabRegistry =
 				title = Res.string.properties_tab_document,
 				icon = { LocalUmamoIcons.puppetRoot },
 				isVisible = { true },
-				sections = { listOf(CanvasSection, RuntimeSection) },
+				sections = { listOf(CanvasSection, DisplaySection, RuntimeSection) },
 			),
 			PropertyTab(
 				id = PropertyTabId.Object,

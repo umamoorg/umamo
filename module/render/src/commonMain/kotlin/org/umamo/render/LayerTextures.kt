@@ -178,6 +178,12 @@ class LayerTextures(
 	/**
 	 * A layer's pixels, decoding them on first request and caching the result (failures included).
 	 *
+	 * CALLER-CONFINED: the cache is a plain map with no synchronization, so every call must come from
+	 * the same thread (today, the UI thread).  A second caller would not merely race the map - it could
+	 * hand out a SECOND decoded instance for one layer, and both the renderer's texture cache and the
+	 * viewport's freshness test compare decoded images by identity.  Anything off that thread uses
+	 * [decodeRaster] instead, which shares nothing.
+	 *
 	 * @param String layerKey The layer's stable id.
 	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
 	 */
@@ -197,6 +203,27 @@ class LayerTextures(
 		decodedByKey[layerKey] = decoded
 		return decoded
 	}
+
+	/**
+	 * A layer's pixels, decoded fresh and cached nowhere - safe to call from any thread, including
+	 * several at once.
+	 *
+	 * The uncached twin of [rasterFor], for callers that own their own result: the bytes come from an
+	 * immutable archive and the decoder is stateless, so nothing here is shared.  Costs a repeat decode
+	 * when a layer is already cached, which is the price of not sharing a cache across threads.
+	 *
+	 * @param String layerKey The layer's stable id.
+	 * @return DecodedImage? The decoded raster, or null when the layer has no usable pixels.
+	 */
+	fun decodeRaster(layerKey: String): DecodedImage? =
+		readBytes(layerKey)?.let { bytes ->
+			try {
+				val image = org.umamo.format.png.PngCodec.read(bytes)
+				DecodedImage(image.rgba, image.width, image.height)
+			} catch (_: Exception) {
+				null
+			}
+		}
 
 	companion object {
 		/** The store a document with no source art surfaces. */

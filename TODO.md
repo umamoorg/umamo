@@ -194,6 +194,7 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
+* A proper bone skeleton system with bendy bones.
 
 ## Build and Distribute
 * Eventually get installers, signing, and automatic updates setup.
@@ -217,6 +218,9 @@ Sketch:
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
 * Improvements
 	* Now that the hovered area is tracked everywhere we can filter by what commands are available per area.
+
+## Status Bar
+* Needs massive improvements for the automatic shortcut suggestions to work better.  See Command Palette about filtering commands per hovered area.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

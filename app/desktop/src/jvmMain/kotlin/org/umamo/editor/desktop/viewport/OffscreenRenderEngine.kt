@@ -6,6 +6,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
@@ -129,6 +130,11 @@ internal class OffscreenRenderEngine(
 	@Volatile
 	private var shownBacking: Set<DrawableId> = puppet.visibleDrawableIds()
 
+	// The source artwork the puppet displays from, published whole and already decoded.  EMPTY is the
+	// atlas, which is where every document starts until a set is prepared for it.
+	@Volatile
+	private var layerRastersBacking: LayerRasterSet = LayerRasterSet.EMPTY
+
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
 	@Volatile
@@ -251,6 +257,21 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * Sets the source artwork the puppet displays from; an empty set displays from the atlas.
+	 *
+	 * A volatile publish of one immutable value, like every other render input.  The render loop hands
+	 * it to the renderer, which is where the GPU uploads happen - this must not touch the device.
+	 *
+	 * @param LayerRasterSet rasters The decoded artwork plus each drawable's mapping into it.
+	 */
+	fun setSourceLayerRasters(rasters: LayerRasterSet) {
+		if (rasters !== layerRastersBacking) {
+			layerRastersBacking = rasters
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
 	 * Pushes the latest model so the render thread can reconcile it after an edit (a layer reorder
 	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs). A new (different)
 	 * instance bumps the puppet render version so every area re-renders once.
@@ -358,12 +379,20 @@ internal class OffscreenRenderEngine(
 			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
 			var lastModel: PuppetModel? = null
+			var lastLayerRasters: LayerRasterSet? = null
 			var paramsVersion = 0L
 			while (running) {
 				collectCompleted()
 				val params = liveParams.values
 				val shown = shownBacking
 				val orderModel = modelBacking
+				// The artwork hand-off, on the render thread where the uploads belong.  Compared by
+				// identity: the set is published whole, so a new reference IS the change.
+				val layerRasters = layerRastersBacking
+				if (layerRasters !== lastLayerRasters) {
+					renderer.setSourceLayerRasters(layerRasters)
+					lastLayerRasters = layerRasters
+				}
 				// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
 				// the render order - when the pose, the visibility cascade, OR the render order changes. A
 				// visibility toggle or a layer reorder leaves the params untouched, so without these checks the

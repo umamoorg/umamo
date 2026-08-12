@@ -232,6 +232,10 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			ExportNoticePhrase(Res.string.export_reason_no_canvas_to_reconcile)
 		ExportNoticeReason.FractionalCanvasSizeNotStorable ->
 			ExportNoticePhrase(Res.string.export_reason_fractional_canvas_size)
+		ExportNoticeReason.NoTextureManagerToReconcile ->
+			ExportNoticePhrase(Res.string.export_reason_no_texture_manager)
+		ExportNoticeReason.NoTextureInputForDisplayMode ->
+			ExportNoticePhrase(Res.string.export_reason_no_texture_input_for_display)
 	}
 
 /**

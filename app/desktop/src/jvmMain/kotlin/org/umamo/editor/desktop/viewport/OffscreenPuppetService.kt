@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
@@ -127,6 +128,8 @@ class OffscreenPuppetService(
 	override fun setActiveSelection(id: DrawableId?) = engine.setActiveSelection(id)
 
 	override fun setShownDrawables(ids: Set<DrawableId>) = engine.setShownDrawables(ids)
+
+	override fun setSourceLayerRasters(rasters: LayerRasterSet) = engine.setSourceLayerRasters(rasters)
 
 	/**
 	 * Pushes the latest model to the render engine and, when it actually changed, rebuilds the picker's

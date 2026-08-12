@@ -75,6 +75,8 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.CombinedPairReordered("ParamAngleX", "ParamAngleY"),
 			ExportNoticeReason.NoCanvasToReconcile,
 			ExportNoticeReason.FractionalCanvasSizeNotStorable,
+			ExportNoticeReason.NoTextureManagerToReconcile,
+			ExportNoticeReason.NoTextureInputForDisplayMode,
 		)
 
 	private val sampleRejections: List<KeyformBundleRejection> =

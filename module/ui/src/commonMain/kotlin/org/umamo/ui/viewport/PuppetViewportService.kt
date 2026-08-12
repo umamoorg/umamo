@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerRasterSet
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
@@ -234,6 +235,19 @@ interface PuppetViewportService {
 	 * @param DrawableId? id The active drawable id, or null when none is active.
 	 */
 	fun setActiveSelection(id: DrawableId?)
+
+	/**
+	 * Pushes the source artwork the puppet displays from, already decoded, or
+	 * [LayerRasterSet.EMPTY] to display from the packed atlas.
+	 *
+	 * Handed over whole rather than resolved lazily: decoding stalls a frame, and the engine's own
+	 * store is not safe to read from the render thread.  Publishing one complete set is also what makes
+	 * the switch atomic - the puppet keeps displaying from the atlas until the set lands, instead of
+	 * resolving piece by piece.
+	 *
+	 * @param LayerRasterSet rasters The decoded artwork plus each drawable's mapping into it.
+	 */
+	fun setSourceLayerRasters(rasters: LayerRasterSet)
 
 	/**
 	 * Pushes the drawables actually shown (the resolved Parts-panel visibility cascade).

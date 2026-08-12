@@ -605,7 +605,14 @@ private fun DocumentViewport(
 				// conditional composable call is stable across recompositions.
 				val viewport =
 					if (viewportServiceFactory != null) {
-						rememberPuppetViewportHost(document.puppet, document.textures, document.liveParams, activeSession, viewportServiceFactory)
+						rememberPuppetViewportHost(
+							document.puppet,
+							document.textures,
+							document.layers,
+							document.liveParams,
+							activeSession,
+							viewportServiceFactory,
+						)
 					} else {
 						null
 					}

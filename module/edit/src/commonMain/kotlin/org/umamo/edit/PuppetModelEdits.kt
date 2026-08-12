@@ -732,3 +732,17 @@ fun PuppetModel.withRuntimeTarget(target: RuntimeTarget): PuppetModel {
 	}
 	return copy(runtimeTarget = target)
 }
+
+/**
+ * This model displaying from its source artwork rather than from the packed atlas, or itself when the
+ * mode already matches.
+ *
+ * @param Boolean fromSourceLayers True to display from the source artwork, false from the atlas.
+ * @return PuppetModel The model with the display mode applied.
+ */
+fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
+	if (rendersFromSourceLayers == fromSourceLayers) {
+		return this
+	}
+	return copy(rendersFromSourceLayers = fromSourceLayers)
+}

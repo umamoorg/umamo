@@ -235,6 +235,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.document.canvasSize" -> stringResource(Res.string.history_document_canvas_size)
 		"change.document.worldOrigin" -> stringResource(Res.string.history_document_world_origin)
 		"change.document.runtimeTarget" -> stringResource(Res.string.history_document_runtime_target)
+		"change.document.sourceLayerDisplay" -> stringResource(Res.string.history_document_source_layer_display)
 		else -> stringResource(Res.string.history_unknown)
 	}
 

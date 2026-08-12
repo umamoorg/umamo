@@ -76,6 +76,7 @@ import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.chromeCommands
+import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
@@ -249,7 +250,8 @@ fun EditorShell(
 					snapCommands(editorSession, routing, availability) +
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
-					proportionalCommands(editorSession, availability),
+					proportionalCommands(editorSession, availability) +
+					displayCommands(editorSession, availability),
 			)
 		onDispose { cleanup() }
 	}

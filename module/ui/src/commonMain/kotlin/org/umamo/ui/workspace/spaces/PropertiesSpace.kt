@@ -29,6 +29,7 @@ import org.umamo.ui.kit.SectionHeader
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.properties.LocalPropertyTabRegistry
@@ -75,7 +76,14 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		} else {
 			null
 		}
-	val context = PropertyContext(puppet, selection, activeTarget, LocalEditorSession.current)
+	val context =
+		PropertyContext(
+			puppet,
+			selection,
+			activeTarget,
+			LocalEditorSession.current,
+			hasSourceArtwork = LocalLayerTextures.current?.isEmpty == false,
+		)
 	val viewState = scope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }
 	val registry = LocalPropertyTabRegistry.current
 	val colors = LocalUmamoColors.current

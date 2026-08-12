@@ -653,6 +653,17 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.runtimeTarget"
 	}
+
+	/**
+	 * Switches the puppet between displaying from its source artwork and from the packed atlas.
+	 * Document content - the source formats author it - so it marks the document dirty.
+	 *
+	 * @property Boolean fromSourceLayers True to display from the source artwork, false from the atlas.
+	 */
+	data class SetSourceLayerDisplay(val fromSourceLayers: Boolean) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.sourceLayerDisplay"
+	}
 }
 
 /**

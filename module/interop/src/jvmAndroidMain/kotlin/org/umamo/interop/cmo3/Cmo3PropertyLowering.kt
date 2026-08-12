@@ -12,6 +12,10 @@ import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
+import org.umamo.format.cmo3.model.gen.CTextureInputExtension
+import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
+import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.type.CAffine
@@ -607,6 +611,7 @@ internal class Cmo3PropertyLowering(
 				// records the slot on documents that never carried the element).
 				DocumentField.RUNTIME_TARGET -> target.setTargetVersionNo(edited.runtimeTarget.cmo3TargetVersionNo())
 				DocumentField.CANVAS_SIZE -> lowerCanvasSize()
+				DocumentField.SOURCE_LAYER_DISPLAY -> lowerSourceLayerDisplay()
 				DocumentField.WORLD_ORIGIN -> {
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.
@@ -967,6 +972,50 @@ internal class Cmo3PropertyLowering(
 			newElements = orderedSources,
 			assign = { list -> sourceSet._sources = list },
 		)
+	}
+
+	/**
+	 * Lowers the source-artwork display mode: the texture manager's flag AND the per-drawable input
+	 * pointer it selects.
+	 *
+	 * The flag alone is not the whole state.  Flipping the mode in the official editor also retargets
+	 * each art mesh's currentTextureInputData between its model-image input and its atlas-region one
+	 * (docs/format/CMO3.md §4), so writing only the flag would leave every drawable pointing at the
+	 * input the OTHER mode samples - a file that says one thing and points at another.  A drawable
+	 * missing the input the mode needs keeps the pointer it has and takes a notice, rather than being
+	 * given a dangling one.
+	 */
+	private fun lowerSourceLayerDisplay() {
+		// CMO3: CModelSource field textureManager -> CTextureManager field isTextureInputModelImageMode.
+		val textureManager = index.modelSource.textureManager as? CTextureManager
+		if (textureManager == null) {
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			return
+		}
+		val fromSourceLayers = edited.rendersFromSourceLayers
+		textureManager.isTextureInputModelImageMode = fromSourceLayers
+		editor.ensureChildSlot(textureManager, "CTextureManager", "isTextureInputModelImageMode", "previewReductionRatio")
+		for (drawable in edited.drawables) {
+			val source = index.drawableByIdStr[drawable.id.raw] ?: continue
+			// CMO3: CArtMeshSource field _extensions -> CTextureInputExtension fields _textureInputs /
+			// currentTextureInputData - the pointer names which of the drawable's inputs is live.
+			val extension = Cmo3Import.elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
+			val inputs = Cmo3Import.elementsOf(extension._textureInputs)
+			val wanted =
+				if (fromSourceLayers) {
+					inputs.filterIsInstance<CTextureInput_ModelImage>().firstOrNull()
+				} else {
+					inputs.filterIsInstance<CTextureInput_TextureAtlasRegion>().firstOrNull()
+				}
+			if (wanted == null) {
+				// An unpacked drawable in atlas mode, or one with no model image in layer mode.  Leaving
+				// the live pointer alone keeps the file self-consistent; the notice names the gap.
+				unsupported(ExportEntityCategory.Drawable, drawable.name, ExportNoticeReason.NoTextureInputForDisplayMode)
+				continue
+			}
+			extension.currentTextureInputData = wanted
+			editor.ensureChildSlot(extension, "CTextureInputExtension", "currentTextureInputData", null)
+		}
 	}
 
 	/** CMO3: CModelSource.canvas -> CImageCanvas fields pixelWidth / pixelHeight. */

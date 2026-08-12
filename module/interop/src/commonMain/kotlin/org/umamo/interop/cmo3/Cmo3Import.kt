@@ -27,6 +27,7 @@ import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
@@ -513,6 +514,10 @@ object Cmo3Import {
 				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
 				// restricted.
 				runtimeTarget = runtimeTargetOfCmo3Target(Cmo3TargetVersion.fromVersionNo(modelSource.targetVersionNo as? Int)),
+				// CMO3: CTextureManager field isTextureInputModelImageMode - true displays the combined
+				// layer images, false the packed atlas.  A document with no texture manager at all (a
+				// skeleton, a converter's output) reads false, which is the atlas default.
+				rendersFromSourceLayers = (modelSource.textureManager as? CTextureManager)?.isTextureInputModelImageMode ?: false,
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot

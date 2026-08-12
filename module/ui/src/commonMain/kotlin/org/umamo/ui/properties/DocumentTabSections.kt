@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.setCanvasSize
 import org.umamo.edit.setRuntimeTarget
+import org.umamo.edit.setSourceLayerDisplay
 import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.unsupportedFeaturesInUse
@@ -104,6 +105,41 @@ internal val CanvasSection =
 					)
 				},
 			)
+		},
+	)
+
+/**
+ * Document > Display: whether the puppet displays from its source artwork or from the packed atlas.
+ *
+ * Document content rather than an app preference - the source formats author it, and a CMO3 carries it
+ * on its texture manager - so the toggle writes the model as one undo step and round-trips on export.
+ *
+ * Present only when the document retains artwork to display: a MOC3 origin is the packed endpoint of
+ * that pipeline and has none, so the row would be a switch with nothing on its other side.  Honoring
+ * it is best-effort per drawable, so a document whose artwork is only partly recoverable displays from
+ * a mix and says so.
+ */
+internal val DisplaySection =
+	PropertySection(
+		id = "document.display",
+		title = Res.string.properties_section_display,
+		rows = { context ->
+			val puppet = context.puppet
+			val session = context.session
+			if (!context.hasSourceArtwork) {
+				// No artwork retained, so the section has no rows and the panel hides it entirely.
+				emptyList()
+			} else {
+				listOf(
+					PropertyRow(terms = listOf(Res.string.properties_field_source_layer_display)) { _ ->
+						PropertyCheckboxRow(
+							checked = puppet.rendersFromSourceLayers,
+							onCheckedChange = { enabled -> session?.setSourceLayerDisplay(enabled) },
+							label = stringResource(Res.string.properties_field_source_layer_display),
+						)
+					},
+				)
+			}
 		},
 	)
 

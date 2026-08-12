@@ -275,3 +275,16 @@ fun EditorSession.setWorldOrigin(x: Float, y: Float) {
 fun EditorSession.setRuntimeTarget(target: RuntimeTarget) {
 	mutate(DocumentChange.SetRuntimeTarget(target)) { model -> model.withRuntimeTarget(target) }
 }
+
+/**
+ * Switches the puppet between displaying from its source artwork and from the packed atlas, as one
+ * undo step.
+ *
+ * A display choice that is document content rather than an app preference: the source formats author
+ * it, so it round-trips and it marks the document dirty like any other authored value.
+ *
+ * @param Boolean fromSourceLayers True to display from the source artwork, false from the atlas.
+ */
+fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
+	mutate(DocumentChange.SetSourceLayerDisplay(fromSourceLayers)) { model -> model.withSourceLayerDisplay(fromSourceLayers) }
+}
