@@ -48,8 +48,8 @@ internal class RectPackLayout(
  * remainders.  The caller is responsible for supplying a deterministic request order - this function
  * preserves it exactly and adds no ordering of its own.
  *
- * @param List requests      The footprints to place, already in packing order.
- * @param Int  pageSize      The square page side every page is packed against, in pixels.
+ * @param List    requests      The footprints to place, already in packing order.
+ * @param Int     pageSize      The square page side every page is packed against, in pixels.
  * @param Boolean allowRotation Whether a request may be quarter-turned to fit.
  * @return RectPackLayout The placements, the requests too large for any page, and the used extents.
  */
@@ -109,9 +109,11 @@ private class FreeRect(val x: Int, val y: Int, val width: Int, val height: Int)
 private class MaxRectsPage(private val pageSize: Int) {
 	private var freeRects = mutableListOf(FreeRect(0, 0, pageSize, pageSize))
 
+	/** The furthest right edge, in pixels, that any placement on this page has reached. */
 	var usedWidth: Int = 0
 		private set
 
+	/** The furthest down edge, in pixels, that any placement on this page has reached. */
 	var usedHeight: Int = 0
 		private set
 
@@ -119,8 +121,8 @@ private class MaxRectsPage(private val pageSize: Int) {
 	 * Places one footprint if it fits, choosing the free rectangle with the smallest short-side
 	 * remainder and breaking ties on the long side.
 	 *
-	 * @param Int width          The footprint width.
-	 * @param Int height         The footprint height.
+	 * @param Int     width         The footprint width.
+	 * @param Int     height        The footprint height.
 	 * @param Boolean allowRotation Whether the quarter-turned orientation may be considered.
 	 * @return MaxRectsPlacement The accepted position, or null when nothing fits.
 	 */
@@ -165,7 +167,14 @@ private class MaxRectsPage(private val pageSize: Int) {
 		return MaxRectsPlacement(bestX, bestY, bestRotated)
 	}
 
-	/** Splits every free rectangle the placement overlaps, then drops the ones now contained. */
+	/**
+	 * Splits every free rectangle the placement overlaps, then drops the ones now contained.
+	 *
+	 * @param Int placedX      The footprint's left edge.
+	 * @param Int placedY      The footprint's top edge.
+	 * @param Int placedWidth  The footprint's width.
+	 * @param Int placedHeight The footprint's height.
+	 */
 	private fun occupy(placedX: Int, placedY: Int, placedWidth: Int, placedHeight: Int) {
 		val next = ArrayList<FreeRect>(freeRects.size + 4)
 		for (freeRect in freeRects) {
@@ -255,7 +264,13 @@ private class MaxRectsPage(private val pageSize: Int) {
 		return candidates
 	}
 
-	/** Whether [outer] wholly covers [inner]. */
+	/**
+	 * Whether [outer] wholly covers [inner].
+	 *
+	 * @param FreeRect outer The candidate containing rectangle.
+	 * @param FreeRect inner The candidate contained rectangle.
+	 * @return Boolean True when every corner of [inner] lies within or on the border of [outer].
+	 */
 	private fun contains(outer: FreeRect, inner: FreeRect): Boolean =
 		inner.x >= outer.x &&
 			inner.y >= outer.y &&

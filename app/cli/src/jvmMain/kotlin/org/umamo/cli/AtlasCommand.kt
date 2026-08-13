@@ -136,12 +136,12 @@ private fun writePages(result: AtlasPackResult, outputDirectory: File) {
 /**
  * Writes the placement report: the options the pack ran with, one line per placement, then the skips.
  *
- * @param AtlasPackResult result The packing outcome.
- * @param List layers            The layers that were offered to the packer, in the same order as [items].
- * @param List items             The pack items, parallel to [layers].
- * @param AtlasPackOptions options The options the pack ran with.
- * @param File inputFile         The source artwork file.
- * @param File outputDirectory   The directory to write into.
+ * @param AtlasPackResult  result          The packing outcome.
+ * @param List             layers          The layers that were offered to the packer, in the same order as [items].
+ * @param List             items           The pack items, parallel to [layers].
+ * @param AtlasPackOptions options         The options the pack ran with.
+ * @param File             inputFile       The source artwork file.
+ * @param File             outputDirectory The directory to write into.
  */
 private fun writeReport(
 	result: AtlasPackResult,
@@ -213,7 +213,7 @@ private fun reportSkips(result: AtlasPackResult) {
  * The page-coordinate mapping is written out here rather than shared with the packer, so a wrong
  * rotation convention cannot agree with itself.
  *
- * @param List items             The tiles that were packed.
+ * @param List            items  The tiles that were packed.
  * @param AtlasPackResult result The packing outcome.
  * @return List One message per mismatching tile, empty when every tile matched.
  */
@@ -262,11 +262,11 @@ private fun verifyTiles(items: List<AtlasPackItem>, result: AtlasPackResult): Li
  * source-over stack, not a compositor - so a document leaning on them will not match its own
  * application's render, which is expected rather than a packing fault.
  *
- * @param SourceArt art          The source document, for canvas size and layer positions.
- * @param List layers            The layers that were offered to the packer, parallel to [items].
- * @param List items             The pack items, parallel to [layers].
- * @param AtlasPackResult result The packing outcome.
- * @param File outputDirectory   The directory to write into.
+ * @param SourceArt       art             The source document, for canvas size and layer positions.
+ * @param List            layers          The layers that were offered to the packer, parallel to [items].
+ * @param List            items           The pack items, parallel to [layers].
+ * @param AtlasPackResult result          The packing outcome.
+ * @param File            outputDirectory The directory to write into.
  */
 private fun writePreview(
 	art: SourceArt,
@@ -295,12 +295,12 @@ private fun writePreview(
 /**
  * Draws one placed layer onto the preview canvas, reading its pixels out of the atlas page.
  *
- * @param ByteArray canvas       The canvas buffer, RGBA8888 straight alpha.
- * @param Int canvasWidth        The canvas width in pixels.
- * @param Int canvasHeight       The canvas height in pixels.
- * @param SourceLayer layer      The layer being drawn, for its canvas position.
- * @param AtlasPackPlacement placement Where its pixels sit on a page.
- * @param AtlasPackResult result The packing outcome holding the pages.
+ * @param ByteArray          canvas       The canvas buffer, RGBA8888 straight alpha.
+ * @param Int                canvasWidth  The canvas width in pixels.
+ * @param Int                canvasHeight The canvas height in pixels.
+ * @param SourceLayer        layer        The layer being drawn, for its canvas position.
+ * @param AtlasPackPlacement placement    Where its pixels sit on a page.
+ * @param AtlasPackResult    result       The packing outcome holding the pages.
  */
 private fun drawPlacementOntoCanvas(
 	canvas: ByteArray,

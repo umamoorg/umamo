@@ -18,14 +18,14 @@ import org.umamo.format.art.LayerBounds
  * rotation: source pixel (tileX, tileY) lands at (destinationX + tileY, destinationY + trimWidth - 1
  * - tileX), so the destination footprint is trimHeight wide by trimWidth tall.
  *
- * @param ByteArray page          The destination page, RGBA8888 row-major from the top.
- * @param Int pageWidth           The page width in pixels.
- * @param ByteArray sourceRgba    The source raster, RGBA8888 row-major from the top.
- * @param Int sourceWidth         The source raster's width in pixels (its row stride).
- * @param LayerBounds trim        The opaque sub-rectangle of the source to copy, raster-local.
- * @param Int destinationX        The tile's left edge on the page.
- * @param Int destinationY        The tile's top edge on the page.
- * @param Int quarterTurns        0 for upright, 1 for one counter-clockwise quarter turn.
+ * @param ByteArray   page         The destination page, RGBA8888 row-major from the top.
+ * @param Int         pageWidth    The page width in pixels.
+ * @param ByteArray   sourceRgba   The source raster, RGBA8888 row-major from the top.
+ * @param Int         sourceWidth  The source raster's width in pixels (its row stride).
+ * @param LayerBounds trim         The opaque sub-rectangle of the source to copy, raster-local.
+ * @param Int         destinationX The tile's left edge on the page.
+ * @param Int         destinationY The tile's top edge on the page.
+ * @param Int         quarterTurns 0 for upright, 1 for one counter-clockwise quarter turn.
  */
 internal fun blitTile(
 	page: ByteArray,
@@ -66,13 +66,13 @@ internal fun blitTile(
  * on every side, so no clamping against the page edge is needed here - and a silent clamp would hide
  * exactly the arithmetic mistake this is most likely to make.
  *
- * @param ByteArray page      The destination page, RGBA8888 row-major from the top.
- * @param Int pageWidth       The page width in pixels.
- * @param Int tileX           The placed tile's left edge on the page.
- * @param Int tileY           The placed tile's top edge on the page.
- * @param Int tileWidth       The placed tile's width on the page (post-rotation).
- * @param Int tileHeight      The placed tile's height on the page (post-rotation).
- * @param Int extrude         How many pixels of edge colour to replicate on every side.
+ * @param ByteArray page       The destination page, RGBA8888 row-major from the top.
+ * @param Int       pageWidth  The page width in pixels.
+ * @param Int       tileX      The placed tile's left edge on the page.
+ * @param Int       tileY      The placed tile's top edge on the page.
+ * @param Int       tileWidth  The placed tile's width on the page (post-rotation).
+ * @param Int       tileHeight The placed tile's height on the page (post-rotation).
+ * @param Int       extrude    How many pixels of edge colour to replicate on every side.
  */
 internal fun extrudeTileEdges(
 	page: ByteArray,

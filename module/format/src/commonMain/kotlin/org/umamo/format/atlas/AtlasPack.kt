@@ -31,10 +31,10 @@ import org.umamo.format.raster.RasterImage
  * A plain class, not a data class: it wraps a pixel buffer whose generated structural equality would
  * deep-compare on every call, the same reason [LayerRaster] and [RasterImage] are plain classes.
  *
- * @property String key    The tile's stable identity, unique within one pack.
- * @property Int width     The raster width in pixels.
- * @property Int height    The raster height in pixels.
- * @property ByteArray rgba RGBA8888 pixels, straight alpha, row-major from the top row.
+ * @property String    key    The tile's stable identity, unique within one pack.
+ * @property Int       width  The raster width in pixels.
+ * @property Int       height The raster height in pixels.
+ * @property ByteArray rgba   RGBA8888 pixels, straight alpha, row-major from the top row.
  */
 public class AtlasPackItem(
 	public val key: String,
@@ -53,19 +53,15 @@ public class AtlasPackItem(
 /**
  * How to pack.
  *
- * Every knob the official Cubism packer exposes is a field here rather than a constant, because the
- * right gutter for a model that ships to a mipmapping runtime is not the right gutter for one drawn
- * at 1:1 - and a packer whose spacing policy is baked in forces a fork the first time that matters.
- *
- * @property Int maxPageSize      The square page side pages are packed against, in pixels.
- * @property Int gutter           Transparent spacing reserved around every tile and at the page border.
- * @property Int extrude          How many pixels of each tile's edge colour are replicated into the gutter.
- * @property Boolean allowRotation Whether a tile may be quarter-turned to pack tighter.
- * @property Boolean powerOfTwoPages Whether final page dimensions round up to a power of two.
- * @property Boolean squarePages  Whether final pages are square, as every corpus atlas is.
- * @property Boolean shrinkPages  Whether pages size themselves to the document instead of staying at [maxPageSize].
- * @property Int alphaThreshold   Minimum alpha byte (1..255) for a pixel to count as opaque when trimming.
- * @property Int minimumOpaquePixels Tiles with fewer opaque pixels than this are reported rather than packed.
+ * @property Int     maxPageSize         The square page side pages are packed against, in pixels.
+ * @property Int     gutter              Transparent spacing reserved around every tile and at the page border.
+ * @property Int     extrude             How many pixels of each tile's edge colour are replicated into the gutter.
+ * @property Boolean allowRotation       Whether a tile may be quarter-turned to pack tighter.
+ * @property Boolean powerOfTwoPages     Whether final page dimensions round up to a power of two.
+ * @property Boolean squarePages         Whether final pages are square, as every corpus atlas is.
+ * @property Boolean shrinkPages         Whether pages size themselves to the document instead of staying at [maxPageSize].
+ * @property Int     alphaThreshold      Minimum alpha byte (1..255) for a pixel to count as opaque when trimming.
+ * @property Int     minimumOpaquePixels Tiles with fewer opaque pixels than this are reported rather than packed.
  */
 public data class AtlasPackOptions(
 	val maxPageSize: Int = 4096,
@@ -88,15 +84,15 @@ public data class AtlasPackOptions(
  * means the tile was rotated one counter-clockwise quarter turn in the page's y-down frame, which
  * swaps its on-page width and height.
  *
- * @property String key    The packed tile's key.
- * @property Int pageIndex The page it landed on.
- * @property Int pageX     The tile's left edge on the page.
- * @property Int pageY     The tile's top edge on the page.
- * @property Int trimLeft  The opaque bounds' left edge within the source raster.
- * @property Int trimTop   The opaque bounds' top edge within the source raster.
- * @property Int trimWidth The opaque bounds' width, before any rotation.
- * @property Int trimHeight The opaque bounds' height, before any rotation.
- * @property Int quarterTurns 0 for upright, 1 for one counter-clockwise quarter turn.
+ * @property String key         The packed tile's key.
+ * @property Int    pageIndex   The page it landed on.
+ * @property Int    pageX       The tile's left edge on the page.
+ * @property Int    pageY       The tile's top edge on the page.
+ * @property Int    trimLeft    The opaque bounds' left edge within the source raster.
+ * @property Int    trimTop     The opaque bounds' top edge within the source raster.
+ * @property Int    trimWidth   The opaque bounds' width, before any rotation.
+ * @property Int    trimHeight  The opaque bounds' height, before any rotation.
+ * @property Int    quarterTurns 0 for upright, 1 for one counter-clockwise quarter turn.
  */
 public data class AtlasPackPlacement(
 	val key: String,
@@ -133,7 +129,7 @@ public enum class AtlasPackSkipReason {
 /**
  * One tile that was not packed, and why.
  *
- * @property String key The tile's key.
+ * @property String              key    The tile's key.
  * @property AtlasPackSkipReason reason Why it was left out.
  */
 public data class AtlasPackSkip(
@@ -189,8 +185,8 @@ public class AtlasPackResult(
  * key, so the caller's input order cannot change the packing.  Repacking an unchanged set therefore
  * reproduces it exactly, which is what makes a repack a safe operation rather than a churn source.
  *
- * @param List items                The tiles to pack; keys must be unique.
- * @param AtlasPackOptions options  The packing policy.
+ * @param List             items   The tiles to pack; keys must be unique.
+ * @param AtlasPackOptions options The packing policy.
  * @return AtlasPackResult The composed pages, the placements, and the tiles left out.
  */
 public fun packAtlas(
@@ -342,8 +338,8 @@ public fun SourceArt.atlasPackItems(include: (SourceLayer) -> Boolean = { true }
  * Only the rectangle geometry runs here - no pixels are touched - so the handful of trial packs is
  * cheap next to a single page composition.
  *
- * @param List requests            The footprints to be packed.
- * @param AtlasPackOptions options The packing policy.
+ * @param List             requests The footprints to be packed.
+ * @param AtlasPackOptions options  The packing policy.
  * @return Int The page side to pack against.
  */
 private fun choosePackingSide(requests: List<RectPackRequest>, options: AtlasPackOptions): Int {
@@ -371,9 +367,9 @@ private fun choosePackingSide(requests: List<RectPackRequest>, options: AtlasPac
 /**
  * Resolves one page's final dimensions from the extent the packer actually used.
  *
- * @param Int usedWidth  The rightmost footprint edge on the page, gutter included.
- * @param Int usedHeight The lowest footprint edge on the page, gutter included.
- * @param Int packingSide The page side the pack ran against.
+ * @param Int usedWidth    The rightmost footprint edge on the page, gutter included.
+ * @param Int usedHeight   The lowest footprint edge on the page, gutter included.
+ * @param Int packingSide  The page side the pack ran against.
  * @param AtlasPackOptions options The packing policy.
  * @return Pair The page width and height in pixels.
  */
