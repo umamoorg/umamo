@@ -41,6 +41,7 @@ import org.umamo.render.LayerRasterBatch
 import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.render.buildLayerDrawPlan
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
@@ -224,17 +225,19 @@ fun rememberPuppetViewportHost(
 	LaunchedEffect(service, layers) {
 		val delivered = HashSet<String>()
 		session.model
-			.map { model -> model.rendersFromSourceLayers to model.drawables.map { drawable -> drawable.id } }
+			// The ATLAS is part of the key, not just the drawable set: a placement is model state a repack
+			// authors, and a plan built before it moved would keep sampling the art at its old spot.
+			.map { model -> Triple(model.rendersFromSourceLayers, model.atlas, model.drawables.map { drawable -> drawable.id }) }
 			.distinctUntilChanged()
-			.collectLatest { (fromSourceLayers, _) ->
-				if (!fromSourceLayers || layers.isEmpty) {
+			.collectLatest { (fromSourceLayers, atlas, _) ->
+				if (!fromSourceLayers || atlas.tiles.isEmpty()) {
 					delivered.clear()
 					artworkGaps.reset(LayerDrawPlan.EMPTY)
 					service.setSourceLayerPlan(LayerDrawPlan.EMPTY)
 					return@collectLatest
 				}
 				val model = session.model.value
-				val plan = withContext(Dispatchers.Default) { buildLayerDrawPlan(model, layers) }
+				val plan = withContext(Dispatchers.Default) { buildLayerDrawPlan(model) }
 				artworkGaps.reset(plan)
 				service.setSourceLayerPlan(plan)
 				artworkGaps.report(session)
@@ -246,7 +249,7 @@ fun rememberPuppetViewportHost(
 					val undecodable = HashSet<String>()
 					withContext(Dispatchers.Default) {
 						for (layerKey in chunk) {
-							val image = layers.decodeRaster(layerKey)
+							val image = layers.decodeRaster(AtlasTileId(layerKey))
 							if (image == null) {
 								undecodable.add(layerKey)
 							} else {

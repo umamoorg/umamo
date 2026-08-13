@@ -3,12 +3,12 @@ package org.umamo.ui.document
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
-import org.umamo.render.cmo3LayerTextures
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
@@ -63,9 +63,10 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 			pageSet.premultipliedAlpha,
 			UndecodablePagePolicy.Skip,
 		) ?: PuppetTextures(emptyList(), emptyMap(), pageSet.premultipliedAlpha)
-	// The source-artwork walk rides the same seam and decodes nothing here: it reads the layered-art
-	// web's metadata (names, sizes, placements) and defers every raster to first request, so opening a
+	// The source artwork's PIXELS.  Its inventory and placements are model state now, read by the import
+	// above; this is only the lazy byte supplier, which defers every raster to first request so opening a
 	// model with hundreds of layers costs no more than opening one without.
-	val layers = cmo3LayerTextures(root, cmo3::extractLayerPng)
+	val tileResources = cmo3AtlasIngest(root).imageResourceByTile
+	val layers = LayerTextures { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
 	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, layers, initialLiveParams(puppet)))
 }

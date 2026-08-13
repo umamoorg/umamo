@@ -77,13 +77,43 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
  * @param Drawable drawable The drawable to resolve.
  * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
  */
-fun PuppetModel.atlasBindingFor(drawable: Drawable): DrawableLayerBinding? {
-	val tile = drawable.atlasTileId?.let { tileId -> atlas.tileById[tileId] } ?: return null
+fun PuppetModel.atlasBindingFor(drawable: Drawable): DrawableLayerBinding? =
+	drawable.atlasTileId?.let { tileId -> atlasBindingForTile(tileId) }
+
+/**
+ * Every drawable sampling each tile, in document order.
+ *
+ * The inverse of [Drawable.atlasTileId], and the answer to "how many drawables share this art" -
+ * duplicated art is common, and a surface offering a tile needs to say what picking it will select.
+ *
+ * @return Map<AtlasTileId, List<DrawableId>> Tile to its drawables; a tile nothing samples is absent.
+ */
+fun PuppetModel.drawableIdsByAtlasTile(): Map<AtlasTileId, List<DrawableId>> {
+	val byTile = LinkedHashMap<AtlasTileId, MutableList<DrawableId>>()
+	for (drawable in drawables) {
+		val tileId = drawable.atlasTileId ?: continue
+		byTile.getOrPut(tileId) { ArrayList() }.add(drawable.id)
+	}
+	return byTile
+}
+
+/**
+ * How a tile's stored texture coordinates map back into its own pixel frame.
+ *
+ * The placement is a property of the TILE, so every drawable over one piece of art shares this binding -
+ * which is what lets the editor describe a tile's frame without first deciding which of its users to
+ * ask, and keeps that frame stable as the selection narrows.
+ *
+ * @param AtlasTileId tileId The tile to resolve.
+ * @return DrawableLayerBinding? The binding, or null when the tile is unknown or its page is missing.
+ */
+fun PuppetModel.atlasBindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
+	val tile = atlas.tileById[tileId] ?: return null
 	val placement = tile.placement?.takeUnless { rendersFromSourceLayers }
 	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
 	if (placement != null && page == null) {
-		// A placement naming a page the document does not have is broken wiring, not a drawable that
-		// samples its art directly - resolving it to the identity would silently draw the wrong frame.
+		// A placement naming a page the document does not have is broken wiring, not a tile that is
+		// sampled directly - resolving it to the identity would silently draw the wrong frame.
 		return null
 	}
 	return DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)

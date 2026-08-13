@@ -14,6 +14,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
@@ -163,20 +164,18 @@ internal fun resolveUvEditorLayer(
 	model: PuppetModel,
 	meshSelection: MeshSelection,
 	objectSelection: Selection,
-	layers: LayerTextures?,
 ): UvEditorLayer? {
-	if (layers == null || layers.isEmpty) {
+	if (model.atlas.tiles.isEmpty()) {
 		return null
 	}
 	val activeDrawable = activeUvDrawable(model, meshSelection, objectSelection) ?: return null
-	// Resolved through the texture-source indirection, not by the drawable's own raw id: bindings are
-	// keyed by the SOURCE format's ids, so a session-created duplicate finds its art through the
-	// drawable it was copied from - the same resolution shownSurfaceUvs and the atlas lookup use.
-	val entry = layers.layerForDrawable(activeDrawable) ?: return null
+	// The tile the drawable itself names: a session-created duplicate copies the field along with the
+	// rest of the drawable, so it finds its art natively rather than through its source.
+	val entry = activeDrawable.atlasTileId?.let { tileId -> model.atlas.tileById[tileId] } ?: return null
 	if (entry.width <= 0 || entry.height <= 0) {
 		return null
 	}
-	return UvEditorLayer(entry.key, entry.width, entry.height)
+	return UvEditorLayer(entry.id.raw, entry.width, entry.height)
 }
 
 /**
@@ -215,10 +214,9 @@ internal fun shownLayerDrawables(
 	model: PuppetModel,
 	mode: EditorMode,
 	meshSelection: MeshSelection,
-	layers: LayerTextures,
 	layerKey: String,
 ): List<Drawable> =
-	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> layers.drawsOverLayer(drawable, layerKey) }
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> drawable.atlasTileId?.raw == layerKey }
 
 /**
  * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME - the coordinates that address the
@@ -232,22 +230,22 @@ internal fun shownLayerDrawables(
  * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.
  *
  * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
- * @param LayerTextures? layers The document's source-art store, needed only for a layer view.
+ * @param PuppetModel    model The puppet, for the atlas the layer mapping derives from.
  * @param UvEditorLayer? layerView The shown layer, or null when a page is shown.
  * @return Map<DrawableId, FloatArray> Each drawable's mapping in the shown surface's frame.
  */
 internal fun shownSurfaceUvs(
 	shownDrawables: List<Drawable>,
-	layers: LayerTextures?,
+	model: PuppetModel,
 	layerView: UvEditorLayer?,
 ): Map<DrawableId, FloatArray> =
 	shownDrawables
 		.mapNotNull { drawable ->
 			val mesh = drawable.mesh ?: return@mapNotNull null
-			if (layerView == null || layers == null) {
+			if (layerView == null) {
 				return@mapNotNull drawable.id to mesh.uvs
 			}
-			val binding = layers.bindingForDrawable(drawable) ?: return@mapNotNull null
+			val binding = model.atlasBindingFor(drawable) ?: return@mapNotNull null
 			val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height) ?: return@mapNotNull null
 			drawable.id to layerUvs
 		}

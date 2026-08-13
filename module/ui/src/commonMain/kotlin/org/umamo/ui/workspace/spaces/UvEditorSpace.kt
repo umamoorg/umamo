@@ -27,6 +27,8 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.atlasBindingForTile
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
@@ -110,7 +112,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val layers = LocalLayerTextures.current
 	val layerView =
 		if (viewState.textureSelection is UvTextureSelection.SourceLayer) {
-			resolveUvEditorLayer(model, meshSelection, objectSelection, layers)
+			resolveUvEditorLayer(model, meshSelection, objectSelection)
 		} else {
 			null
 		}
@@ -151,9 +153,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// the Edit / Object candidate rules and the page filter (shownUvDrawables).  Remembered so
 	// selection churn - which changes styling, never membership - rebuilds nothing here.
 	val shownDrawables =
-		remember(model, textures, layers, layerView, pageIndex, mode, meshSelection.drawableIds) {
-			if (layerView != null && layers != null) {
-				shownLayerDrawables(model, mode, meshSelection, layers, layerView.layerKey)
+		remember(model, textures, layerView, pageIndex, mode, meshSelection.drawableIds) {
+			if (layerView != null) {
+				shownLayerDrawables(model, mode, meshSelection, layerView.layerKey)
 			} else {
 				shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
 			}
@@ -162,8 +164,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
 	// so the wireframe and the hit test can never disagree about where a mesh is.
 	val shownUvs =
-		remember(shownDrawables, layers, layerView) {
-			shownSurfaceUvs(shownDrawables, layers, layerView)
+		remember(shownDrawables, model, layerView) {
+			shownSurfaceUvs(shownDrawables, model, layerView)
 		}
 	val geometries =
 		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
@@ -179,10 +181,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// something.  A layer whose mapping will not invert falls back to treating its own texels as the
 	// frame rather than editing blind.
 	val editFrame =
-		remember(layerView, layers, displayWidth, displayHeight) {
+		remember(layerView, model.atlas, displayWidth, displayHeight) {
 			val layerBinding =
-				if (layerView != null && layers != null) {
-					layers.bindingForLayer(layerView.layerKey)
+				if (layerView != null) {
+					model.atlasBindingForTile(AtlasTileId(layerView.layerKey))
 				} else {
 					null
 				}
@@ -202,7 +204,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val frontRank = remember(model) { restFrontRank(model) }
 	val shownImage =
 		if (layerView != null) {
-			layers?.rasterFor(layerView.layerKey)
+			layers?.rasterFor(AtlasTileId(layerView.layerKey))
 		} else {
 			pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) }
 		}

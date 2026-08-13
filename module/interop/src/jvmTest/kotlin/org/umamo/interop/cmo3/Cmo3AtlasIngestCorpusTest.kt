@@ -1,4 +1,4 @@
-package org.umamo.render
+package org.umamo.interop.cmo3
 
 import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
@@ -13,6 +13,7 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.atlasPixelOf
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import java.io.File
@@ -35,7 +36,7 @@ import kotlin.test.assertTrue
  * and an explicit `-D` overrides that); self-skips by JUnit assumption when it names no readable file, so
  * an unfed run reports skipped rather than green.
  */
-class Cmo3LayerRecoveryCorpusTest {
+class Cmo3AtlasIngestCorpusTest {
 	private companion object {
 		/**
 		 * How much of a drawable's recovered mapping must land on its layer's frame.  Generous, because
@@ -113,7 +114,7 @@ class Cmo3LayerRecoveryCorpusTest {
 			affine.m10 * x + affine.m11 * y + affine.m12,
 		)
 
-	/** Our AtlasPlacement as read out of one atlas entry, matching cmo3LayerTextures' own reading. */
+	/** Our AtlasPlacement as read out of one atlas entry, matching cmo3AtlasIngest's own reading. */
 	private fun placementOf(entry: ModelImageEntry, pageIndex: Int): AtlasPlacement? {
 		// CMO3: ModelImageEntry field materialLocalToAtlasTransform
 		val transform = entry.materialLocalToAtlasTransform as? GTransform2 ?: return null
@@ -152,18 +153,16 @@ class Cmo3LayerRecoveryCorpusTest {
 		var missedMappings = 0
 		val failures = mutableListOf<String>()
 		for (file in files) {
-			val model = Cmo3.read(file)
-			val root = model.root as? CModelSource ?: continue
-			val store = cmo3LayerTextures(root, model::extractLayerPng)
-			if (store.isEmpty) {
+			val root = Cmo3.read(file).root as? CModelSource ?: continue
+			val puppet = Cmo3Import.fromModelSource(root)
+			if (puppet.atlas.isEmpty) {
 				continue
 			}
 			filesWithLayers++
-			val puppet = org.umamo.interop.cmo3.Cmo3Import.fromModelSource(root)
 			for (drawable in puppet.drawables) {
-				val binding = store.bindingsByDrawableId[drawable.id.raw] ?: continue
+				val binding = puppet.atlasBindingFor(drawable) ?: continue
 				boundDrawables++
-				val layer = store.layerFor(binding.layerKey) ?: continue
+				val layer = puppet.atlas.tileById[drawable.atlasTileId] ?: continue
 				val uvs = drawable.mesh?.uvs ?: continue
 				if (uvs.isEmpty()) {
 					continue
