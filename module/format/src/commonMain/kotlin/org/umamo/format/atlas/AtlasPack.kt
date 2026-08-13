@@ -11,11 +11,11 @@ import org.umamo.format.raster.RasterImage
 /*
  * The atlas packer: source-layer rasters in, packed pages plus a placement report out.
  *
- * This is the pipeline node Umamo owns and Blender does not - because the 2D source art hands us each
- * piece's opaque silhouette before packing, the atlas can be generated rather than authored by hand
- * and reconciled.  The packing REPORT is deliberately not a placement transform: it records integer
- * page rectangles, the trim each tile came from, and the quarter turn applied, which is what a packer
- * knows.  Lowering that onto a placement transform belongs with whoever owns the placement model.
+ * Because the 2D source art hands us each piece's opaque silhouette before packing, the atlas can
+ * be generated rather than authored by hand and reconciled.  The packing REPORT is deliberately
+ * not a placement transform: it records integer page rectangles, the trim each tile came from, and
+ * the quarter turn applied, which is what a packer knows.  Lowering that onto a placement transform
+ * belongs with whoever owns the placement model.
  *
  * Its own package rather than sitting beside analyzeAlpha in `art`, because the packer reads layers
  * and writes flat images: `art` deliberately does not depend on `raster` (see RasterImage's

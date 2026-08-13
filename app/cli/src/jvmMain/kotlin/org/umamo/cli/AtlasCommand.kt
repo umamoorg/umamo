@@ -24,7 +24,7 @@ import java.io.File
  */
 
 /** Canvas pixels past which the preview composite is skipped rather than allocated. */
-private const val PREVIEW_PIXEL_CAP = 64_000_000
+private const val PREVIEW_PIXEL_CAP = 128_000_000
 
 /**
  * Runs `atlas <file> [<directory>] [options]`.
@@ -97,7 +97,7 @@ internal fun runAtlas(arguments: List<String>): Int {
 		mismatches.take(10).forEach { message -> System.err.println("  $message") }
 		return 1
 	}
-	println("verified ${result.placements.size}/${result.placements.size} tiles byte-exact")
+	println("Verified ${result.placements.size}/${result.placements.size} tiles byte-exact")
 	return 0
 }
 
