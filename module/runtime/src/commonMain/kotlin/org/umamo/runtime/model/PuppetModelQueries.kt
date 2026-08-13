@@ -64,6 +64,32 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
 	drawables.associate { drawable -> drawable.id to (drawable.textureSourceId ?: drawable.id).raw }
 
 /**
+ * How one drawable's stored texture coordinates map back into its source art's own pixel frame.
+ *
+ * The single resolution every source-art consumer starts from - the renderer sampling per-layer
+ * textures, the UV editor drawing a mapping over the artwork - so the tile lookup, the page lookup, and
+ * the packed-versus-direct decision are made once here rather than reassembled at each call site.
+ *
+ * A drawable renders from a packed page only when the document is in atlas display mode AND its tile
+ * was actually packed; otherwise it samples the art directly and the binding carries no placement, so
+ * the mapping is the identity.
+ *
+ * @param Drawable drawable The drawable to resolve.
+ * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
+ */
+fun PuppetModel.atlasBindingFor(drawable: Drawable): DrawableLayerBinding? {
+	val tile = drawable.atlasTileId?.let { tileId -> atlas.tileById[tileId] } ?: return null
+	val placement = tile.placement?.takeUnless { rendersFromSourceLayers }
+	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
+	if (placement != null && page == null) {
+		// A placement naming a page the document does not have is broken wiring, not a drawable that
+		// samples its art directly - resolving it to the identity would silently draw the wrong frame.
+		return null
+	}
+	return DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)
+}
+
+/**
  * Part id to every drawable in its subtree, walking nested parts.  The inverse direction of
  * [partByDrawable], and the resolution behind a part used as a clip mask ([PartComposite.maskedByParts]):
  * masking by a part means masking by all of its descendant drawables, recomputed from the tree so the mask

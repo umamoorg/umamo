@@ -3,10 +3,12 @@ package org.umamo.ui.document
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.UndecodablePagePolicy
+import org.umamo.render.buildPuppetTextures
 import org.umamo.render.cmo3LayerTextures
-import org.umamo.render.cmo3PuppetTextures
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
@@ -47,9 +49,20 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	}
 	val puppet = Cmo3Import.fromModelSource(root)
 	// The atlas walk takes the root plus a pixel lookup rather than the Cmo3Model itself, which is what
-	// lets it live in :render's commonMain; the archive-backed lookup is the only JVM-bound half and it
-	// is supplied from here.
-	val textures = cmo3PuppetTextures(root, cmo3::extractLayerPng)
+	// keeps it in :interop's commonMain; the archive-backed lookup is the only JVM-bound half and it is
+	// supplied from here.  Decoding is the renderer's, and a CMO3 skips a page that will not decode
+	// rather than refusing the document: its pixels are embedded in the model file, so one corrupt
+	// resource inside an otherwise editable rig must not cost the rigger everything else.  Skip never
+	// returns null, so the fallback is unreachable - the shared builder's return type is nullable only
+	// to serve the Fail policy.
+	val pageSet = cmo3AtlasPages(root, cmo3::extractLayerPng)
+	val textures =
+		buildPuppetTextures(
+			pageSet.pageBytes,
+			pageSet.atlasIndexByDrawableId,
+			pageSet.premultipliedAlpha,
+			UndecodablePagePolicy.Skip,
+		) ?: PuppetTextures(emptyList(), emptyMap(), pageSet.premultipliedAlpha)
 	// The source-artwork walk rides the same seam and decodes nothing here: it reads the layered-art
 	// web's metadata (names, sizes, placements) and defers every raster to first request, so opening a
 	// model with hundreds of layers costs no more than opening one without.

@@ -19,6 +19,8 @@ import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.DrawableLayerBinding
 
 /**
  * Lifts a CMO3 document's source artwork into a [LayerTextures] store: the model images its drawables

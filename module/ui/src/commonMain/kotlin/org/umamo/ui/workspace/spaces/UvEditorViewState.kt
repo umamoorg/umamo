@@ -11,10 +11,10 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
 import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
-import org.umamo.render.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.atlasPageIndexFor

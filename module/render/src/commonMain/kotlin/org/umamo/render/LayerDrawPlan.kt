@@ -1,6 +1,7 @@
 package org.umamo.render
 
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.layerUvAffineOf
 
 /**
  * One drawable's source-artwork draw: which image it samples, and the affine carrying its stored

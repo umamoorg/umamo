@@ -1,7 +1,7 @@
 package org.umamo.ui.viewport
 
-import org.umamo.render.AtlasPlacement
-import org.umamo.render.DrawableLayerBinding
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.DrawableLayerBinding
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

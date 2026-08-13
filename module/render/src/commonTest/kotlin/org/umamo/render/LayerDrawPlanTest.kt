@@ -2,9 +2,11 @@ package org.umamo.render
 
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel

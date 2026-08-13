@@ -12,6 +12,9 @@ import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue

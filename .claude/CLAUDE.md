@@ -168,7 +168,9 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             graph) and the fresh-graph synthesis (Cmo3Conversion: blank skeleton +
                             image chain for MOC3-origin export).  Future import/export formats and
                             format↔format conversions (each pivoting through PuppetModel) land
-                            here too.  → :format (api), :runtime (api)
+                            here too — including each format's atlas-page walk (`cmo3AtlasPages` /
+                            `moc3AtlasPages` → a neutral `AtlasPageSet`), so :render never sees a
+                            container format.  → :format (api), :runtime (api)
 :edit         commonMain  — the editing session over the immutable PuppetModel: EditorSession
                             (snapshot-based undo History, selection + mode state, tool latches,
                             request buses), the sealed Change hierarchy, and the pure edit ops
@@ -187,15 +189,14 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             is zero `expect`/`actual` AND has no jvmAndroidMain — outside the backend
                             impls it is all commonMain.  PNG decode goes through :format's `PngCodec`
                             (the old `decodePngToRgba` expect/actual is retired).  :format is a
-                            direct commonMain api dep (RasterImage sits in the RenderDevice upload
-                            surface, PngCodec behind the atlas decode).  Both texture adapters are
-                            commonMain: `buildPuppetTextures` is the format-agnostic base (page bytes
-                            + a drawable→page map → `PuppetTextures`, with an `UndecodablePagePolicy`
-                            because CMO3 skips a bad page and MOC3 fails the import), over which
-                            `cmo3PuppetTextures` walks the graph and `moc3PuppetTextures` reads the
-                            moc's textureIndex.  The CMO3 one takes a `CModelSource` plus an injected
-                            `(CImageResource) -> ByteArray?` rather than a `Cmo3Model`, which is what
-                            keeps it off jvmAndroidMain.  LWJGL is DESKTOP-ONLY.
+                            direct commonMain api dep — but for the NEUTRAL raster layer only
+                            (RasterImage in the RenderDevice upload surface, PngCodec behind the atlas
+                            decode).  :render knows no CONTAINER format: the CMO3/MOC3 walks that
+                            produce a document's atlas pages live in :interop and hand back a neutral
+                            `AtlasPageSet` (page bytes + a drawable→page map), which the document
+                            loader feeds to `buildPuppetTextures` here with its format's
+                            `UndecodablePagePolicy` — CMO3 skips a bad page, MOC3 fails the import.
+                            LWJGL is DESKTOP-ONLY.
                             The CPU eval (`eval/`) depends on nothing in :render and would move to
                             :runtime cleanly — it stays here ON PURPOSE, paired with the GPU deform
                             shaders it mirrors and that the differential oracle diffs it against.

@@ -2,9 +2,18 @@ package org.umamo.render
 
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableLayerBinding
+import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.runtime.model.identityUvAffine
+import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.layerPixelOf
+import org.umamo.runtime.model.layerUvAffineOf
+import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

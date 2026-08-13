@@ -6,15 +6,15 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
-import org.umamo.render.AtlasPlacement
 import org.umamo.render.DecodedImage
-import org.umamo.render.DrawableLayerBinding
 import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceLayerEntry
+import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
