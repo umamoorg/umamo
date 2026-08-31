@@ -60,12 +60,15 @@ import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
+import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.settings.HistorySettings
+import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
@@ -132,6 +135,20 @@ fun EditorApp(
 	// Held here rather than in the shell because it must survive document swaps (nothing in this
 	// remember block is keyed on the document) and because the export closures below read it.
 	val moc3ExportOptions = remember { Moc3ExportSessionOptions() }
+	// The session's effective atlas pages: a repack swaps them and undo swaps them back, driven by the
+	// model through the resolver's collector.  Created up here rather than in the viewport wiring so
+	// the export closures below read the same page set the viewport shows.
+	val sessionAtlasPages =
+		remember(document, session) {
+			if (document is PuppetDocument && session != null) {
+				SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			} else {
+				null
+			}
+		}
+	LaunchedEffect(sessionAtlasPages) {
+		sessionAtlasPages?.follow()
+	}
 	val uriHandler = LocalUriHandler.current
 	// Mirror the session's undo/redo availability for the Edit menu's enabled state. produceState runs
 	// unconditionally (the session may be null with no document) and re-collects when the session swaps.
@@ -251,6 +268,9 @@ fun EditorApp(
 					prepareCmo3Export(
 						document = puppetDocument,
 						edited = exportedModelFor(puppetDocument, session),
+						// The session's resolved page set: the document's own instance until a repack
+						// composed a new one, which is exactly the gate the archive patch keys on.
+						effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures,
 						modelName = suggestedName,
 						nowMillis = System.currentTimeMillis(),
 						obfuscateKey = Random.nextInt(),
@@ -287,6 +307,7 @@ fun EditorApp(
 									// Re-resolved at write time: the dialog is modeless enough that the
 									// session could undo between confirm and the picker closing.
 									edited = exportedModelFor(puppetDocument, session),
+									effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures,
 									// FileKit appends the extension, so the picked handle's own name is authoritative.
 									destinationName = destination.name,
 									options = options,
@@ -452,6 +473,7 @@ fun EditorApp(
 	DocumentViewport(
 		document = document,
 		session = session,
+		sessionAtlasPages = sessionAtlasPages,
 		commandRegistry = commandRegistry,
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
@@ -578,6 +600,7 @@ private fun describeExportNotice(notice: ExportNotice): String =
 private fun DocumentViewport(
 	document: Document?,
 	session: EditorSession?,
+	sessionAtlasPages: SessionAtlasPages?,
 	commandRegistry: CommandRegistry,
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
@@ -598,13 +621,18 @@ private fun DocumentViewport(
 					activeSession.historyLimit = historyLimit
 				}
 				val editorState = rememberSessionEditorState(activeSession)
+				// The session's resolved page set - the pixels the model's atlas value denotes.  The
+				// fallback pair only guards the same desync the session fallback above does.
+				val atlasPages =
+					sessionAtlasPages?.binding?.value
+						?: remember(document) { AtlasPageBinding(document.puppet.atlas, document.textures) }
 				// The factory is fixed for the app's lifetime (a platform capability, not state), so the
 				// conditional composable call is stable across recompositions.
 				val viewport =
 					if (viewportServiceFactory != null) {
 						rememberPuppetViewportHost(
 							document.puppet,
-							document.textures,
+							atlasPages,
 							document.artRasters,
 							document.liveParams,
 							activeSession,
@@ -615,15 +643,20 @@ private fun DocumentViewport(
 					}
 				val liveParamsHandle = remember(document, activeSession) { LiveParamsAdapter(document.liveParams, activeSession) }
 				// Without a viewport the thumbnails come straight from the shared thumbnailer, so the
-				// outliner's hover previews work before a platform puppet renderer exists.
-				val thumbnails = viewport?.thumbnails ?: remember(document) { DrawableThumbnailer(document.puppet, document.textures) }
+				// outliner's hover previews work before a platform puppet renderer exists.  Keyed on the
+				// page set: a repack stales every crop, and the live path gets the same eviction through
+				// the picker's setTextures.
+				val thumbnails =
+					viewport?.thumbnails
+						?: remember(document, atlasPages) { DrawableThumbnailer(document.puppet, atlasPages.textures) }
 				val model by activeSession.model.collectAsState()
 				CompositionLocalProvider(
 					LocalPuppet provides model,
 					LocalEditorSession provides activeSession,
 					LocalLiveParams provides liveParamsHandle,
 					LocalDrawableThumbnails provides thumbnails,
-					LocalPuppetTextures provides document.textures,
+					LocalPuppetTextures provides atlasPages.textures,
+					LocalSessionAtlasPages provides sessionAtlasPages,
 					LocalSourceArtRasters provides document.artRasters,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,

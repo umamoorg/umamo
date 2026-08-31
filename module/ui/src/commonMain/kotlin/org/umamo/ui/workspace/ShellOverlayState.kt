@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.interop.ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.model.AtlasRepackReport
 
 /**
  * A pending confirmation: the localized prompt to show and the action to run if the user confirms.  The
@@ -67,6 +68,14 @@ internal class ShellOverlayState {
 	var exportReport: ExportReport? by mutableStateOf(null)
 
 	/**
+	 * The repack refusal report's payload - set by the document.repackReport command when a repack
+	 * aborted over tiles it could not carry, cleared like the open-failure alert.  Null while none
+	 * shows.  Unlike the export report this one is about work that did NOT happen: nothing was
+	 * applied when it shows.
+	 */
+	var repackReport: AtlasRepackReport? by mutableStateOf(null)
+
+	/**
 	 * The export-options dialog's payload - set by the document.exportOptionsMoc3 command when an
 	 * export with options begins, cleared by Cancel, the scrim, Escape, or the Export button (which
 	 * first runs the request's continuation).  Null while none shows.
@@ -104,5 +113,5 @@ internal class ShellOverlayState {
 	 * modal key ladder.
 	 */
 	val modalAlertOpen: Boolean
-		get() = pendingConfirm != null || openFailure != null || exportReport != null
+		get() = pendingConfirm != null || openFailure != null || exportReport != null || repackReport != null
 }

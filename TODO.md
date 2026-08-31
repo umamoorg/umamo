@@ -78,6 +78,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
+	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 
 ## UV Editor
 * Bugs/Improvements
@@ -323,9 +324,13 @@ is still ahead.
 	pages and tiles with each tile's placement, `Drawable.atlasTileId` names its art, `AtlasPlacement` moved
 	to `:runtime`, CMO3 import fills it, the diff sees it, `EditorSession.setAtlasPlacement` makes it one
 	undoable step that re-derives the UVs over it, and the CMO3 export writes both halves of the entry's
-	transform pair. Container-format knowledge left `:render` entirely. Pending: a PRODUCER — moving a
-	placement means recomposing the page image, which needs the packed pages to become session state rather
-	than document state; that repack is what texture-authoring Phase 4's gizmo will sit on.
+	transform pair. Container-format knowledge left `:render` entirely. The PRODUCER landed 2026-09-01:
+	`document.repackAtlas` packs through the shared packer and commits pages + placements + re-derived UVs
+	as one undo step, the pages are session state (`SessionAtlasPages` resolves them from the model, so
+	undo/redo swap pixels by restoring it), the engine swaps pages without a service rebuild, and a
+	same-membership repack exports with the CMO3's stored page images patched. Texture-authoring Phase 4's
+	gizmo sits on these seams; still open there: rotation/scale placement lowering, cross-page entry
+	re-homing on export, pack-options UX (Phase 5).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).

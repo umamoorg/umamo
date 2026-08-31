@@ -236,12 +236,14 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		} else {
 			UvSceneContent.AtlasPage(pageIndex)
 		}
-	val imageFlow = remember(scope.areaId) { service.registerUvScene(scope.areaId, sceneContent) }
+	// Keyed on the service too, like the 2D viewport's registration: a slot remembered across a
+	// service swap would keep collecting the disposed engine's flows and never register with the live one.
+	val imageFlow = remember(scope.areaId, service) { service.registerUvScene(scope.areaId, sceneContent) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
-	val cameraFlow = remember(scope.areaId) { service.cameraFlow(scope.areaId) }
+	val cameraFlow = remember(scope.areaId, service) { service.cameraFlow(scope.areaId) }
 	LaunchedEffect(scope.areaId, sceneContent) { service.setUvSceneContent(scope.areaId, sceneContent) }
-	DisposableEffect(scope.areaId) {
+	DisposableEffect(scope.areaId, service) {
 		onDispose { service.unregister(scope.areaId) }
 	}
 	val image by imageFlow.collectAsState()

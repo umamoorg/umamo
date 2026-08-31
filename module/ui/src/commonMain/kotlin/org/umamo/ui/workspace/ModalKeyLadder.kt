@@ -65,6 +65,13 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				}
 				true
 			}
+			// The repack refusal report dismisses the same way: it only acknowledges why nothing happened.
+			overlays.repackReport != null -> {
+				if (isEscapeDown || isEnterDown) {
+					overlays.repackReport = null
+				}
+				true
+			}
 			// An open menu owns the keyboard like the overlays below it: Escape closes it, every other key
 			// is inert.  It has to claim the rest rather than pass them on - the bar's dropdowns open
 			// non-focusable so its labels keep receiving hover for the sweep-to-switch, which leaves the

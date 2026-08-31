@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -10,6 +11,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 
 /*
@@ -308,4 +310,29 @@ fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
  */
 fun EditorSession.setAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?) {
 	mutate(DocumentChange.SetAtlasPlacement(tileId)) { model -> model.withAtlasPlacement(tileId, placement) }
+}
+
+/**
+ * Repacks the whole atlas as a single undo step: the new page inventory and every tile's placement
+ * land together, with every bound drawable's coordinates re-derived over them - withAtlasRepack's
+ * one-pass edit under the one history push a repack should be.
+ *
+ * The page PIXELS are session state the caller swaps in beside this commit, which is why the
+ * committed model comes back: the orchestrator pre-warms the session's page resolver with the SAME
+ * atlas instance this publishes (the resolver memoizes by identity), so the commit resolves its
+ * pages by cache hit - and undo re-resolves them the same way.
+ *
+ * @param List pages            The new page inventory.
+ * @param Map  placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @return PuppetModel? The committed model, or null when the repack restated the atlas exactly.
+ */
+fun EditorSession.commitAtlasRepack(pages: List<AtlasPage>, placementsByTile: Map<AtlasTileId, AtlasPlacement?>): PuppetModel? {
+	val current = model.value
+	val repacked = current.withAtlasRepack(pages, placementsByTile)
+	if (repacked === current) {
+		return null
+	}
+	val placedCount = placementsByTile.count { entry -> entry.value != null }
+	mutate(DocumentChange.RepackAtlas(placedCount, pages.size)) { repacked }
+	return repacked
 }

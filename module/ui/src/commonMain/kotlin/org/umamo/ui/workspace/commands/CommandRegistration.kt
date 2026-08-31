@@ -55,4 +55,16 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }
+
+	/**
+	 * Applies when the document's atlas is repackable: it has tiles to pack, and its stored
+	 * coordinates address the pages (a fully layer-addressed document has no page mapping to
+	 * re-derive, and flipping one to page addressing is a bigger change than a repack).  A MOC3-origin
+	 * document has no tiles at all, so this also keeps the command off the packed endpoint.
+	 */
+	val canRepackAtlas =
+		CommandAvailability {
+			val atlas = session?.model?.value?.atlas
+			atlas != null && atlas.tiles.isNotEmpty() && atlas.storedUvsAddressPages
+		}
 }

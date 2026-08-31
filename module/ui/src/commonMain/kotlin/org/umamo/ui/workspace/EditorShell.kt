@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -33,6 +34,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.interop.ExportFormat
@@ -57,13 +59,19 @@ import org.umamo.ui.kit.MessageDialog
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
+import org.umamo.ui.model.AtlasRepackRefusalReason
+import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.model.KeyableHover
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalKeyableHover
+import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.model.LocalSessionAtlasPages
+import org.umamo.ui.model.LocalSourceArtRasters
+import org.umamo.ui.model.runAtlasRepack
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
@@ -75,6 +83,7 @@ import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
+import org.umamo.ui.workspace.commands.atlasCommands
 import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
@@ -240,6 +249,30 @@ fun EditorShell(
 	// One tier set shared by every document-scoped group below, so the ten tables hold the same three
 	// availability objects rather than three apiece.  Keyed on the session exactly as their effects are.
 	val availability = remember(editorSession) { SessionAvailability(editorSession) }
+	// The repack orchestration the atlas table dispatches: decode + pack off-thread, one commit, the
+	// refusal report routed through the shell's own modal chrome.  Every collaborator here changes
+	// with the document - and so with the session the effect below keys on - so the closure never
+	// outlives what it captured.
+	val shellScope = rememberCoroutineScope()
+	val artRasters = LocalSourceArtRasters.current
+	val sessionAtlasPages = LocalSessionAtlasPages.current
+	val puppetTextures = LocalPuppetTextures.current
+	val repackAtlas: (() -> Unit)? =
+		if (editorSession != null && artRasters != null) {
+			{
+				shellScope.launch {
+					runAtlasRepack(
+						session = editorSession,
+						artRasters = artRasters,
+						sessionAtlasPages = sessionAtlasPages,
+						premultipliedAlpha = puppetTextures?.premultipliedAlpha ?: false,
+						report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
+					)
+				}
+			}
+		} else {
+			null
+		}
 	DisposableEffect(commandRegistry, editorSession, selection) {
 		val cleanup =
 			commandRegistry.registerAll(
@@ -251,7 +284,8 @@ fun EditorShell(
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
-					displayCommands(editorSession, availability),
+					displayCommands(editorSession, availability) +
+					atlasCommands(availability, repackAtlas),
 			)
 		onDispose { cleanup() }
 	}
@@ -497,6 +531,14 @@ fun EditorShell(
 							onDismiss = { overlays.exportReport = null },
 						)
 					}
+					// The repack refusal report, same modal family.  Unlike the export report it describes
+					// work that did NOT happen: the repack aborted whole rather than dropping these tiles.
+					overlays.repackReport?.let { report ->
+						MessageDialog(
+							message = repackReportMessage(report),
+							onDismiss = { overlays.repackReport = null },
+						)
+					}
 					// A destructive command raised a confirm: a modal scrim over the whole shell, painted last
 					// so it floats above the tabs, the area tree, the palette, and the settings window.
 					overlays.pendingConfirm?.let { request ->
@@ -581,6 +623,34 @@ private fun exportReportMessage(report: ExportReport): String {
 		}
 	}
 	return lines.joinToString("\n")
+}
+
+/**
+ * Builds the repack refusal alert's text: the localized header, then one line per refused tile.
+ *
+ * The tile names are document data, shown verbatim; only the reasons are localized.
+ *
+ * @param AtlasRepackReport report The refusal report.
+ * @return String The multiline alert text.
+ */
+@Composable
+private fun repackReportMessage(report: AtlasRepackReport): String {
+	val lines = ArrayList<String>(report.refusals.size + 1)
+	lines.add(stringResource(Res.string.repack_report_message))
+	for (refusal in report.refusals) {
+		val reasonText =
+			stringResource(
+				when (refusal.reason) {
+					AtlasRepackRefusalReason.LargerThanPage -> Res.string.repack_report_larger_than_page
+					AtlasRepackRefusalReason.NoOpaquePixels -> Res.string.repack_report_no_opaque_pixels
+					AtlasRepackRefusalReason.BelowMinimumCoverage -> Res.string.repack_report_below_minimum_coverage
+					AtlasRepackRefusalReason.Undecodable -> Res.string.repack_report_undecodable
+					AtlasRepackRefusalReason.DegeneratePlacement -> Res.string.repack_report_degenerate_placement
+				},
+			)
+		lines.add("• ${refusal.tileName} - $reasonText")
+	}
+	return lines.joinToString(separator = "\n")
 }
 
 /**

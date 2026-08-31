@@ -27,10 +27,12 @@ import kotlin.math.sin
  * is page pixels with y running DOWN (v = 0 is the page's top row), matching how the decoder emits rows
  * and how the sampler addresses them.
  *
- * [pageIndex] indexes [PuppetAtlas.pages], which is the DOCUMENT's page order.  It is deliberately NOT
- * the renderer's page numbering: the two are derived independently (the renderer collects pages in
- * drawable-encounter order and renumbers when one fails to decode), so an index is only ever valid
- * against the list it came from.
+ * [pageIndex] indexes [PuppetAtlas.pages], which is the DOCUMENT's page order.  For an IMPORTED
+ * document it is deliberately NOT the renderer's page numbering: the two are derived independently
+ * (the renderer collects pages in drawable-encounter order and renumbers when one fails to decode),
+ * so an index is only ever valid against the list it came from.  A page set Umamo generates itself
+ * (a repack's) is built index-parallel to [PuppetAtlas.pages], so for generated sets the two
+ * numberings coincide by construction.
  *
  * @property Int   pageIndex       The atlas page the art packs onto, indexing [PuppetAtlas.pages].
  * @property Float positionX       The packing origin's x on the page, in pixels (fractional in real files).

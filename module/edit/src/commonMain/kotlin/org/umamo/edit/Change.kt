@@ -676,6 +676,18 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.atlasPlacement"
 	}
+
+	/**
+	 * Repacks the whole atlas: a new page inventory, every tile placed anew, every bound drawable
+	 * re-mapped over it.  Document content - the pack is authored - so it marks the document dirty.
+	 *
+	 * @property Int tileCount The number of tiles placed onto the new pages.
+	 * @property Int pageCount The number of pages the repack produced.
+	 */
+	data class RepackAtlas(val tileCount: Int, val pageCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.atlasRepack"
+	}
 }
 
 /**

@@ -35,8 +35,8 @@ private const val PART_COMPOSITE_MAX_DIMENSION = 128
  * [partThumbnailFor]). Pure CPU over the immutable decoded atlas bytes ([PuppetTextures.atlases]) and the
  * drawables' mesh data - no GL, no render-thread hand-off - so it is safe to call straight from the Compose
  * UI thread. Results are memoized; [updateModel] refreshes the model-derived inputs after every committed
- * edit and evicts exactly the entries the edit staled (atlas pixels never change; a future re-import that
- * swaps atlases builds a fresh instance).
+ * edit and evicts exactly the entries the edit staled, and [setTextures] swaps the page pixels when the
+ * session repacks, evicting every pixel-derived entry wholesale.
  *
  * Rasterises to a Compose [ImageBitmap] through the rgbaToImageBitmap platform seam (Skiko on desktop,
  * android.graphics.Bitmap on Android), so one implementation serves both apps. The per-drawable crop
@@ -48,7 +48,8 @@ private const val PART_COMPOSITE_MAX_DIMENSION = 128
  */
 class DrawableThumbnailer(
 	private val puppet: PuppetModel,
-	private val textures: PuppetTextures,
+	// var: a repack swaps the page set mid-session; setTextures re-points this and evicts the caches.
+	private var textures: PuppetTextures,
 ) : DrawableThumbnailProvider {
 	/** A cropped art region as raw straight-alpha RGBA (top row first), reused by both the per-drawable and part previews. */
 	private class RawCrop(val rgba: ByteArray, val width: Int, val height: Int)
@@ -85,6 +86,24 @@ class DrawableThumbnailer(
 	private val boundsCache = mutableMapOf<DrawableId, ModelBounds?>()
 	private val thumbnailCache = mutableMapOf<DrawableId, ImageBitmap?>()
 	private val partThumbnailCache = mutableMapOf<PartId, ImageBitmap?>()
+
+	/**
+	 * Swaps the atlas page set after a repack (or its undo) and evicts every cache that read pixels or
+	 * page indices out of the old one.  Wholesale rather than per-entry: a repack moves every placed
+	 * tile, so there is nothing selective to keep.
+	 *
+	 * @param PuppetTextures next The new page set.
+	 */
+	fun setTextures(next: PuppetTextures) {
+		if (next === textures) {
+			return
+		}
+		textures = next
+		cropCache.clear()
+		boundsCache.clear()
+		thumbnailCache.clear()
+		partThumbnailCache.clear()
+	}
 
 	/**
 	 * Refreshes every model-derived input after an edit and evicts exactly the caches the edit staled:

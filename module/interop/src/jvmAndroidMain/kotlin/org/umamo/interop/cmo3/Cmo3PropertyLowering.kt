@@ -85,6 +85,10 @@ internal class Cmo3PropertyLowering(
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
+	// True when the caller replaced the stored page images with pages recomposed for the edited
+	// placements (Cmo3Export's same-count patch); the stale-page notices below are then false and stay
+	// quiet.  Defaults false so every other construction keeps the honest warning.
+	private val pagesRecomposed: Boolean = false,
 ) {
 	private val editedParameterById = edited.parameters.associateBy(Parameter::id)
 	private val editedPartById = edited.parts.associateBy(Part::id)
@@ -625,8 +629,9 @@ internal class Cmo3PropertyLowering(
 	 * recomputed to hold the composition.  Writing only the packing transform would break an invariant
 	 * the official editor's own reader depends on.
 	 *
-	 * What this does NOT do is redraw the page.  The stored page image still shows the art where it
-	 * used to be, so a moved placement always takes [ExportNoticeReason.AtlasPageNotRecomposed].
+	 * What this does NOT do is redraw the page.  When the caller has not patched the stored page
+	 * images (pagesRecomposed), they still show the art where it used to be, so a moved placement
+	 * takes [ExportNoticeReason.AtlasPageNotRecomposed]; a patched export clears it.
 	 *
 	 * @param List diffs The per-tile diffs.
 	 */
@@ -688,7 +693,9 @@ internal class Cmo3PropertyLowering(
 						continue
 					}
 					lowerAtlasEntry(entry, placement, canvasTranslation)
-					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					if (!pagesRecomposed) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					}
 				}
 			}
 		}
@@ -758,10 +765,14 @@ internal class Cmo3PropertyLowering(
 				DocumentField.CANVAS_SIZE -> lowerCanvasSize()
 				DocumentField.SOURCE_LAYER_DISPLAY -> lowerSourceLayerDisplay()
 				// A page appearing, vanishing, or resizing is a repack's output, and repacking rewrites
-				// the page IMAGES too - which nothing here does.  The per-tile placements still lower;
-				// this only says the page set itself was not reconciled.
-				DocumentField.ATLAS_PAGES ->
-					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+				// the page IMAGES too.  When the caller patched them (pagesRecomposed) the page set IS
+				// reconciled and nothing is owed; otherwise the per-tile placements still lower and this
+				// says the page set itself was not.
+				DocumentField.ATLAS_PAGES -> {
+					if (!pagesRecomposed) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					}
+				}
 				DocumentField.WORLD_ORIGIN -> {
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.

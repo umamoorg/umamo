@@ -316,7 +316,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int            height       The page height in pixels.
 	 * @return CCachedImageManager The fresh manager.
 	 */
-	private fun paddedCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
+	internal fun paddedCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
 		CCachedImageManager().apply {
 			// CMO3: CCachedImageManager fields defaultCacheType / rawImage / cachedImages /
 			// requiredMipmapLevel (corpus flat imports cache the raw resource itself).
