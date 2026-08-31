@@ -1,5 +1,6 @@
 package org.umamo.ui.model
 
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.EditorMode
@@ -38,8 +39,24 @@ val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
  * republishes the committed model.  [resync] restores the renderer to the session's committed model
  * after a cancelled or torn-down gesture.  The UV editor drives its modal G / S / R previews through
  * this; the viewport's own overlays reach the service directly and do not need it.
+ *
+ * The preview is published to the COMPOSITION as well as to the render thread, through [preview].  It
+ * has to be: a gesture's own area draws from its local preview and the 2D viewport follows the pushes,
+ * but every other read-only surface derives from [LocalPuppet] and would otherwise sit on the committed
+ * model until the gesture confirmed - a second UV area showing the atlas page stayed frozen while the
+ * same mesh moved in the viewport beside it.
  */
 interface PuppetRenderSync {
+	/**
+	 * The uncommitted model a gesture is currently previewing, or null when none is in flight.
+	 *
+	 * Compose state rather than a flow: it is written from the pointer loop on the main thread and read
+	 * during composition, so a surface that reads it recomposes with the gesture and needs no collector.
+	 * It is NOT session state - nothing here touches history, dirty, or the committed model - so a
+	 * surface that wants the document as SAVED keeps reading [LocalPuppet].
+	 */
+	val preview: State<PuppetModel?>
+
 	/**
 	 * Pushes an uncommitted preview model to the renderer (transient; no undo step).
 	 *

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -537,13 +538,25 @@ fun rememberPuppetViewportHost(
 		// The render-sync seam the UV editor's modal previews stream through: preview pushes go straight
 		// to the render thread (transient, like the Edit overlay's own setModel calls), and resync
 		// restores the session's committed model after a cancel / teardown.
+		// Created once per service/session with the host above, so its preview state lives as long as the
+		// handle every surface reads it through.
 		val renderSync =
 			object : PuppetRenderSync {
+				// Published to the composition as well as the render thread, so a UV area that is not the
+				// one being dragged in follows the gesture instead of waiting for the commit.
+				private val previewState = mutableStateOf<PuppetModel?>(null)
+
+				override val preview: State<PuppetModel?> get() = previewState
+
 				override fun previewModel(model: PuppetModel) {
+					previewState.value = model
 					service.setModel(model)
 				}
 
 				override fun resync() {
+					// Cleared before the renderer is restored: a surface reading the preview must never be
+					// left holding one the renderer has already dropped.
+					previewState.value = null
 					service.setModel(session.model.value)
 				}
 			}

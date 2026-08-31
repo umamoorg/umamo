@@ -34,6 +34,7 @@ import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSourceArtRasters
@@ -85,7 +86,15 @@ import org.umamo.ui.workspace.LocalAreaCameraHub
  */
 @Composable
 internal fun UvEditorSpace(scope: AreaScope) {
-	val model = LocalPuppet.current
+	val committedModel = LocalPuppet.current
+	// The document as it looks RIGHT NOW: the uncommitted model while any area drags a modal gesture,
+	// else the committed one.  Read here rather than only in the area that owns the gesture, because a
+	// second UV editor showing the atlas page has to follow a drag happening over the source artwork -
+	// it stayed frozen until the gesture confirmed, while the 2D viewport beside it moved live.
+	//
+	// Never session state: the preview carries no undo step and never marks the document dirty, so the
+	// surfaces that want the document as SAVED keep reading LocalPuppet.
+	val model = LocalPuppetRenderSync.current?.preview?.value ?: committedModel
 	val session = LocalEditorSession.current
 	val textures = LocalPuppetTextures.current
 	val service = LocalPuppetViewportService.current
