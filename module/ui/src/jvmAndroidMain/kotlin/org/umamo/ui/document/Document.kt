@@ -8,8 +8,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
@@ -50,7 +50,7 @@ sealed interface PuppetDocument : Document {
 	 * every layer's pixels in its graph, while a MOC3 is the packed endpoint of that pipeline and has
 	 * none.  A surface that shows source art therefore checks for emptiness rather than assuming.
 	 */
-	val layers: LayerTextures get() = LayerTextures.EMPTY
+	val artRasters: SourceArtRasters get() = SourceArtRasters.EMPTY
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams

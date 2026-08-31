@@ -318,6 +318,13 @@ is still ahead.
 	only a page index — plus emitting UVs from placements, which is Phase E's. Also pending: downscale-to-fit
 	(a source layer larger than the page cap is reported, not packed) and refitting `Cmo3AtlasUndedup`'s
 	private shelf packer onto the shared one (session C3).
+4. Atlas placement as model state. Built (Phase C session C2, 2026-08-13): `PuppetModel.atlas` carries the
+	pages and tiles with each tile's placement, `Drawable.atlasTileId` names its art, `AtlasPlacement` moved
+	to `:runtime`, CMO3 import fills it, the diff sees it, `EditorSession.setAtlasPlacement` makes it one
+	undoable step that re-derives the UVs over it, and the CMO3 export writes both halves of the entry's
+	transform pair. Container-format knowledge left `:render` entirely. Pending: a PRODUCER — moving a
+	placement means recomposing the page image, which needs the packed pages to become session state rather
+	than document state; that repack is what texture-authoring Phase 4's gizmo will sit on.
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).

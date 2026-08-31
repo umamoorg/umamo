@@ -1,5 +1,9 @@
 package org.umamo.interop
 
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
@@ -23,6 +27,7 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import kotlin.test.Test
@@ -332,6 +337,64 @@ class PuppetModelDiffTest {
 		val reordered = diffPuppetModels(baseline, baseline.copy(parameters = baseline.parameters.reversed()))
 		assertEquals(setOf(DocumentField.PARAMETER_ORDER), reordered.document)
 		assertTrue(reordered.parameters.isEmpty(), "a pure reorder changes no parameter entity")
+	}
+
+	/**
+	 * A moved placement surfaces as exactly that tile's PLACEMENT, and nothing else.
+	 *
+	 * The completeness rule bites hardest here: an atlas change the diff misses is an atlas change the
+	 * export silently drops, and a placement the file keeps while the model moved on leaves every mesh
+	 * over it sampling the wrong pixels.
+	 */
+	@Test
+	fun atlasTileChangesAreExact() {
+		val tileId = AtlasTileId("tile0")
+		val placed = AtlasPlacement(0, 4f, 8f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
+		val baseline =
+			puppet().copy(
+				atlas = PuppetAtlas(listOf(AtlasPage(64, 64)), listOf(AtlasTile(tileId, "Art", 16, 16, placed))),
+			)
+
+		val moved =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(atlas = baseline.atlas.copy(tiles = listOf(baseline.atlas.tiles.single().copy(placement = placed.copy(positionX = 40f))))),
+			)
+		assertEquals(
+			listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.PLACEMENT))),
+			moved.atlasTiles,
+		)
+		assertTrue(moved.document.isEmpty(), "moving art on a page changes no document field")
+		assertTrue(moved.drawables.isEmpty(), "and no drawable, when none is bound to it")
+
+		val renamed =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(atlas = baseline.atlas.copy(tiles = listOf(baseline.atlas.tiles.single().copy(name = "Other")))),
+			)
+		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA))), renamed.atlasTiles)
+
+		val repaged = diffPuppetModels(baseline, baseline.copy(atlas = baseline.atlas.copy(pages = listOf(AtlasPage(128, 128)))))
+		assertEquals(setOf(DocumentField.ATLAS_PAGES), repaged.document, "the page list is document-level")
+		assertTrue(repaged.atlasTiles.isEmpty(), "resizing a page moves no tile")
+
+		assertTrue(diffPuppetModels(baseline, baseline).isEmpty, "an untouched atlas is no difference at all")
+	}
+
+	/** Rebinding a drawable to different art is a drawable-level difference the export must see. */
+	@Test
+	fun aDrawableRetiedToDifferentArtSurfaces() {
+		val baseline = puppet(drawables = listOf(drawable("D1").copy(atlasTileId = AtlasTileId("tile0"))))
+		val rebound =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(drawables = listOf(baseline.drawables.single().copy(atlasTileId = AtlasTileId("tile1")))),
+			)
+
+		assertEquals(
+			listOf(EntityDiff.Changed(DrawableId("D1"), setOf(DrawableField.ATLAS_TILE))),
+			rebound.drawables,
+		)
 	}
 
 	/** Diffs emit in BASELINE order regardless of the edited list's order, with creations appended. */

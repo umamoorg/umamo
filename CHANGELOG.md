@@ -13,6 +13,7 @@ Umamo is early alpha.
 * Texture Authoring: A new "Show source artwork" document property switches the puppet between rendering from its packed texture atlas and rendering straight from each drawable's individual source layer, for checking the atlas mapping by eye before it's finalized.
 
 ### Changed
+* Texture Atlas: Where each piece of source artwork sits on the atlas is now part of the document rather than something re-derived every time it's opened, so it can be edited, undone, and written back out.
 * MOC3 to CMO3 conversion: The stand-in source document rebuilt from a MOC3's atlas pages now also opens and renders correctly in the official Cubism Editor, including switching between its layered-art and texture-atlas display modes.  The export notice wording was updated to describe what's actually still lost this way(the layers are baked-atlas slices, not the original editable artwork) instead of claiming the file wouldn't render at all.
 
 ### Fixed

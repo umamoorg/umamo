@@ -1,17 +1,25 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.identityUvAffine
+import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.layerUvAffineOf
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
@@ -743,4 +751,78 @@ fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
 		return this
 	}
 	return copy(rendersFromSourceLayers = fromSourceLayers)
+}
+
+/**
+ * This model with one atlas tile packed at [placement], every drawable over that art re-mapped so it
+ * keeps sampling the same pixels.
+ *
+ * Moving art around a page must not change what the art means.  Stored texture coordinates address the
+ * PAGE, so a placement that moves without them moving with it silently re-points every mesh at whatever
+ * now occupies the old spot; that is why this rewrites both together, and why a repack is an edit on
+ * the tile rather than on each drawable.  The re-mapping is the composition of the old mapping into the
+ * art's own frame with the inverse of the new one, so the vertex-to-art-pixel binding comes out
+ * bit-identical wherever the affines are exact.
+ *
+ * The mappings are built from the placements directly: stored coordinates mean the same thing whichever
+ * surface is being displayed, so a document whose coordinates address the packed pages re-maps here and
+ * one whose coordinates already address the art does not.
+ *
+ * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so a caller that moves a
+ * placement must recompose the page for the result to render - which is why nothing calls this yet.
+ *
+ * A no-op returns the same instance.  So does an edit that cannot be expressed: an unknown tile, a
+ * placement naming a page the document does not have, or a mapping that will not invert (a zero scale,
+ * a zero-sized tile).  Refusing beats writing a placement whose coordinates cannot follow it.
+ *
+ * @param AtlasTileId     tileId    The tile to place.
+ * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
+ * @return PuppetModel The model with the placement and the re-derived coordinates, or [this].
+ */
+fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?): PuppetModel {
+	val tileIndex = atlas.tiles.indexOfFirst { tile -> tile.id == tileId }
+	if (tileIndex < 0) {
+		return this
+	}
+	val tile = atlas.tiles[tileIndex]
+	if (tile.placement == placement) {
+		return this
+	}
+	val storedToArt = atlasUvAffineOf(tile, tile.placement) ?: return this
+	val artToStored = atlasUvAffineOf(tile, placement)?.let { affine -> invertUvAffine(affine) } ?: return this
+
+	val movedTiles = atlas.tiles.toMutableList()
+	movedTiles[tileIndex] = tile.copy(placement = placement)
+	val remappedDrawables =
+		drawables.map { drawable ->
+			if (drawable.atlasTileId != tileId) {
+				return@map drawable
+			}
+			val mesh = drawable.mesh ?: return@map drawable
+			// Positions pass through by reference: moving art on a page never moves the mesh.
+			val artUvs = applyUvAffine(mesh.uvs, storedToArt)
+			drawable.copy(mesh = DrawableMesh(mesh.positions, applyUvAffine(artUvs, artToStored), mesh.indices))
+		}
+	return copy(atlas = atlas.copy(tiles = movedTiles), drawables = remappedDrawables)
+}
+
+/**
+ * The stored-to-art mapping a tile would have at [placement], ignoring the document's display mode.
+ *
+ * @param AtlasTile       tile      The tile the mapping belongs to.
+ * @param AtlasPlacement? placement The placement to build it for.
+ * @return FloatArray? The 2x3 affine, or null when it cannot be formed.
+ */
+private fun PuppetModel.atlasUvAffineOf(tile: AtlasTile, placement: AtlasPlacement?): FloatArray? {
+	if (!atlas.storedUvsAddressPages) {
+		// The coordinates address the art itself, so where the art is packed does not enter into them
+		// and a repack leaves them alone.
+		return identityUvAffine()
+	}
+	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
+	if (placement != null && page == null) {
+		return null
+	}
+	val binding = DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)
+	return layerUvAffineOf(binding, tile.width, tile.height)
 }

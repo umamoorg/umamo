@@ -1,6 +1,8 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DeformerId
@@ -290,4 +292,20 @@ fun EditorSession.setRuntimeTarget(target: RuntimeTarget) {
  */
 fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
 	mutate(DocumentChange.SetSourceLayerDisplay(fromSourceLayers)) { model -> model.withSourceLayerDisplay(fromSourceLayers) }
+}
+
+/**
+ * Packs one piece of source art at [placement] as a single undo step, re-mapping every drawable over it
+ * so the art keeps meaning what it did.
+ *
+ * The page's PIXELS are the document's, not the model's, so this moves where the art is recorded to be
+ * without moving the art itself.  A caller must recompose the affected page for the result to render -
+ * which is why nothing is wired to this yet: the repack that would do both is a later session's, and
+ * the op lands now so it has one home rather than being invented twice.
+ *
+ * @param AtlasTileId     tileId    The tile to place.
+ * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
+ */
+fun EditorSession.setAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?) {
+	mutate(DocumentChange.SetAtlasPlacement(tileId)) { model -> model.withAtlasPlacement(tileId, placement) }
 }

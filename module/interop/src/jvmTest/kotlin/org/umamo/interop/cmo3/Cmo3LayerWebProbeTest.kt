@@ -274,8 +274,8 @@ class Cmo3LayerWebProbeTest {
 	/**
 	 * Counts model images whose bound drawables DISAGREE about sampling an atlas page.
 	 *
-	 * `LayerTextures.bindingForLayer` hands out the first bound drawable's binding and documents that
-	 * every drawable over one layer shares a placement.  But `cmo3LayerTextures` derives that placement
+	 * `SourceArtRasters.bindingForLayer` hands out the first bound drawable's binding and documents that
+	 * every drawable over one layer shares a placement.  But `cmo3SourceArtRasters` derives that placement
 	 * per drawable, from whether THAT drawable's own `srcImageResource` is one of the atlas pages - so
 	 * two drawables on one model image could in principle disagree, one getting a placement and one
 	 * getting null.  If that happens, the UV editor builds its authoring frame from one drawable's

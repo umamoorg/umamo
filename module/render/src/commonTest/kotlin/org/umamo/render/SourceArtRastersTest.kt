@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
  * page pixels with y running down - is cross-checked against real files by
  * Cmo3LayerRecoveryCorpusTest, which composes it against the format's own atlas-to-canvas affine.
  */
-class LayerTexturesTest {
+class SourceArtRastersTest {
 	private fun placementOf(
 		positionX: Float = 0f,
 		positionY: Float = 0f,
@@ -202,7 +202,7 @@ class LayerTexturesTest {
 	fun rasterDecodesOnceAndCaches() {
 		var readCount = 0
 		val store =
-			LayerTextures { _ ->
+			SourceArtRasters { _ ->
 				readCount++
 				onePixelPng()
 			}
@@ -218,7 +218,7 @@ class LayerTexturesTest {
 	fun rasterRemembersFailures() {
 		var readCount = 0
 		val store =
-			LayerTextures { _ ->
+			SourceArtRasters { _ ->
 				readCount++
 				byteArrayOf(0, 1, 2)
 			}
@@ -231,9 +231,9 @@ class LayerTexturesTest {
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
 		val known = AtlasTileId("a")
-		val store = LayerTextures { requested -> if (requested == known) onePixelPng() else null }
+		val store = SourceArtRasters { requested -> if (requested == known) onePixelPng() else null }
 		assertNotNull(store.rasterFor(known), "a known tile decodes")
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
-		assertNull(LayerTextures.EMPTY.rasterFor(known), "the empty store has no rasters")
+		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")
 	}
 }

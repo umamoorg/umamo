@@ -54,13 +54,13 @@ import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorMode
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
@@ -605,7 +605,7 @@ private fun DocumentViewport(
 						rememberPuppetViewportHost(
 							document.puppet,
 							document.textures,
-							document.layers,
+							document.artRasters,
 							document.liveParams,
 							activeSession,
 							viewportServiceFactory,
@@ -624,7 +624,7 @@ private fun DocumentViewport(
 					LocalLiveParams provides liveParamsHandle,
 					LocalDrawableThumbnails provides thumbnails,
 					LocalPuppetTextures provides document.textures,
-					LocalLayerTextures provides document.layers,
+					LocalSourceArtRasters provides document.artRasters,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,

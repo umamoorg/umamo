@@ -38,8 +38,8 @@ import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -134,7 +134,7 @@ private class SourceArtworkGaps {
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param PuppetTextures textures The atlas page(s).
- * @param LayerTextures layers The document's source-layer artwork, for the puppet's source-layer display.
+ * @param SourceArtRasters artRasters The document's source artwork pixels, for the source-artwork display.
  * @param LiveParams liveParams The shared parameter hand-off.
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
@@ -145,7 +145,7 @@ private class SourceArtworkGaps {
 fun rememberPuppetViewportHost(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
-	layers: LayerTextures,
+	artRasters: SourceArtRasters,
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
@@ -205,7 +205,7 @@ fun rememberPuppetViewportHost(
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
 	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
 	// with.
-	val artworkGaps = remember(service, layers) { SourceArtworkGaps() }
+	val artworkGaps = remember(service, artRasters) { SourceArtworkGaps() }
 
 	// Source-artwork display, end to end: work out the mapping, then stream the pixels in behind it.
 	//
@@ -222,7 +222,7 @@ fun rememberPuppetViewportHost(
 	// `delivered` is what makes a mapping rebuild cheap: the renderer keeps every layer the new plan
 	// still maps, so only genuinely new ones need decoding.  collectLatest abandons an in-flight stream
 	// when the mapping changes under it.
-	LaunchedEffect(service, layers) {
+	LaunchedEffect(service, artRasters) {
 		val delivered = HashSet<String>()
 		session.model
 			// The ATLAS is part of the key, not just the drawable set: a placement is model state a repack
@@ -249,7 +249,7 @@ fun rememberPuppetViewportHost(
 					val undecodable = HashSet<String>()
 					withContext(Dispatchers.Default) {
 						for (layerKey in chunk) {
-							val image = layers.decodeRaster(AtlasTileId(layerKey))
+							val image = artRasters.decodeRaster(AtlasTileId(layerKey))
 							if (image == null) {
 								undecodable.add(layerKey)
 							} else {

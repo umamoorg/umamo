@@ -180,6 +180,10 @@
 	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
 	<string name="export_reason_no_texture_manager">This document has no texture manager, so the source-artwork display mode could not be written.</string>
 	<string name="export_reason_no_texture_input_for_display">This drawable has no texture input for the chosen display mode, so it keeps the one it had.</string>
+	<string name="export_reason_no_atlas_entry">This artwork is not packed onto any atlas page, so there was no placement to update.</string>
+	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
+	<string name="export_reason_atlas_tile_metadata">This artwork's name or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
+	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -366,6 +370,7 @@
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
 	<string name="history_document_source_layer_display">Change Texture Display</string>
+	<string name="history_document_atlas_placement">Move Art On Atlas</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature

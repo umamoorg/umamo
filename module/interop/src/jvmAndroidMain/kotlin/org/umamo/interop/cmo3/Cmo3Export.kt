@@ -304,6 +304,9 @@ object Cmo3Export {
 							else -> glueDiff
 						}
 					},
+				// Tiles have no structural pass: art arrives and leaves with an import, never with a pack,
+				// so a created or deleted tile forwards as-is and takes its notice in the lowering.
+				atlasTiles = diff.atlasTiles,
 				document = diff.document,
 			)
 
@@ -327,6 +330,7 @@ object Cmo3Export {
 		lowering.lowerDrawables(upgradedDiff.drawables)
 		lowering.flushWeldNotice()
 		lowering.lowerGlues(upgradedDiff.glues)
+		lowering.lowerAtlasTiles(upgradedDiff.atlasTiles)
 		lowering.lowerDocument(upgradedDiff.document)
 
 		if (anyDeleted) {

@@ -33,10 +33,10 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
+import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
@@ -109,7 +109,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// serve it: the active drawable's own art with its mapping recovered onto it.  Null falls the space
 	// back to its page view, so choosing the mode never blanks the editor and a document with no source
 	// art (a MOC3 origin) simply keeps showing pages.
-	val layers = LocalLayerTextures.current
+	val artRasters = LocalSourceArtRasters.current
 	val layerView =
 		if (viewState.textureSelection is UvTextureSelection.SourceLayer) {
 			resolveUvEditorLayer(model, meshSelection, objectSelection)
@@ -204,7 +204,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val frontRank = remember(model) { restFrontRank(model) }
 	val shownImage =
 		if (layerView != null) {
-			layers?.rasterFor(AtlasTileId(layerView.layerKey))
+			artRasters?.rasterFor(AtlasTileId(layerView.layerKey))
 		} else {
 			pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) }
 		}

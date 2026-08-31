@@ -9,8 +9,8 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -157,7 +157,7 @@ internal data class UvEditorLayer(
  * @param PuppetModel model The session's committed model.
  * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
  * @param Selection objectSelection The object selection (its active drawable is the second choice).
- * @param LayerTextures? layers The document's source-art store, or null before one loads.
+ * @param SourceArtRasters? layers The document's source-art store, or null before one loads.
  * @return UvEditorLayer? The resolved layer context, or null with no layer to show.
  */
 internal fun resolveUvEditorLayer(
@@ -206,7 +206,7 @@ private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, o
  * @param PuppetModel model The session's committed model.
  * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
  * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
- * @param LayerTextures layers The document's source-art store.
+ * @param SourceArtRasters layers The document's source-art store.
  * @param String layerKey The shown layer.
  * @return List<Drawable> The drawables whose mappings draw over the layer, in model order.
  */

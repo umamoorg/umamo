@@ -13,6 +13,7 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
@@ -73,6 +74,11 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	// renderer's own page numbering, which is derived from drawable encounter order.
 	val atlases = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
 	val pages = atlases.map { atlas -> AtlasPage(atlas.width, atlas.height) }
+	// CMO3: CTextureAtlas field cachedAtlasImage - the page's own pixels.  Which resource a drawable's
+	// texture points AT is what says whether its stored coordinates are page-space, and it is a fact of
+	// the file rather than of the display mode: flipping the mode retargets currentTextureInputData and
+	// leaves this alone.  Identity membership is the test, CImageResource being a plain class.
+	val atlasPageResources = atlases.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }.toHashSet()
 	val placementByModelImageGuid = HashMap<String, AtlasPlacement>()
 	for ((pageIndex, atlas) in atlases.withIndex()) {
 		for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
@@ -132,6 +138,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
 			.filterIsInstance<CArtMeshSource>()
 	val tileIdByDrawableId = HashMap<String, AtlasTileId>()
+	var anyDrawableSamplesAPage = false
 	for (mesh in artMeshes) {
 		val drawableId = (mesh.id as? Id)?.idstr?.takeIf { candidate -> candidate.isNotEmpty() } ?: continue
 		// CMO3: CTextureInputExtension field _textureInputs -> CTextureInput_ModelImage field
@@ -146,10 +153,19 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		if (key !in knownTileIds) {
 			continue
 		}
+		// CMO3: CArtMeshSource field texture -> GTexture2D field srcImageResource.
+		val sampledResource = (mesh.texture as? GTexture2D)?.srcImageResource as? CImageResource
+		if (sampledResource != null && sampledResource in atlasPageResources) {
+			anyDrawableSamplesAPage = true
+		}
 		tileIdByDrawableId[drawableId] = AtlasTileId(key)
 	}
 
-	return Cmo3AtlasIngest(PuppetAtlas(pages, tiles), tileIdByDrawableId, imageResourceByTile)
+	return Cmo3AtlasIngest(
+		PuppetAtlas(pages, tiles, storedUvsAddressPages = anyDrawableSamplesAPage),
+		tileIdByDrawableId,
+		imageResourceByTile,
+	)
 }
 
 /**

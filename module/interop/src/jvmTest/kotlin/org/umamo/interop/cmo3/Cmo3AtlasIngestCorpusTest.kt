@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 /**
  * Validates the atlas-placement recovery convention against real files, which is what keeps a sign or
  * ordering error from passing unnoticed: a wrong rotation sign still round-trips (the synthetic tests
- * in LayerTexturesTest cannot catch it), and it is invisible on the axis-aligned majority - only the
+ * in SourceArtRastersTest cannot catch it), and it is invisible on the axis-aligned majority - only the
  * corpus's genuinely rotated packings expose it.
  *
  * The check is the format's own documented composition (docs/format/CMO3.md §6): a model image is
@@ -193,6 +193,54 @@ class Cmo3AtlasIngestCorpusTest {
 		assertTrue(boundDrawables > 0, "no drawable bound to a source layer; the drawable join is broken")
 		assertTrue(checkedMappings > 0, "no uv mapping was checked; the recovery is untested against real meshes")
 		assertTrue(failures.isEmpty(), "recovered mappings do not land on their layer:\n" + failures.joinToString("\n"))
+	}
+
+	/**
+	 * Toggling the source-artwork display changes nothing about how coordinates are read.
+	 *
+	 * The display mode picks which texture is sampled; the frame the stored coordinates live in is a
+	 * fact of the file.  Deriving the frame from the mode passed every import-time check - the two agree
+	 * there - and broke the moment a rigger flipped the switch, drawing every mesh in the layer view at
+	 * its atlas position instead of on its artwork.  Checked on real documents in BOTH modes, because
+	 * the corpus carries files saved each way.
+	 */
+	@Test
+	fun theDisplayModeNeverReinterpretsCorpusCoordinates() {
+		val files = corpusFiles()
+		Assume.assumeTrue("[layer-toggle] no cmo3.probe corpus models", files.isNotEmpty())
+
+		var checkedFiles = 0
+		var checkedBindings = 0
+		var placedBindings = 0
+		val failures = mutableListOf<String>()
+		for (file in files) {
+			val root = Cmo3.read(file).root as? CModelSource ?: continue
+			val asSaved = Cmo3Import.fromModelSource(root)
+			if (asSaved.atlas.isEmpty) {
+				continue
+			}
+			checkedFiles++
+			val toggled = asSaved.copy(rendersFromSourceLayers = !asSaved.rendersFromSourceLayers)
+			for (drawable in asSaved.drawables) {
+				val before = asSaved.atlasBindingFor(drawable)
+				val after = toggled.atlasBindingFor(drawable)
+				checkedBindings++
+				if (before?.placement != null) {
+					placedBindings++
+				}
+				if (before != after && failures.size < 10) {
+					failures.add("${file.name} ${drawable.id.raw}: $before became $after when the display flipped")
+				}
+			}
+		}
+
+		println(
+			"[layer-toggle] $checkedFiles art-bearing files, $checkedBindings bindings held across the toggle, " +
+				"$placedBindings of them placed",
+		)
+		assertTrue(checkedFiles > 0, "no corpus file surfaced an atlas; the walk is broken")
+		assertTrue(placedBindings > 0, "no placed binding was checked; the toggle guard would pass vacuously")
+		assertTrue(failures.isEmpty(), "the display mode reinterpreted coordinates:\n" + failures.joinToString("\n"))
 	}
 
 	@Test

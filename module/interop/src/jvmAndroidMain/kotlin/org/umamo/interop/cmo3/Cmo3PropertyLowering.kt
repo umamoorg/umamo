@@ -2,24 +2,32 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
+import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
+import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.GTexture2D
+import org.umamo.format.cmo3.model.gen.GTransform2
+import org.umamo.format.cmo3.model.gen.ModelImageEntry
+import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.type.CArrayList
+import org.umamo.interop.AtlasTileField
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DocumentField
 import org.umamo.interop.DrawableField
@@ -35,6 +43,8 @@ import org.umamo.interop.PartField
 import org.umamo.interop.alphaCompositionOf
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.interop.colorCompositionOf
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -50,6 +60,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.inversePlacementAffine
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -385,6 +396,8 @@ internal class Cmo3PropertyLowering(
 							}
 							DrawableField.TEXTURE_SOURCE ->
 								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.TextureSourceRebindingIsEditorOnly)
+							DrawableField.ATLAS_TILE ->
+								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.AtlasTileRebindingNotLowered)
 							DrawableField.MESH_TOPOLOGY -> {
 								// The weld notice means "the base left the IMPORTED weld" - a drawable
 								// with no baseline was never welded, so synthesis stays notice-free.
@@ -600,6 +613,138 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
+	/**
+	 * Lowers each moved atlas tile onto its packed entry - the packing transform AND the inverse the
+	 * file composes it against.
+	 *
+	 * A model image is UPRIGHT CANVAS-SPACE art, and the format states the invariant as a composition
+	 * (docs/format/CMO3.md §6): `atlasLocalToCanvasTransform` composed with
+	 * `materialLocalToAtlasTransform` reproduces `_materialLocalToCanvasTransform`, a pure translation
+	 * every one of the corpus's model images obeys.  A repack moves art on the PAGE, never on the
+	 * CANVAS, so the canvas placement is deliberately left alone and the atlas-to-canvas half is
+	 * recomputed to hold the composition.  Writing only the packing transform would break an invariant
+	 * the official editor's own reader depends on.
+	 *
+	 * What this does NOT do is redraw the page.  The stored page image still shows the art where it
+	 * used to be, so a moved placement always takes [ExportNoticeReason.AtlasPageNotRecomposed].
+	 *
+	 * @param List diffs The per-tile diffs.
+	 */
+	fun lowerAtlasTiles(diffs: List<EntityDiff<AtlasTileId, AtlasTileField>>) {
+		if (diffs.isEmpty()) {
+			return
+		}
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
+		val textureManager = index.modelSource.textureManager as? CTextureManager
+		if (textureManager == null) {
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			return
+		}
+		val entryByTileId = HashMap<String, ModelImageEntry>()
+		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+			for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
+				val guid = (entry.modelImageGuid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
+				entryByTileId[guid] = entry
+			}
+		}
+		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id }
+		// CMO3: CModelImage field _materialLocalToCanvasTransform - where the art sits on the CANVAS.
+		// A repack moves art on the page and never on the canvas, so this is the fixed point the
+		// rewritten transform pair has to keep composing to.
+		val canvasTranslationByTileId = HashMap<String, Pair<Float, Float>>()
+		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+				val guid = (modelImage.guid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
+				val canvas = modelImage._materialLocalToCanvasTransform as? CAffine ?: continue
+				canvasTranslationByTileId[guid] = canvas.m02 to canvas.m12
+			}
+		}
+
+		for (diff in diffs) {
+			when (diff) {
+				// The diff compares shared tiles only, because art arrives and leaves with an import
+				// rather than with an edit - so these arms are unreachable today.  They stay defensive
+				// rather than silent: whoever makes the inventory editable (re-import) lands the lowering
+				// that serves them, and until then an appearance here is a bug worth reporting.
+				is EntityDiff.Created, is EntityDiff.Deleted ->
+					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
+
+				is EntityDiff.Changed -> {
+					if (AtlasTileField.METADATA in diff.fields) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
+					}
+					if (AtlasTileField.PLACEMENT !in diff.fields) {
+						continue
+					}
+					val placement = editedTileById[diff.id]?.placement
+					val entry = entryByTileId[diff.id.raw]
+					if (placement == null || entry == null) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+						continue
+					}
+					val canvasTranslation = canvasTranslationByTileId[diff.id.raw]
+					if (canvasTranslation == null) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+						continue
+					}
+					lowerAtlasEntry(entry, placement, canvasTranslation)
+					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Writes one packed entry's transform pair.
+	 *
+	 * @param ModelImageEntry entry             The packed entry to move.
+	 * @param AtlasPlacement  placement         Where the art now sits on its page.
+	 * @param Pair            canvasTranslation Where the art sits on the CANVAS, which does not move.
+	 */
+	private fun lowerAtlasEntry(entry: ModelImageEntry, placement: AtlasPlacement, canvasTranslation: Pair<Float, Float>) {
+		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - a GTransform2 whose position is
+		// the packing origin in page pixels, scale the packer's resampling, and eulerAngle its rotation
+		// in DEGREES.
+		val transform = (entry.materialLocalToAtlasTransform as? GTransform2) ?: GTransform2()
+		transform.position =
+			GVector2().apply {
+				x = placement.positionX
+				y = placement.positionY
+			}
+		transform.scale =
+			GVector2().apply {
+				x = placement.scaleX
+				y = placement.scaleY
+			}
+		transform.eulerAngle = placement.rotationDegrees
+		entry.materialLocalToAtlasTransform = transform
+		editor.ensureChildSlot(entry, "ModelImageEntry", "materialLocalToAtlasTransform", "atlasLocalToCanvasTransform")
+
+		// CMO3: ModelImageEntry field atlasLocalToCanvasTransform - the other half of the composition.
+		//
+		// NOT simply the placement's inverse: the pair must compose to the art's CANVAS placement, which
+		// is a pure translation and does not move when the art is repacked.  So the linear part is the
+		// inverse's, and the translation is the inverse's PLUS that canvas origin - dropping the origin
+		// term would slide every model image to the canvas corner.
+		val canvasTransform = entry.atlasLocalToCanvasTransform as? CAffine
+		if (canvasTransform == null) {
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+			return
+		}
+		val inverse = inversePlacementAffine(placement)
+		if (inverse == null) {
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
+			return
+		}
+		canvasTransform.m00 = inverse[0]
+		canvasTransform.m01 = inverse[1]
+		canvasTransform.m02 = inverse[2] + canvasTranslation.first
+		canvasTransform.m10 = inverse[3]
+		canvasTransform.m11 = inverse[4]
+		canvasTransform.m12 = inverse[5] + canvasTranslation.second
+		editor.ensureChildSlot(entry, "ModelImageEntry", "atlasLocalToCanvasTransform", null)
+	}
+
 	fun lowerDocument(fields: Set<DocumentField>) {
 		// Order and links rewrite the same _sources list; run the shared lowering once.
 		if (DocumentField.PARAMETER_ORDER in fields || DocumentField.PARAMETER_LINKS in fields) {
@@ -612,6 +757,11 @@ internal class Cmo3PropertyLowering(
 				DocumentField.RUNTIME_TARGET -> target.setTargetVersionNo(edited.runtimeTarget.cmo3TargetVersionNo())
 				DocumentField.CANVAS_SIZE -> lowerCanvasSize()
 				DocumentField.SOURCE_LAYER_DISPLAY -> lowerSourceLayerDisplay()
+				// A page appearing, vanishing, or resizing is a repack's output, and repacking rewrites
+				// the page IMAGES too - which nothing here does.  The per-tile placements still lower;
+				// this only says the page set itself was not reconciled.
+				DocumentField.ATLAS_PAGES ->
+					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
 				DocumentField.WORLD_ORIGIN -> {
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.

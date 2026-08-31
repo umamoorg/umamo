@@ -154,6 +154,10 @@
 	<string name="export_reason_no_canvas_to_reconcile">モデルにキャンバスがないため、キャンバスサイズは書き出されませんでした。</string>
 	<string name="export_reason_no_texture_manager">このドキュメントにはテクスチャマネージャがないため、原画表示モードを書き出せませんでした。</string>
 	<string name="export_reason_no_texture_input_for_display">この描画オブジェクトには選択した表示モード用のテクスチャ入力がないため、元の入力を維持しました。</string>
+	<string name="export_reason_no_atlas_entry">この原画はどのアトラスページにも配置されていないため、更新する配置情報がありませんでした。</string>
+	<string name="export_reason_atlas_page_not_recomposed">この原画はアトラスページ上で移動しましたが、ページ画像には移動前の位置のまま残っています。再パックすると描き直されます。</string>
+	<string name="export_reason_atlas_tile_metadata">この原画の名前またはサイズが変更されました。アトラス配置では表現できないため、原画を再取り込みしてください。</string>
+	<string name="export_reason_atlas_tile_rebinding">この描画オブジェクトは別の原画に結び付けられました。再パックではなく原画の再取り込みが必要です。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- 書き出しの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
 	     %2$s は省略表示のファイル一覧）。 -->
@@ -328,6 +332,7 @@
 	<string name="history_document_canvas_size">キャンバスサイズを設定</string>
 	<string name="history_document_world_origin">ワールド原点を設定</string>
 	<string name="history_document_source_layer_display">テクスチャ表示を変更</string>
+	<string name="history_document_atlas_placement">アトラス上の画像を移動</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>

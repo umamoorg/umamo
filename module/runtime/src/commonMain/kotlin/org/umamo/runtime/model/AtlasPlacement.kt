@@ -82,7 +82,7 @@ data class DrawableLayerBinding(
  * @param AtlasPlacement placement The packing transform to invert.
  * @return FloatArray? The inverse affine, or null when the placement is degenerate (a zero scale).
  */
-internal fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
+fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
 	if (placement.scaleX == 0f || placement.scaleY == 0f) {
 		return null
 	}

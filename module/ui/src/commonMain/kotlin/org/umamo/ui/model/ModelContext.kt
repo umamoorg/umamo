@@ -5,8 +5,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
@@ -86,7 +86,7 @@ val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
  * handed here stays stable for the document's life - which matters, because a static local's change
  * recomposes the whole subtree.
  */
-val LocalLayerTextures = staticCompositionLocalOf<LayerTextures?> { null }
+val LocalSourceArtRasters = staticCompositionLocalOf<SourceArtRasters?> { null }
 
 /**
  * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle].

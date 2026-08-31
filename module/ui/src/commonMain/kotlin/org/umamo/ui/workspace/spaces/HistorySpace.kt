@@ -234,6 +234,7 @@ private fun historyStepLabel(labelKey: String?): String =
 		"change.document.worldOrigin" -> stringResource(Res.string.history_document_world_origin)
 		"change.document.runtimeTarget" -> stringResource(Res.string.history_document_runtime_target)
 		"change.document.sourceLayerDisplay" -> stringResource(Res.string.history_document_source_layer_display)
+		"change.document.atlasPlacement" -> stringResource(Res.string.history_document_atlas_placement)
 		else -> stringResource(Res.string.history_unknown)
 	}
 
