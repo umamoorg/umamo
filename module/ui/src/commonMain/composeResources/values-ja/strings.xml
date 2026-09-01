@@ -77,11 +77,11 @@
 	<string name="export_report_message_cmo3">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
 	<string name="export_report_message_moc3">ファイルは書き出されましたが、以下は MOC3 に引き継げませんでした:</string>
 	<string name="repack_report_message">アトラスは再パックされませんでした。次の画像はパックできません:</string>
-	<string name="repack_report_larger_than_page">ページより大きい</string>
-	<string name="repack_report_no_opaque_pixels">不透明なピクセルがありません</string>
-	<string name="repack_report_below_minimum_coverage">不透明ピクセルが最小数に達していません</string>
-	<string name="repack_report_undecodable">画像をデコードできません</string>
-	<string name="repack_report_degenerate_placement">現在の配置を逆変換できません</string>
+	<string name="repack_report_larger_than_page">描画オブジェクトのメッシュがアトラスページのサイズより大きいです。</string>
+	<string name="repack_report_no_opaque_pixels">原画レイヤーに不透明なピクセルがありません。</string>
+	<string name="repack_report_below_minimum_coverage">原画レイヤーの不透明ピクセルの割合が最小値を下回っています。</string>
+	<string name="repack_report_undecodable">原画レイヤーをデコードできませんでした。</string>
+	<string name="repack_report_degenerate_placement">この描画オブジェクトの現在の配置を逆変換できませんでした。</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamo でも Cubism Editor でも開けますが、収録されているレイヤーはすべて焼き込み済みアトラスの切り出しであり、このリグの元になった原画ではありません。編集可能な本来のレイヤーを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
 	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
