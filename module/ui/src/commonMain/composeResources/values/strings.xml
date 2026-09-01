@@ -99,12 +99,12 @@
 	     %1$s in the weld line is the affected drawable names. -->
 	<string name="export_report_message_cmo3">The file was exported, but the following could not be carried into CMO3:</string>
 	<string name="export_report_message_moc3">The file was exported, but the following could not be carried into MOC3:</string>
-	<string name="repack_report_message">The atlas was not repacked. These tiles could not be packed:</string>
-	<string name="repack_report_larger_than_page">larger than a page</string>
-	<string name="repack_report_no_opaque_pixels">no opaque pixels</string>
-	<string name="repack_report_below_minimum_coverage">below the minimum opaque coverage</string>
-	<string name="repack_report_undecodable">the art would not decode</string>
-	<string name="repack_report_degenerate_placement">its current placement cannot be inverted</string>
+	<string name="repack_report_message">The atlas was not repacked.  These tiles could not be packed:</string>
+	<string name="repack_report_larger_than_page">Drawable mesh is larger than the atlas page size.</string>
+	<string name="repack_report_no_opaque_pixels">Source artwork layer has no opaque pixels.</string>
+	<string name="repack_report_below_minimum_coverage">Source artwork layer is below the minimum opaque coverage.</string>
+	<string name="repack_report_undecodable">Source artwork layer could not be decoded.</string>
+	<string name="repack_report_degenerate_placement">Drawable's current placement could not be inverted.</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and opens in both Umamo and the Cubism Editor, but every layer in it is a slice of a baked atlas page rather than the artwork this rig was drawn from.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export real, editable layers.</string>
 	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->

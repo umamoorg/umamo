@@ -592,6 +592,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
  *
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document).
+ * @param SessionAtlasPages? sessionAtlasPages The session's resolved atlas page set (repack/undo
+ *   aware); null with no puppet document, in which case the document's own decoded textures are used.
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.

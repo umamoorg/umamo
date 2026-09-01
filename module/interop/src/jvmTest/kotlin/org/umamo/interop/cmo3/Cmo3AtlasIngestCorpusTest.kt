@@ -91,6 +91,39 @@ class Cmo3AtlasIngestCorpusTest {
 		return (insideU * insideV) / (spanU * spanV)
 	}
 
+	/**
+	 * Whether the mapping's bounding box fully covers the layer's frame, each edge allowed to fall
+	 * short by [MESH_MARGIN_PIXELS].
+	 *
+	 * The second acceptance shape beside the overlap fraction: a converted document's layer is the
+	 * crop TRIMMED to its opaque pixels, so a mesh with a wide transparent reach maps to a box many
+	 * times the layer's area and the landing fraction goes small - while the box still sits squarely
+	 * OVER the art.  A mis-wired recovery displaces the box off the layer entirely and satisfies
+	 * neither shape.
+	 *
+	 * @param FloatArray layerUvs The recovered layer-frame texture coordinates, interleaved (u, v).
+	 * @param Int layerWidth The layer's width in pixels (converts the margin into this uv frame).
+	 * @param Int layerHeight The layer's height in pixels.
+	 * @return Boolean True when the mapping's box covers the layer's frame within the margin.
+	 */
+	private fun mappingCoversLayer(layerUvs: FloatArray, layerWidth: Int, layerHeight: Int): Boolean {
+		var minU = Float.MAX_VALUE
+		var maxU = -Float.MAX_VALUE
+		var minV = Float.MAX_VALUE
+		var maxV = -Float.MAX_VALUE
+		var componentIndex = 0
+		while (componentIndex + 1 < layerUvs.size) {
+			minU = minOf(minU, layerUvs[componentIndex])
+			maxU = maxOf(maxU, layerUvs[componentIndex])
+			minV = minOf(minV, layerUvs[componentIndex + 1])
+			maxV = maxOf(maxV, layerUvs[componentIndex + 1])
+			componentIndex += 2
+		}
+		val marginU = MESH_MARGIN_PIXELS / layerWidth
+		val marginV = MESH_MARGIN_PIXELS / layerHeight
+		return minU <= marginU && minV <= marginV && maxU >= 1f - marginU && maxV >= 1f - marginV
+	}
+
 	private fun elements(collection: Any?): List<Any?> =
 		when (collection) {
 			is Map<*, *> -> collection.values.toList()
@@ -170,11 +203,14 @@ class Cmo3AtlasIngestCorpusTest {
 				val layerUvs = layerUvsFromAtlasUvs(uvs, binding, layer.width, layer.height) ?: continue
 				checkedMappings++
 				val overlap = frameOverlapFractionOf(layerUvs, layer.width, layer.height)
+				// Either shape says the mapping lands ON its art: mostly inside the layer, or fully
+				// covering it (a trim-tight converted crop under a wide-reaching mesh).
+				val landsOnLayer = overlap >= MINIMUM_FRAME_OVERLAP || mappingCoversLayer(layerUvs, layer.width, layer.height)
 				worstOverlap = minOf(worstOverlap, overlap)
-				if (overlap < MINIMUM_FRAME_OVERLAP) {
+				if (!landsOnLayer) {
 					missedMappings++
 				}
-				if (overlap < MINIMUM_FRAME_OVERLAP && failures.size < 10) {
+				if (!landsOnLayer && failures.size < 10) {
 					failures.add(
 						"${file.name} ${drawable.id.raw} -> ${layer.name}: only $overlap of its mapping lands on the " +
 							"layer (${layer.width}x${layer.height}) on a ${binding.pageWidth}x${binding.pageHeight} " +

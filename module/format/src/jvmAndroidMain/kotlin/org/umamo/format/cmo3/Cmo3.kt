@@ -6,6 +6,7 @@ import org.umamo.format.FormatVersion
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.caff.CaffEntry
+import org.umamo.format.cmo3.caff.CompressOption
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.serialize.ModelGraph
@@ -116,6 +117,72 @@ public class Cmo3Model internal constructor(
 				},
 			)
 		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
+	}
+
+	/**
+	 * Embeds a NEW PNG for [resource], whose `imageFileBuf` must already name an archive path no
+	 * existing entry uses (mint one with [nextImageFileBufPath]).
+	 *
+	 * The entry takes the corpus conventions for pixel data - an empty tag, stored raw (a PNG is
+	 * already compressed), and obfuscated like every corpus entry - and is inserted BEFORE the
+	 * `main_xml` entry, which every corpus file keeps last in the table.
+	 *
+	 * @param CImageResource resource The image resource naming the new entry's path.
+	 * @param ByteArray      png      The PNG bytes to embed.
+	 */
+	public fun addLayerPng(resource: CImageResource, png: ByteArray) {
+		val path = resource.imageFileBuf?.archivePath ?: error("resource has no imageFileBuf path to add under")
+		require(archive.byPath(path) == null) { "archive already holds an entry at '$path'" }
+		val mainXmlIndex = archive.entries.indexOfFirst { entry -> entry.tag == CaffArchive.TAG_MAIN_XML }
+		val insertAt = if (mainXmlIndex >= 0) mainXmlIndex else archive.entries.size
+		val entries = archive.entries.toMutableList()
+		entries.add(insertAt, CaffEntry(path, "", png, CompressOption.RAW, obfuscated = true))
+		archive = archive.withEntries(entries)
+		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
+	}
+
+	/**
+	 * Removes [resource]'s embedded PNG from the archive.
+	 *
+	 * The caller owns unlinking the graph: an archive entry a live resource still references is a
+	 * load-time hazard, so remove the entry only together with dropping the resource itself.
+	 *
+	 * @param CImageResource resource The image resource whose entry to remove.
+	 */
+	public fun removeLayerPng(resource: CImageResource) {
+		val path = resource.imageFileBuf?.archivePath ?: error("resource has no embedded imageFileBuf")
+		archive = archive.withEntries(archive.entries.filterNot { entry -> entry.path == path })
+	}
+
+	/**
+	 * Mints the next unused `imageFileBuf` archive path, continuing past the retained archive's
+	 * highest suffix.
+	 *
+	 * The editor's convention is `imageFileBuf.png`, then `imageFileBuf_0.png` onward; resolution is
+	 * by exact name, so continuing past the maximum is what keeps a minted page from colliding with
+	 * any retained blob.
+	 *
+	 * @return String The unused archive path.
+	 */
+	public fun nextImageFileBufPath(): String {
+		var highestUsed = -2
+		for (entry in archive.entries) {
+			if (entry.path == "imageFileBuf.png") {
+				highestUsed = maxOf(highestUsed, -1)
+			} else {
+				val suffix =
+					entry.path
+						.removePrefix("imageFileBuf_")
+						.removeSuffix(".png")
+						.takeIf { middle -> "imageFileBuf_$middle.png" == entry.path }
+						?.toIntOrNull()
+				if (suffix != null) {
+					highestUsed = maxOf(highestUsed, suffix)
+				}
+			}
+		}
+		val next = highestUsed + 1
+		return if (next == -1) "imageFileBuf.png" else "imageFileBuf_$next.png"
 	}
 }
 

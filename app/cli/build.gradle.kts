@@ -1,4 +1,5 @@
-// :cli (app/cli) — the headless diagnostic tool: dump / convert / diff over cmo3 and moc3 files.
+// :cli (app/cli) — the headless diagnostic tool: dump / extract / atlas / convert / diff over cmo3,
+// moc3, and source artwork files.
 // JVM-only on purpose: it is an operator's tool, not a shipping app target.  It deliberately avoids
 // :ui (whose document layer drags in Compose via LiveParams) and :edit — everything it needs is the
 // :interop conversion surface plus :render's space/texture helpers.

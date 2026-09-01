@@ -12,6 +12,7 @@ Umamo is early alpha.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
 * Texture Authoring: A new "Show source artwork" document property switches the puppet between rendering from its packed texture atlas and rendering straight from each drawable's individual source layer, for checking the atlas mapping by eye before it's finalized.
 * Texture Atlas: A new Repack Atlas command repacks every used piece of source artwork onto fresh atlas pages with Umamo's own packer.  Art that can't be packed, too large for a page, empty, or unreadable, cancels the whole repack with a report naming each piece.
+* Texture Atlas: Exporting a CMO3 that has been converted from a MOC3 and then had its atlass repacked should now write a fully consistent CMO3.  Repacked layers should now properly target the renumbered pages.
 * Texture Authoring: Turning on "Show source artwork" for a document whose artwork can't actually be displayed(nothing recoverable, or none of it decodes) now shows a notice instead of silently showing from the atlas instead.
 
 ### Changed

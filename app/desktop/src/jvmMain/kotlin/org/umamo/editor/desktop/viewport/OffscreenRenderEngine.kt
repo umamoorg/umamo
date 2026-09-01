@@ -55,8 +55,8 @@ private const val RESIZE_SETTLE_NANOS = 25_000_000L
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
- * UI thread pushes (selection, shown set, model, source artwork, grid, highlight colors), renders each
- * registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
+ * UI thread pushes (selection, shown set, model, atlas pages, source artwork, grid, highlight colors), renders
+ * each registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
  * area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
