@@ -15,7 +15,9 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 
 /*
- * Scalar property edits on an EditorSession, driven by the Properties panel's editable controls.  Each
+ * Scalar property edits on an EditorSession, mostly driven by the Properties panel's editable controls
+ * (the atlas edits at the end of the file are not: commitAtlasRepack is driven by the atlas repack
+ * flow, and setAtlasPlacement is not wired to a caller yet).  Each
  * applies one field change as a single undo step via mutate, dispatching the typed Change plus its
  * PuppetModelEdits transform, and short-circuits to nothing on a no-op (the builder returns the same
  * model instance).  These are the write half of the Properties panel: a checkbox / dropdown / numeric
@@ -302,8 +304,8 @@ fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
  *
  * The page's PIXELS are the document's, not the model's, so this moves where the art is recorded to be
  * without moving the art itself.  A caller must recompose the affected page for the result to render -
- * which is why nothing is wired to this yet: the repack that would do both is a later session's, and
- * the op lands now so it has one home rather than being invented twice.
+ * unlike the whole-atlas [commitAtlasRepack], no caller pairs a single-tile nudge with that recompose
+ * yet, so this stays exercised by tests only.
  *
  * @param AtlasTileId     tileId    The tile to place.
  * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.

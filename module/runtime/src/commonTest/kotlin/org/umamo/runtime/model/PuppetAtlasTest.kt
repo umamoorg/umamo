@@ -11,9 +11,10 @@ import kotlin.test.assertTrue
  * art directly, and which page's dimensions the mapping is built against.
  *
  * The packed-versus-direct decision is the load-bearing one.  It used to be read off CMO3 resource
- * identity at import; the model derives it instead, from the document's display mode and whether the
- * tile was packed at all.  Getting it wrong does not fail loudly - it silently swaps a drawable's UV
- * editor between the layer frame and the atlas frame - so each arm is pinned here.
+ * identity at import; the model derives it instead, from whether the document's stored coordinates
+ * address the packed pages ([PuppetAtlas.storedUvsAddressPages]) and whether the tile was packed at
+ * all.  Getting it wrong does not fail loudly - it silently swaps a drawable's UV editor between the
+ * layer frame and the atlas frame - so each arm is pinned here.
  */
 class PuppetAtlasTest {
 	private fun drawable(rawId: String, tileId: String? = null): Drawable =

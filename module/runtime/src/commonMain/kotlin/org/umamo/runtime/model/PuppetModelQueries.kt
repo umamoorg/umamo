@@ -1,10 +1,12 @@
 package org.umamo.runtime.model
 
 /*
- * Pure per-drawable index queries over a PuppetModel, shared by every platform viewport service
- * (the desktop offscreen renderer today, the Android GLES service when it lands): the pickable
- * geometry sets picking iterates, and the display lookups the overlap picker labels rows with.
- * All derive from the model alone, so services recompute them on each model swap.
+ * Pure per-drawable index queries over a PuppetModel.  The picking-oriented queries are shared by
+ * every platform viewport service (the desktop offscreen renderer today, the Android GLES service
+ * when it lands): the pickable geometry sets picking iterates, and the display lookups the overlap
+ * picker labels rows with.  The atlas queries resolve a drawable's or tile's source-art binding, the
+ * same resolution the renderer and UV editor build on.  All derive from the model alone, so callers
+ * recompute them on each model swap.
  */
 
 /**

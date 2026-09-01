@@ -27,7 +27,8 @@ import kotlin.test.assertTrue
  *
  * The recovery convention this locks - forward is `atlas = R(angle) . S . layer + position` in
  * page pixels with y running down - is cross-checked against real files by
- * Cmo3LayerRecoveryCorpusTest, which composes it against the format's own atlas-to-canvas affine.
+ * Cmo3AtlasIngestCorpusTest (`:interop`), which composes it against the format's own
+ * atlas-to-canvas affine.
  */
 class SourceArtRastersTest {
 	private fun placementOf(

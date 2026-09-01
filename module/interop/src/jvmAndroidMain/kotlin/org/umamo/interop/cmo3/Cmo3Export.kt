@@ -86,6 +86,9 @@ object Cmo3Export {
 	 * @param Cmo3Model   target The retained CMO3 model whose graph receives the edits.
 	 * @param Map         drawableTextureBindings Per-drawable-id texture webs for created drawables
 	 *                           without a texture source; empty for CMO3-origin exports.
+	 * @param List        recomposedPages The pages a repack composed for the edited model's packing,
+	 *                           keyed by [RecomposedAtlasPage.pageIndex]; empty when the session did
+	 *                           not repack, which leaves the graph and archive untouched.
 	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(

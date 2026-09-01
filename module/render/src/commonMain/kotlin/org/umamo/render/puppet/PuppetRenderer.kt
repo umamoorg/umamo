@@ -333,9 +333,9 @@ class PuppetRenderer(
 	private var atlasHandles: List<GpuTexture> = emptyList()
 
 	// Underlay images uploaded on demand (the UV editor's source-layer view), keyed by image identity and
-	// insertion-ordered so eviction drops the oldest. Unlike atlasHandles these arrive after initGl, so
-	// they are created and destroyed across the renderer's life rather than uploaded once - as the
-	// source-artwork textures below also are.
+	// insertion-ordered so eviction drops the oldest. Unlike atlasHandles, which upload and free as one
+	// whole page set (at init, or wholesale on a setAtlasPages swap), these arrive and are created or
+	// destroyed one at a time across the renderer's life - as the source-artwork textures below also are.
 	private val underlayTextures = LinkedHashMap<DecodedImage, GpuTexture>()
 
 	// Which artwork every drawable would display from - the mapping, complete for the whole document and
@@ -1484,9 +1484,10 @@ class PuppetRenderer(
 	 * Draws an arbitrary image as the flat underlay - the UV editor's source-layer view, the pre-atlas
 	 * counterpart of [renderAtlasPage].
 	 *
-	 * Unlike the atlas pages, which upload once at init because the document's page set is fixed, a
-	 * layer image arrives whenever the editor is pointed at one, so its texture is created on first
-	 * sight and cached (see [underlayTextureFor]).  A null image paints the grid only.
+	 * Unlike the atlas pages, which upload as a whole set (at init, or wholesale on a [setAtlasPages]
+	 * swap) rather than one image at a time, a layer image arrives whenever the editor is pointed at
+	 * one, so its texture is created on first sight and cached (see [underlayTextureFor]).  A null
+	 * image paints the grid only.
 	 *
 	 * @param RenderTarget target         The surface to draw into.
 	 * @param DecodedImage image          The image to draw, or null for none.
