@@ -28,14 +28,14 @@ import org.umamo.runtime.model.placementAffine
 import java.util.IdentityHashMap
 
 /**
- * The full atlas-web reconcile a repack export needs: page set, entry membership, drawable texture
+ * The full atlas-web reconcile: page set, entry membership, drawable texture
  * references, and page images, brought to the EDITED model's packing as one all-or-nothing pass.
  *
  * The membership half is the load-bearing one: a ModelImageEntry physically lives inside its page's
  * CTextureAtlas element, and the import reads a tile's page purely from which atlas holds its entry.
- * Rewriting the entry transforms without moving the entry - what the export did before this class -
- * writes a file whose placements point at one page while the membership names another, which is
- * exactly the jumbled reimport the modelG corpus artifact records.
+ * Rewriting the entry's transforms without also moving the entry between atlases would leave a file
+ * whose placements point at one page while the membership still names another - a jumbled reimport,
+ * the failure mode this class exists to close.
  *
  * Everything here follows the model's page order: model page i is `_textureAtlases[i]`, so the page
  * set reconciles positionally - retained atlases are reused in place (their page resources mutated,
@@ -48,8 +48,8 @@ import java.util.IdentityHashMap
  * (Erica carries three such drawables) exports consistently too.
  *
  * All or nothing: validation runs first and any gap declines the WHOLE reconcile - the honest
- * notices then flow from the property lowering exactly as before this class existed.  Nothing here
- * may half-write, because the reconcile has no rollback.
+ * notices then flow from the property lowering unchanged.  Nothing here may half-write, because the
+ * reconcile has no rollback.
  */
 internal class Cmo3AtlasWebLowering(
 	private val target: Cmo3Model,
