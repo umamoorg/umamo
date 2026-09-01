@@ -159,8 +159,13 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 :settings     commonMain  — JSON settings engine: bundled defaults ← user overrides, dotted-key
                             get/set, persistence, change-event Flow. → :storage, kotlinx-serialization
 :runtime      commonMain  — the pure puppet runtime: the immutable PuppetModel + typed ids, the
-                            keyform grid algebra, and the sampling eval.  Zero format knowledge and
-                            zero project deps — CMO3/MOC3 conversion lives in :interop.
+                            keyform grid algebra, the sampling eval, and the atlas domain (PuppetAtlas:
+                            pages + tiles, each tile's AtlasPlacement, plus the uv-affine algebra that
+                            maps between the art's frame and a page's).  The placement lives here, not
+                            in :render, because it is authored state every consumer needs — including
+                            the CMO3 export lowering, whose module deliberately cannot see :render.
+                            Zero format knowledge and zero project deps — CMO3/MOC3 conversion lives
+                            in :interop.
 :interop      commonMain  — format↔runtime conversion: CMO3/MOC3 ingest (Cmo3Import / Moc3Import →
                             PuppetModel), the model diff (diffPuppetModels), export notices, and the
                             RuntimeTarget↔format-version mapping; jvmAndroidMain hosts the CMO3

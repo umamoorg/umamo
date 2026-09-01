@@ -39,8 +39,8 @@ internal fun CommandRegistry.registerAll(commands: List<Command>): () -> Unit {
 /**
  * The availability tiers the document-scoped command groups share.
  *
- * One instance per registration pass, so the eight session groups hold the same three
- * [CommandAvailability] objects rather than eight copies apiece.  Each lambda reads live session state
+ * One instance per registration pass, so the eleven session groups hold the same four
+ * [CommandAvailability] objects rather than eleven copies apiece.  Each lambda reads live session state
  * at query time, so the palette's filter and the keymap's dispatch guard always see the current
  * context - the tiers are computed fresh per query, never sampled at registration.
  *
@@ -55,4 +55,16 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }
+
+	/**
+	 * Applies when the document's atlas is repackable: it has tiles to pack, and its stored
+	 * coordinates address the pages (a fully layer-addressed document has no page mapping to
+	 * re-derive, and flipping one to page addressing is a bigger change than a repack).  A MOC3-origin
+	 * document has no tiles at all, so this also keeps the command off the packed endpoint.
+	 */
+	val canRepackAtlas =
+		CommandAvailability {
+			val atlas = session?.model?.value?.atlas
+			atlas != null && atlas.tiles.isNotEmpty() && atlas.storedUvsAddressPages
+		}
 }

@@ -11,8 +11,12 @@ Umamo is early alpha.
 * Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
 * Texture Authoring: A new "Show source artwork" document property switches the puppet between rendering from its packed texture atlas and rendering straight from each drawable's individual source layer, for checking the atlas mapping by eye before it's finalized.
+* Texture Atlas: A new Repack Atlas command repacks every used piece of source artwork onto fresh atlas pages with Umamo's own packer.  Art that can't be packed, too large for a page, empty, or unreadable, cancels the whole repack with a report naming each piece.
+* Texture Atlas: Exporting a CMO3 that has been converted from a MOC3 and then had its atlass repacked should now write a fully consistent CMO3.  Repacked layers should now properly target the renumbered pages.
+* Texture Authoring: Turning on "Show source artwork" for a document whose artwork can't actually be displayed(nothing recoverable, or none of it decodes) now shows a notice instead of silently showing from the atlas instead.
 
 ### Changed
+* Texture Atlas: Where each piece of source artwork sits on the atlas is now part of the document rather than something re-derived every time it's opened, so it can be edited, undone, and written back out.
 * MOC3 to CMO3 conversion: The stand-in source document rebuilt from a MOC3's atlas pages now also opens and renders correctly in the official Cubism Editor, including switching between its layered-art and texture-atlas display modes.  The export notice wording was updated to describe what's actually still lost this way(the layers are baked-atlas slices, not the original editable artwork) instead of claiming the file wouldn't render at all.
 
 ### Fixed

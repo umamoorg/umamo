@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.interop.ExportReport
 import org.umamo.ui.action.Command
 import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
@@ -32,9 +33,14 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unsaved) { proceed.invoke() }
 			}
 		},
-		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a non-blocking alert.
+		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a modal alert.
 		Command("document.exportReport", title = null) { argument ->
 			(argument as? ExportReport)?.let { report -> overlays.exportReport = report }
+		},
+		// A repack refused; the shell shows which tiles kept it from running.  Modal like the export
+		// report - a tile the pack cannot carry must not be a four-second toast.
+		Command("document.repackReport", title = null) { argument ->
+			(argument as? AtlasRepackReport)?.let { report -> overlays.repackReport = report }
 		},
 		// An export with options is starting; the shell shows the options dialog and the request's
 		// continuation carries the export on from whatever the rigger confirms.

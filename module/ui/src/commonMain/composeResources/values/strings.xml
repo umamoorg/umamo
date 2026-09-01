@@ -99,6 +99,12 @@
 	     %1$s in the weld line is the affected drawable names. -->
 	<string name="export_report_message_cmo3">The file was exported, but the following could not be carried into CMO3:</string>
 	<string name="export_report_message_moc3">The file was exported, but the following could not be carried into MOC3:</string>
+	<string name="repack_report_message">The atlas was not repacked.  These tiles could not be packed:</string>
+	<string name="repack_report_larger_than_page">Drawable mesh is larger than the atlas page size.</string>
+	<string name="repack_report_no_opaque_pixels">Source artwork layer has no opaque pixels.</string>
+	<string name="repack_report_below_minimum_coverage">Source artwork layer is below the minimum opaque coverage.</string>
+	<string name="repack_report_undecodable">Source artwork layer could not be decoded.</string>
+	<string name="repack_report_degenerate_placement">Drawable's current placement could not be inverted.</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and opens in both Umamo and the Cubism Editor, but every layer in it is a slice of a baked atlas page rather than the artwork this rig was drawn from.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export real, editable layers.</string>
 	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
@@ -180,6 +186,10 @@
 	<string name="export_reason_no_canvas_to_reconcile">The model has no canvas, so the canvas size was not written.</string>
 	<string name="export_reason_no_texture_manager">This document has no texture manager, so the source-artwork display mode could not be written.</string>
 	<string name="export_reason_no_texture_input_for_display">This drawable has no texture input for the chosen display mode, so it keeps the one it had.</string>
+	<string name="export_reason_no_atlas_entry">This artwork is not packed onto any atlas page, so there was no placement to update.</string>
+	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
+	<string name="export_reason_atlas_tile_metadata">This artwork's name or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
+	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -267,6 +277,7 @@
 	<string name="uv_layer_picker_no_matches">No artwork matches</string>
 	<string name="uv_layer_picker_empty">This document has no source artwork.</string>
 	<string name="cmd_document_toggle_source_artwork">Toggle Source Artwork Display</string>
+	<string name="cmd_document_repack_atlas">Repack Atlas</string>
 	<string name="cmd_uv_page_next">Next Texture Page</string>
 	<string name="cmd_uv_page_previous">Previous Texture Page</string>
 	<string name="cmd_uv_page_follow">Texture Page: Follow Selection</string>
@@ -366,6 +377,8 @@
 	<string name="history_document_canvas_size">Set Canvas Size</string>
 	<string name="history_document_world_origin">Set World Origin</string>
 	<string name="history_document_source_layer_display">Change Texture Display</string>
+	<string name="history_document_atlas_placement">Move Art On Atlas</string>
+	<string name="history_document_atlas_repack">Repack Atlas</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
@@ -474,6 +487,10 @@
 	<string name="notice_connect_refused">Can't connect: The cut crosses nothing, or the geometry is degenerate.</string>
 	<string name="notice_rip_nothing">Nothing to rip here: The selection has no fan to split.</string>
 	<string name="notice_display_partial_source_artwork">Some drawables have no source artwork and are still displaying from the atlas.</string>
+	<string name="notice_display_source_artwork_unavailable">All drawables do not have source artwork layers and are displaying from the atlas.</string>
+	<string name="notice_atlas_repacked">Atlas repacked.</string>
+	<string name="notice_atlas_repack_superseded">Repack canceled: the atlas changed while packing.</string>
+	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>

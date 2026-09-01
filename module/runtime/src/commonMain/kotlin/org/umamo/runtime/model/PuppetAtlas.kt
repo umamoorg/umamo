@@ -60,10 +60,19 @@ data class AtlasTile(
  *
  * @property List<AtlasPage> pages The packed pages, in the document's own page order.
  * @property List<AtlasTile> tiles Every piece of source art, in document order.
+ * @property Boolean storedUvsAddressPages Whether the drawables' stored texture coordinates address the
+ *   packed PAGES rather than the art itself.
+ *
+ *   A fact about the document, fixed when it was read, and deliberately NOT the display mode: a rigger
+ *   toggling between the artwork and the atlas changes which texture is sampled, never what the stored
+ *   coordinates mean.  False for a document saved sampling its per-layer rasters - a packed atlas can
+ *   sit beside it untouched - where the coordinates already address the art and inverting a placement
+ *   over them would throw every mesh clear of its artwork.
  */
 data class PuppetAtlas(
 	val pages: List<AtlasPage> = emptyList(),
 	val tiles: List<AtlasTile> = emptyList(),
+	val storedUvsAddressPages: Boolean = true,
 ) {
 	/** True when the document carries no source art at all. */
 	val isEmpty: Boolean

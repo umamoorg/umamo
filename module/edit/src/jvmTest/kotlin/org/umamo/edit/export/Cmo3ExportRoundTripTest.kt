@@ -1,5 +1,6 @@
 package org.umamo.edit.export
 
+import org.umamo.edit.withAtlasPlacement
 import org.umamo.edit.withCanvasSize
 import org.umamo.edit.withDeformerBaseAngle
 import org.umamo.edit.withDeformerName
@@ -28,12 +29,19 @@ import org.umamo.edit.withPartVisibility
 import org.umamo.edit.withRuntimeTarget
 import org.umamo.edit.withWorldOrigin
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CModelImageGroup
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.ModelImageEntry
+import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.interop.DocumentField
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
@@ -49,8 +57,11 @@ import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.atlasPixelOf
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -305,6 +316,97 @@ class Cmo3ExportRoundTripTest {
 			}
 		assertLossless(result, "canvas/runtime target")
 	}
+
+	/**
+	 * Moving art on an atlas page rewrites BOTH halves of the entry's transform pair, and says the page
+	 * image is now stale.
+	 *
+	 * The model round trip alone cannot gate this: the ingest reads only the packing transform, so a
+	 * wrong atlasLocalToCanvasTransform would reimport perfectly and still be a broken file - the
+	 * official editor composes the two, and the format's invariant is that they reproduce the art's
+	 * CANVAS placement, which repacking does not move.  So the written graph is checked directly.
+	 */
+	@Test
+	fun anAtlasPlacementMoveRewritesBothHalvesAndReportsTheStalePage() {
+		val file = skipMessageOrNull() ?: return
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val imported = Cmo3Import.fromModelSource(modelSource)
+		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null }
+		if (packed == null) {
+			println("${file.name} packs no artwork; skipping the atlas placement round trip")
+			return
+		}
+		val canvasBefore = assertNotNull(canvasPlacementOf(modelSource, packed.id.raw), "the packed tile declares a canvas placement")
+
+		val moved = packed.placement!!.copy(positionX = packed.placement!!.positionX + 8f)
+		val edited = imported.withAtlasPlacement(packed.id, moved)
+		assertEquals(moved, edited.atlas.tiles.first { tile -> tile.id == packed.id }.placement, "the edit applied")
+
+		val report = Cmo3Export.apply(edited, cmo3)
+		assertTrue(
+			report.notices.any { notice ->
+				notice is ExportNotice.UnsupportedChange && notice.reason == ExportNoticeReason.AtlasPageNotRecomposed
+			},
+			"a moved placement must say the page image was not redrawn: ${report.notices}",
+		)
+
+		val writtenSource = Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
+		assertEquals(
+			moved,
+			Cmo3Import.fromModelSource(writtenSource).atlas.tiles.first { tile -> tile.id == packed.id }.placement,
+			"the packing transform round-trips",
+		)
+		// The pair must still compose to where the art sits on the canvas, which a repack never moves.
+		val entry = assertNotNull(atlasEntryOf(writtenSource, packed.id.raw), "the entry survives the export")
+		val atlasToCanvas = assertNotNull(entry.atlasLocalToCanvasTransform as? CAffine, "and keeps its atlas-to-canvas half")
+		val composed =
+			atlasPixelOf(moved, 0f, 0f).let { onPage ->
+				floatArrayOf(
+					atlasToCanvas.m00 * onPage[0] + atlasToCanvas.m01 * onPage[1] + atlasToCanvas.m02,
+					atlasToCanvas.m10 * onPage[0] + atlasToCanvas.m11 * onPage[1] + atlasToCanvas.m12,
+				)
+			}
+		assertEquals(canvasBefore.first, composed[0], 1e-2f, "the art stayed put on the canvas in x")
+		assertEquals(canvasBefore.second, composed[1], 1e-2f, "the art stayed put on the canvas in y")
+	}
+
+	/** The art's canvas placement, as the file declares it on its model image. */
+	private fun canvasPlacementOf(modelSource: CModelSource, tileId: String): Pair<Float, Float>? {
+		val textureManager = modelSource.textureManager as? CTextureManager ?: return null
+		for (group in elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (image in elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+				if ((image.guid as? Guid)?.uuid != tileId) {
+					continue
+				}
+				val canvas = image._materialLocalToCanvasTransform as? CAffine ?: return null
+				return canvas.m02 to canvas.m12
+			}
+		}
+		return null
+	}
+
+	/** One tile's packed entry, wherever it sits. */
+	private fun atlasEntryOf(modelSource: CModelSource, tileId: String): ModelImageEntry? {
+		val textureManager = modelSource.textureManager as? CTextureManager ?: return null
+		for (atlas in elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
+			for (entry in elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
+				if ((entry.modelImageGuid as? Guid)?.uuid == tileId) {
+					return entry
+				}
+			}
+		}
+		return null
+	}
+
+	/** Flattens a CMO3 collection field, held as `Any?` by the serializer. */
+	private fun elementsOf(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
+		}
 
 	@Test
 	fun vertexNudgeSurvivesRoundTripWithAWeldNotice() {

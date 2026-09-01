@@ -45,7 +45,7 @@ class Moc3FamilyExportTest {
 		// Through the SHIPPED policy, not a copy of it: the page naming, the verbatim-vs-re-encode
 		// choice, and the basename strip are the rules under test, so re-deriving them here would only
 		// ever assert that the test agrees with itself.
-		val bundle = prepareMoc3Export(loaded, loaded.puppet, "$basename.moc3")
+		val bundle = prepareMoc3Export(loaded, loaded.puppet, loaded.textures, "$basename.moc3")
 		val byName = bundle.files.associate { file -> file.name to file.bytes }
 		val reimported =
 			buildMoc3Document("$basename.moc3", "$basename.moc3", byName.getValue("$basename.moc3")) { reference ->
@@ -115,7 +115,7 @@ class Moc3FamilyExportTest {
 					File(directory, reference).takeIf { it.isFile }?.readBytes()
 				},
 			).document as Moc3Document
-		val bundle = prepareMoc3Export(loaded, loaded.puppet, "Exported.moc3")
+		val bundle = prepareMoc3Export(loaded, loaded.puppet, loaded.textures, "Exported.moc3")
 		val names = bundle.files.map { file -> file.name }.toSet()
 		val manifest = Moc3.readModel3(bundle.files.first { it.name == "Exported.model3.json" }.bytes.decodeToString())
 		val references =
