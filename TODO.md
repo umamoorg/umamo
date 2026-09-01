@@ -64,7 +64,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
 	* Wireframe (Object Mode)
 	* Grid - Ability to change scale and divisions.
-	* 3D Cursor
+	* 2D Cursor
 
 ## Object and Mesh Editing
 * Improvements

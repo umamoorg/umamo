@@ -2,10 +2,7 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.edit
-import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.format.cmo3.model.gen.CTextureAtlas
-import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
@@ -19,7 +16,6 @@ import org.umamo.interop.ParameterGroupField
 import org.umamo.interop.PartField
 import org.umamo.interop.PuppetDiff
 import org.umamo.interop.diffPuppetModels
-import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.Parameter
@@ -106,20 +102,17 @@ object Cmo3Export {
 		}
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
-		// The page-image patch runs before the graph lowering so the stale-page notices know whether
-		// the stored pages already show the new packing.  Strictly diff-gated by the CALLER (an
-		// unedited document passes no pages, and the archive is then never touched), and gated HERE on
-		// page membership: a ModelImageEntry lives inside its page's CTextureAtlas, so a tile that
-		// changed pages would need its entry re-homed across atlases, which the lowering does not do -
-		// patching the images without the move would pair each entry with the wrong pixels.
-		val pagesRecomposed =
-			atlasPageMembershipUnchanged(baseline, edited) && patchAtlasPages(target, modelSource, recomposedPages)
+		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
+		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
+		// an unedited document passes no pages, and the graph and archive are then never touched.
+		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited).reconcile(recomposedPages)
+		val pagesRecomposed = webResult.pagesRecomposed
 
 		// Structural pass - set membership: identity shells for creations, source removal for
 		// deletions.  Category order follows the reference web (parameters/groups first, then parts
 		// and deformers, then the drawables that bind to them, then the glues that bind drawables),
 		// and the structural index is REBUILT between categories so same-export creations resolve.
-		var anyDeleted = false
+		var anyDeleted = webResult.pruneNeeded
 		var structural =
 			Cmo3StructureLowering(
 				modelSource,
@@ -351,97 +344,5 @@ object Cmo3Export {
 			editor.pruneUnreachableShared()
 		}
 		return ExportReport(ExportFormat.Cmo3, notices)
-	}
-
-	/**
-	 * Whether every tile sits on the same page (or stays unplaced) in [edited] as in [baseline].
-	 *
-	 * The condition under which the stored page images may be replaced without moving any
-	 * ModelImageEntry between texture atlases: same tile set, and per tile the same page index or
-	 * null on both sides.  A gained, lost, or moved placement fails it.
-	 *
-	 * @param PuppetModel baseline The re-imported graph the diff ran against.
-	 * @param PuppetModel edited   The session's model.
-	 * @return Boolean True when no entry would need re-homing.
-	 */
-	private fun atlasPageMembershipUnchanged(baseline: PuppetModel, edited: PuppetModel): Boolean {
-		val baselinePageByTile = HashMap<AtlasTileId, Int?>()
-		for (tile in baseline.atlas.tiles) {
-			baselinePageByTile[tile.id] = tile.placement?.pageIndex
-		}
-		if (baselinePageByTile.size != edited.atlas.tiles.size) {
-			return false
-		}
-		return edited.atlas.tiles.all { tile ->
-			tile.id in baselinePageByTile && baselinePageByTile[tile.id] == tile.placement?.pageIndex
-		}
-	}
-
-	/**
-	 * Replaces the file's stored page images with [recomposedPages], updating every field that
-	 * describes them: the archive PNG (via the facade, which also maintains imageFileBuf_size), the
-	 * resource and atlas dimensions, and - on a dimension change - the cached-image manager, whose
-	 * transform diagonal is rawDim / ceil64(rawDim) per axis (identity there is the documented
-	 * squished-art symptom; docs/format/CMO3.md, cached-image manager).
-	 *
-	 * Same-count only: the pages must map one to one onto the graph's texture atlases, in the model's
-	 * own page order (PuppetAtlas.pages = _textureAtlases order).  A count mismatch - a repack that
-	 * changed the page count - patches NOTHING and returns false, so the stale-page notices stay and
-	 * the export is honest about what it could not represent.  All-or-nothing within a match too:
-	 * every page is validated before the first byte moves, so a bad index can never half-patch.
-	 *
-	 * The page resource is mutated IN PLACE, never replaced: page-resource identity is the fact
-	 * storedUvsAddressPages recovery reads (Cmo3Conversion.rebindPageResources), and a second
-	 * resource for a page would silently reclassify every drawable as never-packed.
-	 *
-	 * @param Cmo3Model    target          The model whose archive holds the page images.
-	 * @param CModelSource modelSource     Its root, for the texture-manager walk.
-	 * @param List         recomposedPages The pages to store, or empty for no patch.
-	 * @return Boolean True when every page was patched.
-	 */
-	private fun patchAtlasPages(
-		target: Cmo3Model,
-		modelSource: CModelSource,
-		recomposedPages: List<RecomposedAtlasPage>,
-	): Boolean {
-		if (recomposedPages.isEmpty()) {
-			return false
-		}
-		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
-		val textureManager = modelSource.textureManager as? CTextureManager ?: return false
-		val atlases = Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()
-		if (atlases.size != recomposedPages.size) {
-			return false
-		}
-		val resourceByPage = HashMap<Int, CImageResource>()
-		for (page in recomposedPages) {
-			val atlas = atlases.getOrNull(page.pageIndex) ?: return false
-			// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource.
-			val resource = atlas.cachedAtlasImage as? CImageResource ?: return false
-			if (resource.imageFileBuf == null) {
-				return false
-			}
-			if (resourceByPage.put(page.pageIndex, resource) != null) {
-				return false
-			}
-		}
-		for (page in recomposedPages) {
-			val atlas = atlases[page.pageIndex]
-			val resource = resourceByPage.getValue(page.pageIndex)
-			target.replaceLayerPng(resource, page.pngBytes)
-			// CMO3: CImageResource fields width / height - corpus-verified to equal the decoded PNG's.
-			val resized = resource.width != page.width || resource.height != page.height
-			if (resized) {
-				resource.width = page.width
-				resource.height = page.height
-				// CMO3: CTextureAtlas fields width / height - the page extent the reader trusts.
-				atlas.width = page.width
-				atlas.height = page.height
-				// CMO3: CTextureAtlas field cachedImageManager - rebuilt so the cache raster's 64-aligned
-				// padding transform describes the NEW dimensions.
-				atlas.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(resource, page.width, page.height)
-			}
-		}
-		return true
 	}
 }

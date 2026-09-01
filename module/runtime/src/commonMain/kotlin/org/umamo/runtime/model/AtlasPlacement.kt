@@ -107,6 +107,45 @@ fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
 }
 
 /**
+ * The placement's forward transform as a 2x3 affine (m00, m01, m02, m10, m11, m12) mapping layer
+ * pixels to page pixels - [atlasPixelOf]'s algebra as a matrix, for callers that compose it with
+ * other affines rather than applying it pointwise.
+ *
+ * @param AtlasPlacement placement The packing transform.
+ * @return FloatArray The forward affine.
+ */
+fun placementAffine(placement: AtlasPlacement): FloatArray {
+	val radians = placement.rotationDegrees.toDouble() * PI / 180.0
+	val cosine = cos(radians)
+	val sine = sin(radians)
+	return floatArrayOf(
+		(cosine * placement.scaleX).toFloat(),
+		(-sine * placement.scaleY).toFloat(),
+		placement.positionX,
+		(sine * placement.scaleX).toFloat(),
+		(cosine * placement.scaleY).toFloat(),
+		placement.positionY,
+	)
+}
+
+/**
+ * Composes two 2x3 affines: the result applies [inner] first, then [outer].
+ *
+ * @param FloatArray outer The affine applied second.
+ * @param FloatArray inner The affine applied first.
+ * @return FloatArray The composition, a fresh array.
+ */
+fun composeAffine(outer: FloatArray, inner: FloatArray): FloatArray =
+	floatArrayOf(
+		outer[0] * inner[0] + outer[1] * inner[3],
+		outer[0] * inner[1] + outer[1] * inner[4],
+		outer[0] * inner[2] + outer[1] * inner[5] + outer[2],
+		outer[3] * inner[0] + outer[4] * inner[3],
+		outer[3] * inner[1] + outer[4] * inner[4],
+		outer[3] * inner[2] + outer[4] * inner[5] + outer[5],
+	)
+
+/**
  * The atlas-page pixel a layer pixel packs to (the forward transform).
  *
  * @param AtlasPlacement placement The packing transform.

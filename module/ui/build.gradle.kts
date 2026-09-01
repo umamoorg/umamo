@@ -153,4 +153,8 @@ umamoTestCorpus {
 	// The CMO3 loader test's counterpart. Takes the shared table's default (a whole .cmo3 embeds its
 	// own pixels, so unlike the moc family there is no sidecar folder that has to resolve).
 	sample("cmo3.sample")
+	// The converted-repack export gate's fixture: a MOC3-origin conversion with five pages, whose
+	// repack consolidates pages and moves tiles across them - the shape the atlas-web export exists
+	// for. A named property rather than a walk so the gate's numbers stay tied to one known model.
+	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/modelG.cmo3")
 }
