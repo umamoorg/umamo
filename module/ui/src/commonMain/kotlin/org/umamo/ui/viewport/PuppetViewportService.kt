@@ -11,6 +11,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
 
@@ -60,6 +61,25 @@ sealed interface UvSceneContent {
 	 */
 	data class SourceLayer(val image: DecodedImage?) : UvSceneContent
 }
+
+/**
+ * A page set paired with the atlas value whose placements it renders.
+ *
+ * The pairing is what lets the engine apply a model and its pages ATOMICALLY: pages and model reach
+ * the render thread on independent channels, and on undo the baseline model would land frames before
+ * the baseline pages - repacked pixels under baseline coordinates - unless the loop can see which
+ * atlas a page set belongs to and hold an atlas-changing model until its pages arrive.
+ *
+ * A plain class, not a data class: it carries pixel buffers, and the engine compares bindings by
+ * identity and their atlases by the model's own identity-then-equality rule.
+ *
+ * @property PuppetAtlas    atlas    The atlas value the pages were composed for.
+ * @property PuppetTextures textures The page pixels and the drawable-to-page map.
+ */
+class AtlasPageBinding(
+	val atlas: PuppetAtlas,
+	val textures: PuppetTextures,
+)
 
 /**
  * The platform seam between the common viewport UI and a puppet render engine. The engine owns a GPU
@@ -271,6 +291,19 @@ interface PuppetViewportService {
 	 * @param PuppetModel model The current model.
 	 */
 	fun setModel(model: PuppetModel)
+
+	/**
+	 * Pushes the atlas page set the current model's placements render from.
+	 *
+	 * The session owns the effective pages now - a repack composes new ones and undo brings the old
+	 * ones back - so the pages arrive through a seam like the model does, instead of being fixed at
+	 * construction.  The engine swaps GPU pages and re-stamps every resident's binding as one
+	 * operation, and applies an atlas-CHANGING model only together with the binding composed for it
+	 * (see [AtlasPageBinding]).
+	 *
+	 * @param AtlasPageBinding binding The pages plus the atlas value they belong to.
+	 */
+	fun setAtlasPages(binding: AtlasPageBinding)
 
 	/**
 	 * Sets the color selected drawables are tinted toward (0..1 sRGB components, from settings).

@@ -23,6 +23,7 @@ import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
+import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
@@ -54,8 +55,8 @@ private const val RESIZE_SETTLE_NANOS = 25_000_000L
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
  * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
- * UI thread pushes (selection, shown set, model, source artwork, grid, highlight colors), renders each
- * registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
+ * UI thread pushes (selection, shown set, model, atlas pages, source artwork, grid, highlight colors), renders
+ * each registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
  * area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
@@ -152,6 +153,20 @@ internal class OffscreenRenderEngine(
 	// with the open model.
 	@Volatile
 	private var modelBacking: PuppetModel = puppet
+
+	// The construction-time page pair: the pages initGl uploads, tagged with the atlas they render.
+	// Seeds both the published slot and the applied state, so the loop's first tick applies nothing
+	// unless a binding was pushed before the thread started.
+	private val initialAtlasBinding = AtlasPageBinding(puppet.atlas, textures)
+
+	// The latest page set, published whole with the atlas value it was composed for.  The loop applies
+	// it and an atlas-changing model as one pair - see the pairing note in renderLoop.
+	@Volatile
+	private var atlasBindingBacking: AtlasPageBinding = initialAtlasBinding
+
+	// The pair the render thread has actually applied.  Render-thread-owned after start(); read by the
+	// UV fit path (pageContentBounds), which also runs on the render thread.
+	private var appliedAtlasBinding: AtlasPageBinding = initialAtlasBinding
 
 	@Volatile
 	private var puppetRenderBump: Long = 0
@@ -296,6 +311,20 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * Publishes the atlas page set the current model's placements render from.  A pure volatile
+	 * publish: the render loop bumps its own freshness when it APPLIES the binding, because applying
+	 * can lag the publish by a tick while the matching model arrives - a bump here would let an area
+	 * render back to freshness against the outgoing pair and never take the new one up.
+	 *
+	 * @param AtlasPageBinding binding The pages plus the atlas value they belong to.
+	 */
+	fun setAtlasPages(binding: AtlasPageBinding) {
+		if (binding !== atlasBindingBacking) {
+			atlasBindingBacking = binding
+		}
+	}
+
+	/**
 	 * Pushes the latest model so the render thread can reconcile it after an edit (a layer reorder
 	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs). A new (different)
 	 * instance bumps the puppet render version so every area re-renders once.
@@ -303,6 +332,7 @@ internal class OffscreenRenderEngine(
 	 * @param PuppetModel model The current model.
 	 * @return Boolean True when the model actually changed (so the caller rebuilds model-derived state).
 	 */
+
 	fun setModel(model: PuppetModel): Boolean {
 		if (model !== modelBacking) {
 			modelBacking = model
@@ -409,7 +439,21 @@ internal class OffscreenRenderEngine(
 				collectCompleted()
 				val params = liveParams.values
 				val shown = shownBacking
-				val orderModel = modelBacking
+				// Pages and model apply as a consistent PAIR - the decision itself is pure and tested
+				// (resolveAtlasPairing); this block only carries it out.
+				val pairing = resolveAtlasPairing(modelBacking, atlasBindingBacking, appliedAtlasBinding, lastModel)
+				val orderModel = pairing.orderModel
+				pairing.applyBinding?.let { binding ->
+					// Pages first, then the model that samples them.  The freshness bumps happen HERE, at
+					// apply, not at publish: paramsVersion re-renders the puppet areas, the atlas bump the
+					// UV page areas (whose AtlasPage content compares by index and cannot see same-index-
+					// new-pixels).  A concurrent UI-thread bump can collapse into this one; both causes are
+					// covered by the single re-render that follows either way.
+					renderer.setAtlasPages(binding.textures)
+					appliedAtlasBinding = binding
+					paramsVersion++
+					doAtlasRenderBump()
+				}
 				// The artwork hand-off, on the render thread where the uploads belong.  The mapping is
 				// compared by identity: it is published whole, so a new reference IS the change.
 				val layerPlan = layerPlanBacking
@@ -723,11 +767,72 @@ internal class OffscreenRenderEngine(
 	 * @return ContentBounds The page rectangle, in texel/display units.
 	 */
 	private fun pageContentBounds(pageIndex: Int?): ContentBounds {
-		val page = pageIndex?.let { textures.atlases.getOrNull(it) }
+		val page = pageIndex?.let { appliedAtlasBinding.textures.atlases.getOrNull(it) }
 		return if (page != null) {
 			ContentBounds(0f, 0f, page.width.toFloat(), page.height.toFloat())
 		} else {
 			ContentBounds(0f, 0f, 1f, 1f)
 		}
 	}
+}
+
+/**
+ * One render-loop tick's model/pages pairing decision.
+ *
+ * @property PuppetModel       orderModel   The model to render this tick (the published one, or the
+ *                                          previous one while its pages are still in flight).
+ * @property AtlasPageBinding? applyBinding The binding to apply before the model, or null.
+ */
+internal class AtlasPairingDecision(
+	val orderModel: PuppetModel,
+	val applyBinding: AtlasPageBinding?,
+)
+
+/**
+ * Decides how the render loop takes up a published model and a published page binding as one
+ * consistent pair.
+ *
+ * The two arrive on independent channels, and on an undo the baseline model would land frames before
+ * the baseline pages - repacked pixels under baseline coordinates - so an atlas-CHANGING model waits
+ * until the binding composed for its atlas has arrived, and the loop keeps rendering the previous
+ * pair.  Non-atlas edits pass untouched: their atlas is the applied binding's own instance.  Atlas
+ * comparison is identity first, then equality - the session's baseline short-circuit can publish the
+ * baseline pages under an equal-but-distinct atlas instance.
+ *
+ * Pure and render-thread-agnostic so the hold/apply matrix is testable without a GL context.
+ *
+ * @param PuppetModel      publishedModel   The latest model the UI published.
+ * @param AtlasPageBinding publishedBinding The latest page binding the UI published.
+ * @param AtlasPageBinding appliedBinding   The binding the renderer currently holds.
+ * @param PuppetModel?     lastModel        The model the loop last applied, or null on the first tick.
+ * @return AtlasPairingDecision What to render and whether to swap pages first.
+ */
+internal fun resolveAtlasPairing(
+	publishedModel: PuppetModel,
+	publishedBinding: AtlasPageBinding,
+	appliedBinding: AtlasPageBinding,
+	lastModel: PuppetModel?,
+): AtlasPairingDecision {
+	val bindingMatchesPublished =
+		publishedBinding.atlas === publishedModel.atlas || publishedBinding.atlas == publishedModel.atlas
+	val appliedMatchesPublished =
+		appliedBinding.atlas === publishedModel.atlas || appliedBinding.atlas == publishedModel.atlas
+	val orderModel =
+		if (!appliedMatchesPublished && !bindingMatchesPublished) {
+			// The pages for this model's atlas have not arrived; keep the previous pair.  The first
+			// tick has no previous model to keep, and renders the published one against whatever pages
+			// exist rather than nothing at all.
+			lastModel ?: publishedModel
+		} else {
+			publishedModel
+		}
+	val applyBinding =
+		if (publishedBinding !== appliedBinding &&
+			(publishedBinding.atlas === orderModel.atlas || publishedBinding.atlas == orderModel.atlas)
+		) {
+			publishedBinding
+		} else {
+			null
+		}
+	return AtlasPairingDecision(orderModel, applyBinding)
 }

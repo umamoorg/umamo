@@ -87,10 +87,19 @@ val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?
 /**
  * The open document's decoded texture atlas pages for the composition, or null when nothing is open.
  * The UV editor reads the full page a drawable samples to draw under its wireframe; the thumbnail
- * provider below serves the cropped-preview case.  Provided by the host from the same extraction the
- * renderer uploads, so the two always show the same texels.
+ * provider below serves the cropped-preview case.  Provided by the host from the SESSION's effective
+ * page set ([SessionAtlasPages]), which is what the renderer shows - so the value changes when a
+ * repack (or its undo) swaps the pages, and the whole subtree recomposes onto the new set.  A repack
+ * is rare, so the static local's wholesale recomposition is the right price for its simplicity.
  */
 val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
+
+/**
+ * The session's atlas-page resolver, or null when nothing is open (or the desync guard built a
+ * fallback session).  The repack command reads it to pre-warm the page cache with the pages it
+ * composed; everything else reads the resolved pages through [LocalPuppetTextures].
+ */
+val LocalSessionAtlasPages = staticCompositionLocalOf<SessionAtlasPages?> { null }
 
 /**
  * The open document's source artwork - the layers the puppet was authored against, before packing -

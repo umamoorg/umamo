@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -10,10 +11,13 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 
 /*
- * Scalar property edits on an EditorSession, driven by the Properties panel's editable controls.  Each
+ * Scalar property edits on an EditorSession, mostly driven by the Properties panel's editable controls
+ * (the atlas edits at the end of the file are not: commitAtlasRepack is driven by the atlas repack
+ * flow, and setAtlasPlacement is not wired to a caller yet).  Each
  * applies one field change as a single undo step via mutate, dispatching the typed Change plus its
  * PuppetModelEdits transform, and short-circuits to nothing on a no-op (the builder returns the same
  * model instance).  These are the write half of the Properties panel: a checkbox / dropdown / numeric
@@ -300,12 +304,37 @@ fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
  *
  * The page's PIXELS are the document's, not the model's, so this moves where the art is recorded to be
  * without moving the art itself.  A caller must recompose the affected page for the result to render -
- * which is why nothing is wired to this yet: the repack that would do both is a later session's, and
- * the op lands now so it has one home rather than being invented twice.
+ * unlike the whole-atlas [commitAtlasRepack], no caller pairs a single-tile nudge with that recompose
+ * yet, so this stays exercised by tests only.
  *
  * @param AtlasTileId     tileId    The tile to place.
  * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
  */
 fun EditorSession.setAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?) {
 	mutate(DocumentChange.SetAtlasPlacement(tileId)) { model -> model.withAtlasPlacement(tileId, placement) }
+}
+
+/**
+ * Repacks the whole atlas as a single undo step: the new page inventory and every tile's placement
+ * land together, with every bound drawable's coordinates re-derived over them - withAtlasRepack's
+ * one-pass edit under the one history push a repack should be.
+ *
+ * The page PIXELS are session state the caller swaps in beside this commit, which is why the
+ * committed model comes back: the orchestrator pre-warms the session's page resolver with the SAME
+ * atlas instance this publishes (the resolver memoizes by identity), so the commit resolves its
+ * pages by cache hit - and undo re-resolves them the same way.
+ *
+ * @param List pages            The new page inventory.
+ * @param Map  placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @return PuppetModel? The committed model, or null when the repack restated the atlas exactly.
+ */
+fun EditorSession.commitAtlasRepack(pages: List<AtlasPage>, placementsByTile: Map<AtlasTileId, AtlasPlacement?>): PuppetModel? {
+	val current = model.value
+	val repacked = current.withAtlasRepack(pages, placementsByTile)
+	if (repacked === current) {
+		return null
+	}
+	val placedCount = placementsByTile.count { entry -> entry.value != null }
+	mutate(DocumentChange.RepackAtlas(placedCount, pages.size)) { repacked }
+	return repacked
 }

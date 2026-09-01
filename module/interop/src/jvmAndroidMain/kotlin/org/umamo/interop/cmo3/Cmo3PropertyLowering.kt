@@ -60,6 +60,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
 
 /**
@@ -85,6 +86,10 @@ internal class Cmo3PropertyLowering(
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
+	// True when the caller replaced the stored page images with pages recomposed for the edited
+	// placements (Cmo3Export's same-count patch); the stale-page notices below are then false and stay
+	// quiet.  Defaults false so every other construction keeps the honest warning.
+	private val pagesRecomposed: Boolean = false,
 ) {
 	private val editedParameterById = edited.parameters.associateBy(Parameter::id)
 	private val editedPartById = edited.parts.associateBy(Part::id)
@@ -625,8 +630,9 @@ internal class Cmo3PropertyLowering(
 	 * recomputed to hold the composition.  Writing only the packing transform would break an invariant
 	 * the official editor's own reader depends on.
 	 *
-	 * What this does NOT do is redraw the page.  The stored page image still shows the art where it
-	 * used to be, so a moved placement always takes [ExportNoticeReason.AtlasPageNotRecomposed].
+	 * What this does NOT do is redraw the page.  When the caller has not patched the stored page
+	 * images (pagesRecomposed), they still show the art where it used to be, so a moved placement
+	 * takes [ExportNoticeReason.AtlasPageNotRecomposed]; a patched export clears it.
 	 *
 	 * @param List diffs The per-tile diffs.
 	 */
@@ -650,13 +656,15 @@ internal class Cmo3PropertyLowering(
 		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id }
 		// CMO3: CModelImage field _materialLocalToCanvasTransform - where the art sits on the CANVAS.
 		// A repack moves art on the page and never on the canvas, so this is the fixed point the
-		// rewritten transform pair has to keep composing to.
-		val canvasTranslationByTileId = HashMap<String, Pair<Float, Float>>()
+		// rewritten transform pair has to keep composing to.  The FULL affine, not just its
+		// translation: an official file's model images are pure translations, but a converted graph
+		// carries the original packing's linear part here, and the composition must reproduce it.
+		val canvasAffineByTileId = HashMap<String, FloatArray>()
 		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
 			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
 				val guid = (modelImage.guid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
 				val canvas = modelImage._materialLocalToCanvasTransform as? CAffine ?: continue
-				canvasTranslationByTileId[guid] = canvas.m02 to canvas.m12
+				canvasAffineByTileId[guid] = floatArrayOf(canvas.m00, canvas.m01, canvas.m02, canvas.m10, canvas.m11, canvas.m12)
 			}
 		}
 
@@ -677,18 +685,25 @@ internal class Cmo3PropertyLowering(
 						continue
 					}
 					val placement = editedTileById[diff.id]?.placement
+					if (placement == null && pagesRecomposed) {
+						// A pack-out under the full web reconcile: the entry already left its page,
+						// which is the whole lowering a null placement takes.
+						continue
+					}
 					val entry = entryByTileId[diff.id.raw]
 					if (placement == null || entry == null) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 						continue
 					}
-					val canvasTranslation = canvasTranslationByTileId[diff.id.raw]
-					if (canvasTranslation == null) {
+					val canvasAffine = canvasAffineByTileId[diff.id.raw]
+					if (canvasAffine == null) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 						continue
 					}
-					lowerAtlasEntry(entry, placement, canvasTranslation)
-					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					lowerAtlasEntry(entry, placement, canvasAffine)
+					if (!pagesRecomposed) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					}
 				}
 			}
 		}
@@ -697,11 +712,11 @@ internal class Cmo3PropertyLowering(
 	/**
 	 * Writes one packed entry's transform pair.
 	 *
-	 * @param ModelImageEntry entry             The packed entry to move.
-	 * @param AtlasPlacement  placement         Where the art now sits on its page.
-	 * @param Pair            canvasTranslation Where the art sits on the CANVAS, which does not move.
+	 * @param ModelImageEntry entry        The packed entry to move.
+	 * @param AtlasPlacement  placement    Where the art now sits on its page.
+	 * @param FloatArray      canvasAffine Where the art sits on the CANVAS, which does not move.
 	 */
-	private fun lowerAtlasEntry(entry: ModelImageEntry, placement: AtlasPlacement, canvasTranslation: Pair<Float, Float>) {
+	private fun lowerAtlasEntry(entry: ModelImageEntry, placement: AtlasPlacement, canvasAffine: FloatArray) {
 		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - a GTransform2 whose position is
 		// the packing origin in page pixels, scale the packer's resampling, and eulerAngle its rotation
 		// in DEGREES.
@@ -722,26 +737,28 @@ internal class Cmo3PropertyLowering(
 
 		// CMO3: ModelImageEntry field atlasLocalToCanvasTransform - the other half of the composition.
 		//
-		// NOT simply the placement's inverse: the pair must compose to the art's CANVAS placement, which
-		// is a pure translation and does not move when the art is repacked.  So the linear part is the
-		// inverse's, and the translation is the inverse's PLUS that canvas origin - dropping the origin
-		// term would slide every model image to the canvas corner.
+		// NOT simply the placement's inverse: the pair must compose to the art's CANVAS placement,
+		// which does not move when the art is repacked.  The full composition canvas-affine after
+		// placement-inverse serves both corpus shapes: an official file's pure-translation canvas
+		// placement reduces it to the inverse plus that origin (dropping the origin term would slide
+		// every model image to the canvas corner), and a converted graph's canvas placement carries
+		// the original packing's linear part, which a translation-only write would drop.
 		val canvasTransform = entry.atlasLocalToCanvasTransform as? CAffine
 		if (canvasTransform == null) {
 			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 			return
 		}
-		val inverse = inversePlacementAffine(placement)
-		if (inverse == null) {
+		val composed = atlasLocalToCanvasFor(canvasAffine, placement)
+		if (composed == null) {
 			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 			return
 		}
-		canvasTransform.m00 = inverse[0]
-		canvasTransform.m01 = inverse[1]
-		canvasTransform.m02 = inverse[2] + canvasTranslation.first
-		canvasTransform.m10 = inverse[3]
-		canvasTransform.m11 = inverse[4]
-		canvasTransform.m12 = inverse[5] + canvasTranslation.second
+		canvasTransform.m00 = composed[0]
+		canvasTransform.m01 = composed[1]
+		canvasTransform.m02 = composed[2]
+		canvasTransform.m10 = composed[3]
+		canvasTransform.m11 = composed[4]
+		canvasTransform.m12 = composed[5]
 		editor.ensureChildSlot(entry, "ModelImageEntry", "atlasLocalToCanvasTransform", null)
 	}
 
@@ -758,10 +775,14 @@ internal class Cmo3PropertyLowering(
 				DocumentField.CANVAS_SIZE -> lowerCanvasSize()
 				DocumentField.SOURCE_LAYER_DISPLAY -> lowerSourceLayerDisplay()
 				// A page appearing, vanishing, or resizing is a repack's output, and repacking rewrites
-				// the page IMAGES too - which nothing here does.  The per-tile placements still lower;
-				// this only says the page set itself was not reconciled.
-				DocumentField.ATLAS_PAGES ->
-					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+				// the page IMAGES too.  When the caller patched them (pagesRecomposed) the page set IS
+				// reconciled and nothing is owed; otherwise the per-tile placements still lower and this
+				// says the page set itself was not.
+				DocumentField.ATLAS_PAGES -> {
+					if (!pagesRecomposed) {
+						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasPageNotRecomposed)
+					}
+				}
 				DocumentField.WORLD_ORIGIN -> {
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.
@@ -1254,4 +1275,21 @@ internal class Cmo3PropertyLowering(
 		assign(fresh)
 		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
+}
+
+/**
+ * The atlas-to-canvas half a packed entry carries at [placement]: the tile's full canvas placement
+ * composed with the placement's inverse, so the entry pair keeps composing to
+ * CModelImage._materialLocalToCanvasTransform.
+ *
+ * One helper shared by the entry lowering and the drawable region-input rewrite, so the two values
+ * the corpus keeps equal stay bit-identical when both are written.
+ *
+ * @param FloatArray     canvasAffine The tile's canvas placement, all six components.
+ * @param AtlasPlacement placement    Where the art sits on its page.
+ * @return FloatArray? The composed 2x3 affine, or null when the placement is degenerate.
+ */
+internal fun atlasLocalToCanvasFor(canvasAffine: FloatArray, placement: AtlasPlacement): FloatArray? {
+	val inverse = inversePlacementAffine(placement) ?: return null
+	return composeAffine(canvasAffine, inverse)
 }

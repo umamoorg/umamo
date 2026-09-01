@@ -274,11 +274,11 @@ class Cmo3LayerWebProbeTest {
 	/**
 	 * Counts model images whose bound drawables DISAGREE about sampling an atlas page.
 	 *
-	 * `SourceArtRasters.bindingForLayer` hands out the first bound drawable's binding and documents that
-	 * every drawable over one layer shares a placement.  But `cmo3SourceArtRasters` derives that placement
-	 * per drawable, from whether THAT drawable's own `srcImageResource` is one of the atlas pages - so
-	 * two drawables on one model image could in principle disagree, one getting a placement and one
-	 * getting null.  If that happens, the UV editor builds its authoring frame from one drawable's
+	 * `PuppetModel.atlasBindingForTile` hands out one placement per tile and documents that every
+	 * drawable over one layer shares it.  But `cmo3AtlasIngest` derives whether a drawable samples a
+	 * packed page per drawable, from whether THAT drawable's own `srcImageResource` is one of the atlas
+	 * pages - so two drawables on one model image could in principle disagree, one getting a placement
+	 * and one getting null.  If that happens, the UV editor builds its authoring frame from one drawable's
 	 * placement while projecting another through its own, and an edit commits through the wrong frame.
 	 *
 	 * This settles whether the shape occurs in real files rather than only in the type system.  A
@@ -332,7 +332,7 @@ class Cmo3LayerWebProbeTest {
 		assertTrue(
 			disagreements.isEmpty(),
 			"drawables over one model image disagree about sampling the atlas, so a layer has no single " +
-				"placement and bindingForLayer's shared-placement contract does not hold:\n${disagreements.joinToString("\n")}",
+				"placement and atlasBindingForTile's shared-placement contract does not hold:\n${disagreements.joinToString("\n")}",
 		)
 	}
 

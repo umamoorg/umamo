@@ -23,6 +23,34 @@ import org.umamo.format.raster.RasterImage
  */
 
 /**
+ * Extra area a tile's placement must keep clear, in raster-local pixels.
+ *
+ * The pixels alone do not bound what samples a tile: an art mesh rings OUTSIDE the opaque region
+ * (and routinely outside the raster itself), so a pack spaced by opaque bounds alone puts one
+ * tile's mesh footprint over its neighbour's art.  A reserve carries that reach into the pack: the
+ * tile's reservation becomes the union of its opaque trim and this rect, so anything inside it
+ * lands on the tile's own transparent margin rather than on a neighbour.
+ *
+ * Coordinates are raster-local like a trim's, edges exclusive on the right and bottom, and MAY be
+ * negative or exceed the raster - a mesh's reach is not confined to its art.
+ *
+ * @property Int left   The reserved rect's left edge.
+ * @property Int top    The reserved rect's top edge.
+ * @property Int right  The reserved rect's right edge, exclusive.
+ * @property Int bottom The reserved rect's bottom edge, exclusive.
+ */
+public data class AtlasPackReserve(
+	val left: Int,
+	val top: Int,
+	val right: Int,
+	val bottom: Int,
+) {
+	init {
+		require(right >= left && bottom >= top) { "reserve must not be inverted: $left..$right x $top..$bottom" }
+	}
+}
+
+/**
  * One tile to pack: a stable key plus the straight-alpha pixels to place.
  *
  * Pixels are taken by reference and never mutated, matching how the flat-raster adapter hands a
@@ -31,16 +59,19 @@ import org.umamo.format.raster.RasterImage
  * A plain class, not a data class: it wraps a pixel buffer whose generated structural equality would
  * deep-compare on every call, the same reason [LayerRaster] and [RasterImage] are plain classes.
  *
- * @property String    key    The tile's stable identity, unique within one pack.
- * @property Int       width  The raster width in pixels.
- * @property Int       height The raster height in pixels.
- * @property ByteArray rgba   RGBA8888 pixels, straight alpha, row-major from the top row.
+ * @property String            key     The tile's stable identity, unique within one pack.
+ * @property Int               width   The raster width in pixels.
+ * @property Int               height  The raster height in pixels.
+ * @property ByteArray         rgba    RGBA8888 pixels, straight alpha, row-major from the top row.
+ * @property AtlasPackReserve? reserve Extra area to keep clear around this tile (a mesh's reach),
+ *                                     unioned with the opaque trim; null reserves the trim alone.
  */
 public class AtlasPackItem(
 	public val key: String,
 	public val width: Int,
 	public val height: Int,
 	public val rgba: ByteArray,
+	public val reserve: AtlasPackReserve? = null,
 ) {
 	init {
 		require(width >= 0 && height >= 0) { "tile '$key' has negative dimensions: $width x $height" }
@@ -205,10 +236,15 @@ public fun packAtlas(
 	require(items.distinctBy { item -> item.key }.size == items.size) {
 		"atlas pack item keys must be unique; duplicates make the packing order ambiguous"
 	}
+	require(!options.allowRotation || items.none { item -> item.reserve != null }) {
+		"reserves under rotation are not supported yet: a quarter turn moves the trim's offset inside its reservation"
+	}
 
-	// Trim first: a tile's footprint is its opaque bounds plus the gutter, and a tile with nothing
+	// Trim first: a tile's footprint is its opaque bounds - widened to any caller reserve, since a
+	// mesh's reach must land on the tile's own margin - plus the gutter, and a tile with nothing
 	// opaque never reaches the packer at all.
 	val trims = arrayOfNulls<LayerBounds>(items.size)
+	val reserves = arrayOfNulls<LayerBounds>(items.size)
 	val skipped = ArrayList<AtlasPackSkip>()
 	val requests = ArrayList<RectPackRequest>(items.size)
 	for ((itemIndex, item) in items.withIndex()) {
@@ -221,12 +257,18 @@ public fun packAtlas(
 			skipped.add(AtlasPackSkip(item.key, AtlasPackSkipReason.BelowMinimumCoverage))
 			continue
 		}
-		trims[itemIndex] = analysis.opaqueBounds
+		val trim = analysis.opaqueBounds
+		val reserveLeft = minOf(trim.left, item.reserve?.left ?: trim.left)
+		val reserveTop = minOf(trim.top, item.reserve?.top ?: trim.top)
+		val reserveRight = maxOf(trim.left + trim.width, item.reserve?.right ?: (trim.left + trim.width))
+		val reserveBottom = maxOf(trim.top + trim.height, item.reserve?.bottom ?: (trim.top + trim.height))
+		trims[itemIndex] = trim
+		reserves[itemIndex] = LayerBounds(reserveLeft, reserveTop, reserveRight - reserveLeft, reserveBottom - reserveTop)
 		requests.add(
 			RectPackRequest(
 				itemIndex = itemIndex,
-				width = analysis.opaqueBounds.width + 2 * options.gutter,
-				height = analysis.opaqueBounds.height + 2 * options.gutter,
+				width = reserveRight - reserveLeft + 2 * options.gutter,
+				height = reserveBottom - reserveTop + 2 * options.gutter,
 			),
 		)
 	}
@@ -251,51 +293,33 @@ public fun packAtlas(
 		pageHeights[pageIndex] = sizes.second
 	}
 
-	val pageBuffers = List(pageWidths.size) { pageIndex -> ByteArray(pageWidths[pageIndex] * pageHeights[pageIndex] * 4) }
 	val placementByItemIndex = arrayOfNulls<AtlasPackPlacement>(items.size)
 	for (slot in layout.slots) {
 		val item = items[slot.itemIndex]
 		val trim = checkNotNull(trims[slot.itemIndex]) { "packed tile '${item.key}' has no trim" }
-		val tileX = slot.x + options.gutter
-		val tileY = slot.y + options.gutter
-		val quarterTurns = if (slot.rotated) 1 else 0
-		blitTile(
-			page = pageBuffers[slot.pageIndex],
-			pageWidth = pageWidths[slot.pageIndex],
-			sourceRgba = item.rgba,
-			sourceWidth = item.width,
-			trim = trim,
-			destinationX = tileX,
-			destinationY = tileY,
-			quarterTurns = quarterTurns,
-		)
-		extrudeTileEdges(
-			page = pageBuffers[slot.pageIndex],
-			pageWidth = pageWidths[slot.pageIndex],
-			tileX = tileX,
-			tileY = tileY,
-			tileWidth = if (slot.rotated) trim.height else trim.width,
-			tileHeight = if (slot.rotated) trim.width else trim.height,
-			extrude = options.extrude,
-		)
+		val reserve = checkNotNull(reserves[slot.itemIndex]) { "packed tile '${item.key}' has no reserve" }
+		// The placement records the TRIM's page position, exactly as before reserves existed: the
+		// reservation only spaces neighbours further apart, so everything downstream of the placement
+		// (the lowering, the composition, the derivation) is untouched by it.
 		placementByItemIndex[slot.itemIndex] =
 			AtlasPackPlacement(
 				key = item.key,
 				pageIndex = slot.pageIndex,
-				pageX = tileX,
-				pageY = tileY,
+				pageX = slot.x + options.gutter + (trim.left - reserve.left),
+				pageY = slot.y + options.gutter + (trim.top - reserve.top),
 				trimLeft = trim.left,
 				trimTop = trim.top,
 				trimWidth = trim.width,
 				trimHeight = trim.height,
-				quarterTurns = quarterTurns,
+				quarterTurns = if (slot.rotated) 1 else 0,
 			)
 	}
+	val placements = placementByItemIndex.filterNotNull()
 
 	val inputOrderByKey = items.withIndex().associate { (itemIndex, item) -> item.key to itemIndex }
 	return AtlasPackResult(
-		pages = pageBuffers.mapIndexed { pageIndex, buffer -> RasterImage(pageWidths[pageIndex], pageHeights[pageIndex], buffer) },
-		placements = placementByItemIndex.filterNotNull(),
+		pages = composeAtlasPages(pageWidths, pageHeights, items, placements, options.extrude),
+		placements = placements,
 		skipped = skipped.sortedBy { skip -> inputOrderByKey.getValue(skip.key) },
 	)
 }
@@ -303,9 +327,9 @@ public fun packAtlas(
 /**
  * Builds pack items from this document's layers, one per layer, keyed by its stable layer id.
  *
- * Layer kind, visibility, and sliver policy are deliberately the caller's: Phase B settled that the
- * analysis never drops a real art layer and the consumer decides what to ingest, and the same rule
- * applies here.  Pass [include] to apply a policy; the default packs every layer.
+ * Layer kind, visibility, and sliver policy are deliberately the caller's: alpha-shape analysis never
+ * drops a real art layer and leaves the consumer to decide what to ingest, and the same rule applies
+ * here.  Pass [include] to apply a policy; the default packs every layer.
  *
  * A duplicate layer id (possible from the PSD name-and-order fallback, where no lyid is written) is
  * disambiguated with the layer's draw order rather than rejected, since the collision is an artifact

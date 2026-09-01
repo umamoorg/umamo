@@ -27,10 +27,12 @@ import kotlin.math.sin
  * is page pixels with y running DOWN (v = 0 is the page's top row), matching how the decoder emits rows
  * and how the sampler addresses them.
  *
- * [pageIndex] indexes [PuppetAtlas.pages], which is the DOCUMENT's page order.  It is deliberately NOT
- * the renderer's page numbering: the two are derived independently (the renderer collects pages in
- * drawable-encounter order and renumbers when one fails to decode), so an index is only ever valid
- * against the list it came from.
+ * [pageIndex] indexes [PuppetAtlas.pages], which is the DOCUMENT's page order.  For an IMPORTED
+ * document it is deliberately NOT the renderer's page numbering: the two are derived independently
+ * (the renderer collects pages in drawable-encounter order and renumbers when one fails to decode),
+ * so an index is only ever valid against the list it came from.  A page set Umamo generates itself
+ * (a repack's) is built index-parallel to [PuppetAtlas.pages], so for generated sets the two
+ * numberings coincide by construction.
  *
  * @property Int   pageIndex       The atlas page the art packs onto, indexing [PuppetAtlas.pages].
  * @property Float positionX       The packing origin's x on the page, in pixels (fractional in real files).
@@ -103,6 +105,45 @@ fun inversePlacementAffine(placement: AtlasPlacement): FloatArray? {
 		-(m10 * placement.positionX + m11 * placement.positionY),
 	)
 }
+
+/**
+ * The placement's forward transform as a 2x3 affine (m00, m01, m02, m10, m11, m12) mapping layer
+ * pixels to page pixels - [atlasPixelOf]'s algebra as a matrix, for callers that compose it with
+ * other affines rather than applying it pointwise.
+ *
+ * @param AtlasPlacement placement The packing transform.
+ * @return FloatArray The forward affine.
+ */
+fun placementAffine(placement: AtlasPlacement): FloatArray {
+	val radians = placement.rotationDegrees.toDouble() * PI / 180.0
+	val cosine = cos(radians)
+	val sine = sin(radians)
+	return floatArrayOf(
+		(cosine * placement.scaleX).toFloat(),
+		(-sine * placement.scaleY).toFloat(),
+		placement.positionX,
+		(sine * placement.scaleX).toFloat(),
+		(cosine * placement.scaleY).toFloat(),
+		placement.positionY,
+	)
+}
+
+/**
+ * Composes two 2x3 affines: the result applies [inner] first, then [outer].
+ *
+ * @param FloatArray outer The affine applied second.
+ * @param FloatArray inner The affine applied first.
+ * @return FloatArray The composition, a fresh array.
+ */
+fun composeAffine(outer: FloatArray, inner: FloatArray): FloatArray =
+	floatArrayOf(
+		outer[0] * inner[0] + outer[1] * inner[3],
+		outer[0] * inner[1] + outer[1] * inner[4],
+		outer[0] * inner[2] + outer[1] * inner[5] + outer[2],
+		outer[3] * inner[0] + outer[4] * inner[3],
+		outer[3] * inner[1] + outer[4] * inner[4],
+		outer[3] * inner[2] + outer[4] * inner[5] + outer[5],
+	)
 
 /**
  * The atlas-page pixel a layer pixel packs to (the forward transform).
