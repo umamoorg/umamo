@@ -77,6 +77,10 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.FractionalCanvasSizeNotStorable,
 			ExportNoticeReason.NoTextureManagerToReconcile,
 			ExportNoticeReason.NoTextureInputForDisplayMode,
+			ExportNoticeReason.NoAtlasEntryToReconcile,
+			ExportNoticeReason.AtlasPageNotRecomposed,
+			ExportNoticeReason.AtlasTileMetadataNotReconcilable,
+			ExportNoticeReason.AtlasTileRebindingNotLowered,
 		)
 
 	private val sampleRejections: List<KeyformBundleRejection> =

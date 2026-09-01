@@ -308,6 +308,88 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
+	 * A page's image resource: the embedded page PNG's dimensions, type, and archive link.
+	 *
+	 * Shared by the fresh conversion and the export's page mint, so a page minted into a retained
+	 * graph is field-for-field the shape the fresh path writes.
+	 *
+	 * @param String path    The archive path the page PNG is stored under.
+	 * @param Int    width   The page width in pixels.
+	 * @param Int    height  The page height in pixels.
+	 * @param Int    pngSize The encoded PNG's byte size.
+	 * @return CImageResource The page resource.
+	 */
+	internal fun pageImageResource(path: String, width: Int, height: Int, pngSize: Int): CImageResource =
+		CImageResource().apply {
+			// CMO3: CImageResource attrs width/height/type + the imageFileBuf file child.
+			this.width = width
+			this.height = height
+			type = "INT_ARGB"
+			imageFileBuf = FileRef().apply { archivePath = path }
+			imageFileBuf_size = pngSize
+		}
+
+	/**
+	 * A page's texture atlas element, empty of entries: the editor's naming, a fresh guid, and the
+	 * cached-image manager whose padding diagonal the editor's source-image sampling depends on.
+	 *
+	 * @param Int            pageOrdinal The zero-based page index ("TextureAtlas1" is page 0).
+	 * @param Int            width       The page width in pixels.
+	 * @param Int            height      The page height in pixels.
+	 * @param CImageResource resource    The page's image resource.
+	 * @return CTextureAtlas The atlas element.
+	 */
+	internal fun pageAtlas(pageOrdinal: Int, width: Int, height: Int, resource: CImageResource): CTextureAtlas =
+		CTextureAtlas().apply {
+			// CMO3: CTextureAtlas fields name/width/height/cachedAtlasImage/guid/modelImages/
+			// cachedImageManager.
+			name = "TextureAtlas${pageOrdinal + 1}"
+			this.width = width
+			this.height = height
+			cachedAtlasImage = resource
+			guid = Cmo3SkeletonBuilder.freshGuid("CTextureAtlasGuid")
+			modelImages = CArrayList<Any?>()
+			cachedImageManager = paddedCacheManager(resource, width, height)
+		}
+
+	/**
+	 * A page's ONE shared texture: every drawable on the page references this instance (the writer
+	 * hoists it), like the editor's own atlas files.
+	 *
+	 * @param String?        atlasName The owning atlas's name, which the texture shares.
+	 * @param CImageResource resource  The page's image resource the texture samples.
+	 * @return GTexture2D The page texture.
+	 */
+	internal fun pageTexture(atlasName: String?, resource: CImageResource): GTexture2D {
+		val texture =
+			GTexture2D().apply {
+				// CMO3: GTexture2D - the page's shared texture.
+				name = atlasName
+				// CMO3: GTexture fields wrapMode / filterMode / anisotropy - the editor's fixed
+				// sampling setup on every corpus texture.
+				wrapMode = WrapMode.CLAMP_TO_BORDER
+				guid = Cmo3SkeletonBuilder.freshGuid("GTextureGuid")
+				anisotropy = Anisotropy.ON
+				srcImageResource = resource
+				transformImageResource01toLogical01 = CAffine()
+				mipmapLevel = 64
+				// CMO3: GTexture2D field isPremultiplied - true on EVERY corpus texture (178 of
+				// 178, every era), including the many whose embedded PNG bytes are straight
+				// alpha.  The flag records the editor's texture-render/upload convention, not
+				// the byte storage (see the Premultiplied section), so a MOC3 sidecar page -
+				// straight alpha like the corpus ones - writes true as well.
+				isPremultiplied = true
+			}
+		texture.filterMode =
+			FilterMode().apply {
+				minFilter = MinFilter.LINEAR_MIPMAP_LINEAR
+				magFilter = MagFilter.LINEAR
+				owner = texture
+			}
+		return texture
+	}
+
+	/**
 	 * The cached-image manager the editor expects on every model image and texture atlas: the raw
 	 * page cached as itself at SCALE_1 (nothing prerendered).
 	 *
@@ -316,7 +398,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int            height       The page height in pixels.
 	 * @return CCachedImageManager The fresh manager.
 	 */
-	private fun paddedCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
+	internal fun paddedCacheManager(pageResource: CImageResource, width: Int, height: Int): CCachedImageManager =
 		CCachedImageManager().apply {
 			// CMO3: CCachedImageManager fields defaultCacheType / rawImage / cachedImages /
 			// requiredMipmapLevel (corpus flat imports cache the raw resource itself).
@@ -774,15 +856,7 @@ internal object Cmo3ImageChainBuilder {
 			val pagePath = nextImageFileBufPath()
 			val pageName = "Texture_$pageIndex.png"
 			pngEntries.add(Cmo3FreshFile.PngEntry(pagePath, page.pngBytes))
-			val pageResource =
-				CImageResource().apply {
-					// CMO3: CImageResource attrs width/height/type + the imageFileBuf file child.
-					width = page.width
-					height = page.height
-					type = "INT_ARGB"
-					imageFileBuf = FileRef().apply { archivePath = pagePath }
-					imageFileBuf_size = page.pngBytes.size
-				}
+			val pageResource = pageImageResource(pagePath, page.width, page.height, page.pngBytes.size)
 			val layeredImage = CLayeredImage()
 			val patchLayers = CArrayList<Any?>()
 			val rootLayerGroup =
@@ -825,43 +899,9 @@ internal object Cmo3ImageChainBuilder {
 					importedTimeMSec = nowMillis
 					lastModifiedTimeMSec = nowMillis
 				}
-			val atlasEntries = CArrayList<Any?>()
-			val atlas = CTextureAtlas()
-			atlas.apply {
-				name = "TextureAtlas${pageIndex + 1}"
-				width = page.width
-				height = page.height
-				cachedAtlasImage = pageResource
-				guid = Cmo3SkeletonBuilder.freshGuid("CTextureAtlasGuid")
-				modelImages = atlasEntries
-				cachedImageManager = paddedCacheManager(pageResource, page.width, page.height)
-			}
-			val texture =
-				GTexture2D().apply {
-					// CMO3: GTexture2D - the page's ONE shared texture; every drawable on the page
-					// references this instance (the writer hoists it), like the editor's own atlas.
-					name = atlas.name
-					// CMO3: GTexture fields wrapMode / filterMode / anisotropy - the editor's fixed
-					// sampling setup on every corpus texture.
-					wrapMode = WrapMode.CLAMP_TO_BORDER
-					guid = Cmo3SkeletonBuilder.freshGuid("GTextureGuid")
-					anisotropy = Anisotropy.ON
-					srcImageResource = pageResource
-					transformImageResource01toLogical01 = CAffine()
-					mipmapLevel = 64
-					// CMO3: GTexture2D field isPremultiplied - true on EVERY corpus texture (178 of
-					// 178, every era), including the many whose embedded PNG bytes are straight
-					// alpha.  The flag records the editor's texture-render/upload convention, not
-					// the byte storage (see the Premultiplied section), so a MOC3 sidecar page -
-					// straight alpha like the corpus ones - writes true as well.
-					isPremultiplied = true
-				}
-			texture.filterMode =
-				FilterMode().apply {
-					minFilter = MinFilter.LINEAR_MIPMAP_LINEAR
-					magFilter = MagFilter.LINEAR
-					owner = texture
-				}
+			val atlas = pageAtlas(pageIndex, page.width, page.height, pageResource)
+			val atlasEntries = checkNotNull(mutableGraphListOf(atlas.modelImages)) { "pageAtlas builds a list" }
+			val texture = pageTexture(atlas.name, pageResource)
 			// Patch webs, shared across drawables sampling the same crop with the same mesh (mirror
 			// twins get ONE material like official files; each twin's placement rides its own
 			// region input, and the shared image keeps the first drawable's placement).

@@ -11,7 +11,6 @@ import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.OverflowRowScope
-import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.resources.*
@@ -43,7 +42,7 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 	}
 	item("layerPicker") {
 		// Only worth offering when the document retains artwork to search.
-		if (LocalPuppet.current != null && LocalLayerTextures.current?.isEmpty == false) {
+		if (LocalPuppet.current?.atlas?.tiles?.isNotEmpty() == true) {
 			UvLayerPickerChip()
 		}
 	}
@@ -71,14 +70,14 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 	val model = LocalPuppet.current ?: return
 	val textures = LocalPuppetTextures.current
 	val atlases = textures?.atlases.orEmpty()
-	val layers = LocalLayerTextures.current
+	val hasSourceArt = model.atlas.tiles.isNotEmpty()
 	val storedSelection = viewState.textureSelection
 	// The face names what the body actually resolves: a pin the current textures cannot satisfy, or a
 	// layer view this document has no artwork for, both fall back to following the selection.
 	val effectiveSelection =
 		when {
 			storedSelection is UvTextureSelection.PinnedPage && storedSelection.pageIndex in atlases.indices -> storedSelection
-			storedSelection is UvTextureSelection.SourceLayer && layers?.isEmpty == false -> storedSelection
+			storedSelection is UvTextureSelection.SourceLayer && hasSourceArt -> storedSelection
 			else -> UvTextureSelection.FollowSelection
 		}
 	val currentLabel =
@@ -130,7 +129,7 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 		}
 	// Offered only when the document retains source artwork; a MOC3 origin has none.
 	val layerRow =
-		if (layers?.isEmpty == false) {
+		if (hasSourceArt) {
 			MenuItem.Action(
 				label = stringResource(Res.string.uv_texture_selector_layer),
 				onSelect = { viewState.textureSelection = UvTextureSelection.SourceLayer },

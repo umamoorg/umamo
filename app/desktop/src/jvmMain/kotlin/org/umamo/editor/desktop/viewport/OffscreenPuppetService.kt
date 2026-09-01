@@ -12,6 +12,7 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
+import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.RenderedFrame
@@ -27,8 +28,8 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
- *     async read-back, plus the render-input state (selection / shown / model / source artwork / grid /
- *     highlight colors).
+ *     async read-back, plus the render-input state (selection / shown / model / atlas pages / source
+ *     artwork / grid / highlight colors).
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
  *
  * The GL context is chosen per OS behind [OffscreenGlContext], which is a hidden GLFW window on every
@@ -132,6 +133,13 @@ class OffscreenPuppetService(
 	override fun setShownDrawables(ids: Set<DrawableId>) = engine.setShownDrawables(ids)
 
 	override fun setSourceLayerPlan(plan: LayerDrawPlan) = engine.setSourceLayerPlan(plan)
+
+	override fun setAtlasPages(binding: AtlasPageBinding) {
+		engine.setAtlasPages(binding)
+		// The picker samples page alpha CPU-side, so its pixels must move with the GPU's - a stale set
+		// would reject clicks on visible art at the re-derived coordinates.
+		picker.setTextures(binding.textures)
+	}
 
 	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
 

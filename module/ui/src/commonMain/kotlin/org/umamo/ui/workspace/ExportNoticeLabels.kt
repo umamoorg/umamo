@@ -236,6 +236,14 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			ExportNoticePhrase(Res.string.export_reason_no_texture_manager)
 		ExportNoticeReason.NoTextureInputForDisplayMode ->
 			ExportNoticePhrase(Res.string.export_reason_no_texture_input_for_display)
+		ExportNoticeReason.NoAtlasEntryToReconcile ->
+			ExportNoticePhrase(Res.string.export_reason_no_atlas_entry)
+		ExportNoticeReason.AtlasPageNotRecomposed ->
+			ExportNoticePhrase(Res.string.export_reason_atlas_page_not_recomposed)
+		ExportNoticeReason.AtlasTileMetadataNotReconcilable ->
+			ExportNoticePhrase(Res.string.export_reason_atlas_tile_metadata)
+		ExportNoticeReason.AtlasTileRebindingNotLowered ->
+			ExportNoticePhrase(Res.string.export_reason_atlas_tile_rebinding)
 	}
 
 /**

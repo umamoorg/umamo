@@ -158,6 +158,31 @@ class DrawableThumbnailerTest {
 	}
 
 	@Test
+	fun setTexturesEvictsEveryServedCrop() {
+		// Same drawable, same UVs; only the PIXELS move (a repack recomposes the page).  A served crop
+		// must not survive the swap.
+		val meshed = drawable("mesh", floatArrayOf(0f, 0f, 0.5f, 0f, 0.5f, 1f, 0f, 1f))
+		val redLeft = PuppetTextures(listOf(atlasLeftRedRightGreen()), mapOf("mesh" to 0), premultipliedAlpha = false)
+		val thumbnailer = DrawableThumbnailer(flatModel(listOf(meshed)), redLeft)
+		assertEquals(Color.Red.toArgb(), thumbnailer.thumbnailFor(DrawableId("mesh"))!!.toPixelMap()[0, 0].toArgb())
+
+		val greenEverywhere = ByteArray(4 * 4 * 4)
+		for (y in 0 until 4) {
+			for (x in 0 until 4) {
+				setPixel(greenEverywhere, 4, x, y, Color.Green)
+			}
+		}
+		thumbnailer.setTextures(
+			PuppetTextures(listOf(DecodedImage(greenEverywhere, 4, 4)), mapOf("mesh" to 0), premultipliedAlpha = false),
+		)
+		assertEquals(
+			Color.Green.toArgb(),
+			thumbnailer.thumbnailFor(DrawableId("mesh"))!!.toPixelMap()[0, 0].toArgb(),
+			"a page swap re-crops from the new pixels instead of serving the stale cached thumbnail",
+		)
+	}
+
+	@Test
 	fun returnsNullForAnUntexturedDrawable() {
 		// A drawable with mesh UVs but no atlas page mapping is untextured → no preview.
 		val uvs = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f)

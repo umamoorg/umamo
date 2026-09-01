@@ -6,12 +6,12 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
-import org.umamo.render.AtlasPlacement
 import org.umamo.render.DecodedImage
-import org.umamo.render.DrawableLayerBinding
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
-import org.umamo.render.SourceLayerEntry
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -19,7 +19,9 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.atlasBindingForTile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -42,7 +44,12 @@ class UvEditorViewStateTest {
 	/** The default triangle's uvs: display (16, 16), (48, 16), (16, 24) on the 64x32 page. */
 	private val triangleUvs = floatArrayOf(0.25f, 0.5f, 0.75f, 0.5f, 0.25f, 0.25f)
 
-	private fun meshedDrawable(rawId: String, uvs: FloatArray = triangleUvs.copyOf(), isVisible: Boolean = true): Drawable =
+	private fun meshedDrawable(
+		rawId: String,
+		uvs: FloatArray = triangleUvs.copyOf(),
+		isVisible: Boolean = true,
+		tileId: String? = null,
+	): Drawable =
 		Drawable(
 			id = DrawableId(rawId),
 			name = rawId,
@@ -52,6 +59,7 @@ class UvEditorViewStateTest {
 			mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), uvs, intArrayOf(0, 1, 2)),
 			geometryGrid = null,
 			isVisible = isVisible,
+			atlasTileId = tileId?.let { raw -> AtlasTileId(raw) },
 		)
 
 	private fun bareDrawable(rawId: String): Drawable =
@@ -67,7 +75,7 @@ class UvEditorViewStateTest {
 
 	// Every drawable gets a root org-tree entry: visibleDrawableIds walks rootChildren, so a drawable
 	// absent from the tree would read as hidden.
-	private fun modelOf(vararg drawables: Drawable): PuppetModel =
+	private fun modelOf(vararg drawables: Drawable, atlas: PuppetAtlas = PuppetAtlas.Empty): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),
 			parts = emptyList(),
@@ -75,6 +83,19 @@ class UvEditorViewStateTest {
 			drawables = drawables.toList(),
 			rootChildren = drawables.map { drawable -> OrgChild.Drawable(drawable.id) },
 			rootPartId = null,
+			atlas = atlas,
+		)
+
+	/** An atlas fixture: one tile, sized, unpacked unless a placement is given. */
+	private fun atlasOf(
+		tileId: String = "layer0",
+		width: Int = 64,
+		height: Int = 32,
+		placement: AtlasPlacement? = null,
+	): PuppetAtlas =
+		PuppetAtlas(
+			pages = listOf(AtlasPage(128, 128)),
+			tiles = listOf(AtlasTile(AtlasTileId(tileId), "Art", width, height, placement)),
 		)
 
 	private fun twoPageTextures(): PuppetTextures =
@@ -293,30 +314,15 @@ class UvEditorViewStateTest {
 		)
 	}
 
-	/** A store fixture: one layer, sized, bound to the given drawables, with no placement (unpacked). */
-	private fun layerStoreOf(
-		layerKey: String = "layer0",
-		width: Int = 64,
-		height: Int = 32,
-		boundDrawableIds: List<String> = listOf("a"),
-		placement: AtlasPlacement? = null,
-	): LayerTextures =
-		LayerTextures(
-			layers = listOf(SourceLayerEntry(layerKey, "Art", width, height, boundDrawableIds, null)),
-			bindingsByDrawableId =
-				boundDrawableIds.associateWith { DrawableLayerBinding(layerKey, placement, 128, 128) },
-		) { null }
-
 	/** The layer view follows the active drawable, exactly as the page chain does. */
 	@Test
 	fun layerViewFollowsTheActiveDrawable() {
-		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		val model = modelOf(meshedDrawable("a", tileId = "layer0"), meshedDrawable("b"), atlas = atlasOf())
 		val resolved =
 			resolveUvEditorLayer(
 				model = model,
 				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
 				objectSelection = Selection(),
-				layers = layerStoreOf(),
 			)
 		assertNotNull(resolved, "the active drawable's layer resolves")
 		assertEquals("layer0", resolved.layerKey, "the bound layer shows")
@@ -327,61 +333,53 @@ class UvEditorViewStateTest {
 	/**
 	 * A session-created duplicate reaches the same layer as the drawable it was copied from.
 	 *
-	 * Bindings are keyed by the SOURCE format's drawable ids, so a copy has no key of its own and must
-	 * resolve through textureSourceId - the same indirection shownSurfaceUvs and the atlas lookup use.
-	 * Resolving by the copy's own raw id instead finds nothing, which shows up as a duplicate that has
-	 * a page view but silently refuses the layer view.
+	 * The tile is a field on the drawable, so a copy carries it like every other field - unlike the atlas
+	 * PAGE, which still resolves through textureSourceId because that map is keyed by the source format's
+	 * own drawable ids and a fresh duplicate has no entry in it.
 	 */
 	@Test
-	fun layerViewFollowsADuplicateThroughItsTextureSource() {
-		val duplicate = meshedDrawable("a copy").copy(textureSourceId = DrawableId("a"))
-		val model = modelOf(meshedDrawable("a"), duplicate)
+	fun layerViewFollowsADuplicateThroughItsOwnTile() {
+		val duplicate = meshedDrawable("a copy", tileId = "layer0").copy(textureSourceId = DrawableId("a"))
+		val model = modelOf(meshedDrawable("a", tileId = "layer0"), duplicate, atlas = atlasOf())
 		val resolved =
 			resolveUvEditorLayer(
 				model = model,
 				meshSelection = MeshSelection(drawableIds = listOf(duplicate.id), activeDrawableId = duplicate.id),
 				objectSelection = Selection(),
-				layers = layerStoreOf(),
 			)
-		assertNotNull(resolved, "the duplicate resolves its source's layer")
+		assertNotNull(resolved, "the duplicate resolves its own tile")
 		assertEquals("layer0", resolved.layerKey, "the same layer the original shows")
 	}
 
 	/** A drawable this document retains no artwork for resolves nothing, so the space keeps its page view. */
 	@Test
 	fun layerViewResolvesNothingWithoutABinding() {
-		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"))
+		val model = modelOf(meshedDrawable("a", tileId = "layer0"), meshedDrawable("b"), atlas = atlasOf())
 		assertNull(
 			resolveUvEditorLayer(
 				model = model,
 				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("b")), activeDrawableId = DrawableId("b")),
 				objectSelection = Selection(),
-				layers = layerStoreOf(boundDrawableIds = listOf("a")),
 			),
-			"a drawable with no binding has no layer to show",
+			"a drawable with no tile has no layer to show",
 		)
 		assertNull(
-			resolveUvEditorLayer(modelOf(meshedDrawable("a")), MeshSelection(), Selection(), null),
-			"no store means no layer view",
-		)
-		assertNull(
-			resolveUvEditorLayer(modelOf(meshedDrawable("a")), MeshSelection(), Selection(), LayerTextures.EMPTY),
-			"an empty store means no layer view",
+			resolveUvEditorLayer(modelOf(meshedDrawable("a")), MeshSelection(), Selection()),
+			"an empty atlas means no layer view",
 		)
 	}
 
 	/** In OBJECT mode every drawable sharing one piece of art draws over it together; unbound ones do not. */
 	@Test
 	fun objectModeListsEverySharerOfTheArt() {
-		val model = modelOf(meshedDrawable("a"), meshedDrawable("b"), meshedDrawable("a2"))
-		val shown =
-			shownLayerDrawables(
-				model,
-				EditorMode.Object,
-				MeshSelection(),
-				layerStoreOf(boundDrawableIds = listOf("a", "a2")),
-				"layer0",
+		val model =
+			modelOf(
+				meshedDrawable("a", tileId = "layer0"),
+				meshedDrawable("b"),
+				meshedDrawable("a2", tileId = "layer0"),
+				atlas = atlasOf(),
 			)
+		val shown = shownLayerDrawables(model, EditorMode.Object, MeshSelection(), "layer0")
 		assertEquals(
 			listOf(DrawableId("a"), DrawableId("a2")),
 			shown.map { drawable -> drawable.id },
@@ -398,30 +396,30 @@ class UvEditorViewStateTest {
 	 */
 	@Test
 	fun editModeListsOnlyTheSessionMeshesOverTheLayer() {
-		val model = modelOf(meshedDrawable("a"), meshedDrawable("a2"))
-		val store = layerStoreOf(boundDrawableIds = listOf("a", "a2"))
+		val model =
+			modelOf(meshedDrawable("a", tileId = "layer0"), meshedDrawable("a2", tileId = "layer0"), atlas = atlasOf())
 		val shown =
 			shownLayerDrawables(
 				model,
 				EditorMode.Edit,
 				MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
-				store,
 				"layer0",
 			)
 		assertEquals(listOf(DrawableId("a")), shown.map { drawable -> drawable.id }, "only the edited mesh is shown")
 
-		val none = shownLayerDrawables(model, EditorMode.Edit, MeshSelection(), store, "layer0")
+		val none = shownLayerDrawables(model, EditorMode.Edit, MeshSelection(), "layer0")
 		assertTrue(none.isEmpty(), "editing nothing shows nothing over the layer")
 	}
 
-	/** The layer's frame comes from the layer, so narrowing the shown set in Edit mode cannot shift it. */
+	/** The layer's frame comes from the TILE, so narrowing the shown set in Edit mode cannot shift it. */
 	@Test
-	fun layerBindingResolvesFromTheLayerNotTheShownSet() {
-		val store = layerStoreOf(boundDrawableIds = listOf("a", "a2"))
-		val binding = store.bindingForLayer("layer0")
-		assertNotNull(binding, "a layer with users resolves a representative binding")
-		assertEquals("layer0", binding.layerKey, "and it is that layer's")
-		assertNull(store.bindingForLayer("missing"), "an unknown layer resolves nothing")
+	fun layerBindingResolvesFromTheTileNotTheShownSet() {
+		val model =
+			modelOf(meshedDrawable("a", tileId = "layer0"), meshedDrawable("a2", tileId = "layer0"), atlas = atlasOf())
+		val binding = model.atlasBindingForTile(AtlasTileId("layer0"))
+		assertNotNull(binding, "a tile resolves a binding without being asked which drawable")
+		assertEquals("layer0", binding.layerKey, "and it is that tile's")
+		assertNull(model.atlasBindingForTile(AtlasTileId("missing")), "an unknown tile resolves nothing")
 	}
 
 	/**
@@ -431,11 +429,10 @@ class UvEditorViewStateTest {
 	 */
 	@Test
 	fun layerGeometriesProjectIntoTheLayerFrame() {
-		val model = modelOf(meshedDrawable("a"))
-		val store = layerStoreOf(width = 64, height = 32)
-		val shown = shownLayerDrawables(model, EditorMode.Object, MeshSelection(), store, "layer0")
+		val model = modelOf(meshedDrawable("a", tileId = "layer0"), atlas = atlasOf(width = 64, height = 32))
+		val shown = shownLayerDrawables(model, EditorMode.Object, MeshSelection(), "layer0")
 		val layerView = UvEditorLayer("layer0", 64, 32)
-		val geometries = uvGizmoGeometries(shown, shownSurfaceUvs(shown, store, layerView), 64, 32)
+		val geometries = uvGizmoGeometries(shown, shownSurfaceUvs(shown, model, layerView), 64, 32)
 		assertEquals(1, geometries.size, "one geometry per bound drawable")
 		// The same triangleUvs the page test uses: (0.25, 0.5) -> (16, 16) on a 64x32 frame, v flipped.
 		val expectedPositions = floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f)
@@ -566,7 +563,7 @@ class UvEditorViewStateTest {
 		val geometries =
 			uvGizmoGeometries(
 				listOf(drawable),
-				shownSurfaceUvs(listOf(drawable), layers = null, layerView = null),
+				shownSurfaceUvs(listOf(drawable), modelOf(drawable), layerView = null),
 				displayWidth = 64,
 				displayHeight = 32,
 			)
@@ -587,7 +584,7 @@ class UvEditorViewStateTest {
 	fun skipsUnmeshedDrawables() {
 		val bare = listOf(bareDrawable("c"))
 		assertTrue(
-			uvGizmoGeometries(bare, shownSurfaceUvs(bare, layers = null, layerView = null), 64, 32).isEmpty(),
+			uvGizmoGeometries(bare, shownSurfaceUvs(bare, modelOf(*bare.toTypedArray()), layerView = null), 64, 32).isEmpty(),
 			"a drawable with no mesh yields no geometry",
 		)
 	}

@@ -2,9 +2,16 @@ package org.umamo.render
 
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import org.umamo.runtime.model.BlendMode
-import org.umamo.runtime.model.Drawable
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DrawableLayerBinding
+import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.runtime.model.identityUvAffine
+import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.layerPixelOf
+import org.umamo.runtime.model.layerUvAffineOf
+import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -20,9 +27,10 @@ import kotlin.test.assertTrue
  *
  * The recovery convention this locks - forward is `atlas = R(angle) . S . layer + position` in
  * page pixels with y running down - is cross-checked against real files by
- * Cmo3LayerRecoveryCorpusTest, which composes it against the format's own atlas-to-canvas affine.
+ * Cmo3AtlasIngestCorpusTest (`:interop`), which composes it against the format's own
+ * atlas-to-canvas affine.
  */
-class LayerTexturesTest {
+class SourceArtRastersTest {
 	private fun placementOf(
 		positionX: Float = 0f,
 		positionY: Float = 0f,
@@ -190,22 +198,19 @@ class LayerTexturesTest {
 
 	private fun onePixelPng(): ByteArray = PngCodec.write(RasterImage(1, 1, byteArrayOf(1, 2, 3, 4)))
 
-	/** The store decodes a layer once and serves the same instance afterwards. */
+	/** The store decodes a tile once and serves the same instance afterwards. */
 	@Test
 	fun rasterDecodesOnceAndCaches() {
 		var readCount = 0
 		val store =
-			LayerTextures(
-				layers = listOf(SourceLayerEntry("a", "A", 1, 1, listOf("d0"), null)),
-				bindingsByDrawableId = mapOf("d0" to DrawableLayerBinding("a", null, 0, 0)),
-			) { _ ->
+			SourceArtRasters { _ ->
 				readCount++
 				onePixelPng()
 			}
-		val first = store.rasterFor("a")
-		val second = store.rasterFor("a")
-		assertNotNull(first, "the layer decodes")
-		assertSame(first, second, "a decoded layer is cached, not re-decoded")
+		val first = store.rasterFor(AtlasTileId("a"))
+		val second = store.rasterFor(AtlasTileId("a"))
+		assertNotNull(first, "the tile decodes")
+		assertSame(first, second, "a decoded tile is cached, not re-decoded")
 		assertEquals(1, readCount, "the byte supplier is consulted once")
 	}
 
@@ -214,66 +219,22 @@ class LayerTexturesTest {
 	fun rasterRemembersFailures() {
 		var readCount = 0
 		val store =
-			LayerTextures(
-				layers = listOf(SourceLayerEntry("a", "A", 1, 1, emptyList(), null)),
-				bindingsByDrawableId = emptyMap(),
-			) { _ ->
+			SourceArtRasters { _ ->
 				readCount++
 				byteArrayOf(0, 1, 2)
 			}
-		assertNull(store.rasterFor("a"), "undecodable bytes yield no raster")
-		assertNull(store.rasterFor("a"), "still no raster on a second request")
+		assertNull(store.rasterFor(AtlasTileId("a")), "undecodable bytes yield no raster")
+		assertNull(store.rasterFor(AtlasTileId("a")), "still no raster on a second request")
 		assertEquals(1, readCount, "a remembered failure is not retried")
 	}
 
-	/** Lookups by drawable and by key resolve through the same inventory; the empty store answers nothing. */
+	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
 	@Test
-	fun lookupsResolveThroughTheInventory() {
-		val entry = SourceLayerEntry("a", "A", 8, 16, listOf("d0", "d1"), "Layer 1")
-		val store =
-			LayerTextures(
-				layers = listOf(entry),
-				bindingsByDrawableId = mapOf("d0" to DrawableLayerBinding("a", null, 0, 0)),
-			) { null }
-		assertEquals(entry, store.layerFor("a"), "a known key resolves")
-		assertNull(store.layerFor("missing"), "an unknown key resolves to nothing")
-		assertEquals(entry, store.layerForDrawable("d0"), "a bound drawable resolves its layer")
-		assertNull(store.layerForDrawable("d1"), "a drawable with no binding resolves to nothing")
-		assertTrue(LayerTextures.EMPTY.isEmpty, "the empty store reports empty")
-		assertNull(LayerTextures.EMPTY.rasterFor("a"), "the empty store has no rasters")
-	}
-
-	private fun drawableWith(rawId: String, textureSourceId: String? = null): Drawable =
-		Drawable(
-			id = DrawableId(rawId),
-			name = rawId,
-			parentDeformerId = null,
-			blendMode = BlendMode.Normal,
-			maskedBy = emptyList(),
-			mesh = null,
-			geometryGrid = null,
-			textureSourceId = textureSourceId?.let { source -> DrawableId(source) },
-		)
-
-	/**
-	 * A session-created duplicate finds its art through the drawable it was copied from, exactly as it
-	 * finds its atlas page - bindings are keyed by the SOURCE format's ids, so a copy has none of its own.
-	 */
-	@Test
-	fun duplicateResolvesItsArtThroughItsTextureSource() {
-		val entry = SourceLayerEntry("layer0", "Art", 64, 32, listOf("a"), null)
-		val store =
-			LayerTextures(
-				layers = listOf(entry),
-				bindingsByDrawableId = mapOf("a" to DrawableLayerBinding("layer0", null, 0, 0)),
-			) { null }
-		val original = drawableWith("a")
-		val duplicate = drawableWith("a copy", textureSourceId = "a")
-		val unrelated = drawableWith("b")
-		assertNotNull(store.bindingForDrawable(original), "the original resolves its own binding")
-		assertNotNull(store.bindingForDrawable(duplicate), "the duplicate resolves through its texture source")
-		assertEquals(entry, store.layerForDrawable(duplicate), "and reaches the same layer")
-		assertTrue(store.drawsOverLayer(duplicate, "layer0"), "so it draws over that layer too")
-		assertNull(store.bindingForDrawable(unrelated), "an unrelated drawable resolves nothing")
+	fun aTileWithoutBytesDecodesToNothing() {
+		val known = AtlasTileId("a")
+		val store = SourceArtRasters { requested -> if (requested == known) onePixelPng() else null }
+		assertNotNull(store.rasterFor(known), "a known tile decodes")
+		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
+		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")
 	}
 }

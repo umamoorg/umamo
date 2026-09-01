@@ -93,6 +93,17 @@ data class PuppetModel(
 	 * the atlas, so the puppet stays whole rather than developing holes.
 	 */
 	val rendersFromSourceLayers: Boolean = false,
+	/**
+	 * The document's source art and where it packs onto the atlas pages.
+	 *
+	 * Document content, and authored: a repack moves placements, so they have to undo, diff, and export
+	 * like anything else the rigger changes.  Empty for a document with no separable source art - a
+	 * MOC3-origin rig, whose pages arrived already packed.
+	 *
+	 * Pixels are deliberately absent.  A page's bytes and a tile's raster belong to the document, which
+	 * loads them once; putting them here would put them in every undo snapshot.
+	 */
+	val atlas: PuppetAtlas = PuppetAtlas.Empty,
 ) {
 	/**
 	 * Every part by id, built once per model instance.
@@ -280,6 +291,14 @@ data class Drawable(
 	 * the layered-art web instead), so a CMO3-origin drawable leaves this at -1.
 	 */
 	val texturePage: Int = -1,
+	/**
+	 * The atlas tile whose art this drawable samples, or null when the document retains none for it.
+	 *
+	 * Distinct from [texturePage], which names a page in the RENDERER's numbering: this names a piece of
+	 * source art in [PuppetModel.atlas], and the placement on that tile is what says where the art sits
+	 * on its page.  A drawable with no tile has no source-art view and renders from the atlas alone.
+	 */
+	val atlasTileId: AtlasTileId? = null,
 	/**
 	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [geometryGrid]
 	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)

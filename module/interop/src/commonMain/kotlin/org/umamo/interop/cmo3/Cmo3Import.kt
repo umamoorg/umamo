@@ -403,6 +403,10 @@ object Cmo3Import {
 		// renderIndexByUuid (computed above for parts) is the source of both this order and panelOrder.
 		val orderedDrawableSources = drawableSources.sortedByDescending { renderIndexByUuid[uuidOf(it.guid)] ?: Int.MAX_VALUE }
 
+		// The layered-art web, read once as model state: the atlas pages, the tiles, and which tile each
+		// drawable samples.  Metadata only - no pixel is decoded here.
+		val atlasIngest = cmo3AtlasIngest(modelSource)
+
 		val drawables =
 			orderedDrawableSources.map { source ->
 				val mesh = meshOf(source)
@@ -436,6 +440,7 @@ object Cmo3Import {
 						blendShapeBindingsOf(source.keyformMorphTargetSet, source.keyforms, paramIdByUuid) { form ->
 							meshForm(form, mesh?.positions)
 						},
+					atlasTileId = atlasIngest.tileIdByDrawableId[idStrOf(source.id).orEmpty()],
 				)
 			}
 
@@ -516,6 +521,7 @@ object Cmo3Import {
 				// layer images, false the packed atlas.  The texture manager is mandatory even when empty
 				// (docs/format/CMO3.md §3), so an absent one falls back to the atlas default.
 				rendersFromSourceLayers = (modelSource.textureManager as? CTextureManager)?.isTextureInputModelImageMode ?: false,
+				atlas = atlasIngest.atlas,
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
 		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot

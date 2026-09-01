@@ -1,17 +1,27 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.identityUvAffine
+import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.layerUvAffineOf
 import org.umamo.runtime.model.multiplyColor
 import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
@@ -743,4 +753,172 @@ fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
 		return this
 	}
 	return copy(rendersFromSourceLayers = fromSourceLayers)
+}
+
+/**
+ * This model with one atlas tile packed at [placement], every drawable over that art re-mapped so it
+ * keeps sampling the same pixels.
+ *
+ * Moving art around a page must not change what the art means.  Stored texture coordinates address the
+ * PAGE, so a placement that moves without them moving with it silently re-points every mesh at whatever
+ * now occupies the old spot; that is why this rewrites both together, and why a repack is an edit on
+ * the tile rather than on each drawable.  The re-mapping is the composition of the old mapping into the
+ * art's own frame with the inverse of the new one, so the vertex-to-art-pixel binding comes out
+ * bit-identical wherever the affines are exact.
+ *
+ * The mappings are built from the placements directly: stored coordinates mean the same thing whichever
+ * surface is being displayed, so a document whose coordinates address the packed pages re-maps here and
+ * one whose coordinates already address the art does not.
+ *
+ * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so a caller that moves a
+ * placement must recompose the page for the result to render - no caller pairs that recompose with this
+ * edit yet, so [EditorSession.setAtlasPlacement] stays exercised by tests only.
+ *
+ * A no-op returns the same instance.  So does an edit that cannot be expressed: an unknown tile, a
+ * placement naming a page the document does not have, or a mapping that will not invert (a zero scale,
+ * a zero-sized tile).  Refusing beats writing a placement whose coordinates cannot follow it.
+ *
+ * @param AtlasTileId     tileId    The tile to place.
+ * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
+ * @return PuppetModel The model with the placement and the re-derived coordinates, or [this].
+ */
+fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?): PuppetModel {
+	val tileIndex = atlas.tiles.indexOfFirst { tile -> tile.id == tileId }
+	if (tileIndex < 0) {
+		return this
+	}
+	val tile = atlas.tiles[tileIndex]
+	if (tile.placement == placement) {
+		return this
+	}
+	val storedToArt = atlasUvAffineOf(atlas, tile, tile.placement) ?: return this
+	val artToStored = atlasUvAffineOf(atlas, tile, placement)?.let { affine -> invertUvAffine(affine) } ?: return this
+
+	val movedTiles = atlas.tiles.toMutableList()
+	movedTiles[tileIndex] = tile.copy(placement = placement)
+	val remappedDrawables =
+		drawables.map { drawable ->
+			if (drawable.atlasTileId != tileId) {
+				return@map drawable
+			}
+			val mesh = drawable.mesh ?: return@map drawable
+			// Positions pass through by reference: moving art on a page never moves the mesh.
+			val artUvs = applyUvAffine(mesh.uvs, storedToArt)
+			drawable.copy(mesh = DrawableMesh(mesh.positions, applyUvAffine(artUvs, artToStored), mesh.indices))
+		}
+	return copy(atlas = atlas.copy(tiles = movedTiles), drawables = remappedDrawables)
+}
+
+/**
+ * One tile's coordinate re-derivation across a repack: out of the old mapping's frame, into the new.
+ *
+ * @property FloatArray storedToArt The old stored-to-art mapping.
+ * @property FloatArray artToStored The inverse of the new one.
+ */
+private class AtlasTileRemap(
+	val storedToArt: FloatArray,
+	val artToStored: FloatArray,
+)
+
+/**
+ * This model repacked: the page inventory replaced by [pages], every tile's placement restated from
+ * [placementsByTile], and every bound drawable's texture coordinates re-derived, in one pass.
+ *
+ * The whole-atlas twin of [withAtlasPlacement], and a distinct op because the per-tile edit cannot
+ * change the page list: a tile's old mapping normalizes against the CURRENT pages and its new one
+ * against the REPLACEMENT pages, so folding per-tile edits would read the new mapping off a stale
+ * inventory.  One call is also one history push - a repack is one gesture, not one step per tile.
+ *
+ * Input is validated up front instead of refused tile-by-tile: the placement map must restate every
+ * tile (an explicit null marks it unpacked), every placement must name one of [pages], and a tile
+ * with drawables bound must carry an expressible re-derivation.  The orchestrating repack guarantees
+ * all three - it aborts before mutating when a bound tile cannot come along - so a violation here is
+ * a caller bug, not document state to absorb.  A tile with NO drawables bound may have an
+ * inexpressible mapping (a degenerate imported placement); its placement still installs, and there
+ * are no coordinates to move.
+ *
+ * A tile whose mapping comes out unchanged is left alone entirely, so an untouched drawable's
+ * coordinate arrays pass through by reference rather than picking up float round-trip noise.
+ *
+ * PIXELS ARE NOT MOVED - [withAtlasPlacement]'s rule, unchanged: the caller must compose the new
+ * pages for the result to render.
+ *
+ * @param List pages            The new page inventory.
+ * @param Map  placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @return PuppetModel The repacked model, or [this] when nothing changes.
+ */
+fun PuppetModel.withAtlasRepack(
+	pages: List<AtlasPage>,
+	placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
+): PuppetModel {
+	require(placementsByTile.keys == atlas.tiles.map { tile -> tile.id }.toSet()) {
+		"a repack must restate every tile's placement exactly once"
+	}
+	for ((tileId, placement) in placementsByTile) {
+		if (placement != null) {
+			require(placement.pageIndex in pages.indices) {
+				"tile '${tileId.raw}' names page ${placement.pageIndex} of ${pages.size}"
+			}
+		}
+	}
+	val movedTiles = atlas.tiles.map { tile -> tile.copy(placement = placementsByTile.getValue(tile.id)) }
+	val newAtlas = atlas.copy(pages = pages, tiles = movedTiles)
+	if (newAtlas == atlas) {
+		return this
+	}
+
+	val boundTileIds = drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
+	val remapByTile = HashMap<AtlasTileId, AtlasTileRemap>()
+	for (tile in atlas.tiles) {
+		val movedTile = tile.copy(placement = placementsByTile.getValue(tile.id))
+		val oldAffine = atlasUvAffineOf(atlas, tile, tile.placement)
+		val newAffine = atlasUvAffineOf(newAtlas, movedTile, movedTile.placement)
+		if (oldAffine != null && newAffine != null && oldAffine.contentEquals(newAffine)) {
+			continue
+		}
+		val artToStored = newAffine?.let { affine -> invertUvAffine(affine) }
+		if (oldAffine == null || artToStored == null) {
+			require(tile.id !in boundTileIds) {
+				"tile '${tile.id.raw}' has drawables bound but no expressible re-derivation"
+			}
+			continue
+		}
+		remapByTile[tile.id] = AtlasTileRemap(oldAffine, artToStored)
+	}
+
+	val remappedDrawables =
+		drawables.map { drawable ->
+			val remap = drawable.atlasTileId?.let { tileId -> remapByTile[tileId] } ?: return@map drawable
+			val mesh = drawable.mesh ?: return@map drawable
+			// Positions pass through by reference: moving art on a page never moves the mesh.
+			val artUvs = applyUvAffine(mesh.uvs, remap.storedToArt)
+			drawable.copy(mesh = DrawableMesh(mesh.positions, applyUvAffine(artUvs, remap.artToStored), mesh.indices))
+		}
+	return copy(atlas = newAtlas, drawables = remappedDrawables)
+}
+
+/**
+ * The stored-to-art mapping a tile would have at [placement], ignoring the document's display mode.
+ *
+ * Takes the atlas explicitly rather than a model receiver so a repack can read a tile's OLD mapping
+ * against the current page inventory and its NEW one against the replacement inventory - the page a
+ * placement names supplies the mapping's normalization, so the two reads must not share pages.
+ *
+ * @param PuppetAtlas     atlas     The atlas whose pages the mapping normalizes against.
+ * @param AtlasTile       tile      The tile the mapping belongs to.
+ * @param AtlasPlacement? placement The placement to build it for.
+ * @return FloatArray? The 2x3 affine, or null when it cannot be formed.
+ */
+private fun atlasUvAffineOf(atlas: PuppetAtlas, tile: AtlasTile, placement: AtlasPlacement?): FloatArray? {
+	if (!atlas.storedUvsAddressPages) {
+		// The coordinates address the art itself, so where the art is packed does not enter into them
+		// and a repack leaves them alone.
+		return identityUvAffine()
+	}
+	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
+	if (placement != null && page == null) {
+		return null
+	}
+	val binding = DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)
+	return layerUvAffineOf(binding, tile.width, tile.height)
 }

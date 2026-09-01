@@ -1,10 +1,10 @@
 package org.umamo.ui.viewport
 
 import org.umamo.edit.UvFrame
-import org.umamo.render.DrawableLayerBinding
-import org.umamo.render.identityUvAffine
-import org.umamo.render.invertUvAffine
-import org.umamo.render.layerUvAffineOf
+import org.umamo.runtime.model.DrawableLayerBinding
+import org.umamo.runtime.model.identityUvAffine
+import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.layerUvAffineOf
 
 /**
  * The space a UV editing gesture works in: the display surface's texel size, and how a coordinate

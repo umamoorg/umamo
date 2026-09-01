@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DeformerId
@@ -663,6 +664,29 @@ sealed interface DocumentChange : Change {
 	data class SetSourceLayerDisplay(val fromSourceLayers: Boolean) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.sourceLayerDisplay"
+	}
+
+	/**
+	 * Moves one piece of source art to a new spot on the atlas, re-mapping every drawable over it.
+	 * Document content - a pack is authored - so it marks the document dirty.
+	 *
+	 * @property AtlasTileId tileId The tile that moved.
+	 */
+	data class SetAtlasPlacement(val tileId: AtlasTileId) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.atlasPlacement"
+	}
+
+	/**
+	 * Repacks the whole atlas: a new page inventory, every tile placed anew, every bound drawable
+	 * re-mapped over it.  Document content - the pack is authored - so it marks the document dirty.
+	 *
+	 * @property Int tileCount The number of tiles placed onto the new pages.
+	 * @property Int pageCount The number of pages the repack produced.
+	 */
+	data class RepackAtlas(val tileCount: Int, val pageCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.atlasRepack"
 	}
 }
 

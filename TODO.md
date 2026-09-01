@@ -64,7 +64,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
 	* Wireframe (Object Mode)
 	* Grid - Ability to change scale and divisions.
-	* 3D Cursor
+	* 2D Cursor
 
 ## Object and Mesh Editing
 * Improvements
@@ -78,6 +78,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
+	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 
 ## UV Editor
 * Bugs/Improvements
@@ -85,6 +86,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
 	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
+	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
@@ -318,6 +320,17 @@ is still ahead.
 	only a page index — plus emitting UVs from placements, which is Phase E's. Also pending: downscale-to-fit
 	(a source layer larger than the page cap is reported, not packed) and refitting `Cmo3AtlasUndedup`'s
 	private shelf packer onto the shared one (session C3).
+4. Atlas placement as model state. Built (Phase C session C2, 2026-08-13): `PuppetModel.atlas` carries the
+	pages and tiles with each tile's placement, `Drawable.atlasTileId` names its art, `AtlasPlacement` moved
+	to `:runtime`, CMO3 import fills it, the diff sees it, `EditorSession.setAtlasPlacement` makes it one
+	undoable step that re-derives the UVs over it, and the CMO3 export writes both halves of the entry's
+	transform pair. Container-format knowledge left `:render` entirely. The PRODUCER landed 2026-09-01:
+	`document.repackAtlas` packs through the shared packer and commits pages + placements + re-derived UVs
+	as one undo step, the pages are session state (`SessionAtlasPages` resolves them from the model, so
+	undo/redo swap pixels by restoring it), the engine swaps pages without a service rebuild, and a
+	same-membership repack exports with the CMO3's stored page images patched. Texture-authoring Phase 4's
+	gizmo sits on these seams; still open there: rotation/scale placement lowering, cross-page entry
+	re-homing on export, pack-options UX (Phase 5).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
