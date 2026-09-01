@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,14 +33,14 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.GridConfig
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
-import org.umamo.render.LayerTextures
-import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -90,12 +91,14 @@ private class SourceArtworkGaps {
 	private var plan: LayerDrawPlan = LayerDrawPlan.EMPTY
 	private val undecodable = HashSet<String>()
 	private var reportedCount = 0
+	private var reportedUnavailable = false
 
 	/** Starts over against a new mapping. */
 	fun reset(plan: LayerDrawPlan) {
 		this.plan = plan
 		undecodable.clear()
 		reportedCount = 0
+		reportedUnavailable = false
 	}
 
 	/**
@@ -121,7 +124,31 @@ private class SourceArtworkGaps {
 		// count goes to the log because the notice carries no arguments; the message's job is only to stop
 		// the mix from being silent.
 		UmamoLog.warn("source-artwork display: $total drawable(s) have no usable artwork and stay on the atlas")
-		session.emitNotice("notice.display.partialSourceArtwork")
+		session.emitNotice("notice.display.partialSourceArtwork", NoticePlacement.NearCursor)
+	}
+
+	/**
+	 * Tells the rigger when the requested display mode cannot engage AT ALL, once per mapping.
+	 *
+	 * The renderer's own gate is all or nothing: it engages only when every displayable layer is
+	 * resident, and displayable means the plan maps it and it decodes.  So "nothing displayable" -
+	 * an empty mapping, or every mapped layer undecodable - leaves the mode requested but silently
+	 * never engaging, with the toggle set and the puppet unchanged.  This is that condition computed
+	 * from the producer's own state, mirroring the renderer's wanted-set test exactly.
+	 *
+	 * @param EditorSession session The session carrying the notice.
+	 */
+	fun reportUnavailableIfUnengaged(session: EditorSession) {
+		if (reportedUnavailable) {
+			return
+		}
+		val wanted = plan.layerByteCostByKey.keys - undecodable
+		if (wanted.isNotEmpty()) {
+			return
+		}
+		reportedUnavailable = true
+		UmamoLog.warn("source-artwork display: requested, but no artwork is displayable; the puppet stays on the atlas")
+		session.emitNotice("notice.display.sourceArtworkUnavailable", NoticePlacement.NearCursor)
 	}
 }
 
@@ -133,8 +160,9 @@ private class SourceArtworkGaps {
  * and disposed when it leaves; viewport areas register / resize / navigate against it by id.
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
- * @param PuppetTextures textures The atlas page(s).
- * @param LayerTextures layers The document's source-layer artwork, for the puppet's source-layer display.
+ * @param AtlasPageBinding atlasPages The session's effective atlas pages, paired with their atlas value;
+ *   re-published into the live service when a repack (or its undo) swaps them.
+ * @param SourceArtRasters artRasters The document's source artwork pixels, for the source-artwork display.
  * @param LiveParams liveParams The shared parameter hand-off.
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
@@ -144,18 +172,26 @@ private class SourceArtworkGaps {
 @Composable
 fun rememberPuppetViewportHost(
 	puppet: PuppetModel,
-	textures: PuppetTextures,
-	layers: LayerTextures,
+	atlasPages: AtlasPageBinding,
+	artRasters: SourceArtRasters,
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
 ): PuppetViewportBinding {
+	// The page set is deliberately NOT a key: the session swaps pages mid-document (a repack, or its
+	// undo), and that flows into the LIVE service below - re-keying here would tear down the whole GL
+	// engine and every per-area camera for what is a texture upload.
 	val service =
-		remember(puppet, textures, liveParams) {
-			serviceFactory(puppet, textures, liveParams)
+		remember(puppet, liveParams) {
+			serviceFactory(puppet, atlasPages.textures, liveParams)
 		}
 	DisposableEffect(service) {
 		onDispose { service.dispose() }
+	}
+	// The effective pages, following the session's atlas resolution.  The first fire re-publishes the
+	// construction pair, which the renderer recognizes by identity and skips.
+	LaunchedEffect(service, atlasPages) {
+		service.setAtlasPages(atlasPages)
 	}
 	// Bridge the session's selection to the render thread: push the selected drawable ids (the only kind the
 	// viewport tints) plus the active (last-selected) one, so it re-renders the tint with the active drawable
@@ -205,7 +241,7 @@ fun rememberPuppetViewportHost(
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
 	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
 	// with.
-	val artworkGaps = remember(service, layers) { SourceArtworkGaps() }
+	val artworkGaps = remember(service, artRasters) { SourceArtworkGaps() }
 
 	// Source-artwork display, end to end: work out the mapping, then stream the pixels in behind it.
 	//
@@ -222,7 +258,7 @@ fun rememberPuppetViewportHost(
 	// `delivered` is what makes a mapping rebuild cheap: the renderer keeps every layer the new plan
 	// still maps, so only genuinely new ones need decoding.  collectLatest abandons an in-flight stream
 	// when the mapping changes under it.
-	LaunchedEffect(service, layers) {
+	LaunchedEffect(service, artRasters) {
 		val delivered = HashSet<String>()
 		session.model
 			// The ATLAS is part of the key, not just the drawable set: a placement is model state a repack
@@ -234,6 +270,10 @@ fun rememberPuppetViewportHost(
 					delivered.clear()
 					artworkGaps.reset(LayerDrawPlan.EMPTY)
 					service.setSourceLayerPlan(LayerDrawPlan.EMPTY)
+					if (fromSourceLayers) {
+						// Requested with nothing to show: the toggle is set and nothing on screen moves.
+						artworkGaps.reportUnavailableIfUnengaged(session)
+					}
 					return@collectLatest
 				}
 				val model = session.model.value
@@ -249,7 +289,7 @@ fun rememberPuppetViewportHost(
 					val undecodable = HashSet<String>()
 					withContext(Dispatchers.Default) {
 						for (layerKey in chunk) {
-							val image = layers.decodeRaster(AtlasTileId(layerKey))
+							val image = artRasters.decodeRaster(AtlasTileId(layerKey))
 							if (image == null) {
 								undecodable.add(layerKey)
 							} else {
@@ -263,6 +303,9 @@ fun rememberPuppetViewportHost(
 						artworkGaps.report(session)
 					}
 				}
+				// The fill is complete, so the displayable set is final: a mapping whose every layer
+				// proved undecodable (or that mapped nothing) has left the renderer unengaged for good.
+				artworkGaps.reportUnavailableIfUnengaged(session)
 			}
 	}
 	// Mirror the session's pose into the render-thread hand-off so undo / redo (and any committed scrub)
@@ -356,9 +399,12 @@ fun rememberPuppetViewportHost(
 			object : ViewportHost {
 				@Composable
 				override fun Viewport2D(areaId: String, modifier: Modifier) {
-					val imageFlow = remember(areaId) { service.register(areaId) }
-					val cameraFlow = remember(areaId) { service.cameraFlow(areaId) }
-					DisposableEffect(areaId) {
+					// Keyed on the service too: an area's registration belongs to one service instance, and
+					// a slot remembered across a service swap would keep collecting the disposed engine's
+					// flows and never register with the live one.
+					val imageFlow = remember(areaId, service) { service.register(areaId) }
+					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
+					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }
 					}
 					// The area-death cleanup: a leaf can leave composition MID-GESTURE (a corner-join, a
@@ -537,13 +583,25 @@ fun rememberPuppetViewportHost(
 		// The render-sync seam the UV editor's modal previews stream through: preview pushes go straight
 		// to the render thread (transient, like the Edit overlay's own setModel calls), and resync
 		// restores the session's committed model after a cancel / teardown.
+		// Created once per service/session with the host above, so its preview state lives as long as the
+		// handle every surface reads it through.
 		val renderSync =
 			object : PuppetRenderSync {
+				// Published to the composition as well as the render thread, so a UV area that is not the
+				// one being dragged in follows the gesture instead of waiting for the commit.
+				private val previewState = mutableStateOf<PuppetModel?>(null)
+
+				override val preview: State<PuppetModel?> get() = previewState
+
 				override fun previewModel(model: PuppetModel) {
+					previewState.value = model
 					service.setModel(model)
 				}
 
 				override fun resync() {
+					// Cleared before the renderer is restored: a surface reading the preview must never be
+					// left holding one the renderer has already dropped.
+					previewState.value = null
 					service.setModel(session.model.value)
 				}
 			}

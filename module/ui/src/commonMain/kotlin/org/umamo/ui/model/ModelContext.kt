@@ -1,12 +1,13 @@
 package org.umamo.ui.model
 
+import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
@@ -38,8 +39,24 @@ val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
  * republishes the committed model.  [resync] restores the renderer to the session's committed model
  * after a cancelled or torn-down gesture.  The UV editor drives its modal G / S / R previews through
  * this; the viewport's own overlays reach the service directly and do not need it.
+ *
+ * The preview is published to the COMPOSITION as well as to the render thread, through [preview].  It
+ * has to be: a gesture's own area draws from its local preview and the 2D viewport follows the pushes,
+ * but every other read-only surface derives from [LocalPuppet] and would otherwise sit on the committed
+ * model until the gesture confirmed - a second UV area showing the atlas page stayed frozen while the
+ * same mesh moved in the viewport beside it.
  */
 interface PuppetRenderSync {
+	/**
+	 * The uncommitted model a gesture is currently previewing, or null when none is in flight.
+	 *
+	 * Compose state rather than a flow: it is written from the pointer loop on the main thread and read
+	 * during composition, so a surface that reads it recomposes with the gesture and needs no collector.
+	 * It is NOT session state - nothing here touches history, dirty, or the committed model - so a
+	 * surface that wants the document as SAVED keeps reading [LocalPuppet].
+	 */
+	val preview: State<PuppetModel?>
+
 	/**
 	 * Pushes an uncommitted preview model to the renderer (transient; no undo step).
 	 *
@@ -70,10 +87,19 @@ val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?
 /**
  * The open document's decoded texture atlas pages for the composition, or null when nothing is open.
  * The UV editor reads the full page a drawable samples to draw under its wireframe; the thumbnail
- * provider below serves the cropped-preview case.  Provided by the host from the same extraction the
- * renderer uploads, so the two always show the same texels.
+ * provider below serves the cropped-preview case.  Provided by the host from the SESSION's effective
+ * page set ([SessionAtlasPages]), which is what the renderer shows - so the value changes when a
+ * repack (or its undo) swaps the pages, and the whole subtree recomposes onto the new set.  A repack
+ * is rare, so the static local's wholesale recomposition is the right price for its simplicity.
  */
 val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
+
+/**
+ * The session's atlas-page resolver, or null when nothing is open (or the desync guard built a
+ * fallback session).  The repack command reads it to pre-warm the page cache with the pages it
+ * composed; everything else reads the resolved pages through [LocalPuppetTextures].
+ */
+val LocalSessionAtlasPages = staticCompositionLocalOf<SessionAtlasPages?> { null }
 
 /**
  * The open document's source artwork - the layers the puppet was authored against, before packing -
@@ -86,7 +112,7 @@ val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
  * handed here stays stable for the document's life - which matters, because a static local's change
  * recomposes the whole subtree.
  */
-val LocalLayerTextures = staticCompositionLocalOf<LayerTextures?> { null }
+val LocalSourceArtRasters = staticCompositionLocalOf<SourceArtRasters?> { null }
 
 /**
  * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle].

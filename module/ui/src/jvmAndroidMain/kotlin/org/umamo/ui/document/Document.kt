@@ -8,8 +8,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.LiveParams
@@ -44,24 +44,27 @@ sealed interface PuppetDocument : Document {
 	val textures: PuppetTextures
 
 	/**
-	 * The source artwork the puppet was authored against, plus each drawable's recovered link to it.
+	 * The source artwork's pixels the puppet was authored against, keyed by atlas tile.  Each
+	 * drawable's link to its source tile lives in the model now (`PuppetModel.atlas`), not here - this
+	 * is only the lazy byte supplier.
 	 *
 	 * Empty by default because only a format that retains its source art can surface any: a CMO3 keeps
 	 * every layer's pixels in its graph, while a MOC3 is the packed endpoint of that pipeline and has
 	 * none.  A surface that shows source art therefore checks for emptiness rather than assuming.
 	 */
-	val layers: LayerTextures get() = LayerTextures.EMPTY
+	val artRasters: SourceArtRasters get() = SourceArtRasters.EMPTY
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams
 }
 
 /**
- * This function exists because I managed to somehow export a CMO3 with the puppet model of a previously opened file.
- * So if this ever happens again we will have logged proof it that someone can report.
- *
  * The model an export should write for [document]: the session's edited model when [session] belongs
  * to this document, else the document's own unedited puppet.
+ *
+ * A session left over from a previously opened document would export the WRONG puppet if trusted
+ * blindly, so a mismatch is logged as an error and the document's own unedited puppet is exported
+ * instead - giving logged proof if a desync like that ever recurs.
  *
  * @param PuppetDocument  document The document being exported.
  * @param EditorSession?  session  The shell's current session, if any.

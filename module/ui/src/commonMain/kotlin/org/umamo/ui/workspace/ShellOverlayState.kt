@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.interop.ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.model.AtlasRepackReport
 
 /**
  * A pending confirmation: the localized prompt to show and the action to run if the user confirms.  The
@@ -27,10 +28,10 @@ internal data class ConfirmRequest(
 
 /**
  * The shell's transient overlay flags in one place: which modal chrome (palette, preferences, Help
- * dialogs, confirm dialog, file-open alert, export report) is currently up.  The command handlers
- * toggle these, the modal key ladder routes Escape/Enter by them, the focus-reclaim effect watches
- * their aggregate, and the shell renders the matching overlay for each - one holder instead of seven
- * loose vars, so the pieces that must agree read the same state.
+ * dialogs, confirm dialog, file-open alert, export report, repack refusal report) is currently up.
+ * The command handlers toggle these, the modal key ladder routes Escape/Enter by them, the
+ * focus-reclaim effect watches their aggregate, and the shell renders the matching overlay for each -
+ * one holder instead of eight loose vars, so the pieces that must agree read the same state.
  */
 internal class ShellOverlayState {
 	/** The command palette's visible flag - toggled by palette.toggle. */
@@ -67,6 +68,14 @@ internal class ShellOverlayState {
 	var exportReport: ExportReport? by mutableStateOf(null)
 
 	/**
+	 * The repack refusal report's payload - set by the document.repackReport command when a repack
+	 * aborted over tiles it could not carry, cleared like the open-failure alert.  Null while none
+	 * shows.  Unlike the export report this one is about work that did NOT happen: nothing was
+	 * applied when it shows.
+	 */
+	var repackReport: AtlasRepackReport? by mutableStateOf(null)
+
+	/**
 	 * The export-options dialog's payload - set by the document.exportOptionsMoc3 command when an
 	 * export with options begins, cleared by Cancel, the scrim, Escape, or the Export button (which
 	 * first runs the request's continuation).  Null while none shows.
@@ -99,10 +108,10 @@ internal class ShellOverlayState {
 	}
 
 	/**
-	 * True while a modal alert (confirm dialog, file-open failure, export report) is up.  These do
-	 * NOT hold their own focus - the shell keeps root focus so their Escape/Enter route through the
-	 * modal key ladder.
+	 * True while a modal alert (confirm dialog, file-open failure, export report, repack refusal
+	 * report) is up.  These do NOT hold their own focus - the shell keeps root focus so their
+	 * Escape/Enter route through the modal key ladder.
 	 */
 	val modalAlertOpen: Boolean
-		get() = pendingConfirm != null || openFailure != null || exportReport != null
+		get() = pendingConfirm != null || openFailure != null || exportReport != null || repackReport != null
 }

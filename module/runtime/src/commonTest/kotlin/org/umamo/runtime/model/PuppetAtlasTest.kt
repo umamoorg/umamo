@@ -11,9 +11,10 @@ import kotlin.test.assertTrue
  * art directly, and which page's dimensions the mapping is built against.
  *
  * The packed-versus-direct decision is the load-bearing one.  It used to be read off CMO3 resource
- * identity at import; the model derives it instead, from the document's display mode and whether the
- * tile was packed at all.  Getting it wrong does not fail loudly - it silently swaps a drawable's UV
- * editor between the layer frame and the atlas frame - so each arm is pinned here.
+ * identity at import; the model derives it instead, from whether the document's stored coordinates
+ * address the packed pages ([PuppetAtlas.storedUvsAddressPages]) and whether the tile was packed at
+ * all.  Getting it wrong does not fail loudly - it silently swaps a drawable's UV editor between the
+ * layer frame and the atlas frame - so each arm is pinned here.
  */
 class PuppetAtlasTest {
 	private fun drawable(rawId: String, tileId: String? = null): Drawable =
@@ -82,17 +83,52 @@ class PuppetAtlasTest {
 		)
 	}
 
+	/**
+	 * Which frame the stored coordinates are in is a fact about the FILE, not about what is on screen.
+	 *
+	 * A document whose drawables sample the packed pages has page-space coordinates whether or not the
+	 * rigger is currently looking at the artwork - so toggling the display must not reinterpret them.
+	 * Deriving the frame from the display mode looked right at import, where the two agree, and broke
+	 * the moment anyone flipped the switch: the layer view drew every mesh at its atlas position.
+	 */
 	@Test
-	fun sourceArtworkModeReadsEveryTileDirectlyEvenWhenPacked() {
+	fun theDisplayModeDoesNotReinterpretStoredCoordinates() {
+		val atlas = PuppetAtlas(pages = listOf(AtlasPage(64, 32)), tiles = listOf(packedTile("t0")))
+		val showingAtlas = modelOf(atlas, fromSourceLayers = false, drawables = arrayOf(drawable("a", "t0")))
+		val showingArtwork = showingAtlas.copy(rendersFromSourceLayers = true)
+
+		assertEquals(
+			showingAtlas.atlasBindingFor(showingAtlas.drawables.single()),
+			showingArtwork.atlasBindingFor(showingArtwork.drawables.single()),
+			"the mapping is the same either way - only which texture is sampled differs",
+		)
+		assertNotNull(
+			showingArtwork.atlasBindingFor(showingArtwork.drawables.single())?.placement,
+			"packed art keeps its placement while the artwork is displayed",
+		)
+	}
+
+	/**
+	 * A document saved sampling its per-layer rasters has coordinates that already address the art.
+	 *
+	 * The corpus case is a model saved in combined-layer display mode: a packed atlas sits beside it,
+	 * but the drawables point at the layer images, so inverting a page-space placement over those
+	 * coordinates would throw every mesh thousands of pixels away.
+	 */
+	@Test
+	fun aDocumentWhoseCoordinatesAddressTheArtMapsThroughTheIdentity() {
 		val model =
 			modelOf(
-				PuppetAtlas(pages = listOf(AtlasPage(64, 32)), tiles = listOf(packedTile("t0"))),
-				fromSourceLayers = true,
+				PuppetAtlas(
+					pages = listOf(AtlasPage(64, 32)),
+					tiles = listOf(packedTile("t0")),
+					storedUvsAddressPages = false,
+				),
 				drawables = arrayOf(drawable("a", "t0")),
 			)
 
 		val binding = assertNotNull(model.atlasBindingFor(model.drawables.single()))
-		assertNull(binding.placement, "displaying from the artwork means the uvs address the artwork")
+		assertNull(binding.placement, "the coordinates already address the art, so recovery is the identity")
 	}
 
 	@Test

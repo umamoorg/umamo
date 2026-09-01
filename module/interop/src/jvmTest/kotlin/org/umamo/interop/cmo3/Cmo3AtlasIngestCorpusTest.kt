@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 /**
  * Validates the atlas-placement recovery convention against real files, which is what keeps a sign or
  * ordering error from passing unnoticed: a wrong rotation sign still round-trips (the synthetic tests
- * in LayerTexturesTest cannot catch it), and it is invisible on the axis-aligned majority - only the
+ * in SourceArtRastersTest cannot catch it), and it is invisible on the axis-aligned majority - only the
  * corpus's genuinely rotated packings expose it.
  *
  * The check is the format's own documented composition (docs/format/CMO3.md §6): a model image is
@@ -89,6 +89,39 @@ class Cmo3AtlasIngestCorpusTest {
 			return 0f
 		}
 		return (insideU * insideV) / (spanU * spanV)
+	}
+
+	/**
+	 * Whether the mapping's bounding box fully covers the layer's frame, each edge allowed to fall
+	 * short by [MESH_MARGIN_PIXELS].
+	 *
+	 * The second acceptance shape beside the overlap fraction: a converted document's layer is the
+	 * crop TRIMMED to its opaque pixels, so a mesh with a wide transparent reach maps to a box many
+	 * times the layer's area and the landing fraction goes small - while the box still sits squarely
+	 * OVER the art.  A mis-wired recovery displaces the box off the layer entirely and satisfies
+	 * neither shape.
+	 *
+	 * @param FloatArray layerUvs The recovered layer-frame texture coordinates, interleaved (u, v).
+	 * @param Int layerWidth The layer's width in pixels (converts the margin into this uv frame).
+	 * @param Int layerHeight The layer's height in pixels.
+	 * @return Boolean True when the mapping's box covers the layer's frame within the margin.
+	 */
+	private fun mappingCoversLayer(layerUvs: FloatArray, layerWidth: Int, layerHeight: Int): Boolean {
+		var minU = Float.MAX_VALUE
+		var maxU = -Float.MAX_VALUE
+		var minV = Float.MAX_VALUE
+		var maxV = -Float.MAX_VALUE
+		var componentIndex = 0
+		while (componentIndex + 1 < layerUvs.size) {
+			minU = minOf(minU, layerUvs[componentIndex])
+			maxU = maxOf(maxU, layerUvs[componentIndex])
+			minV = minOf(minV, layerUvs[componentIndex + 1])
+			maxV = maxOf(maxV, layerUvs[componentIndex + 1])
+			componentIndex += 2
+		}
+		val marginU = MESH_MARGIN_PIXELS / layerWidth
+		val marginV = MESH_MARGIN_PIXELS / layerHeight
+		return minU <= marginU && minV <= marginV && maxU >= 1f - marginU && maxV >= 1f - marginV
 	}
 
 	private fun elements(collection: Any?): List<Any?> =
@@ -170,11 +203,14 @@ class Cmo3AtlasIngestCorpusTest {
 				val layerUvs = layerUvsFromAtlasUvs(uvs, binding, layer.width, layer.height) ?: continue
 				checkedMappings++
 				val overlap = frameOverlapFractionOf(layerUvs, layer.width, layer.height)
+				// Either shape says the mapping lands ON its art: mostly inside the layer, or fully
+				// covering it (a trim-tight converted crop under a wide-reaching mesh).
+				val landsOnLayer = overlap >= MINIMUM_FRAME_OVERLAP || mappingCoversLayer(layerUvs, layer.width, layer.height)
 				worstOverlap = minOf(worstOverlap, overlap)
-				if (overlap < MINIMUM_FRAME_OVERLAP) {
+				if (!landsOnLayer) {
 					missedMappings++
 				}
-				if (overlap < MINIMUM_FRAME_OVERLAP && failures.size < 10) {
+				if (!landsOnLayer && failures.size < 10) {
 					failures.add(
 						"${file.name} ${drawable.id.raw} -> ${layer.name}: only $overlap of its mapping lands on the " +
 							"layer (${layer.width}x${layer.height}) on a ${binding.pageWidth}x${binding.pageHeight} " +
@@ -193,6 +229,54 @@ class Cmo3AtlasIngestCorpusTest {
 		assertTrue(boundDrawables > 0, "no drawable bound to a source layer; the drawable join is broken")
 		assertTrue(checkedMappings > 0, "no uv mapping was checked; the recovery is untested against real meshes")
 		assertTrue(failures.isEmpty(), "recovered mappings do not land on their layer:\n" + failures.joinToString("\n"))
+	}
+
+	/**
+	 * Toggling the source-artwork display changes nothing about how coordinates are read.
+	 *
+	 * The display mode picks which texture is sampled; the frame the stored coordinates live in is a
+	 * fact of the file.  Deriving the frame from the mode passed every import-time check - the two agree
+	 * there - and broke the moment a rigger flipped the switch, drawing every mesh in the layer view at
+	 * its atlas position instead of on its artwork.  Checked on real documents in BOTH modes, because
+	 * the corpus carries files saved each way.
+	 */
+	@Test
+	fun theDisplayModeNeverReinterpretsCorpusCoordinates() {
+		val files = corpusFiles()
+		Assume.assumeTrue("[layer-toggle] no cmo3.probe corpus models", files.isNotEmpty())
+
+		var checkedFiles = 0
+		var checkedBindings = 0
+		var placedBindings = 0
+		val failures = mutableListOf<String>()
+		for (file in files) {
+			val root = Cmo3.read(file).root as? CModelSource ?: continue
+			val asSaved = Cmo3Import.fromModelSource(root)
+			if (asSaved.atlas.isEmpty) {
+				continue
+			}
+			checkedFiles++
+			val toggled = asSaved.copy(rendersFromSourceLayers = !asSaved.rendersFromSourceLayers)
+			for (drawable in asSaved.drawables) {
+				val before = asSaved.atlasBindingFor(drawable)
+				val after = toggled.atlasBindingFor(drawable)
+				checkedBindings++
+				if (before?.placement != null) {
+					placedBindings++
+				}
+				if (before != after && failures.size < 10) {
+					failures.add("${file.name} ${drawable.id.raw}: $before became $after when the display flipped")
+				}
+			}
+		}
+
+		println(
+			"[layer-toggle] $checkedFiles art-bearing files, $checkedBindings bindings held across the toggle, " +
+				"$placedBindings of them placed",
+		)
+		assertTrue(checkedFiles > 0, "no corpus file surfaced an atlas; the walk is broken")
+		assertTrue(placedBindings > 0, "no placed binding was checked; the toggle guard would pass vacuously")
+		assertTrue(failures.isEmpty(), "the display mode reinterpreted coordinates:\n" + failures.joinToString("\n"))
 	}
 
 	@Test

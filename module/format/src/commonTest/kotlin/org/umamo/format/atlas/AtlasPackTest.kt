@@ -64,6 +64,125 @@ class AtlasPackTest {
 	}
 
 	@Test
+	fun composingFromPlacementsAloneReproducesThePackedPages() {
+		val items =
+			listOf(
+				opaquePackItem("wide", 12, 4),
+				opaquePackItem("tall", 4, 12),
+				opaquePackItem("square", 7, 7),
+				packItemOfRows("holed", "###", "#.#", "###"),
+			)
+		val options = AtlasPackOptions(maxPageSize = 64)
+
+		val result = packAtlas(items, options)
+		val composed =
+			composeAtlasPages(
+				pageWidths = IntArray(result.pages.size) { pageIndex -> result.pages[pageIndex].width },
+				pageHeights = IntArray(result.pages.size) { pageIndex -> result.pages[pageIndex].height },
+				items = items,
+				placements = result.placements,
+				extrude = options.extrude,
+			)
+
+		assertEquals(result.pages.size, composed.size)
+		for (pageIndex in result.pages.indices) {
+			assertContentEquals(result.pages[pageIndex].rgba, composed[pageIndex].rgba, "page $pageIndex pixels")
+		}
+	}
+
+	@Test
+	fun composingFromPlacementsReproducesAQuarterTurnedPage() {
+		val items = listOf(opaquePackItem("a", 16, 8), opaquePackItem("b", 8, 16))
+		val options = AtlasPackOptions(maxPageSize = 16, gutter = 0, extrude = 0, allowRotation = true)
+
+		val result = packAtlas(items, options)
+		val composed =
+			composeAtlasPages(
+				pageWidths = intArrayOf(result.pages.single().width),
+				pageHeights = intArrayOf(result.pages.single().height),
+				items = items,
+				placements = result.placements,
+				extrude = options.extrude,
+			)
+
+		assertEquals(1, result.placements.count { placement -> placement.quarterTurns == 1 })
+		assertContentEquals(result.pages.single().rgba, composed.single().rgba)
+	}
+
+	@Test
+	fun aReserveSpacesNeighboursWhileThePlacementStaysOnTheTrim() {
+		// Two 4x4 opaque tiles; the first reserves a mesh reach of 20px on every side.  Without the
+		// reserve they pack shoulder to shoulder (gutter apart); with it, nothing may sit inside the
+		// first tile's reserved rect - which extends 20px past its trim in page space.
+		val reach = 20
+		val items =
+			listOf(
+				AtlasPackItem(
+					"reaching",
+					4,
+					4,
+					opaquePackItem("reaching", 4, 4).rgba,
+					AtlasPackReserve(-reach, -reach, 4 + reach, 4 + reach),
+				),
+				opaquePackItem("plain", 4, 4),
+			)
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 256))
+
+		assertEquals(2, result.placements.size)
+		assertTilesRoundTripByteExact(items, result)
+		val reaching = result.placements.first { placement -> placement.key == "reaching" }
+		val plain = result.placements.first { placement -> placement.key == "plain" }
+		// The placement anchors the TRIM, so the reserved margin lies around it on the page.
+		val reservedLeft = reaching.pageX - reach
+		val reservedTop = reaching.pageY - reach
+		val reservedRight = reaching.pageX + reaching.trimWidth + reach
+		val reservedBottom = reaching.pageY + reaching.trimHeight + reach
+		assertTrue(reservedLeft >= 0 && reservedTop >= 0, "the reserve stays on the page")
+		val plainRight = plain.pageX + plain.trimWidth
+		val plainBottom = plain.pageY + plain.trimHeight
+		val outside =
+			plain.pageX >= reservedRight ||
+				plainRight <= reservedLeft ||
+				plain.pageY >= reservedBottom ||
+				plainBottom <= reservedTop
+		assertTrue(
+			outside,
+			"the neighbour must sit outside the reserved rect: plain at (${plain.pageX},${plain.pageY})," +
+				" reserve $reservedLeft..$reservedRight x $reservedTop..$reservedBottom",
+		)
+	}
+
+	@Test
+	fun aReserveLargerThanThePageSkipsTheTile() {
+		val item =
+			AtlasPackItem("vast", 4, 4, opaquePackItem("vast", 4, 4).rgba, AtlasPackReserve(-300, -300, 300, 300))
+
+		val result = packAtlas(listOf(item), AtlasPackOptions(maxPageSize = 128))
+
+		assertEquals(AtlasPackSkipReason.LargerThanPage, result.skipped.single().reason)
+	}
+
+	@Test
+	fun reservesUnderRotationAreRefused() {
+		val item = AtlasPackItem("a", 4, 4, opaquePackItem("a", 4, 4).rgba, AtlasPackReserve(0, 0, 8, 8))
+
+		assertFailsWith<IllegalArgumentException> {
+			packAtlas(listOf(item), AtlasPackOptions(allowRotation = true))
+		}
+	}
+
+	@Test
+	fun composingRefusesAPlacementWhoseExtrusionLeavesThePage() {
+		val item = opaquePackItem("a", 4, 4)
+		val placement = AtlasPackPlacement("a", 0, 1, 1, 0, 0, 4, 4, quarterTurns = 0)
+
+		assertFailsWith<IllegalArgumentException> {
+			composeAtlasPages(intArrayOf(16), intArrayOf(16), listOf(item), listOf(placement), extrude = 2)
+		}
+	}
+
+	@Test
 	fun aTurnedPlacementSwapsItsOnPageExtent() {
 		val placement = AtlasPackPlacement("a", 0, 0, 0, 0, 0, 12, 5, quarterTurns = 1)
 

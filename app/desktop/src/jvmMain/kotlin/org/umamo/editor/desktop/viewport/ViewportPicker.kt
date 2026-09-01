@@ -36,7 +36,9 @@ import org.umamo.ui.model.DrawableThumbnailer
  */
 internal class ViewportPicker(
 	private val renderer: PuppetRenderer,
-	private val textures: PuppetTextures,
+	// var: the session swaps the page set on a repack, and the alpha gate must sample the pixels the
+	// GPU is showing - see setTextures.
+	private var textures: PuppetTextures,
 	model: PuppetModel,
 ) {
 	// Per-drawable triangle indices for hit-testing, restricted to the drawables actually shown (the
@@ -58,6 +60,20 @@ internal class ViewportPicker(
 	// Art-mesh previews for the overlap picker (the same provider the Outliner hover uses). Pure CPU over
 	// the immutable atlas bytes, so it is built once and shared - a single cache across both consumers.
 	private val thumbnailer = DrawableThumbnailer(model, textures)
+
+	/**
+	 * Swaps the atlas page set after a repack (or its undo), so the alpha gate and the thumbnails read
+	 * the pixels the viewport is showing rather than the set the picker was built over.
+	 *
+	 * @param PuppetTextures next The new page set.
+	 */
+	fun setTextures(next: PuppetTextures) {
+		if (next === textures) {
+			return
+		}
+		textures = next
+		thumbnailer.setTextures(next)
+	}
 
 	/**
 	 * Rebuilds the model-derived lookup maps and the thumbnail provider after a committed edit or undo, so

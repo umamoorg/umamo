@@ -1,6 +1,7 @@
 package org.umamo.format.atlas
 
 import org.umamo.format.art.LayerBounds
+import org.umamo.format.raster.RasterImage
 
 /*
  * Pixel composition for the atlas packer: writing one trimmed tile into a page buffer, optionally
@@ -99,4 +100,84 @@ internal fun extrudeTileEdges(
 			page.copyInto(page, destinationOffset, sourceOffset, sourceOffset + 4)
 		}
 	}
+}
+
+/**
+ * Composes atlas pages from already-decided placements.
+ *
+ * This is the packer's own composition loop opened to callers that hold placements rather than a
+ * pack request: [packAtlas] composes through here, and a repack's undo re-derives an earlier page
+ * set through here, so the two can never drift apart.  Placement footprints including their
+ * extrusion are pairwise disjoint (every placement reserves at least [extrude] of gutter on every
+ * side, which the bounds checks below enforce against the page and the packer enforced between
+ * tiles), so the composition is order-independent.
+ *
+ * @param IntArray pageWidths  Page widths in pixels, indexed by [AtlasPackPlacement.pageIndex].
+ * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
+ * @param List     items       The tiles' pixels; every placement's key must resolve here.
+ * @param List     placements  Where each tile goes.
+ * @param Int      extrude     How many pixels of each tile's edge colour are replicated into the gutter.
+ * @return List The composed pages, RGBA8888, in page-index order.
+ */
+public fun composeAtlasPages(
+	pageWidths: IntArray,
+	pageHeights: IntArray,
+	items: List<AtlasPackItem>,
+	placements: List<AtlasPackPlacement>,
+	extrude: Int,
+): List<RasterImage> {
+	require(pageWidths.size == pageHeights.size) {
+		"page width and height lists must be index-parallel: ${pageWidths.size} vs ${pageHeights.size}"
+	}
+	require(extrude >= 0) { "extrude must be non-negative: $extrude" }
+	val itemByKey = items.associateBy { item -> item.key }
+	require(itemByKey.size == items.size) { "atlas pack item keys must be unique" }
+	val pageBuffers = List(pageWidths.size) { pageIndex -> ByteArray(pageWidths[pageIndex] * pageHeights[pageIndex] * 4) }
+	for (placement in placements) {
+		val item = requireNotNull(itemByKey[placement.key]) { "placement '${placement.key}' has no item" }
+		require(placement.quarterTurns in 0..1) {
+			"placement '${placement.key}' has an unsupported rotation: ${placement.quarterTurns} quarter turns"
+		}
+		require(
+			placement.trimLeft >= 0 &&
+				placement.trimTop >= 0 &&
+				placement.trimLeft + placement.trimWidth <= item.width &&
+				placement.trimTop + placement.trimHeight <= item.height,
+		) {
+			"placement '${placement.key}' trims outside its ${item.width}x${item.height} raster"
+		}
+		val pageWidth = pageWidths.getOrNull(placement.pageIndex)
+		val pageHeight = pageHeights.getOrNull(placement.pageIndex)
+		require(pageWidth != null && pageHeight != null) {
+			"placement '${placement.key}' names page ${placement.pageIndex} of ${pageWidths.size}"
+		}
+		require(
+			placement.pageX - extrude >= 0 &&
+				placement.pageY - extrude >= 0 &&
+				placement.pageX + placement.pageWidth + extrude <= pageWidth &&
+				placement.pageY + placement.pageHeight + extrude <= pageHeight,
+		) {
+			"placement '${placement.key}' plus its $extrude px extrusion falls outside its ${pageWidth}x$pageHeight page"
+		}
+		blitTile(
+			page = pageBuffers[placement.pageIndex],
+			pageWidth = pageWidth,
+			sourceRgba = item.rgba,
+			sourceWidth = item.width,
+			trim = LayerBounds(placement.trimLeft, placement.trimTop, placement.trimWidth, placement.trimHeight),
+			destinationX = placement.pageX,
+			destinationY = placement.pageY,
+			quarterTurns = placement.quarterTurns,
+		)
+		extrudeTileEdges(
+			page = pageBuffers[placement.pageIndex],
+			pageWidth = pageWidth,
+			tileX = placement.pageX,
+			tileY = placement.pageY,
+			tileWidth = placement.pageWidth,
+			tileHeight = placement.pageHeight,
+			extrude = extrude,
+		)
+	}
+	return pageBuffers.mapIndexed { pageIndex, buffer -> RasterImage(pageWidths[pageIndex], pageHeights[pageIndex], buffer) }
 }

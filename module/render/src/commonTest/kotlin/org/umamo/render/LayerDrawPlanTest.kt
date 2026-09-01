@@ -126,7 +126,7 @@ class LayerDrawPlanTest {
 	@Test
 	fun buildingThePlanDecodesNothing() {
 		var decodes = 0
-		LayerTextures { _ ->
+		SourceArtRasters { _ ->
 			decodes++
 			onePixelPng()
 		}
@@ -197,7 +197,7 @@ class LayerDrawPlanTest {
 	@Test
 	fun uncachedDecodeSharesNothing() {
 		val tileId = AtlasTileId("layer0")
-		val store = LayerTextures { requested -> if (requested == tileId) onePixelPng() else null }
+		val store = SourceArtRasters { requested -> if (requested == tileId) onePixelPng() else null }
 		val cached = store.rasterFor(tileId)
 		val fresh = store.decodeRaster(tileId)
 		assertNotNull(cached, "the caching path decodes")

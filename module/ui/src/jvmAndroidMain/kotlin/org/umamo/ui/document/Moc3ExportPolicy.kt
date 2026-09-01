@@ -20,9 +20,12 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * Builds the exported MOC3 family for [document] at the picked file name.
  *
- * @param PuppetDocument document        The document being exported (its decoded atlas set, and - for
- *                                       a MOC3 origin - its source manifest and page bytes).
+ * @param PuppetDocument document        The document being exported (for a MOC3 origin, its source
+ *                                       manifest and page bytes).
  * @param PuppetModel    edited          The model to write; see [exportedModelFor].
+ * @param PuppetTextures effectiveTextures The SESSION's page set - the document's own for an
+ *                                       unedited atlas, the recomposed set after a repack - so the
+ *                                       written pages match what the viewport shows.
  * @param String         destinationName The picked file's own name, which the family is named after.
  * @param Moc3ExportOptions options      What the rigger chose to include; the default is the
  *                                       options-less behavior.
@@ -31,19 +34,20 @@ import org.umamo.runtime.model.PuppetModel
 fun prepareMoc3Export(
 	document: PuppetDocument,
 	edited: PuppetModel,
+	effectiveTextures: PuppetTextures,
 	destinationName: String,
 	options: Moc3ExportOptions = Moc3ExportOptions.Default,
 ): Moc3Sidecars.Bundle {
 	// The page binding comes from the decoded atlas set, not the model: a CMO3-origin document has no
 	// page index of its own (see withTexturePagesFrom).
-	val bound = withTexturePagesFrom(edited, document.textures)
+	val bound = withTexturePagesFrom(edited, effectiveTextures)
 	// FileKit appends the extension, so the destination's own name is the family's base name.
 	val basename = Moc3Sidecars.basenameFor(destinationName)
 	val moc3Document = document as? Moc3Document
 	return Moc3Sidecars.bundle(
 		puppet = bound,
 		basename = basename,
-		pages = atlasPagesFor(document.textures, moc3Document, basename),
+		pages = atlasPagesFor(effectiveTextures, moc3Document, basename),
 		sidecars = exportedSidecarsFor(passThroughSidecars(moc3Document), options),
 		source = moc3Document?.manifest,
 		canvasToParentSpace = canvasToParentSpaceFor(bound),
@@ -109,6 +113,9 @@ internal fun atlasPagesFor(
 		val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
 		Moc3Sidecars.AtlasPage(
 			fileName = sourceName ?: "$textureFolder/texture_${paddedPageIndex(pageIndex)}.png",
+			// The verbatim-bytes preference is only reachable for a MOC3-origin document, which the
+			// repack's availability gate excludes (no atlas tiles) - so a recomposed effective set can
+			// never be shadowed by stale retained bytes here.
 			bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
 		)
 	}

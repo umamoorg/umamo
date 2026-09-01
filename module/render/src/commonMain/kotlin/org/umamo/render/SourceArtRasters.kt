@@ -19,7 +19,7 @@ import org.umamo.runtime.model.AtlasTileId
  *
  * @property Function readBytes Yields a tile's encoded pixels, or null when it has none.
  */
-class LayerTextures(
+class SourceArtRasters(
 	private val readBytes: (AtlasTileId) -> ByteArray?,
 ) {
 	// A null value is a remembered failure (no bytes, or bytes that will not decode), which is why this
@@ -72,6 +72,6 @@ class LayerTextures(
 
 	companion object {
 		/** The store a document with no source art surfaces. */
-		val EMPTY: LayerTextures = LayerTextures { null }
+		val EMPTY: SourceArtRasters = SourceArtRasters { null }
 	}
 }

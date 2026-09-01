@@ -5,8 +5,8 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.interop.cmo3.cmo3AtlasPages
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
 import org.umamo.runtime.model.PuppetModel
@@ -24,7 +24,7 @@ class Cmo3Document(
 	val cmo3: Cmo3Model,
 	override val puppet: PuppetModel,
 	override val textures: PuppetTextures,
-	override val layers: LayerTextures,
+	override val artRasters: SourceArtRasters,
 	override val liveParams: LiveParams,
 ) : PuppetDocument
 
@@ -67,6 +67,6 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	// above; this is only the lazy byte supplier, which defers every raster to first request so opening a
 	// model with hundreds of layers costs no more than opening one without.
 	val tileResources = cmo3AtlasIngest(root).imageResourceByTile
-	val layers = LayerTextures { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
-	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, layers, initialLiveParams(puppet)))
+	val artRasters = SourceArtRasters { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
+	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, artRasters, initialLiveParams(puppet)))
 }

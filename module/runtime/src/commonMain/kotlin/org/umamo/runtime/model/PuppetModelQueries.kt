@@ -1,10 +1,12 @@
 package org.umamo.runtime.model
 
 /*
- * Pure per-drawable index queries over a PuppetModel, shared by every platform viewport service
- * (the desktop offscreen renderer today, the Android GLES service when it lands): the pickable
- * geometry sets picking iterates, and the display lookups the overlap picker labels rows with.
- * All derive from the model alone, so services recompute them on each model swap.
+ * Pure per-drawable index queries over a PuppetModel.  The picking-oriented queries are shared by
+ * every platform viewport service (the desktop offscreen renderer today, the Android GLES service
+ * when it lands): the pickable geometry sets picking iterates, and the display lookups the overlap
+ * picker labels rows with.  The atlas queries resolve a drawable's or tile's source-art binding, the
+ * same resolution the renderer and UV editor build on.  All derive from the model alone, so callers
+ * recompute them on each model swap.
  */
 
 /**
@@ -70,9 +72,10 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
  * textures, the UV editor drawing a mapping over the artwork - so the tile lookup, the page lookup, and
  * the packed-versus-direct decision are made once here rather than reassembled at each call site.
  *
- * A drawable renders from a packed page only when the document is in atlas display mode AND its tile
- * was actually packed; otherwise it samples the art directly and the binding carries no placement, so
- * the mapping is the identity.
+ * A placement applies only when the document's stored coordinates address the packed pages and this
+ * tile was actually packed; otherwise the coordinates already address the art and the mapping is the
+ * identity.  The DISPLAY mode is deliberately not consulted - it decides which texture is sampled, not
+ * what the coordinates mean, and reinterpreting them on a toggle drew every mesh at its atlas position.
  *
  * @param Drawable drawable The drawable to resolve.
  * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
@@ -109,7 +112,7 @@ fun PuppetModel.drawableIdsByAtlasTile(): Map<AtlasTileId, List<DrawableId>> {
  */
 fun PuppetModel.atlasBindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
 	val tile = atlas.tileById[tileId] ?: return null
-	val placement = tile.placement?.takeUnless { rendersFromSourceLayers }
+	val placement = tile.placement?.takeIf { atlas.storedUvsAddressPages }
 	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
 	if (placement != null && page == null) {
 		// A placement naming a page the document does not have is broken wiring, not a tile that is

@@ -33,10 +33,11 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
+import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
@@ -85,7 +86,15 @@ import org.umamo.ui.workspace.LocalAreaCameraHub
  */
 @Composable
 internal fun UvEditorSpace(scope: AreaScope) {
-	val model = LocalPuppet.current
+	val committedModel = LocalPuppet.current
+	// The document as it looks RIGHT NOW: the uncommitted model while any area drags a modal gesture,
+	// else the committed one.  Read here rather than only in the area that owns the gesture, because a
+	// second UV editor showing the atlas page has to follow a drag happening over the source artwork -
+	// it stayed frozen until the gesture confirmed, while the 2D viewport beside it moved live.
+	//
+	// Never session state: the preview carries no undo step and never marks the document dirty, so the
+	// surfaces that want the document as SAVED keep reading LocalPuppet.
+	val model = LocalPuppetRenderSync.current?.preview?.value ?: committedModel
 	val session = LocalEditorSession.current
 	val textures = LocalPuppetTextures.current
 	val service = LocalPuppetViewportService.current
@@ -109,7 +118,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// serve it: the active drawable's own art with its mapping recovered onto it.  Null falls the space
 	// back to its page view, so choosing the mode never blanks the editor and a document with no source
 	// art (a MOC3 origin) simply keeps showing pages.
-	val layers = LocalLayerTextures.current
+	val artRasters = LocalSourceArtRasters.current
 	val layerView =
 		if (viewState.textureSelection is UvTextureSelection.SourceLayer) {
 			resolveUvEditorLayer(model, meshSelection, objectSelection)
@@ -204,7 +213,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val frontRank = remember(model) { restFrontRank(model) }
 	val shownImage =
 		if (layerView != null) {
-			layers?.rasterFor(AtlasTileId(layerView.layerKey))
+			artRasters?.rasterFor(AtlasTileId(layerView.layerKey))
 		} else {
 			pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) }
 		}
@@ -227,12 +236,14 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		} else {
 			UvSceneContent.AtlasPage(pageIndex)
 		}
-	val imageFlow = remember(scope.areaId) { service.registerUvScene(scope.areaId, sceneContent) }
+	// Keyed on the service too, like the 2D viewport's registration: a slot remembered across a
+	// service swap would keep collecting the disposed engine's flows and never register with the live one.
+	val imageFlow = remember(scope.areaId, service) { service.registerUvScene(scope.areaId, sceneContent) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
-	val cameraFlow = remember(scope.areaId) { service.cameraFlow(scope.areaId) }
+	val cameraFlow = remember(scope.areaId, service) { service.cameraFlow(scope.areaId) }
 	LaunchedEffect(scope.areaId, sceneContent) { service.setUvSceneContent(scope.areaId, sceneContent) }
-	DisposableEffect(scope.areaId) {
+	DisposableEffect(scope.areaId, service) {
 		onDispose { service.unregister(scope.areaId) }
 	}
 	val image by imageFlow.collectAsState()
