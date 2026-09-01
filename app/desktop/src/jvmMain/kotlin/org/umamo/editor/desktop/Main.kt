@@ -23,6 +23,7 @@ import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.defaultSettingsJson
+import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
@@ -33,6 +34,7 @@ import org.umamo.ui.resources.app_icon
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Applies the `UMAMO_DUMP_PARAMS` environment override (e.g. `ParamAngleX=30,ParamAngleY=-10`) to the
@@ -52,6 +54,29 @@ private fun applyDumpParamOverrides(liveParams: LiveParams) {
 		}
 	}
 	liveParams.values = values.toMap()
+}
+
+/**
+ * Loads the initial document from a `.cmo3`/`.moc3` path and applies the dump-param overrides.
+ *
+ * A function rather than inline code in [main] on purpose: main's frame lives for the whole run
+ * (application {} blocks), and an interpreted frame keeps every local reachable - a document held
+ * in one would stay pinned, retained CMO3 graph and decoded atlas included, long after another
+ * file replaces it.  Loading in a popped frame leaves the holder in [main] as the only reference.
+ *
+ * @param String? initialPath The argv / -Dumamo.testCmo3 path, or null for none.
+ * @return Document? The loaded document, or null when there is no path or the load fails.
+ */
+private fun loadInitialDocument(initialPath: String?): Document? {
+	val path = initialPath ?: return null
+	// A failed initial load falls back to an empty shell (the failure is in the log); the in-app
+	// alert only covers interactive opens, since the shell is not up yet to show it here.
+	val document = (runBlocking { loadDocument(platformFileFromSavedPath(path)) } as? DocumentLoad.Loaded)?.document
+	// The dump-params override applies only to the initially-opened document - it exists for the
+	// headless first-frame dump, which always opens via argv / -Dumamo.testCmo3.  PuppetDocument
+	// covers both CMO3 and MOC3 documents, so a .moc3 argv dump poses correctly too.
+	(document as? PuppetDocument)?.let { applyDumpParamOverrides(it.liveParams) }
+	return document
 }
 
 /**
@@ -79,16 +104,12 @@ fun main(args: Array<String>) {
 		}
 			?: System.getProperty("umamo.testCmo3")
 	// Synchronous load, like the settings below: the window opens with the document already in hand.
-	// A failed initial load falls back to an empty shell (the failure is in the log); the in-app alert
-	// only covers interactive opens, since the shell is not up yet to show it here.
-	val initialDocument =
-		initialPath?.let { path ->
-			(runBlocking { loadDocument(platformFileFromSavedPath(path)) } as? DocumentLoad.Loaded)?.document
-		}
-	// The dump-params override applies only to the initially-opened document - it exists for the
-	// headless first-frame dump, which always opens via argv / -Dumamo.testCmo3.  PuppetDocument
-	// covers both CMO3 and MOC3 documents, so a .moc3 argv dump poses correctly too.
-	(initialDocument as? PuppetDocument)?.let { applyDumpParamOverrides(it.liveParams) }
+	// The document reaches the first composition through a one-shot holder rather than a plain local:
+	// the application closure lives for the whole run, so a direct capture would keep the first
+	// document reachable after the user opens something else.  remember empties the holder on first
+	// composition; only the path string stays behind for the recent-files record.
+	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath))
+	val initialDocumentPath = initialDocumentHolder.get()?.path
 	val storage = desktopAppStorage("umamo")
 	val settings = runBlocking { Settings.load(storage, defaultSettingsJson()) }
 	// Apply the UI language before the window opens so the menu bar (which lives outside the shell's
@@ -97,7 +118,7 @@ fun main(args: Array<String>) {
 	UmamoLog.info("config=${storage.configDirectory}")
 
 	application {
-		var document by remember { mutableStateOf(initialDocument) }
+		var document by remember { mutableStateOf(initialDocumentHolder.getAndSet(null)) }
 		val session = rememberEditorSessionFor(document)
 		// Mirror the session's dirty flag for the title's unsaved marker; produceState runs unconditionally.
 		val dirty by produceState(false, session) {
@@ -110,7 +131,7 @@ fun main(args: Array<String>) {
 		}
 		val windowState = remember { settings.savedWindowState() }
 		// A file opened from the command line is a real "open" - record it in recent files too.
-		LaunchedEffect(Unit) { initialDocument?.let { settings.addRecentFile(it.path) } }
+		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
 
 		fun closeApp() {
 			settings.saveWindowState(windowState)
