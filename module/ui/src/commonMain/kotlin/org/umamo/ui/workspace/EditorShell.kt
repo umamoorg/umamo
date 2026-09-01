@@ -307,9 +307,9 @@ fun EditorShell(
 	//  - structuralEditCount: area-tree edits and popup-invoked workspace CRUD;
 	//  - selfFocusedOverlayOpen / inline edit: reclaim when the palette, preferences, Help dialogs, or an
 	//    inline rename CLOSE (while one is open it owns focus, so the effect waits);
-	//  - modalAlertOpen: the confirm dialog, the file-open alert, and the export report do NOT own focus -
-	//    root focus is (re)claimed on open too, so their Escape/Enter route through the modal ladder while
-	//    open;
+	//  - modalAlertOpen: the confirm dialog, the file-open alert, the export report, and the repack
+	//    refusal report do NOT own focus - root focus is (re)claimed on open too, so their Escape/Enter
+	//    route through the modal ladder while open;
 	//  - menu-bar close: an open menu's popup holds focus and its teardown takes it along.
 	// The two-frame wait lets a closing popup's teardown finish stealing focus first - an immediate
 	// request would be nulled right back out (the menu bar demonstrably needs this; it is harmless for
@@ -479,7 +479,8 @@ fun EditorShell(
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
 					// (so the palette cannot be left open under a menu-bar-launched window).  Painted
 					// bottom-to-top: palette, preferences, the Help dialogs, the export-options dialog, the
-					// file-open alert, the export report, then the confirm dialog (the topmost modal).
+					// file-open alert, the export report, the repack refusal report, then the confirm dialog
+					// (the topmost modal).
 					if (overlays.paletteVisible) {
 						// title == null marks a command as not-a-palette-entry (internal toggles like
 						// palette.toggle / area.dragCancel, and argument-only import commands), and an

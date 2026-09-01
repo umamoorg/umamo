@@ -327,9 +327,9 @@ public fun packAtlas(
 /**
  * Builds pack items from this document's layers, one per layer, keyed by its stable layer id.
  *
- * Layer kind, visibility, and sliver policy are deliberately the caller's: Phase B settled that the
- * analysis never drops a real art layer and the consumer decides what to ingest, and the same rule
- * applies here.  Pass [include] to apply a policy; the default packs every layer.
+ * Layer kind, visibility, and sliver policy are deliberately the caller's: alpha-shape analysis never
+ * drops a real art layer and leaves the consumer to decide what to ingest, and the same rule applies
+ * here.  Pass [include] to apply a policy; the default packs every layer.
  *
  * A duplicate layer id (possible from the PSD name-and-order fallback, where no lyid is written) is
  * disambiguated with the layer's draw order rather than rejected, since the collision is an artifact

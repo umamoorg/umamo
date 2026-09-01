@@ -23,7 +23,7 @@ class DrawableLayerDraw(val layerKey: String, val uvAffine: FloatArray)
  * because its mapping never went away, and [unresolvedDrawableCount] keeps meaning "no artwork
  * exists" rather than drifting into "not resident right now".
  *
- * Cheap to build and cheap to hold: [layerByteCostByKey] comes from the store's inventory sizes, so
+ * Cheap to build and cheap to hold: [layerByteCostByKey] comes from the model's atlas tile sizes, so
  * the cost of every image is known BEFORE any of them decode, which is what makes a budget
  * enforceable up front instead of after the memory is already spent.
  *

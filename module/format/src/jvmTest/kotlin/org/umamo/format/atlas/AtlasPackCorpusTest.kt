@@ -113,7 +113,7 @@ class AtlasPackCorpusTest {
 			}
 		// Oversized layers are printed rather than asserted away: real source art does contain a
 		// layer wider than a 4096 page (ricardo_en.clip), and the packer reporting it is the
-		// contract - packing it would need downscaling, which C1 deliberately does not do.
+		// contract - packing it would need downscaling, which the packer deliberately does not do.
 		val oversized = result.skipped.filter { skip -> skip.reason == AtlasPackSkipReason.LargerThanPage }
 		val oversizedNote =
 			if (oversized.isEmpty()) {

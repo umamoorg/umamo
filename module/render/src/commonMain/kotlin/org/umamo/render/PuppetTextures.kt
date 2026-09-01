@@ -63,10 +63,11 @@ enum class UndecodablePagePolicy {
  * Builds the [PuppetTextures] for a puppet from its atlas page bytes and a per-drawable index into
  * them - the format-agnostic core both ingest paths end at.
  *
- * Each format's adapter ([cmo3PuppetTextures], [moc3PuppetTextures]) does its own walk to produce
- * these two arguments and then hands them here, so the decode, the page-index validation, and the
- * PuppetTextures shape are written once.  Nothing about this function knows a format; it is
- * deliberately reachable with hand-built arguments so tests need no corpus file.
+ * Each format's own atlas-page walk (`cmo3AtlasPages`, `moc3AtlasPages`, in `:interop`) produces a
+ * neutral `AtlasPageSet` that the document loader unpacks into these two arguments and hands here, so
+ * the decode, the page-index validation, and the PuppetTextures shape are written once.  Nothing about
+ * this function knows a format; it is deliberately reachable with hand-built arguments so tests need
+ * no corpus file.
  *
  * @param List<ByteArray>       pageBytes              The PNG bytes per atlas page, in index order.
  * @param Map<String, Int>      atlasIndexByDrawableId Drawable id (`ArtMesh…`) → index into [pageBytes].

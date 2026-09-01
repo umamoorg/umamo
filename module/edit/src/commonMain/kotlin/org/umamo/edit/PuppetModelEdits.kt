@@ -771,7 +771,8 @@ fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
  * one whose coordinates already address the art does not.
  *
  * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so a caller that moves a
- * placement must recompose the page for the result to render - which is why nothing calls this yet.
+ * placement must recompose the page for the result to render - no caller pairs that recompose with this
+ * edit yet, so [EditorSession.setAtlasPlacement] stays exercised by tests only.
  *
  * A no-op returns the same instance.  So does an edit that cannot be expressed: an unknown tile, a
  * placement naming a page the document does not have, or a mapping that will not invert (a zero scale,

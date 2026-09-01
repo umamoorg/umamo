@@ -3,7 +3,8 @@ package org.umamo.cli
 import kotlin.system.exitProcess
 
 /*
- * The Umamo diagnostic CLI: dump / convert / diff over cmo3 and moc3 files.
+ * The Umamo diagnostic CLI: dump / extract / atlas / convert / diff over cmo3, moc3, and source
+ * artwork files.
  *
  * Replaces the diagnostic-tests-in-disguise workflow (Cmo3ResaveDumpTest's -Dcmo3.resave, ad-hoc
  * probe printlns) with a proper operator tool.  Data goes to stdout, diagnostics to stderr; exit 0
