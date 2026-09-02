@@ -2,19 +2,16 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
-import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
-import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
@@ -23,9 +20,7 @@ import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
-import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.AtlasTileField
 import org.umamo.interop.DeformerField
@@ -646,27 +641,11 @@ internal class Cmo3PropertyLowering(
 			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
 			return
 		}
-		val entryByTileId = HashMap<String, ModelImageEntry>()
-		for (atlas in Cmo3Import.elementsOf(textureManager._textureAtlases).filterIsInstance<CTextureAtlas>()) {
-			for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
-				val guid = (entry.modelImageGuid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
-				entryByTileId[guid] = entry
-			}
-		}
+		// Indexed fresh here rather than shared with the web reconcile, which runs first and moves
+		// entries between atlases.  The canvas placement it carries is the fixed point every rewritten
+		// transform pair has to keep composing to (see indexAtlasWeb).
+		val web = indexAtlasWeb(textureManager)
 		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id }
-		// CMO3: CModelImage field _materialLocalToCanvasTransform - where the art sits on the CANVAS.
-		// A repack moves art on the page and never on the canvas, so this is the fixed point the
-		// rewritten transform pair has to keep composing to.  The FULL affine, not just its
-		// translation: an official file's model images are pure translations, but a converted graph
-		// carries the original packing's linear part here, and the composition must reproduce it.
-		val canvasAffineByTileId = HashMap<String, FloatArray>()
-		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
-				val guid = (modelImage.guid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
-				val canvas = modelImage._materialLocalToCanvasTransform as? CAffine ?: continue
-				canvasAffineByTileId[guid] = floatArrayOf(canvas.m00, canvas.m01, canvas.m02, canvas.m10, canvas.m11, canvas.m12)
-			}
-		}
 
 		for (diff in diffs) {
 			when (diff) {
@@ -690,12 +669,12 @@ internal class Cmo3PropertyLowering(
 						// which is the whole lowering a null placement takes.
 						continue
 					}
-					val entry = entryByTileId[diff.id.raw]
+					val entry = web.siteByTileId[diff.id.raw]?.entry
 					if (placement == null || entry == null) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 						continue
 					}
-					val canvasAffine = canvasAffineByTileId[diff.id.raw]
+					val canvasAffine = web.canvasAffineByTileId[diff.id.raw]
 					if (canvasAffine == null) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 						continue
@@ -717,22 +696,10 @@ internal class Cmo3PropertyLowering(
 	 * @param FloatArray      canvasAffine Where the art sits on the CANVAS, which does not move.
 	 */
 	private fun lowerAtlasEntry(entry: ModelImageEntry, placement: AtlasPlacement, canvasAffine: FloatArray) {
-		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - a GTransform2 whose position is
-		// the packing origin in page pixels, scale the packer's resampling, and eulerAngle its rotation
-		// in DEGREES.
+		// CMO3: ModelImageEntry field materialLocalToAtlasTransform - written into the entry's EXISTING
+		// GTransform2 when it has one, so the element keeps its instance.
 		val transform = (entry.materialLocalToAtlasTransform as? GTransform2) ?: GTransform2()
-		transform.position =
-			GVector2().apply {
-				x = placement.positionX
-				y = placement.positionY
-			}
-		transform.scale =
-			GVector2().apply {
-				x = placement.scaleX
-				y = placement.scaleY
-			}
-		transform.eulerAngle = placement.rotationDegrees
-		entry.materialLocalToAtlasTransform = transform
+		entry.materialLocalToAtlasTransform = Cmo3ImageChainBuilder.writePacking(transform, placement)
 		editor.ensureChildSlot(entry, "ModelImageEntry", "materialLocalToAtlasTransform", "atlasLocalToCanvasTransform")
 
 		// CMO3: ModelImageEntry field atlasLocalToCanvasTransform - the other half of the composition.
@@ -753,12 +720,7 @@ internal class Cmo3PropertyLowering(
 			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAtlasEntryToReconcile)
 			return
 		}
-		canvasTransform.m00 = composed[0]
-		canvasTransform.m01 = composed[1]
-		canvasTransform.m02 = composed[2]
-		canvasTransform.m10 = composed[3]
-		canvasTransform.m11 = composed[4]
-		canvasTransform.m12 = composed[5]
+		canvasTransform.setFromAffineArray(composed)
 		editor.ensureChildSlot(entry, "ModelImageEntry", "atlasLocalToCanvasTransform", null)
 	}
 

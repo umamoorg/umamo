@@ -43,8 +43,8 @@ val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
  * The preview is published to the COMPOSITION as well as to the render thread, through [preview].  It
  * has to be: a gesture's own area draws from its local preview and the 2D viewport follows the pushes,
  * but every other read-only surface derives from [LocalPuppet] and would otherwise sit on the committed
- * model until the gesture confirmed - a second UV area showing the atlas page stayed frozen while the
- * same mesh moved in the viewport beside it.
+ * model until the gesture confirmed - a second UV area showing the atlas page must move with the mesh
+ * the viewport beside it is moving.
  */
 interface PuppetRenderSync {
 	/**

@@ -3,7 +3,6 @@ package org.umamo.ui.document
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
-import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -47,7 +46,8 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 		UmamoLog.error("failed to open $path: the CMO3 has no model source")
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}
-	val puppet = Cmo3Import.fromModelSource(root)
+	val imported = Cmo3Import.importModelSource(root)
+	val puppet = imported.puppet
 	// The atlas walk takes the root plus a pixel lookup rather than the Cmo3Model itself, which is what
 	// keeps it in :interop's commonMain; the archive-backed lookup is the only JVM-bound half and it is
 	// supplied from here.  Decoding is the renderer's, and a CMO3 skips a page that will not decode
@@ -63,10 +63,11 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 			pageSet.premultipliedAlpha,
 			UndecodablePagePolicy.Skip,
 		) ?: PuppetTextures(emptyList(), emptyMap(), pageSet.premultipliedAlpha)
-	// The source artwork's PIXELS.  Its inventory and placements are model state now, read by the import
-	// above; this is only the lazy byte supplier, which defers every raster to first request so opening a
-	// model with hundreds of layers costs no more than opening one without.
-	val tileResources = cmo3AtlasIngest(root).imageResourceByTile
+	// The source artwork's PIXELS.  Its inventory and placements are model state, read by the import
+	// above (whose one atlas walk also yields the per-tile resources); this is only the lazy byte
+	// supplier, which defers every raster to first request so opening a model with hundreds of layers
+	// costs no more than opening one without.
+	val tileResources = imported.atlasIngest.imageResourceByTile
 	val artRasters = SourceArtRasters { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
 	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, artRasters, initialLiveParams(puppet)))
 }

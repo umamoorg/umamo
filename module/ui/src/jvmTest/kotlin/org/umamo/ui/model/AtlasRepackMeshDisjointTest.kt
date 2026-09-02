@@ -28,7 +28,7 @@ import kotlin.test.assertTrue
  * to 58px past the trim, and 127 of 128 meshes past the raster itself), so a pack spaced by trims
  * put 308 tile pairs over each other and hung meshes off the page edge.  The official editor's own
  * packing keeps mesh footprints disjoint (its only overlaps are deliberate duplicate-art sharing),
- * which is the behaviour the mesh reserve reproduces.  This drives the SHIPPED input path
+ * which is the behavior the mesh reserve reproduces.  This drives the SHIPPED input path
  * (buildRepackPackInput), so what it proves disjoint is exactly what the command packs.
  */
 class AtlasRepackMeshDisjointTest {

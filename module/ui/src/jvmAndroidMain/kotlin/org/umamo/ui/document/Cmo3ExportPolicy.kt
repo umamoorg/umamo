@@ -2,7 +2,6 @@ package org.umamo.ui.document
 
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.RecomposedAtlasPage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.PuppetModel
@@ -54,8 +53,8 @@ fun prepareCmo3Export(
 		is Cmo3Document -> {
 			val recomposedPages =
 				if (effectiveTextures !== document.textures) {
-					effectiveTextures.atlases.mapIndexed { pageIndex, page ->
-						RecomposedAtlasPage(pageIndex, encodeAtlasPng(page), page.width, page.height)
+					effectiveTextures.atlases.map { page ->
+						Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height)
 					}
 				} else {
 					emptyList()

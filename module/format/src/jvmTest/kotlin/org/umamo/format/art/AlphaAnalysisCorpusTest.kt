@@ -1,8 +1,5 @@
 package org.umamo.format.art
 
-import org.umamo.format.clip.ClipReader
-import org.umamo.format.kra.KraReader
-import org.umamo.format.psd.PsdReader
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,32 +19,9 @@ import kotlin.test.assertTrue
  * drops vertices.
  */
 class AlphaAnalysisCorpusTest {
-	/**
-	 * Locates every layered corpus sample with the reader that decodes it.
-	 *
-	 * @return List<Pair<File, ArtReader>> The samples, empty when no corpus is present.
-	 */
-	private fun locateSamples(): List<Pair<File, ArtReader>> {
-		var directory: File? = File(System.getProperty("user.dir"))
-		while (directory != null) {
-			val corpus = File(directory, "test/corpus")
-			if (corpus.isDirectory) {
-				val samples = mutableListOf<Pair<File, ArtReader>>()
-				for ((subdirectory, reader) in listOf("psd" to PsdReader, "clip" to ClipReader, "krita" to KraReader)) {
-					File(corpus, subdirectory).listFiles { file -> file.isFile }
-						?.sortedBy { file -> file.name }
-						?.forEach { file -> samples.add(file to reader) }
-				}
-				return samples
-			}
-			directory = directory.parentFile
-		}
-		return emptyList()
-	}
-
 	@Test
 	fun analysisInvariantsHoldOnCorpusLayers() {
-		val samples = locateSamples()
+		val samples = locateLayeredCorpusSamples()
 		if (samples.isEmpty()) {
 			println("no test/corpus directory; skipping alpha-analysis corpus test")
 			return

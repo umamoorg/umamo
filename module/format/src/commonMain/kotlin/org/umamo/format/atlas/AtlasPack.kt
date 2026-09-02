@@ -27,9 +27,9 @@ import org.umamo.format.raster.RasterImage
  *
  * The pixels alone do not bound what samples a tile: an art mesh rings OUTSIDE the opaque region
  * (and routinely outside the raster itself), so a pack spaced by opaque bounds alone puts one
- * tile's mesh footprint over its neighbour's art.  A reserve carries that reach into the pack: the
+ * tile's mesh footprint over its neighbor's art.  A reserve carries that reach into the pack: the
  * tile's reservation becomes the union of its opaque trim and this rect, so anything inside it
- * lands on the tile's own transparent margin rather than on a neighbour.
+ * lands on the tile's own transparent margin rather than on a neighbor.
  *
  * Coordinates are raster-local like a trim's, edges exclusive on the right and bottom, and MAY be
  * negative or exceed the raster - a mesh's reach is not confined to its art.
@@ -86,7 +86,7 @@ public class AtlasPackItem(
  *
  * @property Int     maxPageSize         The square page side pages are packed against, in pixels.
  * @property Int     gutter              Transparent spacing reserved around every tile and at the page border.
- * @property Int     extrude             How many pixels of each tile's edge colour are replicated into the gutter.
+ * @property Int     extrude             How many pixels of each tile's edge color are replicated into the gutter.
  * @property Boolean allowRotation       Whether a tile may be quarter-turned to pack tighter.
  * @property Boolean powerOfTwoPages     Whether final page dimensions round up to a power of two.
  * @property Boolean squarePages         Whether final pages are square, as every corpus atlas is.
@@ -298,9 +298,9 @@ public fun packAtlas(
 		val item = items[slot.itemIndex]
 		val trim = checkNotNull(trims[slot.itemIndex]) { "packed tile '${item.key}' has no trim" }
 		val reserve = checkNotNull(reserves[slot.itemIndex]) { "packed tile '${item.key}' has no reserve" }
-		// The placement records the TRIM's page position, exactly as before reserves existed: the
-		// reservation only spaces neighbours further apart, so everything downstream of the placement
-		// (the lowering, the composition, the derivation) is untouched by it.
+		// The placement records the TRIM's page position, not the reservation's: the reservation only
+		// spaces neighbors further apart, so everything downstream of the placement (the lowering, the
+		// composition, the derivation) never sees it.
 		placementByItemIndex[slot.itemIndex] =
 			AtlasPackPlacement(
 				key = item.key,

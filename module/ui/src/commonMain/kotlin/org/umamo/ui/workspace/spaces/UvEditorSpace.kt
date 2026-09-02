@@ -89,8 +89,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val committedModel = LocalPuppet.current
 	// The document as it looks RIGHT NOW: the uncommitted model while any area drags a modal gesture,
 	// else the committed one.  Read here rather than only in the area that owns the gesture, because a
-	// second UV editor showing the atlas page has to follow a drag happening over the source artwork -
-	// it stayed frozen until the gesture confirmed, while the 2D viewport beside it moved live.
+	// second UV editor showing the atlas page has to follow a drag happening over the source artwork
+	// live, the way the 2D viewport beside it does, rather than wait for the gesture to confirm.
 	//
 	// Never session state: the preview carries no undo step and never marks the document dirty, so the
 	// surfaces that want the document as SAVED keep reading LocalPuppet.

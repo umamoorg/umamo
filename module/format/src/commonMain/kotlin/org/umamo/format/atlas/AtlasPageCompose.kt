@@ -62,7 +62,7 @@ internal fun blitTile(
 /**
  * Replicates a placed tile's edge pixels outward into the surrounding gutter.
  *
- * Bilinear sampling at a tile's border reads half a texel past it; without this the neighbouring
+ * Bilinear sampling at a tile's border reads half a texel past it; without this the neighboring
  * tile's artwork bleeds in.  The caller guarantees room by reserving a gutter of at least [extrude]
  * on every side, so no clamping against the page edge is needed here - and a silent clamp would hide
  * exactly the arithmetic mistake this is most likely to make.
@@ -73,7 +73,7 @@ internal fun blitTile(
  * @param Int       tileY      The placed tile's top edge on the page.
  * @param Int       tileWidth  The placed tile's width on the page (post-rotation).
  * @param Int       tileHeight The placed tile's height on the page (post-rotation).
- * @param Int       extrude    How many pixels of edge colour to replicate on every side.
+ * @param Int       extrude    How many pixels of edge color to replicate on every side.
  */
 internal fun extrudeTileEdges(
 	page: ByteArray,
@@ -116,7 +116,7 @@ internal fun extrudeTileEdges(
  * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
  * @param List     items       The tiles' pixels; every placement's key must resolve here.
  * @param List     placements  Where each tile goes.
- * @param Int      extrude     How many pixels of each tile's edge colour are replicated into the gutter.
+ * @param Int      extrude     How many pixels of each tile's edge color are replicated into the gutter.
  * @return List The composed pages, RGBA8888, in page-index order.
  */
 public fun composeAtlasPages(

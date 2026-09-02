@@ -2,12 +2,9 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
-import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.format.cmo3.model.gen.AutoLayoutLock
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
-import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
@@ -16,10 +13,7 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
-import org.umamo.format.cmo3.model.identity.Guid
-import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
@@ -75,13 +69,6 @@ internal class Cmo3AtlasWebLowering(
 		}
 	}
 
-	/** One tracked entry: the element, the atlas that currently holds it, and that atlas's index. */
-	private class EntrySite(
-		val entry: ModelImageEntry,
-		val atlas: CTextureAtlas,
-		val atlasIndex: Int,
-	)
-
 	/** One drawable source whose region input must be rewritten for its tile's new placement. */
 	private class RetargetCandidate(
 		val source: CArtMeshSource,
@@ -100,10 +87,10 @@ internal class Cmo3AtlasWebLowering(
 	/**
 	 * Reconciles the atlas web onto [recomposedPages], or declines whole.
 	 *
-	 * @param List recomposedPages The pages composed for the edited model's packing.
+	 * @param List recomposedPages The pages composed for the edited model's packing, in its page order.
 	 * @return Result Whether the reconcile ran, and whether it dropped structure.
 	 */
-	fun reconcile(recomposedPages: List<RecomposedAtlasPage>): Result {
+	fun reconcile(recomposedPages: List<Cmo3Conversion.AtlasPage>): Result {
 		if (recomposedPages.isEmpty()) {
 			return Result.Declined
 		}
@@ -114,57 +101,27 @@ internal class Cmo3AtlasWebLowering(
 			return Result.Declined
 		}
 		val newPageCount = edited.atlas.pages.size
-		// The pages are the EDITED model's inventory: same count, indices covering it exactly.  The
-		// patch stays authoritative on dimensions, matching the reuse arm's existing contract.
+		// The pages are the EDITED model's inventory, in its own page order: same count, positionally
+		// indexed.  The patch stays authoritative on dimensions, matching the reuse arm's existing
+		// contract.
 		if (recomposedPages.size != newPageCount) {
 			return Result.Declined
 		}
-		val pageByIndex = arrayOfNulls<RecomposedAtlasPage>(newPageCount)
-		for (page in recomposedPages) {
-			if (page.pageIndex !in 0 until newPageCount || pageByIndex[page.pageIndex] != null) {
-				return Result.Declined
-			}
-			pageByIndex[page.pageIndex] = page
-		}
 
 		// --- Gather the web. ---
-		// CMO3: CTextureAtlas field modelImages -> ModelImageEntry field modelImageGuid.  Which atlas
-		// holds an entry IS the tile's page membership.  A guid-less or guid-duplicated entry cannot
-		// be tracked against the model; it stays where it sits and only constrains page deletion.
-		val siteByTileId = HashMap<String, EntrySite>()
-		val strayEntryAtlasIndices = ArrayList<Int>()
-		for ((atlasIndex, member) in atlasList.withIndex()) {
-			val atlas = member as CTextureAtlas
-			for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
-				val uuid = (entry.modelImageGuid as? Guid)?.uuid?.takeIf { candidate -> candidate.isNotEmpty() }
-				if (uuid == null || siteByTileId.containsKey(uuid)) {
-					strayEntryAtlasIndices.add(atlasIndex)
-				} else {
-					siteByTileId[uuid] = EntrySite(entry, atlas, atlasIndex)
-				}
-			}
-		}
-		// CMO3: CModelImage field _materialLocalToCanvasTransform - the art's canvas placement, the
-		// FULL affine (a converted graph carries the packing's linear part in it).
-		val canvasAffineByTileId = HashMap<String, FloatArray>()
-		val modelImageByTileId = HashMap<String, CModelImage>()
-		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
-			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
-				val uuid = (modelImage.guid as? Guid)?.uuid?.takeIf { candidate -> candidate.isNotEmpty() } ?: continue
-				modelImageByTileId[uuid] = modelImage
-				val canvas = modelImage._materialLocalToCanvasTransform as? CAffine ?: continue
-				canvasAffineByTileId[uuid] =
-					floatArrayOf(canvas.m00, canvas.m01, canvas.m02, canvas.m10, canvas.m11, canvas.m12)
-			}
-		}
+		val web = indexAtlasWeb(textureManager)
+		val siteByTileId = web.siteByTileId
+		val strayEntryAtlasIndices = web.strayEntryAtlasIndices
+		val canvasAffineByTileId = web.canvasAffineByTileId
+		val modelImageByTileId = web.modelImageByTileId
 
 		// --- Classify every edited tile; ANY gap declines whole. ---
 		val baselinePlacementByTileId = baseline.atlas.tiles.associateBy({ tile -> tile.id.raw }, { tile -> tile.placement })
 		val editedTileIds = HashSet<String>()
 		val changedPlacementByTileId = HashMap<String, Pair<AtlasPlacement?, AtlasPlacement>>()
 		val boundTileIds = edited.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId?.raw }
-		val moves = ArrayList<Pair<EntrySite, AtlasPlacement>>()
-		val packOuts = ArrayList<EntrySite>()
+		val moves = ArrayList<Pair<AtlasEntrySite, AtlasPlacement>>()
+		val packOuts = ArrayList<AtlasEntrySite>()
 		val packInPlacementByTileId = LinkedHashMap<String, AtlasPlacement>()
 		for (tile in edited.atlas.tiles) {
 			val tileId = tile.id.raw
@@ -233,7 +190,7 @@ internal class Cmo3AtlasWebLowering(
 		val packInCandidates = ArrayList<PackInCandidate>()
 		val existingTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 		for (mesh in artMeshes) {
-			val drawableId = (mesh.id as? Id)?.idstr?.takeIf { candidate -> candidate.isNotEmpty() } ?: continue
+			val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
 			val texture = mesh.texture as? GTexture2D
 			if (texture != null) {
 				// The page's ONE shared texture, found by resource identity - the same rule the
@@ -252,12 +209,12 @@ internal class Cmo3AtlasWebLowering(
 			val extension =
 				Cmo3Import.elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
 			val tileId =
-				(
+				Cmo3Import.uuidOf(
 					Cmo3Import.elementsOf(extension._textureInputs)
 						.filterIsInstance<CTextureInput_ModelImage>()
 						.firstOrNull()
-						?._modelImageGuid as? Guid
-				)?.uuid ?: continue
+						?._modelImageGuid,
+				) ?: continue
 			val region =
 				Cmo3Import.elementsOf(extension._textureInputs)
 					.filterIsInstance<CTextureInput_TextureAtlasRegion>()
@@ -297,21 +254,11 @@ internal class Cmo3AtlasWebLowering(
 		val oldEntryHalfByTileId = HashMap<String, FloatArray>()
 		for (tileId in changedPlacementByTileId.keys) {
 			val entryHalf = siteByTileId.getValue(tileId).entry.atlasLocalToCanvasTransform as? CAffine ?: continue
-			oldEntryHalfByTileId[tileId] =
-				floatArrayOf(entryHalf.m00, entryHalf.m01, entryHalf.m02, entryHalf.m10, entryHalf.m11, entryHalf.m12)
+			oldEntryHalfByTileId[tileId] = entryHalf.toAffineArray()
 		}
 		val oldInputByRegion = IdentityHashMap<CTextureInput_TextureAtlasRegion, FloatArray>()
 		for (candidate in candidates) {
-			oldInputByRegion.getOrPut(candidate.region) {
-				floatArrayOf(
-					candidate.input.m00,
-					candidate.input.m01,
-					candidate.input.m02,
-					candidate.input.m10,
-					candidate.input.m11,
-					candidate.input.m12,
-				)
-			}
+			oldInputByRegion.getOrPut(candidate.region) { candidate.input.toAffineArray() }
 		}
 
 		// 2. Reuse retained pages in model order: bytes always, the dimension web on a resize.  The
@@ -320,7 +267,7 @@ internal class Cmo3AtlasWebLowering(
 		val retainedCount = minOf(atlasList.size, newPageCount)
 		for (pageIndex in 0 until retainedCount) {
 			val atlas = atlasList[pageIndex] as CTextureAtlas
-			val page = checkNotNull(pageByIndex[pageIndex])
+			val page = recomposedPages[pageIndex]
 			// CMO3: CTextureAtlas field cachedAtlasImage - the page's CImageResource.
 			val resource = atlas.cachedAtlasImage as? CImageResource ?: return Result.Declined
 			if (resource.imageFileBuf == null) {
@@ -343,7 +290,7 @@ internal class Cmo3AtlasWebLowering(
 		// 3. Mint pages past the retained count, with the fresh conversion's own builders.
 		val mintedTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 		for (pageIndex in atlasList.size until newPageCount) {
-			val page = checkNotNull(pageByIndex[pageIndex])
+			val page = recomposedPages[pageIndex]
 			val path = target.nextImageFileBufPath()
 			val resource = Cmo3ImageChainBuilder.pageImageResource(path, page.width, page.height, page.pngBytes.size)
 			target.addLayerPng(resource, page.pngBytes)
@@ -379,38 +326,12 @@ internal class Cmo3AtlasWebLowering(
 					"pack-in tile '$tileId' lost its composition after validation"
 				}
 			val entry =
-				ModelImageEntry().apply {
-					// CMO3: ModelImageEntry fields atlas / modelImageGuid / autoLayoutLock /
-					// atlasLocalToCanvasTransform / materialLocalToAtlasTransform.  The guid is the
-					// model image's OWN instance, so the writer shares it like the editor's files;
-					// autoLayoutLock is the enum the official reader class-casts.
-					atlas = destination
-					modelImageGuid = modelImage.guid
-					autoLayoutLock = AutoLayoutLock.NONE
-					atlasLocalToCanvasTransform =
-						CAffine().apply {
-							m00 = entryHalf[0]
-							m01 = entryHalf[1]
-							m02 = entryHalf[2]
-							m10 = entryHalf[3]
-							m11 = entryHalf[4]
-							m12 = entryHalf[5]
-						}
-					materialLocalToAtlasTransform =
-						GTransform2().apply {
-							position =
-								GVector2().apply {
-									x = newPlacement.positionX
-									y = newPlacement.positionY
-								}
-							scale =
-								GVector2().apply {
-									x = newPlacement.scaleX
-									y = newPlacement.scaleY
-								}
-							eulerAngle = newPlacement.rotationDegrees
-						}
-				}
+				Cmo3ImageChainBuilder.packedEntry(
+					atlas = destination,
+					modelImageGuid = modelImage.guid,
+					atlasLocalToCanvas = affineOf(entryHalf),
+					packing = Cmo3ImageChainBuilder.writePacking(GTransform2(), newPlacement),
+				)
 			mutableGraphListOf(destination.modelImages)?.add(entry)
 		}
 
@@ -469,12 +390,7 @@ internal class Cmo3AtlasWebLowering(
 					atlasLocalToCanvasFor(canvasAffine, newPlacement)
 				}
 			checkNotNull(newInput) { "tile '${candidate.tileId}' lost its input re-fit after validation" }
-			candidate.input.m00 = newInput[0]
-			candidate.input.m01 = newInput[1]
-			candidate.input.m02 = newInput[2]
-			candidate.input.m10 = newInput[3]
-			candidate.input.m11 = newInput[4]
-			candidate.input.m12 = newInput[5]
+			candidate.input.setFromAffineArray(newInput)
 		}
 
 		// 9. Pack-in drawables: a fresh region input into the EXISTING extension (the shape
@@ -498,15 +414,7 @@ internal class Cmo3AtlasWebLowering(
 					optionalTransformOnCanvas = CAffine()
 					_owner = candidate.extension
 					textureAtlasGuid = destination.guid
-					inputImageLocalToCanvasTransform =
-						CAffine().apply {
-							m00 = inputAffine[0]
-							m01 = inputAffine[1]
-							m02 = inputAffine[2]
-							m10 = inputAffine[3]
-							m11 = inputAffine[4]
-							m12 = inputAffine[5]
-						}
+					inputImageLocalToCanvasTransform = affineOf(inputAffine)
 				}
 			mutableGraphListOf(candidate.extension._textureInputs)?.add(region)
 			if (!edited.rendersFromSourceLayers) {

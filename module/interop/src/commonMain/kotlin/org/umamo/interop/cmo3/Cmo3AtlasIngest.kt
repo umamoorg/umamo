@@ -16,7 +16,6 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
-import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.runtime.model.AtlasPage
@@ -83,7 +82,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	for ((pageIndex, atlas) in atlases.withIndex()) {
 		for (entry in Cmo3Import.elementsOf(atlas.modelImages).filterIsInstance<ModelImageEntry>()) {
 			// CMO3: ModelImageEntry field modelImageGuid - the join back to the pooled model image.
-			val modelImageGuid = (entry.modelImageGuid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
+			val modelImageGuid = Cmo3Import.uuidOf(entry.modelImageGuid) ?: continue
 			// CMO3: ModelImageEntry field materialLocalToAtlasTransform - the packer's work, as a
 			// GTransform2 (position, scale, eulerAngle in DEGREES).  Absent scale defaults to 1: a
 			// GTransform2 with no scale child is the unscaled case, not a collapse to zero.
@@ -112,7 +111,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	val knownTileIds = HashSet<String>()
 	for (modelImage in modelImages) {
 		// CMO3: CModelImage field guid - the key every binding and placement references.
-		val key = (modelImage.guid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
+		val key = Cmo3Import.uuidOf(modelImage.guid) ?: continue
 		// CMO3: CModelImage field _filteredImage - the baked composite raster, carrying its own
 		// dimensions, so the inventory needs no decode.  An image with no resource has no art to show
 		// and no size to place, so it is not a tile at all.
@@ -140,7 +139,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	val tileIdByDrawableId = HashMap<String, AtlasTileId>()
 	var anyDrawableSamplesAPage = false
 	for (mesh in artMeshes) {
-		val drawableId = (mesh.id as? Id)?.idstr?.takeIf { candidate -> candidate.isNotEmpty() } ?: continue
+		val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
 		// CMO3: CTextureInputExtension field _textureInputs -> CTextureInput_ModelImage field
 		// _modelImageGuid.  A drawable carrying only an atlas-region input (no model image) has no
 		// source art and is simply absent from the map.
@@ -149,7 +148,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		val modelImageInput =
 			Cmo3Import.elementsOf(extension._textureInputs).filterIsInstance<CTextureInput_ModelImage>().firstOrNull()
 				?: continue
-		val key = (modelImageInput._modelImageGuid as? Guid)?.uuid?.takeIf { uuid -> uuid.isNotEmpty() } ?: continue
+		val key = Cmo3Import.uuidOf(modelImageInput._modelImageGuid) ?: continue
 		if (key !in knownTileIds) {
 			continue
 		}
