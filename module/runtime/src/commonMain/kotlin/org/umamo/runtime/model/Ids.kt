@@ -31,3 +31,13 @@ value class ParameterGroupId(val raw: String)
 
 @JvmInline
 value class KeyformId(val raw: String)
+
+/**
+ * One piece of source art in the document's atlas.
+ *
+ * Distinct from a source-LAYER identity, which says which artwork file and layer a tile came from:
+ * this only names a tile within one document, and the two coincide only for a rig built from layered
+ * art in the first place.
+ */
+@JvmInline
+value class AtlasTileId(val raw: String)

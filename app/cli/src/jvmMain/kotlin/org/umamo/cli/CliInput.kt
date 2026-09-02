@@ -1,6 +1,8 @@
 package org.umamo.cli
 
 import org.umamo.format.FormatRegistry
+import org.umamo.format.art.ArtReader
+import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -8,6 +10,8 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
+import org.umamo.format.raster.RasterCodec
+import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
@@ -29,6 +33,13 @@ internal sealed interface LoadedInput {
 
 	/** A MOC3 runtime document plus whatever family files sat beside it. */
 	class Moc3Input(val document: MocDocument, val family: Moc3Family) : LoadedInput
+
+	/**
+	 * Layered or flat source artwork: PSD, CLIP, KRA, or any of the flat raster formats read as a
+	 * single-layer document.  It carries no rig - there is no source-art to PuppetModel bridge yet
+	 * (pipeline Phase E) - so only artwork-side commands accept it.
+	 */
+	class SourceArtInput(val art: SourceArt, val file: File) : LoadedInput
 }
 
 /**
@@ -70,10 +81,14 @@ internal fun loadInput(path: String): LoadedInput {
 		return loadMoc3(mocFile, manifestFile = inputFile, manifest = manifest)
 	}
 	val bytes = inputFile.readBytes()
-	return when (FormatRegistry.detect(bytes, inputFile.name)) {
+	return when (val codec = FormatRegistry.detect(bytes, inputFile.name)) {
 		Cmo3 -> LoadedInput.Cmo3Input(Cmo3.read(bytes), bytes)
 		Moc3 -> loadMoc3(inputFile, manifestFile = null, manifest = null)
-		else -> throw CliUsageException("Unsupported input format: $path (expected cmo3, moc3, or model3.json)")
+		is ArtReader -> LoadedInput.SourceArtInput(codec.read(bytes), inputFile)
+		// A flat raster becomes a one-layer document, which is what makes `atlas cover.png` mean
+		// something rather than being rejected for lacking layers.
+		is RasterCodec -> LoadedInput.SourceArtInput(rasterToSourceArt(codec.read(bytes), inputFile.nameWithoutExtension), inputFile)
+		else -> throw CliUsageException("Unsupported input format: $path (expected cmo3, moc3, model3.json, or source artwork)")
 	}
 }
 
@@ -143,7 +158,74 @@ internal fun importPuppet(loaded: LoadedInput): PuppetModel =
 	when (loaded) {
 		is LoadedInput.Cmo3Input -> Cmo3Import.fromModelSource(loaded.model.root as CModelSource)
 		is LoadedInput.Moc3Input -> restMeshesToCanvasSpace(Moc3Import.fromMocDocument(loaded.document, loaded.family.displayInfo))
+		is LoadedInput.SourceArtInput ->
+			throw CliUsageException(
+				"${loaded.file.name} is source artwork, which carries no rig; try `atlas` (a source-art to " +
+					"PuppetModel bridge is pipeline Phase E and does not exist yet)",
+			)
 	}
+
+/**
+ * One command line split into positionals, boolean flags, and valued options.
+ *
+ * @property List positionals The non-flag arguments, in order.
+ * @property Set flags        The boolean flags present, with their leading dashes.
+ * @property Map options      The `--key=value` options, keyed with their leading dashes.
+ */
+internal class CliArguments(
+	val positionals: List<String>,
+	val flags: Set<String>,
+	val options: Map<String, String>,
+) {
+	/**
+	 * Reads one valued option as an integer.
+	 *
+	 * @param String name        The option name, with its leading dashes.
+	 * @param Int defaultValue   The value to use when the option is absent.
+	 * @return Int The parsed value.
+	 */
+	fun intOption(name: String, defaultValue: Int): Int {
+		val raw = options[name] ?: return defaultValue
+		return raw.toIntOrNull() ?: throw CliUsageException("$name expects a whole number, got '$raw'")
+	}
+}
+
+/**
+ * Splits a command line, rejecting anything the caller did not declare.
+ *
+ * Unknown flags are a usage error rather than being ignored, so a mistyped option cannot silently
+ * produce output the operator believes was generated some other way.
+ *
+ * @param List arguments   The subcommand's raw arguments.
+ * @param Set knownFlags   The boolean flags this subcommand accepts, with leading dashes.
+ * @param Set knownOptions The `--key=value` options this subcommand accepts, with leading dashes.
+ * @return CliArguments The split command line.
+ */
+internal fun parseArguments(arguments: List<String>, knownFlags: Set<String>, knownOptions: Set<String>): CliArguments {
+	val positionals = mutableListOf<String>()
+	val flags = mutableSetOf<String>()
+	val options = mutableMapOf<String, String>()
+	for (argument in arguments) {
+		if (!argument.startsWith("--")) {
+			positionals.add(argument)
+			continue
+		}
+		val separatorIndex = argument.indexOf('=')
+		if (separatorIndex < 0) {
+			if (argument !in knownFlags) {
+				throw CliUsageException("unknown flag '$argument'")
+			}
+			flags.add(argument)
+			continue
+		}
+		val name = argument.substring(0, separatorIndex)
+		if (name !in knownOptions) {
+			throw CliUsageException("unknown option '$name'")
+		}
+		options[name] = argument.substring(separatorIndex + 1)
+	}
+	return CliArguments(positionals, flags, options)
+}
 
 /**
  * Formats a float like C's printf %.6g (what dump_model.c prints), so dump output stays diffable

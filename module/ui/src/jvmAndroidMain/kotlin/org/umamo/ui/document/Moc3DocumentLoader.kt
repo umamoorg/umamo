@@ -12,8 +12,10 @@ import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.interop.moc3.import.moc3AtlasPages
 import org.umamo.render.PuppetTextures
-import org.umamo.render.moc3PuppetTextures
+import org.umamo.render.UndecodablePagePolicy
+import org.umamo.render.buildPuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
@@ -171,8 +173,17 @@ internal fun buildMoc3Document(
 				return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))
 			}
 		}
+	// A MOC3's pages are sibling files named by the manifest, so one that will not decode means the
+	// family on disk is incomplete or mismatched - an import error to surface, not a puppet to render
+	// half of.  Hence Fail here where the CMO3 loader passes Skip.
+	val pageSet = moc3AtlasPages(mocDocument, pageBytes)
 	val textures =
-		moc3PuppetTextures(mocDocument, pageBytes)
+		buildPuppetTextures(
+			pageSet.pageBytes,
+			pageSet.atlasIndexByDrawableId,
+			pageSet.premultipliedAlpha,
+			UndecodablePagePolicy.Fail,
+		)
 			?: run {
 				UmamoLog.warn("cannot import $path: an atlas page failed to decode")
 				return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.MissingTexture, name))

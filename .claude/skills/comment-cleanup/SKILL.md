@@ -1,5 +1,5 @@
 ---
-description: Sweep a branch's changed files against a base ref and fix comments/docblocks that no longer describe current code — stale claims, leftover planning/phase language, bug-narrative diary comments, wrong CMO3/MOC3 field citations, and incomplete docblocks. Batches large branches across parallel background agents. Use when asked to "clean up comments," "fix comments on this branch," or before merging a branch that accumulated debugging-session comment cruft.
+description: Sweep a branch's changed files against a base ref and fix comments/docblocks that no longer describe current code — stale claims, leftover planning/phase language, bug-narrative diary comments, irrelevant comparisons to unrelated tools/projects, wrong CMO3/MOC3 field citations, and incomplete docblocks. Batches large branches across parallel background agents. Use when asked to "clean up comments," "fix comments on this branch," or before merging a branch that accumulated debugging-session comment cruft.
 argument-hint: [base-ref]
 ---
 
@@ -43,14 +43,14 @@ targeted diff, and re-reviewing already-clean content wastes the pass.
 
 Every delegated agent prompt must include, verbatim or adapted:
 - The exact file list for its batch (absolute repo-relative paths).
-- The six categories from §3, each with the concrete calibration example from §5.
+- The seven categories from §3, each with the concrete calibration example from §5.
 - The explicit "what not to do" list from §4.
 - An instruction to flag suspected real code bugs as `POSSIBLE CODE BUG: file:line — reason`
   instead of fixing them.
 - A word budget on the final report (400–700 words depending on batch size) so N parallel reports
   don't blow the orchestrating session's context on consolidation.
 
-## 3. What counts as a fix (six categories)
+## 3. What counts as a fix (seven categories)
 
 **(A) Staleness.** A comment/docblock describes behavior, a signature, a nullability, a module
 location, or a control-flow path that no longer matches the code beneath it. Includes dangling
@@ -110,6 +110,31 @@ never had one** — that's a different task, not this one.
 indentation (a nested function at 4 tabs instead of 1, relative to its scope) or a duplicate
 comment block sitting next to the new one that replaced it. Cheap to spot with `cat -A` on the
 touched region; fix as pure whitespace, zero semantic risk.
+
+**(G) Irrelevant tool/project comparisons.** A comment justifies a file's or function's existence
+or design by contrasting it with what some unrelated tool or project does or doesn't do — "this is
+the pipeline node Umamo owns and Blender does not," "unlike Photoshop," "which no other rigging
+tool does" — where the comparison itself carries no technical information about this code's actual
+behavior. A comment describes the purpose of the code in front of the reader, not a scorecard
+against unrelated software. Fix by deleting the comparison and keeping only the real technical
+rationale; if the comparison was the entire reason given, replace it with the actual reason (read
+the surrounding code or the relevant `docs/plan/`/`docs/format/` doc to find it) rather than
+leaving a bare, now-shorter claim. Example fix applied in this project:
+
+```
+- * This is the pipeline node Umamo owns and Blender does not - because the 2D source art hands us
+- * each piece's opaque silhouette before packing, the atlas can be generated rather than authored
+- * by hand and reconciled.
++ * Because the 2D source art hands us each piece's opaque silhouette before packing, the atlas can
++ * be generated rather than authored by hand and reconciled.
+```
+
+**Do not touch a comparison that names an actual compatibility or fidelity target** — "matches the
+official Cubism Editor's export ordering," "unlike the CMO3 v3 schema, v4 adds a blend-shape
+table" — those name a concrete constraint the code is built to satisfy (per the Fidelity contract
+in CLAUDE.md), not a rhetorical aside about an unrelated project. The test is whether the named
+project is the thing this code interoperates with or is bounded by (Cubism/CMO3/MOC3 for this
+codebase), not whether a proper noun appears in the sentence.
 
 ## 4. What not to do
 

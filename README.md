@@ -158,23 +158,28 @@ Reverse engineered file formats have documentation in the [docs/format/](docs/fo
 
 #### Diagnostic CLI
 
-The `:cli` module (`app/cli`) is a headless dump, convert, and diff tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
+The `:cli` module (`app/cli`) is a headless dump, convert, diff, and atlas packing tool over the same CODEC and conversion stack the editor uses.  Run it through Gradle; relative paths resolve against the repository root.  Always pass `-q` so Gradle's own build output stays out of the tool's output.  The tool writes data to stdout and diagnostics to stderr.  The convert command will **overwrite WITHOUT confirmation**.
 
 ```bash
-./gradlew -q :cli:run --args="dump model.moc3"            #Static-rig summary
-./gradlew -q :cli:run --args="dump model.moc3 --sections" #Container tier: per-section presence + counts
-./gradlew -q :cli:run --args="dump model.cmo3"            #CAFF entry table + main.xml overview
-./gradlew -q :cli:run --args="dump model.cmo3 --xml"      #Decompressed main.xml, byte-for-byte (Redirectable)
-./gradlew -q :cli:run --args="dump model.cmo3 --puppet"   #Import to PuppetModel and summarize (Either format)
-./gradlew -q :cli:run --args="extract model.cmo3 out/"    #Unpack the archive (Plaintext main.xml + layer PNGs) into out/model/
-./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"   #Resave (An unedited main.xml will reemit byte-identical.)
-./gradlew -q :cli:run --args="convert in.moc3 out.moc3"   #Rebake (Fresh synthesis, NOT byte-identical by design.)
-./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"   #Full family: moc3 + model3.json + cdi3.json + textures
-./gradlew -q :cli:run --args="convert in.moc3 out.cmo3"   #Fresh-graph synthesis (Always reports MissingSourceArt)
-./gradlew -q :cli:run --args="diff a.cmo3 b.moc3"         #Semantic per-entity diff of two models
+./gradlew -q :cli:run --args="dump model.moc3"               #Static-rig summary
+./gradlew -q :cli:run --args="dump model.moc3 --sections"    #Container tier: per-section presence + counts
+./gradlew -q :cli:run --args="dump model.cmo3"               #CAFF entry table + main.xml overview
+./gradlew -q :cli:run --args="dump model.cmo3 --xml"         #Decompressed main.xml, byte-for-byte (Redirectable)
+./gradlew -q :cli:run --args="dump model.cmo3 --puppet"      #Import to PuppetModel and summarize (Either format)
+./gradlew -q :cli:run --args="dump art.psd"                  #Artwork canvas, folders, per-layer inventory + trimmed bounds
+./gradlew -q :cli:run --args="extract model.cmo3 out/"       #Unpack the archive (Plaintext main.xml + layer PNGs) into out/model/
+./gradlew -q :cli:run --args="atlas art.psd out/"            #Pack the layers into out/art/page_NN.png + placements.txt
+./gradlew -q :cli:run --args="atlas art.clip out/ --preview" #Also recomposite the canvas from the packed pages.
+./gradlew -q :cli:run --args="convert in.cmo3 out.cmo3"      #Resave (An unedited main.xml will reemit byte-identical.)
+./gradlew -q :cli:run --args="convert in.moc3 out.moc3"      #Rebake (Fresh synthesis, NOT byte-identical by design.)
+./gradlew -q :cli:run --args="convert in.cmo3 out.moc3"      #Full family: moc3 + model3.json + cdi3.json + textures
+./gradlew -q :cli:run --args="convert in.moc3 out.cmo3"      #Fresh-graph synthesis (Always reports MissingSourceArt)
+./gradlew -q :cli:run --args="diff a.cmo3 b.moc3"            #Semantic per-entity diff of two models
 ```
 
 A moc3 input may also be given as its `.model3.json` manifest; textures and sidecars(cdi3/physics3/pose3/userdata3) are discovered through the manifest's file references.
+
+Both `dump` and `atlas` accept source layered artwork(`.psd`, `.clip`, `.kra`) or any flat raster read as a one-layer document.  The `atlas` command takes `--page-size=N`, `--gutter=N`, `--extrude=N`, `--rotate`, `--visible-only`, and `--no-shrink`.  It reads every packed tile back out of its page and exits non-zero if any byte differs and reports layers it could not pack(no opaque pixels, or larger than a page) rather than dropping them silently.
 
 #### Running Tests
 

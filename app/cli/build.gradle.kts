@@ -1,4 +1,5 @@
-// :cli (app/cli) — the headless diagnostic tool: dump / convert / diff over cmo3 and moc3 files.
+// :cli (app/cli) — the headless diagnostic tool: dump / extract / atlas / convert / diff over cmo3,
+// moc3, and source artwork files.
 // JVM-only on purpose: it is an operator's tool, not a shipping app target.  It deliberately avoids
 // :ui (whose document layer drags in Compose via LiveParams) and :edit — everything it needs is the
 // :interop conversion surface plus :render's space/texture helpers.
@@ -37,4 +38,8 @@ tasks.register<JavaExec>("run") {
 	// Relative file arguments should resolve against the repo root the operator invoked from, not
 	// this subproject's directory (JavaExec's default).
 	workingDir = repositoryRoot
+	// The atlas packer holds every source layer's pixels plus the pages it composes, and a real
+	// document is hundreds of megabytes of raster before a single page is allocated.  The JVM
+	// default (a quarter of RAM) is not something to leave to the operator's machine.
+	maxHeapSize = "6g"
 }

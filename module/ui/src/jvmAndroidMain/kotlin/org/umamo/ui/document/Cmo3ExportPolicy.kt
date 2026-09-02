@@ -2,6 +2,7 @@ package org.umamo.ui.document
 
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
+import org.umamo.render.PuppetTextures
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.PuppetModel
 
@@ -27,6 +28,9 @@ import org.umamo.runtime.model.PuppetModel
  *
  * @param PuppetDocument document     The document being exported.
  * @param PuppetModel    edited       The model to write; see [exportedModelFor].
+ * @param PuppetTextures effectiveTextures The SESSION's page set; recomposed pages reach the
+ *                                    archive through it, and the document's own instance means
+ *                                    the archive is left untouched.
  * @param String         modelName    The display name a synthesized skeleton records.
  * @param Long           nowMillis    The timestamp a synthesized image chain records.
  * @param Int            obfuscateKey The container XOR key; the editor mints one per save.
@@ -35,13 +39,28 @@ import org.umamo.runtime.model.PuppetModel
 fun prepareCmo3Export(
 	document: PuppetDocument,
 	edited: PuppetModel,
+	effectiveTextures: PuppetTextures,
 	modelName: String,
 	nowMillis: Long,
 	obfuscateKey: Int,
 ): PreparedCmo3Export =
 	when (document) {
-		// A CMO3-origin document reconciles onto its retained graph.
-		is Cmo3Document -> PreparedCmo3Export(document.cmo3, Cmo3Export.apply(edited, document.cmo3))
+		// A CMO3-origin document reconciles onto its retained graph.  The page patch is gated by
+		// INSTANCE identity: the session's resolver republishes the document's own textures whenever
+		// the atlas sits at its imported baseline (an unedited document, or a repack undone), so
+		// passing pages here happens exactly when the session composed new ones - the strict gate the
+		// byte-identity contract needs.
+		is Cmo3Document -> {
+			val recomposedPages =
+				if (effectiveTextures !== document.textures) {
+					effectiveTextures.atlases.map { page ->
+						Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height)
+					}
+				} else {
+					emptyList()
+				}
+			PreparedCmo3Export(document.cmo3, Cmo3Export.apply(edited, document.cmo3, recomposedPages = recomposedPages))
+		}
 		// A MOC3-origin document has no retained graph: synthesize a fresh one from the blank skeleton
 		// + the retained atlas pages, then reconcile onto it.
 		is Moc3Document -> {

@@ -1,17 +1,23 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
@@ -21,6 +27,7 @@ import org.umamo.runtime.model.opacity
 import org.umamo.runtime.model.screenColor
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
@@ -323,6 +330,65 @@ class PropertyScalarEditsTest {
 		session.setSourceLayerDisplay(false)
 		assertFalse(session.canUndo.value)
 		assertFalse(session.dirty.value)
+	}
+
+	/**
+	 * Packing art at a new spot is one undo step, and the coordinates over it follow.
+	 *
+	 * The mesh's uvs address the PAGE, so moving the art without moving them would silently re-point the
+	 * mesh at whatever now sits at the old spot.  Asserting the round trip - move, then move back - is
+	 * what pins that: the coordinates must land where they started.
+	 */
+	@Test
+	fun sessionSetAtlasPlacementCommitsOneStepAndCarriesTheCoordinates() {
+		val tileId = AtlasTileId("tile0")
+		val original = AtlasPlacement(0, 0f, 0f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
+		val moved = AtlasPlacement(0, 32f, 16f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
+		val meshed =
+			drawable.copy(
+				mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 1f), floatArrayOf(0f, 0f, 0.25f, 0.5f), intArrayOf(0, 0, 0)),
+				atlasTileId = tileId,
+			)
+		val packed =
+			model().copy(
+				drawables = listOf(meshed),
+				atlas =
+					PuppetAtlas(
+						pages = listOf(AtlasPage(64, 64)),
+						tiles = listOf(AtlasTile(tileId, "Art", 16, 16, original)),
+					),
+			)
+		val session = EditorSession(packed)
+		val storedBefore = session.model.value.drawables.single().mesh!!.uvs.copyOf()
+
+		session.setAtlasPlacement(tileId, moved)
+		assertEquals(moved, session.model.value.atlas.tiles.single().placement, "the tile moved")
+		assertTrue(session.dirty.value, "a pack is document content, so it dirties")
+		assertEquals("change.document.atlasPlacement", DocumentChange.SetAtlasPlacement(listOf(tileId)).labelKey)
+		assertFalse(
+			session.model.value.drawables.single().mesh!!.uvs.contentEquals(storedBefore),
+			"the stored coordinates followed the art rather than staying put",
+		)
+
+		session.setAtlasPlacement(tileId, original)
+		assertContentEquals(
+			storedBefore,
+			session.model.value.drawables.single().mesh!!.uvs,
+			"moving the art back restores the coordinates it started with",
+		)
+
+		session.undo()
+		session.undo()
+		assertEquals(original, session.model.value.atlas.tiles.single().placement)
+		assertFalse(session.dirty.value, "undo restores the saved model instance")
+
+		// The tile is already there, so this edit changes nothing.
+		session.setAtlasPlacement(tileId, original)
+		assertFalse(session.canUndo.value)
+
+		// An unknown tile is refused rather than half-applied.
+		session.setAtlasPlacement(AtlasTileId("gone"), moved)
+		assertFalse(session.canUndo.value)
 	}
 
 	@Test

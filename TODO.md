@@ -64,7 +64,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
 	* Wireframe (Object Mode)
 	* Grid - Ability to change scale and divisions.
-	* 3D Cursor
+	* 2D Cursor
 
 ## Object and Mesh Editing
 * Improvements
@@ -78,6 +78,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
+	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 
 ## UV Editor
 * Bugs/Improvements
@@ -85,10 +86,15 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
 	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
+	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
+	* Pixels outside of the canvas still need to render.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
+
+## Operation Settings Modal
+* When doing an operation that has settings an in viewport overlay modal should appear in the bottom left.  For example, by default Repack Atlas uses the default settings with no rotation, but the modal would allow changing those settings after the fact.(Which would rerun the operation.)  This is like Blender's operation overlay modal that appears.  I'm not a fan of having to rerun operations twice though since it essentially has to call undo on the history and then do the corrected operation again which wastes time.
 
 ## Context Issues
 * If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
@@ -303,17 +309,36 @@ with CMO3 read/write as the interop boundary and UMA as the native format that a
 decoupling. The front half (steps 1–4) currently only works via a pre-baked CMO3; the native art-first path
 is still ahead.
 
-1. Source-art ingest → neutral model. Built: PSD/KRA readers produce `SourceArt` (LayerId / LayerBounds /
-	LayerBlend). Pending: a `SourceArt` → `PuppetModel` path (no fromPsd/fromLayered exists). Layer bounds
-	place each drawable; layer pixels become the texture. See § Import.
+1. Source-art ingest → neutral model. Built: PSD/CLIP/KRA readers produce `SourceArt` (LayerId / LayerBounds /
+	LayerBlend). Pending, and NEXT (Phase E, decided 2026-09-02): a `SourceArt` → `PuppetModel` path (no
+	fromPsd/fromLayered exists). Layer bounds place each drawable, a bounding quad over the trimmed bounds is
+	the birth mesh, the pack runs at open through the shipped repack chain, and the source-layer key persists
+	on the `AtlasTile`. See § Import.
 2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
 	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
 	contour) comes from `analyzeAlpha` in `:format` — Phase B, shared with step 3.
-3. Atlas generation / packing. Pending: no packer exists yet (today the atlas is inherited from the imported
-	CMO3 — `extractPuppetTextures`). Pack layer tiles into page(s), emit UVs pointing at the tiles; hold the
-	vertex→art-pixel binding invariant across every repack. Foundation built: the trimmed pack rects come from
-	`analyzeAlpha` (Phase B).
+3. Atlas generation / packing. Built (Phase C session C1, 2026-08-12): `packAtlas` in `:format` commonMain
+	(`org.umamo.format.atlas`) trims via `analyzeAlpha`, MaxRects-packs with a configurable gutter/extrusion,
+	composes and encodes the pages, and reports every layer it could not pack. Verified byte-exact by
+	`AtlasPackCorpusTest` and by the `atlas` CLI subcommand on every run. Pending: downscale-to-fit (a source
+	layer larger than the page cap is reported, not packed), rotation in the repack (the packer has it, the
+	placement derivation refuses it until switched on), and refitting `Cmo3AtlasUndedup`'s private shelf
+	packer onto the shared one (session C3).
+4. Atlas placement as model state. Built (Phase C session C2, 2026-08-13): `PuppetModel.atlas` carries the
+	pages and tiles with each tile's placement, `Drawable.atlasTileId` names its art, `AtlasPlacement` moved
+	to `:runtime`, CMO3 import fills it, the diff sees it, `EditorSession.setAtlasPlacement` makes it one
+	undoable step that re-derives the UVs over it, and the CMO3 export writes both halves of the entry's
+	transform pair. Container-format knowledge left `:render` entirely. The PRODUCER landed 2026-09-01:
+	`document.repackAtlas` packs through the shared packer and commits pages + placements + re-derived UVs
+	as one undo step, the pages are session state (`SessionAtlasPages` resolves them from the model, so
+	undo/redo swap pixels by restoring it), the engine swaps pages without a service rebuild, and a
+	same-membership repack exports with the CMO3's stored page images patched, and a cross-page one re-homes
+	the entries through the full atlas-web reconcile. Hardened 2026-09-02 (one remap core shared by
+	`withAtlasPlacement` / `withAtlasRepack`, mid-pack mesh edits supersede the repack, the desktop
+	second-document session fix, live end-to-end gates). Texture-authoring Phase 4's gizmo landed on
+	these seams 2026-09-02 (UV object-mode G / S / R over placements through `setAtlasPlacements`, with
+	:format's affine page composer so any placement derives); still open: pack-options UX (Phase 5).
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).

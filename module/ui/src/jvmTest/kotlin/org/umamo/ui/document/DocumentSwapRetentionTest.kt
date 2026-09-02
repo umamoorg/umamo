@@ -4,8 +4,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.render.LayerTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.ui.model.DrawableThumbnailer
+import org.umamo.ui.model.SessionAtlasPages
 import java.io.File
 import java.lang.ref.WeakReference
 import kotlin.test.Test
@@ -28,10 +29,10 @@ private const val GC_POLL_MILLIS = 50L
  * whole load-and-session layer.
  *
  * The shell's swap is mirrored without composition: the outgoing document gets the session, the
- * undo step, the selection, and the no-viewport thumbnailer a real open creates, then every strong
- * reference is released while the incoming document stays held - exactly what EditorApp's onOpen
- * does.  Reads the corpus sample (`-Dcmo3.sample`, defaulted to the local corpus by the build) and
- * self-skips without it, so CI stays green on a fresh clone.
+ * undo step, the selection, the atlas page resolver, and the no-viewport thumbnailer a real open
+ * creates, then every strong reference is released while the incoming document stays held - exactly
+ * what EditorApp's onOpen does.  Reads the corpus sample (`-Dcmo3.sample`, defaulted to the local
+ * corpus by the build) and self-skips without it, so CI stays green on a fresh clone.
  */
 class DocumentSwapRetentionTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -63,6 +64,9 @@ class DocumentSwapRetentionTest {
 		val document = loadCmo3Document(file)
 		val session = EditorSession(document.puppet, document.liveParams.values)
 		val thumbnails = DrawableThumbnailer(document.puppet, document.textures)
+		// The session's page resolver holds the baseline pages plus one derived page set - the largest
+		// thing a repack leaves behind - so it has to go with the session it follows.
+		val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
 		val firstDrawable = document.puppet.drawables.first()
 		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(firstDrawable.id)))
 		// One committed pose puts a real step on the undo history, so the history stack is part of
@@ -80,11 +84,12 @@ class DocumentSwapRetentionTest {
 				"PuppetTextures" to WeakReference<Any>(document.textures),
 				"EditorSession" to WeakReference<Any>(session),
 				"DrawableThumbnailer" to WeakReference<Any>(thumbnails),
+				"SessionAtlasPages" to WeakReference<Any>(sessionAtlasPages),
 			)
 		// The shared EMPTY store is a permanent singleton, so it only counts when this document built
 		// its own.
-		if (document.layers !== LayerTextures.EMPTY) {
-			references.add("LayerTextures" to WeakReference<Any>(document.layers))
+		if (document.artRasters !== SourceArtRasters.EMPTY) {
+			references.add("SourceArtRasters" to WeakReference<Any>(document.artRasters))
 		}
 		return references
 	}

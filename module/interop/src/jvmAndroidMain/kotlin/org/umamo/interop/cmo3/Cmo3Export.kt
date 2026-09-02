@@ -86,12 +86,16 @@ object Cmo3Export {
 	 * @param Cmo3Model   target The retained CMO3 model whose graph receives the edits.
 	 * @param Map         drawableTextureBindings Per-drawable-id texture webs for created drawables
 	 *                           without a texture source; empty for CMO3-origin exports.
+	 * @param List        recomposedPages The pages a repack composed for the edited model's packing,
+	 *                           in the edited model's page order; empty when the session did not
+	 *                           repack, which leaves the graph and archive untouched.
 	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(
 		edited: PuppetModel,
 		target: Cmo3Model,
 		drawableTextureBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
+		recomposedPages: List<Cmo3Conversion.AtlasPage> = emptyList(),
 	): ExportReport {
 		val modelSource = target.root as? CModelSource ?: error("CMO3 model root is not a CModelSource")
 		val baseline = Cmo3Import.fromModelSource(modelSource)
@@ -101,12 +105,17 @@ object Cmo3Export {
 		}
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
+		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
+		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
+		// an unedited document passes no pages, and the graph and archive are then never touched.
+		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited).reconcile(recomposedPages)
+		val pagesRecomposed = webResult.pagesRecomposed
 
 		// Structural pass - set membership: identity shells for creations, source removal for
 		// deletions.  Category order follows the reference web (parameters/groups first, then parts
 		// and deformers, then the drawables that bind to them, then the glues that bind drawables),
 		// and the structural index is REBUILT between categories so same-export creations resolve.
-		var anyDeleted = false
+		var anyDeleted = webResult.pruneNeeded
 		var structural =
 			Cmo3StructureLowering(
 				modelSource,
@@ -304,6 +313,9 @@ object Cmo3Export {
 							else -> glueDiff
 						}
 					},
+				// Tiles have no structural pass: art arrives and leaves with an import, never with a pack,
+				// so a created or deleted tile forwards as-is and takes its notice in the lowering.
+				atlasTiles = diff.atlasTiles,
 				document = diff.document,
 			)
 
@@ -319,6 +331,7 @@ object Cmo3Export {
 				baseline = baseline,
 				edited = edited,
 				notices = notices,
+				pagesRecomposed = pagesRecomposed,
 			)
 		lowering.lowerParameters(upgradedDiff.parameters)
 		lowering.lowerParameterGroups(upgradedDiff.parameterGroups)
@@ -327,6 +340,7 @@ object Cmo3Export {
 		lowering.lowerDrawables(upgradedDiff.drawables)
 		lowering.flushWeldNotice()
 		lowering.lowerGlues(upgradedDiff.glues)
+		lowering.lowerAtlasTiles(upgradedDiff.atlasTiles)
 		lowering.lowerDocument(upgradedDiff.document)
 
 		if (anyDeleted) {

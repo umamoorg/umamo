@@ -24,14 +24,14 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.render.SourceLayerEntry
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.ui.action.rankCommandMatches
 import org.umamo.ui.kit.PopupChip
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLayerTextures
+import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -57,10 +57,13 @@ private val LAYER_PICKER_MAX_LIST_HEIGHT = 320.dp
  */
 @Composable
 internal fun UvLayerPickerChip() {
-	val layers = LocalLayerTextures.current
+	val puppet = LocalPuppet.current
 	val session = LocalEditorSession.current
 	var query by remember { mutableStateOf("") }
-	val entries = layers?.layers.orEmpty()
+	val entries = puppet?.atlas?.tiles.orEmpty()
+	// The tile -> drawables inverse, remembered with the model: a row says how many drawables share its
+	// art and selects one of them, and rebuilding that per row would walk the whole drawable list each time.
+	val drawableIdsByTile = remember(puppet) { puppet?.drawableIdsByAtlasTile().orEmpty() }
 	// Remembered on both inputs: ranking scores and sorts the document's whole layer inventory, which
 	// runs to hundreds of rows, and this chip recomposes for header state that has nothing to do with
 	// either of them.
@@ -69,7 +72,7 @@ internal fun UvLayerPickerChip() {
 			if (query.isBlank()) {
 				entries
 			} else {
-				rankCommandMatches(entries, query, labelOf = { entry -> entry.name }, idOf = { entry -> entry.key })
+				rankCommandMatches(entries, query, labelOf = { entry -> entry.name }, idOf = { entry -> entry.id.raw })
 			}
 		}
 	PopupChip(
@@ -102,15 +105,16 @@ internal fun UvLayerPickerChip() {
 					modifier = Modifier.fillMaxWidth().heightIn(max = LAYER_PICKER_MAX_LIST_HEIGHT).verticalScroll(rememberScrollState()),
 				) {
 					for (entry in filtered) {
-						key(entry.key) {
+						val users = drawableIdsByTile[entry.id].orEmpty()
+						key(entry.id.raw) {
 							LayerPickerRow(
-								label = layerRowLabel(entry),
-								enabled = entry.boundDrawableIds.isNotEmpty(),
+								label = layerRowLabel(entry, users.size),
+								enabled = users.isNotEmpty(),
 								onClick = {
 									// The first drawable using this art: with duplicates any of them shows the same
 									// layer, and picking deterministically beats picking arbitrarily.
-									entry.boundDrawableIds.firstOrNull()?.let { drawableId ->
-										session?.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId(drawableId))))
+									users.firstOrNull()?.let { drawableId ->
+										session?.setSelection(SelectionOps.replace(SelectionTarget.Drawable(drawableId)))
 									}
 								},
 							)
@@ -150,15 +154,16 @@ private fun LayerPickerRow(label: String, enabled: Boolean, onClick: () -> Unit)
 /**
  * One layer row's text: its name, its pixel size, and how many drawables sample it.
  *
- * @param SourceLayerEntry entry The layer to describe.
+ * @param AtlasTile entry     The tile to describe.
+ * @param Int       userCount How many drawables sample it.
  * @return String The row label.
  */
 @Composable
-private fun layerRowLabel(entry: SourceLayerEntry): String =
+private fun layerRowLabel(entry: AtlasTile, userCount: Int): String =
 	stringResource(
 		Res.string.uv_layer_picker_row,
 		entry.name,
 		entry.width,
 		entry.height,
-		entry.boundDrawableIds.size,
+		userCount,
 	)

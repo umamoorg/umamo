@@ -9,12 +9,12 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
-import org.umamo.render.LayerTextures
 import org.umamo.render.PuppetTextures
-import org.umamo.render.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.atlasBindingFor
+import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.atlasPageIndexFor
@@ -149,34 +149,31 @@ internal data class UvEditorLayer(
  * following the same precedence the page chain uses (Edit-mode active mesh, then the object
  * selection's active drawable, then the first meshed drawable).
  *
- * Null when nothing resolves a layer - no store, no active drawable, or a drawable whose source art
- * this document does not retain.  The space falls back to its page view then, so choosing the layer
- * mode never blanks the editor.
+ * Null when nothing resolves a layer - an empty atlas, no active drawable, or a drawable with no
+ * tile of its own.  The space falls back to its page view then, so choosing the layer mode never
+ * blanks the editor.
  *
  * @param PuppetModel model The session's committed model.
  * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
  * @param Selection objectSelection The object selection (its active drawable is the second choice).
- * @param LayerTextures? layers The document's source-art store, or null before one loads.
  * @return UvEditorLayer? The resolved layer context, or null with no layer to show.
  */
 internal fun resolveUvEditorLayer(
 	model: PuppetModel,
 	meshSelection: MeshSelection,
 	objectSelection: Selection,
-	layers: LayerTextures?,
 ): UvEditorLayer? {
-	if (layers == null || layers.isEmpty) {
+	if (model.atlas.tiles.isEmpty()) {
 		return null
 	}
 	val activeDrawable = activeUvDrawable(model, meshSelection, objectSelection) ?: return null
-	// Resolved through the texture-source indirection, not by the drawable's own raw id: bindings are
-	// keyed by the SOURCE format's ids, so a session-created duplicate finds its art through the
-	// drawable it was copied from - the same resolution shownSurfaceUvs and the atlas lookup use.
-	val entry = layers.layerForDrawable(activeDrawable) ?: return null
+	// The tile the drawable itself names: a session-created duplicate copies the field along with the
+	// rest of the drawable, so it finds its art natively rather than through its source.
+	val entry = activeDrawable.atlasTileId?.let { tileId -> model.atlas.tileById[tileId] } ?: return null
 	if (entry.width <= 0 || entry.height <= 0) {
 		return null
 	}
-	return UvEditorLayer(entry.key, entry.width, entry.height)
+	return UvEditorLayer(entry.id.raw, entry.width, entry.height)
 }
 
 /**
@@ -207,7 +204,6 @@ private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, o
  * @param PuppetModel model The session's committed model.
  * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
  * @param MeshSelection meshSelection The mesh-element selection (Edit mode's candidate set).
- * @param LayerTextures layers The document's source-art store.
  * @param String layerKey The shown layer.
  * @return List<Drawable> The drawables whose mappings draw over the layer, in model order.
  */
@@ -215,10 +211,9 @@ internal fun shownLayerDrawables(
 	model: PuppetModel,
 	mode: EditorMode,
 	meshSelection: MeshSelection,
-	layers: LayerTextures,
 	layerKey: String,
 ): List<Drawable> =
-	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> layers.drawsOverLayer(drawable, layerKey) }
+	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> drawable.atlasTileId?.raw == layerKey }
 
 /**
  * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME - the coordinates that address the
@@ -232,22 +227,22 @@ internal fun shownLayerDrawables(
  * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.
  *
  * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
- * @param LayerTextures? layers The document's source-art store, needed only for a layer view.
+ * @param PuppetModel    model The puppet, for the atlas the layer mapping derives from.
  * @param UvEditorLayer? layerView The shown layer, or null when a page is shown.
  * @return Map<DrawableId, FloatArray> Each drawable's mapping in the shown surface's frame.
  */
 internal fun shownSurfaceUvs(
 	shownDrawables: List<Drawable>,
-	layers: LayerTextures?,
+	model: PuppetModel,
 	layerView: UvEditorLayer?,
 ): Map<DrawableId, FloatArray> =
 	shownDrawables
 		.mapNotNull { drawable ->
 			val mesh = drawable.mesh ?: return@mapNotNull null
-			if (layerView == null || layers == null) {
+			if (layerView == null) {
 				return@mapNotNull drawable.id to mesh.uvs
 			}
-			val binding = layers.bindingForDrawable(drawable) ?: return@mapNotNull null
+			val binding = model.atlasBindingFor(drawable) ?: return@mapNotNull null
 			val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height) ?: return@mapNotNull null
 			drawable.id to layerUvs
 		}

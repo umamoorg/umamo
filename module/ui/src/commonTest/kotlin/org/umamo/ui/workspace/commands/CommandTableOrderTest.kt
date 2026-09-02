@@ -73,6 +73,7 @@ class CommandTableOrderTest {
 				"document.openFailed",
 				"document.confirmReplace",
 				"document.exportReport",
+				"document.repackReport",
 				"document.exportOptionsMoc3",
 				"document.confirm",
 			),
@@ -131,7 +132,8 @@ class CommandTableOrderTest {
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
-				displayCommands(null, availability)
+				displayCommands(null, availability) +
+				atlasCommands(availability, null)
 		assertEquals(
 			listOf(
 				"edit.undo",
@@ -197,6 +199,7 @@ class CommandTableOrderTest {
 				"mesh.proportional.falloff.linear",
 				"mesh.proportional.falloff.constant",
 				"document.toggleSourceArtworkDisplay",
+				"document.repackAtlas",
 			),
 			commands.map { command -> command.id },
 		)

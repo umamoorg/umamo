@@ -27,14 +27,17 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.atlasBindingForTile
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLayerTextures
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.LocalPuppetViewportService
+import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
@@ -42,11 +45,13 @@ import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.OverlapState
+import org.umamo.ui.viewport.PlacementDragStatus
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.UvPlacementSurface
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
@@ -83,7 +88,15 @@ import org.umamo.ui.workspace.LocalAreaCameraHub
  */
 @Composable
 internal fun UvEditorSpace(scope: AreaScope) {
-	val model = LocalPuppet.current
+	val committedModel = LocalPuppet.current
+	// The document as it looks RIGHT NOW: the uncommitted model while any area drags a modal gesture,
+	// else the committed one.  Read here rather than only in the area that owns the gesture, because a
+	// second UV editor showing the atlas page has to follow a drag happening over the source artwork
+	// live, the way the 2D viewport beside it does, rather than wait for the gesture to confirm.
+	//
+	// Never session state: the preview carries no undo step and never marks the document dirty, so the
+	// surfaces that want the document as SAVED keep reading LocalPuppet.
+	val model = LocalPuppetRenderSync.current?.preview?.value ?: committedModel
 	val session = LocalEditorSession.current
 	val textures = LocalPuppetTextures.current
 	val service = LocalPuppetViewportService.current
@@ -107,10 +120,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// serve it: the active drawable's own art with its mapping recovered onto it.  Null falls the space
 	// back to its page view, so choosing the mode never blanks the editor and a document with no source
 	// art (a MOC3 origin) simply keeps showing pages.
-	val layers = LocalLayerTextures.current
+	val artRasters = LocalSourceArtRasters.current
 	val layerView =
 		if (viewState.textureSelection is UvTextureSelection.SourceLayer) {
-			resolveUvEditorLayer(model, meshSelection, objectSelection, layers)
+			resolveUvEditorLayer(model, meshSelection, objectSelection)
 		} else {
 			null
 		}
@@ -151,9 +164,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// the Edit / Object candidate rules and the page filter (shownUvDrawables).  Remembered so
 	// selection churn - which changes styling, never membership - rebuilds nothing here.
 	val shownDrawables =
-		remember(model, textures, layers, layerView, pageIndex, mode, meshSelection.drawableIds) {
-			if (layerView != null && layers != null) {
-				shownLayerDrawables(model, mode, meshSelection, layers, layerView.layerKey)
+		remember(model, textures, layerView, pageIndex, mode, meshSelection.drawableIds) {
+			if (layerView != null) {
+				shownLayerDrawables(model, mode, meshSelection, layerView.layerKey)
 			} else {
 				shownUvDrawables(model, mode, meshSelection, textures, pageIndex)
 			}
@@ -162,8 +175,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
 	// so the wireframe and the hit test can never disagree about where a mesh is.
 	val shownUvs =
-		remember(shownDrawables, layers, layerView) {
-			shownSurfaceUvs(shownDrawables, layers, layerView)
+		remember(shownDrawables, model, layerView) {
+			shownSurfaceUvs(shownDrawables, model, layerView)
 		}
 	val geometries =
 		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
@@ -179,10 +192,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// something.  A layer whose mapping will not invert falls back to treating its own texels as the
 	// frame rather than editing blind.
 	val editFrame =
-		remember(layerView, layers, displayWidth, displayHeight) {
+		remember(layerView, model.atlas, displayWidth, displayHeight) {
 			val layerBinding =
-				if (layerView != null && layers != null) {
-					layers.bindingForLayer(layerView.layerKey)
+				if (layerView != null) {
+					model.atlasBindingForTile(AtlasTileId(layerView.layerKey))
 				} else {
 					null
 				}
@@ -202,7 +215,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val frontRank = remember(model) { restFrontRank(model) }
 	val shownImage =
 		if (layerView != null) {
-			layers?.rasterFor(layerView.layerKey)
+			artRasters?.rasterFor(AtlasTileId(layerView.layerKey))
 		} else {
 			pageIndex?.let { resolvedIndex -> textures?.atlases?.getOrNull(resolvedIndex) }
 		}
@@ -225,12 +238,14 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		} else {
 			UvSceneContent.AtlasPage(pageIndex)
 		}
-	val imageFlow = remember(scope.areaId) { service.registerUvScene(scope.areaId, sceneContent) }
+	// Keyed on the service too, like the 2D viewport's registration: a slot remembered across a
+	// service swap would keep collecting the disposed engine's flows and never register with the live one.
+	val imageFlow = remember(scope.areaId, service) { service.registerUvScene(scope.areaId, sceneContent) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
-	val cameraFlow = remember(scope.areaId) { service.cameraFlow(scope.areaId) }
+	val cameraFlow = remember(scope.areaId, service) { service.cameraFlow(scope.areaId) }
 	LaunchedEffect(scope.areaId, sceneContent) { service.setUvSceneContent(scope.areaId, sceneContent) }
-	DisposableEffect(scope.areaId) {
+	DisposableEffect(scope.areaId, service) {
 		onDispose { service.unregister(scope.areaId) }
 	}
 	val image by imageFlow.collectAsState()
@@ -252,6 +267,22 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// pick requests it through overlapStateFrom, the popup mounted in the content stack resolves or
 	// dismisses it.  Area-local, like the anchor it carries.
 	var overlap by remember(scope.areaId) { mutableStateOf<OverlapState?>(null) }
+
+	// The placement gesture's page: Object-mode G / S / R over the shown page's placements needs the
+	// page's texel size and the source art the pages recompose from.  Null over a source layer (a
+	// placement has no page to move on there) and while the document retains no art; the Object
+	// overlay then drops a latch with its own notice.
+	val placementSurface =
+		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters, shownImage) {
+			if (layerView == null && pageIndex != null && artRasters != null) {
+				UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage)
+			} else {
+				null
+			}
+		}
+	// The drag's live readout, host-owned because two sibling overlays meet on it: the Object overlay
+	// writes it per pointer frame and UvHudOverlay's badge reads it.
+	val placementDragStatus = remember(scope.areaId) { mutableStateOf<PlacementDragStatus?>(null) }
 
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
@@ -391,6 +422,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
+					placementSurface = placementSurface,
+					placementDragStatusState = placementDragStatus,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
 						overlap =
@@ -448,6 +481,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					session = session,
 					liveCamera = liveCamera,
 					proportionalRadiusDisplay = proportionalRadiusDisplay.value,
+					placementDragStatus = placementDragStatus.value,
 				)
 			}
 		}
