@@ -273,9 +273,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// placement has no page to move on there) and while the document retains no art; the Object
 	// overlay then drops a latch with its own notice.
 	val placementSurface =
-		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters) {
+		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters, shownImage) {
 			if (layerView == null && pageIndex != null && artRasters != null) {
-				UvPlacementSurface(displayWidth, displayHeight, artRasters)
+				UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage)
 			} else {
 				null
 			}

@@ -41,11 +41,10 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.selectableOf
 import org.umamo.edit.setAtlasPlacements
+import org.umamo.format.art.AlphaContour
 import org.umamo.format.art.LayerBounds
-import org.umamo.render.PlacementFootprint
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
-import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -159,6 +158,7 @@ internal fun UvObjectGizmoOverlay(
 	val activeOperator by session.activeUvOperator.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val committedModel by session.model.collectAsState()
+	val tileByDrawableId = remember(committedModel) { committedModel.drawables.mapNotNull { drawable -> drawable.atlasTileId?.let { tileId -> drawable.id to tileId } }.toMap() }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val gizmoColors = rememberMeshEditColors()
 	val overlayColors = LocalUmamoColors.current
@@ -291,6 +291,7 @@ internal fun UvObjectGizmoOverlay(
 				axisConstraint = constraint,
 				movers = gestureData.movers,
 				bystanders = gestureData.bystanders,
+				occupancy = gestureData.occupancy,
 				pageWidth = gestureData.pageWidth,
 				pageHeight = gestureData.pageHeight,
 				extrude = gestureData.extrude,
@@ -495,6 +496,9 @@ internal fun UvObjectGizmoOverlay(
 					.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }
 					.toSet()
 			val activeId = (objectSelection.active as? SelectionTarget.Drawable)?.id
+			// The islands of every colliding tile - the triangles ARE the sampled region, so they are the
+			// honest thing to flag - draw their edges in the warning color, movers and bystanders alike.
+			val collidingTileIds = result?.overlappingTileIds ?: emptySet()
 			// Islands paint back-to-front by the rest front rank, so the front-most island's wireframe
 			// draws last - the painted stacking matches the pick order.  Styling is per-island palette
 			// substitution: the idle palette IS the dim style; a selected island fills and outlines with
@@ -503,13 +507,19 @@ internal fun UvObjectGizmoOverlay(
 			// placement gesture a moving island draws from the live preview.
 			val paintOrdered = geometries.sortedBy { geometry -> islandPick.frontRankById[geometry.drawableId] ?: 0f }
 			for (geometry in paintOrdered) {
-				val islandColors =
+				val styled =
 					when {
 						geometry.drawableId == activeId ->
 							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeActive)
 						geometry.drawableId in selectedIds ->
 							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeSelected)
 						else -> gizmoColors
+					}
+				val islandColors =
+					if (collidingTileIds.isNotEmpty() && tileByDrawableId[geometry.drawableId] in collidingTileIds) {
+						styled.copy(edgeIdle = overlayColors.viewportWarning, edgeSelected = overlayColors.viewportWarning, edgeActive = overlayColors.viewportWarning)
+					} else {
+						styled
 					}
 				drawMeshWireframe(
 					positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
@@ -524,20 +534,21 @@ internal fun UvObjectGizmoOverlay(
 				)
 			}
 
-			// The warnings on top: every colliding or spilling footprint stroked in the warning color,
-			// bystanders included, so the user sees both halves of a collision.
+			// The painter's side of a collision on top: a mover whose paint lies under another tile's
+			// triangles outlines its opaque region with the art's own contour (never a box), and a
+			// spill outlines the trim that leaves the page.  A bystander painter has no contour without
+			// a decode; its tinted islands stand for it.
 			if (capture != null && result != null) {
 				val warningStroke = Stroke(width = 2f)
 				for (mover in capture.movers) {
-					if (mover.tileId !in result.overlappingTileIds && mover.tileId !in result.offPageTileIds) {
-						continue
-					}
 					val placement = result.placementByTile[mover.tileId] ?: continue
-					drawFootprintOutline(placementFootprint(placement, mover.trim, mover.reserve), capture.pageHeight, camera, areaSize, overlayColors.viewportWarning, warningStroke)
-				}
-				for (bystander in capture.bystanders) {
-					if (bystander.tileId in result.overlappingTileIds) {
-						drawFootprintOutline(bystander.footprint, capture.pageHeight, camera, areaSize, overlayColors.viewportWarning, warningStroke)
+					if (mover.tileId in result.paintingTileIds) {
+						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, overlayColors.viewportWarning, warningStroke)
+					}
+					if (mover.tileId in result.offPageTileIds) {
+						drawTileQuad(mover.trim, placement, capture.pageHeight, camera, areaSize) { quad ->
+							drawPath(quad, overlayColors.viewportWarning, style = warningStroke)
+						}
 					}
 				}
 			}
@@ -651,39 +662,43 @@ private fun DrawScope.drawTileQuad(
 }
 
 /**
- * Strokes a page-space footprint's rectangle on screen.
+ * Strokes a tile's opaque contours on screen under [placement]: each loop's lattice corners carried
+ * through the placement and the camera, holes included, so the outline follows the art.
  *
- * @param PlacementFootprint footprint The footprint in page pixels.
+ * @param List<AlphaContour> contours The loops, raster-local.
+ * @param AtlasPlacement placement Where the tile sits.
  * @param Int pageHeight The page height, for the display flip.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
  * @param Color color The stroke color.
  * @param Stroke stroke The stroke style.
  */
-private fun DrawScope.drawFootprintOutline(
-	footprint: PlacementFootprint,
+private fun DrawScope.drawContours(
+	contours: List<AlphaContour>,
+	placement: AtlasPlacement,
 	pageHeight: Int,
 	camera: ViewportCamera,
 	size: IntSize,
 	color: Color,
 	stroke: Stroke,
 ) {
-	val outline = Path()
-	val corners =
-		listOf(
-			footprint.left to footprint.top,
-			footprint.right to footprint.top,
-			footprint.right to footprint.bottom,
-			footprint.left to footprint.bottom,
-		)
-	for ((cornerIndex, corner) in corners.withIndex()) {
-		val screen = worldToScreen(corner.first, pageHeight - corner.second, camera, size)
-		if (cornerIndex == 0) {
-			outline.moveTo(screen.x, screen.y)
-		} else {
-			outline.lineTo(screen.x, screen.y)
+	val tileToDisplay = tileToDisplayAffine(placement, pageHeight)
+	for (contour in contours) {
+		if (contour.points.size < 6) {
+			continue
 		}
+		val outline = Path()
+		var pointIndex = 0
+		while (pointIndex + 1 < contour.points.size) {
+			val screen = tileToScreen(contour.points[pointIndex].toFloat(), contour.points[pointIndex + 1].toFloat(), tileToDisplay, camera, size)
+			if (pointIndex == 0) {
+				outline.moveTo(screen.x, screen.y)
+			} else {
+				outline.lineTo(screen.x, screen.y)
+			}
+			pointIndex += 2
+		}
+		outline.close()
+		drawPath(outline, color, style = stroke)
 	}
-	outline.close()
-	drawPath(outline, color, style = stroke)
 }

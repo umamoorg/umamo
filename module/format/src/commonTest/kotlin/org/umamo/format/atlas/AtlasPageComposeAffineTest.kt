@@ -3,6 +3,7 @@ package org.umamo.format.atlas
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.raster.RasterImage
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.test.Test
@@ -145,6 +146,122 @@ class AtlasPageComposeAffineTest {
 
 		val gone = composeOne(AtlasTilePlacement("a", 0, trim, translation(-40f, -40f)), extrude = 2)
 		assertTrue(gone.rgba.all { byte -> byte == 0.toByte() }, "a footprint wholly off the page leaves it empty")
+	}
+
+	/** A 5x5 tile that is transparent except for one opaque texel at (0, 0) and a half-transparent one at (4, 4). */
+	private val sparse =
+		packItemOfRows(
+			"b",
+			"#....",
+			".....",
+			".....",
+			".....",
+			"....8",
+		)
+	private val fullTrim = LayerBounds(0, 0, 5, 5)
+
+	@Test
+	fun aLaterTransparentMarginNeverErasesEarlierContent() {
+		val solid = opaquePackItem("s", 3, 3)
+		val solidAt = translation(4f, 4f)
+		// The sparse tile's rectangle covers the solid tile entirely; only its (0, 0) texel is opaque and
+		// lands at (3, 3), outside the solid tile.
+		val exact = composeAtlasPagesAffine(pageWidths, pageHeights, listOf(solid, sparse), listOf(AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), solidAt), AtlasTilePlacement("b", 0, fullTrim, translation(3f, 3f))), extrude = 0).single()
+		for (y in 4 until 7) {
+			for (x in 4 until 7) {
+				assertEquals(itemPixel(solid, x - 4, y - 4), pagePixel(exact, x, y), "the solid tile survives the transparent margin at ($x, $y) (exact path)")
+			}
+		}
+		assertEquals(itemPixel(sparse, 0, 0), pagePixel(exact, 3, 3), "the sparse tile's opaque texel lands")
+
+		// The same through the resampling path (a fractional translation).
+		val resampled = composeAtlasPagesAffine(pageWidths, pageHeights, listOf(solid, sparse), listOf(AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), solidAt), AtlasTilePlacement("b", 0, fullTrim, translation(3.5f, 3.5f))), extrude = 0).single()
+		for (y in 4 until 7) {
+			for (x in 4 until 7) {
+				assertEquals(255, alphaAt(resampled, x, y), "the solid tile stays opaque under the resampled margin at ($x, $y)")
+			}
+		}
+
+		// And through the packer's quarter-turn path.
+		val turned =
+			composeAtlasPages(
+				pageWidths,
+				pageHeights,
+				listOf(solid, sparse),
+				listOf(
+					AtlasPackPlacement("s", 0, 4, 4, trimLeft = 0, trimTop = 0, trimWidth = 3, trimHeight = 3, quarterTurns = 0),
+					AtlasPackPlacement("b", 0, 3, 3, trimLeft = 0, trimTop = 0, trimWidth = 5, trimHeight = 5, quarterTurns = 1),
+				),
+				extrude = 0,
+			).single()
+		for (y in 4 until 7) {
+			for (x in 4 until 7) {
+				assertEquals(itemPixel(solid, x - 4, y - 4), pagePixel(turned, x, y), "the solid tile survives under the turned margin at ($x, $y)")
+			}
+		}
+	}
+
+	@Test
+	fun aLaterOpaqueTexelReplacesAndATranslucentOneComposites() {
+		val solid = opaquePackItem("s", 3, 3)
+		// The sparse tile placed so its opaque (0, 0) covers the solid tile's (1, 1) and its
+		// half-transparent (4, 4) covers... nothing: place a second copy so (4, 4) lands on the solid.
+		val page =
+			composeAtlasPagesAffine(
+				pageWidths,
+				pageHeights,
+				listOf(solid, sparse),
+				listOf(
+					AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), translation(4f, 4f)),
+					AtlasTilePlacement("b", 0, fullTrim, translation(5f, 5f)),
+				),
+				extrude = 0,
+			).single()
+		assertEquals(itemPixel(sparse, 0, 0), pagePixel(page, 5, 5), "an opaque texel replaces the earlier content")
+		assertEquals(itemPixel(solid, 0, 0), pagePixel(page, 4, 4), "beside it the earlier tile is untouched")
+
+		val translucent =
+			composeAtlasPagesAffine(
+				pageWidths,
+				pageHeights,
+				listOf(solid, sparse),
+				listOf(
+					AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), translation(4f, 4f)),
+					AtlasTilePlacement("b", 0, fullTrim, translation(1f, 1f)),
+				),
+				extrude = 0,
+			).single()
+		// The sparse (4, 4) texel, alpha 8, lands on the solid (1, 1) at page (5, 5): a source-over
+		// composite stays fully opaque and leans almost entirely on the tile beneath.
+		val composed = pagePixel(translucent, 5, 5)
+		assertEquals(255, composed and 0xFF, "compositing over opaque content stays opaque")
+		val beneathRed = (itemPixel(solid, 1, 1) ushr 24) and 0xFF
+		val overRed = (itemPixel(sparse, 4, 4) ushr 24) and 0xFF
+		val expectedRed = ((overRed * 8f + beneathRed * 247f) / 255f).toInt()
+		assertTrue(abs(((composed ushr 24) and 0xFF) - expectedRed) <= 1, "the red channel is the source-over blend")
+	}
+
+	@Test
+	fun anExtrusionBandStopsAtContent() {
+		val first = opaquePackItem("s", 3, 3)
+		val second = opaquePackItem("t", 3, 3)
+		// Two opaque tiles two pixels apart: the first's band fills the gap, the second's band must not
+		// overwrite the first's pixels or its band.
+		val page =
+			composeAtlasPagesAffine(
+				pageWidths,
+				pageHeights,
+				listOf(first, second),
+				listOf(
+					AtlasTilePlacement("s", 0, LayerBounds(0, 0, 3, 3), translation(4f, 4f)),
+					AtlasTilePlacement("t", 0, LayerBounds(0, 0, 3, 3), translation(8f, 4f)),
+				),
+				extrude = 2,
+			).single()
+		assertEquals(itemPixel(first, 2, 1), pagePixel(page, 6, 5), "the first tile's edge pixel is not overwritten by the second's band")
+		assertEquals(itemPixel(first, 2, 1), pagePixel(page, 7, 5), "the first tile's own band keeps the gap")
+		assertEquals(itemPixel(second, 0, 1), pagePixel(page, 8, 5), "the second tile's pixels land")
+		assertEquals(itemPixel(second, 2, 1), pagePixel(page, 11, 5), "the second tile's outer band lands on empty page")
 	}
 
 	@Test

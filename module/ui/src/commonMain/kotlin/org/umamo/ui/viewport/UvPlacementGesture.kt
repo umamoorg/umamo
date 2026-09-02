@@ -20,15 +20,23 @@ import org.umamo.edit.placementDragTileIds
 import org.umamo.edit.rotationAboutAffine
 import org.umamo.edit.scaleAboutAffine
 import org.umamo.edit.translationAffine
+import org.umamo.format.art.AlphaContour
 import org.umamo.format.art.LayerBounds
+import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.atlas.AtlasPackReserve
 import org.umamo.render.DecodedImage
+import org.umamo.render.PageOccupancy
+import org.umamo.render.PixelRect
 import org.umamo.render.PlacementFootprint
+import org.umamo.render.SampledRegion
 import org.umamo.render.SourceArtRasters
+import org.umamo.render.TileMeshMask
+import org.umamo.render.TileOpaqueMask
 import org.umamo.render.derivedPackPolicy
-import org.umamo.render.derivedTileTrim
+import org.umamo.render.meshMaskOf
 import org.umamo.render.meshReserveByTile
 import org.umamo.render.placementFootprint
+import org.umamo.render.sampledRegionHitsMask
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -38,6 +46,8 @@ import org.umamo.runtime.model.placementAffine
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import kotlin.math.PI
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /*
@@ -51,6 +61,12 @@ import kotlin.math.roundToInt
  * F(x, y) = (x, h - y), its own inverse, so a display affine G becomes the page affine F . G . F and a
  * page affine comes back the same way.  Every conversion goes through the two helpers below; nothing
  * else reasons about the sign of y.
+ *
+ * A collision is a mesh sampling paint (AtlasPlacementDrag.kt), exact on both sides: each tile's
+ * sampled region is the rasterized coverage of its triangles, each mover's painted region is its opaque
+ * mask, the bystanders' paint is the shown page's own alpha with the movers' old spots read as empty,
+ * and every pointer frame tests the movers' triangles against that page and the bystanders' triangles
+ * against the movers' masks.
  */
 
 /**
@@ -59,12 +75,15 @@ import kotlin.math.roundToInt
  *
  * @property Int              pageWidth  The shown page's width in texels.
  * @property Int              pageHeight The shown page's height in texels.
- * @property SourceArtRasters artRasters The document's source-art pixels (the tiles' crops and the derivation precheck).
+ * @property SourceArtRasters artRasters The document's source-art pixels (the movers' crops and masks).
+ * @property DecodedImage?    pageImage  The shown page's decoded pixels - the bystanders' paint - or
+ *   null before the page has loaded, in which case only movers test against each other.
  */
 internal class UvPlacementSurface(
 	val pageWidth: Int,
 	val pageHeight: Int,
 	val artRasters: SourceArtRasters,
+	val pageImage: DecodedImage?,
 )
 
 /**
@@ -76,8 +95,8 @@ internal class UvPlacementSurface(
  * @property Float angleDegrees The page-space rotation applied so far (Rotate).
  * @property Float factorX      The factor along the tile's x axis (Scale).
  * @property Float factorY      The factor along the tile's y axis (Scale).
- * @property Int   overlapCount How many moving tiles currently collide with another footprint.
- * @property Boolean offPage    Whether any moving tile spills past the page edge.
+ * @property Int   overlapCount How many moving tiles currently collide with another tile.
+ * @property Boolean offPage    Whether any moving tile's opaque pixels spill past the page edge.
  */
 internal class PlacementDragStatus(
 	val operatorKind: MeshOperatorKind,
@@ -96,7 +115,10 @@ internal class PlacementDragStatus(
  * @property AtlasTileId       tileId        The tile.
  * @property AtlasPlacement    placement     Where it sat when the gesture began.
  * @property LayerBounds       trim          Its opaque bounds, raster-local (what the composer draws).
- * @property AtlasPackReserve? reserve       Its mesh reach, raster-local, or null when none is measurable.
+ * @property AtlasPackReserve? reserve       Its mesh reach, raster-local (the pivot's center and the spot it vacates), or null when none is measurable.
+ * @property TileMeshMask?     meshMask      The coverage of its triangles - its sampled region - or null when none is measurable.
+ * @property TileOpaqueMask?   mask          Its opaque texels - its painted region - or null when the art could not be read.
+ * @property List<AlphaContour> contours     The outlines of its opaque region, raster-local, for the painter chrome.
  * @property Float             pivotDisplayX The pivot it turns and scales about, display x.
  * @property Float             pivotDisplayY The pivot's display y.
  * @property ImageBitmap?      crop          Its trim's pixels for the drag preview, or null when they could not be wrapped.
@@ -106,6 +128,9 @@ internal class PlacementMover(
 	val placement: AtlasPlacement,
 	val trim: LayerBounds,
 	val reserve: AtlasPackReserve?,
+	val meshMask: TileMeshMask?,
+	val mask: TileOpaqueMask?,
+	val contours: List<AlphaContour>,
 	val pivotDisplayX: Float,
 	val pivotDisplayY: Float,
 	val crop: ImageBitmap?,
@@ -114,12 +139,17 @@ internal class PlacementMover(
 /**
  * One placed tile on the page that is NOT moving: what the movers may collide with.
  *
- * @property AtlasTileId        tileId    The tile.
- * @property PlacementFootprint footprint Its page-space footprint.
+ * @property AtlasTileId        tileId        The tile.
+ * @property AtlasPlacement     placement     Where it sits.
+ * @property SampledRegion?     sampled       The coverage of its triangles on the page, or null when it has no measurable mesh.
+ * @property PlacementFootprint paintedBounds The bounds its paint can occupy (its whole tile through
+ *   the placement, grown by the extrusion band), for attributing a painted pixel the page reports.
  */
 internal class PlacementBystander(
 	val tileId: AtlasTileId,
-	val footprint: PlacementFootprint,
+	val placement: AtlasPlacement,
+	val sampled: SampledRegion?,
+	val paintedBounds: PlacementFootprint,
 )
 
 /**
@@ -146,13 +176,17 @@ internal class PlacementGestureParameters(
  * @property Map placementByTile     Each mover's placement under the gesture.
  * @property Map displayAffineByTile The display-space affine each mover's islands follow.
  * @property Set overlappingTileIds  Every tile (mover or bystander) in a collision.
- * @property Set offPageTileIds      Every mover spilling past the page edge.
+ * @property Set samplingTileIds     The colliding tiles whose MESH reads another tile's paint.
+ * @property Set paintingTileIds     The colliding tiles whose PAINT lies under another tile's mesh.
+ * @property Set offPageTileIds      Every mover whose opaque pixels spill past the page edge.
  * @property PlacementDragStatus status The HUD readout.
  */
 internal class PlacementDragResult(
 	val placementByTile: Map<AtlasTileId, AtlasPlacement>,
 	val displayAffineByTile: Map<AtlasTileId, FloatArray>,
 	val overlappingTileIds: Set<AtlasTileId>,
+	val samplingTileIds: Set<AtlasTileId>,
+	val paintingTileIds: Set<AtlasTileId>,
 	val offPageTileIds: Set<AtlasTileId>,
 	val status: PlacementDragStatus,
 )
@@ -163,17 +197,20 @@ internal class PlacementDragResult(
  * @property ModalTransformCapture transform The shared capture over the moving islands: its anchor is
  *   the HUD pivot and the shared-pivot modes' center, its rotation tracker keeps Rotate continuous.
  * @property List movers                    The tiles the gesture moves.
- * @property List bystanders                The page's other placed tiles, for the overlap test.
+ * @property List bystanders                The page's other placed tiles, for the collision test.
+ * @property PageOccupancy? occupancy       The shown page's paint with the movers' old spots read as
+ *   empty, or null when the page was not available (movers then test only each other).
  * @property Map  tileByDrawable            Each moving drawable's tile.
  * @property Map  frozenPositionsByDrawable Each moving drawable's display positions at latch.
  * @property Int  pageWidth                 The page width in pixels.
  * @property Int  pageHeight                The page height in pixels.
- * @property Int  extrude                   The composer's edge extrusion, the band two footprints must keep clear of each other.
+ * @property Int  extrude                   The composer's edge extrusion, the band that counts as paint around a tile.
  */
 internal class PlacementGesture(
 	val transform: ModalTransformCapture,
 	val movers: List<PlacementMover>,
 	val bystanders: List<PlacementBystander>,
+	val occupancy: PageOccupancy?,
 	val tileByDrawable: Map<DrawableId, AtlasTileId>,
 	val frozenPositionsByDrawable: Map<DrawableId, FloatArray>,
 	val pageWidth: Int,
@@ -264,14 +301,19 @@ internal fun placementGestureParameters(
  * page's axes for an unrotated one), so its display affine is derived from the placement it produced
  * rather than assumed.  A product no placement can hold leaves that tile where it is.
  *
- * Collisions compare footprints grown by the composer's extrusion band: two tiles whose bands touch
- * would paint over each other's edge pixels.
+ * A collision is a mesh sampling paint, exact on both sides: a mover's triangles against the page's
+ * paint (with the movers' old spots read as empty) and against the other movers' masks, and every
+ * bystander's triangles against each mover's mask, the composer's extrusion band counted as paint.  A
+ * painted pixel the page reports is attributed to the bystanders whose paint can reach it.  Off-page
+ * is the mover's opaque bounds leaving the page; a mesh reaching past the page over transparent
+ * pixels is not a warning.
  *
  * @param MeshOperatorKind operatorKind The running operator.
  * @param PlacementGestureParameters parameters This frame's parameters.
  * @param TransformAxisConstraint? axisConstraint The axis lock, if any.
  * @param List movers The moving tiles.
  * @param List bystanders The page's other placed tiles.
+ * @param PageOccupancy? occupancy The page's paint, or null to skip the page test.
  * @param Int pageWidth The page width in pixels.
  * @param Int pageHeight The page height in pixels.
  * @param Int extrude The composer's edge extrusion.
@@ -283,6 +325,7 @@ internal fun evaluatePlacementDrag(
 	axisConstraint: TransformAxisConstraint?,
 	movers: List<PlacementMover>,
 	bystanders: List<PlacementBystander>,
+	occupancy: PageOccupancy?,
 	pageWidth: Int,
 	pageHeight: Int,
 	extrude: Int,
@@ -291,7 +334,6 @@ internal fun evaluatePlacementDrag(
 	val snappedDeltaY = (-parameters.deltaDisplayY).roundToInt()
 	val placementByTile = LinkedHashMap<AtlasTileId, AtlasPlacement>()
 	val displayAffineByTile = LinkedHashMap<AtlasTileId, FloatArray>()
-	val footprintByTile = LinkedHashMap<AtlasTileId, PlacementFootprint>()
 	for (mover in movers) {
 		val pageAffine =
 			when (operatorKind) {
@@ -320,29 +362,58 @@ internal fun evaluatePlacementDrag(
 			placementByTile[mover.tileId] = next
 			displayAffineByTile[mover.tileId] = flipAffineFrame(pageAffine, pageHeight)
 		}
-		footprintByTile[mover.tileId] = placementFootprint(placementByTile.getValue(mover.tileId), mover.trim, mover.reserve)
 	}
 
 	val overlapping = HashSet<AtlasTileId>()
+	val sampling = HashSet<AtlasTileId>()
+	val painting = HashSet<AtlasTileId>()
 	val offPage = HashSet<AtlasTileId>()
-	val band = extrude.toFloat()
 	for ((moverIndex, mover) in movers.withIndex()) {
-		val footprint = footprintByTile.getValue(mover.tileId)
-		if (footprint.exceeds(pageWidth, pageHeight)) {
+		val next = placementByTile.getValue(mover.tileId)
+		if (placementFootprint(next, mover.trim, reserve = null).exceeds(pageWidth, pageHeight)) {
 			offPage.add(mover.tileId)
 		}
-		val grown = footprint.expanded(band)
-		for (bystander in bystanders) {
-			if (grown.overlaps(bystander.footprint.expanded(band))) {
+		val sampled = mover.meshMask?.let { coverage -> SampledRegion(next, coverage) }
+		// The mover's mesh over the page's paint: the pixel found is attributed to whichever bystanders
+		// can have painted it.
+		if (sampled != null && occupancy != null) {
+			val hit = occupancy.firstPaintedPixelIn(sampled)
+			if (hit != null) {
 				overlapping.add(mover.tileId)
-				overlapping.add(bystander.tileId)
+				sampling.add(mover.tileId)
+				for (bystander in bystanders) {
+					if (bystander.paintedBounds.overlaps(PlacementFootprint(hit.left.toFloat(), hit.top.toFloat(), hit.right.toFloat(), hit.bottom.toFloat()))) {
+						overlapping.add(bystander.tileId)
+						painting.add(bystander.tileId)
+					}
+				}
 			}
 		}
-		for (otherIndex in moverIndex + 1 until movers.size) {
+		// The bystanders' meshes over the mover's paint.
+		val mask = mover.mask
+		if (mask != null) {
+			for (bystander in bystanders) {
+				val bystanderSampled = bystander.sampled ?: continue
+				if (sampledRegionHitsMask(bystanderSampled, next, mask, extrude)) {
+					overlapping.add(mover.tileId)
+					painting.add(mover.tileId)
+					overlapping.add(bystander.tileId)
+					sampling.add(bystander.tileId)
+				}
+			}
+		}
+		// The other movers, both ways, each at its own new placement.
+		for (otherIndex in movers.indices) {
+			if (otherIndex == moverIndex) {
+				continue
+			}
 			val other = movers[otherIndex]
-			if (grown.overlaps(footprintByTile.getValue(other.tileId).expanded(band))) {
+			val otherMask = other.mask ?: continue
+			if (sampled != null && sampledRegionHitsMask(sampled, placementByTile.getValue(other.tileId), otherMask, extrude)) {
 				overlapping.add(mover.tileId)
+				sampling.add(mover.tileId)
 				overlapping.add(other.tileId)
+				painting.add(other.tileId)
 			}
 		}
 	}
@@ -358,22 +429,34 @@ internal fun evaluatePlacementDrag(
 			overlapCount = movers.count { mover -> mover.tileId in overlapping },
 			offPage = offPage.isNotEmpty(),
 		)
-	return PlacementDragResult(placementByTile, displayAffineByTile, overlapping, offPage, status)
+	return PlacementDragResult(placementByTile, displayAffineByTile, overlapping, sampling, painting, offPage, status)
+}
+
+/**
+ * The page pixels a mover's paint occupied before the gesture - its trim through its old placement,
+ * grown by the extrusion band and rounded out - which the page occupancy reads as empty.
+ *
+ * @param PlacementMover mover The mover.
+ * @param Int extrude The composer's edge extrusion.
+ * @return PixelRect The old spot.
+ */
+private fun vacatedRect(mover: PlacementMover, extrude: Int): PixelRect {
+	val bounds = placementFootprint(mover.placement, mover.trim, reserve = null).expanded(extrude.toFloat())
+	return PixelRect(floor(bounds.left).toInt(), floor(bounds.top).toInt(), ceil(bounds.right).toInt(), ceil(bounds.bottom).toInt())
 }
 
 /**
  * Builds the gesture a placement operator latched over: the tiles the selection moves that sit on
- * the shown page, their crops and footprints, the page's bystanders, and the shared capture over the
- * moving islands.
+ * the shown page, their crops, masks, and sampled regions, the page's bystanders and its paint, and
+ * the shared capture over the moving islands.
  *
- * Only the MOVERS' art is decoded (their crops and trims need it); a bystander's footprint is its
- * whole tile widened by its mesh reserve, which the model already knows.  Decoding every tile on the
- * page to trim the bystanders exactly would cost a second per keypress on a full document, for a
- * warning that is a bounding box anyway.  So the precheck covers the movers: a mover whose art will
- * not decode or disagrees with its tile refuses the gesture, while a bystander in that state surfaces
- * at the commit as the resolver's own fault log.
+ * Only the MOVERS' art is decoded (their crops, masks, and contours need it); the bystanders' paint is
+ * the shown page itself, whose composed alpha is what is painted there, and every tile's sampled
+ * region comes from the model's own meshes, so no other tile is decoded.  A mover whose art will not
+ * decode or disagrees with its tile refuses the gesture; a bystander in that state surfaces at the
+ * commit as the resolver's own fault log.
  *
- * Decodes rasters and wraps bitmaps, so callers run it off the UI thread.
+ * Decodes rasters, wraps bitmaps, and scans the page, so callers run it off the UI thread.
  *
  * @param PuppetModel model The session's committed model.
  * @param UvPlacementSurface surface The shown page and the source-art store.
@@ -413,6 +496,7 @@ internal fun buildPlacementGesture(
 		return PlacementGestureBuild.NotDerivable
 	}
 	val reserveByTile = meshReserveByTile(model)
+	val extrude = derivedPackPolicy.extrude
 
 	val movers = ArrayList<PlacementMover>()
 	for (tileId in candidateTileIds) {
@@ -428,7 +512,8 @@ internal fun buildPlacementGesture(
 			return PlacementGestureBuild.NotDerivable
 		}
 		// A placed tile with nothing opaque has nothing on the page to move.
-		val trim = derivedTileTrim(raster) ?: continue
+		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold) ?: continue
+		val trim = analysis.opaqueBounds
 		val reserve = reserveByTile[tileId]
 		val footprint = placementFootprint(placement, trim, reserve)
 		movers.add(
@@ -437,6 +522,9 @@ internal fun buildPlacementGesture(
 				placement = placement,
 				trim = trim,
 				reserve = reserve,
+				meshMask = meshMaskOf(model, tileId),
+				mask = TileOpaqueMask.of(raster, trim, derivedPackPolicy.alphaThreshold),
+				contours = analysis.contours,
 				pivotDisplayX = (footprint.left + footprint.right) / 2f,
 				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,
 				crop = cropBitmap(raster, trim),
@@ -453,10 +541,16 @@ internal fun buildPlacementGesture(
 			if (placement.pageIndex != pageIndex || tile.id in moverIds) {
 				return@mapNotNull null
 			}
-			// The whole tile stands in for its trim: known without a decode, and never narrower.
+			// The whole tile bounds its paint: known without a decode, and never narrower than the trim.
 			val extent = LayerBounds(0, 0, tile.width, tile.height)
-			PlacementBystander(tile.id, placementFootprint(placement, extent, reserveByTile[tile.id]))
+			PlacementBystander(
+				tileId = tile.id,
+				placement = placement,
+				sampled = meshMaskOf(model, tile.id)?.let { coverage -> SampledRegion(placement, coverage) },
+				paintedBounds = placementFootprint(placement, extent, reserve = null).expanded(extrude.toFloat()),
+			)
 		}
+	val occupancy = surface.pageImage?.let { image -> PageOccupancy.of(image, movers.map { mover -> vacatedRect(mover, extrude) }) }
 
 	// The shared capture over the moving islands - every shown drawable over a mover, selected or not,
 	// because a tile carries all of them.  Whole-mesh sources: a tile moves rigidly.
@@ -485,7 +579,7 @@ internal fun buildPlacementGesture(
 			movers
 		} else {
 			movers.map { mover ->
-				PlacementMover(mover.tileId, mover.placement, mover.trim, mover.reserve, transform.anchor.first, transform.anchor.second, mover.crop)
+				PlacementMover(mover.tileId, mover.placement, mover.trim, mover.reserve, mover.meshMask, mover.mask, mover.contours, transform.anchor.first, transform.anchor.second, mover.crop)
 			}
 		}
 	return PlacementGestureBuild.Ready(
@@ -493,11 +587,12 @@ internal fun buildPlacementGesture(
 			transform = transform,
 			movers = pivoted,
 			bystanders = bystanders,
+			occupancy = occupancy,
 			tileByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to tileByDrawable.getValue(geometry.drawableId) },
 			frozenPositionsByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to geometry.positions.copyOf() },
 			pageWidth = surface.pageWidth,
 			pageHeight = surface.pageHeight,
-			extrude = derivedPackPolicy.extrude,
+			extrude = extrude,
 		),
 	)
 }
