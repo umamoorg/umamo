@@ -110,7 +110,7 @@ class AtlasPackTest {
 	}
 
 	@Test
-	fun aReserveSpacesNeighboursWhileThePlacementStaysOnTheTrim() {
+	fun aReserveSpacesNeighborsWhileThePlacementStaysOnTheTrim() {
 		// Two 4x4 opaque tiles; the first reserves a mesh reach of 20px on every side.  Without the
 		// reserve they pack shoulder to shoulder (gutter apart); with it, nothing may sit inside the
 		// first tile's reserved rect - which extends 20px past its trim in page space.
@@ -148,7 +148,7 @@ class AtlasPackTest {
 				plainBottom <= reservedTop
 		assertTrue(
 			outside,
-			"the neighbour must sit outside the reserved rect: plain at (${plain.pageX},${plain.pageY})," +
+			"the neighbor must sit outside the reserved rect: plain at (${plain.pageX},${plain.pageY})," +
 				" reserve $reservedLeft..$reservedRight x $reservedTop..$reservedBottom",
 		)
 	}

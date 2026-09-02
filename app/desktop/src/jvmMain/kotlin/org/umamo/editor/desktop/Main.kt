@@ -4,7 +4,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.Window
@@ -119,16 +118,9 @@ fun main(args: Array<String>) {
 
 	application {
 		var document by remember { mutableStateOf(initialDocumentHolder.getAndSet(null)) }
-		val session = rememberEditorSessionFor(document)
-		// Mirror the session's dirty flag for the title's unsaved marker; produceState runs unconditionally.
-		val dirty by produceState(false, session) {
-			val activeSession = session
-			if (activeSession == null) {
-				value = false
-			} else {
-				activeSession.dirty.collect { value = it }
-			}
-		}
+		// The title's unsaved marker, mirrored from the session's dirty flag by the window content below,
+		// which is where the session lives.
+		var dirty by remember { mutableStateOf(false) }
 		val windowState = remember { settings.savedWindowState() }
 		// A file opened from the command line is a real "open" - record it in recent files too.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
@@ -145,6 +137,22 @@ fun main(args: Array<String>) {
 			icon = painterResource(Res.drawable.app_icon),
 			title = "Umamo" + (document?.let { " - ${it.displayName}${if (dirty) " *" else ""}" }.orEmpty()),
 		) {
+			// The session is derived HERE, in the composition that reads the document, and not in the
+			// application scope above.  Window content is its own composition: it reads the document
+			// state directly, but sees a value from the outer scope only through the content lambda it
+			// was last handed.  A session derived outside reaches EditorApp one frame late, so a newly
+			// opened document composes once with the previous document's session - and the export
+			// command, the File menu, and the page resolver registered in that frame keep the stale
+			// pair.  Deriving both in one place keeps them consistent in every frame.
+			val session = rememberEditorSessionFor(document)
+			LaunchedEffect(session) {
+				val activeSession = session
+				if (activeSession == null) {
+					dirty = false
+				} else {
+					activeSession.dirty.collect { dirty = it }
+				}
+			}
 			CompositionLocalProvider(LocalSettings provides settings) {
 				ProvideAppThemeFromSettings {
 					// Run the whole window content inside UmamoTheme so LocalUmamoColors resolves to the active

@@ -153,4 +153,8 @@ umamoTestCorpus {
 	// The CMO3 loader test's counterpart. Takes the shared table's default (a whole .cmo3 embeds its
 	// own pixels, so unlike the moc family there is no sidecar folder that has to resolve).
 	sample("cmo3.sample")
+	// The converted-repack export gate's fixture: a MOC3-origin conversion of the modelG family
+	// (test/corpus/moc3/modelG) saved as a .cmo3.  It lives OUTSIDE the golden glob because a
+	// converted file fails the corpus invariants by nature, and it self-skips until the file exists.
+	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/invalid/modelG.cmo3")
 }

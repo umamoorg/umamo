@@ -87,15 +87,15 @@ object Cmo3Export {
 	 * @param Map         drawableTextureBindings Per-drawable-id texture webs for created drawables
 	 *                           without a texture source; empty for CMO3-origin exports.
 	 * @param List        recomposedPages The pages a repack composed for the edited model's packing,
-	 *                           keyed by [RecomposedAtlasPage.pageIndex]; empty when the session did
-	 *                           not repack, which leaves the graph and archive untouched.
+	 *                           in the edited model's page order; empty when the session did not
+	 *                           repack, which leaves the graph and archive untouched.
 	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(
 		edited: PuppetModel,
 		target: Cmo3Model,
 		drawableTextureBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
-		recomposedPages: List<RecomposedAtlasPage> = emptyList(),
+		recomposedPages: List<Cmo3Conversion.AtlasPage> = emptyList(),
 	): ExportReport {
 		val modelSource = target.root as? CModelSource ?: error("CMO3 model root is not a CModelSource")
 		val baseline = Cmo3Import.fromModelSource(modelSource)

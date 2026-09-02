@@ -5,6 +5,7 @@ import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackPlacement
 import org.umamo.format.atlas.composeAtlasPages
+import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.roundToInt
@@ -138,19 +139,36 @@ fun deriveAtlasTextures(
 			extrude = extrude,
 		)
 
-	return PuppetTextures(
+	return generatedPuppetTextures(pages, model, premultipliedAlpha)
+}
+
+/**
+ * The [PuppetTextures] a GENERATED page set is: [pages] wrapped as decoded images, index-parallel to
+ * `PuppetAtlas.pages`, under the drawable map of [generatedAtlasIndexByDrawableId].
+ *
+ * One function used by the repack (from the pack it just ran), the derivation above (for an undone
+ * generation), and the export gate, so no caller assembles the wrapper on its own and the page cache's
+ * identity-keyed sets are always built the same way.
+ *
+ * @param List        pages              The composed pages, in the model's page order.
+ * @param PuppetModel model              The model whose bindings key the drawable map.
+ * @param Boolean     premultipliedAlpha The document's texture-convention flag, carried through.
+ * @return PuppetTextures The page set.
+ */
+fun generatedPuppetTextures(
+	pages: List<RasterImage>,
+	model: PuppetModel,
+	premultipliedAlpha: Boolean,
+): PuppetTextures =
+	PuppetTextures(
 		atlases = pages.map { page -> DecodedImage(page.rgba, page.width, page.height) },
 		atlasIndexByDrawableId = generatedAtlasIndexByDrawableId(model),
 		premultipliedAlpha = premultipliedAlpha,
 	)
-}
 
 /**
  * The drawable-to-page map a GENERATED page set carries: every drawable bound to a placed tile maps
  * to that tile's own page index, so the map shares the model's page numbering.
- *
- * One function used by both the repack (building the set from the pack it just ran) and the
- * derivation above (rebuilding it for an undone generation), so the two can never key differently.
  *
  * @param PuppetModel model The model whose bindings to map.
  * @return Map The renderer's drawable-to-page lookup.

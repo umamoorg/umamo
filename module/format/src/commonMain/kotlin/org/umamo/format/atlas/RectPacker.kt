@@ -233,9 +233,9 @@ private class MaxRectsPage(private val pageSize: Int) {
 	/**
 	 * Drops every free rectangle wholly contained in another, keeping the list maximal.
 	 *
-	 * The pairwise sweep is the canonical MaxRects prune.  Duplicates contain each other, so the
-	 * later index is the one dropped - which also keeps the surviving order stable, and page layout
-	 * is only deterministic if this is.
+	 * The pairwise sweep is the canonical MaxRects prune.  Duplicates contain each other, and the
+	 * first check below fires for that case, so the EARLIER index is the one dropped; the survivors
+	 * keep their relative order either way, and page layout is only deterministic if this is.
 	 *
 	 * @param MutableList candidates The free list after splitting, possibly with contained entries.
 	 * @return MutableList The maximal free list.

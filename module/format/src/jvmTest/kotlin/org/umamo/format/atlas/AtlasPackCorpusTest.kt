@@ -2,10 +2,8 @@ package org.umamo.format.atlas
 
 import org.umamo.format.art.ArtReader
 import org.umamo.format.art.SourceLayerKind
-import org.umamo.format.clip.ClipReader
-import org.umamo.format.kra.KraReader
+import org.umamo.format.art.locateLayeredCorpusSamples
 import org.umamo.format.png.PngCodec
-import org.umamo.format.psd.PsdReader
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -25,32 +23,9 @@ import kotlin.test.assertEquals
  * - and packing the same document twice produces the same pages.
  */
 class AtlasPackCorpusTest {
-	/**
-	 * Locates every layered corpus sample with the reader that decodes it.
-	 *
-	 * @return List<Pair<File, ArtReader>> The samples, empty when no corpus is present.
-	 */
-	private fun locateSamples(): List<Pair<File, ArtReader>> {
-		var directory: File? = File(System.getProperty("user.dir"))
-		while (directory != null) {
-			val corpus = File(directory, "test/corpus")
-			if (corpus.isDirectory) {
-				val samples = mutableListOf<Pair<File, ArtReader>>()
-				for ((subdirectory, reader) in listOf("psd" to PsdReader, "clip" to ClipReader, "krita" to KraReader)) {
-					File(corpus, subdirectory).listFiles { file -> file.isFile }
-						?.sortedBy { file -> file.name }
-						?.forEach { file -> samples.add(file to reader) }
-				}
-				return samples
-			}
-			directory = directory.parentFile
-		}
-		return emptyList()
-	}
-
 	@Test
 	fun packingInvariantsHoldOnCorpusDocuments() {
-		val samples = locateSamples()
+		val samples = locateLayeredCorpusSamples()
 		if (samples.isEmpty()) {
 			println("no test/corpus directory; skipping atlas-pack corpus test")
 			return

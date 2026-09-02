@@ -10,6 +10,7 @@ import org.umamo.format.cmo3.model.custom.CSize
 import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.cmo3.model.custom.FilterInstance
 import org.umamo.format.cmo3.model.gen.Anisotropy
+import org.umamo.format.cmo3.model.gen.AutoLayoutLock
 import org.umamo.format.cmo3.model.gen.CBlend_Normal
 import org.umamo.format.cmo3.model.gen.CCachedImage
 import org.umamo.format.cmo3.model.gen.CCachedImageManager
@@ -49,6 +50,7 @@ import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.cmo3.type.CHashMap
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.AtlasPlacement
 
 /*
  * WHY THIS FILE EXISTS, AND WHY IT CUTS UP THE ATLAS
@@ -121,9 +123,6 @@ import org.umamo.format.raster.RasterImage
  * cache entry).
  */
 internal object Cmo3ImageChainBuilder {
-	/** One retained atlas page: the original PNG bytes plus its pixel dimensions. */
-	internal class AtlasPage(val pngBytes: ByteArray, val width: Int, val height: Int)
-
 	/**
 	 * One drawable's geometry on its page: id, interleaved atlas-frame uvs and base positions, plus
 	 * the triangle indices that say which page pixels inside the uv bounding box are actually this
@@ -520,20 +519,91 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * An independent copy of an affine (the writer must not hoist one shared instance across the
-	 * entry, the region input, and the model image - the editor writes separate elements).
+	 * Writes a packing origin into [transform]: the position in page pixels, the packer's resampling
+	 * scale, and its rotation in degrees.
 	 *
-	 * @param CAffine source The affine to copy.
-	 * @return CAffine The copy.
+	 * CMO3: ModelImageEntry field materialLocalToAtlasTransform - a GTransform2 whose position is the
+	 * packing origin in page pixels, scale the packer's resampling, and eulerAngle its rotation in
+	 * DEGREES.  Shared by the fresh conversion, the export's pack-in mint, and the placement lowering,
+	 * so the three write one convention.
+	 *
+	 * @param GTransform2 transform       The transform to write into; an entry's own, so it keeps its instance.
+	 * @param Float       positionX       The packing origin's x on the page.
+	 * @param Float       positionY       The packing origin's y on the page.
+	 * @param Float       scaleX          The packer's horizontal scale.
+	 * @param Float       scaleY          The packer's vertical scale.
+	 * @param Float       rotationDegrees The packer's rotation, counter-clockwise degrees.
+	 * @return GTransform2 The same [transform].
 	 */
-	private fun copyAffine(source: CAffine): CAffine =
-		CAffine().apply {
-			m00 = source.m00
-			m01 = source.m01
-			m02 = source.m02
-			m10 = source.m10
-			m11 = source.m11
-			m12 = source.m12
+	internal fun writePacking(
+		transform: GTransform2,
+		positionX: Float,
+		positionY: Float,
+		scaleX: Float,
+		scaleY: Float,
+		rotationDegrees: Float,
+	): GTransform2 {
+		transform.position =
+			GVector2().apply {
+				x = positionX
+				y = positionY
+			}
+		transform.scale =
+			GVector2().apply {
+				x = scaleX
+				y = scaleY
+			}
+		transform.eulerAngle = rotationDegrees
+		return transform
+	}
+
+	/**
+	 * [writePacking] from a runtime placement.
+	 *
+	 * @param GTransform2    transform The transform to write into.
+	 * @param AtlasPlacement placement Where the art sits on its page.
+	 * @return GTransform2 The same [transform].
+	 */
+	internal fun writePacking(transform: GTransform2, placement: AtlasPlacement): GTransform2 =
+		writePacking(
+			transform,
+			placement.positionX,
+			placement.positionY,
+			placement.scaleX,
+			placement.scaleY,
+			placement.rotationDegrees,
+		)
+
+	/**
+	 * A page's packed entry for one model image: the membership back-reference, the shared guid, and
+	 * the transform pair the editor's atlas and mesh-edit views derive mesh-over-texture placement
+	 * from.
+	 *
+	 * CMO3: ModelImageEntry fields atlas / modelImageGuid / autoLayoutLock /
+	 * atlasLocalToCanvasTransform / materialLocalToAtlasTransform.  The guid is the model image's OWN
+	 * instance, so the writer shares it like the editor's files; autoLayoutLock is an AutoLayoutLock
+	 * enum (v="NONE") - the editor's field is enum-typed and class-casts a boolean.  Shared by the
+	 * fresh conversion and the export's pack-in mint, so an entry minted into a retained graph is
+	 * field-for-field the shape the fresh path writes.
+	 *
+	 * @param CTextureAtlas atlas              The page the entry lives in.
+	 * @param Any?          modelImageGuid     The model image's own guid instance.
+	 * @param CAffine       atlasLocalToCanvas The fitted atlas-to-canvas placement, an independent instance.
+	 * @param GTransform2   packing            The packing origin on the page.
+	 * @return ModelImageEntry The entry.
+	 */
+	internal fun packedEntry(
+		atlas: CTextureAtlas,
+		modelImageGuid: Any?,
+		atlasLocalToCanvas: CAffine,
+		packing: GTransform2,
+	): ModelImageEntry =
+		ModelImageEntry().apply {
+			this.atlas = atlas
+			this.modelImageGuid = modelImageGuid
+			autoLayoutLock = AutoLayoutLock.NONE
+			atlasLocalToCanvasTransform = atlasLocalToCanvas
+			materialLocalToAtlasTransform = packing
 		}
 
 	/**
@@ -549,7 +619,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @return CAffine The material-local placement.
 	 */
 	private fun materialLocalToCanvas(pageFit: CAffine, x0: Int, y0: Int): CAffine =
-		copyAffine(pageFit).apply {
+		pageFit.copyAffine().apply {
 			m02 = pageFit.m00 * x0 + pageFit.m01 * y0 + pageFit.m02
 			m12 = pageFit.m10 * x0 + pageFit.m11 * y0 + pageFit.m12
 		}
@@ -813,7 +883,7 @@ internal object Cmo3ImageChainBuilder {
 	 */
 	internal fun populate(
 		root: CModelSource,
-		pages: List<AtlasPage>,
+		pages: List<Cmo3Conversion.AtlasPage>,
 		regionsByPage: List<List<DrawableRegion>>,
 		nowMillis: Long,
 		fromSourceLayers: Boolean = false,
@@ -1052,7 +1122,7 @@ internal object Cmo3ImageChainBuilder {
 								// CMO3: CModelImage field _materialLocalToCanvasTransform - the patch's
 								// canvas placement (official layers carry their canvas origin here),
 								// the same numbers the layer's boundsOnImageDoc origin carries.
-								_materialLocalToCanvasTransform = copyAffine(patchPlacement)
+								_materialLocalToCanvasTransform = patchPlacement.copyAffine()
 								_group = group
 								linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
 								cachedImageManager = paddedCacheManager(cropResource, trimmedCrop.width, trimmedCrop.height)
@@ -1060,39 +1130,28 @@ internal object Cmo3ImageChainBuilder {
 							}
 						groupModelImages.add(patchImage)
 						atlasEntries.add(
-							ModelImageEntry().apply {
-								// CMO3: ModelImageEntry - the patch's packing origin on the page plus the
-								// drawable's fitted atlas-to-canvas placement; the editor's atlas and
-								// mesh-edit views derive mesh-over-texture placement from these.
-								this.atlas = atlas
-								modelImageGuid = patchImage.guid
-								// CMO3: ModelImageEntry field autoLayoutLock - an AutoLayoutLock enum
-								// (v="NONE"); the editor's field is enum-typed and class-casts a boolean.
-								autoLayoutLock = org.umamo.format.cmo3.model.gen.AutoLayoutLock.NONE
-								atlasLocalToCanvasTransform = copyAffine(pageFit)
-								// CMO3: ModelImageEntry field materialLocalToAtlasTransform - the declared
-								// packing origin is the fit-inverse of the snapped placement (fractional,
-								// like every official entry), NOT the raw crop rect origin, so the web
-								// composes to the integer placement exactly.
-								materialLocalToAtlasTransform =
-									GTransform2().apply {
-										position =
-											GVector2().apply {
-												x = packingOrigin?.get(0) ?: trimmedX0.toFloat()
-												y = packingOrigin?.get(1) ?: trimmedY0.toFloat()
-											}
-										scale =
-											GVector2().apply {
-												x = 1f
-												y = 1f
-											}
-									}
-							},
+							// The declared packing origin is the fit-inverse of the snapped placement
+							// (fractional, like every official entry), NOT the raw crop rect origin, so
+							// the web composes to the integer placement exactly.
+							packedEntry(
+								atlas = atlas,
+								modelImageGuid = patchImage.guid,
+								atlasLocalToCanvas = pageFit.copyAffine(),
+								packing =
+									writePacking(
+										GTransform2(),
+										positionX = packingOrigin?.get(0) ?: trimmedX0.toFloat(),
+										positionY = packingOrigin?.get(1) ?: trimmedY0.toFloat(),
+										scaleX = 1f,
+										scaleY = 1f,
+										rotationDegrees = 0f,
+									),
+							),
 						)
 						patchImage.guid as Guid
 					}
 				bindingByDrawableId[region.drawableIdStr] =
-					Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, imageGuid, copyAffine(pageFit))
+					Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, imageGuid, pageFit.copyAffine())
 			}
 			pageFallbackBindings.add(Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, null, CAffine()))
 			groupLinkedRawImageGuids.add(layeredImage.guid)

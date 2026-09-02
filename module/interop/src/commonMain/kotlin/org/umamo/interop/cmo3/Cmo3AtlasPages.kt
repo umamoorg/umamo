@@ -5,7 +5,6 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.GTexture2D
-import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.AtlasPageSet
 
 /**
@@ -41,7 +40,7 @@ public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -
 	var premultiplied = false
 
 	for (mesh in artMeshes) {
-		val drawableId = (mesh.id as? Id)?.idstr?.takeIf { candidate -> candidate.isNotEmpty() } ?: continue
+		val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
 		val texture = mesh.texture as? GTexture2D ?: continue
 		// CMO3: GTexture2D.isPremultiplied is an editor texture-upload-convention flag (serialized true on
 		// nearly every model), NOT a claim the embedded PNG is premultiplied - PngCodec decodes straight

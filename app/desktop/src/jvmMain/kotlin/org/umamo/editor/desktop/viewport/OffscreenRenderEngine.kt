@@ -332,7 +332,6 @@ internal class OffscreenRenderEngine(
 	 * @param PuppetModel model The current model.
 	 * @return Boolean True when the model actually changed (so the caller rebuilds model-derived state).
 	 */
-
 	fun setModel(model: PuppetModel): Boolean {
 		if (model !== modelBacking) {
 			modelBacking = model

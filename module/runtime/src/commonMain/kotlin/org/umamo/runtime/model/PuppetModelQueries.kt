@@ -75,7 +75,8 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
  * A placement applies only when the document's stored coordinates address the packed pages and this
  * tile was actually packed; otherwise the coordinates already address the art and the mapping is the
  * identity.  The DISPLAY mode is deliberately not consulted - it decides which texture is sampled, not
- * what the coordinates mean, and reinterpreting them on a toggle drew every mesh at its atlas position.
+ * what the coordinates mean, and reinterpreting them on a toggle would draw every mesh at its atlas
+ * position.
  *
  * @param Drawable drawable The drawable to resolve.
  * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
@@ -110,16 +111,45 @@ fun PuppetModel.drawableIdsByAtlasTile(): Map<AtlasTileId, List<DrawableId>> {
  * @param AtlasTileId tileId The tile to resolve.
  * @return DrawableLayerBinding? The binding, or null when the tile is unknown or its page is missing.
  */
-fun PuppetModel.atlasBindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
-	val tile = atlas.tileById[tileId] ?: return null
-	val placement = tile.placement?.takeIf { atlas.storedUvsAddressPages }
-	val page = placement?.let { packed -> atlas.pages.getOrNull(packed.pageIndex) }
+fun PuppetModel.atlasBindingForTile(tileId: AtlasTileId): DrawableLayerBinding? = atlas.bindingForTile(tileId)
+
+/**
+ * How a tile's stored texture coordinates map back into its own pixel frame, resolved against THIS
+ * atlas value's pages.
+ *
+ * The atlas-level form of [PuppetModel.atlasBindingForTile], for callers holding an atlas that is not
+ * the model's own - a repack reads a tile's OLD mapping against the current page inventory and its NEW
+ * one against the replacement inventory, and the page a placement names supplies the normalization,
+ * so the two reads must not share pages.
+ *
+ * @param AtlasTileId tileId The tile to resolve.
+ * @return DrawableLayerBinding? The binding, or null when the tile is unknown or its page is missing.
+ */
+fun PuppetAtlas.bindingForTile(tileId: AtlasTileId): DrawableLayerBinding? {
+	val tile = tileById[tileId] ?: return null
+	val placement = tile.placement?.takeIf { storedUvsAddressPages }
+	val page = placement?.let { packed -> pages.getOrNull(packed.pageIndex) }
 	if (placement != null && page == null) {
 		// A placement naming a page the document does not have is broken wiring, not a tile that is
 		// sampled directly - resolving it to the identity would silently draw the wrong frame.
 		return null
 	}
 	return DrawableLayerBinding(tile.id.raw, placement, page?.width ?: 0, page?.height ?: 0)
+}
+
+/**
+ * The whole stored-uv to art-uv mapping of a tile under this atlas value, as one 2x3 affine - the
+ * [bindingForTile] resolution folded with the tile's own size through [layerUvAffineOf], so every
+ * consumer that needs the mapping rather than the binding (a repack's re-derivation, a mesh-reach
+ * measurement) reads it from one place.
+ *
+ * @param AtlasTileId tileId The tile to resolve.
+ * @return FloatArray? The affine, or null when the binding or the mapping cannot be formed.
+ */
+fun PuppetAtlas.storedToArtAffineForTile(tileId: AtlasTileId): FloatArray? {
+	val tile = tileById[tileId] ?: return null
+	val binding = bindingForTile(tileId) ?: return null
+	return layerUvAffineOf(binding, tile.width, tile.height)
 }
 
 /**

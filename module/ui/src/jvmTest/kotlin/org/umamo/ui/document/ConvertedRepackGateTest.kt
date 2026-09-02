@@ -29,7 +29,7 @@ import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.atlasPlacementFromPack
-import org.umamo.render.generatedAtlasIndexByDrawableId
+import org.umamo.render.generatedPuppetTextures
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
@@ -179,12 +179,7 @@ class ConvertedRepackGateTest {
 		)
 
 		// The SHIPPED export policy: the effective page set is the repack's own.
-		val effective =
-			PuppetTextures(
-				packResult.pages.map { page -> DecodedImage(page.rgba, page.width, page.height) },
-				generatedAtlasIndexByDrawableId(repacked),
-				premultipliedAlpha = false,
-			)
+		val effective = generatedPuppetTextures(packResult.pages, repacked, premultipliedAlpha = false)
 		val probeDocument =
 			Cmo3Document(
 				path = file.path,

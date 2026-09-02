@@ -12,18 +12,16 @@ import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.render.DecodedImage
-import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.atlasPlacementFromPack
-import org.umamo.render.generatedAtlasIndexByDrawableId
+import org.umamo.render.generatedPuppetTextures
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
-import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.applyUvAffine
 import org.umamo.runtime.model.invertUvAffine
-import org.umamo.runtime.model.layerUvAffineOf
+import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -77,33 +75,27 @@ class AtlasRepackReport(
  *
  * The pixels alone do not bound what samples a tile: an art mesh rings outside the opaque region
  * (Erica's reach up to 58px past their trim, and past the raster itself), so a pack spaced by
- * opaque bounds puts one tile's mesh footprint over its neighbour's art - the mesh then renders the
- * neighbour's pixels wherever they are opaque.  The official editor's own packing keeps mesh
+ * opaque bounds puts one tile's mesh footprint over its neighbor's art - the mesh then renders the
+ * neighbor's pixels wherever they are opaque.  The official editor's own packing keeps mesh
  * footprints disjoint, and this is how the repack matches it.
  *
- * A drawable whose mapping will not resolve contributes nothing here; if it is bound, the refusal
- * pass aborts the repack before the reserve could have mattered.
+ * A drawable whose mapping will not resolve (a placement naming a page the atlas lacks) contributes
+ * nothing here; if it is bound, the refusal pass aborts the repack before the reserve could have
+ * mattered.
  *
  * @param PuppetModel model The model whose bindings to measure.
  * @return Map Each bound tile's reserve, absent when a tile has no measurable mesh.
  */
 internal fun meshReserveByTile(model: PuppetModel): Map<AtlasTileId, AtlasPackReserve> {
-	val tileById = model.atlas.tiles.associateBy { tile -> tile.id }
 	val boundsByTile = HashMap<AtlasTileId, FloatArray>()
 	for (drawable in model.drawables) {
 		val tileId = drawable.atlasTileId ?: continue
-		val tile = tileById[tileId] ?: continue
+		val tile = model.atlas.tileById[tileId] ?: continue
 		val uvs = drawable.mesh?.uvs ?: continue
 		if (uvs.size < 2) {
 			continue
 		}
-		val page = tile.placement?.let { placement -> model.atlas.pages.getOrNull(placement.pageIndex) }
-		val storedToArt =
-			layerUvAffineOf(
-				DrawableLayerBinding(tileId.raw, tile.placement, page?.width ?: 0, page?.height ?: 0),
-				tile.width,
-				tile.height,
-			) ?: continue
+		val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: continue
 		val artUvs = applyUvAffine(uvs, storedToArt)
 		val bounds = boundsByTile.getOrPut(tileId) { floatArrayOf(Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE) }
 		var componentIndex = 0
@@ -132,10 +124,13 @@ internal fun meshReserveByTile(model: PuppetModel): Map<AtlasTileId, AtlasPackRe
  *
  * @property List items              The tiles' pixels plus their mesh reserves.
  * @property Set  undecodableTileIds Tiles whose art would not decode or disagrees with its tile.
+ * @property Map  reserveByTile      The mesh reserves the items were built with, kept so the commit
+ *                                   can tell whether a mesh edit during the pack staled them.
  */
 internal class RepackPackInput(
 	val items: List<AtlasPackItem>,
 	val undecodableTileIds: Set<AtlasTileId>,
+	val reserveByTile: Map<AtlasTileId, AtlasPackReserve>,
 )
 
 /**
@@ -171,7 +166,7 @@ internal fun buildRepackPackInput(
 			items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba, reserveByTile[tile.id]))
 		}
 	}
-	return RepackPackInput(items, undecodable)
+	return RepackPackInput(items, undecodable, reserveByTile)
 }
 
 /**
@@ -212,15 +207,10 @@ internal fun repackRefusals(
 			refusals.add(AtlasRepackRefusal(tile.name, reason))
 			continue
 		}
-		val placement = tile.placement
-		if (placement != null) {
+		if (tile.placement != null) {
 			// The same mapping the re-derivation reads: the placement plus the page it names.  A page
 			// the model does not have counts as degenerate too - the mapping cannot be formed at all.
-			val page = model.atlas.pages.getOrNull(placement.pageIndex)
-			val storedToArt =
-				page?.let { named ->
-					layerUvAffineOf(DrawableLayerBinding(tile.id.raw, placement, named.width, named.height), tile.width, tile.height)
-				}
+			val storedToArt = model.atlas.storedToArtAffineForTile(tile.id)
 			if (storedToArt == null || invertUvAffine(storedToArt) == null) {
 				refusals.add(AtlasRepackRefusal(tile.name, AtlasRepackRefusalReason.DegeneratePlacement))
 			}
@@ -241,8 +231,10 @@ internal fun repackRefusals(
  * out (placement null) with a log line; art nobody samples does not spend page space.
  *
  * Runs on the UI thread; the decode + pack hop to the default dispatcher.  The commit applies to the
- * model CURRENT at completion, so edits made while packing survive - unless the atlas itself changed
- * (an undo across a repack, say), which aborts as superseded rather than applying a stale pack.
+ * model CURRENT at completion, so non-mesh edits made while packing survive.  Two things abort as
+ * superseded rather than applying a stale pack: the atlas itself changing (an undo across a repack,
+ * say), and a mesh or coordinate edit that changes a tile's reach - the pack was spaced by the
+ * reserves it started with, so it no longer proves the current meshes disjoint.
  *
  * @param EditorSession     session            The session to commit into.
  * @param SourceArtRasters  artRasters         The source-art pixels to pack.
@@ -300,8 +292,20 @@ suspend fun runAtlasRepack(
 
 	// Back on the UI thread, synchronously to the commit: a pack computed against one atlas value must
 	// not apply over another (an undo across a repack landing mid-pack, say).
-	if (session.model.value.atlas !== modelAtStart.atlas) {
+	val modelAtCommit = session.model.value
+	if (modelAtCommit.atlas !== modelAtStart.atlas) {
 		UmamoLog.warn("repack: the atlas changed while packing; nothing was applied")
+		session.emitNotice("notice.atlas.repackSuperseded", NoticePlacement.NearCursor)
+		return
+	}
+	// Same rule for the reserves: the pack is only proof of disjointness for the meshes it was spaced
+	// by, so a mesh edit that moved a tile's reach while packing makes it stale.
+	val reservesAtCommit = meshReserveByTile(modelAtCommit)
+	if (reservesAtCommit != packInput.reserveByTile) {
+		val changedTileIds = (reservesAtCommit.keys + packInput.reserveByTile.keys).filter { tileId -> reservesAtCommit[tileId] != packInput.reserveByTile[tileId] }
+		UmamoLog.warn(
+			"repack: a mesh edit changed ${changedTileIds.size} tile reach(es) while packing (${changedTileIds.take(3).joinToString { tileId -> tileId.raw }}); nothing was applied",
+		)
 		session.emitNotice("notice.atlas.repackSuperseded", NoticePlacement.NearCursor)
 		return
 	}
@@ -313,14 +317,7 @@ suspend fun runAtlasRepack(
 	}
 	// Pre-warm BEFORE the resolver's collector resumes (it is queued behind this dispatch), so the
 	// commit resolves its pages by cache hit instead of composing the same pages a second time.
-	sessionAtlasPages?.prewarm(
-		committed.atlas,
-		PuppetTextures(
-			atlases = packResult.pages.map { page -> DecodedImage(page.rgba, page.width, page.height) },
-			atlasIndexByDrawableId = generatedAtlasIndexByDrawableId(committed),
-			premultipliedAlpha = premultipliedAlpha,
-		),
-	)
+	sessionAtlasPages?.prewarm(committed.atlas, generatedPuppetTextures(packResult.pages, committed, premultipliedAlpha))
 	val occupancy =
 		packResult.pages.indices.joinToString(separator = ", ") { pageIndex ->
 			"${(packResult.pageOccupancy(pageIndex) * 100f).toInt()}%"

@@ -105,7 +105,7 @@ public object Cmo3Conversion {
 		val chain =
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
-				effectivePages.map { page -> Cmo3ImageChainBuilder.AtlasPage(page.pngBytes, page.width, page.height) },
+				effectivePages,
 				regionsByPage,
 				nowMillis,
 				fromSourceLayers = effectivePuppet.rendersFromSourceLayers,

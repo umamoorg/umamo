@@ -28,9 +28,9 @@ import kotlin.test.assertTrue
  * (the atlas-region input keeps the importer on the packed, no-remap path).
  */
 class Cmo3ImageChainBuilderTest {
-	private fun solidPage(size: Int, value: Byte): Cmo3ImageChainBuilder.AtlasPage {
+	private fun solidPage(size: Int, value: Byte): Cmo3Conversion.AtlasPage {
 		val rgba = ByteArray(size * size * 4) { value }
-		return Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(size, size, rgba)), size, size)
+		return Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(size, size, rgba)), size, size)
 	}
 
 	@Test
@@ -138,7 +138,7 @@ class Cmo3ImageChainBuilderTest {
 		// A fully opaque page: every pixel the crop keeps or clears is distinguishable from padding.
 		val pageSize = 32
 		val pageRgba = ByteArray(pageSize * pageSize * 4) { 0x7F }
-		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
 		// A right triangle over page (4,4)-(28,4)-(4,28): its uv bounding box is the full 24-square
 		// patch, so half of that rect is page pixels the mesh never samples.
 		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f)
@@ -176,7 +176,7 @@ class Cmo3ImageChainBuilderTest {
 				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
 			}
 		}
-		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
 		// A quad over uv bbox [4, 28] squared, positions = page pixels (identity fit).
 		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
 		val positions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
@@ -251,7 +251,7 @@ class Cmo3ImageChainBuilderTest {
 				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
 			}
 		}
-		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
 		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
 		val indices = intArrayOf(0, 1, 2, 1, 2, 3)
 		val straightPositions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
@@ -318,7 +318,7 @@ class Cmo3ImageChainBuilderTest {
 				pageRgba.fill(0xFF.toByte(), (rowIndex * pageSize + columnIndex) * 4, (rowIndex * pageSize + columnIndex) * 4 + 4)
 			}
 		}
-		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
 		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f, 28f / 32f, 28f / 32f)
 		val positions =
 			FloatArray(uvs.size) { index ->
@@ -377,7 +377,7 @@ class Cmo3ImageChainBuilderTest {
 		// A gradient page so the crop subregion is verifiable byte-for-byte.
 		val pageSize = 8
 		val pageRgba = ByteArray(pageSize * pageSize * 4) { index -> index.toByte() }
-		val page = Cmo3ImageChainBuilder.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
+		val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, pageRgba)), pageSize, pageSize)
 		// uv bbox [0.25, 0.5] x [0.5, 1.0] -> patch x 2..4, y 4..8; positions via the exact affine
 		// canvas = (2*pageX + 3, -1*pageY + 10) so the fit recovers it.
 		val uvs = floatArrayOf(0.25f, 0.5f, 0.5f, 0.5f, 0.25f, 1.0f, 0.5f, 1.0f)

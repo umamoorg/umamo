@@ -17,10 +17,9 @@ import java.io.File
 /*
  * The atlas subcommand: pack a source artwork document's layers into texture atlas pages.
  *
- * The pipeline's Phase C packer has no editor surface yet by design - pages are verified here first
- * and wired in afterwards, the way the alpha analysis was.  So this command is the packer's proof:
- * it writes the pages, reports every placement, and checks each packed tile back out of the page it
- * landed on before claiming success.
+ * The packer's standalone proof and inspection surface, beside the editor's own Repack Atlas command
+ * (document.repackAtlas): it writes the pages, reports every placement, and checks each packed tile
+ * back out of the page it landed on before claiming success.
  */
 
 /** Canvas pixels past which the preview composite is skipped rather than allocated. */
@@ -210,8 +209,8 @@ private fun reportSkips(result: AtlasPackResult) {
  *
  * This is the command's reason to exist: the atlas is a repackable indirection over the source art,
  * so a page that does not reproduce the art it was built from is worthless however good it looks.
- * The page-coordinate mapping is written out here rather than shared with the packer, so a wrong
- * rotation convention cannot agree with itself.
+ * The page-coordinate mapping ([pagePixelOf]) is written out in this file rather than shared with the
+ * packer, so a wrong rotation convention cannot agree with itself.
  *
  * @param List            items  The tiles that were packed.
  * @param AtlasPackResult result The packing outcome.
@@ -226,13 +225,7 @@ private fun verifyTiles(items: List<AtlasPackItem>, result: AtlasPackResult): Li
 		var mismatch: String? = null
 		for (tileY in 0 until placement.trimHeight) {
 			for (tileX in 0 until placement.trimWidth) {
-				val pageX = if (placement.quarterTurns == 0) placement.pageX + tileX else placement.pageX + tileY
-				val pageY =
-					if (placement.quarterTurns == 0) {
-						placement.pageY + tileY
-					} else {
-						placement.pageY + placement.trimWidth - 1 - tileX
-					}
+				val (pageX, pageY) = pagePixelOf(placement, tileX, tileY)
 				val sourceOffset = ((placement.trimTop + tileY) * item.width + placement.trimLeft + tileX) * 4
 				val pageOffset = (pageY * page.width + pageX) * 4
 				for (channelIndex in 0 until 4) {
@@ -253,6 +246,23 @@ private fun verifyTiles(items: List<AtlasPackItem>, result: AtlasPackResult): Li
 	}
 	return mismatches
 }
+
+/**
+ * The page pixel a trimmed tile's pixel lands on under its placement, independent of the packer's
+ * own composition so the two can disagree; one copy serves both the byte check and the preview so
+ * those two cannot.
+ *
+ * @param AtlasPackPlacement placement Where the tile sits on its page.
+ * @param Int                tileX     The pixel's x within the trim.
+ * @param Int                tileY     The pixel's y within the trim.
+ * @return Pair<Int, Int> The page (x, y).
+ */
+private fun pagePixelOf(placement: AtlasPackPlacement, tileX: Int, tileY: Int): Pair<Int, Int> =
+	if (placement.quarterTurns == 0) {
+		(placement.pageX + tileX) to (placement.pageY + tileY)
+	} else {
+		(placement.pageX + tileY) to (placement.pageY + placement.trimWidth - 1 - tileX)
+	}
 
 /**
  * Composites the packed layers back onto a canvas-sized image, sampling from the PAGES.
@@ -321,13 +331,7 @@ private fun drawPlacementOntoCanvas(
 			if (canvasX < 0 || canvasX >= canvasWidth) {
 				continue
 			}
-			val pageX = if (placement.quarterTurns == 0) placement.pageX + tileX else placement.pageX + tileY
-			val pageY =
-				if (placement.quarterTurns == 0) {
-					placement.pageY + tileY
-				} else {
-					placement.pageY + placement.trimWidth - 1 - tileX
-				}
+			val (pageX, pageY) = pagePixelOf(placement, tileX, tileY)
 			val pageOffset = (pageY * page.width + pageX) * 4
 			val canvasOffset = (canvasY * canvasWidth + canvasX) * 4
 			val sourceAlpha = (page.rgba[pageOffset + 3].toInt() and 0xFF) / 255f

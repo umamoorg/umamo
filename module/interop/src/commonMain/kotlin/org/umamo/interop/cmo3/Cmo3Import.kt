@@ -111,7 +111,20 @@ object Cmo3Import {
 	 *   against and the switch to flip when bisecting a suspected compaction fault.
 	 * @return PuppetModel The concrete runtime puppet.
 	 */
-	fun fromModelSource(modelSource: CModelSource, compactChannels: Boolean = true): PuppetModel {
+	fun fromModelSource(modelSource: CModelSource, compactChannels: Boolean = true): PuppetModel =
+		importModelSource(modelSource, compactChannels).puppet
+
+	/**
+	 * Builds a [PuppetModel] from a CMO3 `CModelSource` root together with the atlas ingest the model was
+	 * read from, for a caller that also needs the ingest's per-tile pixel resources (the document loader's
+	 * byte supplier).  One walk of the layered-art web serves both, so the model's tile ids and the
+	 * supplier's keys cannot come from two runs that disagree.
+	 *
+	 * @param CModelSource modelSource The parsed model root.
+	 * @param Boolean compactChannels Whether to run the post-import channel compaction; see [fromModelSource].
+	 * @return Cmo3ImportedDocument The puppet plus the atlas ingest it carries.
+	 */
+	fun importModelSource(modelSource: CModelSource, compactChannels: Boolean = true): Cmo3ImportedDocument {
 		val parameterSources =
 			elementsOf((modelSource.parameterSourceSet as? CParameterSourceSet)?._sources)
 				.filterIsInstance<CParameterSource>()
@@ -524,7 +537,8 @@ object Cmo3Import {
 				atlas = atlasIngest.atlas,
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
-		return if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
+		val puppet = if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot
+		return Cmo3ImportedDocument(puppet, atlasIngest)
 	}
 
 	/**
@@ -1045,3 +1059,15 @@ object Cmo3Import {
 		return FloatArray(positions.size) { positions[it] - base[it] }
 	}
 }
+
+/**
+ * A CMO3 import's two products: the runtime puppet and the atlas ingest it was built from.
+ *
+ * @property PuppetModel     puppet      The concrete runtime puppet.
+ * @property Cmo3AtlasIngest atlasIngest The layered-art web the puppet's atlas came from, carrying the
+ *                                       per-tile pixel resources the model deliberately does not hold.
+ */
+class Cmo3ImportedDocument(
+	val puppet: PuppetModel,
+	val atlasIngest: Cmo3AtlasIngest,
+)
