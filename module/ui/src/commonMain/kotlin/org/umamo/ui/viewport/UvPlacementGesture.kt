@@ -26,14 +26,15 @@ import org.umamo.render.DecodedImage
 import org.umamo.render.PlacementFootprint
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.derivedPackPolicy
+import org.umamo.render.derivedTileTrim
 import org.umamo.render.meshReserveByTile
 import org.umamo.render.placementFootprint
-import org.umamo.render.planAtlasDerivation
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
+import org.umamo.runtime.model.placementAffine
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import kotlin.math.PI
@@ -212,6 +213,19 @@ internal fun flipAffineFrame(affine: FloatArray, pageHeight: Int): FloatArray {
 }
 
 /**
+ * Where a tile's pixels land in DISPLAY space under [placement]: the placement's tile-to-page mapping
+ * followed by the flip.  A point mapping, so the flip applies once, after the placement - unlike a
+ * transform, which [flipAffineFrame] conjugates (flip, transform, flip).  Mixing the two draws the
+ * art mirrored below the page.
+ *
+ * @param AtlasPlacement placement The tile's placement.
+ * @param Int pageHeight The page height, the flip's line.
+ * @return FloatArray The tile-pixel to display-texel affine.
+ */
+internal fun tileToDisplayAffine(placement: AtlasPlacement, pageHeight: Int): FloatArray =
+	composeAffine(floatArrayOf(1f, 0f, 0f, 0f, -1f, pageHeight.toFloat()), placementAffine(placement))
+
+/**
  * The parameters one pointer frame yields for [operatorKind], through the same helpers the mesh
  * overlays' operator math uses.
  *
@@ -350,8 +364,14 @@ internal fun evaluatePlacementDrag(
 /**
  * Builds the gesture a placement operator latched over: the tiles the selection moves that sit on
  * the shown page, their crops and footprints, the page's bystanders, and the shared capture over the
- * moving islands.  Runs the derivation precheck first, so a gesture never latches over an atlas the
- * resolver could not recompose after the commit.
+ * moving islands.
+ *
+ * Only the MOVERS' art is decoded (their crops and trims need it); a bystander's footprint is its
+ * whole tile widened by its mesh reserve, which the model already knows.  Decoding every tile on the
+ * page to trim the bystanders exactly would cost a second per keypress on a full document, for a
+ * warning that is a bounding box anyway.  So the precheck covers the movers: a mover whose art will
+ * not decode or disagrees with its tile refuses the gesture, while a bystander in that state surfaces
+ * at the commit as the resolver's own fault log.
  *
  * Decodes rasters and wraps bitmaps, so callers run it off the UI thread.
  *
@@ -385,7 +405,6 @@ internal fun buildPlacementGesture(
 	if (candidateTileIds.isEmpty()) {
 		return PlacementGestureBuild.NotOnPage
 	}
-	val plan = planAtlasDerivation(model, surface.artRasters) ?: return PlacementGestureBuild.NotDerivable
 	// The shown page's MODEL index is the movers' page: they were chosen from islands shown on it.  A
 	// page whose model size disagrees with the shown surface means the two numberings diverged.
 	val pageIndex = model.atlas.tileById.getValue(candidateTileIds.first()).placement?.pageIndex ?: return PlacementGestureBuild.NotOnPage
@@ -402,11 +421,16 @@ internal fun buildPlacementGesture(
 		if (placement.pageIndex != pageIndex) {
 			continue
 		}
+		// decodeRaster rather than the cached rasterFor: this runs off the UI thread the cache is
+		// confined to, and a mover's art is a handful of tiles.
+		val raster = surface.artRasters.decodeRaster(tileId) ?: return PlacementGestureBuild.NotDerivable
+		if (raster.width != tile.width || raster.height != tile.height) {
+			return PlacementGestureBuild.NotDerivable
+		}
 		// A placed tile with nothing opaque has nothing on the page to move.
-		val trim = plan.trimByTile[tileId] ?: continue
+		val trim = derivedTileTrim(raster) ?: continue
 		val reserve = reserveByTile[tileId]
 		val footprint = placementFootprint(placement, trim, reserve)
-		val raster = surface.artRasters.rasterFor(tileId)
 		movers.add(
 			PlacementMover(
 				tileId = tileId,
@@ -415,7 +439,7 @@ internal fun buildPlacementGesture(
 				reserve = reserve,
 				pivotDisplayX = (footprint.left + footprint.right) / 2f,
 				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,
-				crop = raster?.let { decoded -> cropBitmap(decoded, trim) },
+				crop = cropBitmap(raster, trim),
 			),
 		)
 	}
@@ -429,8 +453,9 @@ internal fun buildPlacementGesture(
 			if (placement.pageIndex != pageIndex || tile.id in moverIds) {
 				return@mapNotNull null
 			}
-			val trim = plan.trimByTile[tile.id] ?: return@mapNotNull null
-			PlacementBystander(tile.id, placementFootprint(placement, trim, reserveByTile[tile.id]))
+			// The whole tile stands in for its trim: known without a decode, and never narrower.
+			val extent = LayerBounds(0, 0, tile.width, tile.height)
+			PlacementBystander(tile.id, placementFootprint(placement, extent, reserveByTile[tile.id]))
 		}
 
 	// The shared capture over the moving islands - every shown drawable over a mover, selected or not,

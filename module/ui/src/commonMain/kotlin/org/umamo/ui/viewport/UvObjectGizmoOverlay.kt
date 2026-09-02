@@ -51,7 +51,6 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.placementAffine
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
@@ -601,7 +600,7 @@ private fun DrawScope.drawTileCrop(
 	camera: ViewportCamera,
 	size: IntSize,
 ) {
-	val tileToDisplay = flipAffineFrame(placementAffine(placement), pageHeight)
+	val tileToDisplay = tileToDisplayAffine(placement, pageHeight)
 	val origin = tileToScreen(trim.left.toFloat(), trim.top.toFloat(), tileToDisplay, camera, size)
 	val xAxis = tileToScreen(trim.left + 1f, trim.top.toFloat(), tileToDisplay, camera, size) - origin
 	val yAxis = tileToScreen(trim.left.toFloat(), trim.top + 1f, tileToDisplay, camera, size) - origin
@@ -635,7 +634,7 @@ private fun DrawScope.drawTileQuad(
 	size: IntSize,
 	draw: DrawScope.(Path) -> Unit,
 ) {
-	val tileToDisplay = flipAffineFrame(placementAffine(placement), pageHeight)
+	val tileToDisplay = tileToDisplayAffine(placement, pageHeight)
 	val left = trim.left.toFloat()
 	val top = trim.top.toFloat()
 	val right = (trim.left + trim.width).toFloat()
