@@ -94,7 +94,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Relax/Pinch tools - deferred; needs brush machinery (radius cursor, per-stroke commits) that nothing else has yet.
 
 ## Operation Settings Modal
-* When doing an operation that has settings an in viewport overlay modal should appear in the bottom left.  For example, by default Repack Atlas uses the default settings with no rotation, but the modal would allow changing those settings after the fact.(Which would rerun the operation.)  This is like Blender's operation overlay modal that appears.  I'm not a fan of having to rerun operations twice though since it essentially has to call undo on the history and then do the corrected operation again which wastes time.
+* When doing an operation that has settings an in viewport overlay modal should appear in the bottom left.  For example, by default Repack Atlas uses the default settings with no rotation, but the modal would allow changing those settings after the fact.(Which would rerun the operation.)  This is like Blender's operation overlay modal that appears.  I'm not a fan of having to rerun operations twice though since it essentially has to call undo on the history and then do the corrected operation again which wastes time.  Building this modal as reusable by various operations is important since even operations like grab/move will use it eventually.
 
 ## Context Issues
 * If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
