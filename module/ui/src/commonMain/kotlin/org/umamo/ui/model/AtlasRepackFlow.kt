@@ -6,7 +6,6 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.commitAtlasRepack
 import org.umamo.format.atlas.AtlasPackItem
-import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackReserve
 import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
@@ -14,17 +13,16 @@ import org.umamo.format.atlas.packAtlas
 import org.umamo.render.DecodedImage
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.atlasPlacementFromPack
+import org.umamo.render.derivedPackPolicy
 import org.umamo.render.generatedPuppetTextures
+import org.umamo.render.meshReserveByTile
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
 import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
-import kotlin.math.ceil
-import kotlin.math.floor
 
 /** The page side a repack packs against when the document has no pages to take one from. */
 private const val DEFAULT_REPACK_PAGE_SIDE = 4096
@@ -68,56 +66,6 @@ class AtlasRepackRefusal(
 class AtlasRepackReport(
 	val refusals: List<AtlasRepackRefusal>,
 )
-
-/**
- * Per tile, the union of its bound drawables' mesh reach in the tile's own art frame, rounded out to
- * whole pixels - what the pack must keep clear BEYOND the opaque pixels.
- *
- * The pixels alone do not bound what samples a tile: an art mesh rings outside the opaque region
- * (Erica's reach up to 58px past their trim, and past the raster itself), so a pack spaced by
- * opaque bounds puts one tile's mesh footprint over its neighbor's art - the mesh then renders the
- * neighbor's pixels wherever they are opaque.  The official editor's own packing keeps mesh
- * footprints disjoint, and this is how the repack matches it.
- *
- * A drawable whose mapping will not resolve (a placement naming a page the atlas lacks) contributes
- * nothing here; if it is bound, the refusal pass aborts the repack before the reserve could have
- * mattered.
- *
- * @param PuppetModel model The model whose bindings to measure.
- * @return Map Each bound tile's reserve, absent when a tile has no measurable mesh.
- */
-internal fun meshReserveByTile(model: PuppetModel): Map<AtlasTileId, AtlasPackReserve> {
-	val boundsByTile = HashMap<AtlasTileId, FloatArray>()
-	for (drawable in model.drawables) {
-		val tileId = drawable.atlasTileId ?: continue
-		val tile = model.atlas.tileById[tileId] ?: continue
-		val uvs = drawable.mesh?.uvs ?: continue
-		if (uvs.size < 2) {
-			continue
-		}
-		val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: continue
-		val artUvs = applyUvAffine(uvs, storedToArt)
-		val bounds = boundsByTile.getOrPut(tileId) { floatArrayOf(Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE) }
-		var componentIndex = 0
-		while (componentIndex + 1 < artUvs.size) {
-			val artX = artUvs[componentIndex] * tile.width
-			val artY = artUvs[componentIndex + 1] * tile.height
-			bounds[0] = minOf(bounds[0], artX)
-			bounds[1] = minOf(bounds[1], artY)
-			bounds[2] = maxOf(bounds[2], artX)
-			bounds[3] = maxOf(bounds[3], artY)
-			componentIndex += 2
-		}
-	}
-	return boundsByTile.mapValues { (_, bounds) ->
-		AtlasPackReserve(
-			left = floor(bounds[0]).toInt(),
-			top = floor(bounds[1]).toInt(),
-			right = ceil(bounds[2]).toInt(),
-			bottom = ceil(bounds[3]).toInt(),
-		)
-	}
-}
 
 /**
  * What one repack feeds the packer.
@@ -256,7 +204,7 @@ suspend fun runAtlasRepack(
 		return
 	}
 	val packSide = atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIDE
-	val options = AtlasPackOptions(maxPageSize = packSide)
+	val options = derivedPackPolicy.copy(maxPageSize = packSide)
 
 	// Only a BOUND failure refuses the repack; a placed-unbound tile that cannot come along packs out
 	// instead, logged below.

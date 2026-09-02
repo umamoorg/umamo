@@ -300,18 +300,28 @@ fun EditorSession.setSourceLayerDisplay(fromSourceLayers: Boolean) {
 
 /**
  * Packs one piece of source art at [placement] as a single undo step, re-mapping every drawable over it
- * so the art keeps meaning what it did.
- *
- * The page's PIXELS are the document's, not the model's, so this moves where the art is recorded to be
- * without moving the art itself.  A caller must recompose the affected page for the result to render -
- * unlike the whole-atlas [commitAtlasRepack], no caller pairs a single-tile nudge with that recompose
- * yet, so this stays exercised by tests only.
+ * so the art keeps meaning what it did - [setAtlasPlacements] over one tile.
  *
  * @param AtlasTileId     tileId    The tile to place.
  * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
  */
 fun EditorSession.setAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?) {
-	mutate(DocumentChange.SetAtlasPlacement(tileId)) { model -> model.withAtlasPlacement(tileId, placement) }
+	setAtlasPlacements(mapOf(tileId to placement))
+}
+
+/**
+ * Packs several pieces of source art at once as ONE undo step - a placement gesture over a
+ * multi-tile selection is one edit, not one step per tile - re-mapping every drawable over them so
+ * the art keeps meaning what it did.
+ *
+ * The pages' PIXELS are session state derived from the model, not part of it: the session's page
+ * resolver composes the pages the new placements denote once this commit publishes (and re-composes
+ * them on undo), so nothing here touches a pixel and no snapshot ever carries one.
+ *
+ * @param Map placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
+ */
+fun EditorSession.setAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlacement?>) {
+	mutate(DocumentChange.SetAtlasPlacement(placementByTile.keys.toList())) { model -> model.withAtlasPlacements(placementByTile) }
 }
 
 /**

@@ -1187,40 +1187,59 @@ class EditorSession(
 
 	/**
 	 * Latches a modal UV operator so the UV editor's overlay begins the gesture - the UV-editor
-	 * counterpart to [beginMeshOperator], moving texture coordinates instead of rest geometry.  A no-op
-	 * unless Edit mode is active with a non-empty selection - so the bound G / S / R commands stay
-	 * mode-agnostic - and Vertex Slide is refused (it is rest-geometry math; Blender's UV editor has no
-	 * slide either).  The gesture is BLOCKED with a near-cursor notice when no covered mesh carries an
-	 * editable UV array (imports may leave uvs empty), since latching would show a modal HUD that can
-	 * never commit anything.  Clears any other latched tool / operator (mutual exclusion) before
-	 * latching.
+	 * counterpart to [beginMeshOperator].  What the gesture moves follows the mode: in Edit mode the
+	 * selected texture coordinates, in Object mode the selected drawables' atlas PLACEMENTS (the art
+	 * itself on its page, with the coordinates over it re-derived on commit).  Either way the bound
+	 * G / S / R commands stay mode-agnostic.  Vertex Slide is refused in both (it is rest-geometry math;
+	 * Blender's UV editor has no slide either).
+	 *
+	 * Edit mode is a silent no-op on an empty selection and BLOCKED with a near-cursor notice when no
+	 * covered mesh carries an editable UV array (imports may leave uvs empty), since latching would show
+	 * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the stored
+	 * coordinates address the art rather than the pages (a placement is meaningless there) and when
+	 * nothing selected is bound to packed art.  Which page the overlay is showing - and whether it is
+	 * showing a page at all rather than a source layer - is per-area state the session cannot see, so
+	 * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
+	 * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
 	 *
 	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
 	 * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).
 	 */
 	fun beginUvOperator(kind: MeshOperatorKind, areaId: String) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
 		if (kind == MeshOperatorKind.VertexSlide) {
 			return
 		}
-		val selection = mutableMeshSelection.value
-		if (selection.drawableIds.isEmpty() || selection.isEmpty) {
-			return
-		}
 		val model = mutableModel.value
-		val anyEditableUvs =
-			selection.drawableIds.any { drawableId ->
-				val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh
-				mesh != null &&
-					mesh.uvs.isNotEmpty() &&
-					mesh.uvs.size == mesh.positions.size &&
-					MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices).isNotEmpty()
+		when (mutableMode.value) {
+			EditorMode.Object -> {
+				if (!model.atlas.storedUvsAddressPages) {
+					emitNotice("notice.uv.placement.layerAddressed", NoticePlacement.NearCursor)
+					return
+				}
+				if (model.placementDragTileIds(mutableSelection.value).isEmpty()) {
+					emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
+					return
+				}
 			}
-		if (!anyEditableUvs) {
-			emitNotice("notice.uv.noUvs", NoticePlacement.NearCursor)
-			return
+
+			EditorMode.Edit -> {
+				val selection = mutableMeshSelection.value
+				if (selection.drawableIds.isEmpty() || selection.isEmpty) {
+					return
+				}
+				val anyEditableUvs =
+					selection.drawableIds.any { drawableId ->
+						val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh
+						mesh != null &&
+							mesh.uvs.isNotEmpty() &&
+							mesh.uvs.size == mesh.positions.size &&
+							MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices).isNotEmpty()
+					}
+				if (!anyEditableUvs) {
+					emitNotice("notice.uv.noUvs", NoticePlacement.NearCursor)
+					return
+				}
+			}
 		}
 		latches.latchUvOperator(kind, areaId)
 	}

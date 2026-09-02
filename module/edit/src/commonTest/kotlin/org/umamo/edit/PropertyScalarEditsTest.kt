@@ -364,7 +364,7 @@ class PropertyScalarEditsTest {
 		session.setAtlasPlacement(tileId, moved)
 		assertEquals(moved, session.model.value.atlas.tiles.single().placement, "the tile moved")
 		assertTrue(session.dirty.value, "a pack is document content, so it dirties")
-		assertEquals("change.document.atlasPlacement", DocumentChange.SetAtlasPlacement(tileId).labelKey)
+		assertEquals("change.document.atlasPlacement", DocumentChange.SetAtlasPlacement(listOf(tileId)).labelKey)
 		assertFalse(
 			session.model.value.drawables.single().mesh!!.uvs.contentEquals(storedBefore),
 			"the stored coordinates followed the art rather than staying put",
