@@ -769,9 +769,9 @@ fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
  * one whose coordinates already address the art does not.
  *
  * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so a caller that moves a
- * placement must recompose the page for the result to render.  The per-tile placement authoring this
- * edit serves (the texture-authoring and art-sourcing plans under docs/plan) lands together with that
- * recompose; until then [EditorSession.setAtlasPlacement] is exercised by tests only.
+ * placement must recompose the page for the result to render; the session's page resolver does that
+ * from the committed model, which is what lets the placement gizmo commit here and let the pixels
+ * follow.
  *
  * A no-op returns the same instance.  So does an edit that cannot be expressed: an unknown tile, a
  * placement naming a page the document does not have, or a mapping that will not invert (a zero scale,
@@ -781,24 +781,56 @@ fun PuppetModel.withSourceLayerDisplay(fromSourceLayers: Boolean): PuppetModel {
  * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
  * @return PuppetModel The model with the placement and the re-derived coordinates, or [this].
  */
-fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?): PuppetModel {
-	val tileIndex = atlas.tiles.indexOfFirst { tile -> tile.id == tileId }
-	if (tileIndex < 0) {
-		return this
-	}
-	val tile = atlas.tiles[tileIndex]
-	if (tile.placement == placement) {
+fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacement?): PuppetModel =
+	withAtlasPlacements(mapOf(tileId to placement))
+
+/**
+ * This model with several tiles placed anew in one pass - [withAtlasPlacement] over a whole gesture's
+ * worth of tiles, every drawable over each moved tile re-mapped so it keeps sampling the same pixels.
+ *
+ * One pass rather than a fold of single-tile edits so the result is one instance for one history
+ * push, and so the whole edit is refused together: an unknown tile, a placement naming a page the
+ * document does not have, or a mapping that will not invert anywhere in the map returns [this]
+ * untouched rather than moving the tiles that happened to precede the fault.  The page inventory
+ * never changes here - that is the repack's op, [withAtlasRepack].
+ *
+ * @param Map placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
+ * @return PuppetModel The model with the placements and the re-derived coordinates, or [this] when
+ *   nothing changes or the edit cannot be expressed.
+ */
+fun PuppetModel.withAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlacement?>): PuppetModel {
+	if (placementByTile.isEmpty()) {
 		return this
 	}
 	val movedTiles = atlas.tiles.toMutableList()
-	movedTiles[tileIndex] = tile.copy(placement = placement)
-	val newAtlas = atlas.copy(tiles = movedTiles)
-	val remapByTile =
-		when (val outcome = tileRemap(atlas, newAtlas, tileId)) {
-			TileRemapOutcome.Unchanged -> emptyMap()
-			TileRemapOutcome.Inexpressible -> return this
-			is TileRemapOutcome.Remap -> mapOf(tileId to outcome.remap)
+	val changedTileIds = ArrayList<AtlasTileId>()
+	for ((tileId, placement) in placementByTile) {
+		val tileIndex = movedTiles.indexOfFirst { tile -> tile.id == tileId }
+		if (tileIndex < 0) {
+			return this
 		}
+		if (placement != null && placement.pageIndex !in atlas.pages.indices) {
+			return this
+		}
+		val tile = movedTiles[tileIndex]
+		if (tile.placement == placement) {
+			continue
+		}
+		movedTiles[tileIndex] = tile.copy(placement = placement)
+		changedTileIds.add(tileId)
+	}
+	if (changedTileIds.isEmpty()) {
+		return this
+	}
+	val newAtlas = atlas.copy(tiles = movedTiles)
+	val remapByTile = HashMap<AtlasTileId, AtlasTileRemap>()
+	for (tileId in changedTileIds) {
+		when (val outcome = tileRemap(atlas, newAtlas, tileId)) {
+			TileRemapOutcome.Unchanged -> Unit
+			TileRemapOutcome.Inexpressible -> return this
+			is TileRemapOutcome.Remap -> remapByTile[tileId] = outcome.remap
+		}
+	}
 	return copy(atlas = newAtlas, drawables = drawables.remappedOver(remapByTile))
 }
 

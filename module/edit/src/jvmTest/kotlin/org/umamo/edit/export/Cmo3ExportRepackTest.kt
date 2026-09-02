@@ -1,6 +1,7 @@
 package org.umamo.edit.export
 
 import org.umamo.edit.withAtlasPlacement
+import org.umamo.edit.withAtlasPlacements
 import org.umamo.edit.withAtlasRepack
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
@@ -35,6 +36,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -286,6 +288,54 @@ class Cmo3ExportRepackTest {
 				reimported.atlas.tiles.first { tile -> tile.id == mover.id }.placement,
 				"'${mover.name}' reimports at its new placement",
 			)
+		}
+	}
+
+	@Test
+	fun aHandPlacedRotatedAndScaledTileExportsItsTrsAndKeepsItsMapping() {
+		val file = skipMessageOrNull() ?: return
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val imported = Cmo3Import.fromModelSource(modelSource)
+		val boundTileIds = imported.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId }
+		val tile = imported.atlas.tiles.firstOrNull { candidate -> candidate.placement != null && candidate.id in boundTileIds }
+		if (tile == null) {
+			println("${file.name} packs no bound artwork; skipping the hand-placement gate")
+			return
+		}
+		val original = assertNotNull(tile.placement)
+		// The gizmo's whole vocabulary on one tile: a fractional move, a turn, and a reduction.
+		val turned =
+			original.copy(
+				positionX = original.positionX + 5.5f,
+				positionY = original.positionY - 2.25f,
+				scaleX = 0.5f,
+				scaleY = 0.5f,
+				rotationDegrees = 30f,
+			)
+		val edited = imported.withAtlasPlacements(mapOf(tile.id to turned))
+		assertNotSame(imported, edited, "the placement moved")
+		val marker = markerPng()
+		val pages =
+			pageResourcesOf(modelSource).map { (_, resource) -> Cmo3Conversion.AtlasPage(marker, resource.width, resource.height) }
+
+		val report = Cmo3Export.apply(edited, cmo3, recomposedPages = pages)
+
+		assertFalse(hasStalePageNotice(report), "a same-membership hand placement patches the pages: ${report.notices}")
+		val reimported = Cmo3Import.fromModelSource(Cmo3.read(Cmo3.write(cmo3)).root as CModelSource)
+		val reread = assertNotNull(reimported.atlas.tileById[tile.id]?.placement, "'${tile.name}' reimports placed")
+		assertEquals(turned.pageIndex, reread.pageIndex, "page")
+		assertEquals(turned.positionX, reread.positionX, 1e-2f, "position x")
+		assertEquals(turned.positionY, reread.positionY, 1e-2f, "position y")
+		assertEquals(turned.scaleX, reread.scaleX, 1e-3f, "scale x")
+		assertEquals(turned.scaleY, reread.scaleY, 1e-3f, "scale y")
+		assertEquals(turned.rotationDegrees, reread.rotationDegrees, 1e-2f, "rotation")
+		val editedUvs = edited.drawables.associate { drawable -> drawable.id to drawable.mesh?.uvs }
+		for (drawable in reimported.drawables) {
+			if (drawable.atlasTileId != tile.id) {
+				continue
+			}
+			assertContentEquals(editedUvs[drawable.id], drawable.mesh?.uvs, "'${drawable.name}' exports the re-derived coordinates verbatim")
 		}
 	}
 

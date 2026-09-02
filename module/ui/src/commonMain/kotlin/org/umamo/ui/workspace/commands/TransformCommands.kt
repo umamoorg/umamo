@@ -52,8 +52,9 @@ internal fun transformCommands(
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param CommandRouting routing Resolves the target surface at dispatch time.
  * @note The UV branch does not fall back to a viewport when the session declines it (beginUvOperator
- *   refuses outside Edit mode, and on a selection with no editable UVs).  Refusing outright is the point:
- *   the alternative would grab geometry in an area the pointer is nowhere near.
+ *   refuses an Edit-mode selection with no editable UVs and an Object-mode selection with no packed
+ *   art to place).  Refusing outright is the point: the alternative would grab geometry in an area the
+ *   pointer is nowhere near.
  */
 private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, routing: CommandRouting) {
 	if (session == null) {

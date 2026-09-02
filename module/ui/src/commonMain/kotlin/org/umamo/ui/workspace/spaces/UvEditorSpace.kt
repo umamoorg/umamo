@@ -45,11 +45,13 @@ import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.OverlapState
+import org.umamo.ui.viewport.PlacementDragStatus
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.UvPlacementSurface
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
 import org.umamo.ui.viewport.ViewportRegionOverlay
@@ -266,6 +268,22 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// dismisses it.  Area-local, like the anchor it carries.
 	var overlap by remember(scope.areaId) { mutableStateOf<OverlapState?>(null) }
 
+	// The placement gesture's page: Object-mode G / S / R over the shown page's placements needs the
+	// page's texel size and the source art the pages recompose from.  Null over a source layer (a
+	// placement has no page to move on there) and while the document retains no art; the Object
+	// overlay then drops a latch with its own notice.
+	val placementSurface =
+		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters) {
+			if (layerView == null && pageIndex != null && artRasters != null) {
+				UvPlacementSurface(displayWidth, displayHeight, artRasters)
+			} else {
+				null
+			}
+		}
+	// The drag's live readout, host-owned because two sibling overlays meet on it: the Object overlay
+	// writes it per pointer frame and UvHudOverlay's badge reads it.
+	val placementDragStatus = remember(scope.areaId) { mutableStateOf<PlacementDragStatus?>(null) }
+
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
 	// The overlay's own dispose effect resyncs the renderer when a capture was live.  Zoom Region
@@ -404,6 +422,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
+					placementSurface = placementSurface,
+					placementDragStatusState = placementDragStatus,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
 						overlap =
@@ -461,6 +481,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					session = session,
 					liveCamera = liveCamera,
 					proportionalRadiusDisplay = proportionalRadiusDisplay.value,
+					placementDragStatus = placementDragStatus.value,
 				)
 			}
 		}

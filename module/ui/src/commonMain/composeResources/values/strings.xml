@@ -493,6 +493,13 @@
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
+	<string name="notice_uv_placement_layer_addressed">This document's UVs address the artwork, not the atlas; there is no placement to move.</string>
+	<string name="notice_uv_placement_no_placed_art">Nothing selected is packed on an atlas page.</string>
+	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV editor to move placements.</string>
+	<string name="notice_uv_placement_not_on_page">Nothing selected is packed on this page.</string>
+	<string name="notice_uv_placement_not_derivable">The atlas cannot be recomposed from its source art, so placements cannot move.</string>
+	<string name="notice_uv_placement_overlap">Placement overlaps another tile.  Repack the atlas to clear the collision.</string>
+	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -518,6 +525,12 @@
 	<string name="header_more">More</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
+	<string name="hud_placement">Placement</string>
+	<string name="hud_overlapping">Overlapping</string>
+	<string name="hud_off_page">Off page</string>
+	<string name="hud_delta_px">Δ %1$d, %2$d px</string>
+	<string name="hud_angle_degrees">%1$s°</string>
+	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
 

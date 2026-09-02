@@ -36,6 +36,55 @@ internal class TransformGestureFrame(
 )
 
 /**
+ * The translation a Grab gesture applies, in the positions' units: the pointer's screen travel over
+ * the zoom, with the axis lock zeroing the constrained-out component (AxisX keeps horizontal movement,
+ * AxisZ keeps vertical - world y, the displayed Z axis per the Y+ forward, Z+ up convention).
+ *
+ * Shared by [applyOperator] and the placement gizmo so the two cannot drift on sign or axis.
+ *
+ * @param TransformGestureFrame frame The gesture's pointer frame.
+ * @return Pair<Float, Float> The (x, y) delta.
+ */
+internal fun gestureTranslation(frame: TransformGestureFrame): Pair<Float, Float> {
+	val deltaX = if (frame.axisConstraint == TransformAxisConstraint.AxisZ) 0f else (frame.current.x - frame.start.x) / frame.camera.zoom
+	val deltaY = if (frame.axisConstraint == TransformAxisConstraint.AxisX) 0f else -(frame.current.y - frame.start.y) / frame.camera.zoom
+	return deltaX to deltaY
+}
+
+/**
+ * The per-axis factors a Scale gesture applies: the pointer's distance from the anchor over its
+ * distance at gesture start (Blender measures against the transform center even with Individual
+ * Origins), with the axis lock pinning the constrained-out axis at 1.
+ *
+ * @param TransformGestureFrame frame The gesture's pointer frame.
+ * @return Pair<Float, Float> The (x, y) factors.
+ */
+internal fun gestureScaleFactors(frame: TransformGestureFrame): Pair<Float, Float> {
+	val anchorScreen = worldToScreen(frame.anchor.first, frame.anchor.second, frame.camera, frame.size)
+	val startDistance = (frame.start - anchorScreen).getDistance()
+	val currentDistance = (frame.current - anchorScreen).getDistance()
+	val factor = if (startDistance > 1e-3f) currentDistance / startDistance else 1f
+	val factorX = if (frame.axisConstraint == TransformAxisConstraint.AxisZ) 1f else factor
+	val factorY = if (frame.axisConstraint == TransformAxisConstraint.AxisX) 1f else factor
+	return factorX to factorY
+}
+
+/**
+ * The angle a Rotate gesture applies about a pivot, in the positions' units: the pointer's angle about
+ * the anchor accumulated through [rotationTracker], negated out of screen space into the positions'
+ * sense - the value [MeshTransforms.rotateVertices] takes.  Rotate has no axis to lock in 2D.
+ *
+ * @param TransformGestureFrame frame The gesture's pointer frame.
+ * @param RotationAngleTracker rotationTracker The gesture's angle accumulator.
+ * @return Float The rotation in radians.
+ */
+internal fun gestureRotationRadians(frame: TransformGestureFrame, rotationTracker: RotationAngleTracker): Float {
+	val anchorScreen = worldToScreen(frame.anchor.first, frame.anchor.second, frame.camera, frame.size)
+	val pointerAngle = atan2(frame.current.y - anchorScreen.y, frame.current.x - anchorScreen.x)
+	return -rotationTracker.advance(pointerAngle)
+}
+
+/**
  * Slides one vertex along the edge toward [neighborIndex]: the pointer projects onto the edge's screen
  * direction and the parameter clamps between the endpoints (Blender's Shift+V, without the unclamped
  * and even-slide variants).
@@ -111,10 +160,7 @@ internal fun applyOperator(
 ): FloatArray =
 	when (operator) {
 		MeshOperatorKind.Grab -> {
-			// An axis lock zeroes the constrained-out component: AxisX keeps horizontal movement, AxisZ
-			// keeps vertical (world y - the displayed Z axis per the Y+ forward, Z+ up convention).
-			val deltaX = if (frame.axisConstraint == TransformAxisConstraint.AxisZ) 0f else (frame.current.x - frame.start.x) / frame.camera.zoom
-			val deltaY = if (frame.axisConstraint == TransformAxisConstraint.AxisX) 0f else -(frame.current.y - frame.start.y) / frame.camera.zoom
+			val (deltaX, deltaY) = gestureTranslation(frame)
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.translateVertices(positions, group.vertexIndices, deltaX, deltaY)
@@ -127,12 +173,7 @@ internal fun applyOperator(
 			// The factor comes from the gesture anchor (Blender measures against the transform center even
 			// with Individual Origins); each group then scales about its own pivot, and each influenced
 			// vertex about its owning group's pivot.
-			val anchorScreen = worldToScreen(frame.anchor.first, frame.anchor.second, frame.camera, frame.size)
-			val startDistance = (frame.start - anchorScreen).getDistance()
-			val currentDistance = (frame.current - anchorScreen).getDistance()
-			val factor = if (startDistance > 1e-3f) currentDistance / startDistance else 1f
-			val factorX = if (frame.axisConstraint == TransformAxisConstraint.AxisZ) 1f else factor
-			val factorY = if (frame.axisConstraint == TransformAxisConstraint.AxisX) 1f else factor
+			val (factorX, factorY) = gestureScaleFactors(frame)
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.scaleVerticesAxis(positions, group.vertexIndices, factorX, factorY, group.pivotX, group.pivotY)
@@ -147,16 +188,14 @@ internal fun applyOperator(
 			// The angle comes from the gesture anchor; each group then rotates about its own pivot, and
 			// each influenced vertex about its owning group's pivot.  Rotate has no axis to lock in 2D,
 			// so the constraint is ignored.
-			val anchorScreen = worldToScreen(frame.anchor.first, frame.anchor.second, frame.camera, frame.size)
-			val pointerAngle = atan2(frame.current.y - anchorScreen.y, frame.current.x - anchorScreen.x)
-			val gestureAngle = rotationTracker.advance(pointerAngle)
+			val rotation = gestureRotationRadians(frame, rotationTracker)
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
-					MeshTransforms.rotateVertices(positions, group.vertexIndices, -gestureAngle, group.pivotX, group.pivotY)
+					MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
 				}
 			val partitions = TransformPivots.partitionInfluencesByGroup(proportionalInfluences, groups)
 			groups.foldIndexed(moved) { groupIndex, positions, group ->
-				MeshTransforms.rotateVerticesWeighted(positions, partitions[groupIndex], -gestureAngle, group.pivotX, group.pivotY)
+				MeshTransforms.rotateVerticesWeighted(positions, partitions[groupIndex], rotation, group.pivotX, group.pivotY)
 			}
 		}
 

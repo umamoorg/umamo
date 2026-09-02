@@ -1,40 +1,60 @@
 package org.umamo.render
 
+import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackPlacement
-import org.umamo.format.atlas.composeAtlasPages
+import org.umamo.format.atlas.AtlasTilePlacement
+import org.umamo.format.atlas.composeAtlasPagesAffine
 import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
-import kotlin.math.roundToInt
+import org.umamo.runtime.model.placementAffine
 
 /*
  * Page derivation for a GENERATED atlas: the pixels a model's authored placements denote, composed
- * from the source art.  An imported document's original pages never come through here - the session's
- * page resolver short-circuits its baseline atlas to the document's own decoded pages - so everything
- * in this file may assume the placements were authored by Umamo's packer.
+ * from the source art.  An imported document's original pages never come through here while its
+ * atlas is the baseline - the session's page resolver short-circuits that value to the document's own
+ * decoded pages - but the moment a rigger moves one tile the whole page set derives from here, imported
+ * placements included, so nothing in this file may assume the packer authored every placement.
+ *
+ * Two steps on purpose: PLAN resolves what will be drawn (every placed tile's pixels, trim, and page
+ * affine) without touching a page buffer, and COMPOSE draws it.  The plan is cheap and is also the
+ * footprint inventory the placement gizmo reads before it lets a gesture commit, so the drag and the
+ * resolver cannot disagree about what a placement will paint.
  */
 
 /**
- * The trim and extrusion policy a derivation reconstructs a pack under.
+ * The trim and extrusion policy a derivation reconstructs a pack under, and the policy the repack
+ * packs with.
  *
  * A placement stores only where a tile's art sits, not which opaque sub-rectangle the packer trimmed
  * it to, so the derivation re-runs the packer's own trim analysis on the same pixels.  That couples
- * this file to the pack options the repack ran with: both sides read THIS value, and a future options
- * dialog must thread its choices into both.
+ * this value to the repack: both sides read it, and a future options dialog must thread its choices
+ * into both.
  */
-private val derivedPackPolicy = AtlasPackOptions()
+public val derivedPackPolicy: AtlasPackOptions = AtlasPackOptions()
+
+/**
+ * The trim a derivation draws of [raster]: the packer's own opaque-bounds analysis under
+ * [derivedPackPolicy], or null when nothing in the raster is opaque.
+ *
+ * @param DecodedImage raster The tile's decoded source art.
+ * @return LayerBounds? The opaque sub-rectangle, raster-local.
+ */
+public fun derivedTileTrim(raster: DecodedImage): LayerBounds? =
+	analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold)?.opaqueBounds
 
 /**
  * An [AtlasPackPlacement] lowered onto the model's placement transform: the trim origin folds into
  * the position, scale stays 1, rotation stays 0.
  *
- * The quarter-turned form is deliberately refused rather than lowered: the rotation's origin shift
- * has a pixel-center subtlety this session does not need (packing runs with rotation off), and a
- * silently wrong lowering would re-point every bound mesh.  The adapter grows the turned case when
- * rotation is switched on.
+ * The quarter-turned form is deliberately refused rather than lowered: the packer's turn and the
+ * placement's rotation run in opposite senses about different origins, and a silently wrong lowering
+ * would re-point every bound mesh.  The adapter grows the turned case when the repack switches
+ * rotation on.
  *
  * @param AtlasPackPlacement packPlacement Where the packer put one tile.
  * @return AtlasPlacement The equivalent authored placement.
@@ -54,6 +74,60 @@ fun atlasPlacementFromPack(packPlacement: AtlasPackPlacement): AtlasPlacement {
 }
 
 /**
+ * What a derivation will compose: every placed tile's pixels, trim, and page affine, resolved
+ * before any page buffer is allocated.
+ *
+ * @property List items      The placed tiles' pixels, keyed by tile id.
+ * @property List placements Each placed tile's trim and tile-to-page affine.
+ * @property Map  trimByTile Each drawn tile's trim, for callers reasoning about footprints.
+ */
+class AtlasDerivationPlan(
+	val items: List<AtlasPackItem>,
+	val placements: List<AtlasTilePlacement>,
+	val trimByTile: Map<AtlasTileId, LayerBounds>,
+)
+
+/**
+ * Resolves what [model]'s atlas denotes without composing a pixel.
+ *
+ * Null when the atlas cannot be derived at all: a placement naming a page the atlas lacks, art that
+ * will not decode, or art whose size disagrees with its tile - faults in the document, not in the
+ * placement.  A placed tile with nothing opaque is skipped rather than refused (there is nothing to
+ * draw), and scale, rotation, fractional positions, and footprints past the page edge all derive:
+ * the composer resamples and clips them.
+ *
+ * Thread-safe: reads pixels through [SourceArtRasters.decodeRaster] and shares nothing, so callers
+ * run it off the UI thread.
+ *
+ * @param PuppetModel      model      The model whose atlas to resolve.
+ * @param SourceArtRasters artRasters The source-art pixel store.
+ * @return AtlasDerivationPlan? The plan, or null when the atlas cannot be derived.
+ */
+fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): AtlasDerivationPlan? {
+	val atlas = model.atlas
+	val items = ArrayList<AtlasPackItem>()
+	val placements = ArrayList<AtlasTilePlacement>()
+	val trimByTile = HashMap<AtlasTileId, LayerBounds>()
+	for (tile in atlas.tiles) {
+		val placement = tile.placement ?: continue
+		if (placement.pageIndex !in atlas.pages.indices) {
+			return null
+		}
+		val raster = artRasters.decodeRaster(tile.id) ?: return null
+		if (raster.width != tile.width || raster.height != tile.height) {
+			return null
+		}
+		// The packer trimmed each tile to its opaque bounds before placing it; the placement holds only
+		// the untrimmed origin, so the same analysis on the same pixels reconstructs the trim exactly.
+		val trim = derivedTileTrim(raster) ?: continue
+		trimByTile[tile.id] = trim
+		items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba))
+		placements.add(AtlasTilePlacement(tile.id.raw, placement.pageIndex, trim, placementAffine(placement)))
+	}
+	return AtlasDerivationPlan(items, placements, trimByTile)
+}
+
+/**
  * The [PuppetTextures] a generated atlas value denotes: pages composed from the model's tiles,
  * placements, and decoded source art.
  *
@@ -63,13 +137,12 @@ fun atlasPlacementFromPack(packPlacement: AtlasPackPlacement): AtlasPlacement {
  * document's two numberings stay independent (see [AtlasPlacement]), because its renderer pages were
  * collected by a different walk than its document pages.
  *
- * Returns null when the atlas is not derivable: a placement scaled, rotated, or off the pixel grid
- * (nothing Umamo's packer authors), art that will not decode, art whose size disagrees with its
- * tile, or a placement without room for its extrusion.  The caller treats null as "keep showing the
- * pages you have" - for an atlas the repack authored, every one of these is unreachable.
+ * A placement the packer authored (an integer translation with room for its extrusion) composes
+ * through the packer's own blit, byte-identical to the pages the repack produced; every other
+ * placement resamples through the affine composer.  Null exactly when [planAtlasDerivation] is null;
+ * the caller treats that as "keep showing the pages you have".
  *
- * Thread-safe: reads pixels through [SourceArtRasters.decodeRaster] and shares nothing, so the
- * session runs it off the UI thread.
+ * Thread-safe, like the plan.
  *
  * @param PuppetModel      model              The model whose atlas to compose.
  * @param SourceArtRasters artRasters         The source-art pixel store.
@@ -81,64 +154,16 @@ fun deriveAtlasTextures(
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
 ): PuppetTextures? {
+	val plan = planAtlasDerivation(model, artRasters) ?: return null
 	val atlas = model.atlas
-	val extrude = derivedPackPolicy.extrude
-	val items = ArrayList<AtlasPackItem>()
-	val packPlacements = ArrayList<AtlasPackPlacement>()
-	for (tile in atlas.tiles) {
-		val placement = tile.placement ?: continue
-		if (placement.scaleX != 1f || placement.scaleY != 1f || placement.rotationDegrees != 0f) {
-			return null
-		}
-		val page = atlas.pages.getOrNull(placement.pageIndex) ?: return null
-		val raster = artRasters.decodeRaster(tile.id) ?: return null
-		if (raster.width != tile.width || raster.height != tile.height) {
-			return null
-		}
-		// The packer trimmed each tile to its opaque bounds before placing it; the placement holds only
-		// the untrimmed origin, so the same analysis on the same pixels reconstructs the trim exactly.
-		val trim =
-			analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold)
-				?.opaqueBounds ?: return null
-		val pageX = placement.positionX + trim.left
-		val pageY = placement.positionY + trim.top
-		val pageXPixel = pageX.roundToInt()
-		val pageYPixel = pageY.roundToInt()
-		if (pageXPixel.toFloat() != pageX || pageYPixel.toFloat() != pageY) {
-			return null
-		}
-		if (pageXPixel - extrude < 0 ||
-			pageYPixel - extrude < 0 ||
-			pageXPixel + trim.width + extrude > page.width ||
-			pageYPixel + trim.height + extrude > page.height
-		) {
-			return null
-		}
-		items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba))
-		packPlacements.add(
-			AtlasPackPlacement(
-				key = tile.id.raw,
-				pageIndex = placement.pageIndex,
-				pageX = pageXPixel,
-				pageY = pageYPixel,
-				trimLeft = trim.left,
-				trimTop = trim.top,
-				trimWidth = trim.width,
-				trimHeight = trim.height,
-				quarterTurns = 0,
-			),
-		)
-	}
-
 	val pages =
-		composeAtlasPages(
+		composeAtlasPagesAffine(
 			pageWidths = IntArray(atlas.pages.size) { pageIndex -> atlas.pages[pageIndex].width },
 			pageHeights = IntArray(atlas.pages.size) { pageIndex -> atlas.pages[pageIndex].height },
-			items = items,
-			placements = packPlacements,
-			extrude = extrude,
+			items = plan.items,
+			placements = plan.placements,
+			extrude = derivedPackPolicy.extrude,
 		)
-
 	return generatedPuppetTextures(pages, model, premultipliedAlpha)
 }
 

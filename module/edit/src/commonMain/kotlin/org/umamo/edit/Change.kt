@@ -667,12 +667,13 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
-	 * Moves one piece of source art to a new spot on the atlas, re-mapping every drawable over it.
-	 * Document content - a pack is authored - so it marks the document dirty.
+	 * Moves one or more pieces of source art to new spots on their pages, re-mapping every drawable
+	 * over them - one step for a whole placement gesture, however many tiles it carried.  Document
+	 * content - a pack is authored - so it marks the document dirty.
 	 *
-	 * @property AtlasTileId tileId The tile that moved.
+	 * @property List<AtlasTileId> tileIds The tiles that moved.
 	 */
-	data class SetAtlasPlacement(val tileId: AtlasTileId) : DocumentChange {
+	data class SetAtlasPlacement(val tileIds: List<AtlasTileId>) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.atlasPlacement"
 	}

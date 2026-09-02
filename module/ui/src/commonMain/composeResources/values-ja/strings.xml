@@ -446,6 +446,13 @@
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
 	<string name="notice_uv_no_selection">ミラーする対象が選択されていません。</string>
+	<string name="notice_uv_placement_layer_addressed">この文書の UV はアトラスではなくアートワークを参照しているため、移動できる配置がありません。</string>
+	<string name="notice_uv_placement_no_placed_art">選択範囲にアトラスページへパック済みのアートがありません。</string>
+	<string name="notice_uv_placement_page_view_only">配置を移動するには UV エディタでアトラスページを表示してください。</string>
+	<string name="notice_uv_placement_not_on_page">選択範囲にこのページへパック済みのアートがありません。</string>
+	<string name="notice_uv_placement_not_derivable">ソースアートからアトラスを再構成できないため、配置を移動できません。</string>
+	<string name="notice_uv_placement_overlap">配置が他のタイルと重なっています。アトラスを再パックすると解消できます。</string>
+	<string name="notice_uv_placement_off_page">配置がページの端を超えています。はみ出した部分は切り取られます。</string>
 	<string name="notice_edit_no_editable_geometry">ここでは編集できません。選択中の描画オブジェクトはすべて親によって非表示です。</string>
 
 	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
@@ -468,6 +475,12 @@
 	<string name="header_more">その他</string>
 	<string name="cmd_mesh_proportional_connected">プロポーショナル編集の「接続のみ」を切り替え</string>
 	<string name="hud_connected">接続のみ</string>
+	<string name="hud_placement">配置</string>
+	<string name="hud_overlapping">重なりあり</string>
+	<string name="hud_off_page">ページ外</string>
+	<string name="hud_delta_px">Δ %1$d, %2$d px</string>
+	<string name="hud_angle_degrees">%1$s°</string>
+	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
 	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
 
