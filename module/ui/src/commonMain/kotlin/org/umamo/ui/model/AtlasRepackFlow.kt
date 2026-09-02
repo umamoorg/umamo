@@ -300,8 +300,12 @@ suspend fun runAtlasRepack(
 	}
 	// Same rule for the reserves: the pack is only proof of disjointness for the meshes it was spaced
 	// by, so a mesh edit that moved a tile's reach while packing makes it stale.
-	if (meshReserveByTile(modelAtCommit) != packInput.reserveByTile) {
-		UmamoLog.warn("repack: a mesh edit changed a tile's reach while packing; nothing was applied")
+	val reservesAtCommit = meshReserveByTile(modelAtCommit)
+	if (reservesAtCommit != packInput.reserveByTile) {
+		val changedTileIds = (reservesAtCommit.keys + packInput.reserveByTile.keys).filter { tileId -> reservesAtCommit[tileId] != packInput.reserveByTile[tileId] }
+		UmamoLog.warn(
+			"repack: a mesh edit changed ${changedTileIds.size} tile reach(es) while packing (${changedTileIds.take(3).joinToString { tileId -> tileId.raw }}); nothing was applied",
+		)
 		session.emitNotice("notice.atlas.repackSuperseded", NoticePlacement.NearCursor)
 		return
 	}

@@ -264,13 +264,22 @@ fun EditorApp(
 		scope.launch {
 			val suggestedName = exportSuggestedName(puppetDocument.displayName)
 			filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
+				val edited = exportedModelFor(puppetDocument, session)
+				// The session's resolved page set: the document's own instance until a repack
+				// composed a new one, which is exactly the gate the archive patch keys on.
+				val effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures
+				// Named in the log because both outcomes are otherwise silent: an unedited model exports
+				// the graph as-is with an empty report, and the document's own pages mean no page patch.
+				UmamoLog.info(
+					"export: model ${if (edited === puppetDocument.puppet) "is the unedited import" else "carries session edits"}" +
+						" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
+						" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
+				)
 				val prepared =
 					prepareCmo3Export(
 						document = puppetDocument,
-						edited = exportedModelFor(puppetDocument, session),
-						// The session's resolved page set: the document's own instance until a repack
-						// composed a new one, which is exactly the gate the archive patch keys on.
-						effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures,
+						edited = edited,
+						effectiveTextures = effectiveTextures,
 						modelName = suggestedName,
 						nowMillis = System.currentTimeMillis(),
 						obfuscateKey = Random.nextInt(),
