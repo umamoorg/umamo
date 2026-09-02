@@ -446,8 +446,8 @@
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
 	<string name="notice_uv_no_selection">ミラーする対象が選択されていません。</string>
-	<string name="notice_uv_placement_layer_addressed">この文書の UV はアトラスではなくアートワークを参照しているため、移動できる配置がありません。</string>
-	<string name="notice_uv_placement_no_placed_art">選択範囲にアトラスページへパック済みのアートがありません。</string>
+	<string name="notice_uv_placement_layer_addressed">人形の UV はアトラスではなく原画を参照しているため、移動できる配置がありません。</string>
+	<string name="notice_uv_placement_no_placed_art">選択範囲にアトラスページへパック済みのアートがないか、原画がありません。</string>
 	<string name="notice_uv_placement_page_view_only">配置を移動するには UV エディタでアトラスページを表示してください。</string>
 	<string name="notice_uv_placement_not_on_page">選択範囲にこのページへパック済みのアートがありません。</string>
 	<string name="notice_uv_placement_not_derivable">ソースアートからアトラスを再構成できないため、配置を移動できません。</string>
