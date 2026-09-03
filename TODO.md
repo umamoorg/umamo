@@ -314,7 +314,7 @@ decoupling. The front half (steps 1–4) currently only works via a pre-baked CM
 is still ahead.
 
 1. Source-art ingest → neutral model. Built: PSD/CLIP/KRA readers produce `SourceArt` (LayerId / LayerBounds /
-	LayerBlend). Pending, and NEXT (Phase E, decided 2026-09-02): a `SourceArt` → `PuppetModel` path (no
+	LayerBlend). Pending, and NEXT (Phase E, decided 2026-09-02; planning opened 2026-09-04): a `SourceArt` → `PuppetModel` path (no
 	fromPsd/fromLayered exists). Layer bounds place each drawable, a bounding quad over the trimmed bounds is
 	the birth mesh, the pack runs at open through the shipped repack chain, and the source-layer key persists
 	on the `AtlasTile`. See § Import.
