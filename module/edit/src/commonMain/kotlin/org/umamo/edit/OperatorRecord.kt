@@ -136,6 +136,16 @@ fun List<OperatorParameter>.intValue(key: String, fallback: Int): Int =
 	(firstOrNull { parameter -> parameter.key == key } as? OperatorParameter.IntParameter)?.value ?: fallback
 
 /**
+ * The real value of the parameter at [key], or [fallback] when absent or of another kind.
+ *
+ * @param String key      The entry to read.
+ * @param Float  fallback The value when the list carries no such float.
+ * @return Float The value.
+ */
+fun List<OperatorParameter>.floatValue(key: String, fallback: Float): Float =
+	(firstOrNull { parameter -> parameter.key == key } as? OperatorParameter.FloatParameter)?.value ?: fallback
+
+/**
  * The boolean value of the parameter at [key], or [fallback] when absent or of another kind.
  *
  * @param String  key      The entry to read.

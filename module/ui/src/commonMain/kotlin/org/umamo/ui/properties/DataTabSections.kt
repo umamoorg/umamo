@@ -14,6 +14,7 @@ import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editKeyedChannel
 import org.umamo.edit.previewChannelEdit
+import org.umamo.edit.setAtlasPins
 import org.umamo.edit.setDeformerBaseAngle
 import org.umamo.edit.setDeformerFlipX
 import org.umamo.edit.setDeformerFlipY
@@ -86,22 +87,41 @@ internal val MeshSection =
 		},
 	)
 
-/** Data (drawable): the atlas texture binding. */
+/**
+ * Data (drawable): the atlas texture binding, and the pin on the tile's placement when the drawable's
+ * art is packed on a page (the same flag the UV editor's P / Alt+P set).
+ */
 internal val TextureSection =
 	PropertySection(
 		id = "data.texture",
 		title = Res.string.properties_section_texture,
 		rows = { context ->
-			val source = context.activeDrawable()?.textureSourceId
-			listOf(
-				PropertyRow(terms = listOf(Res.string.properties_texture_source)) { _ ->
-					if (source != null) {
-						PropertyLine(stringResource(Res.string.properties_texture_source, source.raw))
-					} else {
-						PropertyLine(stringResource(Res.string.properties_texture_own))
-					}
-				},
-			)
+			val drawable = context.activeDrawable()
+			val source = drawable?.textureSourceId
+			val tile = drawable?.atlasTileId?.let { tileId -> context.puppet.atlas.tileById[tileId] }
+			val session = context.session
+			buildList {
+				add(
+					PropertyRow(terms = listOf(Res.string.properties_texture_source)) { _ ->
+						if (source != null) {
+							PropertyLine(stringResource(Res.string.properties_texture_source, source.raw))
+						} else {
+							PropertyLine(stringResource(Res.string.properties_texture_own))
+						}
+					},
+				)
+				if (tile != null && tile.placement != null) {
+					add(
+						PropertyRow(terms = listOf(Res.string.properties_field_pinned)) { _ ->
+							PropertyCheckboxRow(
+								checked = tile.pinned,
+								onCheckedChange = { checked -> session?.setAtlasPins(listOf(tile.id), checked) },
+								label = stringResource(Res.string.properties_field_pinned),
+							)
+						},
+					)
+				}
+			}
 		},
 	)
 

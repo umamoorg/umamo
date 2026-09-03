@@ -1,7 +1,7 @@
 package org.umamo.ui.viewport
 
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.OperatorParameter
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.atlas.AtlasPackReserve
 import org.umamo.render.DecodedImage
@@ -16,6 +16,7 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.applyUvAffine
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -23,9 +24,10 @@ import kotlin.test.assertTrue
 /**
  * Pins the placement drag's evaluation: Grab snaps to whole page pixels with the display flip
  * applied, Rotate and uniform Scale turn about the pivot and land on the placement's own TRS
- * components, an axis-locked Scale on a rotated tile scales the tile's own axis, the islands' display
- * affine agrees with the placement (the pivot stays put), and collisions with bystanders, other
- * movers, and the page edge are reported.
+ * components, a non-uniform Scale on a rotated tile scales the tile's own axis, the islands' display
+ * affine agrees with the placement (the pivot stays put), collisions with bystanders, other movers,
+ * and the page edge are reported, and the operation settings strip's rows round-trip every operator
+ * back to the placements the drag wrote.
  */
 class UvPlacementGestureTest {
 	private val pageWidth = 100
@@ -96,9 +98,17 @@ class UvPlacementGestureTest {
 		parameters: PlacementGestureParameters,
 		movers: List<PlacementMover>,
 		bystanders: List<PlacementBystander> = emptyList(),
-		axisConstraint: TransformAxisConstraint? = null,
 		occupancy: PageOccupancy? = null,
-	): PlacementDragResult = evaluatePlacementDrag(kind, parameters, axisConstraint, movers, bystanders, occupancy, pageWidth, pageHeight, extrude = 2)
+	): PlacementDragResult = evaluatePlacementDrag(kind, parameters, movers, bystanders, occupancy, pageWidth, pageHeight, extrude = 2)
+
+	private fun assertPlacementClose(expected: AtlasPlacement, actual: AtlasPlacement, message: String) {
+		assertEquals(expected.pageIndex, actual.pageIndex, "$message: page")
+		assertClose(expected.positionX, actual.positionX, "$message: position x")
+		assertClose(expected.positionY, actual.positionY, "$message: position y")
+		assertClose(expected.scaleX, actual.scaleX, "$message: scale x")
+		assertClose(expected.scaleY, actual.scaleY, "$message: scale y")
+		assertClose(expected.rotationDegrees, actual.rotationDegrees, "$message: rotation")
+	}
 
 	private fun assertClose(expected: Float, actual: Float, message: String) {
 		assertTrue(abs(expected - actual) < 1e-3f, "$message: expected $expected, was $actual")
@@ -154,20 +164,50 @@ class UvPlacementGestureTest {
 	}
 
 	@Test
-	fun axisLockedScaleOnARotatedTileScalesItsOwnAxis() {
+	fun aNonUniformScaleOnARotatedTileScalesItsOwnAxes() {
+		// What an axis lock produces (one factor pinned at 1) and what the strip's two rows can ask for:
+		// no constraint is needed to say so, the factors themselves do.
 		val mover = mover("a", placement(20f, 30f, rotationDegrees = 30f), 40f, 40f)
-		val result =
-			evaluate(
-				MeshOperatorKind.Scale,
-				parameters(factorX = 2f, factorY = 1f),
-				listOf(mover),
-				axisConstraint = TransformAxisConstraint.AxisX,
-			)
+		val result = evaluate(MeshOperatorKind.Scale, parameters(factorX = 2f, factorY = 1f), listOf(mover))
 
 		val scaled = result.placementByTile.getValue(mover.tileId)
 		assertClose(2f, scaled.scaleX, "the tile's own x axis scaled")
 		assertClose(1f, scaled.scaleY, "the tile's own y axis untouched")
 		assertClose(30f, scaled.rotationDegrees, "rotation untouched - no shear was written")
+
+		val both = evaluate(MeshOperatorKind.Scale, parameters(factorX = 2f, factorY = 1.5f), listOf(mover)).placementByTile.getValue(mover.tileId)
+		assertClose(2f, both.scaleX, "two different factors scale both tile axes")
+		assertClose(1.5f, both.scaleY, "two different factors scale both tile axes")
+		assertClose(30f, both.rotationDegrees, "still no shear")
+	}
+
+	@Test
+	fun theStripRowsRoundTripEachOperator() {
+		val cases =
+			listOf(
+				Triple(MeshOperatorKind.Grab, parameters(deltaX = 7.3f, deltaY = -5.2f), "grab"),
+				Triple(MeshOperatorKind.Rotate, parameters(rotationRadians = 0.4f), "rotate"),
+				Triple(MeshOperatorKind.Scale, parameters(factorX = 1.5f, factorY = 1.5f), "uniform scale"),
+				Triple(MeshOperatorKind.Scale, parameters(factorX = 1.5f, factorY = 1f), "tile-axis scale"),
+			)
+		for ((kind, dragParameters, name) in cases) {
+			val movers = listOf(mover("a", placement(20f, 30f, rotationDegrees = 30f), 40f, 40f), mover("b", placement(50f, 20f), 55f, 55f))
+			val dragged = evaluate(kind, dragParameters, movers)
+
+			val rows = placementParameters(dragged.status, pageWidth, pageHeight)
+			val replayed = evaluate(kind, placementGestureParametersOf(kind, rows), movers)
+
+			assertTrue(rows.isNotEmpty(), "$name has rows")
+			for (mover in movers) {
+				assertPlacementClose(dragged.placementByTile.getValue(mover.tileId), replayed.placementByTile.getValue(mover.tileId), "$name '${mover.tileId.raw}'")
+			}
+		}
+		// The rows show the HUD's numbers: the snapped move, the page-space angle, the factors.
+		val grabRows = placementParameters(evaluate(MeshOperatorKind.Grab, parameters(deltaX = 7.3f, deltaY = -5.2f), listOf(mover("a", placement(20f, 30f), 25f, 45f))).status, pageWidth, pageHeight)
+		assertEquals(7, (grabRows[0] as OperatorParameter.IntParameter).value)
+		assertEquals(5, (grabRows[1] as OperatorParameter.IntParameter).value, "display y up 5.2 is page y down 5")
+		val rotateRows = placementParameters(evaluate(MeshOperatorKind.Rotate, parameters(rotationRadians = (PI / 2).toFloat()), listOf(mover("a", placement(20f, 30f), 25f, 45f))).status, pageWidth, pageHeight)
+		assertEquals(-90, (rotateRows.single() as OperatorParameter.FloatParameter).value.roundToInt(), "the angle row is the page-space angle")
 	}
 
 	@Test

@@ -95,6 +95,10 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.document.runtimeTarget" -> stringResource(Res.string.history_document_runtime_target)
 		"change.document.sourceLayerDisplay" -> stringResource(Res.string.history_document_source_layer_display)
 		"change.document.atlasPlacement" -> stringResource(Res.string.history_document_atlas_placement)
+		"change.document.atlasPlacement.rotate" -> stringResource(Res.string.history_document_atlas_placement_rotate)
+		"change.document.atlasPlacement.scale" -> stringResource(Res.string.history_document_atlas_placement_scale)
+		"change.document.atlasPin" -> stringResource(Res.string.history_document_atlas_pin)
+		"change.document.atlasUnpin" -> stringResource(Res.string.history_document_atlas_unpin)
 		"change.document.atlasRepack" -> stringResource(Res.string.history_document_atlas_repack)
 		else -> stringResource(Res.string.history_unknown)
 	}

@@ -184,6 +184,8 @@ class CommandTableOrderTest {
 				"uv.page.next",
 				"uv.page.previous",
 				"uv.page.followSelection",
+				"uv.pinPlacement",
+				"uv.unpinPlacement",
 				"mesh.duplicate",
 				"mesh.merge",
 				"mesh.merge.atCenter",

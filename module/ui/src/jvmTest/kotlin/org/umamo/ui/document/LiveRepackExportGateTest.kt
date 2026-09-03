@@ -57,7 +57,7 @@ class LiveRepackExportGateTest {
 					premultipliedAlpha = document.textures.premultipliedAlpha,
 					scope = this,
 					report = { report -> refusal = report },
-					rememberOptions = {},
+					rememberOptions = { _, _ -> },
 				)
 			runAtlasRepack(host, AtlasPackOptions(maxPageSize = repackPageSizeOf(document.puppet)), areaId = null)
 			assertNull(refusal?.refusals?.joinToString { "${it.tileName}: ${it.reason}" }, "the repack refused")

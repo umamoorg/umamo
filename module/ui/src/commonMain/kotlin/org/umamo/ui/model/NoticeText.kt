@@ -33,6 +33,7 @@ fun noticeText(messageKey: String): String =
 		"notice.uv.placement.notDerivable" -> stringResource(Res.string.notice_uv_placement_not_derivable)
 		"notice.uv.placement.overlap" -> stringResource(Res.string.notice_uv_placement_overlap)
 		"notice.uv.placement.offPage" -> stringResource(Res.string.notice_uv_placement_off_page)
+		"notice.uv.placement.pinned" -> stringResource(Res.string.notice_uv_placement_pinned)
 		"notice.edit.noEditableGeometry" -> stringResource(Res.string.notice_edit_no_editable_geometry)
 		"notice.display.partialSourceArtwork" -> stringResource(Res.string.notice_display_partial_source_artwork)
 		"notice.display.sourceArtworkUnavailable" -> stringResource(Res.string.notice_display_source_artwork_unavailable)

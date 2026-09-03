@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -124,6 +125,10 @@ fun DropdownChip(
 				modifier =
 					faceWidth
 						.clip(shapes.small)
+						// NOT focusable, like SectionHeader and Checkbox: the popup owns its own focus while open,
+						// and on close the keyboard must return to the shell root, not to a chip that transient
+						// chrome (the operation settings strip) may dispose on the next edit.
+						.focusProperties { canFocus = false }
 						.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
 						.border(width = 1.dp, color = borderColor, shape = shapes.small)
 						.background(backgroundColor, shape = shapes.small)

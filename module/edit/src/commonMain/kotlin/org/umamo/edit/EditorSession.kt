@@ -1297,8 +1297,9 @@ class EditorSession(
 	 * Edit mode is a silent no-op on an empty selection and BLOCKED with a near-cursor notice when no
 	 * covered mesh carries an editable UV array (imports may leave uvs empty), since latching would show
 	 * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the stored
-	 * coordinates address the art rather than the pages (a placement is meaningless there) and when
-	 * nothing selected is bound to packed art.  Which page the overlay is showing - and whether it is
+	 * coordinates address the art rather than the pages (a placement is meaningless there), when
+	 * nothing selected is bound to packed art, and when every placed tile under the selection is
+	 * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
 	 * showing a page at all rather than a source layer - is per-area state the session cannot see, so
 	 * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
 	 * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
@@ -1318,7 +1319,14 @@ class EditorSession(
 					return
 				}
 				if (model.placementDragTileIds(mutableSelection.value).isEmpty()) {
-					emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
+					// Placed art under the selection that still cannot move is pinned art.
+					val messageKey =
+						if (model.placementSelectedTileIds(mutableSelection.value).isEmpty()) {
+							"notice.uv.placement.noPlacedArt"
+						} else {
+							"notice.uv.placement.pinned"
+						}
+					emitNotice(messageKey, NoticePlacement.NearCursor)
 					return
 				}
 			}

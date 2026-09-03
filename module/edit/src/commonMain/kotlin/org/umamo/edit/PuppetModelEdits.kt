@@ -817,7 +817,8 @@ fun PuppetModel.withAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlace
 		if (tile.placement == placement) {
 			continue
 		}
-		movedTiles[tileIndex] = tile.copy(placement = placement)
+		// An unpacked tile has no placement to keep, so packing one out drops its pin with it.
+		movedTiles[tileIndex] = tile.copy(placement = placement, pinned = tile.pinned && placement != null)
 		changedTileIds.add(tileId)
 	}
 	if (changedTileIds.isEmpty()) {
@@ -833,6 +834,39 @@ fun PuppetModel.withAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlace
 		}
 	}
 	return copy(atlas = newAtlas, drawables = drawables.remappedOver(remapByTile))
+}
+
+/**
+ * This model with every tile in [tileIds] that has a placement pinned or unpinned - the flag a
+ * repack reads to keep a hand-placed tile where it is.
+ *
+ * A tile without a placement is skipped rather than refused: there is nothing on a page to keep, and
+ * a selection spanning packed and unpacked art should still pin what it can.  An unknown tile is
+ * skipped the same way.  No coordinates move - the flag says only what a LATER repack may do.
+ *
+ * @param Collection<AtlasTileId> tileIds The tiles to pin or unpin.
+ * @param Boolean                 pinned  True to pin, false to unpin.
+ * @return PuppetModel The model with the flags set, or [this] when nothing changes.
+ */
+fun PuppetModel.withAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean): PuppetModel {
+	if (tileIds.isEmpty()) {
+		return this
+	}
+	val wanted = tileIds.toSet()
+	var changed = false
+	val tiles =
+		atlas.tiles.map { tile ->
+			if (tile.id in wanted && tile.placement != null && tile.pinned != pinned) {
+				changed = true
+				tile.copy(pinned = pinned)
+			} else {
+				tile
+			}
+		}
+	if (!changed) {
+		return this
+	}
+	return copy(atlas = atlas.copy(tiles = tiles))
 }
 
 /**

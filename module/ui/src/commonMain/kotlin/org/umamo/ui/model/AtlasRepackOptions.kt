@@ -22,6 +22,7 @@ internal object RepackParameterKeys {
 	const val GUTTER = "repack.gutter"
 	const val EXTRUDE = "repack.extrude"
 	const val ALLOW_ROTATION = "repack.allowRotation"
+	const val KEEP_PINNED = "repack.keepPinned"
 	const val POWER_OF_TWO = "repack.powerOfTwo"
 	const val SQUARE_PAGES = "repack.squarePages"
 	const val SHRINK_PAGES = "repack.shrinkPages"
@@ -43,12 +44,15 @@ internal const val REPACK_MAX_GUTTER = 64
  * is not one of them, so an imported document's own size is always one click away.  It is the
  * MAXIMUM page size, and the row says so: with Shrink Pages on (the default) the packer settles on
  * the smallest power-of-two side that needs no more pages than this one would, so a larger choice
- * changes nothing until the art needs the room or Shrink Pages is off.
+ * changes nothing until the art needs the room or Shrink Pages is off.  Keep Pinned Tiles is the
+ * one row that is not a packer option: it decides whether the pinned tiles are handed to the packer
+ * fixed or free.
  *
- * @param AtlasPackOptions options The options the rows show.
+ * @param AtlasPackOptions options    The options the rows show.
+ * @param Boolean          keepPinned Whether the pinned tiles stay where they are.
  * @return List The rows.
  */
-internal fun repackParameters(options: AtlasPackOptions): List<OperatorParameter> {
+internal fun repackParameters(options: AtlasPackOptions, keepPinned: Boolean = true): List<OperatorParameter> {
 	val pageSides = (REPACK_PAGE_SIZE_CHOICES + options.maxPageSize).distinct().sorted()
 	return listOf(
 		OperatorParameter.ChoiceParameter(
@@ -60,6 +64,7 @@ internal fun repackParameters(options: AtlasPackOptions): List<OperatorParameter
 		OperatorParameter.IntParameter(RepackParameterKeys.GUTTER, RepackParameterKeys.GUTTER, options.gutter, 0, REPACK_MAX_GUTTER, unit = ParameterUnit.Pixels),
 		OperatorParameter.IntParameter(RepackParameterKeys.EXTRUDE, RepackParameterKeys.EXTRUDE, options.extrude, 0, options.gutter, unit = ParameterUnit.Pixels),
 		OperatorParameter.BooleanParameter(RepackParameterKeys.ALLOW_ROTATION, RepackParameterKeys.ALLOW_ROTATION, options.allowRotation),
+		OperatorParameter.BooleanParameter(RepackParameterKeys.KEEP_PINNED, RepackParameterKeys.KEEP_PINNED, keepPinned),
 		OperatorParameter.BooleanParameter(RepackParameterKeys.POWER_OF_TWO, RepackParameterKeys.POWER_OF_TWO, options.powerOfTwoPages),
 		OperatorParameter.BooleanParameter(RepackParameterKeys.SQUARE_PAGES, RepackParameterKeys.SQUARE_PAGES, options.squarePages),
 		OperatorParameter.BooleanParameter(RepackParameterKeys.SHRINK_PAGES, RepackParameterKeys.SHRINK_PAGES, options.shrinkPages),
@@ -93,11 +98,19 @@ internal fun repackOptionsOf(parameters: List<OperatorParameter>, fallback: Atla
 }
 
 /**
+ * Whether [parameters] keep the pinned tiles where they are; true when the row is absent.
+ *
+ * @param List parameters The strip's rows.
+ * @return Boolean The keep-pinned choice.
+ */
+internal fun repackKeepPinnedOf(parameters: List<OperatorParameter>): Boolean = parameters.booleanValue(RepackParameterKeys.KEEP_PINNED, true)
+
+/**
  * The repack's session memory: the options the last pack ran with, held for the life of the window
  * and deliberately never persisted to settings - the pattern the MOC3 export options use.
  *
- * Two lifetimes in one object.  The spacing, rotation, page-shape, and threshold choices stick
- * across documents - a rigger who packs with rotation wants that for the next model too.  The page
+ * Two lifetimes in one object.  The spacing, rotation, keep-pinned, page-shape, and threshold choices
+ * stick across documents - a rigger who packs with rotation wants that for the next model too.  The page
  * size sticks only within one session: it is a property of one document's pages (its default is the
  * document's own side), so carrying it onto a different document would silently pack that one at
  * the previous model's size.  The session is remembered by hash code, never by reference, so this
@@ -108,7 +121,16 @@ internal fun repackOptionsOf(parameters: List<OperatorParameter>, fallback: Atla
  */
 class AtlasRepackSessionOptions {
 	private var remembered: AtlasPackOptions? = null
+	private var rememberedKeepPinned: Boolean = true
 	private var rememberedSessionHash: Int? = null
+
+	/**
+	 * Whether the next repack keeps the pinned tiles where they are: the last pack's choice, or true
+	 * before any pack.
+	 *
+	 * @return Boolean The keep-pinned choice.
+	 */
+	fun keepPinnedFor(): Boolean = rememberedKeepPinned
 
 	/**
 	 * The options the next repack should run with for [session], whose default maximum page size is
@@ -126,11 +148,13 @@ class AtlasRepackSessionOptions {
 	/**
 	 * Records what a pack for [session] ran with, making it the seed for the next.
 	 *
-	 * @param EditorSession    session The document's session.
-	 * @param AtlasPackOptions options The options the pack used.
+	 * @param EditorSession    session    The document's session.
+	 * @param AtlasPackOptions options    The options the pack used.
+	 * @param Boolean          keepPinned Whether the pack kept the pinned tiles where they were.
 	 */
-	fun record(session: EditorSession, options: AtlasPackOptions) {
+	fun record(session: EditorSession, options: AtlasPackOptions, keepPinned: Boolean = true) {
 		remembered = options
+		rememberedKeepPinned = keepPinned
 		rememberedSessionHash = session.hashCode()
 	}
 }

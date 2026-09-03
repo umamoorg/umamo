@@ -46,7 +46,6 @@ import org.umamo.format.art.LayerBounds
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.AtlasPlacement
-import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.applyUvAffine
@@ -153,18 +152,20 @@ internal fun UvObjectGizmoOverlay(
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()
+	if (mode == EditorMode.Edit || camera == null) {
+		return
+	}
+
 	val meshSelection by session.meshSelection.collectAsState()
 	val objectSelection by session.selection.collectAsState()
 	val activeOperator by session.activeUvOperator.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val committedModel by session.model.collectAsState()
 	val tileByDrawableId = remember(committedModel) { committedModel.drawables.mapNotNull { drawable -> drawable.atlasTileId?.let { tileId -> drawable.id to tileId } }.toMap() }
+	val pinnedTileIds = remember(committedModel) { committedModel.atlas.tiles.filter { tile -> tile.pinned }.mapTo(HashSet()) { tile -> tile.id } }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
-	val gizmoColors = rememberMeshEditColors()
+	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
-	if (mode == EditorMode.Edit || camera == null) {
-		return
-	}
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	// Live values the areaId-keyed pointer loop, the remembered controllers, and the latch effect
@@ -240,36 +241,38 @@ internal fun UvObjectGizmoOverlay(
 			)
 		}
 
+	// What a landed evaluation shows: the crops as ghosts at their committed spots until the
+	// resolver's pages land, and a notice when the result collides or spills.  Shared by the confirm
+	// and by every adjustment from the operation settings strip.
+	fun publishLanding(gestureData: PlacementGesture, result: PlacementDragResult) {
+		val crops =
+			gestureData.movers.mapNotNull { mover ->
+				val crop = mover.crop ?: return@mapNotNull null
+				GhostCrop(crop, mover.trim, result.placementByTile.getValue(mover.tileId))
+			}
+		if (sessionAtlasPages != null && crops.isNotEmpty()) {
+			ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
+		}
+		if (result.overlappingTileIds.isNotEmpty()) {
+			session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)
+		} else if (result.offPageTileIds.isNotEmpty()) {
+			session.emitNotice("notice.uv.placement.offPage", NoticePlacement.NearCursor)
+		}
+	}
+
 	// Confirms the in-flight placement gesture: commit every mover whose placement changed as ONE undo
-	// step, remember the crops as ghosts until the resolver's pages land, say so when the result
-	// collides or spills, then clear the operator.  No preview was ever pushed to the renderer, so
-	// there is nothing to resync.
+	// step under the operator's own label, publish the landing, register the gesture on the operation
+	// settings strip (an adjustment re-evaluates the same frozen gesture over that step), then clear
+	// the operator.  No preview was ever pushed to the renderer, so there is nothing to resync.
 	fun confirmGesture() {
 		val gestureData = gesture.capture
 		val result = gestureData?.result
 		if (gestureData != null && result != null) {
-			val changed = LinkedHashMap<AtlasTileId, AtlasPlacement?>()
-			for (mover in gestureData.movers) {
-				val next = result.placementByTile[mover.tileId] ?: continue
-				if (next != mover.placement) {
-					changed[mover.tileId] = next
-				}
-			}
+			val changed = changedPlacements(gestureData.movers, result)
 			if (changed.isNotEmpty()) {
-				session.setAtlasPlacements(changed)
-				val crops =
-					gestureData.movers.mapNotNull { mover ->
-						val crop = mover.crop ?: return@mapNotNull null
-						GhostCrop(crop, mover.trim, result.placementByTile.getValue(mover.tileId))
-					}
-				if (sessionAtlasPages != null && crops.isNotEmpty()) {
-					ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
-				}
-				if (result.overlappingTileIds.isNotEmpty()) {
-					session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)
-				} else if (result.offPageTileIds.isNotEmpty()) {
-					session.emitNotice("notice.uv.placement.offPage", NoticePlacement.NearCursor)
-				}
+				session.setAtlasPlacements(changed, gestureData.transform.operatorKind)
+				publishLanding(gestureData, result)
+				registerPlacementAdjustment(session, areaId, gestureData, result) { landed -> publishLanding(gestureData, landed) }
 			}
 		}
 		session.clearUvOperator()
@@ -288,7 +291,6 @@ internal fun UvObjectGizmoOverlay(
 			evaluatePlacementDrag(
 				operatorKind = operator,
 				parameters = parameters,
-				axisConstraint = constraint,
 				movers = gestureData.movers,
 				bystanders = gestureData.bystanders,
 				occupancy = gestureData.occupancy,
@@ -497,7 +499,9 @@ internal fun UvObjectGizmoOverlay(
 					.toSet()
 			val activeId = (objectSelection.active as? SelectionTarget.Drawable)?.id
 			// The islands of every colliding tile - the triangles ARE the sampled region, so they are the
-			// honest thing to flag - draw their edges in the warning color, movers and bystanders alike.
+			// honest thing to flag - draw their edges in the warning color, movers and bystanders alike;
+			// a pinned tile's islands draw theirs in the pinned color, the warning winning while a
+			// collision is live (a warning is transient, a pin is state).
 			val collidingTileIds = result?.overlappingTileIds ?: emptySet()
 			// Islands paint back-to-front by the rest front rank, so the front-most island's wireframe
 			// draws last - the painted stacking matches the pick order.  Styling is per-island palette
@@ -510,16 +514,19 @@ internal fun UvObjectGizmoOverlay(
 				val styled =
 					when {
 						geometry.drawableId == activeId ->
-							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeActive)
+							viewportOverlayColors.copy(faceIdle = viewportOverlayColors.faceSelected, edgeIdle = viewportOverlayColors.edgeActive)
 						geometry.drawableId in selectedIds ->
-							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeSelected)
-						else -> gizmoColors
+							viewportOverlayColors.copy(faceIdle = viewportOverlayColors.faceSelected, edgeIdle = viewportOverlayColors.edgeSelected)
+						else -> viewportOverlayColors
 					}
+				val tileId = tileByDrawableId[geometry.drawableId]
 				val islandColors =
-					if (collidingTileIds.isNotEmpty() && tileByDrawableId[geometry.drawableId] in collidingTileIds) {
-						styled.copy(edgeIdle = overlayColors.viewportWarning, edgeSelected = overlayColors.viewportWarning, edgeActive = overlayColors.viewportWarning)
-					} else {
-						styled
+					when {
+						collidingTileIds.isNotEmpty() && tileId in collidingTileIds ->
+							styled.copy(edgeIdle = viewportOverlayColors.warning, edgeSelected = viewportOverlayColors.warning, edgeActive = viewportOverlayColors.warning)
+						tileId in pinnedTileIds ->
+							styled.copy(edgeIdle = viewportOverlayColors.pinnedPlacement, edgeSelected = viewportOverlayColors.pinnedPlacement, edgeActive = viewportOverlayColors.pinnedPlacement)
+						else -> styled
 					}
 				drawMeshWireframe(
 					positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
@@ -543,11 +550,11 @@ internal fun UvObjectGizmoOverlay(
 				for (mover in capture.movers) {
 					val placement = result.placementByTile[mover.tileId] ?: continue
 					if (mover.tileId in result.paintingTileIds) {
-						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, overlayColors.viewportWarning, warningStroke)
+						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, viewportOverlayColors.warning, warningStroke)
 					}
 					if (mover.tileId in result.offPageTileIds) {
 						drawTileQuad(mover.trim, placement, capture.pageHeight, camera, areaSize) { quad ->
-							drawPath(quad, overlayColors.viewportWarning, style = warningStroke)
+							drawPath(quad, viewportOverlayColors.warning, style = warningStroke)
 						}
 					}
 				}

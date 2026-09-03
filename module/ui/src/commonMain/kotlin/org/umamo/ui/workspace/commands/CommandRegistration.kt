@@ -53,6 +53,9 @@ internal class SessionAvailability(session: EditorSession?) {
 	/** Applies only in Edit mode, where there is a mesh-element domain to act on. */
 	val inEditMode = CommandAvailability { session?.mode?.value == EditorMode.Edit }
 
+	/** Applies only in Object mode, where whole drawables - and the art placements under them - are the domain. */
+	val inObjectMode = CommandAvailability { session?.mode?.value == EditorMode.Object }
+
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }
 

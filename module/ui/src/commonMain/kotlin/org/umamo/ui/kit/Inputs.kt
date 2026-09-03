@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Path
@@ -75,6 +76,9 @@ fun Checkbox(
 			Modifier
 				.fillMaxWidth()
 				.height(22.dp)
+				// NOT focusable, like SectionHeader: a toggle in transient chrome (the operation settings
+				// strip) would otherwise carry focus out of the composition with it and strand the keyboard.
+				.focusProperties { canFocus = false }
 				.clickable(
 					interactionSource = interaction,
 					indication = null,
