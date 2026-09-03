@@ -21,7 +21,7 @@ import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.model.SessionAtlasPages
-import org.umamo.ui.model.repackPageSideOf
+import org.umamo.ui.model.repackPageSizeOf
 import org.umamo.ui.model.runAtlasRepack
 import java.io.File
 import kotlin.math.abs
@@ -86,7 +86,7 @@ class LivePlacementMoveGateTest {
 					report = { report -> refusal = report },
 					rememberOptions = {},
 				)
-			runAtlasRepack(host, AtlasPackOptions(maxPageSize = repackPageSideOf(document.puppet)), areaId = null)
+			runAtlasRepack(host, AtlasPackOptions(maxPageSize = repackPageSizeOf(document.puppet)), areaId = null)
 			assertNull(refusal?.refusals?.joinToString { "${it.tileName}: ${it.reason}" }, "the repack refused")
 			val repacked = session.model.value
 			withTimeout(30_000) {

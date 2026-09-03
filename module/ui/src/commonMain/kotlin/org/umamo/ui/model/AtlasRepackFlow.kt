@@ -31,8 +31,8 @@ import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
 
-/** The page side a repack packs against when the document has no pages to take one from. */
-const val DEFAULT_REPACK_PAGE_SIDE: Int = 4096
+/** The maximum page size a repack packs against when the document has no pages to take one from. */
+const val DEFAULT_REPACK_PAGE_SIZE: Int = 4096
 
 /** Why one tile kept the whole repack from running. */
 enum class AtlasRepackRefusalReason {
@@ -199,13 +199,13 @@ class AtlasRepackHost(
 )
 
 /**
- * The page side [model]'s repack packs against by default: its largest page, or
- * [DEFAULT_REPACK_PAGE_SIDE] when it has none.
+ * The maximum page size [model]'s repack packs against by default: its largest page's side, or
+ * [DEFAULT_REPACK_PAGE_SIZE] when it has none.
  *
  * @param PuppetModel model The document.
- * @return Int The page side in pixels.
+ * @return Int The page size in pixels.
  */
-fun repackPageSideOf(model: PuppetModel): Int = model.atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIDE
+fun repackPageSizeOf(model: PuppetModel): Int = model.atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIZE
 
 /**
  * What one pack produced for the model: the new pages and every tile's lowered placement.
@@ -378,7 +378,7 @@ internal suspend fun adjustAtlasRepack(
 	packInput: RepackPackInput,
 ) {
 	val base = record.baseSnapshot.model
-	val options = repackOptionsOf(record.parameters, fallback = AtlasPackOptions(maxPageSize = repackPageSideOf(base)))
+	val options = repackOptionsOf(record.parameters, fallback = AtlasPackOptions(maxPageSize = repackPageSizeOf(base)))
 	val packResult =
 		try {
 			withContext(Dispatchers.Default) { packAtlas(packInput.items, options) }

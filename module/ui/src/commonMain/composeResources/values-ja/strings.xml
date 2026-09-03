@@ -576,7 +576,7 @@
 	<string name="unit_percent">%</string>
 
 	<!-- The Repack Atlas rows of the operation settings strip. -->
-	<string name="repack_options_page_size">ページサイズ</string>
+	<string name="repack_options_page_size">最大ページサイズ</string>
 	<string name="repack_options_gutter">余白</string>
 	<string name="repack_options_extrude">縁の延長</string>
 	<string name="repack_options_allow_rotation">回転を許可</string>

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -30,12 +31,12 @@ import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.withParameter
-import org.umamo.ui.kit.Checkbox
-import org.umamo.ui.kit.FieldRow
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SectionHeader
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.properties.PropertyCheckboxRow
+import org.umamo.ui.properties.PropertyFieldRow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 
@@ -70,15 +71,13 @@ val LocalOperationStripInset = compositionLocalOf { 0.dp }
 /** The strip's inset from the area's bottom and left edges. */
 private val STRIP_MARGIN = 8.dp
 
-/** The strip's width bounds: wide enough for a label and a field, never a panel. */
-private val STRIP_MIN_WIDTH = 220.dp
-private val STRIP_MAX_WIDTH = 320.dp
-
-/** The label column of a strip row. */
-private val STRIP_LABEL_WIDTH = 120.dp
-
-/** The width of a strip row's field. */
-private val STRIP_CONTROL_WIDTH = 96.dp
+/**
+ * The strip's minimum width: a narrow Properties section, so its half-and-half rows read exactly like
+ * the panel's while the strip stays a strip.  The strip grows past it to its widest row - a Row's
+ * intrinsic width under equal weights is twice its most demanding half - so a long checkbox label
+ * widens the strip rather than wrapping inside the field column.
+ */
+private val STRIP_MIN_WIDTH = 300.dp
 
 /**
  * Hosts the strip for one area over [content]: the space body renders under the strip's inset, and
@@ -91,15 +90,15 @@ private val STRIP_CONTROL_WIDTH = 96.dp
 @Composable
 internal fun OperationStripHost(areaId: String?, content: @Composable () -> Unit) {
 	val session = LocalEditorSession.current
-	val record = session?.adjustableOperation?.collectAsState()?.value
-	val shown = session != null && record != null && record.areaId == areaId
+	// Only a record naming THIS area shows here; one naming another area, or none, is that area's.
+	val record = session?.adjustableOperation?.collectAsState()?.value?.takeIf { candidate -> candidate.areaId == areaId }
 	var stripHeight by remember { mutableStateOf(0.dp) }
 	val density = LocalDensity.current
-	val inset: Dp = if (shown) stripHeight + STRIP_MARGIN else 0.dp
+	val inset: Dp = if (record != null) stripHeight + STRIP_MARGIN else 0.dp
 	CompositionLocalProvider(LocalOperationStripInset provides inset) {
 		content()
 	}
-	if (shown && session != null && record != null) {
+	if (session != null && record != null) {
 		Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
 			OperationStrip(
 				record = record,
@@ -153,9 +152,10 @@ internal fun OperationStrip(
 	Column(
 		modifier =
 			modifier
-				.widthIn(min = STRIP_MIN_WIDTH, max = STRIP_MAX_WIDTH)
-				.background(colors.panelBackground, shapes.small)
-				.border(width = 1.dp, color = colors.panelBorder, shape = shapes.small),
+				.widthIn(min = STRIP_MIN_WIDTH)
+				.width(IntrinsicSize.Max)
+				.background(colors.tabBackground, shapes.medium)
+				.border(width = 1.dp, color = colors.panelBorder, shape = shapes.medium),
 	) {
 		SectionHeader(
 			label = changeLabel(record.change.labelKey),
@@ -163,9 +163,11 @@ internal fun OperationStrip(
 			onToggle = { strip.expanded = !strip.expanded },
 		)
 		if (strip.expanded) {
+			// The Properties section body's own insets and row spacing, so a strip row and a panel row
+			// sit identically inside their card.
 			Column(
-				modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
-				verticalArrangement = Arrangement.spacedBy(6.dp),
+				modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
+				verticalArrangement = Arrangement.spacedBy(4.dp),
 			) {
 				for (parameter in record.parameters) {
 					key(parameter.key) {
@@ -180,9 +182,11 @@ internal fun OperationStrip(
 }
 
 /**
- * One row of the strip, rendered by the parameter's kind: a number field for the numeric kinds, a
- * checkbox for a flag, a dropdown for a choice.  The number fields commit once per edit (a scrub's
- * release, a typed value), which is the one run per adjustment the design promises.
+ * One row of the strip, rendered by the parameter's kind through the Properties panel's own row
+ * primitives - a right-aligned label over a control filling the right half for the numeric and
+ * choice kinds, a lone checkbox in the field column for a flag - so a strip row and a panel row are
+ * the same row.  The number fields commit once per edit (a scrub's release, a typed value), which is
+ * the one run per adjustment the design promises.
  *
  * @param OperatorParameter parameter The row's parameter.
  * @param Function          onChange  Receives the parameter with its new value.
@@ -196,35 +200,33 @@ private fun OperationParameterRow(
 	when (parameter) {
 		is OperatorParameter.IntParameter -> {
 			val unitSuffix = parameterUnitSuffix(parameter.unit)
-			FieldRow(label = label, labelWidth = STRIP_LABEL_WIDTH) {
+			PropertyFieldRow(label) {
 				NumberField(
 					value = parameter.value,
 					onValueChange = { value -> onChange(parameter.copy(value = value)) },
 					range = parameter.min..parameter.max,
-					modifier = Modifier.width(STRIP_CONTROL_WIDTH),
+					modifier = Modifier.fillMaxWidth(),
 					step = parameter.step,
 					unitSuffix = unitSuffix,
-					showFill = false,
 				)
 			}
 		}
 		is OperatorParameter.FloatParameter -> {
 			val unitSuffix = parameterUnitSuffix(parameter.unit)
-			FieldRow(label = label, labelWidth = STRIP_LABEL_WIDTH) {
+			PropertyFieldRow(label) {
 				NumberField(
 					value = parameter.value,
 					onValueChange = { value -> onChange(parameter.copy(value = value)) },
 					range = parameter.min..parameter.max,
-					modifier = Modifier.width(STRIP_CONTROL_WIDTH),
+					modifier = Modifier.fillMaxWidth(),
 					decimals = 2,
 					step = parameter.step,
 					unitSuffix = unitSuffix,
-					showFill = false,
 				)
 			}
 		}
 		is OperatorParameter.BooleanParameter -> {
-			Checkbox(
+			PropertyCheckboxRow(
 				checked = parameter.value,
 				onCheckedChange = { checked -> onChange(parameter.copy(value = checked)) },
 				label = label,
@@ -236,13 +238,13 @@ private fun OperationParameterRow(
 				parameter.choices.associate { choice ->
 					choice.key to (choice.labelKey?.let { labelKey -> operatorParameterLabel(labelKey) } ?: choice.key)
 				}
-			FieldRow(label = label, labelWidth = STRIP_LABEL_WIDTH) {
+			PropertyFieldRow(label) {
 				SelectField(
 					selected = parameter.value,
 					options = parameter.choices.map { choice -> choice.key },
 					label = { key -> labelByKey[key] ?: key },
 					onSelect = { key -> onChange(parameter.copy(value = key)) },
-					modifier = Modifier.width(STRIP_CONTROL_WIDTH),
+					modifier = Modifier.fillMaxWidth(),
 				)
 			}
 		}

@@ -73,7 +73,7 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
-import org.umamo.ui.model.repackPageSideOf
+import org.umamo.ui.model.repackPageSizeOf
 import org.umamo.ui.model.runAtlasRepack
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
@@ -277,7 +277,7 @@ fun EditorShell(
 						report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
 						rememberOptions = { options -> repackOptions.record(editorSession, options) },
 					)
-				val options = repackOptions.optionsFor(editorSession, repackPageSideOf(editorSession.model.value))
+				val options = repackOptions.optionsFor(editorSession, repackPageSizeOf(editorSession.model.value))
 				shellScope.launch { runAtlasRepack(host, options, areaId) }
 			}
 		} else {

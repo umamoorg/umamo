@@ -632,7 +632,7 @@
 	<string name="unit_percent">%</string>
 
 	<!-- The Repack Atlas rows of the operation settings strip. -->
-	<string name="repack_options_page_size">Page Size</string>
+	<string name="repack_options_page_size">Max Page Size</string>
 	<string name="repack_options_gutter">Gutter</string>
 	<string name="repack_options_extrude">Extrude</string>
 	<string name="repack_options_allow_rotation">Allow Rotation</string>

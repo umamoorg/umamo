@@ -1,7 +1,7 @@
 package org.umamo.edit
 
 /*
- * The record behind "adjust the last operation": Blender's redo strip, without Blender's undo-and-rerun.
+ * The record behind "adjust the last operation".
  *
  * An operation that has settings runs at once with its defaults and registers one of these.  Editing
  * a parameter re-runs the operation from the base snapshot the record holds and lands the result over

@@ -28,8 +28,8 @@ internal object RepackParameterKeys {
 	const val ALPHA_THRESHOLD = "repack.alphaThreshold"
 }
 
-/** The page sides the strip offers; the document's own side joins the list when it is none of these. */
-internal val REPACK_PAGE_SIDE_CHOICES: List<Int> = listOf(1024, 2048, 4096, 8192, 16384)
+/** The maximum page sizes the strip offers; the document's own size joins the list when it is none of these. */
+internal val REPACK_PAGE_SIZE_CHOICES: List<Int> = listOf(1024, 2048, 4096, 8192, 16384)
 
 /** The widest gutter the strip offers, in pixels. */
 internal const val REPACK_MAX_GUTTER = 64
@@ -38,15 +38,18 @@ internal const val REPACK_MAX_GUTTER = 64
  * The strip's rows for [options], in display order.
  *
  * The extrusion's range follows the gutter: the packer requires extrude in 0..gutter, so the row can
- * never offer a value the packer refuses.  Page size is a choice over the common sides because a
- * free integer would invite sizes no GPU wants; the document's current side is offered even when it
- * is not one of them, so an imported document's own size is always one click away.
+ * never offer a value the packer refuses.  The page size is a choice over the common sizes because a
+ * free integer would invite sizes no GPU wants; the document's current size is offered even when it
+ * is not one of them, so an imported document's own size is always one click away.  It is the
+ * MAXIMUM page size, and the row says so: with Shrink Pages on (the default) the packer settles on
+ * the smallest power-of-two side that needs no more pages than this one would, so a larger choice
+ * changes nothing until the art needs the room or Shrink Pages is off.
  *
  * @param AtlasPackOptions options The options the rows show.
  * @return List The rows.
  */
 internal fun repackParameters(options: AtlasPackOptions): List<OperatorParameter> {
-	val pageSides = (REPACK_PAGE_SIDE_CHOICES + options.maxPageSize).distinct().sorted()
+	val pageSides = (REPACK_PAGE_SIZE_CHOICES + options.maxPageSize).distinct().sorted()
 	return listOf(
 		OperatorParameter.ChoiceParameter(
 			RepackParameterKeys.PAGE_SIZE,
@@ -108,16 +111,16 @@ class AtlasRepackSessionOptions {
 	private var rememberedSessionHash: Int? = null
 
 	/**
-	 * The options the next repack should run with for [session], whose default page side is
-	 * [documentPageSide].
+	 * The options the next repack should run with for [session], whose default maximum page size is
+	 * [documentPageSize].
 	 *
 	 * @param EditorSession session          The document's session.
-	 * @param Int           documentPageSide The document's own page side.
+	 * @param Int           documentPageSize The document's own maximum page size.
 	 * @return AtlasPackOptions The options to pack with.
 	 */
-	fun optionsFor(session: EditorSession, documentPageSide: Int): AtlasPackOptions {
-		val sticky = remembered ?: return AtlasPackOptions(maxPageSize = documentPageSide)
-		return if (rememberedSessionHash == session.hashCode()) sticky else sticky.copy(maxPageSize = documentPageSide)
+	fun optionsFor(session: EditorSession, documentPageSize: Int): AtlasPackOptions {
+		val sticky = remembered ?: return AtlasPackOptions(maxPageSize = documentPageSize)
+		return if (rememberedSessionHash == session.hashCode()) sticky else sticky.copy(maxPageSize = documentPageSize)
 	}
 
 	/**
