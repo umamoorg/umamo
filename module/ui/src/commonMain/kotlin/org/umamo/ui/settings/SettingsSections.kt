@@ -128,9 +128,6 @@ internal fun InterfaceSection() {
  * element × state.  Every row is a [HexColorField] bound write-through to its settings key, so an
  * edit re-colors the viewport live as it is typed - the same auto-save model as the rest of the
  * window.
- *
- * カラー設定。ビューポートの選択ハイライトと編集モードのギズモ配色。各行は設定キーへの双方向バインディングで、
- * 入力中に即時反映される。
  */
 @Composable
 internal fun ColorsSection() {
@@ -284,8 +281,6 @@ internal fun ViewportSection() {
 /**
  * The Keybindings section: preset selection plus the per-command rebinding editor (see [KeybindingsEditor]),
  * all auto-saving to settings input.keybinding and re-resolving the live keymap.
- *
- * キーバインド設定。プリセット選択と個別コマンドの再割り当て編集（即時保存・即時反映）。
  */
 @Composable
 internal fun KeybindingsSection() {
@@ -304,8 +299,6 @@ internal fun PenSection() {
 
 /**
  * A muted single-line placeholder for a section whose controls are not built yet.
- *
- * 未実装セクションの淡色の一行プレースホルダ。
  *
  * @param String message The already-localized placeholder line.
  */
