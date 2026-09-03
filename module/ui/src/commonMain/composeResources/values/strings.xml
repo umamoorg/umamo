@@ -508,6 +508,7 @@
 	<string name="notice_uv_placement_not_derivable">The atlas cannot be recomposed from its source art, so placements cannot move.</string>
 	<string name="notice_uv_placement_overlap">Placement overlaps another tile.  Repack the atlas to clear the collision.</string>
 	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
+	<string name="notice_uv_placement_pinned">Selected tile is pinned.  Unpin it to transform it.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -751,6 +752,8 @@
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
+	<string name="settings_colors_warning">Warning</string>
+	<string name="settings_colors_pinned_placement">Pinned Placement</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

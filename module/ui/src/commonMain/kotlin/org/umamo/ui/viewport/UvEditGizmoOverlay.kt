@@ -124,7 +124,7 @@ internal fun UvEditGizmoOverlay(
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val proportionalEdit by session.proportionalEdit.collectAsState()
 	val renderSync = LocalPuppetRenderSync.current
-	val gizmoColors = rememberMeshEditColors()
+	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
 	if (mode != EditorMode.Edit || camera == null || geometries.isEmpty()) {
 		return
@@ -561,7 +561,7 @@ internal fun UvEditGizmoOverlay(
 					edges = geometry.edges,
 					highlight = highlight,
 					selectMode = effectiveSelection.selectMode,
-					colors = gizmoColors,
+					colors = viewportOverlayColors,
 					camera = camera,
 					size = IntSize(widthPx, heightPx),
 				)

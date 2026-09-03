@@ -461,6 +461,7 @@
 	<string name="notice_uv_placement_not_derivable">ソースアートからアトラスを再構成できないため、配置を移動できません。</string>
 	<string name="notice_uv_placement_overlap">配置が他のタイルと重なっています。アトラスを再パックすると解消できます。</string>
 	<string name="notice_uv_placement_off_page">配置がページの端を超えています。はみ出した部分は切り取られます。</string>
+	<string name="notice_uv_placement_pinned">選択した画像はピン留めされています。移動するにはピン留めを解除してください。</string>
 	<string name="notice_edit_no_editable_geometry">ここでは編集できません。選択中の描画オブジェクトはすべて親によって非表示です。</string>
 
 	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
@@ -692,6 +693,8 @@
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>
 	<string name="settings_colors_active_selection_highlight">アクティブ選択のハイライト</string>
+	<string name="settings_colors_warning">警告</string>
+	<string name="settings_colors_pinned_placement">ピン留めした配置</string>
 	<string name="settings_colors_mesh_edit">メッシュ編集</string>
 	<string name="settings_colors_group_vertex">頂点</string>
 	<string name="settings_colors_group_edge">辺</string>

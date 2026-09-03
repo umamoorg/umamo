@@ -4,12 +4,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The selection-highlight parser: both hex widths must land on the same RGB because
- * defaultSettings.json seeds #RRGGBB while the preferences HexColorField commits canonical
+ * The selection-highlight parser: both hex widths must land on the same RGB because a hand-typed or
+ * older user setting may hold #RRGGBB while the preferences HexColorField commits canonical
  * #AARRGGBB - a 6-digit-only parser would silently ignore every edit made in the window.
  */
 class ViewportSettingsTest {
-	private val defaultComponents = parseSelectionHighlightColor(ViewportSettings.SELECTION_HIGHLIGHT_DEFAULT)
+	private val defaultComponents = parseSelectionHighlightColor(ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT)
 
 	@Test
 	fun sixDigitHexParses() {

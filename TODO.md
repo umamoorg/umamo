@@ -341,8 +341,9 @@ is still ahead.
 	:format's affine page composer so any placement derives); Phase 4b (2026-09-02) made the composer
 	content-preserving and the overlap test exact (triangle coverage against opaque pixels). 2026-09-03 closed
 	the generator UX: the pack options ride the operation settings panel (5a), pins keep a hand-placed tile
-	through a repack (5b: `AtlasTile.pinned`, P / Alt+P, packer fixed items painted through the shared
-	affine painter so pack pages still equal derived pages), and the placement G / R / S adjust on the same
+	through a repack and against a hand move (5b: `AtlasTile.pinned`, P / Alt+P, pinned islands drawn in the
+	settings-backed pinned color, packer fixed items painted through the shared affine painter so pack pages
+	still equal derived pages), and the placement G / R / S adjust on the same
 	strip (5c) - see § Operation settings panel below. Only 5d (repack on re-import) waits, on Phase F.
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND

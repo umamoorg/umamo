@@ -27,6 +27,8 @@
 		"zoomStepCoarsePercent": 5.0,
 		"selectionHighlightColor": "#FF338CFF",
 		"activeSelectionHighlightColor": "#FF7DE400",
+		"warningColor": "#FFFF5A5A",
+		"pinnedPlacementColor": "#FFB266FF",
 		"grid": {
 			"scale": 100.0,
 			"subdivisions": 10

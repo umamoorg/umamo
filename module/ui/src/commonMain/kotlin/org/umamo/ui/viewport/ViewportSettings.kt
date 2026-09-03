@@ -2,16 +2,15 @@ package org.umamo.ui.viewport
 
 /**
  * The settings keys and bundled defaults for the viewport interaction settings: the wheel-zoom
- * increments and the selection highlight tint.  The defaults are kept in lockstep with
- * defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side fallback
- * for a missing or unparseable value, shared by the viewport binding and the preferences window so
- * neither duplicates key literals (the same split as [MeshEditColorSettings]).
+ * increments, the grid, and the rendering toggles.  The overlay colors live in
+ * [ViewportColorSettings].  The defaults are kept in lockstep with defaultSettings.json (the
+ * merged-settings baseline); these constants are the Kotlin-side fallback for a missing or
+ * unparseable value, shared by the viewport binding and the preferences window so neither duplicates
+ * key literals.
  */
 internal object ViewportSettings {
 	const val ZOOM_STEP_KEY = "viewport.zoomStepPercent"
 	const val ZOOM_STEP_COARSE_KEY = "viewport.zoomStepCoarsePercent"
-	const val SELECTION_HIGHLIGHT_KEY = "viewport.selectionHighlightColor"
-	const val ACTIVE_SELECTION_HIGHLIGHT_KEY = "viewport.activeSelectionHighlightColor"
 	const val GRID_SCALE_KEY = "viewport.grid.scale"
 	const val GRID_SUBDIVISIONS_KEY = "viewport.grid.subdivisions"
 	const val SUPERSAMPLE_KEY = "viewport.rendering.supersample"
@@ -25,9 +24,6 @@ internal object ViewportSettings {
 
 	/** On by default: frames rendered while an area is actively resizing keep the supersample. */
 	const val SUPERSAMPLE_WHILE_RESIZING_DEFAULT = true
-
-	const val SELECTION_HIGHLIGHT_DEFAULT = "#338CFF"
-	const val ACTIVE_SELECTION_HIGHLIGHT_DEFAULT = "#7DE400"
 
 	const val GRID_SCALE_DEFAULT = 100.0
 	const val GRID_SUBDIVISIONS_DEFAULT = 10
@@ -44,30 +40,4 @@ internal object ViewportSettings {
 
 	/** The commit clamp for the grid subdivision count: 1 (no minor lines) up to 100 per major cell. */
 	val GRID_SUBDIVISIONS_RANGE = 1..100
-}
-
-/**
- * Parses a selection-highlight hex color (#RRGGBB or #AARRGGBB, the # optional) into its three 0..1
- * sRGB components, falling back to the built-in highlight color when the string is absent or
- * malformed.  Both digit counts are accepted because defaultSettings.json seeds #RRGGBB while the
- * preferences HexColorField commits canonical #AARRGGBB; the alpha byte is ignored - the GL highlight
- * mix has no alpha term.  The components match what the highlight shader mixes (Compose-style 0..1
- * sRGB), so the parse divides each byte by 255.
- *
- * @param String? hex The configured hex color, or null when unset.
- * @return Triple The (red, green, blue) components, each 0..1.
- */
-internal fun parseSelectionHighlightColor(hex: String?): Triple<Float, Float, Float> {
-	val cleaned = (hex ?: ViewportSettings.SELECTION_HIGHLIGHT_DEFAULT).trim().removePrefix("#")
-	val packed =
-		when (cleaned.length) {
-			6 -> cleaned.toLongOrNull(16)
-			8 -> cleaned.toLongOrNull(16)?.and(0xFFFFFF)
-			else -> null
-		} ?: ViewportSettings.SELECTION_HIGHLIGHT_DEFAULT.removePrefix("#").toLong(16)
-	return Triple(
-		((packed shr 16) and 0xFF) / 255f,
-		((packed shr 8) and 0xFF) / 255f,
-		(packed and 0xFF) / 255f,
-	)
 }

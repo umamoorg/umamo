@@ -7,7 +7,7 @@ import org.umamo.edit.UvPageKind
 import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
-import org.umamo.edit.placementDragTileIds
+import org.umamo.edit.placementSelectedTileIds
 import org.umamo.edit.setAtlasPins
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
@@ -62,9 +62,10 @@ internal fun uvCommands(
 	}
 
 	/**
-	 * Pins or unpins the placed tiles under the object selection - the tiles a placement gesture
-	 * would move - so a repack keeps (or may move) them.  From a hovered UV editor only: a pin is set
-	 * while looking at the page, and the key means nothing over a viewport.
+	 * Pins or unpins the placed tiles under the object selection, pinned or not (Unpin must find the
+	 * pinned ones, which a placement gesture no longer moves), so a repack keeps (or may move) them.
+	 * From a hovered UV editor only: a pin is set while looking at the page, and the key means
+	 * nothing over a viewport.
 	 *
 	 * @param Boolean pinned True to pin, false to unpin.
 	 */
@@ -73,7 +74,7 @@ internal fun uvCommands(
 		if (routing.areaOf(SpaceKind.UvEditor) == null) {
 			return
 		}
-		val tileIds = session.model.value.placementDragTileIds(session.selection.value)
+		val tileIds = session.model.value.placementSelectedTileIds(session.selection.value)
 		if (tileIds.isEmpty()) {
 			session.emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
 			return

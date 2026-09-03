@@ -217,7 +217,7 @@ fun ViewportEditGizmoOverlay(
 	val activeSelectTool by session.activeSelectTool.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val proportionalEdit by session.proportionalEdit.collectAsState()
-	val gizmoColors = rememberMeshEditColors()
+	val viewportOverlayColors = rememberViewportOverlayColors()
 	// Theme-level overlay chrome (the marquee) comes from the palette; the mesh gizmo colors above stay a
 	// separate settings-backed system.
 	val overlayColors = LocalUmamoColors.current
@@ -822,7 +822,7 @@ fun ViewportEditGizmoOverlay(
 					edges = frameGeometry?.edges ?: geometry.edges,
 					highlight = highlight,
 					selectMode = selectMode,
-					colors = gizmoColors,
+					colors = viewportOverlayColors,
 					camera = camera,
 					size = IntSize(widthPx, heightPx),
 				)

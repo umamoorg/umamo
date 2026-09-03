@@ -292,6 +292,26 @@ class AtlasPlacementEditsTest {
 	}
 
 	@Test
+	fun aPinHoldsAgainstTheGesture() {
+		val session = EditorSession(baseModel().withAtlasPins(listOf(tileAId), pinned = true))
+		val pinnedOnly = Selection(setOf(target("dA1"), target("dA2")), target("dA1"))
+		val mixed = Selection(setOf(target("dA1"), target("dB")), target("dB"))
+
+		assertEquals(emptySet(), session.model.value.placementDragTileIds(pinnedOnly), "a pinned tile is not a mover")
+		assertEquals(setOf(tileAId), session.model.value.placementSelectedTileIds(pinnedOnly), "but it is still the selection's placed tile - Unpin needs it")
+		assertEquals(setOf(tileBId), session.model.value.placementDragTileIds(mixed), "a mixed selection moves the unpinned tile alone")
+
+		session.setSelection(pinnedOnly)
+		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
+		assertNull(session.activeUvOperator.value, "an all-pinned selection has nothing to move")
+		assertEquals("notice.uv.placement.pinned", session.notice.value?.messageKey, "and says why")
+
+		session.setSelection(mixed)
+		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
+		assertEquals(MeshOperatorKind.Grab, session.activeUvOperator.value?.kind, "a mixed selection latches over its unpinned tile")
+	}
+
+	@Test
 	fun objectModeRefusesALayerAddressedDocument() {
 		val base = baseModel()
 		val session = EditorSession(base.copy(atlas = base.atlas.copy(storedUvsAddressPages = false)))

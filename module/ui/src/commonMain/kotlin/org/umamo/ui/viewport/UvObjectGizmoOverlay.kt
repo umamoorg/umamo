@@ -152,6 +152,10 @@ internal fun UvObjectGizmoOverlay(
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()
+	if (mode == EditorMode.Edit || camera == null) {
+		return
+	}
+
 	val meshSelection by session.meshSelection.collectAsState()
 	val objectSelection by session.selection.collectAsState()
 	val activeOperator by session.activeUvOperator.collectAsState()
@@ -160,11 +164,8 @@ internal fun UvObjectGizmoOverlay(
 	val tileByDrawableId = remember(committedModel) { committedModel.drawables.mapNotNull { drawable -> drawable.atlasTileId?.let { tileId -> drawable.id to tileId } }.toMap() }
 	val pinnedTileIds = remember(committedModel) { committedModel.atlas.tiles.filter { tile -> tile.pinned }.mapTo(HashSet()) { tile -> tile.id } }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
-	val gizmoColors = rememberMeshEditColors()
+	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
-	if (mode == EditorMode.Edit || camera == null) {
-		return
-	}
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
 	// Live values the areaId-keyed pointer loop, the remembered controllers, and the latch effect
@@ -498,7 +499,9 @@ internal fun UvObjectGizmoOverlay(
 					.toSet()
 			val activeId = (objectSelection.active as? SelectionTarget.Drawable)?.id
 			// The islands of every colliding tile - the triangles ARE the sampled region, so they are the
-			// honest thing to flag - draw their edges in the warning color, movers and bystanders alike.
+			// honest thing to flag - draw their edges in the warning color, movers and bystanders alike;
+			// a pinned tile's islands draw theirs in the pinned color, the warning winning while a
+			// collision is live (a warning is transient, a pin is state).
 			val collidingTileIds = result?.overlappingTileIds ?: emptySet()
 			// Islands paint back-to-front by the rest front rank, so the front-most island's wireframe
 			// draws last - the painted stacking matches the pick order.  Styling is per-island palette
@@ -511,16 +514,19 @@ internal fun UvObjectGizmoOverlay(
 				val styled =
 					when {
 						geometry.drawableId == activeId ->
-							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeActive)
+							viewportOverlayColors.copy(faceIdle = viewportOverlayColors.faceSelected, edgeIdle = viewportOverlayColors.edgeActive)
 						geometry.drawableId in selectedIds ->
-							gizmoColors.copy(faceIdle = gizmoColors.faceSelected, edgeIdle = gizmoColors.edgeSelected)
-						else -> gizmoColors
+							viewportOverlayColors.copy(faceIdle = viewportOverlayColors.faceSelected, edgeIdle = viewportOverlayColors.edgeSelected)
+						else -> viewportOverlayColors
 					}
+				val tileId = tileByDrawableId[geometry.drawableId]
 				val islandColors =
-					if (collidingTileIds.isNotEmpty() && tileByDrawableId[geometry.drawableId] in collidingTileIds) {
-						styled.copy(edgeIdle = overlayColors.viewportWarning, edgeSelected = overlayColors.viewportWarning, edgeActive = overlayColors.viewportWarning)
-					} else {
-						styled
+					when {
+						collidingTileIds.isNotEmpty() && tileId in collidingTileIds ->
+							styled.copy(edgeIdle = viewportOverlayColors.warning, edgeSelected = viewportOverlayColors.warning, edgeActive = viewportOverlayColors.warning)
+						tileId in pinnedTileIds ->
+							styled.copy(edgeIdle = viewportOverlayColors.pinnedPlacement, edgeSelected = viewportOverlayColors.pinnedPlacement, edgeActive = viewportOverlayColors.pinnedPlacement)
+						else -> styled
 					}
 				drawMeshWireframe(
 					positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
@@ -535,23 +541,6 @@ internal fun UvObjectGizmoOverlay(
 				)
 			}
 
-			// A pinned tile marks each of its islands with a pin glyph at the island's top-left, so what
-			// the next repack will keep is visible where it is chosen.
-			if (pinnedTileIds.isNotEmpty()) {
-				for (geometry in paintOrdered) {
-					if (tileByDrawableId[geometry.drawableId] !in pinnedTileIds) {
-						continue
-					}
-					drawPinGlyph(
-						positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
-						camera = camera,
-						size = areaSize,
-						fill = overlayColors.accent,
-						ring = overlayColors.viewportMarqueeContrast,
-					)
-				}
-			}
-
 			// The painter's side of a collision on top: a mover whose paint lies under another tile's
 			// triangles outlines its opaque region with the art's own contour (never a box), and a
 			// spill outlines the trim that leaves the page.  A bystander painter has no contour without
@@ -561,11 +550,11 @@ internal fun UvObjectGizmoOverlay(
 				for (mover in capture.movers) {
 					val placement = result.placementByTile[mover.tileId] ?: continue
 					if (mover.tileId in result.paintingTileIds) {
-						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, overlayColors.viewportWarning, warningStroke)
+						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, viewportOverlayColors.warning, warningStroke)
 					}
 					if (mover.tileId in result.offPageTileIds) {
 						drawTileQuad(mover.trim, placement, capture.pageHeight, camera, areaSize) { quad ->
-							drawPath(quad, overlayColors.viewportWarning, style = warningStroke)
+							drawPath(quad, viewportOverlayColors.warning, style = warningStroke)
 						}
 					}
 				}
@@ -591,42 +580,6 @@ internal fun UvObjectGizmoOverlay(
 			}
 		}
 	}
-}
-
-/** The pin glyph's outer ring radius in screen pixels; the fill sits two pixels inside it. */
-private const val PIN_GLYPH_RADIUS = 5.5f
-
-/**
- * Draws a pin glyph - a filled dot inside a contrasting ring - at an island's top-left corner in
- * display space (its smallest x, its largest y, since display y runs up).
- *
- * @param FloatArray positions The island's interleaved display positions.
- * @param ViewportCamera camera The area camera.
- * @param IntSize size The area size in pixels.
- * @param Color fill The dot color.
- * @param Color ring The ring color.
- */
-private fun DrawScope.drawPinGlyph(
-	positions: FloatArray,
-	camera: ViewportCamera,
-	size: IntSize,
-	fill: Color,
-	ring: Color,
-) {
-	if (positions.size < 2) {
-		return
-	}
-	var left = Float.POSITIVE_INFINITY
-	var top = Float.NEGATIVE_INFINITY
-	var componentIndex = 0
-	while (componentIndex + 1 < positions.size) {
-		left = minOf(left, positions[componentIndex])
-		top = maxOf(top, positions[componentIndex + 1])
-		componentIndex += 2
-	}
-	val corner = worldToScreen(left, top, camera, size)
-	drawCircle(color = ring, radius = PIN_GLYPH_RADIUS, center = corner)
-	drawCircle(color = fill, radius = PIN_GLYPH_RADIUS - 2f, center = corner)
 }
 
 /**
