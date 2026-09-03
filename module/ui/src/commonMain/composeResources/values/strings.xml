@@ -285,6 +285,7 @@
 	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Undo</string>
 	<string name="cmd_redo">Redo</string>
+	<string name="cmd_adjust_last_operation">Adjust Last Operation</string>
 	<string name="cmd_toggle_visibility">Toggle Visibility</string>
 
 	<!-- Command palette. -->
@@ -628,6 +629,17 @@
 	<string name="properties_relation_pick">Pick from the viewport or outliner.</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
+	<string name="unit_percent">%</string>
+
+	<!-- The Repack Atlas rows of the operation settings strip. -->
+	<string name="repack_options_page_size">Page Size</string>
+	<string name="repack_options_gutter">Gutter</string>
+	<string name="repack_options_extrude">Extrude</string>
+	<string name="repack_options_allow_rotation">Allow Rotation</string>
+	<string name="repack_options_power_of_two">Power-of-Two Pages</string>
+	<string name="repack_options_square_pages">Square Pages</string>
+	<string name="repack_options_shrink_pages">Shrink Pages</string>
+	<string name="repack_options_alpha_threshold">Alpha Threshold</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>

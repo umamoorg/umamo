@@ -2,6 +2,7 @@ package org.umamo.format.atlas
 
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.raster.RasterImage
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -356,9 +357,10 @@ public class AtlasTilePlacement(
  * Composes atlas pages from placements given as affines - [composeAtlasPages] for tiles that may sit
  * rotated, scaled, off the pixel grid, or partly off the page.
  *
- * A placement that is an exact integer translation with room for its extrusion takes the packer's own
- * blit and edge extrusion, so a page composed here from a repack's placements is byte-identical to
- * the page the packer composed.  Every other placement is resampled: each page pixel inside the
+ * A placement that is an exact integer translation, or an exact counter-clockwise quarter turn on
+ * integer pixels, with room for its extrusion takes the packer's own blit and edge extrusion, so a
+ * page composed here from a repack's placements is byte-identical to the page the packer composed,
+ * turned tiles included.  Every other placement is resampled: each page pixel inside the
  * tile's footprint (its trim rectangle through the affine) reads the tile bilinearly at the pixel
  * center's pre-image, and each page pixel within [extrude] pixels outside the footprint reads the
  * nearest edge of the trim - the packer's edge replication, expressed so it holds under rotation.
@@ -410,15 +412,15 @@ public fun composeAtlasPagesAffine(
 			continue
 		}
 		val page = pageBuffers[placement.pageIndex]
-		val exactOrigin = exactTrimOrigin(placement)
-		if (exactOrigin != null &&
-			exactOrigin.first - extrude >= 0 &&
-			exactOrigin.second - extrude >= 0 &&
-			exactOrigin.first + trim.width + extrude <= pageWidth &&
-			exactOrigin.second + trim.height + extrude <= pageHeight
+		val exact = exactPlacement(placement)
+		if (exact != null &&
+			exact.originX - extrude >= 0 &&
+			exact.originY - extrude >= 0 &&
+			exact.originX + exact.placedWidth(trim) + extrude <= pageWidth &&
+			exact.originY + exact.placedHeight(trim) + extrude <= pageHeight
 		) {
-			blitTile(page, pageWidth, item.rgba, item.width, trim, exactOrigin.first, exactOrigin.second, quarterTurns = 0)
-			extrudeTileEdges(page, pageWidth, item.rgba, item.width, trim, exactOrigin.first, exactOrigin.second, quarterTurns = 0, extrude = extrude)
+			blitTile(page, pageWidth, item.rgba, item.width, trim, exact.originX, exact.originY, exact.quarterTurns)
+			extrudeTileEdges(page, pageWidth, item.rgba, item.width, trim, exact.originX, exact.originY, exact.quarterTurns, extrude)
 		} else {
 			blitTileAffine(page, pageWidth, pageHeight, item.rgba, item.width, trim, placement.tileToPage, extrude)
 		}
@@ -427,26 +429,81 @@ public fun composeAtlasPagesAffine(
 }
 
 /**
- * Where the trim's top-left pixel lands when [placement] is an exact integer translation - the one
- * case the packer's blit serves - else null.
+ * How far a rotation term may sit from zero and still read as one of the packer's quarter turns.
+ *
+ * A placement rotated by -90 degrees carries cos(-pi / 2) in its diagonal, which is near zero in
+ * float, not zero; the sine terms are exact.  Anything a real hand rotation produces is orders of
+ * magnitude farther from a quarter turn than this.
+ */
+private const val EXACT_TURN_EPSILON = 1e-6f
+
+/**
+ * A placement the packer's own blit serves: the page pixel the placed tile's top-left lands on and
+ * how the tile is turned there.
+ *
+ * @property Int originX      The placed tile's left edge on the page.
+ * @property Int originY      The placed tile's top edge on the page.
+ * @property Int quarterTurns 0 for upright, 1 for one counter-clockwise quarter turn.
+ */
+private class ExactPlacement(
+	val originX: Int,
+	val originY: Int,
+	val quarterTurns: Int,
+) {
+	/**
+	 * The placed footprint's width for [trim]: a turn swaps the trim's sides.
+	 *
+	 * @param LayerBounds trim The tile's drawn sub-rectangle.
+	 * @return Int The on-page width in pixels.
+	 */
+	fun placedWidth(trim: LayerBounds): Int = if (quarterTurns == 0) trim.width else trim.height
+
+	/**
+	 * The placed footprint's height for [trim].
+	 *
+	 * @param LayerBounds trim The tile's drawn sub-rectangle.
+	 * @return Int The on-page height in pixels.
+	 */
+	fun placedHeight(trim: LayerBounds): Int = if (quarterTurns == 0) trim.height else trim.width
+}
+
+/**
+ * Classifies [placement] as one the packer's blit serves - an exact integer translation, or an exact
+ * counter-clockwise quarter turn landing on integer pixels - else null.
+ *
+ * The turned case is the affine the packer's own turn induces over the untrimmed tile frame: it sends
+ * trim-local (u, v) to (originX + v, originY + trimWidth - u), so the placed top-left sits at
+ * (m02 + trim.top, m12 - trim.left - trim.width).  Recognising it here is what lets a repack that
+ * turned a tile derive byte-identical pages instead of resampling through the bilinear path, whose
+ * extrusion band rounds corners differently from the packer's.
  *
  * @param AtlasTilePlacement placement The placement to classify.
- * @return Pair? The page column and row of the trim origin, or null when the affine rotates, scales,
- *   or lands between pixels.
+ * @return ExactPlacement? The blit origin and turn, or null when the affine scales, rotates by
+ *   anything but a packer turn, or lands between pixels.
  */
-private fun exactTrimOrigin(placement: AtlasTilePlacement): Pair<Int, Int>? {
+private fun exactPlacement(placement: AtlasTilePlacement): ExactPlacement? {
 	val affine = placement.tileToPage
-	if (affine[0] != 1f || affine[1] != 0f || affine[3] != 0f || affine[4] != 1f) {
+	val trim = placement.trim
+	val quarterTurns: Int
+	val originX: Float
+	val originY: Float
+	if (affine[0] == 1f && affine[1] == 0f && affine[3] == 0f && affine[4] == 1f) {
+		quarterTurns = 0
+		originX = affine[2] + trim.left
+		originY = affine[5] + trim.top
+	} else if (abs(affine[0]) <= EXACT_TURN_EPSILON && affine[1] == 1f && affine[3] == -1f && abs(affine[4]) <= EXACT_TURN_EPSILON) {
+		quarterTurns = 1
+		originX = affine[2] + trim.top
+		originY = affine[5] - trim.left - trim.width
+	} else {
 		return null
 	}
-	val originX = affine[2] + placement.trim.left
-	val originY = affine[5] + placement.trim.top
 	val pixelX = originX.roundToInt()
 	val pixelY = originY.roundToInt()
 	if (pixelX.toFloat() != originX || pixelY.toFloat() != originY) {
 		return null
 	}
-	return pixelX to pixelY
+	return ExactPlacement(pixelX, pixelY, quarterTurns)
 }
 
 /**

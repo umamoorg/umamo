@@ -338,7 +338,10 @@ is still ahead.
 	`withAtlasPlacement` / `withAtlasRepack`, mid-pack mesh edits supersede the repack, the desktop
 	second-document session fix, live end-to-end gates). Texture-authoring Phase 4's gizmo landed on
 	these seams 2026-09-02 (UV object-mode G / S / R over placements through `setAtlasPlacements`, with
-	:format's affine page composer so any placement derives); still open: pack-options UX (Phase 5).
+	:format's affine page composer so any placement derives); Phase 4b (2026-09-02) made the composer
+	content-preserving and the overlap test exact (triangle coverage against opaque pixels). Still open: the
+	pack options through the operation settings panel (texture-authoring 5a, NEXT) and pins (5b) - see
+	§ Operation settings panel below.
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
@@ -346,6 +349,28 @@ is still ahead.
 7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher / SourceBinding. Identity-keyed
 	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
-	May trigger an atlas repack (the invariant above protects it). See § Reimport.
+	May trigger an atlas repack (the invariant above protects it). See § Reimport. Decided 2026-09-03: the
+	linking table is a Sources space (a tenth SpaceKind: file → layer → tile → drawables, relink by drag or
+	chip, replace a file by repointing it) and reconcile is an OPERATION - matched updates commit as one undo
+	step, needs-review items become row states in that space, the match threshold is an operation-settings
+	parameter; nothing in the flow steals focus. See docs/plan/art-sourcing-pipeline.md Phases E and F.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
+
+## Operation settings panel (decided 2026-09-03; LANDED 2026-09-03 with Repack Atlas as the first client)
+Answers § Operation Settings Modal above; the design record is docs/plan/operation-settings.md (§ Landed lists
+what shipped: the :edit record + amend, the strip in every area, F9, the repack rows, rotation end to end).
+- The "runs twice" cost does not exist here. History is snapshot-based, so adjusting the last operation
+	means recomputing from the retained base snapshot and REPLACING the top history entry - one run of the
+	operation with the new values, no undo replay, no inverse op. The record holds the base snapshot directly,
+	so the history limit can never strand it.
+- Shape: a Compose-free operator record in `:edit` (the Change, the base snapshot, a declarative parameter
+	list, retained inputs, a rerun lambda) plus `amendLastCommit`; a collapsed strip bottom-left of the area
+	the operation ran in (a record with no area sits in the shell's bottom-left above the status bar), rows
+	rendered from the parameter kinds by one small renderer that the ToolDetails placeholder can reuse.
+- Lifetime is Blender's: the record dies on any other history push (selection clicks included), on undo /
+	redo, and on document swap.
+- Clients in order: Repack Atlas (texture-authoring 5a: page size, rotation, gutter, extrusion, alpha
+	threshold, square / power-of-two / shrink; the decoded pack input is retained so an adjustment is
+	pack-only), then UV placement G / R / S, then mesh G with proportional radius and falloff, then the
+	reconcile threshold (pipeline F).

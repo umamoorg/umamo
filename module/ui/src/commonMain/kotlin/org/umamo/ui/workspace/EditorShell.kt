@@ -59,8 +59,10 @@ import org.umamo.ui.kit.MessageDialog
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.ProvideAppLocale
+import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.AtlasRepackRefusalReason
 import org.umamo.ui.model.AtlasRepackReport
+import org.umamo.ui.model.AtlasRepackSessionOptions
 import org.umamo.ui.model.KeyableHover
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.model.LocalEditorMode
@@ -71,6 +73,7 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
+import org.umamo.ui.model.repackPageSideOf
 import org.umamo.ui.model.runAtlasRepack
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PropertyTab
@@ -257,18 +260,25 @@ fun EditorShell(
 	val artRasters = LocalSourceArtRasters.current
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val puppetTextures = LocalPuppetTextures.current
-	val repackAtlas: (() -> Unit)? =
+	// The repack's session memory and the operation settings strip's disclosure state: both live as
+	// long as the window, across documents, which is why neither keys on the session.
+	val repackOptions = remember { AtlasRepackSessionOptions() }
+	val operationStrip = remember { OperationStripState() }
+	val repackAtlas: ((String?) -> Unit)? =
 		if (editorSession != null && artRasters != null) {
-			{
-				shellScope.launch {
-					runAtlasRepack(
+			{ areaId ->
+				val host =
+					AtlasRepackHost(
 						session = editorSession,
 						artRasters = artRasters,
 						sessionAtlasPages = sessionAtlasPages,
 						premultipliedAlpha = puppetTextures?.premultipliedAlpha ?: false,
+						scope = shellScope,
 						report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
+						rememberOptions = { options -> repackOptions.record(editorSession, options) },
 					)
-				}
+				val options = repackOptions.optionsFor(editorSession, repackPageSideOf(editorSession.model.value))
+				shellScope.launch { runAtlasRepack(host, options, areaId) }
 			}
 		} else {
 			null
@@ -276,7 +286,7 @@ fun EditorShell(
 	DisposableEffect(commandRegistry, editorSession, selection) {
 		val cleanup =
 			commandRegistry.registerAll(
-				historyCommands(editorSession, availability) +
+				historyCommands(editorSession, availability, operationStrip) +
 					objectCommands(editorSession, selection, availability) +
 					transformCommands(editorSession, routing, availability) +
 					selectCommands(editorSession, routing, keyformSheetViews, availability) +
@@ -285,7 +295,7 @@ fun EditorShell(
 					topologyCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
-					atlasCommands(availability, repackAtlas),
+					atlasCommands(availability, routing, repackAtlas),
 			)
 		onDispose { cleanup() }
 	}
@@ -361,6 +371,7 @@ fun EditorShell(
 				LocalRelationPick provides relationPick,
 				LocalHoveredSurfaceTracker provides hoveredSurfaces,
 				LocalAreaCameraHub provides areaCameras,
+				LocalOperationStrip provides operationStrip,
 			) {
 				Surface(
 					modifier =
@@ -463,6 +474,9 @@ fun EditorShell(
 							// Visual-only join highlight, painted last so it floats above the tree (and the offscreen viewport).
 							AreaDragOverlay(controller = dragController, modifier = Modifier.fillMaxSize())
 						}
+						// An operation that ran in no particular area shows its settings strip here, above the
+						// status bar; one that ran in an area shows it in that area instead.
+						ShellOperationStrip()
 						// The bottom status strip is the Column's last child: fixed-height chrome under the
 						// weight(1f) content Box, so the area tree fills the gap between the tabs and the strip.
 						StatusBar(modifier = Modifier.fillMaxWidth())

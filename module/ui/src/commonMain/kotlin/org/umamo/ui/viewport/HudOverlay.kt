@@ -29,6 +29,7 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.workspace.LocalOperationStripInset
 import kotlin.math.roundToInt
 
 /**
@@ -226,6 +227,8 @@ private fun ViewportZoomBadge(
 		return
 	}
 	val hudColors = LocalUmamoColors.current
+	// The operation settings strip owns the bottom-left while it shows; the badge lifts above it.
+	val stripInset = LocalOperationStripInset.current
 	Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
 		Text(
 			text = "${(camera.zoom * 100f).roundToInt()}%",
@@ -233,7 +236,7 @@ private fun ViewportZoomBadge(
 			style = LocalUmamoTypography.current.labelSmall,
 			modifier =
 				Modifier
-					.padding(8.dp)
+					.padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + stripInset)
 					.background(hudColors.viewportBadgeBackground, RoundedCornerShape(4.dp))
 					.padding(horizontal = 6.dp, vertical = 2.dp),
 		)

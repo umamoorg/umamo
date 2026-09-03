@@ -255,6 +255,7 @@
 
 	<string name="cmd_undo">元に戻す</string>
 	<string name="cmd_redo">やり直す</string>
+	<string name="cmd_adjust_last_operation">直前の操作を調整</string>
 	<string name="cmd_toggle_visibility">表示の切り替え</string>
 
 	<string name="search_hint">検索</string>
@@ -572,6 +573,17 @@
 	<string name="properties_relation_pick">ビューポートまたはアウトライナから取得</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
+	<string name="unit_percent">%</string>
+
+	<!-- The Repack Atlas rows of the operation settings strip. -->
+	<string name="repack_options_page_size">ページサイズ</string>
+	<string name="repack_options_gutter">余白</string>
+	<string name="repack_options_extrude">縁の延長</string>
+	<string name="repack_options_allow_rotation">回転を許可</string>
+	<string name="repack_options_power_of_two">2のべき乗のページ</string>
+	<string name="repack_options_square_pages">正方形のページ</string>
+	<string name="repack_options_shrink_pages">ページを縮小</string>
+	<string name="repack_options_alpha_threshold">アルファしきい値</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>

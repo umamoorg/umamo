@@ -32,7 +32,6 @@ import org.umamo.render.SampledRegion
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.TileMeshMask
 import org.umamo.render.TileOpaqueMask
-import org.umamo.render.derivedPackPolicy
 import org.umamo.render.meshMaskOf
 import org.umamo.render.meshReserveByTile
 import org.umamo.render.placementFootprint
@@ -496,7 +495,7 @@ internal fun buildPlacementGesture(
 		return PlacementGestureBuild.NotDerivable
 	}
 	val reserveByTile = meshReserveByTile(model)
-	val extrude = derivedPackPolicy.extrude
+	val extrude = model.atlas.composition.extrude
 
 	val movers = ArrayList<PlacementMover>()
 	for (tileId in candidateTileIds) {
@@ -512,7 +511,7 @@ internal fun buildPlacementGesture(
 			return PlacementGestureBuild.NotDerivable
 		}
 		// A placed tile with nothing opaque has nothing on the page to move.
-		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold) ?: continue
+		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, model.atlas.composition.alphaThreshold) ?: continue
 		val trim = analysis.opaqueBounds
 		val reserve = reserveByTile[tileId]
 		val footprint = placementFootprint(placement, trim, reserve)
@@ -523,7 +522,7 @@ internal fun buildPlacementGesture(
 				trim = trim,
 				reserve = reserve,
 				meshMask = meshMaskOf(model, tileId),
-				mask = TileOpaqueMask.of(raster, trim, derivedPackPolicy.alphaThreshold),
+				mask = TileOpaqueMask.of(raster, trim, model.atlas.composition.alphaThreshold),
 				contours = analysis.contours,
 				pivotDisplayX = (footprint.left + footprint.right) / 2f,
 				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,

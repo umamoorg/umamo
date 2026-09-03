@@ -172,6 +172,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyO" to "file.importCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
 		"KeyH" to "object.toggleVisibility",
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
@@ -235,6 +236,7 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		// Undo / redo: Ctrl+Z plus both redo conventions Cubism migrants carry (Ctrl+Shift+Z and Ctrl+Y).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
 		"primary+KeyY" to "edit.redo",
 		"primary+Comma" to "edit.preferences",
 		"primary+Digit0" to "view.fit",
@@ -264,6 +266,7 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyO" to "file.importCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
 		"KeyH" to "object.toggleVisibility",
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",

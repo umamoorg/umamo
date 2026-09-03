@@ -73,6 +73,21 @@ class EditorSession(
 	private val elementMemory = MeshElementMemory()
 	private val latches = ToolLatches(notify = ::emitNotice)
 
+	// The live step's predecessor as of the last push - the base an operation registering itself as
+	// adjustable ran from.  Consumed by the registration and voided by a restore, so a registration can
+	// never pair an operation with some other step's base.
+	private var lastBaseSnapshot: EditorSnapshot? = null
+
+	private val mutableAdjustableOperation = MutableStateFlow<AdjustableOperation?>(null)
+
+	/**
+	 * The one operation that may still be adjusted (Blender's redo strip), or null.  Set by
+	 * [registerAdjustableOperation] right after an operation commits; cleared by any other history
+	 * push, selection pushes included, and by every undo / redo / jump - the strip belongs to the newest
+	 * step only.
+	 */
+	val adjustableOperation: StateFlow<AdjustableOperation?> = mutableAdjustableOperation.asStateFlow()
+
 	/**
 	 * The model this session opened on - the document's own puppet, before any edit.
 	 *
@@ -321,6 +336,92 @@ class EditorSession(
 		}
 
 	/**
+	 * Records one history step - the single path every push takes, so the adjustable-operation record
+	 * cannot outlive the step it belongs to and the base of the next registration is always the step
+	 * being left.
+	 *
+	 * @param EditorSnapshot snapshot The new live state.
+	 * @param Change change The change that produced it.
+	 */
+	private fun pushStep(snapshot: EditorSnapshot, change: Change) {
+		mutableAdjustableOperation.value = null
+		lastBaseSnapshot = history.current
+		history.push(snapshot, change)
+	}
+
+	/**
+	 * Registers the operation that just committed [committedModel] as adjustable: the strip shows its
+	 * [parameters], and editing one calls [rerun] with the updated record, which recomputes from the
+	 * record's base and lands through [amendLastCommit].
+	 *
+	 * Call it right after the operation's own commit.  Refuses (null) when nothing was pushed since the
+	 * last registration or restore, or when the live model is not [committedModel] - a client that
+	 * committed nothing (a no-op edit) must not register against some other step's base.
+	 *
+	 * @param PuppetModel committedModel The model the operation's commit published.
+	 * @param String? areaId The area the operation ran in, or null.
+	 * @param List parameters The operation's settings as it ran.
+	 * @param Function rerun Runs the operation again under the record it is given.
+	 * @return AdjustableOperation? The record now live, or null when the registration was refused.
+	 */
+	fun registerAdjustableOperation(
+		committedModel: PuppetModel,
+		areaId: String?,
+		parameters: List<OperatorParameter>,
+		rerun: (AdjustableOperation) -> Unit,
+	): AdjustableOperation? {
+		val base = lastBaseSnapshot ?: return null
+		val change = history.currentChange ?: return null
+		if (mutableModel.value !== committedModel) {
+			return null
+		}
+		lastBaseSnapshot = null
+		val record = AdjustableOperation(change, areaId, parameters, base, rerun, identity = Any())
+		mutableAdjustableOperation.value = record
+		return record
+	}
+
+	/**
+	 * Adjusts the live adjustable operation: publishes [parameters] as its settings and runs it again.
+	 * A no-op while no operation is adjustable.
+	 *
+	 * @param List parameters The new settings, in the record's order.
+	 */
+	fun adjustLastOperation(parameters: List<OperatorParameter>) {
+		val current = mutableAdjustableOperation.value ?: return
+		val updated = current.withParameters(parameters)
+		mutableAdjustableOperation.value = updated
+		updated.rerun(updated)
+	}
+
+	/**
+	 * Lands an adjustment: replaces the operation's own history step with [model] and publishes it,
+	 * keeping the record live for the next adjustment.  Nothing is undone and nothing is replayed - the
+	 * step is rewritten in place ([History.amendTop]).
+	 *
+	 * Refuses when [operation] is not the live record (it was cleared by another push, an undo, or a
+	 * document swap while an asynchronous rerun was in flight - the result is dropped, never committed
+	 * over whatever the rigger did meanwhile) or when the stack refuses the amend.
+	 *
+	 * @param AdjustableOperation operation The record the rerun was given.
+	 * @param PuppetModel model The recomputed document model.
+	 * @return Boolean True when the step was replaced and published.
+	 */
+	fun amendLastCommit(operation: AdjustableOperation, model: PuppetModel): Boolean {
+		val current = mutableAdjustableOperation.value
+		if (current == null || current.identity !== operation.identity) {
+			return false
+		}
+		if (!history.amendTop(snapshot(model = model), operation.change)) {
+			return false
+		}
+		mutableModel.value = model
+		refreshFlags()
+		mutableChanges.tryEmit(operation.change)
+		return true
+	}
+
+	/**
 	 * Applies a document edit: computes the new model via [transform], records it as one undo step, and
 	 * publishes it. The [change] describes the edit for the bus and the history-panel label. A transform
 	 * that returns the same model instance (a no-op edit) records nothing, so callers need not pre-check.
@@ -352,7 +453,7 @@ class EditorSession(
 		if (pose != mutablePose.value) {
 			clearPendingChannelEdits()
 		}
-		history.push(snapshot(model = model, pose = pose), change)
+		pushStep(snapshot(model = model, pose = pose), change)
 		mutableModel.value = model
 		mutablePose.value = pose
 		refreshFlags()
@@ -450,7 +551,7 @@ class EditorSession(
 			return
 		}
 		val edits = mutablePendingChannelEdits.value + (target to value)
-		history.push(snapshot(pendingChannelEdits = edits), change)
+		pushStep(snapshot(pendingChannelEdits = edits), change)
 		mutablePendingChannelEdits.value = edits
 		refreshFlags()
 		mutableChanges.tryEmit(change)
@@ -586,7 +687,7 @@ class EditorSession(
 		(selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
 			elementMemory.lastActiveDrawableId = activeDrawable.id
 		}
-		history.push(
+		pushStep(
 			snapshot(selection = selection),
 			EditorStateChange.SelectionChanged,
 		)
@@ -609,7 +710,7 @@ class EditorSession(
 		if (parameterSelection == mutableParameterSelection.value) {
 			return
 		}
-		history.push(snapshot(parameterSelection = parameterSelection), EditorStateChange.ParameterSelectionChanged)
+		pushStep(snapshot(parameterSelection = parameterSelection), EditorStateChange.ParameterSelectionChanged)
 		mutableParameterSelection.value = parameterSelection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.ParameterSelectionChanged)
@@ -686,7 +787,7 @@ class EditorSession(
 					MeshSelection()
 				}
 			}
-		history.push(
+		pushStep(
 			snapshot(meshSelection = newMeshSelection, mode = mode),
 			EditorStateChange.ModeChanged(mode),
 		)
@@ -708,7 +809,7 @@ class EditorSession(
 		if (meshSelection == mutableMeshSelection.value) {
 			return
 		}
-		history.push(
+		pushStep(
 			snapshot(meshSelection = meshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
@@ -741,7 +842,7 @@ class EditorSession(
 			mutableKeySelection.value = keySelection
 			return
 		}
-		history.push(snapshot(keySelection = keySelection), EditorStateChange.KeySelectionChanged)
+		pushStep(snapshot(keySelection = keySelection), EditorStateChange.KeySelectionChanged)
 		mutableKeySelection.value = keySelection
 		refreshFlags()
 		mutableChanges.tryEmit(EditorStateChange.KeySelectionChanged)
@@ -798,7 +899,7 @@ class EditorSession(
 		if (pose != mutablePose.value) {
 			clearPendingChannelEdits()
 		}
-		history.push(snapshot(pose = pose, keySelection = keySelection), EditorStateChange.KeySelectionChanged)
+		pushStep(snapshot(pose = pose, keySelection = keySelection), EditorStateChange.KeySelectionChanged)
 		mutableKeySelection.value = keySelection
 		mutablePose.value = pose
 		refreshFlags()
@@ -1053,7 +1154,7 @@ class EditorSession(
 		if (converted == current) {
 			return
 		}
-		history.push(
+		pushStep(
 			snapshot(meshSelection = converted),
 			EditorStateChange.MeshSelectModeChanged(selectMode),
 		)
@@ -1661,7 +1762,7 @@ class EditorSession(
 			)
 		val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
 		val change = MeshChange.TopologyEdit(drawableId, labelKey)
-		history.push(snapshot(model = newModel, meshSelection = newSelection), change)
+		pushStep(snapshot(model = newModel, meshSelection = newSelection), change)
 		mutableModel.value = newModel
 		mutableMeshSelection.value = newSelection
 		refreshFlags()
@@ -1806,7 +1907,7 @@ class EditorSession(
 				SelectionTarget.Drawable(copies.last()),
 			)
 		val change = DrawableChange.Duplicate(copies)
-		history.push(snapshot(model = newModel, selection = newSelection), change)
+		pushStep(snapshot(model = newModel, selection = newSelection), change)
 		mutableModel.value = newModel
 		mutableSelection.value = newSelection
 		refreshFlags()
@@ -1844,7 +1945,7 @@ class EditorSession(
 		if (newObjectSelection == mutableSelection.value && newMeshSelection == mutableMeshSelection.value) {
 			return
 		}
-		history.push(
+		pushStep(
 			snapshot(model = model, selection = newObjectSelection, meshSelection = newMeshSelection),
 			EditorStateChange.MeshSelectionChanged,
 		)
@@ -1919,6 +2020,10 @@ class EditorSession(
 	 * @param EditorSnapshot snapshot The history snapshot to restore.
 	 */
 	private fun restore(snapshot: EditorSnapshot) {
+		// The strip belongs to the newest step only: moving the cursor ends the adjustable operation,
+		// and voids the base so nothing can register against the step just left.
+		mutableAdjustableOperation.value = null
+		lastBaseSnapshot = null
 		// The remembered drawable tracks whatever was most recently shown active, undo/redo included.
 		(snapshot.selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
 			elementMemory.lastActiveDrawableId = activeDrawable.id

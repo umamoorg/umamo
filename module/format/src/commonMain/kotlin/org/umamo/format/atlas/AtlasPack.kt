@@ -236,9 +236,6 @@ public fun packAtlas(
 	require(items.distinctBy { item -> item.key }.size == items.size) {
 		"atlas pack item keys must be unique; duplicates make the packing order ambiguous"
 	}
-	require(!options.allowRotation || items.none { item -> item.reserve != null }) {
-		"reserves under rotation are not supported yet: a quarter turn moves the trim's offset inside its reservation"
-	}
 
 	// Trim first: a tile's footprint is its opaque bounds - widened to any caller reserve, since a
 	// mesh's reach must land on the tile's own margin - plus the gutter, and a tile with nothing
@@ -300,13 +297,20 @@ public fun packAtlas(
 		val reserve = checkNotNull(reserves[slot.itemIndex]) { "packed tile '${item.key}' has no reserve" }
 		// The placement records the TRIM's page position, not the reservation's: the reservation only
 		// spaces neighbors further apart, so everything downstream of the placement (the lowering, the
-		// composition, the derivation) never sees it.
+		// composition, the derivation) never sees it.  A turned slot turns the reservation with the
+		// tile - the same counter-clockwise quarter turn the blit applies, reserve-local (u, v) landing
+		// at (v, reserveWidth - u) - so the trim's offset inside it turns too: what sat to the trim's
+		// LEFT in tile space sits BELOW it on the page.
+		val trimOffsetX = trim.left - reserve.left
+		val trimOffsetY = trim.top - reserve.top
+		val placedOffsetX = if (slot.rotated) trimOffsetY else trimOffsetX
+		val placedOffsetY = if (slot.rotated) reserve.width - trimOffsetX - trim.width else trimOffsetY
 		placementByItemIndex[slot.itemIndex] =
 			AtlasPackPlacement(
 				key = item.key,
 				pageIndex = slot.pageIndex,
-				pageX = slot.x + options.gutter + (trim.left - reserve.left),
-				pageY = slot.y + options.gutter + (trim.top - reserve.top),
+				pageX = slot.x + options.gutter + placedOffsetX,
+				pageY = slot.y + options.gutter + placedOffsetY,
 				trimLeft = trim.left,
 				trimTop = trim.top,
 				trimWidth = trim.width,

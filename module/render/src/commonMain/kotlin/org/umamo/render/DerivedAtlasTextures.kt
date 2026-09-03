@@ -8,6 +8,7 @@ import org.umamo.format.atlas.AtlasPackPlacement
 import org.umamo.format.atlas.AtlasTilePlacement
 import org.umamo.format.atlas.composeAtlasPagesAffine
 import org.umamo.format.raster.RasterImage
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -27,50 +28,69 @@ import org.umamo.runtime.model.placementAffine
  */
 
 /**
- * The trim and extrusion policy a derivation reconstructs a pack under, and the policy the repack
- * packs with.
+ * The rotation a placement carries for one of the packer's counter-clockwise quarter turns.
  *
- * A placement stores only where a tile's art sits, not which opaque sub-rectangle the packer trimmed
- * it to, so the derivation re-runs the packer's own trim analysis on the same pixels.  That couples
- * this value to the repack: both sides read it, and a future options dialog must thread its choices
- * into both.
+ * [placementAffine] turns by +rotationDegrees with the matrix ((cos, -sin), (sin, cos)) in the page's
+ * y-down frame; the packer's turn sends trim-local (u, v) to (v, -u), which is that matrix at -90.
  */
-public val derivedPackPolicy: AtlasPackOptions = AtlasPackOptions()
+private const val QUARTER_TURN_DEGREES = -90f
 
 /**
- * The trim a derivation draws of [raster]: the packer's own opaque-bounds analysis under
- * [derivedPackPolicy], or null when nothing in the raster is opaque.
+ * The trim a derivation draws of [raster]: the packer's own opaque-bounds analysis at
+ * [alphaThreshold], or null when nothing in the raster is opaque.
  *
- * @param DecodedImage raster The tile's decoded source art.
+ * @param DecodedImage raster         The tile's decoded source art.
+ * @param Int          alphaThreshold The atlas's trim threshold (`PuppetAtlas.composition`).
  * @return LayerBounds? The opaque sub-rectangle, raster-local.
  */
-public fun derivedTileTrim(raster: DecodedImage): LayerBounds? =
-	analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold)?.opaqueBounds
+public fun derivedTileTrim(raster: DecodedImage, alphaThreshold: Int): LayerBounds? =
+	analyzeAlpha(raster.width, raster.height, raster.rgba, alphaThreshold)?.opaqueBounds
+
+/**
+ * The composition policy a pack under [options] leaves on the model, so the derivation trims and
+ * extrudes exactly as the pack did.
+ *
+ * @param AtlasPackOptions options The options the pack ran with.
+ * @return AtlasComposition The two derivation-relevant options, as model state.
+ */
+fun atlasCompositionOf(options: AtlasPackOptions): AtlasComposition = AtlasComposition(options.alphaThreshold, options.extrude)
 
 /**
  * An [AtlasPackPlacement] lowered onto the model's placement transform: the trim origin folds into
- * the position, scale stays 1, rotation stays 0.
+ * the position and scale stays 1.
  *
- * The quarter-turned form is deliberately refused rather than lowered: the packer's turn and the
- * placement's rotation run in opposite senses about different origins, and a silently wrong lowering
- * would re-point every bound mesh.  The adapter grows the turned case when the repack switches
- * rotation on.
+ * Upright, the tile's origin sits trimLeft / trimTop above and left of the packed rect.  Turned, the
+ * packer sends trim-local (u, v) to (pageX + v, pageY + trimWidth - u), so over the untrimmed tile
+ * frame the origin lands at (pageX - trimTop, pageY + trimWidth + trimLeft) under a -90 degree
+ * rotation - the affine the composer's own exact quarter-turn path recognises, so a turned pack
+ * derives through the packer's blit.  Any other turn count is a packer contract violation.
  *
  * @param AtlasPackPlacement packPlacement Where the packer put one tile.
  * @return AtlasPlacement The equivalent authored placement.
  */
 fun atlasPlacementFromPack(packPlacement: AtlasPackPlacement): AtlasPlacement {
-	require(packPlacement.quarterTurns == 0) {
-		"tile '${packPlacement.key}' is quarter-turned; the placement lowering does not carry rotation yet"
+	require(packPlacement.quarterTurns in 0..1) {
+		"tile '${packPlacement.key}' has an unsupported rotation: ${packPlacement.quarterTurns} quarter turns"
 	}
-	return AtlasPlacement(
-		pageIndex = packPlacement.pageIndex,
-		positionX = (packPlacement.pageX - packPlacement.trimLeft).toFloat(),
-		positionY = (packPlacement.pageY - packPlacement.trimTop).toFloat(),
-		scaleX = 1f,
-		scaleY = 1f,
-		rotationDegrees = 0f,
-	)
+	return if (packPlacement.quarterTurns == 0) {
+		AtlasPlacement(
+			pageIndex = packPlacement.pageIndex,
+			positionX = (packPlacement.pageX - packPlacement.trimLeft).toFloat(),
+			positionY = (packPlacement.pageY - packPlacement.trimTop).toFloat(),
+			scaleX = 1f,
+			scaleY = 1f,
+			rotationDegrees = 0f,
+		)
+	} else {
+		AtlasPlacement(
+			pageIndex = packPlacement.pageIndex,
+			positionX = (packPlacement.pageX - packPlacement.trimTop).toFloat(),
+			positionY = (packPlacement.pageY + packPlacement.trimWidth + packPlacement.trimLeft).toFloat(),
+			scaleX = 1f,
+			scaleY = 1f,
+			rotationDegrees = QUARTER_TURN_DEGREES,
+		)
+	}
 }
 
 /**
@@ -118,8 +138,9 @@ fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): Atlas
 			return null
 		}
 		// The packer trimmed each tile to its opaque bounds before placing it; the placement holds only
-		// the untrimmed origin, so the same analysis on the same pixels reconstructs the trim exactly.
-		val trim = derivedTileTrim(raster) ?: continue
+		// the untrimmed origin, so the same analysis on the same pixels, under the threshold the atlas
+		// records, reconstructs the trim exactly.
+		val trim = derivedTileTrim(raster, atlas.composition.alphaThreshold) ?: continue
 		trimByTile[tile.id] = trim
 		items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba))
 		placements.add(AtlasTilePlacement(tile.id.raw, placement.pageIndex, trim, placementAffine(placement)))
@@ -162,7 +183,7 @@ fun deriveAtlasTextures(
 			pageHeights = IntArray(atlas.pages.size) { pageIndex -> atlas.pages[pageIndex].height },
 			items = plan.items,
 			placements = plan.placements,
-			extrude = derivedPackPolicy.extrude,
+			extrude = atlas.composition.extrude,
 		)
 	return generatedPuppetTextures(pages, model, premultipliedAlpha)
 }

@@ -53,6 +53,38 @@ data class AtlasTile(
 )
 
 /**
+ * The policy the atlas's pages are composed under: which alpha counts as opaque when a tile is
+ * trimmed to its content, and how far each tile's edge color is replicated into the gutter around it.
+ *
+ * Model state because the pages are DERIVED state.  A placement records only where a tile's art
+ * sits, not which opaque sub-rectangle the packer trimmed it to or how wide a band it extruded, so a
+ * derivation re-runs both on the same pixels and must do so under the policy the pack used - held
+ * here, beside the placements, so an undo across a repack that changed the threshold re-derives the
+ * pages that repack composed rather than the current default's.  Options that only decide WHERE
+ * tiles land (gutter, rotation, page shape) leave no trace here: the placements are their record.
+ *
+ * The defaults match the packer's own defaults; this module cannot see the packer, so the two are
+ * kept equal by the derivation gate that composes a pack's pages back from a lowered model.
+ *
+ * @property Int alphaThreshold Minimum alpha byte (1..255) for a pixel to count as opaque when trimming.
+ * @property Int extrude        How many pixels of each tile's edge color are replicated outward.
+ */
+data class AtlasComposition(
+	val alphaThreshold: Int = 1,
+	val extrude: Int = 2,
+) {
+	init {
+		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
+		require(extrude >= 0) { "extrude must be non-negative: $extrude" }
+	}
+
+	companion object {
+		/** The policy of an atlas nothing has repacked: the packer's defaults. */
+		val Default: AtlasComposition = AtlasComposition()
+	}
+}
+
+/**
  * A document's whole atlas: its pages and the tiles packed onto them.
  *
  * Empty for a document with no source art at all - a MOC3-origin rig, whose pages are the packed
@@ -68,11 +100,14 @@ data class AtlasTile(
  *   coordinates mean.  False for a document saved sampling its per-layer rasters - a packed atlas can
  *   sit beside it untouched - where the coordinates already address the art and inverting a placement
  *   over them would throw every mesh clear of its artwork.
+ * @property AtlasComposition composition The trim and extrusion policy the pages derive under - the one
+ *   the last repack packed with, or the default for an atlas nothing has repacked.
  */
 data class PuppetAtlas(
 	val pages: List<AtlasPage> = emptyList(),
 	val tiles: List<AtlasTile> = emptyList(),
 	val storedUvsAddressPages: Boolean = true,
+	val composition: AtlasComposition = AtlasComposition.Default,
 ) {
 	/** True when the document carries no source art at all. */
 	val isEmpty: Boolean

@@ -1,31 +1,38 @@
 package org.umamo.ui.model
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.commitAtlasRepack
+import org.umamo.edit.withAtlasRepack
 import org.umamo.format.atlas.AtlasPackItem
+import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackReserve
+import org.umamo.format.atlas.AtlasPackResult
 import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.render.DecodedImage
 import org.umamo.render.SourceArtRasters
+import org.umamo.render.atlasCompositionOf
 import org.umamo.render.atlasPlacementFromPack
-import org.umamo.render.derivedPackPolicy
 import org.umamo.render.generatedPuppetTextures
 import org.umamo.render.meshReserveByTile
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
 
 /** The page side a repack packs against when the document has no pages to take one from. */
-private const val DEFAULT_REPACK_PAGE_SIDE = 4096
+const val DEFAULT_REPACK_PAGE_SIDE: Int = 4096
 
 /** Why one tile kept the whole repack from running. */
 enum class AtlasRepackRefusalReason {
@@ -168,15 +175,111 @@ internal fun repackRefusals(
 }
 
 /**
- * Repacks the document's atlas: decodes every bound tile's art, runs the shared deterministic packer
- * against the document's own page size, and commits the new pages + placements + re-derived
- * coordinates as ONE undo step, pre-warming the session's page resolver with the pages the pack
- * already composed so nothing composes twice.  The viewport and every UV editor follow the MODEL -
- * the resolver publishes the pages and the engine swaps them - so this function ends at the commit.
+ * Everything a repack needs from the shell besides its options: the session to commit into, the art
+ * to pack, the page resolver to pre-warm, the texture convention, the scope an adjustment re-runs on,
+ * and the two shell callbacks - the refusal report and the sticky-options record.  Built once per
+ * document by the shell and handed to [runAtlasRepack]; the adjustment closure keeps it.
  *
- * All or nothing: any bound tile the pack cannot carry aborts the whole repack into [report] (the
- * modal report surface - a lost tile must not be a four-second toast).  Unbound tiles are packed
- * out (placement null) with a log line; art nobody samples does not spend page space.
+ * @property EditorSession      session            The session to commit into.
+ * @property SourceArtRasters   artRasters         The source-art pixels to pack.
+ * @property SessionAtlasPages? sessionAtlasPages  The session's page resolver, pre-warmed on success.
+ * @property Boolean            premultipliedAlpha The document's texture-convention flag, carried onto the new set.
+ * @property CoroutineScope     scope              Where an adjustment's re-pack launches (the shell's scope).
+ * @property Function           report             Receives the abort report when a pack refuses.
+ * @property Function           rememberOptions    Receives the options every successful pack ran with.
+ */
+class AtlasRepackHost(
+	val session: EditorSession,
+	val artRasters: SourceArtRasters,
+	val sessionAtlasPages: SessionAtlasPages?,
+	val premultipliedAlpha: Boolean,
+	val scope: CoroutineScope,
+	val report: (AtlasRepackReport) -> Unit,
+	val rememberOptions: (AtlasPackOptions) -> Unit,
+)
+
+/**
+ * The page side [model]'s repack packs against by default: its largest page, or
+ * [DEFAULT_REPACK_PAGE_SIDE] when it has none.
+ *
+ * @param PuppetModel model The document.
+ * @return Int The page side in pixels.
+ */
+fun repackPageSideOf(model: PuppetModel): Int = model.atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIDE
+
+/**
+ * What one pack produced for the model: the new pages and every tile's lowered placement.
+ *
+ * @property List pages            The new page inventory.
+ * @property Map  placementsByTile Every tile's new placement, null for one packed out.
+ * @property Int  packedOutCount   Placed-but-unbound tiles the pack could not carry, now unpacked.
+ */
+private class LoweredPack(
+	val pages: List<AtlasPage>,
+	val placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
+	val packedOutCount: Int,
+)
+
+/**
+ * Lowers a pack result onto [atlas]'s tiles: every packed tile gets its placement, every other tile
+ * is restated unpacked.  A placed-but-unbound tile the pack could not carry (empty, oversized,
+ * undecodable) leaves the pages rather than blocking the repack over art nothing samples; each is
+ * logged and counted.
+ *
+ * @param PuppetAtlas     atlas      The atlas being repacked.
+ * @param AtlasPackResult packResult What the packer produced.
+ * @return LoweredPack The pages and placements to commit.
+ */
+private fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredPack {
+	val pages = packResult.pages.map { page -> AtlasPage(page.width, page.height) }
+	val packedByKey = packResult.placements.associateBy { placement -> placement.key }
+	val placementsByTile = HashMap<AtlasTileId, AtlasPlacement?>()
+	var packedOut = 0
+	for (tile in atlas.tiles) {
+		val packed = packedByKey[tile.id.raw]
+		placementsByTile[tile.id] = packed?.let { placement -> atlasPlacementFromPack(placement) }
+		if (packed == null && tile.placement != null) {
+			UmamoLog.warn("repack: unbound tile '${tile.name}' could not be packed and leaves the pages")
+			packedOut++
+		}
+	}
+	return LoweredPack(pages, placementsByTile, packedOut)
+}
+
+/**
+ * Logs one pack's outcome the way both the first run and an adjustment report it.
+ *
+ * @param AtlasPackResult packResult The pack.
+ * @param LoweredPack     lowered    Its lowering.
+ * @param AtlasPackOptions options   The options it ran with.
+ */
+private fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options: AtlasPackOptions) {
+	val occupancy =
+		packResult.pages.indices.joinToString(separator = ", ") { pageIndex ->
+			"${(packResult.pageOccupancy(pageIndex) * 100f).toInt()}%"
+		}
+	UmamoLog.info(
+		"repack: ${packResult.placements.size} tile(s) onto ${lowered.pages.size} page(s) at ${options.maxPageSize} px" +
+			" (occupancy $occupancy; gutter ${options.gutter}, extrude ${options.extrude}, rotation ${options.allowRotation});" +
+			" ${lowered.packedOutCount} unbound tile(s) packed out",
+	)
+}
+
+/**
+ * Repacks the document's atlas: decodes every bound tile's art, runs the shared deterministic packer
+ * under [options], and commits the new pages + placements + re-derived coordinates as ONE undo step,
+ * pre-warming the session's page resolver with the pages the pack already composed so nothing
+ * composes twice.  The viewport and every UV editor follow the MODEL - the resolver publishes the
+ * pages and the engine swaps them - so this function ends at the commit and the registration.
+ *
+ * The commit registers itself as the session's adjustable operation (the operation settings strip):
+ * its rows are the pack options, and editing one re-packs the SAME decoded input from the model the
+ * repack ran on and lands over the repack's own history step ([EditorSession.amendLastCommit]) - one
+ * pack per adjustment, no decode, nothing replayed.  See [adjustAtlasRepack].
+ *
+ * All or nothing: any bound tile the pack cannot carry aborts the whole repack into the host's
+ * report (the modal report surface - a lost tile must not be a four-second toast).  Unbound tiles
+ * are packed out (placement null) with a log line; art nobody samples does not spend page space.
  *
  * Runs on the UI thread; the decode + pack hop to the default dispatcher.  The commit applies to the
  * model CURRENT at completion, so non-mesh edits made while packing survive.  Two things abort as
@@ -184,33 +287,28 @@ internal fun repackRefusals(
  * say), and a mesh or coordinate edit that changes a tile's reach - the pack was spaced by the
  * reserves it started with, so it no longer proves the current meshes disjoint.
  *
- * @param EditorSession     session            The session to commit into.
- * @param SourceArtRasters  artRasters         The source-art pixels to pack.
- * @param SessionAtlasPages? sessionAtlasPages The session's page resolver, pre-warmed on success.
- * @param Boolean           premultipliedAlpha The document's texture-convention flag, carried onto the new set.
- * @param Function          report             Receives the abort report when the repack refuses.
+ * @param AtlasRepackHost  host    The session, art, resolver, scope, and shell callbacks.
+ * @param AtlasPackOptions options The options to pack with (the strip's rows start from them).
+ * @param String?          areaId  The area the command was dispatched over, or null - where the strip shows.
  */
 suspend fun runAtlasRepack(
-	session: EditorSession,
-	artRasters: SourceArtRasters,
-	sessionAtlasPages: SessionAtlasPages?,
-	premultipliedAlpha: Boolean,
-	report: (AtlasRepackReport) -> Unit,
+	host: AtlasRepackHost,
+	options: AtlasPackOptions,
+	areaId: String?,
 ) {
+	val session = host.session
 	val modelAtStart = session.model.value
 	val atlas = modelAtStart.atlas
 	if (atlas.tiles.isEmpty() || !atlas.storedUvsAddressPages) {
 		// The command's availability gates both; a race between the check and the dispatch just no-ops.
 		return
 	}
-	val packSide = atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIDE
-	val options = derivedPackPolicy.copy(maxPageSize = packSide)
 
 	// Only a BOUND failure refuses the repack; a placed-unbound tile that cannot come along packs out
-	// instead, logged below.
+	// instead, logged in the lowering.
 	val (packInput, packResult) =
 		withContext(Dispatchers.Default) {
-			val input = buildRepackPackInput(modelAtStart) { tileId -> artRasters.decodeRaster(tileId) }
+			val input = buildRepackPackInput(modelAtStart) { tileId -> host.artRasters.decodeRaster(tileId) }
 			input to packAtlas(input.items, options)
 		}
 
@@ -219,24 +317,10 @@ suspend fun runAtlasRepack(
 		for (refusal in refusals) {
 			UmamoLog.warn("repack: tile '${refusal.tileName}' refused (${refusal.reason}); nothing was applied")
 		}
-		report(AtlasRepackReport(refusals))
+		host.report(AtlasRepackReport(refusals))
 		return
 	}
-
-	val newPages = packResult.pages.map { page -> AtlasPage(page.width, page.height) }
-	val packedByKey = packResult.placements.associateBy { placement -> placement.key }
-	val placementsByTile = HashMap<AtlasTileId, AtlasPlacement?>()
-	var packedOut = 0
-	for (tile in atlas.tiles) {
-		val packed = packedByKey[tile.id.raw]
-		placementsByTile[tile.id] = packed?.let { placement -> atlasPlacementFromPack(placement) }
-		if (packed == null && tile.placement != null) {
-			// Placed but unbound, and the pack could not carry it (empty, oversized, undecodable):
-			// it leaves the pages rather than blocking the repack over art nothing samples.
-			UmamoLog.warn("repack: unbound tile '${tile.name}' could not be packed and leaves the pages")
-			packedOut++
-		}
-	}
+	val lowered = lowerPack(atlas, packResult)
 
 	// Back on the UI thread, synchronously to the commit: a pack computed against one atlas value must
 	// not apply over another (an undo across a repack landing mid-pack, say).
@@ -257,7 +341,7 @@ suspend fun runAtlasRepack(
 		session.emitNotice("notice.atlas.repackSuperseded", NoticePlacement.NearCursor)
 		return
 	}
-	val committed = session.commitAtlasRepack(newPages, placementsByTile)
+	val committed = session.commitAtlasRepack(lowered.pages, lowered.placementsByTile, atlasCompositionOf(options))
 	if (committed == null) {
 		UmamoLog.info("repack: the pack reproduced the current placements exactly; nothing to change")
 		session.emitNotice("notice.atlas.repackUnchanged", NoticePlacement.NearCursor)
@@ -265,14 +349,60 @@ suspend fun runAtlasRepack(
 	}
 	// Pre-warm BEFORE the resolver's collector resumes (it is queued behind this dispatch), so the
 	// commit resolves its pages by cache hit instead of composing the same pages a second time.
-	sessionAtlasPages?.prewarm(committed.atlas, generatedPuppetTextures(packResult.pages, committed, premultipliedAlpha))
-	val occupancy =
-		packResult.pages.indices.joinToString(separator = ", ") { pageIndex ->
-			"${(packResult.pageOccupancy(pageIndex) * 100f).toInt()}%"
-		}
-	UmamoLog.info(
-		"repack: ${packResult.placements.size} tile(s) onto ${newPages.size} page(s) at $packSide px" +
-			" (occupancy $occupancy); $packedOut unbound tile(s) packed out",
-	)
+	host.sessionAtlasPages?.prewarm(committed.atlas, generatedPuppetTextures(packResult.pages, committed, host.premultipliedAlpha))
+	host.rememberOptions(options)
+	logPack(packResult, lowered, options)
 	session.emitNotice("notice.atlas.repacked", NoticePlacement.NearCursor)
+
+	// The decoded input is what an adjustment keeps: a re-pack costs the pack alone.  The record's
+	// base is the model this pack ran on, so the reserves the input was spaced by are its reserves.
+	session.registerAdjustableOperation(committed, areaId, repackParameters(options)) { record ->
+		host.scope.launch { adjustAtlasRepack(host, record, packInput) }
+	}
+}
+
+/**
+ * Re-packs for an adjustment of the strip: the record's parameters become the options, the SAME
+ * decoded [packInput] packs again off-thread, and the result lands over the repack's own step from
+ * the record's base model.  A refusal reports like the first run's and leaves the previous result
+ * standing; a record cleared while the pack ran (any other edit, an undo, a document swap) makes
+ * [EditorSession.amendLastCommit] drop the result rather than commit over what the rigger did.
+ *
+ * @param AtlasRepackHost     host      The session, resolver, and shell callbacks the first run had.
+ * @param AdjustableOperation record    The record with the adjusted parameters.
+ * @param RepackPackInput     packInput The first run's decoded input, packed again as it is.
+ */
+internal suspend fun adjustAtlasRepack(
+	host: AtlasRepackHost,
+	record: AdjustableOperation,
+	packInput: RepackPackInput,
+) {
+	val base = record.baseSnapshot.model
+	val options = repackOptionsOf(record.parameters, fallback = AtlasPackOptions(maxPageSize = repackPageSideOf(base)))
+	val packResult =
+		try {
+			withContext(Dispatchers.Default) { packAtlas(packInput.items, options) }
+		} catch (exception: IllegalArgumentException) {
+			// The rows keep every value inside the packer's contract, so this is a bug, not a rigger's
+			// mistake - but a bug in an adjustment must not take the shell's scope down with it.
+			UmamoLog.error("repack: the adjusted options were refused by the packer (${exception.message}); the previous result stands")
+			return
+		}
+	val refusals = repackRefusals(base, packResult.skipped, packInput.undecodableTileIds)
+	if (refusals.isNotEmpty()) {
+		for (refusal in refusals) {
+			UmamoLog.warn("repack: tile '${refusal.tileName}' refused under the adjusted options (${refusal.reason}); the previous result stands")
+		}
+		host.report(AtlasRepackReport(refusals))
+		return
+	}
+	val lowered = lowerPack(base.atlas, packResult)
+	val repacked = base.withAtlasRepack(lowered.pages, lowered.placementsByTile, atlasCompositionOf(options))
+	host.sessionAtlasPages?.prewarm(repacked.atlas, generatedPuppetTextures(packResult.pages, repacked, host.premultipliedAlpha))
+	if (!host.session.amendLastCommit(record, repacked)) {
+		UmamoLog.info("repack: the adjustment was superseded before it landed; nothing was applied")
+		return
+	}
+	host.rememberOptions(options)
+	logPack(packResult, lowered, options)
 }

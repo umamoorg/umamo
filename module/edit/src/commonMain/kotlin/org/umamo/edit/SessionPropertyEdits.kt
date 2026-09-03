@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
@@ -334,13 +335,18 @@ fun EditorSession.setAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlac
  * atlas instance this publishes (the resolver memoizes by identity), so the commit resolves its
  * pages by cache hit - and undo re-resolves them the same way.
  *
- * @param List pages            The new page inventory.
- * @param Map  placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @param List             pages            The new page inventory.
+ * @param Map              placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @param AtlasComposition composition      The trim and extrusion policy the pack composed under.
  * @return PuppetModel? The committed model, or null when the repack restated the atlas exactly.
  */
-fun EditorSession.commitAtlasRepack(pages: List<AtlasPage>, placementsByTile: Map<AtlasTileId, AtlasPlacement?>): PuppetModel? {
+fun EditorSession.commitAtlasRepack(
+	pages: List<AtlasPage>,
+	placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
+	composition: AtlasComposition = model.value.atlas.composition,
+): PuppetModel? {
 	val current = model.value
-	val repacked = current.withAtlasRepack(pages, placementsByTile)
+	val repacked = current.withAtlasRepack(pages, placementsByTile, composition)
 	if (repacked === current) {
 		return null
 	}

@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
@@ -931,13 +932,16 @@ private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileR
  * PIXELS ARE NOT MOVED - [withAtlasPlacement]'s rule, unchanged: the caller must compose the new
  * pages for the result to render.
  *
- * @param List pages            The new page inventory.
- * @param Map  placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @param List             pages            The new page inventory.
+ * @param Map              placementsByTile Every tile's new placement, keyed by tile, null for unpacked.
+ * @param AtlasComposition composition      The trim and extrusion policy the pack composed under, recorded
+ *   so the pages derive the same way; defaults to the atlas's current policy.
  * @return PuppetModel The repacked model, or [this] when nothing changes.
  */
 fun PuppetModel.withAtlasRepack(
 	pages: List<AtlasPage>,
 	placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
+	composition: AtlasComposition = atlas.composition,
 ): PuppetModel {
 	require(placementsByTile.keys == atlas.tiles.map { tile -> tile.id }.toSet()) {
 		"a repack must restate every tile's placement exactly once"
@@ -950,7 +954,7 @@ fun PuppetModel.withAtlasRepack(
 		}
 	}
 	val movedTiles = atlas.tiles.map { tile -> tile.copy(placement = placementsByTile.getValue(tile.id)) }
-	val newAtlas = atlas.copy(pages = pages, tiles = movedTiles)
+	val newAtlas = atlas.copy(pages = pages, tiles = movedTiles, composition = composition)
 	if (newAtlas == atlas) {
 		return this
 	}

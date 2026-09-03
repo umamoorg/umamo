@@ -164,12 +164,25 @@ class AtlasPackTest {
 	}
 
 	@Test
-	fun reservesUnderRotationAreRefused() {
-		val item = AtlasPackItem("a", 4, 4, opaquePackItem("a", 4, 4).rgba, AtlasPackReserve(0, 0, 8, 8))
+	fun aReserveTurnsWithItsTile() {
+		// A 19x8 tile packs first and leaves a 19x11 strip; the 8x12 tile with a 2 px reserve to its RIGHT
+		// (a 10x12 reservation) fits that strip only turned.  The turn sends the reservation's right-hand
+		// band ABOVE the placed trim, so the trim lands two rows below the strip's top, not on it.
+		val wide = opaquePackItem("wide", 19, 8)
+		val reaching = AtlasPackItem("reaching", 8, 12, opaquePackItem("reaching", 8, 12).rgba, AtlasPackReserve(0, 0, 10, 12))
+		val items = listOf(wide, reaching)
 
-		assertFailsWith<IllegalArgumentException> {
-			packAtlas(listOf(item), AtlasPackOptions(allowRotation = true))
-		}
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 19, gutter = 0, extrude = 0, allowRotation = true))
+
+		assertEquals(1, result.pages.size, "both tiles share one page")
+		val turned = result.placements.first { placement -> placement.key == "reaching" }
+		val upright = result.placements.first { placement -> placement.key == "wide" }
+		assertEquals(0, upright.quarterTurns)
+		assertEquals(1, turned.quarterTurns, "the reaching tile only fits turned")
+		assertEquals(0, turned.pageX)
+		assertEquals(upright.pageY + upright.trimHeight + 2, turned.pageY, "the turned reservation's band sits above the trim")
+		assertTilesRoundTripByteExact(items, result)
+		assertNoTileOverlap(result, gutter = 0)
 	}
 
 	@Test

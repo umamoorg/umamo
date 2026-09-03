@@ -78,6 +78,35 @@ class AtlasPageComposeAffineTest {
 	}
 
 	@Test
+	fun aQuarterTurnFromARotationInDegreesTakesThePackersBlitBandIncluded() {
+		val destinationX = 4
+		val destinationY = 5
+		val packed =
+			composeAtlasPages(
+				pageWidths,
+				pageHeights,
+				listOf(item),
+				listOf(AtlasPackPlacement("a", 0, destinationX, destinationY, trimLeft = 1, trimTop = 1, trimWidth = 3, trimHeight = 3, quarterTurns = 1)),
+				extrude = 2,
+			).single()
+		// The affine a placement rotated by -90 degrees produces: its diagonal is near zero, not zero,
+		// and with a band to extrude only the packer's own blit reproduces the packer's band.
+		val radians = -PI / 2
+		val turned =
+			floatArrayOf(
+				cos(radians).toFloat(),
+				(-sin(radians)).toFloat(),
+				(destinationX - trim.top).toFloat(),
+				sin(radians).toFloat(),
+				cos(radians).toFloat(),
+				(destinationY + trim.width + trim.left).toFloat(),
+			)
+		assertTrue(turned[0] != 0f, "the diagonal is near zero rather than zero - the case the recogniser must accept")
+		val composed = composeOne(AtlasTilePlacement("a", 0, trim, turned), extrude = 2)
+		assertContentEquals(packed.rgba, composed.rgba, "a degree-rotated quarter turn is the packer's turned blit, band included")
+	}
+
+	@Test
 	fun aDoubledScaleCoversADoubledFootprint() {
 		// Tile pixel (x, y) maps to (2x + 2, 2y + 2): the 3x3 trim at (1, 1) covers page [4, 10) squared.
 		val solid = opaquePackItem("s", 5, 5)

@@ -67,4 +67,7 @@ internal class SessionAvailability(session: EditorSession?) {
 			val atlas = session?.model?.value?.atlas
 			atlas != null && atlas.tiles.isNotEmpty() && atlas.storedUvsAddressPages
 		}
+
+	/** Applies while an operation may still be adjusted - the strip's F9 has something to open. */
+	val hasAdjustableOperation = CommandAvailability { session?.adjustableOperation?.value != null }
 }
