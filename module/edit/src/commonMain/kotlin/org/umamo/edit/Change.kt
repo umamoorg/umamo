@@ -671,11 +671,41 @@ sealed interface DocumentChange : Change {
 	 * over them - one step for a whole placement gesture, however many tiles it carried.  Document
 	 * content - a pack is authored - so it marks the document dirty.
 	 *
+	 * The label names the operator that ran, so the history panel and the operation settings strip
+	 * read Rotate or Scale when that is what happened; a placement written by no gesture at all (a
+	 * property edit, a test) reads as a move.
+	 *
 	 * @property List<AtlasTileId> tileIds The tiles that moved.
+	 * @property MeshOperatorKind? kind    The placement operator that produced the move, or null.
 	 */
-	data class SetAtlasPlacement(val tileIds: List<AtlasTileId>) : DocumentChange {
+	data class SetAtlasPlacement(
+		val tileIds: List<AtlasTileId>,
+		val kind: MeshOperatorKind? = null,
+	) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.document.atlasPlacement"
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Rotate -> "change.document.atlasPlacement.rotate"
+				MeshOperatorKind.Scale -> "change.document.atlasPlacement.scale"
+				// A placement has no slide; one arriving under that kind can only have moved.
+				MeshOperatorKind.Grab, MeshOperatorKind.VertexSlide, null -> "change.document.atlasPlacement"
+			}
+	}
+
+	/**
+	 * Pins or unpins one or more pieces of packed source art, so a repack keeps (or may move) their
+	 * placements.  Editor state on the model, undoable like any other edit; it marks the document
+	 * dirty because the native format will carry it.
+	 *
+	 * @property List<AtlasTileId> tileIds The tiles pinned or unpinned.
+	 * @property Boolean           pinned  True to pin, false to unpin.
+	 */
+	data class SetAtlasPin(
+		val tileIds: List<AtlasTileId>,
+		val pinned: Boolean,
+	) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = if (pinned) "change.document.atlasPin" else "change.document.atlasUnpin"
 	}
 
 	/**

@@ -18,7 +18,7 @@ import org.umamo.runtime.model.RuntimeTarget
 /*
  * Scalar property edits on an EditorSession, mostly driven by the Properties panel's editable controls
  * (the atlas edits at the end of the file are not: commitAtlasRepack is driven by the atlas repack
- * flow, and setAtlasPlacement is not wired to a caller yet).  Each
+ * flow, setAtlasPlacements by the UV editor's placement gizmo, and setAtlasPins by its pin commands).  Each
  * applies one field change as a single undo step via mutate, dispatching the typed Change plus its
  * PuppetModelEdits transform, and short-circuits to nothing on a no-op (the builder returns the same
  * model instance).  These are the write half of the Properties panel: a checkbox / dropdown / numeric
@@ -319,10 +319,26 @@ fun EditorSession.setAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlaceme
  * resolver composes the pages the new placements denote once this commit publishes (and re-composes
  * them on undo), so nothing here touches a pixel and no snapshot ever carries one.
  *
- * @param Map placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
+ * @param Map               placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
+ * @param MeshOperatorKind? kind            The placement operator that produced the move (it names the
+ *   step), or null for a placement written by no gesture.
  */
-fun EditorSession.setAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlacement?>) {
-	mutate(DocumentChange.SetAtlasPlacement(placementByTile.keys.toList())) { model -> model.withAtlasPlacements(placementByTile) }
+fun EditorSession.setAtlasPlacements(
+	placementByTile: Map<AtlasTileId, AtlasPlacement?>,
+	kind: MeshOperatorKind? = null,
+) {
+	mutate(DocumentChange.SetAtlasPlacement(placementByTile.keys.toList(), kind)) { model -> model.withAtlasPlacements(placementByTile) }
+}
+
+/**
+ * Pins or unpins the placed tiles among [tileIds] as one undo step, so a repack keeps (or may move)
+ * them - withAtlasPins under the one history push a pin command or checkbox should be.
+ *
+ * @param Collection<AtlasTileId> tileIds The tiles to pin or unpin.
+ * @param Boolean                 pinned  True to pin, false to unpin.
+ */
+fun EditorSession.setAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean) {
+	mutate(DocumentChange.SetAtlasPin(tileIds.toList(), pinned)) { model -> model.withAtlasPins(tileIds, pinned) }
 }
 
 /**

@@ -275,10 +275,11 @@ fun EditorShell(
 						premultipliedAlpha = puppetTextures?.premultipliedAlpha ?: false,
 						scope = shellScope,
 						report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
-						rememberOptions = { options -> repackOptions.record(editorSession, options) },
+						rememberOptions = { options, keepPinned -> repackOptions.record(editorSession, options, keepPinned) },
 					)
 				val options = repackOptions.optionsFor(editorSession, repackPageSizeOf(editorSession.model.value))
-				shellScope.launch { runAtlasRepack(host, options, areaId) }
+				val keepPinned = repackOptions.keepPinnedFor()
+				shellScope.launch { runAtlasRepack(host, options, areaId, keepPinned) }
 			}
 		} else {
 			null
@@ -661,6 +662,7 @@ private fun repackReportMessage(report: AtlasRepackReport): String {
 					AtlasRepackRefusalReason.BelowMinimumCoverage -> Res.string.repack_report_below_minimum_coverage
 					AtlasRepackRefusalReason.Undecodable -> Res.string.repack_report_undecodable
 					AtlasRepackRefusalReason.DegeneratePlacement -> Res.string.repack_report_degenerate_placement
+					AtlasRepackRefusalReason.PinnedOffPage -> Res.string.repack_report_pinned_off_page
 				},
 			)
 		lines.add("• ${refusal.tileName} - $reasonText")

@@ -339,9 +339,11 @@ is still ahead.
 	second-document session fix, live end-to-end gates). Texture-authoring Phase 4's gizmo landed on
 	these seams 2026-09-02 (UV object-mode G / S / R over placements through `setAtlasPlacements`, with
 	:format's affine page composer so any placement derives); Phase 4b (2026-09-02) made the composer
-	content-preserving and the overlap test exact (triangle coverage against opaque pixels). Still open: the
-	pack options through the operation settings panel (texture-authoring 5a, NEXT) and pins (5b) - see
-	§ Operation settings panel below.
+	content-preserving and the overlap test exact (triangle coverage against opaque pixels). 2026-09-03 closed
+	the generator UX: the pack options ride the operation settings panel (5a), pins keep a hand-placed tile
+	through a repack (5b: `AtlasTile.pinned`, P / Alt+P, packer fixed items painted through the shared
+	affine painter so pack pages still equal derived pages), and the placement G / R / S adjust on the same
+	strip (5c) - see § Operation settings panel below. Only 5d (repack on re-import) waits, on Phase F.
 5. Mesh editing (rest geometry). Built: object + edit mode, UV-preserving, edits the neutral base that every
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
@@ -357,9 +359,10 @@ is still ahead.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 
-## Operation settings panel (decided 2026-09-03; LANDED 2026-09-03 with Repack Atlas as the first client)
+## Operation settings panel (decided 2026-09-03; LANDED 2026-09-03 with Repack Atlas, then the UV placement G / R / S)
 Answers § Operation Settings Modal above; the design record is docs/plan/operation-settings.md (§ Landed lists
-what shipped: the :edit record + amend, the strip in every area, F9, the repack rows, rotation end to end).
+what shipped: the :edit record + amend, the strip in every area, F9, the repack rows, rotation end to end,
+then the placement gesture's rows and the repack's Keep Pinned Tiles row).
 - The "runs twice" cost does not exist here. History is snapshot-based, so adjusting the last operation
 	means recomputing from the retained base snapshot and REPLACING the top history entry - one run of the
 	operation with the new values, no undo replay, no inverse op. The record holds the base snapshot directly,
@@ -371,6 +374,8 @@ what shipped: the :edit record + amend, the strip in every area, F9, the repack 
 - Lifetime is Blender's: the record dies on any other history push (selection clicks included), on undo /
 	redo, and on document swap.
 - Clients in order: Repack Atlas (texture-authoring 5a: page size, rotation, gutter, extrusion, alpha
-	threshold, square / power-of-two / shrink; the decoded pack input is retained so an adjustment is
-	pack-only), then UV placement G / R / S, then mesh G with proportional radius and falloff, then the
-	reconcile threshold (pipeline F).
+	threshold, square / power-of-two / shrink, and 5b's Keep Pinned Tiles; the decoded pack input is retained
+	so an adjustment is pack-only), UV placement G / R / S (5c, LANDED: Move X / Y in page px, Angle, Scale
+	X / Y from the drag's own readout, a synchronous re-evaluation of the retained gesture; NO axis-constraint
+	row - the per-component rows subsume the lock, and the placement step is labelled by its operator), then
+	mesh G with proportional radius and falloff, then the reconcile threshold (pipeline F).

@@ -10,9 +10,167 @@ import kotlin.test.assertTrue
 
 /**
  * Covers the packer end to end: trimming, page composition, gutters and extrusion, page sizing, the
- * placement/skip partition, and determinism.  The bin-packing geometry alone is [RectPackerTest].
+ * placement/skip partition, fixed tiles, and determinism.  The bin-packing geometry alone is
+ * [RectPackerTest].
  */
 class AtlasPackTest {
+	/**
+	 * A fixed tile: [opaquePackItem]'s pixels kept at a place on the page.
+	 *
+	 * @param String     key        The item key.
+	 * @param Int        width      The tile width.
+	 * @param Int        height     The tile height.
+	 * @param Int        pageIndex  The page it stays on.
+	 * @param FloatArray tileToPage The affine it stays at.
+	 * @return AtlasPackItem The fixed item.
+	 */
+	private fun fixedPackItem(key: String, width: Int, height: Int, pageIndex: Int, tileToPage: FloatArray): AtlasPackItem =
+		AtlasPackItem(key, width, height, opaquePackItem(key, width, height).rgba, reserve = null, fixed = AtlasPackFixed(pageIndex, tileToPage))
+
+	/**
+	 * The page-space bounding box of a tile through an affine, written independently of the packer's.
+	 *
+	 * @param FloatArray affine The tile-to-page affine.
+	 * @param Int width         The tile width.
+	 * @param Int height        The tile height.
+	 * @return FloatArray (left, top, right, bottom).
+	 */
+	private fun boxOf(affine: FloatArray, width: Int, height: Int): FloatArray {
+		val xs = FloatArray(4)
+		val ys = FloatArray(4)
+		var cornerIndex = 0
+		for (cornerX in listOf(0f, width.toFloat())) {
+			for (cornerY in listOf(0f, height.toFloat())) {
+				xs[cornerIndex] = affine[0] * cornerX + affine[1] * cornerY + affine[2]
+				ys[cornerIndex] = affine[3] * cornerX + affine[4] * cornerY + affine[5]
+				cornerIndex++
+			}
+		}
+		return floatArrayOf(xs.min(), ys.min(), xs.max(), ys.max())
+	}
+
+	/**
+	 * Asserts every packed placement's trim stays at least [gutter] away from [box] on [pageIndex].
+	 *
+	 * @param AtlasPackResult result The pack.
+	 * @param Int pageIndex          The page the box is on.
+	 * @param FloatArray box         The box (left, top, right, bottom) the free tiles must keep clear.
+	 * @param Int gutter             The clearance.
+	 */
+	private fun assertFreeTilesClearOf(result: AtlasPackResult, pageIndex: Int, box: FloatArray, gutter: Int) {
+		for (placement in result.placements.filter { placement -> placement.pageIndex == pageIndex }) {
+			val separated =
+				placement.pageX + placement.pageWidth + gutter <= box[0] ||
+					box[2] + gutter <= placement.pageX ||
+					placement.pageY + placement.pageHeight + gutter <= box[1] ||
+					box[3] + gutter <= placement.pageY
+			assertTrue(separated, "'${placement.key}' at (${placement.pageX}, ${placement.pageY}) comes within $gutter px of the fixed tile")
+		}
+	}
+
+	@Test
+	fun aFixedTileStaysPutAndTheFreeTilesPackAroundIt() {
+		val kept = fixedPackItem("kept", 6, 6, pageIndex = 0, tileToPage = floatArrayOf(1f, 0f, 10f, 0f, 1f, 10f))
+		val items = listOf(kept) + (0 until 5).map { tileIndex -> opaquePackItem("free$tileIndex", 6, 6) }
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 32, gutter = 2, extrude = 1))
+
+		val fixed = result.fixed.single()
+		assertEquals("kept", fixed.key)
+		assertEquals(0, fixed.pageIndex)
+		assertEquals(listOf(0, 0, 6, 6), listOf(fixed.trimLeft, fixed.trimTop, fixed.trimWidth, fixed.trimHeight))
+		assertEquals(5, result.placements.size, "every free tile packs")
+		assertTrue(result.skipped.isEmpty())
+		assertEquals(
+			items.map { item -> item.key }.sorted(),
+			(result.placements.map { placement -> placement.key } + result.fixed.map { kept -> kept.key } + result.skipped.map { skip -> skip.key }).sorted(),
+			"placements, fixed, and skipped partition the input",
+		)
+		for (tileY in 0 until 6) {
+			for (tileX in 0 until 6) {
+				assertEquals(itemPixel(kept, tileX, tileY), pagePixel(result.pages[0], 10 + tileX, 10 + tileY), "kept pixel ($tileX, $tileY) sits at its affine spot verbatim")
+			}
+		}
+		assertTilesRoundTripByteExact(items, result)
+		assertFreeTilesClearOf(result, 0, floatArrayOf(10f, 10f, 16f, 16f), gutter = 2)
+		assertTrue(result.pageOccupancy(0) > 0f)
+	}
+
+	@Test
+	fun aFixedRotatedTileKeepsTheFreeTilesClearOfItsBox() {
+		// A 30 degree turn at 0.75 scale about the tile origin, moved to (20, 6): the box the packer must
+		// keep clear is the box of the turned corners, not the upright rect.
+		val radians = 30.0 * kotlin.math.PI / 180.0
+		val cosine = (kotlin.math.cos(radians) * 0.75).toFloat()
+		val sine = (kotlin.math.sin(radians) * 0.75).toFloat()
+		val affine = floatArrayOf(cosine, -sine, 20f, sine, cosine, 6f)
+		val kept = fixedPackItem("kept", 8, 8, pageIndex = 0, tileToPage = affine)
+		val items = listOf(kept) + (0 until 6).map { tileIndex -> opaquePackItem("free$tileIndex", 5, 5) }
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 64, gutter = 2, extrude = 2))
+
+		assertEquals("kept", result.fixed.single().key)
+		assertEquals(6, result.placements.size)
+		val box = boxOf(affine, 8, 8)
+		assertFreeTilesClearOf(result, 0, box, gutter = 2)
+		val centerX = (affine[0] * 4f + affine[1] * 4f + affine[2]).toInt()
+		val centerY = (affine[3] * 4f + affine[4] * 4f + affine[5]).toInt()
+		assertEquals(0xFF, pagePixel(result.pages[0], centerX, centerY) and 0xFF, "the turned tile's center is painted opaque")
+		assertNoTileOverlap(result, gutter = 2)
+	}
+
+	@Test
+	fun aFixedTilePastTheLargestPageIsReportedNotMoved() {
+		val kept = fixedPackItem("kept", 6, 6, pageIndex = 0, tileToPage = floatArrayOf(1f, 0f, 200f, 0f, 1f, 200f))
+		val items = listOf(kept, opaquePackItem("free", 6, 6))
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 64))
+
+		assertEquals(listOf(AtlasPackSkip("kept", AtlasPackSkipReason.FixedOutsidePage)), result.skipped)
+		assertTrue(result.fixed.isEmpty())
+		assertEquals(listOf("free"), result.placements.map { placement -> placement.key })
+	}
+
+	@Test
+	fun shrinkingKeepsAPageLargeEnoughForItsFixedTile() {
+		val free = opaquePackItem("free", 4, 4)
+		val kept = fixedPackItem("kept", 4, 4, pageIndex = 0, tileToPage = floatArrayOf(1f, 0f, 40f, 0f, 1f, 40f))
+
+		val alone = packAtlas(listOf(free), AtlasPackOptions(maxPageSize = 256))
+		val withKept = packAtlas(listOf(free, kept), AtlasPackOptions(maxPageSize = 256))
+
+		assertEquals(8, alone.pages.single().width, "a lone 4x4 with its gutter crops to an 8 page")
+		// The kept tile's gutter footprint reaches 46; the page rounds up to 64 and the free tile packs
+		// on that page rather than opening another.
+		assertEquals(1, withKept.pages.size)
+		assertEquals(64, withKept.pages.single().width)
+		assertEquals(64, withKept.pages.single().height)
+		assertTilesRoundTripByteExact(listOf(free), withKept)
+	}
+
+	@Test
+	fun aFixedTileOnALaterPageKeepsItsIndex() {
+		val kept = fixedPackItem("kept", 4, 4, pageIndex = 1, tileToPage = floatArrayOf(1f, 0f, 2f, 0f, 1f, 2f))
+		val items = listOf(opaquePackItem("free", 4, 4), kept)
+
+		val result = packAtlas(items, AtlasPackOptions(maxPageSize = 64))
+
+		assertEquals(2, result.pages.size, "the fixed tile's page exists")
+		assertEquals(1, result.fixed.single().pageIndex)
+		assertEquals(0, result.placements.single().pageIndex, "the free tile takes the first page")
+		assertEquals(itemPixel(kept, 0, 0), pagePixel(result.pages[1], 2, 2))
+	}
+
+	@Test
+	fun aFixedTileWithNothingOpaqueIsSkippedLikeAnyOther() {
+		val empty = AtlasPackItem("empty", 3, 3, ByteArray(3 * 3 * 4), fixed = AtlasPackFixed(0, floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)))
+
+		val result = packAtlas(listOf(empty, opaquePackItem("free", 4, 4)), AtlasPackOptions(maxPageSize = 32))
+
+		assertEquals(listOf(AtlasPackSkip("empty", AtlasPackSkipReason.NoOpaquePixels)), result.skipped)
+		assertTrue(result.fixed.isEmpty())
+	}
+
 	@Test
 	fun tilesAreTrimmedToTheirOpaqueBounds() {
 		val item =

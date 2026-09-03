@@ -1,18 +1,21 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvPageKind
 import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
+import org.umamo.edit.placementDragTileIds
+import org.umamo.edit.setAtlasPins
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceKind
 
 /**
- * The texture-coordinate commands: the axis mirrors, the UV editor's own snap pie, and the texture
- * page switches.
+ * The texture-coordinate commands: the axis mirrors, the UV editor's own snap pie, the texture
+ * page switches, and the placement pins.
  *
  * Every snap entry runs through the session's UV snap request flow to the hovered UV editor's overlay,
  * which owns the shown surface's dimensions and display geometry.  The area is resolved HERE, at dispatch,
@@ -57,6 +60,26 @@ internal fun uvCommands(
 	fun requestUvPage(kind: UvPageKind) {
 		editorSession?.requestUvPage(UvPageRequest(kind, routing.areaOf(SpaceKind.UvEditor)))
 	}
+
+	/**
+	 * Pins or unpins the placed tiles under the object selection - the tiles a placement gesture
+	 * would move - so a repack keeps (or may move) them.  From a hovered UV editor only: a pin is set
+	 * while looking at the page, and the key means nothing over a viewport.
+	 *
+	 * @param Boolean pinned True to pin, false to unpin.
+	 */
+	fun setPins(pinned: Boolean) {
+		val session = editorSession ?: return
+		if (routing.areaOf(SpaceKind.UvEditor) == null) {
+			return
+		}
+		val tileIds = session.model.value.placementDragTileIds(session.selection.value)
+		if (tileIds.isEmpty()) {
+			session.emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
+			return
+		}
+		session.setAtlasPins(tileIds, pinned)
+	}
 	return listOf(
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
@@ -100,6 +123,14 @@ internal fun uvCommands(
 		},
 		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument) {
 			requestUvPage(UvPageKind.FollowSelection)
+		},
+		// Placement pins (Blender's P / Alt+P in the UV editor): Object mode, where the selection names
+		// whole drawables and so the tiles under them.
+		Command("uv.pinPlacement", title = Res.string.cmd_uv_pin_placement, availability = availability.inObjectMode) {
+			setPins(pinned = true)
+		},
+		Command("uv.unpinPlacement", title = Res.string.cmd_uv_unpin_placement, availability = availability.inObjectMode) {
+			setPins(pinned = false)
 		},
 	)
 }

@@ -34,6 +34,12 @@ data class AtlasPage(
  * A null [placement] means the art is in the document but was never packed onto a page; drawables
  * bound to it sample it directly and their uvs already address it.
  *
+ * A [pinned] tile is one a rigger placed by hand and wants kept: a repack packs the other tiles
+ * around it and leaves its placement - page, position, rotation, and scale - exactly as it is.
+ * Editor state, not a format field: no container format encodes it (the native format will), so the
+ * model diff ignores it and an export never sees it.  A tile without a placement is never pinned -
+ * there is nothing to keep.
+ *
  * @property AtlasTileId     id              The tile's stable document-local identity.
  * @property String          name            The tile's display name.
  * @property Int             width           The art's width in pixels.
@@ -42,6 +48,7 @@ data class AtlasPage(
  * @property String?         sourceLayerName The originating artwork layer's name when exactly one
  *   composites into this tile, else null.  Advisory provenance only - the real source binding is a
  *   later phase's, and nothing reads this yet.
+ * @property Boolean         pinned          Whether a repack keeps this tile's placement where it is.
  */
 data class AtlasTile(
 	val id: AtlasTileId,
@@ -50,6 +57,7 @@ data class AtlasTile(
 	val height: Int,
 	val placement: AtlasPlacement? = null,
 	val sourceLayerName: String? = null,
+	val pinned: Boolean = false,
 )
 
 /**

@@ -1,5 +1,6 @@
 package org.umamo.render
 
+import org.umamo.format.atlas.AtlasPackFixed
 import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackPlacement
@@ -14,6 +15,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.placementAffine
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -28,7 +30,8 @@ import kotlin.test.assertTrue
  * numbering.  This is the gate on the trim/extrude coupling - the derivation re-runs the packer's
  * trim analysis under the same policy, and any drift between the two shows up here as a byte diff.
  * Beyond the packer's own placements, a hand-authored one (moved, scaled, rotated, off the pixel
- * grid) derives through the affine composer instead of being refused.
+ * grid) derives through the affine composer instead of being refused - and one the packer KEPT as a
+ * fixed tile derives byte-identically beside the tiles it packed around it.
  */
 class DerivedAtlasTexturesTest {
 	private val tileIds = listOf(AtlasTileId("t0"), AtlasTileId("t1"), AtlasTileId("t2"))
@@ -262,6 +265,59 @@ class DerivedAtlasTexturesTest {
 		assertContentEquals(pixelBytes(fixture.rasters[1], 1, 1), pixelBytes(page, 20, 7), "the trim origin lands at the packed rect's bottom-left")
 		assertContentEquals(pixelBytes(fixture.rasters[1], 6, 14), pixelBytes(page, 33, 2), "the trim's far corner lands at the packed rect's top-right")
 		assertContentEquals(packedPage.rgba, page.rgba, "a turned pack derives through the packer's own blit, byte for byte")
+	}
+
+	@Test
+	fun aPinnedTileDerivesByteIdenticallyToThePackersPage() {
+		val fixture = packedFixture()
+		// Tile 1 kept at a hand placement - turned 30 degrees, reduced to 0.75, at (30, 30) - while the
+		// other two pack around it.
+		val kept = AtlasPlacement(pageIndex = 0, positionX = 30f, positionY = 30f, scaleX = 0.75f, scaleY = 0.75f, rotationDegrees = 30f)
+		val items =
+			tileIds.mapIndexed { tileIndex, tileId ->
+				val raster = fixture.rasters[tileIndex]
+				AtlasPackItem(
+					tileId.raw,
+					raster.width,
+					raster.height,
+					raster.rgba,
+					fixed = if (tileIndex == 1) AtlasPackFixed(kept.pageIndex, placementAffine(kept)) else null,
+				)
+			}
+		val options = AtlasPackOptions(maxPageSize = 64)
+		val result = packAtlas(items, options)
+		assertEquals(tileIds[1].raw, result.fixed.single().key, "the pinned tile is kept, not packed")
+		assertEquals(2, result.placements.size, "the other two pack")
+		val placementByKey = result.placements.associateBy { placement -> placement.key }
+		val tiles =
+			fixture.model.atlas.tiles.mapIndexed { tileIndex, tile ->
+				if (tileIndex == 1) {
+					tile.copy(placement = kept, pinned = true)
+				} else {
+					tile.copy(placement = atlasPlacementFromPack(placementByKey.getValue(tile.id.raw)))
+				}
+			}
+		val model =
+			fixture.model.copy(
+				atlas =
+					PuppetAtlas(
+						pages = result.pages.map { page -> AtlasPage(page.width, page.height) },
+						tiles = tiles,
+						composition = atlasCompositionOf(options),
+					),
+			)
+
+		val derived = assertNotNull(deriveAtlasTextures(model, fixture.store, false))
+
+		assertEquals(result.pages.size, derived.atlases.size)
+		for (pageIndex in result.pages.indices) {
+			assertContentEquals(result.pages[pageIndex].rgba, derived.atlases[pageIndex].rgba, "page $pageIndex derives byte-identically, pinned tile included")
+		}
+		val trim = assertNotNull(derivedTileTrim(fixture.rasters[1], model.atlas.composition.alphaThreshold))
+		val footprint = placementFootprint(kept, trim, reserve = null)
+		val centerX = ((footprint.left + footprint.right) / 2f).toInt()
+		val centerY = ((footprint.top + footprint.bottom) / 2f).toInt()
+		assertEquals(255, alphaAt(derived.atlases[0], centerX, centerY), "the kept tile is painted where its placement says")
 	}
 
 	@Test

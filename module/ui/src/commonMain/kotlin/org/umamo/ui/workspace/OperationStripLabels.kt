@@ -5,6 +5,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterUnit
 import org.umamo.ui.model.RepackParameterKeys
 import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.PlacementParameterKeys
 
 /**
  * Maps an [org.umamo.edit.OperatorParameter.labelKey] to its localized row label.  The keys are the
@@ -21,10 +22,16 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		RepackParameterKeys.GUTTER -> stringResource(Res.string.repack_options_gutter)
 		RepackParameterKeys.EXTRUDE -> stringResource(Res.string.repack_options_extrude)
 		RepackParameterKeys.ALLOW_ROTATION -> stringResource(Res.string.repack_options_allow_rotation)
+		RepackParameterKeys.KEEP_PINNED -> stringResource(Res.string.repack_options_keep_pinned)
 		RepackParameterKeys.POWER_OF_TWO -> stringResource(Res.string.repack_options_power_of_two)
 		RepackParameterKeys.SQUARE_PAGES -> stringResource(Res.string.repack_options_square_pages)
 		RepackParameterKeys.SHRINK_PAGES -> stringResource(Res.string.repack_options_shrink_pages)
 		RepackParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.repack_options_alpha_threshold)
+		PlacementParameterKeys.DELTA_X -> stringResource(Res.string.placement_options_move_x)
+		PlacementParameterKeys.DELTA_Y -> stringResource(Res.string.placement_options_move_y)
+		PlacementParameterKeys.ANGLE -> stringResource(Res.string.placement_options_angle)
+		PlacementParameterKeys.SCALE_X -> stringResource(Res.string.placement_options_scale_x)
+		PlacementParameterKeys.SCALE_Y -> stringResource(Res.string.placement_options_scale_y)
 		else -> labelKey
 	}
 

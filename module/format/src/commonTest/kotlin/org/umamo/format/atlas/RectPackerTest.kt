@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Covers the rectangle bin packer on its own: placement geometry, page spill, rotation, and the
- * oversized report.  Trimming, gutters, and pixels belong to [AtlasPackTest].
+ * Covers the rectangle bin packer on its own: placement geometry, page spill, rotation, seeded
+ * footprints, and the oversized report.  Trimming, gutters, and pixels belong to [AtlasPackTest].
  */
 class RectPackerTest {
 	@Test
@@ -81,6 +81,31 @@ class RectPackerTest {
 				"item ${slot.itemIndex} runs past the reported used extent",
 			)
 		}
+	}
+
+	@Test
+	fun aSeedIsKeptClearAndCountsTowardTheUsedExtent() {
+		val seed = RectPackSeed(pageIndex = 0, x = 10, y = 10, width = 20, height = 20)
+		val requests = (0 until 6).map { itemIndex -> RectPackRequest(itemIndex, 15, 15) }
+
+		val layout = packRects(requests, pageSize = 64, allowRotation = false, seeds = listOf(seed))
+
+		assertEquals(requests.size, layout.slots.size, "every request still finds room around the seed")
+		for (slot in layout.slots.filter { slot -> slot.pageIndex == 0 }) {
+			val separated = slot.x + 15 <= seed.x || seed.x + seed.width <= slot.x || slot.y + 15 <= seed.y || seed.y + seed.height <= slot.y
+			assertTrue(separated, "item ${slot.itemIndex} at (${slot.x}, ${slot.y}) overlaps the seed")
+		}
+		assertNoRectOverlap(requests, layout, pageSize = 64)
+		assertTrue(layout.usedWidths[0] >= seed.x + seed.width && layout.usedHeights[0] >= seed.y + seed.height, "the used extent covers the seed")
+	}
+
+	@Test
+	fun seedingALaterPageOpensThePagesBeforeIt() {
+		val layout = packRects(emptyList(), pageSize = 32, allowRotation = false, seeds = listOf(RectPackSeed(2, 0, 0, 8, 8)))
+
+		assertEquals(3, layout.usedWidths.size, "pages 0 and 1 exist so the seed keeps its index")
+		assertEquals(listOf(0, 0, 8), layout.usedWidths)
+		assertEquals(listOf(0, 0, 8), layout.usedHeights)
 	}
 
 	@Test

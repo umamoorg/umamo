@@ -5,6 +5,8 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
+import org.umamo.edit.withAtlasPins
+import org.umamo.edit.withAtlasPlacements
 import org.umamo.edit.withParameter
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.packAtlas
@@ -15,6 +17,7 @@ import org.umamo.render.atlasPlacementFromPack
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -36,8 +39,9 @@ import kotlin.test.assertTrue
  * with its options as rows, an adjustment re-packs the same decoded input under the edited options
  * from the model the repack ran on and rewrites the repack's own history step (the stack does not
  * grow, one undo returns to the base), the result equals a fresh pack under those options and
- * derives byte-identically under the composition it recorded, and a refused adjustment leaves the
- * previous result standing with the record still live.
+ * derives byte-identically under the composition it recorded, a refused adjustment leaves the
+ * previous result standing with the record still live, and a pinned tile keeps its placement
+ * through a repack until the Keep Pinned Tiles row is turned off.
  */
 class AtlasRepackAdjustTest {
 	private val tileIds = listOf(AtlasTileId("t0"), AtlasTileId("t1"), AtlasTileId("t2"))
@@ -123,7 +127,7 @@ class AtlasRepackAdjustTest {
 					premultipliedAlpha = false,
 					scope = this,
 					report = { reports++ },
-					rememberOptions = { options -> remembered = options },
+					rememberOptions = { options, _ -> remembered = options },
 				)
 			val initial = AtlasPackOptions(maxPageSize = 64)
 
@@ -170,6 +174,76 @@ class AtlasRepackAdjustTest {
 		}
 
 	@Test
+	fun aPinnedTileKeepsItsPlacementThroughARepackAndMovesWhenTheRowIsOff() =
+		runBlocking {
+			val fixture = unpackedFixture()
+			// Tile 1 hand-placed through the placement edit - turned, reduced, at (30, 30) on a 64 page, its
+			// coordinates re-mapped so its mesh still reaches its own art - and pinned; the others unpacked.
+			val kept = AtlasPlacement(pageIndex = 0, positionX = 30f, positionY = 30f, scaleX = 0.75f, scaleY = 0.75f, rotationDegrees = 30f)
+			val pinnedTileId = tileIds[1]
+			val pinnedModel =
+				fixture.model
+					.copy(atlas = fixture.model.atlas.copy(pages = listOf(AtlasPage(64, 64))))
+					.withAtlasPlacements(mapOf(pinnedTileId to kept))
+					.withAtlasPins(listOf(pinnedTileId), pinned = true)
+			assertTrue(pinnedModel.atlas.tileById.getValue(pinnedTileId).pinned, "the fixture pinned its tile")
+			val session = EditorSession(pinnedModel)
+			var rememberedKeepPinned: Boolean? = null
+			val reports = ArrayList<AtlasRepackReport>()
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = fixture.store,
+					sessionAtlasPages = null,
+					premultipliedAlpha = false,
+					scope = this,
+					report = { report -> reports.add(report) },
+					rememberOptions = { _, keepPinned -> rememberedKeepPinned = keepPinned },
+				)
+			val options = AtlasPackOptions(maxPageSize = 64)
+			val uvsBefore = pinnedModel.drawables.first { drawable -> drawable.atlasTileId == pinnedTileId }.mesh!!.uvs
+
+			runAtlasRepack(host, options, areaId = null)
+
+			val refusalText = reports.flatMap { report -> report.refusals }.joinToString { refusal -> "${refusal.tileName}: ${refusal.reason}" }
+			val record = assertNotNull(session.adjustableOperation.value, "the repack registered (refusals: $refusalText)")
+			assertEquals(true, rememberedKeepPinned)
+			assertTrue(repackKeepPinnedOf(record.parameters), "the row shows the pins kept")
+			val repacked = session.model.value
+			val keptTile = repacked.atlas.tileById.getValue(pinnedTileId)
+			assertEquals(kept, keptTile.placement, "the pinned tile stayed exactly where it was")
+			assertTrue(keptTile.pinned, "and stays pinned")
+			assertSame(uvsBefore, repacked.drawables.first { drawable -> drawable.atlasTileId == pinnedTileId }.mesh!!.uvs, "its coordinates did not move")
+			for (tile in repacked.atlas.tiles) {
+				if (tile.id != pinnedTileId) {
+					assertNotNull(tile.placement, "tile ${tile.id.raw} packed around the pin")
+				}
+			}
+			// The pages the pack composed (what the resolver is pre-warmed with) are what the model derives.
+			val packInput = buildRepackPackInput(pinnedModel) { tileId -> fixture.store.decodeRaster(tileId) }
+			val fresh = packAtlas(packInput.itemsFor(keepPinned = true), options)
+			assertEquals(pinnedTileId.raw, fresh.fixed.single().key)
+			val derived = assertNotNull(deriveAtlasTextures(repacked, fixture.store, false))
+			for (pageIndex in fresh.pages.indices) {
+				assertContentEquals(fresh.pages[pageIndex].rgba, derived.atlases[pageIndex].rgba, "page $pageIndex derives byte-identically, pinned tile included")
+			}
+			val stepsAfterRepack = session.historyView.value.steps.size
+
+			// Keep Pinned Tiles off: the same decoded input re-packs with the pinned tile free.
+			session.adjustLastOperation(
+				record.parameters.withParameter(RepackParameterKeys.KEEP_PINNED, OperatorParameter.BooleanParameter(RepackParameterKeys.KEEP_PINNED, RepackParameterKeys.KEEP_PINNED, false)),
+			)
+			coroutineContext.job.children.toList().joinAll()
+
+			assertEquals(false, rememberedKeepPinned)
+			assertEquals(stepsAfterRepack, session.historyView.value.steps.size, "the adjustment rewrote the step")
+			val freed = session.model.value.atlas.tileById.getValue(pinnedTileId)
+			val freedPlacement = assertNotNull(freed.placement)
+			assertTrue(freedPlacement != kept && freedPlacement.rotationDegrees == 0f && freedPlacement.scaleX == 1f, "the tile packed like any other")
+			assertTrue(freed.pinned, "the pin itself survives the pack that ignored it")
+		}
+
+	@Test
 	fun aRefusedAdjustmentLeavesThePreviousResultStanding() =
 		runBlocking {
 			val fixture = unpackedFixture()
@@ -183,7 +257,7 @@ class AtlasRepackAdjustTest {
 					premultipliedAlpha = false,
 					scope = this,
 					report = { reports++ },
-					rememberOptions = {},
+					rememberOptions = { _, _ -> },
 				)
 			runAtlasRepack(host, AtlasPackOptions(maxPageSize = 64), areaId = null)
 			val record = assertNotNull(session.adjustableOperation.value)

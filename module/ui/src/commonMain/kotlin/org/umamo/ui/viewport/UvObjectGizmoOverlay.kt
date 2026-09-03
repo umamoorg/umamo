@@ -46,7 +46,6 @@ import org.umamo.format.art.LayerBounds
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.AtlasPlacement
-import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.applyUvAffine
@@ -159,6 +158,7 @@ internal fun UvObjectGizmoOverlay(
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val committedModel by session.model.collectAsState()
 	val tileByDrawableId = remember(committedModel) { committedModel.drawables.mapNotNull { drawable -> drawable.atlasTileId?.let { tileId -> drawable.id to tileId } }.toMap() }
+	val pinnedTileIds = remember(committedModel) { committedModel.atlas.tiles.filter { tile -> tile.pinned }.mapTo(HashSet()) { tile -> tile.id } }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val gizmoColors = rememberMeshEditColors()
 	val overlayColors = LocalUmamoColors.current
@@ -240,36 +240,38 @@ internal fun UvObjectGizmoOverlay(
 			)
 		}
 
+	// What a landed evaluation shows: the crops as ghosts at their committed spots until the
+	// resolver's pages land, and a notice when the result collides or spills.  Shared by the confirm
+	// and by every adjustment from the operation settings strip.
+	fun publishLanding(gestureData: PlacementGesture, result: PlacementDragResult) {
+		val crops =
+			gestureData.movers.mapNotNull { mover ->
+				val crop = mover.crop ?: return@mapNotNull null
+				GhostCrop(crop, mover.trim, result.placementByTile.getValue(mover.tileId))
+			}
+		if (sessionAtlasPages != null && crops.isNotEmpty()) {
+			ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
+		}
+		if (result.overlappingTileIds.isNotEmpty()) {
+			session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)
+		} else if (result.offPageTileIds.isNotEmpty()) {
+			session.emitNotice("notice.uv.placement.offPage", NoticePlacement.NearCursor)
+		}
+	}
+
 	// Confirms the in-flight placement gesture: commit every mover whose placement changed as ONE undo
-	// step, remember the crops as ghosts until the resolver's pages land, say so when the result
-	// collides or spills, then clear the operator.  No preview was ever pushed to the renderer, so
-	// there is nothing to resync.
+	// step under the operator's own label, publish the landing, register the gesture on the operation
+	// settings strip (an adjustment re-evaluates the same frozen gesture over that step), then clear
+	// the operator.  No preview was ever pushed to the renderer, so there is nothing to resync.
 	fun confirmGesture() {
 		val gestureData = gesture.capture
 		val result = gestureData?.result
 		if (gestureData != null && result != null) {
-			val changed = LinkedHashMap<AtlasTileId, AtlasPlacement?>()
-			for (mover in gestureData.movers) {
-				val next = result.placementByTile[mover.tileId] ?: continue
-				if (next != mover.placement) {
-					changed[mover.tileId] = next
-				}
-			}
+			val changed = changedPlacements(gestureData.movers, result)
 			if (changed.isNotEmpty()) {
-				session.setAtlasPlacements(changed)
-				val crops =
-					gestureData.movers.mapNotNull { mover ->
-						val crop = mover.crop ?: return@mapNotNull null
-						GhostCrop(crop, mover.trim, result.placementByTile.getValue(mover.tileId))
-					}
-				if (sessionAtlasPages != null && crops.isNotEmpty()) {
-					ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
-				}
-				if (result.overlappingTileIds.isNotEmpty()) {
-					session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)
-				} else if (result.offPageTileIds.isNotEmpty()) {
-					session.emitNotice("notice.uv.placement.offPage", NoticePlacement.NearCursor)
-				}
+				session.setAtlasPlacements(changed, gestureData.transform.operatorKind)
+				publishLanding(gestureData, result)
+				registerPlacementAdjustment(session, areaId, gestureData, result) { landed -> publishLanding(gestureData, landed) }
 			}
 		}
 		session.clearUvOperator()
@@ -288,7 +290,6 @@ internal fun UvObjectGizmoOverlay(
 			evaluatePlacementDrag(
 				operatorKind = operator,
 				parameters = parameters,
-				axisConstraint = constraint,
 				movers = gestureData.movers,
 				bystanders = gestureData.bystanders,
 				occupancy = gestureData.occupancy,
@@ -534,6 +535,23 @@ internal fun UvObjectGizmoOverlay(
 				)
 			}
 
+			// A pinned tile marks each of its islands with a pin glyph at the island's top-left, so what
+			// the next repack will keep is visible where it is chosen.
+			if (pinnedTileIds.isNotEmpty()) {
+				for (geometry in paintOrdered) {
+					if (tileByDrawableId[geometry.drawableId] !in pinnedTileIds) {
+						continue
+					}
+					drawPinGlyph(
+						positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
+						camera = camera,
+						size = areaSize,
+						fill = overlayColors.accent,
+						ring = overlayColors.viewportMarqueeContrast,
+					)
+				}
+			}
+
 			// The painter's side of a collision on top: a mover whose paint lies under another tile's
 			// triangles outlines its opaque region with the art's own contour (never a box), and a
 			// spill outlines the trim that leaves the page.  A bystander painter has no contour without
@@ -573,6 +591,42 @@ internal fun UvObjectGizmoOverlay(
 			}
 		}
 	}
+}
+
+/** The pin glyph's outer ring radius in screen pixels; the fill sits two pixels inside it. */
+private const val PIN_GLYPH_RADIUS = 5.5f
+
+/**
+ * Draws a pin glyph - a filled dot inside a contrasting ring - at an island's top-left corner in
+ * display space (its smallest x, its largest y, since display y runs up).
+ *
+ * @param FloatArray positions The island's interleaved display positions.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @param Color fill The dot color.
+ * @param Color ring The ring color.
+ */
+private fun DrawScope.drawPinGlyph(
+	positions: FloatArray,
+	camera: ViewportCamera,
+	size: IntSize,
+	fill: Color,
+	ring: Color,
+) {
+	if (positions.size < 2) {
+		return
+	}
+	var left = Float.POSITIVE_INFINITY
+	var top = Float.NEGATIVE_INFINITY
+	var componentIndex = 0
+	while (componentIndex + 1 < positions.size) {
+		left = minOf(left, positions[componentIndex])
+		top = maxOf(top, positions[componentIndex + 1])
+		componentIndex += 2
+	}
+	val corner = worldToScreen(left, top, camera, size)
+	drawCircle(color = ring, radius = PIN_GLYPH_RADIUS, center = corner)
+	drawCircle(color = fill, radius = PIN_GLYPH_RADIUS - 2f, center = corner)
 }
 
 /**
