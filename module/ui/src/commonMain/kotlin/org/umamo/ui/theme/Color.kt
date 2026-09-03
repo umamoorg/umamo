@@ -84,8 +84,6 @@ import androidx.compose.ui.graphics.Color
  * @property Color viewportMarqueeContrast The opposite-luminance tone paired with the marquee for the
  *   two-tone marching-ants selection affordances (crosshair guides, box, circle), so the dashed outline
  *   stays legible over any viewport background where a single-color dash would wash out.
- * @property Color viewportWarning    The stroke of a viewport warning affordance - an atlas placement
- *   overlapping a neighbor or spilling off its page - loud enough to read over any art in both themes.
  * @property Color transparencyCheckerLight The lighter of the two alternating cells of the transparency
  *   checker drawn behind thumbnails to reveal alpha (themed so a dark scheme gets a dark checker).
  * @property Color transparencyCheckerDark  The darker of the two alternating transparency-checker cells.
@@ -150,7 +148,6 @@ data class UmamoColors(
 	val viewportBadgeBackground: Color,
 	val viewportMarquee: Color,
 	val viewportMarqueeContrast: Color,
-	val viewportWarning: Color,
 	val transparencyCheckerLight: Color,
 	val transparencyCheckerDark: Color,
 	val viewportGridBackground: Color,
@@ -252,7 +249,6 @@ val umamoDarkColors =
 		viewportMarquee = Color(0xCCFFFFFF),
 		// The dark tone that alternates with the white marquee so the marching-ants dash reads on light art.
 		viewportMarqueeContrast = Color(0xCC000000),
-		viewportWarning = Color(0xFFFF5A5A),
 		transparencyCheckerLight = Color(0xFF3C3C3C),
 		transparencyCheckerDark = Color(0xFF323232),
 		viewportGridBackground = Color(0xFF343434),
@@ -321,7 +317,6 @@ val umamoLightColors =
 		viewportMarquee = Color(0xCC333333),
 		// The light tone that alternates with the dark marquee so the marching-ants dash reads on dark art.
 		viewportMarqueeContrast = Color(0xCCFFFFFF),
-		viewportWarning = Color(0xFFD32F2F),
 		transparencyCheckerLight = Color(0xFFFFFFFF),
 		transparencyCheckerDark = Color(0xFFCCCCCC),
 		viewportGridBackground = Color(0xFFCFCFCF),

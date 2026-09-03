@@ -36,7 +36,7 @@ import org.umamo.render.ViewportCamera
  * @param List<MeshElement.Edge> edges The unique edges to stroke.
  * @param MeshHighlightSets highlight The selection highlights to render.
  * @param MeshSelectMode selectMode The current select mode (gates the dot affordances and fill rules).
- * @param MeshEditColors colors The settings-backed gizmo palette.
+ * @param ViewportOverlayColors colors The settings-backed overlay palette.
  * @param ViewportCamera camera The area camera (world<->screen affine).
  * @param IntSize size The area size in pixels.
  * @param Boolean objectOverlay Draw the read-only object-overlay style (all faces filled, edges, no dots).
@@ -47,7 +47,7 @@ internal fun DrawScope.drawMeshWireframe(
 	edges: List<MeshElement.Edge>,
 	highlight: MeshHighlightSets,
 	selectMode: MeshSelectMode,
-	colors: MeshEditColors,
+	colors: ViewportOverlayColors,
 	camera: ViewportCamera,
 	size: IntSize,
 	objectOverlay: Boolean = false,

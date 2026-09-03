@@ -5,13 +5,16 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.EditorSession
+import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.render.encodeAtlasPng
+import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.model.repackPageSizeOf
 import org.umamo.ui.model.runAtlasRepack
 import java.io.File
 import kotlin.test.Test
@@ -46,9 +49,17 @@ class LiveRepackExportGateTest {
 			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
 			val follower = launch { sessionAtlasPages.follow() }
 			var refusal: AtlasRepackReport? = null
-			runAtlasRepack(session, document.artRasters, sessionAtlasPages, document.textures.premultipliedAlpha) { report ->
-				refusal = report
-			}
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> refusal = report },
+					rememberOptions = { _, _ -> },
+				)
+			runAtlasRepack(host, AtlasPackOptions(maxPageSize = repackPageSizeOf(document.puppet)), areaId = null)
 			assertNull(refusal?.refusals?.joinToString { "${it.tileName}: ${it.reason}" }, "the repack refused")
 			val repacked = session.model.value
 			assertNotSame(document.puppet.atlas, repacked.atlas, "the repack committed a new atlas")

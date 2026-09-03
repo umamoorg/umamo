@@ -29,8 +29,9 @@ import kotlin.test.assertTrue
  * Pins the multi-tile placement edit the gizmo commits through: every drawable over each moved tile
  * re-maps in one pass (drawables sharing a tile move together), untouched drawables pass their arrays
  * through by reference, one fault anywhere in the map refuses the whole edit, the session commit is
- * ONE undo step, and the Object-mode UV latch admits exactly the selections that have packed art to
- * move.
+ * ONE undo step, the step's label names the operator that ran, a pin lands only on a placed tile and
+ * leaves with its placement, and the Object-mode UV latch admits exactly the selections that have
+ * packed art to move.
  */
 class AtlasPlacementEditsTest {
 	private val tileAId = AtlasTileId("tileA")
@@ -180,6 +181,67 @@ class AtlasPlacementEditsTest {
 	}
 
 	@Test
+	fun thePlacementStepIsLabelledByTheOperatorThatRan() {
+		assertEquals("change.document.atlasPlacement", DocumentChange.SetAtlasPlacement(listOf(tileAId), MeshOperatorKind.Grab).labelKey)
+		assertEquals("change.document.atlasPlacement.rotate", DocumentChange.SetAtlasPlacement(listOf(tileAId), MeshOperatorKind.Rotate).labelKey)
+		assertEquals("change.document.atlasPlacement.scale", DocumentChange.SetAtlasPlacement(listOf(tileAId), MeshOperatorKind.Scale).labelKey)
+		assertEquals("change.document.atlasPlacement", DocumentChange.SetAtlasPlacement(listOf(tileAId), MeshOperatorKind.VertexSlide).labelKey, "a placement cannot slide; it moved")
+		val session = EditorSession(baseModel())
+		session.setAtlasPlacements(mapOf(tileAId to placement(20f, 8f)), MeshOperatorKind.Rotate)
+		assertEquals("change.document.atlasPlacement.rotate", session.historyView.value.steps.last().labelKey, "the session's step carries the kind")
+	}
+
+	@Test
+	fun aPinLandsOnPlacedTilesOnlyAndLeavesWithThePlacement() {
+		val base = baseModel()
+
+		val pinned = base.withAtlasPins(listOf(tileAId, unpackedTileId, AtlasTileId("gone")), pinned = true)
+
+		assertTrue(pinned.atlas.tileById.getValue(tileAId).pinned, "a placed tile pins")
+		assertFalse(pinned.atlas.tileById.getValue(unpackedTileId).pinned, "an unpacked tile has nothing to keep")
+		assertFalse(pinned.atlas.tileById.getValue(tileBId).pinned, "an unnamed tile is untouched")
+		assertSame(base.drawables, pinned.drawables, "a pin moves no coordinates")
+		assertSame(pinned, pinned.withAtlasPins(listOf(tileAId), pinned = true), "restating a pin changes nothing")
+		assertSame(base, base.withAtlasPins(listOf(unpackedTileId), pinned = true), "pinning only unpacked art changes nothing")
+		assertSame(base, base.withAtlasPins(emptyList(), pinned = true))
+
+		val moved = pinned.withAtlasPlacements(mapOf(tileAId to placement(20f, 8f)))
+		assertTrue(moved.atlas.tileById.getValue(tileAId).pinned, "a hand move keeps the pin")
+		val unpacked = pinned.withAtlasPlacements(mapOf(tileAId to null))
+		assertFalse(unpacked.atlas.tileById.getValue(tileAId).pinned, "packing a tile out drops its pin")
+		val repacked =
+			pinned.withAtlasRepack(
+				listOf(page),
+				pinned.atlas.tiles.associate { tile -> tile.id to (if (tile.id == tileBId) placement(60f, 44f) else tile.placement) },
+			)
+		assertTrue(repacked.atlas.tileById.getValue(tileAId).pinned, "a repack restating the placement keeps the pin")
+	}
+
+	@Test
+	fun theSessionPinsAsOneUndoStep() {
+		val session = EditorSession(baseModel())
+
+		session.setAtlasPins(listOf(tileAId, tileBId), pinned = true)
+		assertTrue(session.model.value.atlas.tileById.getValue(tileAId).pinned)
+		assertTrue(session.model.value.atlas.tileById.getValue(tileBId).pinned)
+		assertEquals("change.document.atlasPin", session.historyView.value.steps.last().labelKey)
+		assertTrue(session.dirty.value, "a pin is document content")
+
+		session.setAtlasPins(listOf(tileAId), pinned = false)
+		assertFalse(session.model.value.atlas.tileById.getValue(tileAId).pinned)
+		assertTrue(session.model.value.atlas.tileById.getValue(tileBId).pinned, "unpinning one leaves the other")
+		assertEquals("change.document.atlasUnpin", session.historyView.value.steps.last().labelKey)
+
+		session.undo()
+		session.undo()
+		assertFalse(session.model.value.atlas.tileById.getValue(tileBId).pinned, "two undos return to the unpinned model")
+		assertFalse(session.canUndo.value)
+
+		session.setAtlasPins(listOf(unpackedTileId), pinned = true)
+		assertFalse(session.canUndo.value, "a no-op pin records nothing")
+	}
+
+	@Test
 	fun placementDragTileIdsCoversPlacedTilesOfSelectedDrawablesOnly() {
 		val model = baseModel()
 		val selection =
@@ -227,6 +289,26 @@ class AtlasPlacementEditsTest {
 		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
 		assertNull(session.activeUvOperator.value, "unpacked and unbound art has nothing on a page to move")
 		assertEquals("notice.uv.placement.noPlacedArt", session.notice.value?.messageKey)
+	}
+
+	@Test
+	fun aPinHoldsAgainstTheGesture() {
+		val session = EditorSession(baseModel().withAtlasPins(listOf(tileAId), pinned = true))
+		val pinnedOnly = Selection(setOf(target("dA1"), target("dA2")), target("dA1"))
+		val mixed = Selection(setOf(target("dA1"), target("dB")), target("dB"))
+
+		assertEquals(emptySet(), session.model.value.placementDragTileIds(pinnedOnly), "a pinned tile is not a mover")
+		assertEquals(setOf(tileAId), session.model.value.placementSelectedTileIds(pinnedOnly), "but it is still the selection's placed tile - Unpin needs it")
+		assertEquals(setOf(tileBId), session.model.value.placementDragTileIds(mixed), "a mixed selection moves the unpinned tile alone")
+
+		session.setSelection(pinnedOnly)
+		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
+		assertNull(session.activeUvOperator.value, "an all-pinned selection has nothing to move")
+		assertEquals("notice.uv.placement.pinned", session.notice.value?.messageKey, "and says why")
+
+		session.setSelection(mixed)
+		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
+		assertEquals(MeshOperatorKind.Grab, session.activeUvOperator.value?.kind, "a mixed selection latches over its unpinned tile")
 	}
 
 	@Test

@@ -17,6 +17,19 @@ internal class RectPackRequest(
 	val height: Int,
 )
 
+/**
+ * One rectangle decided before the pack runs: the page it holds and the footprint it keeps there,
+ * gutter included.  A seed is occupied before any request is placed, so every free placement packs
+ * around it; it is never placed, reported, or turned.
+ */
+internal class RectPackSeed(
+	val pageIndex: Int,
+	val x: Int,
+	val y: Int,
+	val width: Int,
+	val height: Int,
+)
+
 /** Where one request landed: its page, the footprint's top-left, and whether it was quarter-turned. */
 internal class RectPackSlot(
 	val itemIndex: Int,
@@ -48,21 +61,36 @@ internal class RectPackLayout(
  * remainders.  The caller is responsible for supplying a deterministic request order - this function
  * preserves it exactly and adds no ordering of its own.
  *
+ * Seeds go first: a seeded page exists whether or not a request lands on it (a seed on page 2 opens
+ * pages 0 and 1 too, so page indices keep their meaning), and its rectangle is taken before the first
+ * request is placed.  The caller keeps every seed inside the page - a seed is a footprint the caller
+ * already decided to keep, so there is nothing sensible to do with one that does not fit.
+ *
  * @param List    requests      The footprints to place, already in packing order.
  * @param Int     pageSize      The square page side every page is packed against, in pixels.
  * @param Boolean allowRotation Whether a request may be quarter-turned to fit.
+ * @param List    seeds         Footprints already decided, occupied before any request is placed.
  * @return RectPackLayout The placements, the requests too large for any page, and the used extents.
  */
 internal fun packRects(
 	requests: List<RectPackRequest>,
 	pageSize: Int,
 	allowRotation: Boolean,
+	seeds: List<RectPackSeed> = emptyList(),
 ): RectPackLayout {
 	require(pageSize > 0) { "pageSize must be positive: $pageSize" }
 
 	val slots = ArrayList<RectPackSlot>(requests.size)
 	val oversizedItemIndices = ArrayList<Int>()
 	val pages = ArrayList<MaxRectsPage>()
+
+	for (seed in seeds) {
+		require(seed.pageIndex >= 0) { "seed page index must not be negative: ${seed.pageIndex}" }
+		while (pages.size <= seed.pageIndex) {
+			pages.add(MaxRectsPage(pageSize))
+		}
+		pages[seed.pageIndex].seed(seed.x, seed.y, seed.width, seed.height)
+	}
 
 	for (request in requests) {
 		// A square page cap means a quarter turn cannot rescue an oversized request: both sides
@@ -165,6 +193,22 @@ private class MaxRectsPage(private val pageSize: Int) {
 		usedWidth = maxOf(usedWidth, bestX + placedWidth)
 		usedHeight = maxOf(usedHeight, bestY + placedHeight)
 		return MaxRectsPlacement(bestX, bestY, bestRotated)
+	}
+
+	/**
+	 * Takes a footprint decided before the pack: the free list loses it exactly as it loses a
+	 * placement, and the used extent grows to cover it, so a page cropped to what it uses still
+	 * holds the seed.
+	 *
+	 * @param Int seedX      The footprint's left edge.
+	 * @param Int seedY      The footprint's top edge.
+	 * @param Int seedWidth  The footprint's width.
+	 * @param Int seedHeight The footprint's height.
+	 */
+	fun seed(seedX: Int, seedY: Int, seedWidth: Int, seedHeight: Int) {
+		occupy(seedX, seedY, seedWidth, seedHeight)
+		usedWidth = maxOf(usedWidth, seedX + seedWidth)
+		usedHeight = maxOf(usedHeight, seedY + seedHeight)
 	}
 
 	/**

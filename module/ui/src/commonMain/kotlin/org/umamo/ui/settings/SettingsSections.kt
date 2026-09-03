@@ -32,12 +32,14 @@ import org.umamo.ui.resources.settings_colors_group_edge
 import org.umamo.ui.resources.settings_colors_group_face
 import org.umamo.ui.resources.settings_colors_group_vertex
 import org.umamo.ui.resources.settings_colors_mesh_edit
+import org.umamo.ui.resources.settings_colors_pinned_placement
 import org.umamo.ui.resources.settings_colors_role_active
 import org.umamo.ui.resources.settings_colors_role_idle
 import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
+import org.umamo.ui.resources.settings_colors_warning
 import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
 import org.umamo.ui.resources.settings_interface_theme
@@ -53,7 +55,7 @@ import org.umamo.ui.resources.settings_viewport_zoom_step
 import org.umamo.ui.resources.settings_viewport_zoom_step_coarse
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
-import org.umamo.ui.viewport.MeshEditColorSettings
+import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportSettings
 
 /** The settings key + values for the UI theme mode, kept in lockstep with org.umamo.ui.theme.Theme. */
@@ -121,13 +123,11 @@ internal fun InterfaceSection() {
 }
 
 /**
- * The Colors section: the viewport selection highlight plus the Edit-mode gizmo palette
- * (viewport.meshEdit.*), grouped element × state.  Every row is a [HexColorField] bound write-through
- * to its settings key, so an edit re-colors the viewport live as it is typed - the same auto-save
- * model as the rest of the window.
- *
- * カラー設定。ビューポートの選択ハイライトと編集モードのギズモ配色。各行は設定キーへの双方向バインディングで、
- * 入力中に即時反映される。
+ * The Colors section: the viewport selection highlights and overlay colors (the collision warning,
+ * the pinned-placement highlight) plus the Edit-mode gizmo palette (viewport.meshEdit.*), grouped
+ * element × state.  Every row is a [HexColorField] bound write-through to its settings key, so an
+ * edit re-colors the viewport live as it is typed - the same auto-save model as the rest of the
+ * window.
  */
 @Composable
 internal fun ColorsSection() {
@@ -138,34 +138,44 @@ internal fun ColorsSection() {
 			Text(text = stringResource(Res.string.settings_colors_viewport), style = typography.titleSmall)
 			ColorSettingRow(
 				stringResource(Res.string.settings_colors_selection_highlight),
-				ViewportSettings.SELECTION_HIGHLIGHT_KEY,
-				ViewportSettings.SELECTION_HIGHLIGHT_DEFAULT,
+				ViewportColorSettings.SELECTION_HIGHLIGHT_KEY,
+				ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT,
 			)
 			ColorSettingRow(
 				stringResource(Res.string.settings_colors_active_selection_highlight),
-				ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY,
-				ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT,
+				ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY,
+				ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT,
+			)
+			ColorSettingRow(
+				stringResource(Res.string.settings_colors_warning),
+				ViewportColorSettings.WARNING_COLOR_KEY,
+				ViewportColorSettings.WARNING_COLOR_DEFAULT,
+			)
+			ColorSettingRow(
+				stringResource(Res.string.settings_colors_pinned_placement),
+				ViewportColorSettings.PINNED_PLACEMENT_COLOR_KEY,
+				ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT,
 			)
 
 			Text(text = stringResource(Res.string.settings_colors_mesh_edit), style = typography.titleSmall)
 
 			ColorGroupHeading(stringResource(Res.string.settings_colors_group_vertex))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), MeshEditColorSettings.VERTEX_IDLE_KEY, MeshEditColorSettings.VERTEX_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), MeshEditColorSettings.VERTEX_SELECTED_KEY, MeshEditColorSettings.VERTEX_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), MeshEditColorSettings.VERTEX_ACTIVE_KEY, MeshEditColorSettings.VERTEX_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), MeshEditColorSettings.VERTEX_OFFKEY_KEY, MeshEditColorSettings.VERTEX_OFFKEY_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.VERTEX_IDLE_KEY, ViewportColorSettings.VERTEX_IDLE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.VERTEX_SELECTED_KEY, ViewportColorSettings.VERTEX_SELECTED_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.VERTEX_ACTIVE_KEY, ViewportColorSettings.VERTEX_ACTIVE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.VERTEX_OFFKEY_KEY, ViewportColorSettings.VERTEX_OFFKEY_DEFAULT)
 
 			ColorGroupHeading(stringResource(Res.string.settings_colors_group_edge))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), MeshEditColorSettings.EDGE_IDLE_KEY, MeshEditColorSettings.EDGE_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), MeshEditColorSettings.EDGE_SELECTED_KEY, MeshEditColorSettings.EDGE_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), MeshEditColorSettings.EDGE_ACTIVE_KEY, MeshEditColorSettings.EDGE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), MeshEditColorSettings.EDGE_OFFKEY_KEY, MeshEditColorSettings.EDGE_OFFKEY_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.EDGE_IDLE_KEY, ViewportColorSettings.EDGE_IDLE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.EDGE_SELECTED_KEY, ViewportColorSettings.EDGE_SELECTED_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.EDGE_ACTIVE_KEY, ViewportColorSettings.EDGE_ACTIVE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.EDGE_OFFKEY_KEY, ViewportColorSettings.EDGE_OFFKEY_DEFAULT)
 
 			ColorGroupHeading(stringResource(Res.string.settings_colors_group_face))
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), MeshEditColorSettings.FACE_IDLE_KEY, MeshEditColorSettings.FACE_IDLE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), MeshEditColorSettings.FACE_SELECTED_KEY, MeshEditColorSettings.FACE_SELECTED_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), MeshEditColorSettings.FACE_ACTIVE_KEY, MeshEditColorSettings.FACE_ACTIVE_DEFAULT)
-			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), MeshEditColorSettings.FACE_OFFKEY_KEY, MeshEditColorSettings.FACE_OFFKEY_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.FACE_IDLE_KEY, ViewportColorSettings.FACE_IDLE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.FACE_OFFKEY_KEY, ViewportColorSettings.FACE_OFFKEY_DEFAULT)
 		}
 		VerticalScrollbarOverlay(scrollState)
 	}
@@ -271,8 +281,6 @@ internal fun ViewportSection() {
 /**
  * The Keybindings section: preset selection plus the per-command rebinding editor (see [KeybindingsEditor]),
  * all auto-saving to settings input.keybinding and re-resolving the live keymap.
- *
- * キーバインド設定。プリセット選択と個別コマンドの再割り当て編集（即時保存・即時反映）。
  */
 @Composable
 internal fun KeybindingsSection() {
@@ -291,8 +299,6 @@ internal fun PenSection() {
 
 /**
  * A muted single-line placeholder for a section whose controls are not built yet.
- *
- * 未実装セクションの淡色の一行プレースホルダ。
  *
  * @param String message The already-localized placeholder line.
  */

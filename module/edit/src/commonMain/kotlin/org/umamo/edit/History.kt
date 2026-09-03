@@ -179,6 +179,27 @@ class History(
 	}
 
 	/**
+	 * Replaces the live entry with [snapshot] and [change], keeping the cursor where it is - the
+	 * mechanism behind adjusting the last operation: its result is recomputed from the state before
+	 * it and lands over its own step, so the stack never grows and the base is never replayed.
+	 *
+	 * Refuses when a redo branch exists: an adjustment applies only to the newest step, and the caller
+	 * clears its record on any undo anyway.  Works at cursor 0 too, since a cap of one drops the base
+	 * entry on push and the adjusting record holds that base itself.
+	 *
+	 * @param EditorSnapshot snapshot The recomputed live state.
+	 * @param Change change The change that produced it (normally the entry's own).
+	 * @return Boolean True when the entry was replaced, false when a redo branch made it refuse.
+	 */
+	fun amendTop(snapshot: EditorSnapshot, change: Change): Boolean {
+		if (canRedo) {
+			return false
+		}
+		entries[cursor] = HistoryEntry(snapshot, change)
+		return true
+	}
+
+	/**
 	 * Drops the oldest entries until the stack fits [limit], stopping at the live step so the current state
 	 * and its redo branch are never discarded. That stop is what makes a lowered cap safe to apply to a
 	 * stack whose cursor sits mid-history: it frees what it can at once and sheds the rest on subsequent

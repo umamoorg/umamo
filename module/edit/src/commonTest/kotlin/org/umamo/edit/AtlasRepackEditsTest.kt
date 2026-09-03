@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
@@ -244,6 +245,28 @@ class AtlasRepackEditsTest {
 		// Restating the current state commits nothing.
 		session.commitAtlasRepack(listOf(oldPage), mapOf(tileAId to oldA))
 		assertFalse(session.canUndo.value)
+	}
+
+	@Test
+	fun theCompositionLandsOnTheAtlasAndRidesUndo() {
+		val oldPage = AtlasPage(64, 64)
+		val oldA = placement(0, 4f, 4f)
+		val atlas = PuppetAtlas(pages = listOf(oldPage), tiles = listOf(AtlasTile(tileAId, "A", 16, 16, oldA)))
+		val base = packedModel(atlas, listOf(meshedDrawable("dA", tileAId, floatArrayOf(0.2f, 0.3f))))
+		val session = EditorSession(base)
+		val policy = AtlasComposition(alphaThreshold = 64, extrude = 0)
+
+		session.commitAtlasRepack(listOf(AtlasPage(128, 128)), mapOf(tileAId to placement(0, 60f, 60f)), policy)
+		assertEquals(policy, session.model.value.atlas.composition, "the pack's policy is recorded beside its placements")
+
+		session.undo()
+		assertEquals(AtlasComposition.Default, session.model.value.atlas.composition, "undo restores the policy the earlier pages derive under")
+
+		// A repack that names no policy keeps the atlas's current one, and a policy change alone is a change.
+		val repacked = session.model.value.withAtlasRepack(listOf(AtlasPage(128, 128)), mapOf(tileAId to placement(0, 60f, 60f)))
+		assertEquals(AtlasComposition.Default, repacked.atlas.composition)
+		val recomposed = repacked.withAtlasRepack(repacked.atlas.pages, mapOf(tileAId to placement(0, 60f, 60f)), policy)
+		assertEquals(policy, recomposed.atlas.composition, "the same placements under a new policy still produce a new atlas")
 	}
 
 	@Test

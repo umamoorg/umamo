@@ -4,6 +4,7 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.KeyformSheetViews
+import org.umamo.ui.workspace.OperationStripState
 import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SplitterDragCancelController
@@ -124,7 +125,7 @@ class CommandTableOrderTest {
 		val routing = routing()
 		val sheets = KeyformSheetViews()
 		val commands =
-			historyCommands(null, availability) +
+			historyCommands(null, availability, OperationStripState()) +
 				objectCommands(null, null, availability) +
 				transformCommands(null, routing, availability) +
 				selectCommands(null, routing, sheets, availability) +
@@ -133,11 +134,12 @@ class CommandTableOrderTest {
 				topologyCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
 				displayCommands(null, availability) +
-				atlasCommands(availability, null)
+				atlasCommands(availability, routing, null)
 		assertEquals(
 			listOf(
 				"edit.undo",
 				"edit.redo",
+				"edit.adjustLastOperation",
 				"object.toggleVisibility",
 				"outliner.selectHierarchy",
 				"mesh.grab",
@@ -182,6 +184,8 @@ class CommandTableOrderTest {
 				"uv.page.next",
 				"uv.page.previous",
 				"uv.page.followSelection",
+				"uv.pinPlacement",
+				"uv.unpinPlacement",
 				"mesh.duplicate",
 				"mesh.merge",
 				"mesh.merge.atCenter",

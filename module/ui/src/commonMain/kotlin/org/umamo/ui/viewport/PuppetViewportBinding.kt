@@ -349,10 +349,10 @@ fun rememberPuppetViewportHost(
 			service.supersampleWhileResizing =
 				settings.getBoolean(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY)
 					?: ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT
-			val (red, green, blue) = parseSelectionHighlightColor(settings.getString(ViewportSettings.SELECTION_HIGHLIGHT_KEY))
+			val (red, green, blue) = parseSelectionHighlightColor(settings.getString(ViewportColorSettings.SELECTION_HIGHLIGHT_KEY))
 			service.setSelectionHighlightColor(red, green, blue)
 			val (activeRed, activeGreen, activeBlue) =
-				parseSelectionHighlightColor(settings.getString(ViewportSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
+				parseSelectionHighlightColor(settings.getString(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
 			service.setActiveSelectionHighlightColor(activeRed, activeGreen, activeBlue)
 			// Resolve the global-default grid geometry into the session, the single source of truth the
 			// snap commands and the renderer both read.  A stored per-file value takes precedence here once

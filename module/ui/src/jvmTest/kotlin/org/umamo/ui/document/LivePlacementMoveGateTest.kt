@@ -6,6 +6,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.EditorSession
 import org.umamo.edit.setAtlasPlacements
+import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
@@ -17,8 +18,10 @@ import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.applyUvAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.model.repackPageSizeOf
 import org.umamo.ui.model.runAtlasRepack
 import java.io.File
 import kotlin.math.abs
@@ -73,9 +76,17 @@ class LivePlacementMoveGateTest {
 			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
 			val follower = launch { sessionAtlasPages.follow() }
 			var refusal: AtlasRepackReport? = null
-			runAtlasRepack(session, document.artRasters, sessionAtlasPages, document.textures.premultipliedAlpha) { report ->
-				refusal = report
-			}
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> refusal = report },
+					rememberOptions = { _, _ -> },
+				)
+			runAtlasRepack(host, AtlasPackOptions(maxPageSize = repackPageSizeOf(document.puppet)), areaId = null)
 			assertNull(refusal?.refusals?.joinToString { "${it.tileName}: ${it.reason}" }, "the repack refused")
 			val repacked = session.model.value
 			withTimeout(30_000) {
@@ -95,7 +106,7 @@ class LivePlacementMoveGateTest {
 			val turner = candidates[1]
 			val moverPlacement = assertNotNull(mover.placement)
 			val moverRaster = assertNotNull(document.artRasters.rasterFor(mover.id))
-			val moverTrim = assertNotNull(derivedTileTrim(moverRaster))
+			val moverTrim = assertNotNull(derivedTileTrim(moverRaster, repacked.atlas.composition.alphaThreshold))
 			val page = repacked.atlas.pages[moverPlacement.pageIndex]
 			val footprint = placementFootprint(moverPlacement, moverTrim, reserve = null)
 			val deltaX = if (footprint.right + 9 <= page.width) 7 else -7

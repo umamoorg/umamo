@@ -8,8 +8,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * binding resolves correctly per OS. [keyName] names the physical key by position
  * ("KeyP", "KeyK"), not the produced character, so a chord survives non-QWERTY layouts.
  *
- * 1 つのキー組み合わせ。修飾は論理的な「主修飾キー」で持ち、キーは文字でなく位置で持つ。
- *
  * @property String keyName The position-based key token (e.g. "KeyP"), layout-independent.
  * @property Boolean primaryModifier Whether the platform primary accelerator (Cmd/Ctrl) is held.
  * @property Boolean shift Whether Shift is held.
@@ -28,8 +26,6 @@ data class KeyChord(
  * insensitive). This is the on-disk keymap form (settings input.keybinding) and the form preset files
  * use, so it must be tolerant of case and whitespace but reject a malformed spec (empty key, unknown
  * modifier) rather than silently mis-binding.
- *
- * 「primary+shift+KeyP」形式の指定を KeyChord に解析する。不正な指定は null を返す。
  *
  * @param String spec The chord spec, modifiers and key joined by '+'.
  * @return KeyChord? The parsed chord, or null if the spec is malformed.
@@ -63,8 +59,6 @@ fun parseKeyChord(spec: String): KeyChord? {
  * alt) so a given chord always round-trips to the same string and the stored override key stays stable;
  * parseKeyChord itself accepts any order, so this is the inverse of parsing for any chord it produced.
  *
- * KeyChord を parseKeyChord が読む指定文字列へ戻す（設定 overrides の保存形式）。修飾は固定順で出力する。
- *
  * @param KeyChord chord The chord to serialize.
  * @return String The spec string.
  */
@@ -87,8 +81,6 @@ fun chordToSpec(chord: KeyChord): String =
  * a preset spec map; conflicts (two chords on the same command, or a re-bound chord) are resolved
  * last-write-wins at build time. The keymap holds only ids - it never references [Command] objects -
  * so it stays decoupled from registration order and from whether a command currently exists.
- *
- * キーコード→コマンド ID の束縛表。入力層はこれを引いて [CommandRegistry] に委譲する。
  */
 class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	/**
@@ -104,8 +96,6 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	 * render a menu row's accelerator hint.  When several chords map to one command (palette.toggle has
 	 * both primary+KeyP and Space) the first in insertion order wins, so a menu shows the canonical
 	 * accelerator (primary+KeyP) rather than whichever the map happens to yield first.
-	 *
-	 * commandId に束縛された最初のコード。複数あれば挿入順で先頭を返す（メニューの表示用）。
 	 *
 	 * @param String commandId The command id to find an accelerator for.
 	 * @return KeyChord? The first bound chord, or null.
@@ -150,8 +140,6 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 /**
  * The ids of the built-in keymap presets, in display order.  [keymapPresetSpecs] resolves each to its
  * bindings; the persisted choice lives in settings input.keybinding.preset and user overrides layer on top.
- *
- * 組み込みキーマッププリセットの id（表示順）。設定 input.keybinding.preset で選び、ユーザー上書きを重ねる。
  */
 val KEYMAP_PRESET_IDS: List<String> = listOf("default", "cubism", "blender")
 
@@ -172,6 +160,9 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyO" to "file.importCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
+		"KeyP" to "uv.pinPlacement",
+		"alt+KeyP" to "uv.unpinPlacement",
 		"KeyH" to "object.toggleVisibility",
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
@@ -235,6 +226,9 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		// Undo / redo: Ctrl+Z plus both redo conventions Cubism migrants carry (Ctrl+Shift+Z and Ctrl+Y).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
+		"KeyP" to "uv.pinPlacement",
+		"alt+KeyP" to "uv.unpinPlacement",
 		"primary+KeyY" to "edit.redo",
 		"primary+Comma" to "edit.preferences",
 		"primary+Digit0" to "view.fit",
@@ -264,6 +258,9 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyO" to "file.importCmo3",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
+		"F9" to "edit.adjustLastOperation",
+		"KeyP" to "uv.pinPlacement",
+		"alt+KeyP" to "uv.unpinPlacement",
 		"KeyH" to "object.toggleVisibility",
 		"KeyG" to "mesh.grab",
 		"KeyS" to "mesh.scale",
@@ -334,8 +331,6 @@ private fun presetSpecs(vararg bindings: Pair<String, String>): Map<String, Stri
  * preset's bindings for an unknown id so a stale or hand-edited settings value can never leave the editor
  * with no keymap at all.
  *
- * 組み込みプリセット presetId の束縛表を返す。未知の id は既定にフォールバックする。
- *
  * @param String presetId The preset id (see [KEYMAP_PRESET_IDS]).
  * @return Map The preset's chord-spec → command-id bindings.
  */
@@ -351,8 +346,6 @@ fun keymapPresetSpecs(presetId: String): Map<String, String> =
  * [org.umamo.ui.workspace.EditorShell]'s default parameter when no settings-backed keymap
  * ([org.umamo.ui.action.loadKeymap]) is supplied by the caller.
  *
- * 既定キーマップ（解決済み）。テストおよび設定連動解決の前のフォールバックに使う。
- *
  * @return Keymap the default preset.
  */
 fun defaultKeymap(): Keymap = Keymap.fromSpecs(DEFAULT_KEYMAP_SPECS)
@@ -363,8 +356,6 @@ fun defaultKeymap(): Keymap = Keymap.fromSpecs(DEFAULT_KEYMAP_SPECS)
  * deep in the tree can resolve a command's accelerator (via [Keymap.chordFor]) without prop-drilling
  * the keymap through every intervening composable.  The default errors loudly so a missing provider is
  * caught at first use rather than silently showing no accelerators.
- *
- * コンポジション内で有効なキーマップ。深い階層のメニューがアクセラレータを解決するために static で公開する。
  */
 val LocalKeymap =
 	staticCompositionLocalOf<Keymap> {

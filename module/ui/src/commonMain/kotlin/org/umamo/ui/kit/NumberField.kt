@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -543,6 +544,17 @@ private fun NumberEntryField(
 	if (autoFocus) {
 		LaunchedEffect(Unit) {
 			focusRequester.requestFocus()
+		}
+	}
+	// A field disposed while it holds focus (its host left the composition - the operation settings strip
+	// on the next edit) gets no focus-loss callback, so the cancel hook it parked would keep the shell
+	// yielding the keyboard to a field that no longer exists.  Release it here; the host's reclaim effect
+	// then takes the keyboard back.
+	DisposableEffect(Unit) {
+		onDispose {
+			if (focused) {
+				controller.cancel = null
+			}
 		}
 	}
 	// While not editing, mirror the external value (a slider / pad drag or a reset updates the number).

@@ -7,6 +7,8 @@ import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.raster.RasterImage
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /*
  * The atlas packer: source-layer rasters in, packed pages plus a placement report out.
@@ -51,6 +53,29 @@ public data class AtlasPackReserve(
 }
 
 /**
+ * A place on a page decided BEFORE the pack: the tile stays exactly here, and the free tiles pack
+ * around it.  This is what a pinned placement is to a repack.
+ *
+ * Expressed as the tile's full tile-to-page affine rather than a rect, because a hand placement may
+ * be rotated, scaled, or off the pixel grid - none of which an [AtlasPackPlacement] can hold - and
+ * the tile is painted through that same affine, by the same path a derivation paints it, so the
+ * packed page and a page derived from the kept placement cannot differ.
+ *
+ * @property Int        pageIndex  The page the tile stays on.
+ * @property FloatArray tileToPage The affine (m00, m01, m02, m10, m11, m12) mapping tile pixels to
+ *   page pixels, both frames y-down - [AtlasTilePlacement]'s convention.
+ */
+public class AtlasPackFixed(
+	public val pageIndex: Int,
+	public val tileToPage: FloatArray,
+) {
+	init {
+		require(pageIndex >= 0) { "fixed page index must not be negative: $pageIndex" }
+		require(tileToPage.size == 6) { "a fixed placement needs a 2x3 affine, got ${tileToPage.size} components" }
+	}
+}
+
+/**
  * One tile to pack: a stable key plus the straight-alpha pixels to place.
  *
  * Pixels are taken by reference and never mutated, matching how the flat-raster adapter hands a
@@ -65,6 +90,8 @@ public data class AtlasPackReserve(
  * @property ByteArray         rgba    RGBA8888 pixels, straight alpha, row-major from the top row.
  * @property AtlasPackReserve? reserve Extra area to keep clear around this tile (a mesh's reach),
  *                                     unioned with the opaque trim; null reserves the trim alone.
+ * @property AtlasPackFixed?   fixed   Where the tile already sits and stays, or null to let the
+ *                                     packer place it.
  */
 public class AtlasPackItem(
 	public val key: String,
@@ -72,6 +99,7 @@ public class AtlasPackItem(
 	public val height: Int,
 	public val rgba: ByteArray,
 	public val reserve: AtlasPackReserve? = null,
+	public val fixed: AtlasPackFixed? = null,
 ) {
 	init {
 		require(width >= 0 && height >= 0) { "tile '$key' has negative dimensions: $width x $height" }
@@ -155,6 +183,12 @@ public enum class AtlasPackSkipReason {
 
 	/** The trimmed tile plus its gutter does not fit a page even on its own. */
 	LargerThanPage,
+
+	/**
+	 * The tile is fixed at a spot that does not fit inside the largest page the pack may use - its
+	 * footprint (trim, reserve, and gutter) runs past the right or bottom edge.
+	 */
+	FixedOutsidePage,
 }
 
 /**
@@ -169,39 +203,96 @@ public data class AtlasPackSkip(
 )
 
 /**
+ * One fixed tile the pack kept where it was: the page it stayed on, the trim it painted there, and
+ * the affine it painted through.
+ *
+ * A plain class: [tileToPage] is an array.
+ *
+ * @property String     key        The tile's key.
+ * @property Int        pageIndex  The page it stayed on.
+ * @property Int        trimLeft   The opaque bounds' left edge within the source raster.
+ * @property Int        trimTop    The opaque bounds' top edge within the source raster.
+ * @property Int        trimWidth  The opaque bounds' width.
+ * @property Int        trimHeight The opaque bounds' height.
+ * @property FloatArray tileToPage The affine it was painted through, as the caller gave it.
+ */
+public class AtlasPackFixedPlacement(
+	public val key: String,
+	public val pageIndex: Int,
+	public val trimLeft: Int,
+	public val trimTop: Int,
+	public val trimWidth: Int,
+	public val trimHeight: Int,
+	public val tileToPage: FloatArray,
+)
+
+/**
  * The packing outcome: the composed pages plus a full account of every tile that went in.
  *
- * [placements] and [skipped] partition the input keys exactly - every tile handed to [packAtlas]
- * appears in one of them.  That is the contract that keeps a plausible-looking page from quietly
- * having lost three layers, which is this stage's characteristic failure.
+ * [placements], [fixed], and [skipped] partition the input keys exactly - every tile handed to
+ * [packAtlas] appears in one of them.  That is the contract that keeps a plausible-looking page from
+ * quietly having lost three layers, which is this stage's characteristic failure.
  *
  * A plain class, not a data class: [pages] holds pixel buffers.
  *
  * @property List pages      The composed atlas pages, in page-index order.
  * @property List placements Where each packed tile landed, in the caller's input order.
  * @property List skipped    The tiles left out, in the caller's input order.
+ * @property List fixed      The tiles kept where they were, in the caller's input order.
  */
 public class AtlasPackResult(
 	public val pages: List<RasterImage>,
 	public val placements: List<AtlasPackPlacement>,
 	public val skipped: List<AtlasPackSkip>,
+	public val fixed: List<AtlasPackFixedPlacement> = emptyList(),
 ) {
 	/**
-	 * The fraction of a page's area covered by packed tile pixels, ignoring gutters and extrusion.
+	 * The fraction of a page's area covered by tile pixels, ignoring gutters and extrusion.  A packed
+	 * tile covers its trim; a fixed tile covers its trim through its affine's area scale.
 	 *
 	 * @param Int pageIndex The page to measure.
 	 * @return Float The covered fraction, in 0.0..1.0.
 	 */
 	public fun pageOccupancy(pageIndex: Int): Float {
 		val page = pages[pageIndex]
-		var covered = 0L
+		var covered = 0.0
 		for (placement in placements) {
 			if (placement.pageIndex == pageIndex) {
-				covered += placement.trimWidth.toLong() * placement.trimHeight.toLong()
+				covered += placement.trimWidth.toDouble() * placement.trimHeight.toDouble()
 			}
 		}
-		return covered.toFloat() / (page.width.toFloat() * page.height.toFloat())
+		for (kept in fixed) {
+			if (kept.pageIndex == pageIndex) {
+				val affine = kept.tileToPage
+				val areaScale = kotlin.math.abs(affine[0] * affine[4] - affine[1] * affine[3])
+				covered += kept.trimWidth.toDouble() * kept.trimHeight.toDouble() * areaScale
+			}
+		}
+		return (covered / (page.width.toDouble() * page.height.toDouble())).toFloat()
 	}
+}
+
+/**
+ * A fixed tile's page footprint before the pack decides a page side: its trim widened by its reserve,
+ * through its affine, rounded out to pixels and grown by the gutter on every side.
+ *
+ * @property Int itemIndex The fixed item.
+ * @property Int pageIndex The page it stays on.
+ * @property Int left      The footprint's left edge, gutter included, clamped to the page.
+ * @property Int top       The footprint's top edge, gutter included, clamped to the page.
+ * @property Int right     The footprint's right edge, exclusive, gutter included.
+ * @property Int bottom    The footprint's bottom edge, exclusive, gutter included.
+ */
+private class FixedFootprint(
+	val itemIndex: Int,
+	val pageIndex: Int,
+	val left: Int,
+	val top: Int,
+	val right: Int,
+	val bottom: Int,
+) {
+	/** The footprint as the rect packer's seed. */
+	fun toSeed(): RectPackSeed = RectPackSeed(pageIndex, left, top, right - left, bottom - top)
 }
 
 /**
@@ -216,9 +307,17 @@ public class AtlasPackResult(
  * key, so the caller's input order cannot change the packing.  Repacking an unchanged set therefore
  * reproduces it exactly, which is what makes a repack a safe operation rather than a churn source.
  *
+ * A tile with an [AtlasPackItem.fixed] placement is not packed at all: its footprint (trim, reserve,
+ * and gutter, through its affine) seeds its page before any free tile is placed, so the free tiles
+ * pack around it, and it is painted through its own affine after them.  Its page index is kept as
+ * given, so every page up to it exists even if nothing else lands there (an empty page crops to its
+ * used extent like any other).  A fixed footprint that does not fit inside [AtlasPackOptions.maxPageSize]
+ * is reported as [AtlasPackSkipReason.FixedOutsidePage] rather than moved - the caller decided to
+ * keep it, so the packer never second-guesses where.
+ *
  * @param List             items   The tiles to pack; keys must be unique.
  * @param AtlasPackOptions options The packing policy.
- * @return AtlasPackResult The composed pages, the placements, and the tiles left out.
+ * @return AtlasPackResult The composed pages, the placements, the tiles kept fixed, and the tiles left out.
  */
 public fun packAtlas(
 	items: List<AtlasPackItem>,
@@ -236,17 +335,16 @@ public fun packAtlas(
 	require(items.distinctBy { item -> item.key }.size == items.size) {
 		"atlas pack item keys must be unique; duplicates make the packing order ambiguous"
 	}
-	require(!options.allowRotation || items.none { item -> item.reserve != null }) {
-		"reserves under rotation are not supported yet: a quarter turn moves the trim's offset inside its reservation"
-	}
 
 	// Trim first: a tile's footprint is its opaque bounds - widened to any caller reserve, since a
 	// mesh's reach must land on the tile's own margin - plus the gutter, and a tile with nothing
-	// opaque never reaches the packer at all.
+	// opaque never reaches the packer at all.  A fixed tile's footprint goes through its affine
+	// instead of into a request.
 	val trims = arrayOfNulls<LayerBounds>(items.size)
 	val reserves = arrayOfNulls<LayerBounds>(items.size)
 	val skipped = ArrayList<AtlasPackSkip>()
 	val requests = ArrayList<RectPackRequest>(items.size)
+	val fixedFootprints = ArrayList<FixedFootprint>()
 	for ((itemIndex, item) in items.withIndex()) {
 		val analysis = analyzeAlpha(item.width, item.height, item.rgba, options.alphaThreshold)
 		if (analysis == null) {
@@ -264,6 +362,23 @@ public fun packAtlas(
 		val reserveBottom = maxOf(trim.top + trim.height, item.reserve?.bottom ?: (trim.top + trim.height))
 		trims[itemIndex] = trim
 		reserves[itemIndex] = LayerBounds(reserveLeft, reserveTop, reserveRight - reserveLeft, reserveBottom - reserveTop)
+		val fixed = item.fixed
+		if (fixed != null) {
+			val bounds = affineBounds(fixed.tileToPage, reserveLeft.toFloat(), reserveTop.toFloat(), reserveRight.toFloat(), reserveBottom.toFloat())
+			// An overhang past the top or left is cropped by the composition, so the footprint starts at
+			// the page edge there; past the right or bottom it decides whether the tile fits at all.
+			fixedFootprints.add(
+				FixedFootprint(
+					itemIndex = itemIndex,
+					pageIndex = fixed.pageIndex,
+					left = floor(bounds[0] - options.gutter).toInt().coerceAtLeast(0),
+					top = floor(bounds[1] - options.gutter).toInt().coerceAtLeast(0),
+					right = ceil(bounds[2] + options.gutter).toInt().coerceAtLeast(0),
+					bottom = ceil(bounds[3] + options.gutter).toInt().coerceAtLeast(0),
+				),
+			)
+			continue
+		}
 		requests.add(
 			RectPackRequest(
 				itemIndex = itemIndex,
@@ -279,8 +394,19 @@ public fun packAtlas(
 			.thenBy { request -> items[request.itemIndex].key },
 	)
 
-	val packingSide = choosePackingSide(requests, options)
-	val layout = packRects(requests, packingSide, options.allowRotation)
+	// A fixed footprint past the largest page can never be kept; every other one seeds each trial
+	// pack, so the side the pack settles on always holds them all.
+	val keptFootprints = ArrayList<FixedFootprint>(fixedFootprints.size)
+	for (footprint in fixedFootprints) {
+		if (footprint.right > options.maxPageSize || footprint.bottom > options.maxPageSize) {
+			skipped.add(AtlasPackSkip(items[footprint.itemIndex].key, AtlasPackSkipReason.FixedOutsidePage))
+		} else {
+			keptFootprints.add(footprint)
+		}
+	}
+	val seeds = keptFootprints.map { footprint -> footprint.toSeed() }
+	val packingSide = choosePackingSide(requests, seeds, options)
+	val layout = packRects(requests, packingSide, options.allowRotation, seeds)
 	for (itemIndex in layout.oversizedItemIndices) {
 		skipped.add(AtlasPackSkip(items[itemIndex].key, AtlasPackSkipReason.LargerThanPage))
 	}
@@ -300,13 +426,20 @@ public fun packAtlas(
 		val reserve = checkNotNull(reserves[slot.itemIndex]) { "packed tile '${item.key}' has no reserve" }
 		// The placement records the TRIM's page position, not the reservation's: the reservation only
 		// spaces neighbors further apart, so everything downstream of the placement (the lowering, the
-		// composition, the derivation) never sees it.
+		// composition, the derivation) never sees it.  A turned slot turns the reservation with the
+		// tile - the same counter-clockwise quarter turn the blit applies, reserve-local (u, v) landing
+		// at (v, reserveWidth - u) - so the trim's offset inside it turns too: what sat to the trim's
+		// LEFT in tile space sits BELOW it on the page.
+		val trimOffsetX = trim.left - reserve.left
+		val trimOffsetY = trim.top - reserve.top
+		val placedOffsetX = if (slot.rotated) trimOffsetY else trimOffsetX
+		val placedOffsetY = if (slot.rotated) reserve.width - trimOffsetX - trim.width else trimOffsetY
 		placementByItemIndex[slot.itemIndex] =
 			AtlasPackPlacement(
 				key = item.key,
 				pageIndex = slot.pageIndex,
-				pageX = slot.x + options.gutter + (trim.left - reserve.left),
-				pageY = slot.y + options.gutter + (trim.top - reserve.top),
+				pageX = slot.x + options.gutter + placedOffsetX,
+				pageY = slot.y + options.gutter + placedOffsetY,
 				trimLeft = trim.left,
 				trimTop = trim.top,
 				trimWidth = trim.width,
@@ -316,11 +449,25 @@ public fun packAtlas(
 	}
 	val placements = placementByItemIndex.filterNotNull()
 
+	// The free tiles compose through the packer's blit; the fixed tiles then paint over the same
+	// buffers in input order through the affine painter, exactly as a derivation paints them.
+	val pages = composeAtlasPages(pageWidths, pageHeights, items, placements, options.extrude)
+	val fixedPlacements = ArrayList<AtlasPackFixedPlacement>(keptFootprints.size)
+	for (footprint in keptFootprints) {
+		val item = items[footprint.itemIndex]
+		val fixed = checkNotNull(item.fixed) { "fixed tile '${item.key}' lost its placement" }
+		val trim = checkNotNull(trims[footprint.itemIndex]) { "fixed tile '${item.key}' has no trim" }
+		val page = pages[footprint.pageIndex]
+		paintTilePlacement(page.rgba, page.width, page.height, item, trim, fixed.tileToPage, options.extrude)
+		fixedPlacements.add(AtlasPackFixedPlacement(item.key, footprint.pageIndex, trim.left, trim.top, trim.width, trim.height, fixed.tileToPage))
+	}
+
 	val inputOrderByKey = items.withIndex().associate { (itemIndex, item) -> item.key to itemIndex }
 	return AtlasPackResult(
-		pages = composeAtlasPages(pageWidths, pageHeights, items, placements, options.extrude),
+		pages = pages,
 		placements = placements,
 		skipped = skipped.sortedBy { skip -> inputOrderByKey.getValue(skip.key) },
+		fixed = fixedPlacements,
 	)
 }
 
@@ -362,22 +509,33 @@ public fun SourceArt.atlasPackItems(include: (SourceLayer) -> Boolean = { true }
  * Only the rectangle geometry runs here - no pixels are touched - so the handful of trial packs is
  * cheap next to a single page composition.
  *
+ * The seeds bound the side from below: a trial smaller than a seed's far edge could not keep it, so
+ * the first trial is already large enough for every seed, and each trial seeds the same footprints
+ * the final pack will.
+ *
  * @param List             requests The footprints to be packed.
+ * @param List             seeds    The fixed footprints every trial must keep.
  * @param AtlasPackOptions options  The packing policy.
  * @return Int The page side to pack against.
  */
-private fun choosePackingSide(requests: List<RectPackRequest>, options: AtlasPackOptions): Int {
-	if (!options.shrinkPages || requests.isEmpty()) {
+private fun choosePackingSide(
+	requests: List<RectPackRequest>,
+	seeds: List<RectPackSeed>,
+	options: AtlasPackOptions,
+): Int {
+	if (!options.shrinkPages || (requests.isEmpty() && seeds.isEmpty())) {
 		return options.maxPageSize
 	}
-	val baseline = packRects(requests, options.maxPageSize, options.allowRotation)
+	val baseline = packRects(requests, options.maxPageSize, options.allowRotation, seeds)
 	val fitting = requests.filter { request -> request.width <= options.maxPageSize && request.height <= options.maxPageSize }
-	if (fitting.isEmpty()) {
+	if (fitting.isEmpty() && seeds.isEmpty()) {
 		return options.maxPageSize
 	}
-	var side = roundUpToPowerOfTwo(fitting.maxOf { request -> maxOf(request.width, request.height) })
+	val largestRequest = fitting.maxOfOrNull { request -> maxOf(request.width, request.height) } ?: 1
+	val farthestSeed = seeds.maxOfOrNull { seed -> maxOf(seed.x + seed.width, seed.y + seed.height) } ?: 1
+	var side = roundUpToPowerOfTwo(maxOf(largestRequest, farthestSeed, 1))
 	while (side < options.maxPageSize) {
-		val trial = packRects(requests, side, options.allowRotation)
+		val trial = packRects(requests, side, options.allowRotation, seeds)
 		if (trial.usedWidths.size <= baseline.usedWidths.size &&
 			trial.oversizedItemIndices.size == baseline.oversizedItemIndices.size
 		) {

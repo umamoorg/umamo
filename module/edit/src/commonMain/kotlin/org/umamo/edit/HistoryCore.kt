@@ -72,6 +72,18 @@ internal class HistoryCore(initialSnapshot: EditorSnapshot, initialHistoryLimit:
 		history.push(snapshot, change)
 	}
 
+	/** The change that produced the live step, or null at the seed entry. */
+	val currentChange: Change? get() = history.currentChange
+
+	/**
+	 * Replaces the live step in place (see [History.amendTop]).
+	 *
+	 * @param EditorSnapshot snapshot The recomputed live state.
+	 * @param Change change The change that produced it.
+	 * @return Boolean True when replaced, false when a redo branch made the stack refuse.
+	 */
+	fun amendTop(snapshot: EditorSnapshot, change: Change): Boolean = history.amendTop(snapshot, change)
+
 	/**
 	 * Steps the cursor back one level.
 	 *

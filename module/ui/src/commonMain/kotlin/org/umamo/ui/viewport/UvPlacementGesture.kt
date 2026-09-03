@@ -11,7 +11,6 @@ import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.Selection
-import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.composedWith
@@ -32,7 +31,6 @@ import org.umamo.render.SampledRegion
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.TileMeshMask
 import org.umamo.render.TileOpaqueMask
-import org.umamo.render.derivedPackPolicy
 import org.umamo.render.meshMaskOf
 import org.umamo.render.meshReserveByTile
 import org.umamo.render.placementFootprint
@@ -296,10 +294,11 @@ internal fun placementGestureParameters(
  * islands follow, and the collisions the HUD and the chrome warn about.
  *
  * Grab snaps to whole page pixels (an integer placement keeps the packer's exact blit).  Rotate and a
- * uniform Scale turn about each mover's pivot as similarities, which every placement can express.  An
- * axis-locked Scale runs along the tile's OWN axes (the only expressible form for a rotated tile; the
- * page's axes for an unrotated one), so its display affine is derived from the placement it produced
- * rather than assumed.  A product no placement can hold leaves that tile where it is.
+ * uniform Scale turn about each mover's pivot as similarities, which every placement can express.  A
+ * non-uniform Scale - what an axis lock produces, and what the strip's two factor rows can ask for -
+ * runs along the tile's OWN axes (the only expressible form for a rotated tile; the page's axes for
+ * an unrotated one), so its display affine is derived from the placement it produced rather than
+ * assumed.  A product no placement can hold leaves that tile where it is.
  *
  * A collision is a mesh sampling paint, exact on both sides: a mover's triangles against the page's
  * paint (with the movers' old spots read as empty) and against the other movers' masks, and every
@@ -310,7 +309,6 @@ internal fun placementGestureParameters(
  *
  * @param MeshOperatorKind operatorKind The running operator.
  * @param PlacementGestureParameters parameters This frame's parameters.
- * @param TransformAxisConstraint? axisConstraint The axis lock, if any.
  * @param List movers The moving tiles.
  * @param List bystanders The page's other placed tiles.
  * @param PageOccupancy? occupancy The page's paint, or null to skip the page test.
@@ -322,7 +320,6 @@ internal fun placementGestureParameters(
 internal fun evaluatePlacementDrag(
 	operatorKind: MeshOperatorKind,
 	parameters: PlacementGestureParameters,
-	axisConstraint: TransformAxisConstraint?,
 	movers: List<PlacementMover>,
 	bystanders: List<PlacementBystander>,
 	occupancy: PageOccupancy?,
@@ -341,7 +338,7 @@ internal fun evaluatePlacementDrag(
 				MeshOperatorKind.Rotate ->
 					flipAffineFrame(rotationAboutAffine(mover.pivotDisplayX, mover.pivotDisplayY, parameters.rotationRadians), pageHeight)
 				MeshOperatorKind.Scale ->
-					if (axisConstraint == null) {
+					if (parameters.factorX == parameters.factorY) {
 						flipAffineFrame(scaleAboutAffine(mover.pivotDisplayX, mover.pivotDisplayY, parameters.factorX, parameters.factorY), pageHeight)
 					} else {
 						localAxisScaleAboutAffine(
@@ -496,7 +493,7 @@ internal fun buildPlacementGesture(
 		return PlacementGestureBuild.NotDerivable
 	}
 	val reserveByTile = meshReserveByTile(model)
-	val extrude = derivedPackPolicy.extrude
+	val extrude = model.atlas.composition.extrude
 
 	val movers = ArrayList<PlacementMover>()
 	for (tileId in candidateTileIds) {
@@ -512,7 +509,7 @@ internal fun buildPlacementGesture(
 			return PlacementGestureBuild.NotDerivable
 		}
 		// A placed tile with nothing opaque has nothing on the page to move.
-		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, derivedPackPolicy.alphaThreshold) ?: continue
+		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, model.atlas.composition.alphaThreshold) ?: continue
 		val trim = analysis.opaqueBounds
 		val reserve = reserveByTile[tileId]
 		val footprint = placementFootprint(placement, trim, reserve)
@@ -523,7 +520,7 @@ internal fun buildPlacementGesture(
 				trim = trim,
 				reserve = reserve,
 				meshMask = meshMaskOf(model, tileId),
-				mask = TileOpaqueMask.of(raster, trim, derivedPackPolicy.alphaThreshold),
+				mask = TileOpaqueMask.of(raster, trim, model.atlas.composition.alphaThreshold),
 				contours = analysis.contours,
 				pivotDisplayX = (footprint.left + footprint.right) / 2f,
 				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,

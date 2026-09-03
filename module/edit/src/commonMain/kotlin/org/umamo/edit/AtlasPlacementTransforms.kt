@@ -153,14 +153,15 @@ fun localAxisScaleAboutAffine(
 }
 
 /**
- * The tiles a placement gesture over [selection] moves: every selected drawable's tile that is
- * packed onto a page, in document order.  A drawable over unpacked art has nothing on a page to move,
- * and a part or deformer in the selection contributes nothing.
+ * The placed tiles under [selection]: every selected drawable's tile that is packed onto a page,
+ * pinned or not, in document order.  A drawable over unpacked art has nothing on a page, and a part
+ * or deformer in the selection contributes nothing.  The pin commands' domain - Unpin must find the
+ * pinned tiles - where a gesture reads the narrower [placementDragTileIds].
  *
  * @param Selection selection The session's object selection.
  * @return Set<AtlasTileId> The placed tiles the selection covers, empty when there are none.
  */
-fun PuppetModel.placementDragTileIds(selection: Selection): Set<AtlasTileId> {
+fun PuppetModel.placementSelectedTileIds(selection: Selection): Set<AtlasTileId> {
 	val selectedIds = selection.targets.mapNotNullTo(HashSet()) { target -> (target as? SelectionTarget.Drawable)?.id }
 	if (selectedIds.isEmpty()) {
 		return emptySet()
@@ -178,3 +179,15 @@ fun PuppetModel.placementDragTileIds(selection: Selection): Set<AtlasTileId> {
 	}
 	return tileIds
 }
+
+/**
+ * The tiles a placement gesture over [selection] moves: the placed tiles under it
+ * ([placementSelectedTileIds]) minus the pinned ones.  A pin means "keep this where it is", and a
+ * hand move is no exception - a pinned tile stays put until it is unpinned, and a gesture over a
+ * mixed selection moves the rest around it.
+ *
+ * @param Selection selection The session's object selection.
+ * @return Set<AtlasTileId> The movable placed tiles the selection covers, empty when there are none.
+ */
+fun PuppetModel.placementDragTileIds(selection: Selection): Set<AtlasTileId> =
+	placementSelectedTileIds(selection).filterTo(LinkedHashSet()) { tileId -> atlas.tileById[tileId]?.pinned != true }

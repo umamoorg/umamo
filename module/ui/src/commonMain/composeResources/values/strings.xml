@@ -105,6 +105,7 @@
 	<string name="repack_report_below_minimum_coverage">Source artwork layer is below the minimum opaque coverage.</string>
 	<string name="repack_report_undecodable">Source artwork layer could not be decoded.</string>
 	<string name="repack_report_degenerate_placement">Drawable's current placement could not be inverted.</string>
+	<string name="repack_report_pinned_off_page">Pinned placement does not fit inside the maximum page size.</string>
 	<string name="export_weld_divergence">Base geometry or UVs were edited on: %1$s.  The export keeps them as authored, but editing those meshes or their atlas in the Cubism Editor may re-derive and corrupt the UV mapping.</string>
 	<string name="export_missing_source_art">This model has no source artwork(it came from a MOC3, which stores only packed texture atlases).  A stand-in source document was rebuilt from the %1$d atlas page(s), so the file carries the full rig and opens in both Umamo and the Cubism Editor, but every layer in it is a slice of a baked atlas page rather than the artwork this rig was drawn from.  Reconcile the original layered artwork(PSD/CLIP/KRA) into this document to export real, editable layers.</string>
 	<!-- MOC3 export: A feature the chosen MOC3 version cannot carry, removed from the written file.  %1$s is a runtime_feature_* name, %2$s the affected entities. -->
@@ -281,10 +282,13 @@
 	<string name="cmd_uv_page_next">Next Texture Page</string>
 	<string name="cmd_uv_page_previous">Previous Texture Page</string>
 	<string name="cmd_uv_page_follow">Texture Page: Follow Selection</string>
+	<string name="cmd_uv_pin_placement">Pin Art Placement</string>
+	<string name="cmd_uv_unpin_placement">Unpin Art Placement</string>
 
 	<!-- Edit / history commands (action registry; palette / shortcuts / Edit menu). -->
 	<string name="cmd_undo">Undo</string>
 	<string name="cmd_redo">Redo</string>
+	<string name="cmd_adjust_last_operation">Adjust Last Operation</string>
 	<string name="cmd_toggle_visibility">Toggle Visibility</string>
 
 	<!-- Command palette. -->
@@ -378,6 +382,10 @@
 	<string name="history_document_world_origin">Set World Origin</string>
 	<string name="history_document_source_layer_display">Change Texture Display</string>
 	<string name="history_document_atlas_placement">Move Art On Atlas</string>
+	<string name="history_document_atlas_placement_rotate">Rotate Art On Atlas</string>
+	<string name="history_document_atlas_placement_scale">Scale Art On Atlas</string>
+	<string name="history_document_atlas_pin">Pin Art On Atlas</string>
+	<string name="history_document_atlas_unpin">Unpin Art On Atlas</string>
 	<string name="history_document_atlas_repack">Repack Atlas</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
@@ -500,6 +508,7 @@
 	<string name="notice_uv_placement_not_derivable">The atlas cannot be recomposed from its source art, so placements cannot move.</string>
 	<string name="notice_uv_placement_overlap">Placement overlaps another tile.  Repack the atlas to clear the collision.</string>
 	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
+	<string name="notice_uv_placement_pinned">Selected tile is pinned.  Unpin it to transform it.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -595,6 +604,7 @@
 	<string name="runtime_feature_art_path">Art Path</string>
 	<string name="properties_texture_source">Texture Source: %1$s</string>
 	<string name="properties_texture_own">Own Atlas Binding</string>
+	<string name="properties_field_pinned">Pinned</string>
 
 	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
 	option names for the blend-mode / alpha-mode / group-mode dropdowns (chrome, never format-level ids). -->
@@ -628,6 +638,24 @@
 	<string name="properties_relation_pick">Pick from the viewport or outliner.</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
+	<string name="unit_percent">%</string>
+
+	<!-- The Repack Atlas rows of the operation settings strip. -->
+	<string name="repack_options_page_size">Max Page Size</string>
+	<string name="repack_options_gutter">Gutter</string>
+	<string name="repack_options_extrude">Extrude</string>
+	<string name="repack_options_allow_rotation">Allow Rotation</string>
+	<string name="repack_options_keep_pinned">Keep Pinned Tiles</string>
+	<string name="repack_options_power_of_two">Power-of-Two Pages</string>
+	<string name="repack_options_square_pages">Square Pages</string>
+	<string name="repack_options_shrink_pages">Shrink Pages</string>
+	<string name="repack_options_alpha_threshold">Alpha Threshold</string>
+	<!-- The placement Grab / Rotate / Scale rows of the operation settings strip. -->
+	<string name="placement_options_move_x">Move X</string>
+	<string name="placement_options_move_y">Move Y</string>
+	<string name="placement_options_angle">Angle</string>
+	<string name="placement_options_scale_x">Scale X</string>
+	<string name="placement_options_scale_y">Scale Y</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
@@ -724,6 +752,8 @@
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>
 	<string name="settings_colors_active_selection_highlight">Active Selection Highlight</string>
+	<string name="settings_colors_warning">Warning</string>
+	<string name="settings_colors_pinned_placement">Pinned Placement</string>
 	<string name="settings_colors_mesh_edit">Mesh Editing</string>
 	<string name="settings_colors_group_vertex">Vertex</string>
 	<string name="settings_colors_group_edge">Edge</string>

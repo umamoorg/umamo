@@ -144,7 +144,11 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 				Column(modifier = Modifier.fillMaxSize()) {
 					AreaHeader(area = area, scope = scope, onCommand = onCommand)
 					Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-						registry.descriptor(area.space).content(scope)
+						// The operation settings strip is hosted here, under the header and over the space body,
+						// so every space kind gets it and its inset reaches the space's own bottom-left chrome.
+						OperationStripHost(areaId = area.id) {
+							registry.descriptor(area.space).content(scope)
+						}
 					}
 				}
 			}
