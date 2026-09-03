@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
@@ -75,6 +76,11 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 				.fillMaxWidth()
 				.height(22.dp)
 				.background(if (hovered) colors.rowHover else Color.Transparent)
+				// NOT focusable: a header can sit in chrome that leaves the composition on the next edit (the
+				// operation settings strip, a Properties section that hides when its rows go), and Compose
+				// leaves focus null when the focused node is disposed - every keyboard shortcut then dies
+				// until something focusable is clicked again.  The keyboard belongs to the shell root.
+				.focusProperties { canFocus = false }
 				.clickable(interactionSource = interaction, indication = null, onClick = onToggle)
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
