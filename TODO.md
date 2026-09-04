@@ -265,6 +265,25 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
+## Deformer keeps no rest geometry once its last axis is collapsed (found 2026-09-04)
+
+**What.** `withAxisCollapsed` returns null when the last axis goes, and `withParameterDeleted` stores that
+null as a warp's or rotation's `geometryGrid` - so the deformer's lattice / pivot, which lived only in that
+grid, is gone from the model.  The CMO3 export then has nothing to write for it and removes the source's
+`keyformGridSource`; the official editor refuses a source without a default keyform (`setKeyformGridSource`
+rejects null, `getDefaultKeyForm` throws "no KeyForms" - the same refusal that crashed it on the first
+artwork-origin export, fixed for drawables/parts/glue by writing one default cell in
+`Cmo3KeyformLowering.buildBundle`).
+
+**Why it's fine right now.** Nothing in the editor deletes a parameter that keys a deformer's geometry
+except the parameter-delete flow, and the structure round-trip gate only reaches the case by choosing a
+victim parameter that keys deformer geometry.
+
+**Fix sketch.** Keep the rest cell: a last-axis collapse should yield an axis-less one-cell grid holding the
+form at the kept key (the deformer's rest lattice / pivot), not null - for drawables too, since the export
+then writes the same shape the corpus does.  Once that holds, `writeGridWeb`'s empty-bundle branch becomes
+unreachable and can go.
+
 ## Glue intensity has no editable home (deferred 2026-07-29)
 
 **What.** `Glue.intensity` is a real keyable channel — `FormChannel.GLUE_INTENSITY`, with a static on
