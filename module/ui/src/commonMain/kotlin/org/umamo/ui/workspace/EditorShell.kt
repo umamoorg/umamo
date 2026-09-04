@@ -707,4 +707,5 @@ private fun openFailureMessage(error: DocumentOpenError): StringResource =
 		DocumentOpenError.ParseFailed -> Res.string.open_failed_parse
 		DocumentOpenError.MissingManifest -> Res.string.open_failed_missing_manifest
 		DocumentOpenError.MissingTexture -> Res.string.open_failed_missing_texture
+		DocumentOpenError.NoArtLayers -> Res.string.open_failed_no_art_layers
 	}

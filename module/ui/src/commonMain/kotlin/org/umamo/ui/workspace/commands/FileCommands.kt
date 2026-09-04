@@ -24,12 +24,16 @@ import org.umamo.ui.resources.*
  * Split from [fileExportCommands] because the two register on different triggers: an import handler
  * depends on nothing that changes while the app runs, while export closes over the open document.
  *
+ * @param Function onImportArtwork Runs the artwork import (layered art or a flat raster: picker, dirty-confirm, load).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
  * @return List<Command> The commands to register.
  */
-internal fun fileCommands(onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): List<Command> =
+internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): List<Command> =
 	listOf(
+		// Artwork is the headline entry: draw in the art program, import, rig.  Every layered and flat
+		// raster format the registry reads comes in through this one row.
+		Command("file.importArtwork", title = Res.string.cmd_import_artwork) { onImportArtwork() },
 		Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.

@@ -314,10 +314,12 @@ decoupling. The front half (steps 1–4) currently only works via a pre-baked CM
 is still ahead.
 
 1. Source-art ingest → neutral model. Built: PSD/CLIP/KRA readers produce `SourceArt` (LayerId / LayerBounds /
-	LayerBlend). Pending, and NEXT (Phase E, decided 2026-09-02; planning opened 2026-09-04): a `SourceArt` → `PuppetModel` path (no
-	fromPsd/fromLayered exists). Layer bounds place each drawable, a bounding quad over the trimmed bounds is
-	the birth mesh, the pack runs at open through the shipped repack chain, and the source-layer key persists
-	on the `AtlasTile`. See § Import.
+	LayerBlend). BUILT (Phase E session 1, 2026-09-04): File > Import > Artwork… runs `SourceArtImport`
+	(:interop `org.umamo.interop.art`): a quad over each layer's trimmed bounds is the birth mesh, folders are
+	parts, the pack runs at open through the repack primitive (`packModelAtOpen`), the source-layer key
+	persists on the `AtlasTile` (`source: SourceLayerRef`) with the file and its layer inventory on
+	`PuppetModel.sources`, and the parameter template (`import.parameterTemplate`, Humanoid / None) seeds
+	the axes. NEXT: the Sources space (E session 2). See docs/plan/art-sourcing-pipeline.md Phase E.
 2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
 	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
@@ -353,8 +355,8 @@ is still ahead.
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
 6. Rigging. Parameters, deformers, keyforms on top of the rest mesh — the actual deformation authoring.
-7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher / SourceBinding. Identity-keyed
-	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
+7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher over the model's `SourceLayerRef`
+	bindings (persisted since 2026-09-04). Identity-keyed non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
 	May trigger an atlas repack (the invariant above protects it). See § Reimport. Decided 2026-09-03: the
 	linking table is a Sources space (a tenth SpaceKind: file → layer → tile → drawables, relink by drag or

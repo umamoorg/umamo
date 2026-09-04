@@ -40,15 +40,17 @@ data class AtlasPage(
  * model diff ignores it and an export never sees it.  A tile without a placement is never pinned -
  * there is nothing to keep.
  *
- * @property AtlasTileId     id              The tile's stable document-local identity.
- * @property String          name            The tile's display name.
- * @property Int             width           The art's width in pixels.
- * @property Int             height          The art's height in pixels.
- * @property AtlasPlacement? placement       Where it sits on its page, or null when it was never packed.
- * @property String?         sourceLayerName The originating artwork layer's name when exactly one
- *   composites into this tile, else null.  Advisory provenance only - the real source binding is a
- *   later phase's, and nothing reads this yet.
- * @property Boolean         pinned          Whether a repack keeps this tile's placement where it is.
+ * @property AtlasTileId     id        The tile's stable document-local identity.
+ * @property String          name      The tile's display name.
+ * @property Int             width     The art's width in pixels.
+ * @property Int             height    The art's height in pixels.
+ * @property AtlasPlacement? placement Where it sits on its page, or null when it was never packed.
+ * @property SourceLayerRef? source    The source layer this tile's art came from - the artwork file
+ *   and the layer key within it - or null when the document retains no binding (a MOC3-origin rig;
+ *   a CMO3-origin one recovers a name-keyed ref from its image chain).  Editor and native-format
+ *   data: no container format encodes it, the model diff reads it as tile metadata, and an export
+ *   never sees it.
+ * @property Boolean         pinned    Whether a repack keeps this tile's placement where it is.
  */
 data class AtlasTile(
 	val id: AtlasTileId,
@@ -56,7 +58,7 @@ data class AtlasTile(
 	val width: Int,
 	val height: Int,
 	val placement: AtlasPlacement? = null,
-	val sourceLayerName: String? = null,
+	val source: SourceLayerRef? = null,
 	val pinned: Boolean = false,
 )
 

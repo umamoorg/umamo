@@ -2,20 +2,19 @@ package org.umamo.reimport
 
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayer
+import org.umamo.runtime.model.SourceLayerRef
 
 /**
- * Reconciles existing rig bindings against freshly-read source art - the headline "file refreshes"
- * feature.
+ * Reconciles existing rig bindings (the model's per-tile [SourceLayerRef]s) against freshly-read
+ * source art - the headline "file refreshes" feature.
  *
  * Hard rule: re-import never destroys rig work. Matched layers update in place;
  * added layers become unbound drawables; removed/renamed layers are flagged for review, never
  * silently deleted. The output [ReconcileReport] is therefore a reviewable diff, not an applied
  * mutation.
- *
- * 既存バインディングと再読込アートを突き合わせる。削除・改名は必ずレビュー対象として提示する。
  */
 interface Reconciler {
-	fun reconcile(bindings: List<SourceBinding>, newArt: SourceArt): ReconcileReport
+	fun reconcile(bindings: List<SourceLayerRef>, newArt: SourceArt): ReconcileReport
 }
 
 /**
@@ -34,9 +33,7 @@ data class ReconcileReport(
  * Heuristic matcher for the hard case: a binding whose layer id no longer resolves, matched against
  * remaining candidates (renames, near-duplicates). Returns the best candidate or null - the caller
  * still routes the decision through review.
- *
- * 改名・近似レイヤーをファジーに突き合わせる契約。最終判断はレビューに委ねる。
  */
 fun interface LayerMatcher {
-	fun bestMatch(binding: SourceBinding, candidates: List<SourceLayer>): SourceLayer?
+	fun bestMatch(binding: SourceLayerRef, candidates: List<SourceLayer>): SourceLayer?
 }

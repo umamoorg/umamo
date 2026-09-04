@@ -11,7 +11,7 @@ enum class DocumentOpenError {
 	/** The contents match no format Umamo recognizes. */
 	Unrecognized,
 
-	/** A recognized format the editor shell cannot open as a document (e.g. layered art, for now). */
+	/** A recognized format the editor shell cannot open as a document (a JSON sidecar on its own). */
 	NotOpenable,
 
 	/** A recognized format whose contents failed to parse or import. */
@@ -22,6 +22,9 @@ enum class DocumentOpenError {
 
 	/** A `.moc3` whose model3.json references a texture that is missing or unreadable. */
 	MissingTexture,
+
+	/** An artwork file with no raster layer that has any pixel over the alpha threshold - nothing to rig. */
+	NoArtLayers,
 }
 
 /**

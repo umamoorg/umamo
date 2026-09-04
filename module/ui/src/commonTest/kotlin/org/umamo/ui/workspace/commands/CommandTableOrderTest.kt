@@ -216,8 +216,8 @@ class CommandTableOrderTest {
 	 */
 	@Test
 	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}) + logCommands {}
-		assertEquals(listOf("file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+		val commands = fileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("file.importArtwork", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },

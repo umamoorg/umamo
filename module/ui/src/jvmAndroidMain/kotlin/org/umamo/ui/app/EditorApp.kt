@@ -22,6 +22,8 @@ import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
+import org.umamo.interop.art.ParameterTemplate
+import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
@@ -30,6 +32,7 @@ import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
+import org.umamo.ui.document.ArtDocument
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.Moc3Document
@@ -68,6 +71,7 @@ import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.settings.HistorySettings
+import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
@@ -86,6 +90,25 @@ import org.umamo.ui.workspace.decodeWorkspaceText
 import org.umamo.ui.workspace.exportLayoutText
 import org.umamo.ui.workspace.exportWorkspaceText
 import kotlin.random.Random
+
+/**
+ * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry
+ * reads.  The `.jpeg` and `.tif` aliases are listed by hand because a FileKind spells one extension per
+ * format; detection is by magic bytes, so a file under either name still routes to its codec.
+ */
+private val artworkImportExtensions: List<String> =
+	listOf(
+		FileKind.Psd.extension,
+		FileKind.Clip.extension,
+		FileKind.Kra.extension,
+		FileKind.Png.extension,
+		FileKind.Bmp.extension,
+		FileKind.Jpeg.extension,
+		"jpeg",
+		FileKind.WebP.extension,
+		FileKind.Tiff.extension,
+		"tif",
+	)
 
 /**
  * The one editing session per open puppet document (the undo history + dirty state live here),
@@ -148,6 +171,14 @@ fun EditorApp(
 		}
 	LaunchedEffect(sessionAtlasPages) {
 		sessionAtlasPages?.follow()
+	}
+	// An artwork import that could not carry everything as drawn says so once, on the status bar; the
+	// detail is already in the log.  Keyed on the session as well, so the notice lands on the session
+	// that owns the new document rather than the one being torn down.
+	LaunchedEffect(document, session) {
+		if (document is ArtDocument && session != null && document.importNotices.isNotEmpty()) {
+			session.emitNotice("notice.import.artworkNotes")
+		}
 	}
 	val uriHandler = LocalUriHandler.current
 	// Mirror the session's undo/redo availability for the Edit menu's enabled state. produceState runs
@@ -214,10 +245,27 @@ fun EditorApp(
 		}
 	}
 
+	// What an artwork import seeds with, read at the moment the import runs so the preferences row
+	// applies to the next import without a restart.
+	fun artworkImportOptions(): SourceArtImportOptions =
+		SourceArtImportOptions(parameterTemplate = ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)))
+
 	fun openStoredPath(path: String) {
 		confirmIfDirty {
 			scope.launch {
-				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path)))
+				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), artworkImportOptions()))
+			}
+		}
+	}
+
+	fun importArtworkViaPicker() {
+		// Every layered and flat-raster format the registry reads comes in through this one row - the
+		// artwork import is the headline entry, so it does not split by format the way CMO3 / MOC3 do.
+		confirmIfDirty {
+			scope.launch {
+				filePicker.openFile(artworkImportExtensions)?.let { picked ->
+					applyDocumentLoad(loadDocument(picked, artworkImportOptions()))
+				}
 			}
 		}
 	}
@@ -417,7 +465,7 @@ fun EditorApp(
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
-				fileCommands({ importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
+				fileCommands({ importArtworkViaPicker() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
 			)
 		onDispose { cleanup() }
 	}
@@ -453,6 +501,7 @@ fun EditorApp(
 				canUndo,
 				canRedo,
 				::openStoredPath,
+				::importArtworkViaPicker,
 				::importCmo3ViaPicker,
 				::importMoc3ViaPicker,
 				::exportCmo3,
@@ -501,6 +550,7 @@ fun EditorApp(
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
+ * @param Function importArtwork Opens the artwork import picker.
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
@@ -528,6 +578,7 @@ private fun buildAppMenu(
 	canUndo: Boolean,
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
+	importArtwork: () -> Unit,
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
 	exportCmo3: (PuppetDocument) -> Unit,
@@ -550,6 +601,7 @@ private fun buildAppMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
 			canExport = document is PuppetDocument,
+			onImportArtwork = importArtwork,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,
 			onImportMoc3 = importMoc3,

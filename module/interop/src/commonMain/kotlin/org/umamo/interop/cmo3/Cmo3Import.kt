@@ -535,6 +535,7 @@ object Cmo3Import {
 				// (docs/format/CMO3.md §3), so an absent one falls back to the atlas default.
 				rendersFromSourceLayers = (modelSource.textureManager as? CTextureManager)?.isTextureInputModelImageMode ?: false,
 				atlas = atlasIngest.atlas,
+				sources = atlasIngest.sources,
 			)
 		val withRenderRoot = model.copy(renderRoot = model.deriveRenderRoot())
 		val puppet = if (compactChannels) withRenderRoot.withChannelsCompacted() else withRenderRoot

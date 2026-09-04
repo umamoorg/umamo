@@ -3,6 +3,7 @@ package org.umamo.format.psd
 import org.umamo.format.art.isEffectivelyVisible
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -71,6 +72,12 @@ class PsdReaderTest {
 
 		for (layer in art.layers) {
 			assertTrue(layer.id.raw.isNotBlank(), "${sample.name}: layer '${layer.name}' has a stable id")
+			// The key's strength must say what the key IS: a lyid is stable, the name-and-order fallback is not.
+			assertEquals(
+				layer.id.raw.startsWith("lyid:"),
+				layer.idIsStable,
+				"${sample.name}: layer '${layer.name}' key '${layer.id.raw}' reports its own stability",
+			)
 			assertTrue(
 				layer.raster.rgba.size == layer.raster.width * layer.raster.height * 4,
 				"${sample.name}: layer '${layer.name}' raster sized to its dimensions",

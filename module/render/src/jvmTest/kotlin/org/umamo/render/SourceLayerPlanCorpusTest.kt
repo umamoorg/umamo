@@ -50,7 +50,7 @@ class SourceLayerPlanCorpusTest {
 			// leaves the whole puppet on its atlas - and looks identical to having no artwork at all.
 			val model = Cmo3.read(file)
 			val tileResources = cmo3AtlasIngest(root).imageResourceByTile
-			val rasters = SourceArtRasters { tileId -> tileResources[tileId]?.let(model::extractLayerPng) }
+			val rasters = SourceArtRasters.fromPng { tileId -> tileResources[tileId]?.let(model::extractLayerPng) }
 			val decoded = plan.layerByteCostByKey.keys.count { key -> rasters.decodeRaster(AtlasTileId(key)) != null }
 			decodedTotal += decoded
 			lines.add(
