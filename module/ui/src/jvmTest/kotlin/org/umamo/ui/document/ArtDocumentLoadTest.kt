@@ -2,11 +2,15 @@ package org.umamo.ui.document
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.art.HumanoidParameters
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.deriveAtlasTextures
+import org.umamo.runtime.model.ParameterNode
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -92,7 +96,21 @@ class ArtDocumentLoadTest {
 			)
 		assertTrue(prepared.report.notices.any { notice -> notice is ExportNotice.MissingSourceArt }, "the export says the source art is not written yet")
 		val reread = Cmo3.read(Cmo3.write(prepared.model))
-		val reimported = Cmo3Import.fromModelSource(reread.root as CModelSource)
+		val rereadRoot = reread.root as CModelSource
+
+		// Every exported art mesh carries a keyform grid with its default cell.  The official editor
+		// refuses a mesh without one (setKeyformGridSource rejects null, getDefaultKeyForm throws "no
+		// KeyForms"), and every drawable born from artwork is unkeyed - so this is the line between a
+		// file that opens in Cubism and one that fills its log and crashes.
+		val artMeshes = graphElements((rereadRoot.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		assertEquals(puppet.drawables.size, artMeshes.size, "one art mesh per drawable in the written graph")
+		for (artMesh in artMeshes) {
+			val gridSource = assertNotNull(artMesh.keyformGridSource as? KeyformGridSource, "art mesh '${artMesh.localName}' has a keyform grid")
+			assertTrue(graphElements(gridSource.keyformsOnGrid).isNotEmpty(), "art mesh '${artMesh.localName}' grid has its default cell")
+			assertTrue(graphElements(artMesh.keyforms).isNotEmpty(), "art mesh '${artMesh.localName}' has a default form")
+		}
+
+		val reimported = Cmo3Import.fromModelSource(rereadRoot)
 		// Compared by id, not by list position: a CMO3's storage order is not the panel order (the org
 		// tree is), and the ids are what the export writes and the re-import reads back.
 		val rereadById = reimported.drawables.associateBy { drawable -> drawable.id }
@@ -104,6 +122,13 @@ class ArtDocumentLoadTest {
 		)
 		assertEquals(puppet.rootChildren, reimported.rootChildren, "the org tree's root keeps its order")
 		assertEquals(puppet.parameters.map { parameter -> parameter.id }, reimported.parameters.map { parameter -> parameter.id }, "the seeded parameters")
+		// Every parameter sits in the written group hierarchy: the editor logs a recovery for each one it
+		// finds outside it, and the re-import builds this tree from that hierarchy alone.
+		assertEquals(
+			puppet.parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+			reimported.parameterTree,
+			"every seeded parameter is in the root parameter group, in order",
+		)
 		assertEquals(puppet.atlas.pages, reimported.atlas.pages, "the page inventory")
 		for (drawable in puppet.drawables) {
 			val expected = assertNotNull(drawable.mesh)
@@ -118,4 +143,18 @@ class ArtDocumentLoadTest {
 		}
 		println("artwork gate: ${puppet.drawables.size} drawables, ${puppet.parts.size} parts, ${puppet.atlas.pages.size} page(s), ${document.importNotices.size} note(s)")
 	}
+
+	/**
+	 * A CMO3 collection field as its elements, whichever container shape the serializer used.
+	 *
+	 * @param Any? collection The raw field.
+	 * @return List The elements.
+	 */
+	private fun graphElements(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
+		}
 }

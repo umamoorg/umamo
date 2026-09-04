@@ -19,6 +19,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
@@ -283,9 +284,15 @@ object SourceArtImport {
 		// world origin is the canvas center, negated into world space like every vertex.
 		val canvasWidth = art.widthPx.toFloat()
 		val canvasHeight = art.heightPx.toFloat()
+		// The tree is materialized flat (one leaf per parameter at the root) rather than left empty: the
+		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
+		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
+		// editor's own parameter-create materializes.
+		val parameters = options.parameterTemplate.parameters
 		val model =
 			PuppetModel(
-				parameters = options.parameterTemplate.parameters,
+				parameters = parameters,
+				parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
 				parts = parts,
 				deformers = emptyList(),
 				drawables = drawables,
