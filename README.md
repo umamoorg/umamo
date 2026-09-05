@@ -141,15 +141,15 @@ Shared logic lives in `commonMain`; platform code in `jvmMain`/`androidMain` via
 
 Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black box observation.  KRA is ported directly from Krita's own open-source GPLv3 code which is license-compatible with Umamo.  All are written up under [`docs/format/`](docs/format).
 
-#### File Format Support Progress
+#### File Format Support
 
 | Format | Read | Write | Note                                                                                     |
 | ------ | ---- | ----- | ---------------------------------------------------------------------------------------- |
 | PSD    | 〇   | -     | Photoshop (Read only)                                                                    |
 | CLIP   | △   | -     | Clip Studio Paint (Read only) - Implemented, not fully tested.  Has some blending issues. |
 | KRA    | 〇   | -     | Krita (Read only) - ZIP + maindoc.xml + tiled LZF rasters; ported from open source.      |
-| CMO3   | 〇   | 〇    | Cubism Editor Model File - Validated for byte-to-byte compatiblity.                      |
-| MOC3   | △    | △    | Cubism Distribution Model File - Implemented, not fully tested.                          |
+| CMO3   | 〇   | 〇    | Cubism Editor Model File - Compatible up to Cubism 5.4                                   |
+| MOC3   | 〇   | 〇    | Cubism Distribution Model File - Compatible up to Cubism 5.4                             |
 
 
 #### Format Documents
