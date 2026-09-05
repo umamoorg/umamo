@@ -1,5 +1,5 @@
-// :reimport — source-art binding + non-destructive reconcile. Depends on :format.
-// :reimport — ソースアート紐付けと非破壊リインポート。:format に依存。
+// :reimport — non-destructive reconcile over the model's source bindings. Depends on :format (the
+// re-read art) and :runtime (the bindings live on the model's atlas tiles).
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -21,6 +21,7 @@ kotlin {
 		commonMain {
 			dependencies {
 				implementation(project(":format"))
+				api(project(":runtime"))
 			}
 		}
 	}

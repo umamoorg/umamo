@@ -104,6 +104,15 @@ data class PuppetModel(
 	 * loads them once; putting them here would put them in every undo snapshot.
 	 */
 	val atlas: PuppetAtlas = PuppetAtlas.Empty,
+	/**
+	 * The artwork files this document was imported from, each with its layer inventory as of its last
+	 * read - the baseline a re-import diffs against - or empty for a document with no linked source art.
+	 *
+	 * Document content, like the atlas: a re-import rebinds tiles through it, so it undoes and persists
+	 * with the rest of the model.  No container format encodes it (the native format will), and the
+	 * diff and every export ignore it.
+	 */
+	val sources: List<ArtSource> = emptyList(),
 ) {
 	/**
 	 * Every part by id, built once per model instance.

@@ -94,7 +94,7 @@ enum class AtlasTileField {
 	/** Where the tile's art sits on its page - the authored half, and the only one an edit produces. */
 	PLACEMENT,
 
-	/** Its name, pixel size, or recorded source layer: what the art itself is, not where it was packed. */
+	/** Its name, pixel size, or source binding: what the art itself is, not where it was packed. */
 	METADATA,
 }
 
@@ -433,7 +433,7 @@ private fun atlasTileFields(baseline: AtlasTile, edited: AtlasTile): Set<AtlasTi
 			baseline.name != edited.name ||
 			baseline.width != edited.width ||
 			baseline.height != edited.height ||
-			baseline.sourceLayerName != edited.sourceLayerName
+			baseline.source != edited.source
 		) {
 			add(AtlasTileField.METADATA)
 		}

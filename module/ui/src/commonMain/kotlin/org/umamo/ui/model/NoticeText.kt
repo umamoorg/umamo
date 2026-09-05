@@ -38,6 +38,7 @@ fun noticeText(messageKey: String): String =
 		"notice.display.partialSourceArtwork" -> stringResource(Res.string.notice_display_partial_source_artwork)
 		"notice.display.sourceArtworkUnavailable" -> stringResource(Res.string.notice_display_source_artwork_unavailable)
 		"notice.atlas.repacked" -> stringResource(Res.string.notice_atlas_repacked)
+		"notice.import.artworkNotes" -> stringResource(Res.string.notice_import_artwork_notes)
 		"notice.atlas.repackSuperseded" -> stringResource(Res.string.notice_atlas_repack_superseded)
 		"notice.atlas.repackUnchanged" -> stringResource(Res.string.notice_atlas_repack_unchanged)
 		"notice.proportional.on" -> stringResource(Res.string.notice_proportional_on)

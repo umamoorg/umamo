@@ -18,9 +18,9 @@ import org.umamo.runtime.model.PuppetModel
  * Lowers [edited] into a CMO3 for [document], by whichever route the document's origin allows.
  *
  * A CMO3-origin document reconciles onto the graph it retained from import, which is what keeps its
- * real layered art and its byte-identity gates intact.  A MOC3-origin document has no retained graph,
- * so a fresh one is synthesized from the blank skeleton plus the retained atlas pages and then
- * reconciled onto in exactly the same way.
+ * real layered art and its byte-identity gates intact.  A MOC3-origin or artwork-origin document has
+ * no retained graph, so a fresh one is synthesized from the blank skeleton plus its atlas pages and
+ * then reconciled onto in exactly the same way.
  *
  * The clock and the container key are PARAMETERS, not calls: [Cmo3Conversion.freshCmo3] is
  * deterministic given them, and that determinism is only reachable if the seam extends to the app
@@ -60,6 +60,22 @@ fun prepareCmo3Export(
 					emptyList()
 				}
 			PreparedCmo3Export(document.cmo3, Cmo3Export.apply(edited, document.cmo3, recomposedPages = recomposedPages))
+		}
+		// An artwork-origin document has no retained graph either: the pages it packed at open, or the
+		// session's repack of them, are re-encoded and synthesized into a fresh graph the same way.  Its
+		// real source art still goes unwritten - the chain builder slices layers out of the pages -
+		// which the pipeline's Phase H replaces; the report's leading MissingSourceArt notice says so.
+		is ArtDocument -> {
+			val result =
+				Cmo3Conversion.freshCmo3(
+					puppet = edited,
+					pages = effectiveTextures.atlases.map { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height) },
+					pageIndexByDrawableId = effectiveTextures.atlasIndexByDrawableId,
+					modelName = modelName,
+					nowMillis = nowMillis,
+					obfuscateKey = obfuscateKey,
+				)
+			PreparedCmo3Export(result.model, result.report)
 		}
 		// A MOC3-origin document has no retained graph: synthesize a fresh one from the blank skeleton
 		// + the retained atlas pages, then reconcile onto it.

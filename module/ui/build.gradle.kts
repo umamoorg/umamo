@@ -157,4 +157,6 @@ umamoTestCorpus {
 	// (test/corpus/moc3/modelG) saved as a .cmo3.  It lives OUTSIDE the golden glob because a
 	// converted file fails the corpus invariants by nature, and it self-skips until the file exists.
 	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/invalid/modelG.cmo3")
+	// The artwork-import gate's fixture: a real layered PSD, imported, packed at open, and exported.
+	sampleWithCorpusDefault("psd.sample", "psd/EricaTamamo.psd")
 }
