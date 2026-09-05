@@ -12,6 +12,7 @@ import org.umamo.format.art.analyzeAlpha
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
+import org.umamo.runtime.model.ArtworkAdditions
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -86,11 +87,34 @@ class SourceArtImportResult(
 	val notices: List<SourceArtImportNotice>,
 )
 
+/**
+ * What one artwork file adds to a model, with its pixels and its notes: the delta a fresh import
+ * assembles into a new model and an open document appends to itself.
+ *
+ * @property ArtworkAdditions additions    The source record, tiles, drawables, parts, and root order.
+ * @property Map              rasterByTile Each added tile's pixels, by tile.
+ * @property List             notices      Everything the import could not carry as drawn, in document order.
+ */
+class SourceArtAdditions(
+	val additions: ArtworkAdditions,
+	val rasterByTile: Map<AtlasTileId, LayerRaster>,
+	val notices: List<SourceArtImportNotice>,
+)
+
 /** One raster layer that became a drawable, kept for the passes that run after the first. */
 private class ImportedLayer(
 	val layer: SourceLayer,
 	val drawableId: DrawableId,
 )
+
+/**
+ * The next ids to mint, continuing past whatever the receiving model already has so an added file's
+ * drawables and parts read as the editor's own would (`ArtMesh<n>`, `Part<n>`).
+ *
+ * @property Int nextDrawable The suffix of the next drawable id.
+ * @property Int nextPart     The suffix of the next part id.
+ */
+private class IdMinter(var nextDrawable: Int, var nextPart: Int)
 
 /**
  * One folder of the source tree while the org tree is being built: its own attributes plus the
@@ -129,7 +153,7 @@ object SourceArtImport {
 	/** How far the birth quad extends past a layer's opaque bounds, in source pixels. */
 	const val DEFAULT_BIRTH_MESH_MARGIN: Int = 2
 
-	/** The id of the one source a first import records. */
+	/** The id of the one source a first import records; later files continue the sequence. */
 	const val FIRST_SOURCE_ID: String = "art-0"
 
 	/**
@@ -138,6 +162,8 @@ object SourceArtImport {
 	 * Layers are visited top-most first (the source's own draw order), and every id the model mints -
 	 * `ArtMesh<n>`, `Part<n>`, the tile ids - is sequential in that order, so the same file imports to
 	 * the same ids every time and a CMO3 export reads the way the official editor's own import would.
+	 * The additions are the same ones [additionsFor] appends to an open document; this assembles them
+	 * into a new model with the template's parameters and the file's canvas.
 	 *
 	 * @param SourceArt              art     The parsed source art.
 	 * @param ArtSourceDescriptor    source  What to record about the file it came from.
@@ -149,7 +175,76 @@ object SourceArtImport {
 		source: ArtSourceDescriptor,
 		options: SourceArtImportOptions = SourceArtImportOptions(),
 	): SourceArtImportResult {
-		val sourceId = ArtSourceId(FIRST_SOURCE_ID)
+		val blank =
+			PuppetModel(
+				parameters = emptyList(),
+				parts = emptyList(),
+				deformers = emptyList(),
+				drawables = emptyList(),
+				rootChildren = emptyList(),
+				rootPartId = null,
+			)
+		val added = additionsFor(art, source, options, blank)
+		val additions = added.additions
+
+		// Rest positions are canvas pixels with y down, the convention every import shares, and the
+		// world origin is the canvas center, negated into world space like every vertex.
+		val canvasWidth = art.widthPx.toFloat()
+		val canvasHeight = art.heightPx.toFloat()
+		// The tree is materialized flat (one leaf per parameter at the root) rather than left empty: the
+		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
+		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
+		// editor's own parameter-create materializes.
+		val parameters = options.parameterTemplate.parameters
+		val model =
+			PuppetModel(
+				parameters = parameters,
+				parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+				parts = additions.parts,
+				deformers = emptyList(),
+				drawables = additions.drawables,
+				rootChildren = additions.rootChildren,
+				rootPartId = null,
+				canvasWidth = canvasWidth,
+				canvasHeight = canvasHeight,
+				worldOriginX = canvasWidth / 2f,
+				worldOriginY = -(canvasHeight / 2f),
+				// The official editor's own fresh-import state: the rigger sees the layers as drawn, and
+				// the pack that follows is what makes the document shippable.
+				rendersFromSourceLayers = true,
+				atlas = PuppetAtlas(pages = emptyList(), tiles = additions.tiles, storedUvsAddressPages = true),
+				sources = listOf(additions.source),
+			)
+		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices)
+	}
+
+	/**
+	 * The additions [art] makes to [existing]: the delta an open document appends to itself, with every
+	 * id minted past the ones the document already has.
+	 *
+	 * Ids continue the existing sequences (`ArtMesh<n>` and `Part<n>` past their highest suffix, the
+	 * source past `art-<k>`), and a tile key that collides with an existing tile is disambiguated the
+	 * same way a duplicate layer key is.  The additions carry no placements: the caller packs them
+	 * around the document's art.
+	 *
+	 * @param SourceArt              art      The parsed source art.
+	 * @param ArtSourceDescriptor    source   What to record about the file it came from.
+	 * @param SourceArtImportOptions options  The threshold and margin (the template is a fresh import's).
+	 * @param PuppetModel            existing The model the additions will join.
+	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
+	 */
+	fun additionsFor(
+		art: SourceArt,
+		source: ArtSourceDescriptor,
+		options: SourceArtImportOptions,
+		existing: PuppetModel,
+	): SourceArtAdditions {
+		val sourceId = ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
+		val minter =
+			IdMinter(
+				nextDrawable = nextSuffix(existing.drawables.map { drawable -> drawable.id.raw }, "ArtMesh", first = 1),
+				nextPart = nextSuffix(existing.parts.map { part -> part.id.raw }, "Part", first = 1),
+			)
 		val layersTopFirst = art.layers.sortedBy { layer -> layer.order }
 		val notices = ArrayList<SourceArtImportNotice>()
 
@@ -158,7 +253,7 @@ object SourceArtImport {
 		val drawables = ArrayList<Drawable>()
 		val tiles = ArrayList<AtlasTile>()
 		val rasterByTile = LinkedHashMap<AtlasTileId, LayerRaster>()
-		val usedTileKeys = HashSet<String>()
+		val usedTileKeys = existing.atlas.tiles.mapTo(HashSet()) { tile -> tile.id.raw }
 		for (layer in layersTopFirst) {
 			if (layer.kind != SourceLayerKind.Raster) {
 				notices.add(SourceArtImportNotice.NonRasterLayer(layer.name, layer.kind))
@@ -171,7 +266,7 @@ object SourceArtImport {
 			}
 			// The reader's key is the tile's identity too, disambiguated by draw order when a weak source
 			// key (the PSD name-and-order fallback) collides - the same rule the packer's adapter applies.
-			var tileKey = "$FIRST_SOURCE_ID/${layer.id.raw}"
+			var tileKey = "${sourceId.raw}/${layer.id.raw}"
 			if (!usedTileKeys.add(tileKey)) {
 				tileKey = "$tileKey#${layer.order}"
 				usedTileKeys.add(tileKey)
@@ -198,7 +293,8 @@ object SourceArtImport {
 				notices.add(SourceArtImportNotice.ChannelMaskDropped(layer.name))
 			}
 
-			val drawableId = DrawableId("ArtMesh${drawables.size + 1}")
+			val drawableId = DrawableId("ArtMesh${minter.nextDrawable}")
+			minter.nextDrawable++
 			drawables.add(
 				Drawable(
 					id = drawableId,
@@ -262,7 +358,7 @@ object SourceArtImport {
 			}
 		}
 		val parts = ArrayList<Part>()
-		val orgRoot = orgChildrenOf(rootChildren, parts, notices)
+		val orgRoot = orgChildrenOf(rootChildren, parts, minter, notices)
 
 		// The layer inventory records EVERY layer, skipped ones included, so a re-import can tell a
 		// layer that was there and unusable from one that is new.
@@ -279,36 +375,40 @@ object SourceArtImport {
 					visible = layer.visible,
 				)
 			}
-
-		// Rest positions are canvas pixels with y down, the convention every import shares, and the
-		// world origin is the canvas center, negated into world space like every vertex.
-		val canvasWidth = art.widthPx.toFloat()
-		val canvasHeight = art.heightPx.toFloat()
-		// The tree is materialized flat (one leaf per parameter at the root) rather than left empty: the
-		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
-		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
-		// editor's own parameter-create materializes.
-		val parameters = options.parameterTemplate.parameters
-		val model =
-			PuppetModel(
-				parameters = parameters,
-				parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
-				parts = parts,
-				deformers = emptyList(),
+		return SourceArtAdditions(
+			ArtworkAdditions(
+				source = ArtSource(sourceId, source.name, source.path, source.format, inventory),
+				tiles = tiles,
 				drawables = drawables,
+				parts = parts,
 				rootChildren = orgRoot,
-				rootPartId = null,
-				canvasWidth = canvasWidth,
-				canvasHeight = canvasHeight,
-				worldOriginX = canvasWidth / 2f,
-				worldOriginY = -(canvasHeight / 2f),
-				// The official editor's own fresh-import state: the rigger sees the layers as drawn, and
-				// the pack that follows is what makes the document shippable.
-				rendersFromSourceLayers = true,
-				atlas = PuppetAtlas(pages = emptyList(), tiles = tiles, storedUvsAddressPages = true),
-				sources = listOf(ArtSource(sourceId, source.name, source.path, source.format, inventory)),
-			)
-		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), rasterByTile, notices)
+			),
+			rasterByTile,
+			notices,
+		)
+	}
+
+	/**
+	 * The suffix the next id in a `<prefix><n>` sequence takes: one past the highest suffix among
+	 * [ids] that carry the prefix and a numeric tail, or [first] when none does.
+	 *
+	 * @param Iterable<String> ids    The ids already in use.
+	 * @param String           prefix The sequence's prefix.
+	 * @param Int              first  The suffix a fresh sequence starts at.
+	 * @return Int The next suffix.
+	 */
+	private fun nextSuffix(ids: Iterable<String>, prefix: String, first: Int): Int {
+		var highest: Int? = null
+		for (id in ids) {
+			if (!id.startsWith(prefix)) {
+				continue
+			}
+			val suffix = id.substring(prefix.length).toIntOrNull() ?: continue
+			if (highest == null || suffix > highest) {
+				highest = suffix
+			}
+		}
+		return if (highest == null) first else highest + 1
 	}
 
 	/**
@@ -410,20 +510,27 @@ object SourceArtImport {
 	 *
 	 * @param List    children The gathered children of one folder (or the root).
 	 * @param MutableList parts Every part minted so far, appended to.
+	 * @param IdMinter minter  The id sequences, advanced per part.
 	 * @param MutableList notices The import notices, appended to.
 	 * @return List<OrgChild> The org children, top-most first.
 	 */
-	private fun orgChildrenOf(children: List<FolderChild>, parts: MutableList<Part>, notices: MutableList<SourceArtImportNotice>): List<OrgChild> =
+	private fun orgChildrenOf(
+		children: List<FolderChild>,
+		parts: MutableList<Part>,
+		minter: IdMinter,
+		notices: MutableList<SourceArtImportNotice>,
+	): List<OrgChild> =
 		children.sortedBy { child -> child.order }.map { child ->
 			when (child) {
 				is FolderChild.Layer -> OrgChild.Drawable(child.drawableId)
 				is FolderChild.Folder -> {
 					val node = child.node
-					val partId = PartId("Part${parts.size + 1}")
+					val partId = PartId("Part${minter.nextPart}")
+					minter.nextPart++
 					// Reserve the slot before descending so a parent's id precedes its children's.
 					val slot = parts.size
 					parts.add(Part(partId, node.name, emptyList()))
-					val nestedChildren = orgChildrenOf(node.children, parts, notices)
+					val nestedChildren = orgChildrenOf(node.children, parts, minter, notices)
 					val blendMapping = mapLayerBlend(node.blend)
 					if (blendMapping == LayerBlendMapping.Unsupported) {
 						notices.add(SourceArtImportNotice.FolderBlendUnsupported(node.path, node.blend))

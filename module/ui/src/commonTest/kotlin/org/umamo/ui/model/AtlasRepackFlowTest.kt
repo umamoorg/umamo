@@ -1,5 +1,7 @@
 package org.umamo.ui.model
 
+import org.umamo.format.atlas.AtlasPackFixed
+import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.runtime.model.AtlasPage
@@ -118,5 +120,34 @@ class AtlasRepackFlowTest {
 				AtlasTile(freeId, "Free Art", 16, 16, placement()),
 			)
 		assertTrue(repackRefusals(unplaced, emptyList(), emptySet()).isEmpty())
+	}
+
+	/**
+	 * The three ways one decoded input is handed to the packer: every tile free, the pinned tiles
+	 * fixed, or EVERY placed tile fixed (art added to an open document packs into the gaps).  The
+	 * fixed forms are the packer's, keyed by tile, and a free item stays the same instance.
+	 */
+	@Test
+	fun theInputHandsThePackerFreePinnedOrEveryPlacedTileFixed() {
+		val pinnedForm = AtlasPackFixed(0, floatArrayOf(1f, 0f, 4f, 0f, 1f, 4f))
+		val placedForm = AtlasPackFixed(0, floatArrayOf(1f, 0f, 20f, 0f, 1f, 20f))
+		val pinned = AtlasPackItem("pinned", 1, 1, ByteArray(4))
+		val placed = AtlasPackItem("placed", 1, 1, ByteArray(4))
+		val fresh = AtlasPackItem("fresh", 1, 1, ByteArray(4))
+		val input =
+			RepackPackInput(
+				items = listOf(pinned, placed, fresh),
+				fixedByKey = mapOf("pinned" to pinnedForm),
+				placedByKey = mapOf("pinned" to pinnedForm, "placed" to placedForm),
+				undecodableTileIds = emptySet(),
+				reserveByTile = emptyMap(),
+			)
+
+		assertTrue(input.itemsFor(keepPinned = false).all { item -> item.fixed == null }, "pins ignored: every tile free")
+		val keepingPins = input.itemsFor(keepPinned = true)
+		assertEquals(listOf(pinnedForm, null, null), keepingPins.map { item -> item.fixed }, "pins kept: only the pinned tile is fixed")
+		val fixingPlaced = input.itemsFor(keepPinned = true, fixPlaced = true)
+		assertEquals(listOf(pinnedForm, placedForm, null), fixingPlaced.map { item -> item.fixed }, "placed fixed: every placed tile stays, the fresh one packs")
+		assertTrue(fixingPlaced[2] === fresh, "a free item is the same instance")
 	}
 }

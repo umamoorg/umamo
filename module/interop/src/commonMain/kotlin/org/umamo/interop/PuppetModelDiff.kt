@@ -478,7 +478,7 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 			add(DrawableField.ATLAS_TILE)
 		}
 		addAll(meshFields(baseline.mesh, edited.mesh))
-		if (!gridEquals(baseline.geometryGrid, edited.geometryGrid, ::meshDeltaFormEqual)) {
+		if (!gridEquals(restOnlyAsUnkeyed(baseline.geometryGrid), restOnlyAsUnkeyed(edited.geometryGrid), ::meshDeltaFormEqual)) {
 			add(DrawableField.GEOMETRY)
 		}
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
@@ -663,6 +663,24 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
  */
 
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
+
+/**
+ * A drawable's geometry grid with the rest-only shape read as unkeyed: an axis-less grid holding one
+ * cell of zero deltas IS the unkeyed drawable, since both mean "the base mesh, nothing keyed".  The
+ * two spellings arise from the formats - every CMO3 source carries a default form, so an unkeyed
+ * drawable exports as that one cell and re-imports as this grid - and neither is an edit of the
+ * other, so the diff must not call it one.
+ *
+ * @param KeyformGrid? grid The drawable's geometry grid.
+ * @return KeyformGrid? The grid, or null when it is the rest-only shape.
+ */
+private fun restOnlyAsUnkeyed(grid: KeyformGrid<MeshDeltaForm>?): KeyformGrid<MeshDeltaForm>? {
+	if (grid == null || grid.axes.isNotEmpty() || grid.cells.size != 1) {
+		return grid
+	}
+	val deltas = grid.cells.single().form.positionDeltas
+	return if (deltas.all { delta -> delta == 0f }) null else grid
+}
 
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,

@@ -338,7 +338,10 @@ is still ahead.
 	parts, the pack runs at open through the repack primitive (`packModelAtOpen`), the source-layer key
 	persists on the `AtlasTile` (`source: SourceLayerRef`) with the file and its layer inventory on
 	`PuppetModel.sources`, and the parameter template (`import.parameterTemplate`, Humanoid / None) seeds
-	the axes. NEXT: the Sources space (E session 2). See docs/plan/art-sourcing-pipeline.md Phase E.
+	the axes. Session 2 (same day): the Sources space (file → layer → tile → drawables, statuses, filters,
+	relink by drag or chip) and Add Artwork… into the open document (`runAddArtwork`, packed into the gaps
+	with every placed tile fixed, one undo step on the operation strip). E is complete on the import side;
+	see docs/plan/art-sourcing-pipeline.md Phase E.
 2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
 	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares

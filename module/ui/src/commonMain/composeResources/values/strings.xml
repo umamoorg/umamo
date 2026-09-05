@@ -46,6 +46,7 @@
 	<string name="space_tooldetails">Tool Settings</string>
 	<string name="space_history">History</string>
 	<string name="space_logs">Logs</string>
+	<string name="space_sources">Sources</string>
 
 	<!-- Logs panel: the diagnostic console showing UmamoLog output, with its header actions. -->
 	<string name="logs_copy">Copy to Clipboard</string>
@@ -73,6 +74,7 @@
 	<string name="cmd_import_cmo3">Import CMO3…</string>
 	<string name="cmd_import_moc3">Import MOC3…</string>
 	<string name="cmd_import_artwork">Import Artwork…</string>
+	<string name="cmd_file_add_artwork">Add Artwork…</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
@@ -390,6 +392,9 @@
 	<string name="history_document_atlas_pin">Pin Art On Atlas</string>
 	<string name="history_document_atlas_unpin">Unpin Art On Atlas</string>
 	<string name="history_document_atlas_repack">Repack Atlas</string>
+	<string name="history_document_tile_source">Relink Art</string>
+	<string name="history_document_tile_unbind">Unbind Art</string>
+	<string name="history_document_add_artwork">Add Artwork</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
@@ -398,6 +403,28 @@
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parts</string>
 	<string name="outliner_filter_deformers">Deformers</string>
+	<string name="sources_add_artwork">Add Artwork…</string>
+	<string name="sources_refresh">Refresh</string>
+	<string name="sources_filter_all">All</string>
+	<string name="sources_filter_unbound">Unbound</string>
+	<string name="sources_filter_missing">Missing files</string>
+	<string name="sources_status_present">Present</string>
+	<string name="sources_status_missing">Missing</string>
+	<string name="sources_status_unknown">Unknown</string>
+	<string name="sources_status_bound">Bound</string>
+	<string name="sources_status_bound_unstable">Bound by name</string>
+	<string name="sources_status_unbound">Unbound</string>
+	<string name="sources_status_unplaced">Unplaced</string>
+	<string name="sources_unbound_art">Unbound art</string>
+	<string name="sources_source_detail">%1$s · %2$d layers</string>
+	<string name="sources_source_no_path">no path recorded</string>
+	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
+	<string name="sources_tile_page">page %1$d</string>
+	<string name="sources_relink_title">Relink to a layer</string>
+	<string name="sources_relink_clear">Unbind</string>
+	<string name="sources_relink_no_matches">No layer matches.</string>
+	<string name="sources_relink_row">%1$s — %2$s</string>
+	<string name="sources_empty">No source artwork.  Add Artwork… brings a layered file into this document.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Restriction Toggles</string>
 	<string name="outliner_column_selectable">Selectable Column</string>
@@ -501,6 +528,9 @@
 	<string name="notice_display_source_artwork_unavailable">All drawables do not have source artwork layers and are displaying from the atlas.</string>
 	<string name="notice_atlas_repacked">Atlas repacked.</string>
 	<string name="notice_import_artwork_notes">Artwork imported with notes.  See the log.</string>
+	<string name="notice_import_artwork_added">Artwork added.</string>
+	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
+	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
 	<string name="notice_atlas_repack_superseded">Repack canceled: the atlas changed while packing.</string>
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
@@ -660,6 +690,8 @@
 	<string name="placement_options_angle">Angle</string>
 	<string name="placement_options_scale_x">Scale X</string>
 	<string name="placement_options_scale_y">Scale Y</string>
+	<string name="import_options_alpha_threshold">Alpha Threshold</string>
+	<string name="import_options_margin">Birth Mesh Margin</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>

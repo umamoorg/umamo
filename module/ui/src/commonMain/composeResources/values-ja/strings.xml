@@ -33,6 +33,7 @@
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
 	<string name="space_logs">ログ</string>
+	<string name="space_sources">ソース</string>
 
 	<string name="logs_copy">クリップボードにコピー</string>
 	<string name="logs_export">ファイルに書き出し…</string>
@@ -55,6 +56,7 @@
 	<string name="cmd_import_cmo3">CMO3をインポート…</string>
 	<string name="cmd_import_moc3">MOC3をインポート…</string>
 	<string name="cmd_import_artwork">アートワークをインポート…</string>
+	<string name="cmd_file_add_artwork">アートワークを追加…</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
 	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
@@ -352,12 +354,37 @@
 	<string name="history_document_atlas_pin">アトラス上の画像をピン留め</string>
 	<string name="history_document_atlas_unpin">アトラス上の画像のピン留めを解除</string>
 	<string name="history_document_atlas_repack">アトラスを再パック</string>
+	<string name="history_document_tile_source">アートを再リンク</string>
+	<string name="history_document_tile_unbind">アートのリンクを解除</string>
+	<string name="history_document_add_artwork">アートワークを追加</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
 	<string name="outliner_armature">アーマチュア</string>
 	<string name="outliner_filter_parts">パーツ</string>
 	<string name="outliner_filter_deformers">デフォーマ</string>
+	<string name="sources_add_artwork">アートワークを追加…</string>
+	<string name="sources_refresh">更新</string>
+	<string name="sources_filter_all">すべて</string>
+	<string name="sources_filter_unbound">未リンク</string>
+	<string name="sources_filter_missing">見つからないファイル</string>
+	<string name="sources_status_present">あり</string>
+	<string name="sources_status_missing">見つかりません</string>
+	<string name="sources_status_unknown">不明</string>
+	<string name="sources_status_bound">リンク済み</string>
+	<string name="sources_status_bound_unstable">名前でリンク</string>
+	<string name="sources_status_unbound">未リンク</string>
+	<string name="sources_status_unplaced">未配置</string>
+	<string name="sources_unbound_art">未リンクのアート</string>
+	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
+	<string name="sources_source_no_path">パス未記録</string>
+	<string name="sources_layer_detail">%1$d × %2$d、位置 %3$d, %4$d</string>
+	<string name="sources_tile_page">ページ %1$d</string>
+	<string name="sources_relink_title">レイヤーに再リンク</string>
+	<string name="sources_relink_clear">リンクを解除</string>
+	<string name="sources_relink_no_matches">一致するレイヤーがありません。</string>
+	<string name="sources_relink_row">%1$s — %2$s</string>
+	<string name="sources_empty">ソースアートワークがありません。「アートワークを追加…」でレイヤー付きファイルをこのドキュメントに取り込めます。</string>
 	<string name="outliner_filter_drawables">ドローアブル</string>
 	<string name="outliner_restriction_toggles">制限の切り替え</string>
 	<string name="outliner_column_selectable">選択可否列</string>
@@ -454,6 +481,9 @@
 	<string name="notice_display_source_artwork_unavailable">すべての描画オブジェクトには原画がないため、アトラスから表示しています。</string>
 	<string name="notice_atlas_repacked">アトラスを再パックしました。</string>
 	<string name="notice_import_artwork_notes">注記付きでアートワークをインポートしました。ログを参照してください。</string>
+	<string name="notice_import_artwork_added">アートワークを追加しました。</string>
+	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
+	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
 	<string name="notice_atlas_repack_superseded">再パックを中止しました: パック中にアトラスが変更されました。</string>
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
@@ -604,6 +634,8 @@
 	<string name="placement_options_angle">角度</string>
 	<string name="placement_options_scale_x">拡大縮小 X</string>
 	<string name="placement_options_scale_y">拡大縮小 Y</string>
+	<string name="import_options_alpha_threshold">アルファしきい値</string>
+	<string name="import_options_margin">初期メッシュの余白</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>

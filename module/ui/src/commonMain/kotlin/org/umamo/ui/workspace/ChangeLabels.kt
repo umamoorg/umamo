@@ -100,5 +100,8 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.document.atlasPin" -> stringResource(Res.string.history_document_atlas_pin)
 		"change.document.atlasUnpin" -> stringResource(Res.string.history_document_atlas_unpin)
 		"change.document.atlasRepack" -> stringResource(Res.string.history_document_atlas_repack)
+		"change.document.tileSource" -> stringResource(Res.string.history_document_tile_source)
+		"change.document.tileUnbind" -> stringResource(Res.string.history_document_tile_unbind)
+		"change.document.addArtwork" -> stringResource(Res.string.history_document_add_artwork)
 		else -> stringResource(Res.string.history_unknown)
 	}

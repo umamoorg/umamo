@@ -1,11 +1,14 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.ACLayerEntry
+import org.umamo.format.cmo3.model.gen.ACLayerGroup
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CLayerIdentifier
 import org.umamo.format.cmo3.model.gen.CLayerInputData
 import org.umamo.format.cmo3.model.gen.CLayerSelectorMap
 import org.umamo.format.cmo3.model.gen.CLayeredImage
@@ -21,10 +24,12 @@ import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
@@ -122,19 +127,22 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 	val layeredImages =
 		Cmo3Import.elementsOf(textureManager._rawImages).mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
 	val sources = ArrayList<ArtSource>(layeredImages.size)
-	val knownSourceIds = HashSet<String>()
+	val refByLayerGuidBySource = HashMap<String, Map<String, SourceLayerRef>>()
 	for (image in layeredImages) {
 		val guid = Cmo3Import.uuidOf(image.guid) ?: continue
-		if (!knownSourceIds.add(guid)) {
+		if (guid in refByLayerGuidBySource) {
 			continue
 		}
 		val name = image.name?.takeIf { candidate -> candidate.isNotEmpty() } ?: guid
+		val inventory = layeredImageInventory(image, ArtSourceId(guid))
+		refByLayerGuidBySource[guid] = inventory.refByLayerGuid
 		sources.add(
 			ArtSource(
 				id = ArtSourceId(guid),
 				name = name,
 				path = (image.psdFile as? FileRef)?.textPath?.takeIf { path -> path.isNotEmpty() },
 				format = name.substringAfterLast('.', missingDelimiterValue = "psd").lowercase(),
+				layers = inventory.rows,
 			),
 		)
 	}
@@ -165,7 +173,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 				width = resource.width,
 				height = resource.height,
 				placement = placementByModelImageGuid[key],
-				source = soleSourceLayerRefOf(modelImage, knownSourceIds),
+				source = soleSourceLayerRefOf(modelImage, refByLayerGuidBySource),
 			),
 		)
 	}
@@ -207,19 +215,122 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 }
 
 /**
+ * One decomposed artwork file's layer table: the inventory rows in the editor's stored order, and the
+ * binding each layer's guid resolves to, so a tile's binding and the inventory row it names are minted
+ * by the same pass and cannot disagree.
+ *
+ * @property List rows           The inventory rows.
+ * @property Map  refByLayerGuid Each image layer's binding, keyed by the layer entry's guid.
+ */
+private class LayeredImageInventory(val rows: List<ArtSourceLayer>, val refByLayerGuid: Map<String, SourceLayerRef>)
+
+/**
+ * The layer inventory of one decomposed artwork file: every image layer under its root group, in the
+ * editor's stored order.
+ *
+ * Keys are minted the way the PSD reader mints them, so a CMO3-origin document and a fresh read of
+ * the same file agree on a layer's identity: "lyid:<id>" when the editor recorded Photoshop's layer
+ * id (a stable key, the reader's own), else "name:<name>", which is unique within the image only by
+ * construction - a repeated name takes an order suffix ("name:1#2") on every duplicate after the
+ * first, and any suffixed key is unstable by definition, because the suffix depends on the tree order.
+ *
+ * @param CLayeredImage image    The layered image to walk.
+ * @param ArtSourceId   sourceId The source id the bindings carry.
+ * @return LayeredImageInventory The rows and the per-layer bindings, both empty when the image has no
+ *   layer tree.
+ */
+private fun layeredImageInventory(image: CLayeredImage, sourceId: ArtSourceId): LayeredImageInventory {
+	// CMO3: CLayeredImage field _rootLayer -> CLayerGroup, whose ACLayerGroup field _children holds the
+	// image layers (CLayer) and nested folders (CLayerGroup) of the decomposed file.
+	val root = image._rootLayer as? ACLayerGroup ?: return LayeredImageInventory(emptyList(), emptyMap())
+	val rows = ArrayList<ArtSourceLayer>()
+	val refByLayerGuid = HashMap<String, SourceLayerRef>()
+	val duplicateCountByKey = HashMap<String, Int>()
+
+	fun walk(group: ACLayerGroup, path: String) {
+		for (entry in Cmo3Import.elementsOf(group._children)) {
+			when (entry) {
+				is ACLayerGroup -> {
+					// CMO3: ACLayerEntry field name - the folder's own name, one segment of the path.
+					val name = entry.name.orEmpty()
+					walk(entry, if (path.isEmpty()) name else "$path/$name")
+				}
+				is CLayer -> {
+					// CMO3: ACLayerEntry fields name / isVisible / guid; CLayer field boundsOnImageDoc, a
+					// CRect (x / y / width / height) placing the layer on the source document.
+					val name = entry.name.orEmpty()
+					val bounds = entry.boundsOnImageDoc as? CRect
+					val photoshopLayerId = photoshopLayerIdOf(entry.layerIdentifier)
+					val baseKey = if (photoshopLayerId != null) "lyid:$photoshopLayerId" else "name:$name"
+					val duplicateOrdinal = (duplicateCountByKey[baseKey] ?: 0) + 1
+					duplicateCountByKey[baseKey] = duplicateOrdinal
+					val key = if (duplicateOrdinal == 1) baseKey else "$baseKey#$duplicateOrdinal"
+					val stable = photoshopLayerId != null && duplicateOrdinal == 1
+					Cmo3Import.uuidOf(entry.guid)?.let { layerGuid ->
+						refByLayerGuid[layerGuid] = SourceLayerRef(sourceId, layerKey = key, stableKey = stable)
+					}
+					rows.add(
+						ArtSourceLayer(
+							key = key,
+							name = name,
+							groupPath = path,
+							left = bounds?.x ?: 0,
+							top = bounds?.y ?: 0,
+							width = bounds?.width ?: 0,
+							height = bounds?.height ?: 0,
+							visible = entry.isVisible,
+						),
+					)
+				}
+			}
+		}
+	}
+	walk(root, "")
+	return LayeredImageInventory(rows, refByLayerGuid)
+}
+
+/**
+ * The Photoshop layer id the editor recorded for a decomposed layer, or null when it recorded none.
+ *
+ * @param Any? identifier The layer's CLayerIdentifier slot.
+ * @return Int? The id, as the PSD reader's lyid integer.
+ */
+private fun photoshopLayerIdOf(identifier: Any?): Int? {
+	// CMO3: CLayerIdentifier field layerId - Photoshop's lyid (the additional-layer-info block the PSD
+	// reader keys on, docs/format/PSD.md) written as up to four dash-separated hex bytes, big-endian
+	// ("00-00-06-28" is 1576); null when the import was not a PSD.  layerIdValue_testImpl mirrors it in
+	// decimal (-1 when absent) and is not read: the byte string is the field the editor names as the id.
+	val text = (identifier as? CLayerIdentifier)?.layerId?.takeIf { candidate -> candidate.isNotEmpty() } ?: return null
+	val byteTexts = text.split('-')
+	if (byteTexts.size > 4) {
+		return null
+	}
+	var value = 0L
+	for (byteText in byteTexts) {
+		val byteValue = byteText.toIntOrNull(16) ?: return null
+		if (byteValue !in 0..255) {
+			return null
+		}
+		value = (value shl 8) or byteValue.toLong()
+	}
+	return value.toInt()
+}
+
+/**
  * The source-layer binding of a model image, when exactly one artwork layer composites into it -
  * which is every model image across the corpus - else null.
  *
- * The binding is name-keyed and marked unstable: the editor's decomposed layer tree carries no
- * format-minted id, so the only key a CMO3 can offer is the layer's name at import, which holds
- * exactly as long as the artist's layer organisation does.
+ * The binding is the one the inventory walk minted for that layer (looked up by the layer entry's
+ * guid), so it names an inventory row by construction.  A layer the walk never listed - one outside
+ * its image's root tree - falls back to an unstable name key rather than losing the binding.
  *
- * @param CModelImage modelImage     The model image to resolve.
- * @param Set         knownSourceIds The layered-image guids the texture manager lists; a map keyed
- *   by an unlisted image binds to nothing rather than to a source the document does not have.
+ * @param CModelImage modelImage             The model image to resolve.
+ * @param Map         refByLayerGuidBySource Each listed layered image's per-layer bindings, keyed by
+ *   the image guid; a map keyed by an unlisted image binds to nothing rather than to a source the
+ *   document does not have.
  * @return SourceLayerRef? The binding, or null.
  */
-private fun soleSourceLayerRefOf(modelImage: CModelImage, knownSourceIds: Set<String>): SourceLayerRef? {
+private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource: Map<String, Map<String, SourceLayerRef>>): SourceLayerRef? {
 	// CMO3: CModelImage field inputFilterEnv -> ModelImageFilterEnv (a FilterEnv) field envValues, a map
 	// from filter-value ids to EnvValueSet; the set under mi_input_layerInputData holds the
 	// CLayerSelectorMap whose _imageToLayerInput maps each layered image's guid to the list of layer
@@ -243,9 +354,12 @@ private fun soleSourceLayerRefOf(modelImage: CModelImage, knownSourceIds: Set<St
 	if (inputCount != 1) {
 		return null
 	}
-	val sourceGuid = soleImageGuid?.takeIf { guid -> guid in knownSourceIds } ?: return null
-	// CMO3: CLayerInputData field layer -> ACLayerEntry field name.
-	val layerName = (soleInput?.layer as? ACLayerEntry)?.name?.takeIf { name -> name.isNotEmpty() } ?: return null
+	val sourceGuid = soleImageGuid ?: return null
+	val refByLayerGuid = refByLayerGuidBySource[sourceGuid] ?: return null
+	// CMO3: CLayerInputData field layer -> ACLayerEntry fields guid / name.
+	val layer = soleInput?.layer as? ACLayerEntry ?: return null
+	Cmo3Import.uuidOf(layer.guid)?.let { layerGuid -> refByLayerGuid[layerGuid] }?.let { ref -> return ref }
+	val layerName = layer.name?.takeIf { name -> name.isNotEmpty() } ?: return null
 	return SourceLayerRef(ArtSourceId(sourceGuid), layerKey = "name:$layerName", stableKey = false)
 }
 

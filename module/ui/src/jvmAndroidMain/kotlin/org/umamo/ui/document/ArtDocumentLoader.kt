@@ -12,6 +12,7 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.AtlasRepackRefusalReason
+import org.umamo.ui.model.describeImportNotice
 import org.umamo.ui.model.packModelAtOpen
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
@@ -90,24 +91,3 @@ internal fun buildArtDocument(
 	)
 	return DocumentLoad.Loaded(ArtDocument(path, puppet, packed.textures, SourceArtRasters(decodeRaster), initialLiveParams(puppet), notices))
 }
-
-/**
- * One import notice as a log line: plain English naming the layer and what happened to it, the same
- * shape the export notices log in.
- *
- * @param SourceArtImportNotice notice The notice.
- * @return String The log text.
- */
-internal fun describeImportNotice(notice: SourceArtImportNotice): String =
-	when (notice) {
-		is SourceArtImportNotice.NonRasterLayer -> "layer '${notice.layerName}' is a ${notice.kind.name.lowercase()} layer with no pixels; skipped"
-		is SourceArtImportNotice.EmptyLayer -> "layer '${notice.layerName}' has no opaque pixels; skipped"
-		is SourceArtImportNotice.BlendUnsupported -> "layer '${notice.layerName}' blends with ${notice.blend.name}, which has no equivalent; imported as Normal"
-		is SourceArtImportNotice.BlendApproximated -> "layer '${notice.layerName}' blends with ${notice.blend.name}; imported as the nearest mode, ${notice.mappedTo.name}"
-		is SourceArtImportNotice.ClipBaseMissing -> "layer '${notice.layerName}' clips to the layer below but has none in its folder; imported unclipped"
-		is SourceArtImportNotice.ChannelMaskDropped -> "layer '${notice.layerName}' writes only some color channels; imported writing all of them"
-		is SourceArtImportNotice.FolderBlendUnsupported -> "folder '${notice.groupPath}' blends with ${notice.blend.name}, which has no equivalent; its part composites as Normal"
-		is SourceArtImportNotice.FolderClipDropped -> "folder '${notice.groupPath}' clips to the layer below; its part imports unclipped"
-		is SourceArtImportNotice.LayerLargerThanPage -> "layer '${notice.layerName}' is larger than the largest atlas page; left unpacked"
-		is SourceArtImportNotice.LayerNotPacked -> "layer '${notice.layerName}' could not be packed (${notice.reason}); left unpacked"
-	}
