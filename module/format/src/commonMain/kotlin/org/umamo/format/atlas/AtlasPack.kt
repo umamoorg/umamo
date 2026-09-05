@@ -186,7 +186,8 @@ public enum class AtlasPackSkipReason {
 
 	/**
 	 * The tile is fixed at a spot that does not fit inside the largest page the pack may use - its
-	 * footprint (trim, reserve, and gutter) runs past the right or bottom edge.
+	 * opaque art runs past the right or bottom edge.  Reserve and gutter alone spilling past the edge
+	 * do not refuse: they are clamped, the way a free pack's page-border gutter is.
 	 */
 	FixedOutsidePage,
 }
@@ -280,8 +281,10 @@ public class AtlasPackResult(
  * @property Int pageIndex The page it stays on.
  * @property Int left      The footprint's left edge, gutter included, clamped to the page.
  * @property Int top       The footprint's top edge, gutter included, clamped to the page.
- * @property Int right     The footprint's right edge, exclusive, gutter included.
- * @property Int bottom    The footprint's bottom edge, exclusive, gutter included.
+ * @property Int right     The footprint's right edge, exclusive, gutter included, clamped to the page.
+ * @property Int bottom    The footprint's bottom edge, exclusive, gutter included, clamped to the page.
+ * @property Int artRight  The opaque art's right edge, exclusive - what decides whether the tile fits.
+ * @property Int artBottom The opaque art's bottom edge, exclusive.
  */
 private class FixedFootprint(
 	val itemIndex: Int,
@@ -290,6 +293,8 @@ private class FixedFootprint(
 	val top: Int,
 	val right: Int,
 	val bottom: Int,
+	val artRight: Int,
+	val artBottom: Int,
 ) {
 	/** The footprint as the rect packer's seed. */
 	fun toSeed(): RectPackSeed = RectPackSeed(pageIndex, left, top, right - left, bottom - top)
@@ -311,9 +316,10 @@ private class FixedFootprint(
  * and gutter, through its affine) seeds its page before any free tile is placed, so the free tiles
  * pack around it, and it is painted through its own affine after them.  Its page index is kept as
  * given, so every page up to it exists even if nothing else lands there (an empty page crops to its
- * used extent like any other).  A fixed footprint that does not fit inside [AtlasPackOptions.maxPageSize]
+ * used extent like any other).  A fixed tile whose art does not fit inside [AtlasPackOptions.maxPageSize]
  * is reported as [AtlasPackSkipReason.FixedOutsidePage] rather than moved - the caller decided to
- * keep it, so the packer never second-guesses where.
+ * keep it, so the packer never second-guesses where; reserve and gutter that spill past the edge are
+ * clamped to it, not refused.
  *
  * @param List             items   The tiles to pack; keys must be unique.
  * @param AtlasPackOptions options The packing policy.
@@ -365,16 +371,24 @@ public fun packAtlas(
 		val fixed = item.fixed
 		if (fixed != null) {
 			val bounds = affineBounds(fixed.tileToPage, reserveLeft.toFloat(), reserveTop.toFloat(), reserveRight.toFloat(), reserveBottom.toFloat())
+			val artBounds =
+				affineBounds(fixed.tileToPage, trim.left.toFloat(), trim.top.toFloat(), (trim.left + trim.width).toFloat(), (trim.top + trim.height).toFloat())
 			// An overhang past the top or left is cropped by the composition, so the footprint starts at
-			// the page edge there; past the right or bottom it decides whether the tile fits at all.
+			// the page edge there.  Past the right or bottom, only the ART decides whether the tile fits:
+			// a reserve or gutter spilling over the edge is clamped to it, exactly as a free pack's own
+			// page-border gutter is - a tile the free pack placed flush against the edge would otherwise
+			// be refused as fixed, since its mesh reach re-measured from page coordinates can round a
+			// pixel wider than the reach it was packed with.
 			fixedFootprints.add(
 				FixedFootprint(
 					itemIndex = itemIndex,
 					pageIndex = fixed.pageIndex,
 					left = floor(bounds[0] - options.gutter).toInt().coerceAtLeast(0),
 					top = floor(bounds[1] - options.gutter).toInt().coerceAtLeast(0),
-					right = ceil(bounds[2] + options.gutter).toInt().coerceAtLeast(0),
-					bottom = ceil(bounds[3] + options.gutter).toInt().coerceAtLeast(0),
+					right = ceil(bounds[2] + options.gutter).toInt().coerceIn(0, options.maxPageSize),
+					bottom = ceil(bounds[3] + options.gutter).toInt().coerceIn(0, options.maxPageSize),
+					artRight = ceil(artBounds[2]).toInt().coerceAtLeast(0),
+					artBottom = ceil(artBounds[3]).toInt().coerceAtLeast(0),
 				),
 			)
 			continue
@@ -394,11 +408,11 @@ public fun packAtlas(
 			.thenBy { request -> items[request.itemIndex].key },
 	)
 
-	// A fixed footprint past the largest page can never be kept; every other one seeds each trial
-	// pack, so the side the pack settles on always holds them all.
+	// A fixed tile whose ART runs past the largest page can never be kept; every other one seeds each
+	// trial pack, so the side the pack settles on always holds them all.
 	val keptFootprints = ArrayList<FixedFootprint>(fixedFootprints.size)
 	for (footprint in fixedFootprints) {
-		if (footprint.right > options.maxPageSize || footprint.bottom > options.maxPageSize) {
+		if (footprint.artRight > options.maxPageSize || footprint.artBottom > options.maxPageSize) {
 			skipped.add(AtlasPackSkip(items[footprint.itemIndex].key, AtlasPackSkipReason.FixedOutsidePage))
 		} else {
 			keptFootprints.add(footprint)

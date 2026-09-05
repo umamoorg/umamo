@@ -41,6 +41,24 @@ internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit,
 	)
 
 /**
+ * The add-artwork command: a second (third, ...) artwork file joins the OPEN document as an undoable
+ * edit - the Sources space's own action, also reachable from the palette.  Registered with the export
+ * group because, like them, it closes over the open document.
+ *
+ * @param Function canAdd        Whether a puppet document is open, queried live.
+ * @param Function onAddArtwork  Runs the add (picker, read, append, pack, commit).
+ * @return List<Command> The command to register.
+ */
+internal fun fileAddArtworkCommands(canAdd: () -> Boolean, onAddArtwork: () -> Unit): List<Command> =
+	listOf(
+		Command(
+			"file.addArtwork",
+			title = Res.string.cmd_file_add_artwork,
+			availability = CommandAvailability { canAdd() },
+		) { onAddArtwork() },
+	)
+
+/**
  * The export commands, one per target format, available only while a puppet document is open.
  *
  * Neither carries a default chord.  With two formats there is no honest meaning for one "export"

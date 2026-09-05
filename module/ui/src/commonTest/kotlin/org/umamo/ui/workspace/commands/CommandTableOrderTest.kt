@@ -222,6 +222,7 @@ class CommandTableOrderTest {
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
+		assertEquals(listOf("file.addArtwork"), fileAddArtworkCommands({ true }) {}.map { command -> command.id })
 	}
 
 	/**

@@ -16,6 +16,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -294,6 +295,34 @@ class SourceArtImportTest {
 		assertTrue(none.parameters.isEmpty())
 		assertEquals(ParameterTemplate.Humanoid, ParameterTemplate.fromKey("humanoid"))
 		assertEquals(ParameterTemplate.Default, ParameterTemplate.fromKey("not-a-template"), "a stale setting falls back to the default")
+	}
+
+	/**
+	 * Added to an open document, a file's ids continue the document's own sequences and its root
+	 * order lands after the existing children - so the additions can be appended without a rename.
+	 * The same additions over a blank model are exactly what a fresh import assembles.
+	 */
+	@Test
+	fun additionsContinueTheExistingIdSequences() {
+		val fresh = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val existing =
+			fresh.copy(
+				drawables = fresh.drawables.take(1).map { drawable -> drawable.copy(id = DrawableId("ArtMesh3")) },
+				parts = fresh.parts.take(1).map { part -> part.copy(id = PartId("Part2"), children = emptyList()) },
+				rootChildren = listOf(OrgChild.Part(PartId("Part2")), OrgChild.Drawable(DrawableId("ArtMesh3"))),
+				atlas = fresh.atlas.copy(tiles = fresh.atlas.tiles.take(1)),
+			)
+
+		val added = SourceArtImport.additionsFor(fixture(), ArtSourceDescriptor("second.psd", null, "psd"), SourceArtImportOptions(), existing).additions
+		assertEquals(ArtSourceId("art-1"), added.source.id, "the source continues past art-0")
+		assertEquals((4..9).map { index -> DrawableId("ArtMesh$index") }, added.drawables.map { drawable -> drawable.id }, "drawables continue past ArtMesh3")
+		assertEquals((3..6).map { index -> PartId("Part$index") }, added.parts.map { part -> part.id }, "parts continue past Part2")
+		assertTrue(added.tiles.all { tile -> tile.id.raw.startsWith("art-1/") }, "tiles are keyed under the new source")
+		assertTrue(added.tiles.all { tile -> tile.source?.sourceId == ArtSourceId("art-1") })
+		assertEquals(5, added.rootChildren.size, "the file's own top-level order, to append after the existing children")
+
+		val overBlank = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(), fresh.copy(drawables = emptyList(), parts = emptyList(), rootChildren = emptyList(), atlas = PuppetAtlas.Empty, sources = emptyList())).additions
+		assertEquals(fresh.drawables.map { drawable -> drawable.id }, overBlank.drawables.map { drawable -> drawable.id }, "over a blank model the additions are the fresh import's")
 	}
 
 	/** Two layers sharing a weak key still get distinct tiles, disambiguated by draw order. */

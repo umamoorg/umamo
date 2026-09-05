@@ -115,6 +115,7 @@ data class UmamoIcons(
 	val logsTerminal: UmamoIcon,
 	val copy: UmamoIcon,
 	val floppy: UmamoIcon,
+	val sources: UmamoIcon,
 	val editorModeObject: UmamoIcon,
 	val editorModeEdit: UmamoIcon,
 	val meshSelectVertex: UmamoIcon,
@@ -279,6 +280,8 @@ val LocalUmamoIcons =
 		copy = simpleIcon("M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.66 M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"),
 		// Tabler "floppy" (viewBox 0 0 24 24, stroked).
 		floppy = simpleIcon("M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2 M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M14 4l0 4l-6 0l0 -4"),
+		// Tabler "layers-selected" (viewBox 0 0 24 24, stroked).
+		sources = simpleIcon("M8 10.5l6.492 -6.492 M13.496 16l6.504 -6.504l-6.504 6.504 M8.586 15.414l10.827 -10.827 M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8 M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2"),
 		// The icons below are adapted from the Blender project's icon set (GPL-2.0-or-later, compatible
 		// with this project's GPL-3.0; source SVGs archived under docs/design/icons/).  Each keeps
 		// Blender's two-tone contrast: a full-strength highlight layer over a muted context layer.
