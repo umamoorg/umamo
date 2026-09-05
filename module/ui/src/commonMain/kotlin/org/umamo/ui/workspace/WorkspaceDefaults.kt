@@ -69,8 +69,8 @@ fun uniqueWorkspaceName(base: String, existing: List<Workspace>): String {
 
 /**
  * The seeded default layout used when no saved layout exists. Three workspaces, matching the agreed
- * defaults: "Modelling" is a single 2D viewport; "Texture" is a UV editor beside a 2D viewport;
- * "Physics" is a single 2D viewport.  Modelling is active.  Each built-in seeds name = null so its tab
+ * defaults: "Modelling" is a single 2D viewport; "Texture" is the Sources table beside a UV editor
+ * beside a 2D viewport; "Physics" is a single 2D viewport.  Modelling is active.  Each built-in seeds name = null so its tab
  * stays localized.
  *
  * @return InterfaceLayout The default three-workspace layout.
@@ -87,9 +87,15 @@ fun defaultLayout(): InterfaceLayout {
 			root =
 				SplitNode(
 					orientation = SplitOrientation.Horizontal,
-					ratio = 0.5f,
-					first = LeafArea(newAreaId(), SpaceKind.UvEditor),
-					second = LeafArea(newAreaId(), SpaceKind.Viewport2D),
+					ratio = 0.22f,
+					first = LeafArea(newAreaId(), SpaceKind.Sources),
+					second =
+						SplitNode(
+							orientation = SplitOrientation.Horizontal,
+							ratio = 0.5f,
+							first = LeafArea(newAreaId(), SpaceKind.UvEditor),
+							second = LeafArea(newAreaId(), SpaceKind.Viewport2D),
+						),
 				),
 		)
 	val physics =

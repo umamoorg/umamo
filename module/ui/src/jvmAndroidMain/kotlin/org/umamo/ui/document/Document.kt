@@ -6,6 +6,7 @@ import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
+import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3Model
@@ -120,6 +121,54 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 }
 
 /**
+ * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
+ * document open and Add Artwork into an open document.
+ *
+ * @property SourceArt art  The parsed source art.
+ * @property FileKind  kind The format it was read from.
+ */
+class ReadArtwork(
+	val art: SourceArt,
+	val kind: FileKind,
+)
+
+/**
+ * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
+ * or PNG / BMP / JPEG / WebP / TIFF as a one-layer document), and null for anything else - a model
+ * format, an unrecognised file, or a file that fails to parse, which is logged.
+ *
+ * @param ByteArray bytes The file contents.
+ * @param String    name  The file name (the extension fallback for detection; the log's name).
+ * @return ReadArtwork? The art and its format, or null.
+ */
+fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
+	val codec = FormatRegistry.detect(bytes, name) ?: return null
+	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind) } }
+		.getOrElse { failure ->
+			UmamoLog.error("failed to read artwork $name", failure)
+			null
+		}
+}
+
+/**
+ * The source art [codec] reads out of [bytes]: a layered reader's document as it is, a flat raster
+ * wrapped as one layer, or null for a kind that is not artwork at all.
+ *
+ * @param FormatCodec codec The detected codec.
+ * @param ByteArray   bytes The file contents.
+ * @param String      name  The file name (a flat raster's one layer is named after it).
+ * @return SourceArt? The art, or null for a non-art kind.
+ */
+private fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): SourceArt? =
+	// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
+	// type that kind's codec is known to produce.
+	when (codec.kind) {
+		FileKind.Psd, FileKind.Clip, FileKind.Kra -> codec.read(bytes) as SourceArt
+		FileKind.Png, FileKind.Bmp, FileKind.Jpeg, FileKind.WebP, FileKind.Tiff -> rasterToSourceArt(codec.read(bytes) as RasterImage, name)
+		FileKind.Cmo3, FileKind.Moc3, FileKind.Json, FileKind.Uma -> null
+	}
+
+/**
  * Loads [bytes] into a [Document] by detecting the format from the contents - magic bytes via
  * [FormatRegistry], with a file-extension fallback on [name] - then building the matching document:
  * a `.cmo3` imports as the puppet it holds, a layered artwork file (PSD / CLIP / KRA) or a flat
@@ -145,18 +194,17 @@ fun loadDocument(
 			UmamoLog.warn("$path is not a format Umamo recognizes")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 		}
-		// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
-		// type that kind's codec is known to produce.
-		when (val kind = codec.kind) {
-			FileKind.Cmo3 -> buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
-			FileKind.Psd, FileKind.Clip, FileKind.Kra -> buildArtDocument(codec.read(bytes) as SourceArt, kind, name, path, importOptions)
-			FileKind.Png, FileKind.Bmp, FileKind.Jpeg, FileKind.WebP, FileKind.Tiff ->
-				buildArtDocument(rasterToSourceArt(codec.read(bytes) as RasterImage, name), kind, name, path, importOptions)
-			FileKind.Moc3, FileKind.Json, FileKind.Uma -> {
-				UmamoLog.warn("$path is a .${kind.extension} file, which the editor shell can't open")
-				DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
-			}
+		if (codec.kind == FileKind.Cmo3) {
+			// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
+			// type that kind's codec is known to produce.
+			return@runCatching buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
 		}
+		val artwork = artworkOf(codec, bytes, name)
+		if (artwork == null) {
+			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")
+			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
+		}
+		buildArtDocument(artwork, codec.kind, name, path, importOptions)
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
