@@ -155,6 +155,16 @@ interface SourceLayer {
 	 */
 	val visible: Boolean get() = true
 
+	/**
+	 * Whether [id] is a format-minted identity that survives a rename or reorder in the art program (a
+	 * CLIP or Krita layer uuid, a PSD lyid), as opposed to a name-and-order fallback that holds only as
+	 * long as the artist's layer organisation does.  Defaults to true because every reader mints a
+	 * stable id wherever the format offers one; a reader overrides it to false for the layers where it
+	 * had to fall back.  The re-import join trusts a stable key outright and routes the rest through
+	 * review.
+	 */
+	val idIsStable: Boolean get() = true
+
 	/** Draw order within the source document (top-most first), used to disambiguate fallbacks. */
 	val order: Int
 

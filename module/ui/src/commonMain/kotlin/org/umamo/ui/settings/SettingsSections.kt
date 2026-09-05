@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.interop.art.ParameterTemplate
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
@@ -40,6 +41,9 @@ import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
+import org.umamo.ui.resources.settings_import_parameter_template
+import org.umamo.ui.resources.settings_import_parameter_template_humanoid
+import org.umamo.ui.resources.settings_import_parameter_template_none
 import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
 import org.umamo.ui.resources.settings_interface_theme
@@ -117,6 +121,36 @@ internal fun InterfaceSection() {
 				onValueChange = { committed -> historyLimit = committed },
 				range = HistorySettings.HISTORY_LIMIT_RANGE,
 				modifier = Modifier.width(80.dp),
+			)
+		}
+	}
+}
+
+/** The settings key for the parameter set an artwork import seeds; the values are ParameterTemplate keys. */
+internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
+
+/**
+ * The Import section: what an artwork import seeds a new model with.  One row today - the parameter
+ * template - stored as the template's key so a later template is one more option here and one more
+ * enum entry, nothing else.  The import reads the key at the moment it runs, so the change applies
+ * to the next import.
+ */
+@Composable
+internal fun ImportSection() {
+	var templateKey by rememberStringSetting(IMPORT_PARAMETER_TEMPLATE_KEY, ParameterTemplate.Default.key)
+	val templateLabels =
+		linkedMapOf(
+			ParameterTemplate.Humanoid.key to stringResource(Res.string.settings_import_parameter_template_humanoid),
+			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
+		)
+
+	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
+		SettingRow(label = stringResource(Res.string.settings_import_parameter_template)) {
+			SelectField(
+				selected = ParameterTemplate.fromKey(templateKey).key,
+				options = templateLabels.keys.toList(),
+				label = { value -> templateLabels[value] ?: value },
+				onSelect = { value -> templateKey = value },
 			)
 		}
 	}

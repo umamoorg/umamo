@@ -14,13 +14,17 @@ import org.umamo.runtime.model.AtlasTileId
  * decoding every tile up front would stall the open by seconds on a real model.  A decoded tile is
  * retained for the store's life, which is the document's life - a replaced document drops the store.
  *
- * Format-agnostic by construction: the byte supplier is injected, so the CMO3 retained graph fills it
- * today and a layered-art reader can fill the same type later.
+ * Format-agnostic by construction: the decoder is injected.  A CMO3 document supplies one over its
+ * retained graph's PNG bytes ([fromPng]); an artwork-origin document, whose reader already decoded
+ * every layer, supplies one over those rasters directly.
  *
- * @property Function readBytes Yields a tile's encoded pixels, or null when it has none.
+ * @property Function decode Yields a tile's decoded pixels, or null when it has none or they will not
+ *   decode.  Called from any thread, possibly several at once, so it must share nothing mutable - and
+ *   it must return the SAME instance for the same tile on every call when it can, because the
+ *   renderer's texture cache and the viewport's freshness test compare decoded images by identity.
  */
 class SourceArtRasters(
-	private val readBytes: (AtlasTileId) -> ByteArray?,
+	private val decode: (AtlasTileId) -> DecodedImage?,
 ) {
 	// A null value is a remembered failure (no bytes, or bytes that will not decode), which is why this
 	// is not a getOrPut - getOrPut treats a stored null as absent and would retry the decode every time.
@@ -53,25 +57,36 @@ class SourceArtRasters(
 	 * A tile's pixels, decoded fresh and cached nowhere - safe to call from any thread, including
 	 * several at once.
 	 *
-	 * The uncached twin of [rasterFor], for callers that own their own result: the bytes come from an
-	 * immutable archive and the decoder is stateless, so nothing here is shared.  Costs a repeat decode
-	 * when a tile is already cached, which is the price of not sharing a cache across threads.
+	 * The uncached twin of [rasterFor], for callers that own their own result: the injected decoder
+	 * shares nothing mutable, so nothing here is shared.  Costs a repeat decode when a tile is already
+	 * cached (for a store over encoded bytes), which is the price of not sharing a cache across threads.
 	 *
 	 * @param AtlasTileId tileId The tile to read.
 	 * @return DecodedImage? The decoded raster, or null when the tile has no usable pixels.
 	 */
-	fun decodeRaster(tileId: AtlasTileId): DecodedImage? =
-		readBytes(tileId)?.let { bytes ->
-			try {
-				val image = PngCodec.read(bytes)
-				DecodedImage(image.rgba, image.width, image.height)
-			} catch (_: Exception) {
-				null
-			}
-		}
+	fun decodeRaster(tileId: AtlasTileId): DecodedImage? = decode(tileId)
 
 	companion object {
 		/** The store a document with no source art surfaces. */
 		val EMPTY: SourceArtRasters = SourceArtRasters { null }
+
+		/**
+		 * A store over encoded PNG bytes - the CMO3 case, where every tile's pixels sit in the retained
+		 * graph as an embedded PNG and decoding is deferred to first request.
+		 *
+		 * @param Function readBytes Yields a tile's PNG bytes, or null when it has none.
+		 * @return SourceArtRasters The store; bytes that will not decode read as no raster.
+		 */
+		fun fromPng(readBytes: (AtlasTileId) -> ByteArray?): SourceArtRasters =
+			SourceArtRasters { tileId ->
+				readBytes(tileId)?.let { bytes ->
+					try {
+						val image = PngCodec.read(bytes)
+						DecodedImage(image.rgba, image.width, image.height)
+					} catch (_: Exception) {
+						null
+					}
+				}
+			}
 	}
 }

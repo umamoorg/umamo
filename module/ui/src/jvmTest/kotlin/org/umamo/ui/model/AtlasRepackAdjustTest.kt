@@ -109,7 +109,7 @@ class AtlasRepackAdjustTest {
 				atlas = PuppetAtlas(pages = emptyList(), tiles = tiles),
 			)
 		val pngByTile = tileIds.withIndex().associate { (tileIndex, tileId) -> tileId to encodeAtlasPng(rasters[tileIndex]) }
-		return Fixture(model, SourceArtRasters { tileId -> pngByTile[tileId] })
+		return Fixture(model, SourceArtRasters.fromPng { tileId -> pngByTile[tileId] })
 	}
 
 	@Test

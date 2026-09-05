@@ -8,35 +8,47 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CLayerInputData
 import org.umamo.format.cmo3.model.gen.CLayerSelectorMap
+import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.EnvValueSet
+import org.umamo.format.cmo3.model.gen.FilterEnv
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
+import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetAtlas
+import org.umamo.runtime.model.SourceLayerRef
 
 /**
  * A CMO3's layered-art web read as model state: the atlas itself, which tile each drawable samples,
- * and where each tile's pixels live in the graph.
+ * where each tile's pixels live in the graph, and the artwork files the editor decomposed to build it.
  *
  * @property PuppetAtlas atlas               The document's pages and tiles, with each tile's placement.
  * @property Map         tileIdByDrawableId  Raw drawable id to the tile it samples; absent when it has none.
  * @property Map         imageResourceByTile The graph resource holding each tile's pixels, for the
  *   document's pixel supplier - metadata ingest reads no bytes, so decoding stays the caller's.
+ * @property List        sources             The layered images the editor imported, as the model's
+ *   source list: identity, name, and the advisory PSD path, with NO layer inventory - the editor's
+ *   decomposed layer tree is walked by a later phase.
  */
 public class Cmo3AtlasIngest(
 	public val atlas: PuppetAtlas,
 	public val tileIdByDrawableId: Map<String, AtlasTileId>,
 	public val imageResourceByTile: Map<AtlasTileId, CImageResource>,
+	public val sources: List<ArtSource> = emptyList(),
 ) {
 	public companion object {
 		/** What a document with no texture manager, or no model images, ingests to. */
@@ -101,6 +113,32 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		}
 	}
 
+	// CMO3: CTextureManager field _rawImages -> LayeredImageWrapper field image -> CLayeredImage fields
+	// guid / name / psdFile - the artwork files the editor decomposed at import, each keyed by the guid
+	// the selector maps below reference.  psdFile is the external-reference <file> shape: its text is
+	// the absolute path on the importing machine (docs/format/CMO3.md section 4), advisory here.  The
+	// field's legacy name notwithstanding, a flat raster import lands in the same structure, so the
+	// format is read off the name's extension rather than assumed.
+	val layeredImages =
+		Cmo3Import.elementsOf(textureManager._rawImages).mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
+	val sources = ArrayList<ArtSource>(layeredImages.size)
+	val knownSourceIds = HashSet<String>()
+	for (image in layeredImages) {
+		val guid = Cmo3Import.uuidOf(image.guid) ?: continue
+		if (!knownSourceIds.add(guid)) {
+			continue
+		}
+		val name = image.name?.takeIf { candidate -> candidate.isNotEmpty() } ?: guid
+		sources.add(
+			ArtSource(
+				id = ArtSourceId(guid),
+				name = name,
+				path = (image.psdFile as? FileRef)?.textPath?.takeIf { path -> path.isNotEmpty() },
+				format = name.substringAfterLast('.', missingDelimiterValue = "psd").lowercase(),
+			),
+		)
+	}
+
 	// CMO3: CTextureManager field _modelImageGroups -> CModelImageGroup field _modelImages.
 	val modelImages =
 		Cmo3Import.elementsOf(textureManager._modelImageGroups)
@@ -127,7 +165,7 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 				width = resource.width,
 				height = resource.height,
 				placement = placementByModelImageGuid[key],
-				sourceLayerName = soleSourceLayerNameOf(modelImage),
+				source = soleSourceLayerRefOf(modelImage, knownSourceIds),
 			),
 		)
 	}
@@ -164,29 +202,51 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 		PuppetAtlas(pages, tiles, storedUvsAddressPages = anyDrawableSamplesAPage),
 		tileIdByDrawableId,
 		imageResourceByTile,
+		sources,
 	)
 }
 
 /**
- * The originating artwork layer's name when a model image composites exactly one.
+ * The source-layer binding of a model image, when exactly one artwork layer composites into it -
+ * which is every model image across the corpus - else null.
  *
- * More than one input means no single layer is the source (the composite is), so this reports none
- * rather than picking arbitrarily.  Recorded for a future source binding; nothing reads it yet.
+ * The binding is name-keyed and marked unstable: the editor's decomposed layer tree carries no
+ * format-minted id, so the only key a CMO3 can offer is the layer's name at import, which holds
+ * exactly as long as the artist's layer organisation does.
  *
- * @param CModelImage modelImage The pooled model image.
- * @return String? The sole input layer's name, or null when there is not exactly one named input.
+ * @param CModelImage modelImage     The model image to resolve.
+ * @param Set         knownSourceIds The layered-image guids the texture manager lists; a map keyed
+ *   by an unlisted image binds to nothing rather than to a source the document does not have.
+ * @return SourceLayerRef? The binding, or null.
  */
-private fun soleSourceLayerNameOf(modelImage: CModelImage): String? {
-	// CMO3: CModelImage field inputFilterEnv -> CLayerSelectorMap field _imageToLayerInput, a map from
-	// the layered image to the list of layer inputs composited from it.
-	val selectorMap = modelImage.inputFilterEnv as? CLayerSelectorMap ?: return null
-	val inputs =
-		Cmo3Import.elementsOf(selectorMap._imageToLayerInput).flatMap { perImage ->
-			Cmo3Import.elementsOf(perImage).filterIsInstance<CLayerInputData>()
+private fun soleSourceLayerRefOf(modelImage: CModelImage, knownSourceIds: Set<String>): SourceLayerRef? {
+	// CMO3: CModelImage field inputFilterEnv -> ModelImageFilterEnv (a FilterEnv) field envValues, a map
+	// from filter-value ids to EnvValueSet; the set under mi_input_layerInputData holds the
+	// CLayerSelectorMap whose _imageToLayerInput maps each layered image's guid to the list of layer
+	// inputs composited from it.  Found by the value's type rather than the id: the id is an Id node
+	// whose equality the deserializer does not promise, and only one set holds a selector map.
+	val filterEnv = modelImage.inputFilterEnv as? FilterEnv ?: return null
+	val selectorMap =
+		Cmo3Import.elementsOf(filterEnv.envValues).filterIsInstance<EnvValueSet>()
+			.firstNotNullOfOrNull { valueSet -> valueSet.value as? CLayerSelectorMap } ?: return null
+	val imageToInputs = selectorMap._imageToLayerInput as? Map<*, *> ?: return null
+	var soleImageGuid: String? = null
+	var soleInput: CLayerInputData? = null
+	var inputCount = 0
+	for ((imageGuid, inputs) in imageToInputs) {
+		for (input in Cmo3Import.elementsOf(inputs).filterIsInstance<CLayerInputData>()) {
+			inputCount++
+			soleImageGuid = Cmo3Import.uuidOf(imageGuid)
+			soleInput = input
 		}
-	val soleInput = inputs.singleOrNull() ?: return null
+	}
+	if (inputCount != 1) {
+		return null
+	}
+	val sourceGuid = soleImageGuid?.takeIf { guid -> guid in knownSourceIds } ?: return null
 	// CMO3: CLayerInputData field layer -> ACLayerEntry field name.
-	return (soleInput.layer as? ACLayerEntry)?.name?.takeIf { name -> name.isNotEmpty() }
+	val layerName = (soleInput?.layer as? ACLayerEntry)?.name?.takeIf { name -> name.isNotEmpty() } ?: return null
+	return SourceLayerRef(ArtSourceId(sourceGuid), layerKey = "name:$layerName", stableKey = false)
 }
 
 /**

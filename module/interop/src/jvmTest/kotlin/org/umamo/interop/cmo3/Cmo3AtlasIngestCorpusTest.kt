@@ -376,4 +376,37 @@ class Cmo3AtlasIngestCorpusTest {
 			"a rotated placement composes to $worstRotatedResidual, past the $tolerance bound",
 		)
 	}
+
+	/**
+	 * Every CMO3-origin tile that recovers a source binding names one of the layered images the texture
+	 * manager lists, keyed by layer name and marked unstable: the editor's decomposed layer tree mints
+	 * no id, so a name is all a CMO3 can offer, and the model must say so rather than pass it off as a
+	 * stable key.
+	 */
+	@Test
+	fun corpusTilesBindToTheLayeredImagesTheEditorDecomposed() {
+		val files = corpusFiles()
+		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		for (file in files) {
+			val puppet = Cmo3Import.fromModelSource(Cmo3.read(file.readBytes()).root as CModelSource)
+			if (puppet.atlas.tiles.isEmpty()) {
+				// The blank skeleton: no PSD was ever imported into it, so there is nothing to bind.
+				println("${file.name}: no tiles, nothing to bind")
+				continue
+			}
+			val sourceIds = puppet.sources.map { source -> source.id }.toSet()
+			assertTrue(puppet.sources.isNotEmpty(), "${file.name}: the layered images the editor imported are listed")
+			assertTrue(puppet.sources.all { source -> source.format.isNotEmpty() }, "${file.name}: every source records its format")
+			var bound = 0
+			for (tile in puppet.atlas.tiles) {
+				val source = tile.source ?: continue
+				bound++
+				assertTrue(source.sourceId in sourceIds, "${file.name}: tile '${tile.name}' binds to a listed source")
+				assertTrue(source.layerKey.startsWith("name:"), "${file.name}: tile '${tile.name}' is keyed by layer name")
+				assertTrue(!source.stableKey, "${file.name}: a name key is recorded as unstable")
+			}
+			assertTrue(bound > 0, "${file.name}: at least one tile recovers its source layer")
+			println("${file.name}: ${puppet.sources.size} source(s), $bound of ${puppet.atlas.tiles.size} tiles bound")
+		}
+	}
 }

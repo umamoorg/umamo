@@ -67,10 +67,12 @@
 	<string name="menu_export">Export</string>
 	<string name="menu_import_cmo3">CMO3…</string>
 	<string name="menu_import_moc3">MOC3…</string>
+	<string name="menu_import_artwork">Artwork…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
 	<string name="cmd_import_cmo3">Import CMO3…</string>
 	<string name="cmd_import_moc3">Import MOC3…</string>
+	<string name="cmd_import_artwork">Import Artwork…</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
@@ -218,6 +220,7 @@
 	<string name="open_failed_parse">Could not open %1$s.  The file may be damaged.</string>
 	<string name="open_failed_missing_manifest">Could not import %1$s.  Its model3.json manifest was not found next to the file.</string>
 	<string name="open_failed_missing_texture">Could not import %1$s.  A texture referenced by its model3.json is missing or unreadable.</string>
+	<string name="open_failed_no_art_layers">%1$s has no layers with pixels to import.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
@@ -497,6 +500,7 @@
 	<string name="notice_display_partial_source_artwork">Some drawables have no source artwork and are still displaying from the atlas.</string>
 	<string name="notice_display_source_artwork_unavailable">All drawables do not have source artwork layers and are displaying from the atlas.</string>
 	<string name="notice_atlas_repacked">Atlas repacked.</string>
+	<string name="notice_import_artwork_notes">Artwork imported with notes.  See the log.</string>
 	<string name="notice_atlas_repack_superseded">Repack canceled: the atlas changed while packing.</string>
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
@@ -717,6 +721,7 @@
 	<string name="settings_category_viewport">Viewport</string>
 	<string name="settings_category_keybindings">Keybindings</string>
 	<string name="settings_category_pen">Pen</string>
+	<string name="settings_category_import">Import</string>
 	<!-- Interface section. Language names are endonyms shown verbatim, so they are NOT string
 	resources. -->
 	<string name="settings_interface_theme">Theme</string>
@@ -740,6 +745,9 @@
 	<string name="settings_keybindings_reassign">Reassign</string>
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
+	<string name="settings_import_parameter_template">Parameter Template</string>
+	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
+	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
 	<string name="settings_viewport_zoom_step">Zoom Step (%)</string>
 	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>

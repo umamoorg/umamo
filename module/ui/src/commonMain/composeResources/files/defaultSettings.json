@@ -52,6 +52,9 @@
 			"faceOffKey": "#44888888"
 		}
 	},
+	"import": {
+		"parameterTemplate": "humanoid"
+	},
 	"app": {
 		"launchCount": 0
 	}

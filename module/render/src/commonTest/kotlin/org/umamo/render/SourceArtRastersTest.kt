@@ -203,7 +203,7 @@ class SourceArtRastersTest {
 	fun rasterDecodesOnceAndCaches() {
 		var readCount = 0
 		val store =
-			SourceArtRasters { _ ->
+			SourceArtRasters.fromPng { _ ->
 				readCount++
 				onePixelPng()
 			}
@@ -219,7 +219,7 @@ class SourceArtRastersTest {
 	fun rasterRemembersFailures() {
 		var readCount = 0
 		val store =
-			SourceArtRasters { _ ->
+			SourceArtRasters.fromPng { _ ->
 				readCount++
 				byteArrayOf(0, 1, 2)
 			}
@@ -228,11 +228,25 @@ class SourceArtRastersTest {
 		assertEquals(1, readCount, "a remembered failure is not retried")
 	}
 
+	/**
+	 * A store over already-decoded rasters (an artwork-origin document) hands out the SAME instance from
+	 * its cached and its uncached read: the renderer's texture cache and the viewport's freshness test
+	 * compare decoded images by identity, so a fresh wrapper per call would read as a changed image.
+	 */
+	@Test
+	fun aDecodedStoreSharesOneInstanceAcrossBothReads() {
+		val image = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val store = SourceArtRasters { requested -> if (requested == AtlasTileId("a")) image else null }
+		assertSame(image, store.rasterFor(AtlasTileId("a")), "the cached read hands out the supplied instance")
+		assertSame(image, store.decodeRaster(AtlasTileId("a")), "so does the uncached read")
+		assertNull(store.decodeRaster(AtlasTileId("b")), "an unknown tile has no raster either way")
+	}
+
 	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
 		val known = AtlasTileId("a")
-		val store = SourceArtRasters { requested -> if (requested == known) onePixelPng() else null }
+		val store = SourceArtRasters.fromPng { requested -> if (requested == known) onePixelPng() else null }
 		assertNotNull(store.rasterFor(known), "a known tile decodes")
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
 		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")
