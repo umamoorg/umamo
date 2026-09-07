@@ -12,7 +12,8 @@ import org.umamo.ui.resources.*
  * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
- * package and invert the dependency.
+ * package and invert the dependency.  The add-artwork table is the exception: the shell registers it
+ * (with the app's closure injected) because its operation strip needs the hovered area at dispatch.
  *
  * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
  * Open / Save is reserved for the native UMA format.
@@ -42,20 +43,28 @@ internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit,
 
 /**
  * The add-artwork command: a second (third, ...) artwork file joins the OPEN document as an undoable
- * edit - the Sources space's own action, also reachable from the palette.  Registered with the export
- * group because, like them, it closes over the open document.
+ * edit - the Sources space's own action, also reachable from the palette.
  *
- * @param Function canAdd        Whether a puppet document is open, queried live.
- * @param Function onAddArtwork  Runs the add (picker, read, append, pack, commit).
+ * Unlike the other file commands this one is registered by the SHELL, not the app, with the app's
+ * picker-and-read closure injected as a collaborator: the add lands on the operation settings strip,
+ * and the strip's area (the hovered work surface, else the last one the pointer touched - the Sources
+ * header button is the usual origin, and a panel hosts no strip) is a question only the shell's routing
+ * can answer.  An app-registered handler would have no area to give and the strip would fall to the
+ * shell's bottom edge.  The collaborator is read at dispatch, so the table survives a document swap
+ * without re-registration, and a null one (no puppet document) hides the command.
+ *
+ * @param CommandRouting routing    The hovered-area resolver, read at dispatch.
+ * @param Function       addArtwork Supplies the current add orchestration (picker, read, append, pack,
+ *   commit) over the given area, or null when no document can take artwork.
  * @return List<Command> The command to register.
  */
-internal fun fileAddArtworkCommands(canAdd: () -> Boolean, onAddArtwork: () -> Unit): List<Command> =
+internal fun fileAddArtworkCommands(routing: CommandRouting, addArtwork: () -> ((String?) -> Unit)?): List<Command> =
 	listOf(
 		Command(
 			"file.addArtwork",
 			title = Res.string.cmd_file_add_artwork,
-			availability = CommandAvailability { canAdd() },
-		) { onAddArtwork() },
+			availability = CommandAvailability { addArtwork() != null },
+		) { addArtwork()?.invoke(routing.operationStripArea()) },
 	)
 
 /**

@@ -90,6 +90,7 @@ import org.umamo.ui.workspace.commands.atlasCommands
 import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
+import org.umamo.ui.workspace.commands.fileAddArtworkCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
 import org.umamo.ui.workspace.commands.keyformCommands
@@ -127,6 +128,9 @@ import org.umamo.ui.workspace.commands.workspaceCommands
  * @param List appMenu The application menu-bar contents, shown to the left of the workspace tabs; empty
  *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
  *   (the open document, the file picker), while the bar component itself is shared.
+ * @param Function? addArtwork The app's add-artwork orchestration (picker, read, append, pack, commit)
+ *   over the area the command fires in, or null (the default) when no open document can take artwork.
+ *   The shell registers the command itself so the operation strip lands in the hovered area.
  * @param String languageTag The active UI language (BCP-47).
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).
@@ -148,11 +152,15 @@ fun EditorShell(
 	keymap: Keymap = defaultKeymap(),
 	onLayoutChange: (InterfaceLayout) -> Unit = {},
 	onLayoutDragChange: (Boolean) -> Unit = {},
+	addArtwork: ((String?) -> Unit)? = null,
 ) {
 	// The layout controller outlives recompositions, so it publishes through a live reference to the
 	// persistence hook rather than capturing the first composition's lambda.
 	val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
 	val currentOnLayoutDragChange by rememberUpdatedState(onLayoutDragChange)
+	// Read at dispatch for the same reason: the command table registers once per session, and the app
+	// hands in a fresh closure per composition.
+	val currentAddArtwork by rememberUpdatedState(addArtwork)
 	val workspaces =
 		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	val overlays = remember { ShellOverlayState() }
@@ -209,7 +217,7 @@ fun EditorShell(
 	// the tracker (itself remembered for the same lifetime), so it cannot go stale across a document swap
 	// and the groups that must NOT re-register on one can hold it safely.
 	val service = LocalPuppetViewportService.current
-	val routing = remember { CommandRouting { hoveredSurfaces.lastTouched } }
+	val routing = remember { CommandRouting({ hoveredSurfaces.lastTouched }, { hoveredSurfaces.lastTouchedStripHost }) }
 	DisposableEffect(commandRegistry, dragController) {
 		val cleanup =
 			commandRegistry.registerAll(
@@ -296,7 +304,8 @@ fun EditorShell(
 					topologyCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
-					atlasCommands(availability, routing, repackAtlas),
+					atlasCommands(availability, routing, repackAtlas) +
+					fileAddArtworkCommands(routing) { currentAddArtwork },
 			)
 		onDispose { cleanup() }
 	}

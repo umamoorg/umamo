@@ -145,8 +145,9 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 					AreaHeader(area = area, scope = scope, onCommand = onCommand)
 					Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
 						// The operation settings strip is hosted here, under the header and over the space body,
-						// so every space kind gets it and its inset reaches the space's own bottom-left chrome.
-						OperationStripHost(areaId = area.id) {
+						// so its inset reaches the space's own bottom-left chrome; the host itself shows the strip
+						// only in a work surface (hostsOperationStrip).
+						OperationStripHost(areaId = area.id, kind = area.space) {
 							registry.descriptor(area.space).content(scope)
 						}
 					}

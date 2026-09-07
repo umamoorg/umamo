@@ -3,10 +3,12 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
+import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.OperationStripState
 import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SplitterDragCancelController
 import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.defaultLayout
@@ -222,7 +224,7 @@ class CommandTableOrderTest {
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
-		assertEquals(listOf("file.addArtwork"), fileAddArtworkCommands({ true }) {}.map { command -> command.id })
+		assertEquals(listOf("file.addArtwork"), fileAddArtworkCommands(routing()) { {} }.map { command -> command.id })
 	}
 
 	/**
@@ -236,6 +238,24 @@ class CommandTableOrderTest {
 		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
 		exportable = true
 		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")
+	}
+
+	/**
+	 * Add Artwork hides itself while no document can take artwork (the collaborator is null), asks LIVE,
+	 * and hands the handler the area its operation strip shows in - fired over the Sources panel, that
+	 * is the last work surface the pointer touched, never the panel.
+	 */
+	@Test
+	fun addArtworkFollowsTheCollaboratorAndTheStripArea() {
+		var handler: ((String?) -> Unit)? = null
+		val routing = CommandRouting({ HoveredSurface("sources-1", SpaceKind.Sources) }, { HoveredSurface("area-7", SpaceKind.UvEditor) })
+		val command = fileAddArtworkCommands(routing) { handler }.first()
+		assertFalse(command.availability.isAvailable(), "nothing to add with no document open")
+		var landedArea: String? = "untouched"
+		handler = { areaId -> landedArea = areaId }
+		assertTrue(command.availability.isAvailable(), "the collaborator is queried per call")
+		command.handler.run(null)
+		assertEquals("area-7", landedArea, "the strip area reaches the orchestration")
 	}
 
 	/** The keyform-authoring table. */

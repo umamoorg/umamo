@@ -39,6 +39,8 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
+ * @param Function? addArtwork The app's add-artwork orchestration over the hovered area, forwarded to
+ *   the shell; null (the default) when no open document can take artwork.
  */
 @OptIn(FlowPreview::class)
 @Composable
@@ -47,6 +49,7 @@ fun PersistentEditorShell(
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	appMenu: List<TopLevelMenu> = emptyList(),
+	addArtwork: ((String?) -> Unit)? = null,
 ) {
 	val settings = LocalSettings.current
 	val initialLayout = remember { loadLayout(settings) }
@@ -112,6 +115,7 @@ fun PersistentEditorShell(
 			keymap = keymap,
 			onLayoutChange = { layout -> latestLayout = layout },
 			onLayoutDragChange = { dragActive -> savePacer.setDragActive(dragActive, latestLayout) },
+			addArtwork = addArtwork,
 		)
 	}
 }

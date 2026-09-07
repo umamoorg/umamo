@@ -92,7 +92,6 @@ import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
-import org.umamo.ui.workspace.commands.fileAddArtworkCommands
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
 import org.umamo.ui.workspace.commands.logCommands
@@ -282,7 +281,9 @@ fun EditorApp(
 
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
 	// dirty confirm, unlike the import.  A file that will not read raises the same alert an open would.
-	fun addArtworkViaPicker() {
+	// The area is the one the command fired over, resolved by the shell before the picker opens; it is
+	// where the operation strip shows once the add lands.
+	fun addArtworkViaPicker(areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
@@ -309,7 +310,7 @@ fun EditorApp(
 					rememberOptions = { _, _ -> },
 				)
 			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension)
-			runAddArtwork(host, AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId = null)
+			runAddArtwork(host, AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
 		}
 	}
 
@@ -537,7 +538,7 @@ fun EditorApp(
 					canExport = { exportableDocument != null },
 					onExportCmo3 = { exportableDocument?.let { exportCmo3(it) } },
 					onExportMoc3 = { exportableDocument?.let { exportMoc3(it) } },
-				) + fileAddArtworkCommands(canAdd = { exportableDocument != null }, onAddArtwork = { addArtworkViaPicker() }),
+				),
 			)
 		onDispose { cleanup() }
 	}
@@ -590,6 +591,7 @@ fun EditorApp(
 		commandRegistry = commandRegistry,
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
+		addArtwork = { areaId -> addArtworkViaPicker(areaId) },
 	)
 }
 
@@ -713,6 +715,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
+ * @param Function addArtwork The app's add-artwork orchestration over the hovered area, handed to the
+ *   shell for a puppet document only (the shell registers the command; see fileAddArtworkCommands).
  */
 @Composable
 private fun DocumentViewport(
@@ -722,6 +726,7 @@ private fun DocumentViewport(
 	commandRegistry: CommandRegistry,
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
+	addArtwork: (String?) -> Unit,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -782,7 +787,13 @@ private fun DocumentViewport(
 					LocalSelection provides editorState,
 					LocalEditorMode provides editorState,
 				) {
-					PersistentEditorShell(viewportHost = viewport?.host, commandRegistry = commandRegistry, appMenu = appMenu)
+					PersistentEditorShell(
+						viewportHost = viewport?.host,
+						commandRegistry = commandRegistry,
+						appMenu = appMenu,
+						// Registered by the shell (see fileAddArtworkCommands): the strip shows in the hovered area.
+						addArtwork = addArtwork,
+					)
 				}
 			}
 		null ->
