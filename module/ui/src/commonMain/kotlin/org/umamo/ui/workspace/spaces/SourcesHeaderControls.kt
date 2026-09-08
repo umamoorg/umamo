@@ -38,14 +38,14 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 		}
 	}
 	flexibleSpace()
-	item("filter") {
-		if (LocalPuppet.current != null) {
-			FilterDropdownButton(viewState)
-		}
-	}
 	item("refresh") {
 		if (LocalPuppet.current != null) {
 			Button(label = stringResource(Res.string.sources_refresh), onClick = { viewState.refreshSerial++ }, primary = false)
+		}
+	}
+	item("filter") {
+		if (LocalPuppet.current != null) {
+			FilterDropdownButton(viewState)
 		}
 	}
 }

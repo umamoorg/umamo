@@ -5,14 +5,9 @@ import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
-import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
-import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
-import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.format.raster.RasterImage
-import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -98,18 +93,6 @@ sealed interface DocumentLoad {
 }
 
 /**
- * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
- * list and knows nothing about templates, so the template-to-parameters step happens once here for
- * every caller: the shell resolves the preference into it, and the loaders default through it so a
- * caller with no setting to read still seeds the configured default.
- *
- * @param ParameterTemplate template The parameter set to seed.
- * @return SourceArtImportOptions The import options.
- */
-fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
-	SourceArtImportOptions(parameters = template.parameters)
-
-/**
  * Loads a picked/stored file into a [Document] via [loadDocument]'s byte core, reading through
  * FileKit's common API so desktop paths and Android SAF URIs take the same route.  A `.moc3` is the
  * one format routed to the sidecar-discovering loader instead: its manifest, display info, and atlas
@@ -132,54 +115,6 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 	}
 	return loadDocument(bytes, file.name, file.absolutePath(), importOptions)
 }
-
-/**
- * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
- * document open and Add Artwork into an open document.
- *
- * @property SourceArt art  The parsed source art.
- * @property FileKind  kind The format it was read from.
- */
-class ReadArtwork(
-	val art: SourceArt,
-	val kind: FileKind,
-)
-
-/**
- * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
- * or PNG / BMP / JPEG / WebP / TIFF as a one-layer document), and null for anything else - a model
- * format, an unrecognised file, or a file that fails to parse, which is logged.
- *
- * @param ByteArray bytes The file contents.
- * @param String    name  The file name (the extension fallback for detection; the log's name).
- * @return ReadArtwork? The art and its format, or null.
- */
-fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
-	val codec = FormatRegistry.detect(bytes, name) ?: return null
-	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind) } }
-		.getOrElse { failure ->
-			UmamoLog.error("failed to read artwork $name", failure)
-			null
-		}
-}
-
-/**
- * The source art [codec] reads out of [bytes]: a layered reader's document as it is, a flat raster
- * wrapped as one layer, or null for a kind that is not artwork at all.
- *
- * @param FormatCodec codec The detected codec.
- * @param ByteArray   bytes The file contents.
- * @param String      name  The file name (a flat raster's one layer is named after it).
- * @return SourceArt? The art, or null for a non-art kind.
- */
-private fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): SourceArt? =
-	// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
-	// type that kind's codec is known to produce.
-	when (codec.kind) {
-		FileKind.Psd, FileKind.Clip, FileKind.Kra -> codec.read(bytes) as SourceArt
-		FileKind.Png, FileKind.Bmp, FileKind.Jpeg, FileKind.WebP, FileKind.Tiff -> rasterToSourceArt(codec.read(bytes) as RasterImage, name)
-		FileKind.Cmo3, FileKind.Moc3, FileKind.Json, FileKind.Uma -> null
-	}
 
 /**
  * Loads [bytes] into a [Document] by detecting the format from the contents - magic bytes via
