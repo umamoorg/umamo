@@ -407,7 +407,7 @@
 	<string name="sources_refresh">Refresh</string>
 	<string name="sources_filter_all">All</string>
 	<string name="sources_filter_unbound">Unbound</string>
-	<string name="sources_filter_missing">Missing files</string>
+	<string name="sources_filter_missing">Missing Files</string>
 	<string name="sources_status_present">Present</string>
 	<string name="sources_status_missing">Missing</string>
 	<string name="sources_status_unknown">Unknown</string>
