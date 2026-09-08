@@ -194,7 +194,6 @@ fun OverflowRow(
 	SubcomposeLayout(modifier = modifier) { constraints ->
 		val slotConstraints = Constraints(maxHeight = constraints.maxHeight)
 		val spacingPx = horizontalSpacing.roundToPx()
-		val placeables = HashMap<Int, Placeable>(slots.size)
 		val slotKeys = slots.map { slot -> slot.key }
 		val packKey = constraints.maxWidth to slotKeys
 		// A changed width or slot list re-evaluates from scratch, so a widened strip can re-admit what it
@@ -206,11 +205,26 @@ fun OverflowRow(
 				emptySet()
 			}
 
-		// Measurables are cached, not just placeables: the packer walks the strip up to twice, and a
-		// compressible slot is offered a different maximum each time.  subcompose may not be called twice
-		// with one id in a pass, so the slot is composed once and re-measured against the new bound.
+		// Each slot is composed once (subcompose may not be called twice with one id in a pass) and the
+		// packer reads its width through INTRINSICS, never measure(): the strip is walked up to twice, a
+		// compressible slot is offered a different bound on each walk and again when a tail is costed, and
+		// Compose forbids measuring one Measurable twice in a pass.  Intrinsics answer any number of times
+		// (a control that shrinks to its bound is min(natural, bound) wide), and every PLACED slot is then
+		// measured exactly once, at the width the packer settled on.
 		val measurables = HashMap<Int, Measurable>(slots.size)
-		val measuredAtMaxWidthPx = HashMap<Int, Int>(slots.size)
+		val naturalWidthPx = HashMap<Int, Int>(slots.size)
+
+		fun measurableFor(slotIndex: Int): Measurable =
+			measurables.getOrPut(slotIndex) {
+				val slot = slots[slotIndex]
+				subcompose(OverflowSlotId.Item(slot.key)) {
+					// One wrapper Row per item, so a multi-control item is one indivisible group whose
+					// internal spacing matches the strip's, and subcompose always yields one measurable.
+					Row(verticalAlignment = verticalAlignment, horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
+						slot.content?.invoke()
+					}
+				}.first()
+			}
 		val packing =
 			packOverflowRow(
 				slots =
@@ -227,24 +241,16 @@ fun OverflowRow(
 				overflowButtonWidthPx = overflowButtonWidthPx.value,
 				preCollapsedSlotIndices = preCollapsed,
 			) { slotIndex, maxWidthPx ->
-				val slot = slots[slotIndex]
-				val measurable =
-					measurables.getOrPut(slotIndex) {
-						subcompose(OverflowSlotId.Item(slot.key)) {
-							// One wrapper Row per item, so a multi-control item is one indivisible group whose
-							// internal spacing matches the strip's, and subcompose always yields one measurable.
-							Row(verticalAlignment = verticalAlignment, horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)) {
-								slot.content?.invoke()
-							}
-						}.first()
-					}
-				if (measuredAtMaxWidthPx[slotIndex] != maxWidthPx) {
-					val boundedMaxPx = if (maxWidthPx == OVERFLOW_WIDTH_UNBOUNDED) Constraints.Infinity else maxWidthPx.coerceAtLeast(0)
-					placeables[slotIndex] = measurable.measure(slotConstraints.copy(maxWidth = boundedMaxPx))
-					measuredAtMaxWidthPx[slotIndex] = maxWidthPx
-				}
-				placeables.getValue(slotIndex).width
+				val natural = naturalWidthPx.getOrPut(slotIndex) { measurableFor(slotIndex).maxIntrinsicWidth(constraints.maxHeight) }
+				if (maxWidthPx == OVERFLOW_WIDTH_UNBOUNDED) natural else minOf(natural, maxWidthPx.coerceAtLeast(0))
 			}
+		val placeables = HashMap<Int, Placeable>(packing.placements.size)
+		for (placement in packing.placements) {
+			if (slots[placement.slotIndex].kind == OverflowSlotKind.Flexible) {
+				continue
+			}
+			placeables[placement.slotIndex] = measurableFor(placement.slotIndex).measure(slotConstraints.copy(maxWidth = placement.widthPx))
+		}
 
 		val collapsed = packing.collapsedSlotIndices.map { slotIndex -> slotKeys[slotIndex] }
 		if (collapsedKeys.value != collapsed) {

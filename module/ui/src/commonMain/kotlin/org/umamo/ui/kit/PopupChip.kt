@@ -38,6 +38,7 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Boolean?  expanded           The open state when hoisted; null to let the chip own it.
  * @param Function? onExpandedChange   Open-state sink, required when [expanded] is hoisted.
  * @param Boolean   enabled            When false the chip dims and clicks are inert.
+ * @param DropdownChipStyle style      The face's role: Header chrome by default, Compact for a list row.
  * @param Function  content            The panel's rows.
  */
 @Composable
@@ -48,6 +49,7 @@ fun PopupChip(
 	expanded: Boolean? = null,
 	onExpandedChange: ((Boolean) -> Unit)? = null,
 	enabled: Boolean = true,
+	style: DropdownChipStyle = DropdownChipStyle.Header,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -67,6 +69,7 @@ fun PopupChip(
 		modifier = modifier,
 		icon = icon,
 		enabled = enabled,
+		style = style,
 	) {
 		Popup(
 			popupPositionProvider = BelowAnchorPositionProvider,

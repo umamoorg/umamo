@@ -383,7 +383,6 @@
 	<string name="sources_relink_title">レイヤーに再リンク</string>
 	<string name="sources_relink_clear">リンクを解除</string>
 	<string name="sources_relink_no_matches">一致するレイヤーがありません。</string>
-	<string name="sources_relink_row">%1$s — %2$s</string>
 	<string name="sources_empty">ソースアートワークがありません。「アートワークを追加…」でレイヤー付きファイルをこのドキュメントに取り込めます。</string>
 	<string name="outliner_filter_drawables">ドローアブル</string>
 	<string name="outliner_restriction_toggles">制限の切り替え</string>

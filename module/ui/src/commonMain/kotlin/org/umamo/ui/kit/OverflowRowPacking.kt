@@ -94,9 +94,10 @@ internal data class OverflowRowPacking(
  *   again without being measured.  Deciding the FIRST slot that does not fit costs one measurement, so
  *   that slot is composed; feeding the verdict back lets the caller drop it on the next pass instead of
  *   leaving it composed-but-unplaced.  Empty re-evaluates every slot from scratch.
- * @param Function slotWidthPx           Measures one slot at a given maximum width, on demand.  A slot
- *   declaring [OverflowSlotSpec.minWidthPx] can be asked twice with different bounds (once per walk), so
- *   the caller must handle a repeat request for an index it has already measured.
+ * @param Function slotWidthPx           Reports one slot's width at a given maximum, on demand.  A slot
+ *   declaring [OverflowSlotSpec.minWidthPx] can be asked twice with different bounds (once per walk) and
+ *   again when a tail is costed, so the answer must be repeatable and side-effect free - an intrinsic
+ *   width, never a measure(), which Compose allows once per slot per pass.
  * @return OverflowRowPacking The resolved strip.
  */
 internal fun packOverflowRow(
