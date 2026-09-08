@@ -52,7 +52,7 @@
 	<string name="menu_edit">편집</string>
 	<string name="menu_undo">실행 취소</string>
 	<string name="menu_redo">다시 실행</string>
-	<string name="menu_preferences">설정...</string>
+	<string name="menu_preferences">설정…</string>
 	<string name="menu_workspace">워크스페이스</string>
 	<string name="menu_workspace_reset">워크스페이스 초기화</string>
 	<string name="menu_workspace_export_this">이 워크스페이스 내보내기…</string>
@@ -114,7 +114,7 @@
 	<string name="export_reason_no_source_set_to_create_into">CMO3 모델에 이 유형의 항목을 생성할 세트가 없어 새 항목을 생성하지 않았습니다.</string>
 	<string name="export_reason_created_entity_has_no_source">새로 생성된 항목에는 아직 CMO3 원본이 없어 패널 순서에서 제외되었습니다.</string>
 	<string name="export_reason_created_group_not_in_tree">생성된 그룹이 편집된 파라미터 트리에 없어 생성하지 않았습니다.</string>
-	<string name="export_reason_created_drawable_no_texture_source">글루가 적용된 드로어블에 CMO3 원본이 없어 글루를 생성하지 않았습니다.</string>
+	<string name="export_reason_created_drawable_no_texture_source">생성된 드로어블에 복제할 텍스처 소스가 없어 생성하지 않았습니다.</string>
 	<string name="export_reason_glued_drawable_has_no_source">글루가 적용된 드로어블에 CMO3 원본이 없어 글루를 생성하지 않았습니다.</string>
 	<string name="export_reason_vertex_count_exceeds_edge_table">메쉬에 %1$d개의 정점이 있으며, 편집 가능한 메쉬의 간선 테이블이 인덱싱할 수 있는 %2$d개를 초과하므로 간선 테이블을 다시 생성하지 않았습니다.</string>
 	<string name="export_reason_glued_mesh_no_uid_table">글루가 적용된 메쉬에 편집 가능한 메쉬의 정점 ID 테이블이 없어 글루를 다시 연결할 수 없습니다.</string>
@@ -163,10 +163,10 @@
 	<string name="open_failed_missing_manifest">%1$s을(를) 가져올 수 없습니다. 동일한 위치에서 model3.json 매니페스트 파일을 찾을 수 없습니다.</string>
 	<string name="open_failed_missing_texture">%1$s을(를) 가져올 수 없습니다. model3.json에서 참조하는 텍스처가 없거나 읽을 수 없습니다.</string>
 	<string name="menu_help">도움말</string>
-	<string name="menu_source_code">소스 코드...</string>
-	<string name="menu_web_site">웹사이트...</string>
-	<string name="menu_documentation">공식 문서...</string>
-	<string name="menu_credits">제작진...</string>
+	<string name="menu_source_code">소스 코드…</string>
+	<string name="menu_web_site">웹사이트…</string>
+	<string name="menu_documentation">공식 문서…</string>
+	<string name="menu_credits">제작진…</string>
 	<string name="menu_about">Umamo에 대해서…</string>
 	<string name="about_title">Umamo에 대해서</string>
 	<string name="about_version">버전 %1$s</string>
@@ -344,7 +344,7 @@
 	<string name="notice_transform_deformed">메쉬가 변형된 상태에서는 변형할 수 없습니다. 먼저 모든 파라미터를 초기화해 주세요.</string>
 	<string name="notice_unknown">작업을 수행할 수 없습니다.</string>
 	<string name="hud_along_x">X축 기준</string>
-	<string name="hud_along_z">Y축 기준</string>
+	<string name="hud_along_z">Z축 기준</string>
 	<string name="cmd_transform_pivot_pie">기준점</string>
 	<string name="cmd_transform_pivot_median">중간점</string>
 	<string name="cmd_transform_pivot_individual">개별 원점</string>
@@ -355,7 +355,7 @@
 	<string name="cmd_snap_cursor_selected">선택 항목으로 커서 이동</string>
 	<string name="cmd_snap_cursor_active">활성 요소로 커서 이동</string>
 	<string name="cmd_snap_cursor_grid">그리드로 커서 이동</string>
-	<string name="cmd_snap_selection_grid">커서로 선택 항목 이동</string>
+	<string name="cmd_snap_selection_grid">그리드로 선택 항목 이동</string>
 	<string name="cmd_snap_selection_cursor">커서로 선택 항목 이동</string>
 	<string name="cmd_snap_selection_cursor_offset">커서로 선택 항목 이동 (간격 유지)</string>
 	<string name="cmd_snap_selection_active">활성 요소로 선택 항목 이동</string>
@@ -397,7 +397,7 @@
 	<string name="notice_uv_no_uvs">선택 영역에 편집할 수 있는 UV가 없습니다.</string>
 	<string name="notice_uv_no_selection">대칭 복사할 대상이 없습니다.</string>
 	<string name="notice_uv_placement_layer_addressed">퍼펫의 UV가 아틀라스가 아닌 원본 아트워크를 참조하고 있으므로 이동할 배치가 없습니다.</string>
-	<string name="notice_uv_placement_no_placed_art">선택한 항목이 아틀라스 페이지에 포장되어 있지 않거나 원본 아트워크가 없습니다.</string>
+	<string name="notice_uv_placement_no_placed_art">선택한 항목이 아틀라스 페이지에 패킹되어 있지 않거나 원본 아트워크가 없습니다.</string>
 	<string name="notice_uv_placement_page_view_only">배치를 이동하려면 UV 편집기에서 아틀라스 페이지를 표시하세요.</string>
 	<string name="notice_uv_placement_not_on_page">이 페이지에 배치된 선택 항목이 없습니다.</string>
 	<string name="notice_uv_placement_not_derivable">원본 아트에서 아틀라스를 재구성할 수 없으므로 배치를 이동할 수 없습니다.</string>
@@ -485,7 +485,7 @@
 	<string name="properties_texture_source">텍스처 소스: %1$s</string>
 	<string name="properties_texture_own">개별 아틀라스 바인딩</string>
 	<string name="properties_field_pinned">고정</string>
-	<string name="properties_field_canvas_width">넓이</string>
+	<string name="properties_field_canvas_width">너비</string>
 	<string name="properties_field_canvas_height">높이</string>
 	<string name="properties_field_origin_x">X 중심</string>
 	<string name="properties_field_origin_z">Z 중심</string>
@@ -509,7 +509,7 @@
 	<string name="properties_field_multiply_color">곱하기 색상</string>
 	<string name="properties_field_screen_color">스크린 색상</string>
 	<string name="properties_field_masked_by">마스크 적용 대상</string>
-	<string name="properties_mask_add">마스크 추가</string>
+	<string name="properties_mask_add">마스크 추가…</string>
 	<string name="properties_mask_remove">마스크 제거</string>
 	<string name="properties_relation_clear">관계 초기화</string>
 	<string name="properties_relation_pick">뷰포트 또는 아웃라이너에서 선택하세요.</string>
@@ -580,7 +580,7 @@
 	<string name="settings_close">설정 닫기</string>
 	<string name="settings_category_interface">인터페이스</string>
 	<string name="settings_category_colors">색상</string>
-	<string name="settings_category_viewport">뷰 포트</string>
+	<string name="settings_category_viewport">뷰포트</string>
 	<string name="settings_category_keybindings">단축키 설정</string>
 	<string name="settings_category_pen">펜</string>
 	<string name="settings_interface_theme">테마</string>

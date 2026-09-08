@@ -3,6 +3,9 @@
 Umamo is licensed under the GNU General Public License v3.0.
 Project Lead: Azxiana - https://azxiana.com/
 
+## Translations
+한국어/Korean - {Fill this in once the translator answers about how to be credited.}
+
 ## Gylphs
 
 Tabler Icons - MIT License - https://github.com/tabler/tabler-icons/blob/main/LICENSE
