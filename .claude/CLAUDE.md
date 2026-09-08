@@ -30,7 +30,7 @@ Runtime concerns (MOC3 emit, SDK/Core replacement) are a work in progress — se
 - **MOC3 — read AND write.**  Serialized C structs (memory-cast, so byte-exact layout).  See `docs/format/MOC3.md`.
 - **JSON family**: `model3` (manifest), `physics3`, `cdi3`, `pose3`, `exp3`, `motion3`, `userdata3`, texture atlas.
 
-PSD/CLIP/KRA (and the flat rasters, wrapped as one layer) open as rigs through **File > Import > Artwork…**: `SourceArtImport` (`:interop` `org.umamo.interop.art`) is the source-art → `PuppetModel` bridge — one drawable per raster layer over a quad birth mesh, one part per folder, the source-layer binding persisted on the tile (`AtlasTile.source`) with the file and its layer inventory on `PuppetModel.sources`, and the Humanoid parameter template — and the atlas packs at open through the same repack primitive the Repack Atlas command uses (`packModelAtOpen`); a further file joins an open document through the Sources space's Add Artwork… (`runAddArtwork`: the bridge's additions appended with ids minted past the document's, packed into the gaps with every placed tile held fixed, one undo step on the operation strip).  A CMO3 export of such a document runs the fresh-graph synthesis, so its layers are page slices until the pipeline's Phase H writes the source rasters.  See `docs/plan/art-sourcing-pipeline.md` Phase E.
+PSD/CLIP/KRA (and the flat rasters, wrapped as one layer) open as rigs through **File > Import > Artwork…**: `SourceArtImport` (`:interop` `org.umamo.interop.art`) is the source-art → `PuppetModel` bridge — one drawable per raster layer over a quad birth mesh, one part per folder, the source-layer binding persisted on the tile (`AtlasTile.source`) with the file and its layer inventory on `PuppetModel.sources`, and the parameters the shell resolves from the `import.parameterTemplate` setting (`org.umamo.edit.seed.ParameterTemplate`, Humanoid by default) — and the atlas packs at open through the same repack primitive the Repack Atlas command uses (`packModelAtOpen`); a further file joins an open document through the Sources space's Add Artwork… (`runAddArtwork`: the bridge's additions appended with ids minted past the document's, packed into the gaps with every placed tile held fixed, one undo step on the operation strip).  A CMO3 export of such a document runs the fresh-graph synthesis, so its layers are page slices until the pipeline's Phase H writes the source rasters.  See `docs/plan/art-sourcing-pipeline.md` Phase E.
 
 **Unified codec contract.** Every binary container format presents the same face to the rest of the project: a `FormatCodec<TModel>` in `:format` (`kind`/`matches`/`read(ByteArray)`/`write(TModel)`, tied to `FileKind`), with `FormatRegistry` doing detect-by-magic and resolve-by-kind.  CMO3 (`object Cmo3`, in `jvmAndroidMain` — JDOM/reflection are JVM-only) and MOC3 (`object Moc3`, `commonMain`) both implement it; the in-memory model type differs per format and shares no supertype (hence the generic).  The **JSON sidecars are `String`-shaped, not bytes**, so they deliberately sit *outside* the codec contract as plain helpers on `Moc3` (`readModel3`/`writeModel3`/…).  Add a format by implementing the interface and registering it — never by growing a bespoke read/write facade.
 
@@ -179,12 +179,15 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             `moc3AtlasPages` → a neutral `AtlasPageSet`), so :render never sees a
                             container format.  `art/` is the source-art → PuppetModel bridge
                             (`SourceArtImport`: an UNPACKED model the app packs at open, the blend
-                            table, the parameter templates, the import notices).
+                            table, the import notices; it seeds the parameter list it is handed and
+                            knows no template).
                             → :format (api), :runtime (api)
 :edit         commonMain  — the editing session over the immutable PuppetModel: EditorSession
                             (snapshot-based undo History, selection + mode state, tool latches,
-                            request buses), the sealed Change hierarchy, and the pure edit ops
-                            (mesh topology/transforms, parameter edits, proportional editing).
+                            request buses), the sealed Change hierarchy, the pure edit ops
+                            (mesh topology/transforms, parameter edits, proportional editing), and
+                            the seed catalogs a new model starts from (`seed/`: ParameterTemplate +
+                            the humanoid standard set).
                             → :runtime (api), kotlinx-coroutines (api)
 :render       commonMain  — deformation eval (CPU) + the puppet renderer + morph-blend shaders,
                   + GL impl   over a `RenderDevice` backend seam.  → :runtime (api), :format (api).

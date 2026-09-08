@@ -21,12 +21,12 @@ import kotlinx.coroutines.launch
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
+import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.art.ArtSourceDescriptor
-import org.umamo.interop.art.ParameterTemplate
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
@@ -45,6 +45,7 @@ import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
+import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
@@ -268,13 +269,13 @@ fun EditorApp(
 
 	// What an artwork import seeds with, read at the moment the import runs so the preferences row
 	// applies to the next import without a restart.
-	fun artworkImportOptions(): SourceArtImportOptions =
-		SourceArtImportOptions(parameterTemplate = ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)))
+	fun configuredArtworkImportOptions(): SourceArtImportOptions =
+		artworkImportOptions(ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)))
 
 	fun openStoredPath(path: String) {
 		confirmIfDirty {
 			scope.launch {
-				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), artworkImportOptions()))
+				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), configuredArtworkImportOptions()))
 			}
 		}
 	}
@@ -320,7 +321,7 @@ fun EditorApp(
 		confirmIfDirty {
 			scope.launch {
 				filePicker.openFile(artworkImportExtensions)?.let { picked ->
-					applyDocumentLoad(loadDocument(picked, artworkImportOptions()))
+					applyDocumentLoad(loadDocument(picked, configuredArtworkImportOptions()))
 				}
 			}
 		}

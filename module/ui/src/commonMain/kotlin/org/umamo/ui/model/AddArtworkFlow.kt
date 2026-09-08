@@ -119,7 +119,7 @@ internal fun addArtworkParameters(options: SourceArtImportOptions): List<Operato
 	)
 
 /**
- * The options [parameters] describe, over [fallback] for the template the rows do not carry.
+ * The options [parameters] describe, over [fallback] for the seed parameters the rows do not carry.
  *
  * @param List                   parameters The strip's rows.
  * @param SourceArtImportOptions fallback   The options the first run used.
@@ -127,7 +127,7 @@ internal fun addArtworkParameters(options: SourceArtImportOptions): List<Operato
  */
 internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: SourceArtImportOptions): SourceArtImportOptions =
 	SourceArtImportOptions(
-		parameterTemplate = fallback.parameterTemplate,
+		parameters = fallback.parameters,
 		alphaThreshold = parameters.intValue(ImportParameterKeys.ALPHA_THRESHOLD, fallback.alphaThreshold).coerceIn(1, 255),
 		birthMeshMargin = parameters.intValue(ImportParameterKeys.MARGIN, fallback.birthMeshMargin).coerceIn(0, IMPORT_MAX_MARGIN),
 	)

@@ -16,7 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.interop.art.ParameterTemplate
+import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField

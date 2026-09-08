@@ -13,6 +13,8 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Parameter
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
@@ -29,7 +31,7 @@ import kotlin.test.assertTrue
  * Pins what the bridge makes of a layered document: which layers become drawables and which are
  * skipped with a note, the birth quad's geometry in both frames, the clipping and blend mappings, the
  * folder-to-part tree with its order and its composites, the tiles and their source bindings, the
- * source inventory, and the template.  Synthetic art throughout - the corpus twin is
+ * source inventory, and the seeded parameters.  Synthetic art throughout - the corpus twin is
  * SourceArtImportCorpusTest.
  */
 class SourceArtImportTest {
@@ -279,22 +281,23 @@ class SourceArtImportTest {
 	}
 
 	@Test
-	fun theTemplateSeedsTheParametersOrNothing() {
-		val humanoid = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(parameterTemplate = ParameterTemplate.Humanoid)).puppet
-		val none = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(parameterTemplate = ParameterTemplate.None)).puppet
+	fun theSeedParametersLandVerbatimOrNothingIsSeeded() {
+		val seed =
+			listOf(
+				Parameter(id = ParameterId("ParamAngleX"), name = "Angle X", min = -30f, max = 30f, default = 0f),
+				Parameter(id = ParameterId("ParamEyeLOpen"), name = "Eye L Open", min = 0f, max = 1f, default = 1f),
+			)
+		val seeded = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(parameters = seed)).puppet
+		val bare = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions()).puppet
 
-		assertEquals(HumanoidParameters.list, humanoid.parameters)
+		assertEquals(seed, seeded.parameters, "the bridge seeds exactly what it is handed, in order")
 		assertEquals(
-			HumanoidParameters.list.map { parameter -> ParameterNode.Param(parameter.id) },
-			humanoid.parameterTree,
+			seed.map { parameter -> ParameterNode.Param(parameter.id) },
+			seeded.parameterTree,
 			"the tree is materialized flat, so an export places every parameter in the group hierarchy",
 		)
-		assertTrue(none.parameterTree.isEmpty())
-		assertEquals("ParamAngleX", humanoid.parameters.first().id.raw, "the standard ids are verbatim")
-		assertEquals(HumanoidParameters.list.size, HumanoidParameters.list.map { parameter -> parameter.id }.toSet().size, "no id repeats")
-		assertTrue(none.parameters.isEmpty())
-		assertEquals(ParameterTemplate.Humanoid, ParameterTemplate.fromKey("humanoid"))
-		assertEquals(ParameterTemplate.Default, ParameterTemplate.fromKey("not-a-template"), "a stale setting falls back to the default")
+		assertTrue(bare.parameters.isEmpty(), "the bridge's own default seeds nothing; the template is the caller's policy")
+		assertTrue(bare.parameterTree.isEmpty())
 	}
 
 	/**
