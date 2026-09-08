@@ -2,10 +2,8 @@
 <!--
   English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
   generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
-  are NEVER localized — they are document/interop data, not chrome. The Japanese catalog lives at
-  values-ja/strings.xml.
-
-  英語（既定）の UI 文字列。書式レベルの識別子（ParamAngleX 等）は翻訳しない。日本語は values-ja/ に置く。
+  are NEVER localized — they are document/interop data, not chrome. The translated catalogs live
+  beside it at values-ja/strings.xml and values-ko/strings.xml.
 -->
 <resources>
 	<string name="app_name">Umamo</string>

@@ -7,32 +7,46 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
+import org.jetbrains.compose.resources.FontResource
+import org.umamo.ui.l10n.LocalAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.inter_regular
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
+import org.umamo.ui.resources.noto_sans_cjk_kr_regular
 
 /*
  * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
  * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X). Inter for
- * Latin, Noto Sans CJK JP as the fallback for Japanese; Regular only (heavier weights synthesize).
- *
- * 独自の文字スケール。役割名は従来と同じにして移行を機械的にする。
+ * Latin, a Noto Sans CJK cut chosen by UI language for CJK; Regular only (heavier weights synthesize).
  */
 
 /**
- * The UI font family: Inter first, Noto Sans CJK JP second. Listing both in one family lets the text layout
- * fall back to Noto for any glyph Inter does not cover, so Japanese renders from the bundled font rather
- * than relying on the platform's chance system coverage. `@Composable` because the Compose-resources
- * [Font] loader resolves against the resource environment.
+ * The UI font family: Inter first, then the Noto Sans CJK cut for the active UI language.  Pairing them
+ * in one family lets the layout fall back to Noto for any glyph Inter lacks, so CJK renders from the
+ * bundled font rather than the platform's chance system coverage.
  *
- * @return FontFamily The composed Inter + Noto fallback family.
+ * @return FontFamily The Inter + locale-appropriate Noto family.
  */
 @Composable
 fun rememberUiFontFamily(): FontFamily =
 	FontFamily(
 		Font(Res.font.inter_regular, FontWeight.Normal),
-		Font(Res.font.noto_sans_cjk_jp_regular, FontWeight.Normal),
+		Font(cjkFontFor(LocalAppLocale.current), FontWeight.Normal),
 	)
+
+/**
+ * Picks the Noto Sans CJK cut for a UI language tag.  Pure (no composition), so the mapping is assertable
+ * without a composition, the same split [umamoTypographyWith] makes for the type scale.
+ *
+ * @param String languageTag The active BCP-47 tag, bare ("ko") or regional ("ko-KR").
+ * @return FontResource The cut to pair with Inter.
+ */
+internal fun cjkFontFor(languageTag: String): FontResource =
+	// Match the language subtag alone, so a regional tag resolves like the bare one.
+	when (languageTag.substringBefore('-').lowercase()) {
+		"ko" -> Res.font.noto_sans_cjk_kr_regular
+		else -> Res.font.noto_sans_cjk_jp_regular
+	}
 
 /**
  * The role-named text styles. Same 15 roles as the familiar scale, so migrating a call site is a one-token

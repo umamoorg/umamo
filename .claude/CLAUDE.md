@@ -93,7 +93,7 @@ Implemented (`:ui`'s `org.umamo.ui.action`): `Command`/`CommandHandler`/`Command
 
 `handleShellKey` is the live dispatch path (`KeyChord` → `Keymap.commandFor` → `registry.invoke`); `CommandPalette` lists `registry.all()`.  New operations register a `Command` and bind a chord — never wire a handler into a widget.  The keymap itself is editable and persisted via `KeymapPersistence` (`default`/`cubism`/`blender` presets plus per-command overrides, reactive), with a keybindings editor in Settings.
 
-### Localization (EN / JA first-class)
+### Localization (EN/JA/KO)
 
 The audience is heavily Japanese and the primary developer is bilingual — so **EN + JA are first-class from day one**, not retrofitted.  Compose Multiplatform's resources system (`stringResource`, per-locale resources) is the mechanism.
 
