@@ -385,6 +385,9 @@ is still ahead.
 	chip, replace a file by repointing it) and reconcile is an OPERATION - matched updates commit as one undo
 	step, needs-review items become row states in that space, the match threshold is an operation-settings
 	parameter; nothing in the flow steals focus. See docs/plan/art-sourcing-pipeline.md Phases E and F.
+	NEXT (2026-09-08): F1 - Reload by key (the Sources header's Reload, and a relink that pulls the layer's
+	art at once when the file is present - today a relink only rewrites the binding); then D as the mesh
+	command, then F2 (watcher) and F3 (fuzzy match + review states).  See Phase F § Shape.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 
