@@ -51,7 +51,7 @@ class ArtDocument(
  * @param FileKind               kind    The format it was read from, recorded on the model's source list.
  * @param String                 name    The file name (the failure display name, the source's name).
  * @param String                 path    The stored path or URI string recorded on the document.
- * @param SourceArtImportOptions options The template, threshold, and margin the import runs with.
+ * @param SourceArtImportOptions options The seed parameters, threshold, and margin the import runs with.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(

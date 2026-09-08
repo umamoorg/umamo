@@ -19,6 +19,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
@@ -55,14 +56,18 @@ class ArtSourceDescriptor(
 /**
  * How an import shapes the model it builds.
  *
- * @property ParameterTemplate parameterTemplate The parameter set to seed.
- * @property Int               alphaThreshold    Minimum alpha byte (1..255) for a pixel to count as art
+ * The bridge seeds whatever parameters it is handed and knows nothing about templates: the choice of
+ * set (and its default) is editor policy the caller resolves before the import runs, so the bridge's
+ * own default is to seed nothing.
+ *
+ * @property List<Parameter> parameters      The parameters to seed, in panel order.
+ * @property Int             alphaThreshold  Minimum alpha byte (1..255) for a pixel to count as art
  *   when a layer is trimmed for its birth mesh; the pack at open trims under the same threshold.
- * @property Int               birthMeshMargin   How far, in source pixels, the birth quad extends past
+ * @property Int             birthMeshMargin How far, in source pixels, the birth quad extends past
  *   the layer's opaque bounds on every side.
  */
 class SourceArtImportOptions(
-	val parameterTemplate: ParameterTemplate = ParameterTemplate.Default,
+	val parameters: List<Parameter> = emptyList(),
 	val alphaThreshold: Int = DEFAULT_ALPHA_THRESHOLD,
 	val birthMeshMargin: Int = SourceArtImport.DEFAULT_BIRTH_MESH_MARGIN,
 ) {
@@ -141,7 +146,7 @@ object SourceArtImport {
 	 *
 	 * @param SourceArt              art     The parsed source art.
 	 * @param ArtSourceDescriptor    source  What to record about the file it came from.
-	 * @param SourceArtImportOptions options The template, threshold, and margin.
+	 * @param SourceArtImportOptions options The seed parameters, threshold, and margin.
 	 * @return SourceArtImportResult The model, its tiles' pixels, and the import notices.
 	 */
 	fun fromSourceArt(
@@ -288,7 +293,7 @@ object SourceArtImport {
 		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
 		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
 		// editor's own parameter-create materializes.
-		val parameters = options.parameterTemplate.parameters
+		val parameters = options.parameters
 		val model =
 			PuppetModel(
 				parameters = parameters,

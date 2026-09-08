@@ -1,12 +1,12 @@
 package org.umamo.ui.document
 
+import org.umamo.edit.seed.HumanoidParameters
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.interop.ExportNotice
-import org.umamo.interop.art.HumanoidParameters
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.deriveAtlasTextures

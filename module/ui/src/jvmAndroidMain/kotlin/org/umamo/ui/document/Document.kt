@@ -5,6 +5,7 @@ import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
+import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
@@ -96,6 +97,18 @@ sealed interface DocumentLoad {
 }
 
 /**
+ * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
+ * list and knows nothing about templates, so the template-to-parameters step happens once here for
+ * every caller: the shell resolves the preference into it, and the loaders default through it so a
+ * caller with no setting to read still seeds the configured default.
+ *
+ * @param ParameterTemplate template The parameter set to seed.
+ * @return SourceArtImportOptions The import options.
+ */
+fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
+	SourceArtImportOptions(parameters = template.parameters)
+
+/**
  * Loads a picked/stored file into a [Document] via [loadDocument]'s byte core, reading through
  * FileKit's common API so desktop paths and Android SAF URIs take the same route.  A `.moc3` is the
  * one format routed to the sidecar-discovering loader instead: its manifest, display info, and atlas
@@ -107,7 +120,7 @@ sealed interface DocumentLoad {
  *   the model formats.
  * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognised, or failed to parse).
  */
-suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = SourceArtImportOptions()): DocumentLoad {
+suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions()): DocumentLoad {
 	val bytes =
 		runCatching { file.readBytes() }.getOrElse {
 			UmamoLog.error("failed to read ${file.name}", it)
@@ -137,7 +150,7 @@ fun loadDocument(
 	bytes: ByteArray,
 	name: String,
 	path: String,
-	importOptions: SourceArtImportOptions = SourceArtImportOptions(),
+	importOptions: SourceArtImportOptions = artworkImportOptions(),
 ): DocumentLoad =
 	runCatching {
 		val codec = FormatRegistry.detect(bytes, name)
