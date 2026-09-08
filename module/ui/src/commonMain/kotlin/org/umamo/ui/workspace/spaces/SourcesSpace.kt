@@ -40,18 +40,22 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setTileSource
 import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.ui.kit.DisclosureChevron
+import org.umamo.ui.kit.DropdownChipStyle
+import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.PopupChip
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.Text
@@ -63,7 +67,9 @@ import org.umamo.ui.model.LocalSourceFilePresence
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.UmamoColors
 import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRowDragCancel
 
@@ -338,21 +344,24 @@ private fun SourcesRowView(
 				)
 			}
 		}
-		val (icon, tint) = rowIconOf(node, icons, colors.text, colors.textMuted)
+		// The status is the icon: its glyph and traffic-light tint say bound / bound by name / unbound and
+		// present / missing, and the word survives as the glyph's tooltip rather than as row text.
+		val visual = sourcesRowVisual(node, icons, colors)
+		val statusLabel = visual.statusLabel?.let { label -> stringResource(label) } ?: ""
 		Box(modifier = Modifier.width(SOURCES_ICON_WIDTH), contentAlignment = Alignment.Center) {
-			IconSlot(icon = icon, contentDescription = "", tint = tint, glyphSize = 14.dp)
+			IconSlot(icon = visual.icon, contentDescription = statusLabel, tint = visual.tint, glyphSize = 14.dp)
 		}
 		Spacer(modifier = Modifier.width(4.dp))
-		Text(text = node.label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-		val detail = detailText(node.detail)
-		if (detail != null) {
-			Spacer(modifier = Modifier.width(8.dp))
-			Text(text = detail, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-		}
-		Spacer(modifier = Modifier.weight(1f))
-		val status = statusText(node.status)
-		if (status != null) {
-			Text(text = status, color = if (node.status == SourcesStatus.Missing) colors.accent else colors.textMuted, maxLines = 1)
+		// The label and detail share ONE weighted slot, so the label's unused share is slack inside it and
+		// the trailing chip lands flush right on every row; a second weighted child in the outer row would
+		// leave that slack at the row's end instead.
+		Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+			Text(text = node.label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+			val detail = detailText(node.detail)
+			if (detail != null) {
+				Spacer(modifier = Modifier.width(8.dp))
+				Text(text = detail, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+			}
 		}
 		val tileKind = node.kind as? SourcesNodeKind.Tile
 		if (tileKind != null) {
@@ -363,22 +372,54 @@ private fun SourcesRowView(
 }
 
 /**
- * The icon and tint a row draws with.
+ * How a row's leading icon reads: the glyph, its tint, and the status word the glyph's tooltip carries.
+ *
+ * @property UmamoIcon       icon        The glyph.
+ * @property Color           tint        The glyph's color.
+ * @property StringResource? statusLabel The row's status as a tooltip, or null for a row with none.
+ */
+internal class SourcesRowVisual(
+	val icon: UmamoIcon,
+	val tint: Color,
+	val statusLabel: StringResource?,
+)
+
+/**
+ * The icon a row draws with, carrying the row's status the way a traffic light does: green for a
+ * layer bound by a stable key, amber for one bound by name (a binding that holds only while the
+ * layer keeps its name and place) or a tile on no page, red for an unbound layer, a missing file, or
+ * the unbound-art group.  The glyph itself already says what the row is - a file, a link, a tile, a
+ * mesh - and a missing file swaps to the missing-file glyph, so the status word is a tooltip, never
+ * row text.  Pure, so the mapping is testable without a composition.
  *
  * @param SourcesNode node   The row.
  * @param UmamoIcons  icons  The icon set.
- * @param Color       text   The regular tint.
- * @param Color       muted  The muted tint.
- * @return Pair The icon and its tint.
+ * @param UmamoColors colors The palette.
+ * @return SourcesRowVisual The glyph, tint, and tooltip.
  */
-@Composable
-private fun rowIconOf(node: SourcesNode, icons: org.umamo.ui.theme.UmamoIcons, text: Color, muted: Color): Pair<UmamoIcon, Color> =
+internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: UmamoColors): SourcesRowVisual =
 	when (node.kind) {
-		is SourcesNodeKind.Source -> icons.sources to text
-		is SourcesNodeKind.Layer -> if (node.status == SourcesStatus.Unbound) icons.unlinked to muted else icons.linked to text
-		is SourcesNodeKind.Tile -> icons.spaceTexture to text
-		is SourcesNodeKind.Drawable -> icons.mesh to text
-		SourcesNodeKind.UnboundGroup -> icons.unlinked to muted
+		is SourcesNodeKind.Source ->
+			when (node.status) {
+				SourcesStatus.Missing -> SourcesRowVisual(icons.missingFile, colors.signalBad, Res.string.sources_status_missing)
+				SourcesStatus.Unknown -> SourcesRowVisual(icons.sources, colors.text, Res.string.sources_status_unknown)
+				else -> SourcesRowVisual(icons.sources, colors.text, Res.string.sources_status_present)
+			}
+		is SourcesNodeKind.Layer ->
+			when (node.status) {
+				SourcesStatus.Unbound -> SourcesRowVisual(icons.unlinked, colors.signalBad, Res.string.sources_status_unbound)
+				SourcesStatus.BoundByName -> SourcesRowVisual(icons.linked, colors.signalCaution, Res.string.sources_status_bound_unstable)
+				else -> SourcesRowVisual(icons.linked, colors.signalGood, Res.string.sources_status_bound)
+			}
+		is SourcesNodeKind.Tile ->
+			if (node.status == SourcesStatus.Unplaced) {
+				SourcesRowVisual(icons.spaceTexture, colors.signalCaution, Res.string.sources_status_unplaced)
+			} else {
+				SourcesRowVisual(icons.spaceTexture, colors.text, null)
+			}
+		is SourcesNodeKind.Drawable -> SourcesRowVisual(icons.mesh, colors.outlinerObjectTint, null)
+		// Every tile under the group is unbound; the one red marker at the heading is the group's status.
+		SourcesNodeKind.UnboundGroup -> SourcesRowVisual(icons.unlinked, colors.signalBad, Res.string.sources_status_unbound)
 	}
 
 /**
@@ -400,27 +441,42 @@ private fun detailText(detail: SourcesDetail): String? =
 	}
 
 /**
- * The localized status chip text, or null for a row with no status.
+ * One artwork file's rows in the relink list: the file as a heading, the layers beneath it.
  *
- * @param SourcesStatus status The row's status.
- * @return String? The text.
+ * @property ArtSource source The file.
+ * @property List      layers The layers to list under it, in inventory order.
  */
-@Composable
-private fun statusText(status: SourcesStatus): String? =
-	when (status) {
-		SourcesStatus.Present -> stringResource(Res.string.sources_status_present)
-		SourcesStatus.Missing -> stringResource(Res.string.sources_status_missing)
-		SourcesStatus.Unknown -> stringResource(Res.string.sources_status_unknown)
-		SourcesStatus.Bound -> stringResource(Res.string.sources_status_bound)
-		SourcesStatus.BoundByName -> stringResource(Res.string.sources_status_bound_unstable)
-		SourcesStatus.Unbound -> stringResource(Res.string.sources_status_unbound)
-		SourcesStatus.Unplaced -> stringResource(Res.string.sources_status_unplaced)
-		SourcesStatus.None -> null
-	}
+internal class RelinkGroup(
+	val source: ArtSource,
+	val layers: List<ArtSourceLayer>,
+)
 
 /**
- * A tile row's relink chip: a searchable list of every listed file's layers, plus Unbind while the
- * tile is bound.  Picking closes the panel and rebinds as one undo step.
+ * The relink list for [query]: every file with every layer when the query is blank; otherwise a layer
+ * survives when its name matches, a whole file survives when the FILE name matches, and a file with
+ * nothing left under it is dropped.  Grouped by file so the file name is read once as a heading and
+ * a long one can never push the layer names out of a row.
+ *
+ * @param List<ArtSource> sources The document's artwork files.
+ * @param String          query   The search text, matched case-insensitively after trimming.
+ * @return List<RelinkGroup> The files and their surviving layers, in document order.
+ */
+internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkGroup> {
+	val trimmed = query.trim()
+	return sources.mapNotNull { source ->
+		val layers =
+			if (trimmed.isEmpty() || source.name.contains(trimmed, ignoreCase = true)) {
+				source.layers
+			} else {
+				source.layers.filter { layer -> layer.name.contains(trimmed, ignoreCase = true) }
+			}
+		if (layers.isEmpty()) null else RelinkGroup(source, layers)
+	}
+}
+
+/**
+ * A tile row's relink chip: a searchable list of every listed file's layers, grouped under the file,
+ * plus Unbind while the tile is bound.  Picking closes the panel and rebinds as one undo step.
  *
  * @param AtlasTileId tileId   The tile the chip rebinds.
  * @param PuppetModel puppet   The rig, for the candidates and the current binding.
@@ -433,22 +489,14 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (Atla
 	var open by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
 	val current = puppet.atlas.tileById[tileId]?.source
-	val candidates =
-		remember(puppet.sources) {
-			puppet.sources.flatMap { source ->
-				source.layers.map { layer -> Triple(source, layer.key, layer.name) }
-			}
-		}
-	val trimmed = query.trim()
-	val filtered =
-		remember(candidates, trimmed) {
-			if (trimmed.isEmpty()) candidates else candidates.filter { (source, _, name) -> name.contains(trimmed, ignoreCase = true) || source.name.contains(trimmed, ignoreCase = true) }
-		}
+	val groups = remember(puppet.sources, query) { relinkGroups(puppet.sources, query) }
 	PopupChip(
 		contentDescription = stringResource(Res.string.sources_relink_title),
 		icon = if (current != null) icons.linked else icons.unlinked,
 		expanded = open,
 		onExpandedChange = { next -> open = next },
+		// The row is 22.dp; the Header face would overflow it.
+		style = DropdownChipStyle.Compact,
 	) {
 		Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
 			SearchField(
@@ -466,21 +514,26 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (Atla
 						onRelink(tileId, null)
 					}
 				}
-				if (filtered.isEmpty()) {
+				if (groups.isEmpty()) {
 					Text(text = stringResource(Res.string.sources_relink_no_matches), color = colors.textMuted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
 				}
-				for ((source, key, name) in filtered) {
-					val bound = current?.sourceId == source.id && current.layerKey == key
-					RelinkRow(label = stringResource(Res.string.sources_relink_row, source.name, name), muted = bound) {
-						open = false
-						if (!bound) {
-							// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
-							val stable =
-								puppet.atlas.tiles
-									.mapNotNull { tile -> tile.source }
-									.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
-									?.stableKey
-							onRelink(tileId, SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
+				for (group in groups) {
+					val source = group.source
+					FilterSectionLabel(text = source.name)
+					for (layer in group.layers) {
+						val key = layer.key
+						val bound = current?.sourceId == source.id && current.layerKey == key
+						RelinkRow(label = layer.name, muted = bound, indented = true) {
+							open = false
+							if (!bound) {
+								// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
+								val stable =
+									puppet.atlas.tiles
+										.mapNotNull { tile -> tile.source }
+										.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
+										?.stableKey
+								onRelink(tileId, SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
+							}
 						}
 					}
 				}
@@ -492,12 +545,13 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (Atla
 /**
  * One row of the relink list: the label, hover-highlighted, acting on click.
  *
- * @param String   label   The row text.
- * @param Boolean  muted   Whether the row reads as secondary (the current binding, the unbind action).
- * @param Function onClick Invoked when the row is chosen.
+ * @param String   label    The row text.
+ * @param Boolean  muted    Whether the row reads as secondary (the current binding, the unbind action).
+ * @param Boolean  indented Whether the row sits under a file heading, inset past it.
+ * @param Function onClick  Invoked when the row is chosen.
  */
 @Composable
-private fun RelinkRow(label: String, muted: Boolean, onClick: () -> Unit) {
+private fun RelinkRow(label: String, muted: Boolean, indented: Boolean = false, onClick: () -> Unit) {
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
@@ -513,6 +567,6 @@ private fun RelinkRow(label: String, muted: Boolean, onClick: () -> Unit) {
 				.background(if (hovered) colors.rowHover else Color.Transparent)
 				.focusProperties { canFocus = false }
 				.clickable(onClick = onClick)
-				.padding(horizontal = 8.dp, vertical = 6.dp),
+				.padding(start = if (indented) 16.dp else 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
 	)
 }

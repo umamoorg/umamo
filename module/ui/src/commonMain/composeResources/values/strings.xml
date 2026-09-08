@@ -423,7 +423,6 @@
 	<string name="sources_relink_title">Relink to a layer</string>
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
-	<string name="sources_relink_row">%1$s — %2$s</string>
 	<string name="sources_empty">No source artwork.  Add Artwork… brings a layered file into this document.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Restriction Toggles</string>
