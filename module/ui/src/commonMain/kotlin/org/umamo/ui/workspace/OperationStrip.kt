@@ -80,18 +80,32 @@ private val STRIP_MARGIN = 8.dp
 private val STRIP_MIN_WIDTH = 300.dp
 
 /**
+ * Whether a space hosts the operation settings strip: the 2D viewport and the UV editor, the two work
+ * surfaces, and nothing else.  A panel never shows the strip - Blender's redo panel is a region of the
+ * editors that have one - so a command fired over a panel places its strip in the last work surface the
+ * pointer touched instead (CommandRouting.operationStripArea), and a work surface switched to a panel
+ * after the operation stops showing it.
+ */
+internal val SpaceKind.hostsOperationStrip: Boolean
+	get() = this == SpaceKind.Viewport2D || this == SpaceKind.UvEditor
+
+/**
  * Hosts the strip for one area over [content]: the space body renders under the strip's inset, and
  * the strip itself draws in the bottom-left whenever the session's adjustable operation names
- * [areaId].  Mounted by the area leaf, so every space kind is covered by the one host.
+ * [areaId] and [kind] hosts the strip.  Mounted by every area leaf, so the gate lives in one place
+ * rather than in each space.
  *
- * @param String?  areaId  The hosting area's id.
- * @param Function content The space body.
+ * @param String?   areaId  The hosting area's id.
+ * @param SpaceKind kind    The space the area currently hosts.
+ * @param Function  content The space body.
  */
 @Composable
-internal fun OperationStripHost(areaId: String?, content: @Composable () -> Unit) {
+internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Composable () -> Unit) {
 	val session = LocalEditorSession.current
-	// Only a record naming THIS area shows here; one naming another area, or none, is that area's.
-	val record = session?.adjustableOperation?.collectAsState()?.value?.takeIf { candidate -> candidate.areaId == areaId }
+	// Only a record naming THIS area shows here, and only while the area is a work surface; one naming
+	// another area, or none, is that area's.
+	val record =
+		session?.adjustableOperation?.collectAsState()?.value?.takeIf { candidate -> candidate.areaId == areaId && kind.hostsOperationStrip }
 	var stripHeight by remember { mutableStateOf(0.dp) }
 	val density = LocalDensity.current
 	val inset: Dp = if (record != null) stripHeight + STRIP_MARGIN else 0.dp
@@ -113,9 +127,9 @@ internal fun OperationStripHost(areaId: String?, content: @Composable () -> Unit
 }
 
 /**
- * The strip for an operation that ran in no particular area: the shell mounts it above the status
- * bar.  Draws nothing while the adjustable operation names an area (the area's host shows it) or
- * while there is none.
+ * The strip for an operation that ran with no work surface to show in (the pointer had touched no 2D
+ * viewport or UV editor yet): the shell mounts it above the status bar.  Draws nothing while the
+ * adjustable operation names an area (the area's host shows it) or while there is none.
  *
  * @param Modifier modifier The layout modifier.
  */

@@ -242,6 +242,23 @@ class SourceArtRastersTest {
 		assertNull(store.decodeRaster(AtlasTileId("b")), "an unknown tile has no raster either way")
 	}
 
+	/**
+	 * Rasters added after the store was built (artwork brought into an open document) read from both
+	 * twins and never shadow what the decoder already answers for other tiles.
+	 */
+	@Test
+	fun addedRastersReadFromBothTwinsWithoutShadowingTheDecoder() {
+		val decoded = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val store = SourceArtRasters { requested -> if (requested == AtlasTileId("base")) decoded else null }
+		val added = DecodedImage(byteArrayOf(5, 6, 7, 8), 1, 1)
+		store.addDecoded(mapOf(AtlasTileId("new") to added))
+
+		assertSame(added, store.decodeRaster(AtlasTileId("new")), "the uncached read sees the added raster")
+		assertSame(added, store.rasterFor(AtlasTileId("new")), "so does the cached one")
+		assertSame(decoded, store.rasterFor(AtlasTileId("base")), "the decoder's own tiles are untouched")
+		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile is still unknown")
+	}
+
 	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {

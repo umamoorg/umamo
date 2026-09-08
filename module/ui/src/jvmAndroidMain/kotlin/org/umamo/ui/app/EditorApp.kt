@@ -13,16 +13,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.launch
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
+import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
@@ -35,6 +39,8 @@ import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.ArtDocument
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
+import org.umamo.ui.document.DocumentOpenError
+import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
@@ -46,6 +52,7 @@ import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
+import org.umamo.ui.document.readArtwork
 import org.umamo.ui.document.recentFiles
 import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.kit.TopLevelMenu
@@ -54,6 +61,8 @@ import org.umamo.ui.menu.editMenu
 import org.umamo.ui.menu.fileMenu
 import org.umamo.ui.menu.helpMenu
 import org.umamo.ui.menu.workspaceMenu
+import org.umamo.ui.model.AddArtworkRequest
+import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorMode
@@ -66,8 +75,11 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
+import org.umamo.ui.model.LocalSourceFilePresence
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.model.SourceFilePresence
 import org.umamo.ui.model.rememberSessionEditorState
+import org.umamo.ui.model.runAddArtwork
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
@@ -110,6 +122,15 @@ private val artworkImportExtensions: List<String> =
 		FileKind.Tiff.extension,
 		"tif",
 	)
+
+/**
+ * The file-presence probe the Sources space reads: an okio existence check over a real path.  A uri
+ * (Android's SAF content handles have no path to probe) and a path the file system refuses both read
+ * as unknown rather than missing - the space must never accuse a file it could not check.
+ */
+private val sourceFilePresence: SourceFilePresence = { path ->
+	if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
+}
 
 /**
  * The one editing session per open puppet document (the undo history + dirty state live here),
@@ -256,6 +277,41 @@ fun EditorApp(
 			scope.launch {
 				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), configuredArtworkImportOptions()))
 			}
+		}
+	}
+
+	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
+	// dirty confirm, unlike the import.  A file that will not read raises the same alert an open would.
+	// The area is the one the command fired over, resolved by the shell before the picker opens; it is
+	// where the operation strip shows once the add lands.
+	fun addArtworkViaPicker(areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val picked = filePicker.openFile(artworkImportExtensions) ?: return@launch
+			val bytes =
+				runCatching { picked.readBytes() }.getOrElse { failure ->
+					UmamoLog.error("failed to read ${picked.name}", failure)
+					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
+					return@launch
+				}
+			val read =
+				readArtwork(bytes, picked.name) ?: run {
+					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
+					return@launch
+				}
+			val host =
+				AtlasRepackHost(
+					session = activeSession,
+					artRasters = puppetDocument.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = puppetDocument.textures.premultipliedAlpha,
+					scope = scope,
+					report = { report -> commandRegistry.invoke("document.repackReport", report) },
+					rememberOptions = { _, _ -> },
+				)
+			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension)
+			runAddArtwork(host, AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
 		}
 	}
 
@@ -536,6 +592,7 @@ fun EditorApp(
 		commandRegistry = commandRegistry,
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
+		addArtwork = { areaId -> addArtworkViaPicker(areaId) },
 	)
 }
 
@@ -659,6 +716,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
+ * @param Function addArtwork The app's add-artwork orchestration over the hovered area, handed to the
+ *   shell for a puppet document only (the shell registers the command; see fileAddArtworkCommands).
  */
 @Composable
 private fun DocumentViewport(
@@ -668,6 +727,7 @@ private fun DocumentViewport(
 	commandRegistry: CommandRegistry,
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
+	addArtwork: (String?) -> Unit,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -722,12 +782,19 @@ private fun DocumentViewport(
 					LocalPuppetTextures provides atlasPages.textures,
 					LocalSessionAtlasPages provides sessionAtlasPages,
 					LocalSourceArtRasters provides document.artRasters,
+					LocalSourceFilePresence provides sourceFilePresence,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,
 					LocalEditorMode provides editorState,
 				) {
-					PersistentEditorShell(viewportHost = viewport?.host, commandRegistry = commandRegistry, appMenu = appMenu)
+					PersistentEditorShell(
+						viewportHost = viewport?.host,
+						commandRegistry = commandRegistry,
+						appMenu = appMenu,
+						// Registered by the shell (see fileAddArtworkCommands): the strip shows in the hovered area.
+						addArtwork = addArtwork,
+					)
 				}
 			}
 		null ->

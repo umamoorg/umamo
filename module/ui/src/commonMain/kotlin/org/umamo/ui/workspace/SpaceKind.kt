@@ -29,6 +29,12 @@ enum class SpaceKind(val key: String) {
 	/** The UV / texture-atlas editor. */
 	UvEditor("uv"),
 
+	/**
+	 * The source-art linking table: each artwork file, its layers, the tiles bound to them, and the
+	 * drawables over each tile - where art is added to a document, relinked, and (later) reconciled.
+	 */
+	Sources("sources"),
+
 	/** The parts + deformer hierarchy (Blender's Outliner equivalent). */
 	Outliner("outliner"),
 

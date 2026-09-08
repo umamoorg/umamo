@@ -2,6 +2,7 @@ package org.umamo.ui.workspace
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -325,5 +326,16 @@ class WorkspaceModelTest {
 		assertEquals(replacement, updated.activeWorkspace()!!.root)
 		val texture = updated.workspaces.first { workspace -> workspace.id == "texture" }
 		assertTrue(texture.root is SplitNode, "the inactive workspace is untouched")
+	}
+
+	/** The Texture workspace seeds the Sources table on the left of the UV editor and the viewport. */
+	@Test
+	fun theDefaultTextureWorkspaceLeadsWithSources() {
+		val texture = defaultLayout().workspaces.first { workspace -> workspace.id == "texture" }
+		val root = assertIs<SplitNode>(texture.root)
+		assertEquals(SpaceKind.Sources, assertIs<LeafArea>(root.first).space, "the narrow left area is the Sources table")
+		val rest = assertIs<SplitNode>(root.second)
+		assertEquals(SpaceKind.UvEditor, assertIs<LeafArea>(rest.first).space)
+		assertEquals(SpaceKind.Viewport2D, assertIs<LeafArea>(rest.second).space)
 	}
 }

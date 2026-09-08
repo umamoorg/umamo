@@ -115,6 +115,11 @@ data class UmamoIcons(
 	val logsTerminal: UmamoIcon,
 	val copy: UmamoIcon,
 	val floppy: UmamoIcon,
+	val sources: UmamoIcon,
+	val missingFile: UmamoIcon,
+	val addFile: UmamoIcon,
+	val refresh: UmamoIcon,
+	val refreshAlert: UmamoIcon,
 	val editorModeObject: UmamoIcon,
 	val editorModeEdit: UmamoIcon,
 	val meshSelectVertex: UmamoIcon,
@@ -279,6 +284,16 @@ val LocalUmamoIcons =
 		copy = simpleIcon("M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.66 M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"),
 		// Tabler "floppy" (viewBox 0 0 24 24, stroked).
 		floppy = simpleIcon("M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2 M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0 M14 4l0 4l-6 0l0 -4"),
+		// Tabler "layers-selected" (viewBox 0 0 24 24, stroked).
+		sources = simpleIcon("M8 10.5l6.492 -6.492 M13.496 16l6.504 -6.504l-6.504 6.504 M8.586 15.414l10.827 -10.827 M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8 M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2"),
+		// Tabler "file-unknown" (viewBox 0 0 24 24, stroked).
+		missingFile = simpleIcon("M14 3v4a1 1 0 0 0 1 1h4 M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2 M12 17v.01 M12 14a1.5 1.5 0 1 0 -1.14 -2.474"),
+		// Tabler "file-plus" (viewBox 0 0 24 24, stroked).
+		addFile = simpleIcon("M14 3v4a1 1 0 0 0 1 1h4 M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2 M12 11l0 6 M9 14l6 0"),
+		// Tabler "refresh" (viewBox 0 0 24 24, stroked).
+		refresh = simpleIcon("M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4 M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"),
+		// Tabler "refresh-alert" (viewBox 0 0 24 24, stroked).
+		refreshAlert = simpleIcon("M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4 M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4 M12 9l0 3 M12 15l.01 0"),
 		// The icons below are adapted from the Blender project's icon set (GPL-2.0-or-later, compatible
 		// with this project's GPL-3.0; source SVGs archived under docs/design/icons/).  Each keeps
 		// Blender's two-tone contrast: a full-strength highlight layer over a muted context layer.

@@ -3,6 +3,7 @@ package org.umamo.ui.workspace
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterUnit
+import org.umamo.ui.model.ImportParameterKeys
 import org.umamo.ui.model.RepackParameterKeys
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.PlacementParameterKeys
@@ -32,6 +33,8 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		PlacementParameterKeys.ANGLE -> stringResource(Res.string.placement_options_angle)
 		PlacementParameterKeys.SCALE_X -> stringResource(Res.string.placement_options_scale_x)
 		PlacementParameterKeys.SCALE_Y -> stringResource(Res.string.placement_options_scale_y)
+		ImportParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.import_options_alpha_threshold)
+		ImportParameterKeys.MARGIN -> stringResource(Res.string.import_options_margin)
 		else -> labelKey
 	}
 

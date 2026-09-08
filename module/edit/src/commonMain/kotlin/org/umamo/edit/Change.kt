@@ -719,6 +719,31 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.atlasRepack"
 	}
+
+	/**
+	 * Rebinds one piece of source art to another layer of a listed artwork file, or unbinds it.
+	 * Document content the native format carries, so it marks the document dirty.
+	 *
+	 * @property AtlasTileId tileId The tile rebound.
+	 * @property Boolean     bound  True when a layer was bound, false when the tile was unbound.
+	 */
+	data class SetTileSource(val tileId: AtlasTileId, val bound: Boolean) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = if (bound) "change.document.tileSource" else "change.document.tileUnbind"
+	}
+
+	/**
+	 * Adds an artwork file to the document: its source record and layer inventory, one tile and one
+	 * drawable per layer with art, one part per folder, packed onto the pages beside the existing art.
+	 * Document content, so it marks the document dirty.
+	 *
+	 * @property String sourceName    The file's display name.
+	 * @property Int    drawableCount How many drawables it added.
+	 */
+	data class AddArtwork(val sourceName: String, val drawableCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.addArtwork"
+	}
 }
 
 /**

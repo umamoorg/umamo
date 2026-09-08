@@ -33,10 +33,18 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
+ *
+ * [lastTouchedStripHost] is the one deliberate reach-back: the operation settings strip exists only in
+ * a work surface (hostsOperationStrip), so a document-wide operation fired over a panel needs the work
+ * surface the pointer touched LAST, however long ago, to place its strip.  It places a panel for an
+ * operation that already ran; no command routes an action through it.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */
 	var lastTouched: HoveredSurface? = null
+
+	/** The strip-hosting surface the pointer last touched, or null before any was (or after it died). */
+	var lastTouchedStripHost: HoveredSurface? = null
 
 	/**
 	 * Releases [areaId]'s claim on the pointer, if it holds one.
@@ -50,6 +58,9 @@ internal class HoveredSurfaceTracker {
 	fun releaseArea(areaId: String) {
 		if (lastTouched?.areaId == areaId) {
 			lastTouched = null
+		}
+		if (lastTouchedStripHost?.areaId == areaId) {
+			lastTouchedStripHost = null
 		}
 	}
 }
@@ -83,6 +94,9 @@ internal fun Modifier.stampsHoveredSurface(tracker: HoveredSurfaceTracker?, area
 				// be the common case; compare first and leave the field alone when nothing moved areas.
 				if (event.type != PointerEventType.Exit && tracker.lastTouched != stamp) {
 					tracker.lastTouched = stamp
+					if (kind.hostsOperationStrip) {
+						tracker.lastTouchedStripHost = stamp
+					}
 				}
 			}
 		}

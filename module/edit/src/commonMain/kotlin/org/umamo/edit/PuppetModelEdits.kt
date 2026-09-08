@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.ArtworkAdditions
 import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
@@ -18,6 +19,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.applyUvAffine
 import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.multiplyColor
@@ -867,6 +869,69 @@ fun PuppetModel.withAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean)
 		return this
 	}
 	return copy(atlas = atlas.copy(tiles = tiles))
+}
+
+/**
+ * This model with one tile's source binding replaced - rebound to another layer of a listed artwork
+ * file, or unbound when [source] is null.
+ *
+ * Refused (returns [this]) for an unknown tile or a ref naming a source the document does not list:
+ * a binding that points at nothing would be worse than no binding.  Nothing else moves - the
+ * binding says which layer a re-import reads for this art, never where the art sits.
+ *
+ * @param AtlasTileId     tileId The tile to rebind.
+ * @param SourceLayerRef? source The new binding, or null to unbind.
+ * @return PuppetModel The rebound model, or [this] when refused or unchanged.
+ */
+fun PuppetModel.withTileSource(tileId: AtlasTileId, source: SourceLayerRef?): PuppetModel {
+	val tileIndex = atlas.tiles.indexOfFirst { tile -> tile.id == tileId }
+	if (tileIndex < 0) {
+		return this
+	}
+	if (source != null && sources.none { candidate -> candidate.id == source.sourceId }) {
+		return this
+	}
+	val tile = atlas.tiles[tileIndex]
+	if (tile.source == source) {
+		return this
+	}
+	val tiles = atlas.tiles.toMutableList()
+	tiles[tileIndex] = tile.copy(source = source)
+	return copy(atlas = atlas.copy(tiles = tiles))
+}
+
+/**
+ * This model with an artwork file's additions appended: the source record, its tiles (unplaced), its
+ * drawables and parts, and the file's top-level order after the existing root children, with the
+ * render root re-derived.  The pack that places the new tiles is a separate step over the result,
+ * exactly as it is for a fresh import.
+ *
+ * Refused (returns [this]) when any added id collides with one the model already has - the bridge
+ * mints past the existing ids, so a collision is a caller bug rather than document state to absorb.
+ *
+ * @param ArtworkAdditions additions The delta to append.
+ * @return PuppetModel The model with the artwork added, or [this] when refused.
+ */
+fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
+	if (sources.any { source -> source.id == additions.source.id }) {
+		return this
+	}
+	val existingTileIds = atlas.tiles.mapTo(HashSet()) { tile -> tile.id }
+	val existingDrawableIds = drawables.mapTo(HashSet()) { drawable -> drawable.id }
+	val existingPartIds = parts.mapTo(HashSet()) { part -> part.id }
+	if (additions.tiles.any { tile -> tile.id in existingTileIds } ||
+		additions.drawables.any { drawable -> drawable.id in existingDrawableIds } ||
+		additions.parts.any { part -> part.id in existingPartIds }
+	) {
+		return this
+	}
+	return copy(
+		parts = parts + additions.parts,
+		drawables = drawables + additions.drawables,
+		rootChildren = rootChildren + additions.rootChildren,
+		atlas = atlas.copy(tiles = atlas.tiles + additions.tiles),
+		sources = sources + additions.source,
+	).withDerivedRenderRoot()
 }
 
 /**

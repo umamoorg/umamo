@@ -22,6 +22,7 @@ import org.umamo.ui.workspace.spaces.OutlinerSpace
 import org.umamo.ui.workspace.spaces.ParametersSpace
 import org.umamo.ui.workspace.spaces.PlaceholderSpace
 import org.umamo.ui.workspace.spaces.PropertiesSpace
+import org.umamo.ui.workspace.spaces.SourcesSpace
 import org.umamo.ui.workspace.spaces.UvEditorSpace
 import org.umamo.ui.workspace.spaces.ViewportSidebarDrawer
 import org.umamo.ui.workspace.spaces.ViewportToolbarOverlay
@@ -30,6 +31,7 @@ import org.umamo.ui.workspace.spaces.logsHeaderControls
 import org.umamo.ui.workspace.spaces.outlinerHeaderControls
 import org.umamo.ui.workspace.spaces.parametersHeaderControls
 import org.umamo.ui.workspace.spaces.propertiesHeaderControls
+import org.umamo.ui.workspace.spaces.sourcesHeaderControls
 import org.umamo.ui.workspace.spaces.uvEditorHeaderControls
 import org.umamo.ui.workspace.spaces.viewport2DHeaderControls
 
@@ -59,6 +61,13 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 					LocalUmamoIcons.spaceTexture,
 					headerContent = { scope -> uvEditorHeaderControls(scope) },
 				) { scope -> UvEditorSpace(scope) },
+			SpaceKind.Sources to
+				SpaceDescriptor(
+					SpaceKind.Sources,
+					Res.string.space_sources,
+					LocalUmamoIcons.sources,
+					headerContent = { scope -> sourcesHeaderControls(scope) },
+				) { scope -> SourcesSpace(scope) },
 			SpaceKind.Outliner to
 				SpaceDescriptor(
 					SpaceKind.Outliner,

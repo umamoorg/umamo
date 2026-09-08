@@ -90,12 +90,14 @@ class AtlasRepackReport(
 /**
  * What one repack feeds the packer.
  *
- * The items are every tile as a FREE item; the pinned tiles' placements sit beside them so one
- * decoded input serves a pack that keeps the pins and a pack that ignores them - the strip's Keep
- * Pinned Tiles row flips between the two without re-decoding.
+ * The items are every tile as a FREE item; the placed tiles' placements sit beside them in the
+ * packer's fixed form so one decoded input serves a pack that keeps the pins, a pack that ignores
+ * them, and a pack that holds EVERY placed tile still (art added to an open document packs into the
+ * gaps) - the strip's Keep Pinned Tiles row flips between the first two without re-decoding.
  *
  * @property List items              The tiles' pixels plus their mesh reserves, all free.
  * @property Map  fixedByKey         The pinned placed tiles' placements as the packer's fixed form, by key.
+ * @property Map  placedByKey        EVERY placed tile's placement as the packer's fixed form, by key.
  * @property Set  undecodableTileIds Tiles whose art would not decode or disagrees with its tile.
  * @property Map  reserveByTile      The mesh reserves the items were built with, kept so the commit
  *                                   can tell whether a mesh edit during the pack staled them.
@@ -103,22 +105,31 @@ class AtlasRepackReport(
 internal class RepackPackInput(
 	val items: List<AtlasPackItem>,
 	val fixedByKey: Map<String, AtlasPackFixed>,
+	val placedByKey: Map<String, AtlasPackFixed>,
 	val undecodableTileIds: Set<AtlasTileId>,
 	val reserveByTile: Map<AtlasTileId, AtlasPackReserve>,
 ) {
 	/**
-	 * The items to pack: the pinned tiles fixed where they are when [keepPinned], else every tile free.
-	 * Items hold their pixels by reference, so the fixed copies cost nothing.
+	 * The items to pack: every placed tile fixed where it is when [fixPlaced], else the pinned tiles
+	 * fixed when [keepPinned], else every tile free.  Items hold their pixels by reference, so the
+	 * fixed copies cost nothing.
 	 *
 	 * @param Boolean keepPinned Whether the pinned tiles stay put.
+	 * @param Boolean fixPlaced  Whether every placed tile stays put, pinned or not.
 	 * @return List The pack items.
 	 */
-	fun itemsFor(keepPinned: Boolean): List<AtlasPackItem> {
-		if (!keepPinned || fixedByKey.isEmpty()) {
+	fun itemsFor(keepPinned: Boolean, fixPlaced: Boolean = false): List<AtlasPackItem> {
+		val fixedForms =
+			when {
+				fixPlaced -> placedByKey
+				keepPinned -> fixedByKey
+				else -> emptyMap()
+			}
+		if (fixedForms.isEmpty()) {
 			return items
 		}
 		return items.map { item ->
-			val fixed = fixedByKey[item.key] ?: return@map item
+			val fixed = fixedForms[item.key] ?: return@map item
 			AtlasPackItem(item.key, item.width, item.height, item.rgba, item.reserve, fixed)
 		}
 	}
@@ -146,6 +157,7 @@ internal fun buildRepackPackInput(
 	val reserveByTile = meshReserveByTile(model)
 	val items = ArrayList<AtlasPackItem>()
 	val fixedByKey = HashMap<String, AtlasPackFixed>()
+	val placedByKey = HashMap<String, AtlasPackFixed>()
 	val undecodable = HashSet<AtlasTileId>()
 	for (tile in model.atlas.tiles) {
 		if (tile.id !in boundTileIds && tile.placement == null) {
@@ -157,12 +169,16 @@ internal fun buildRepackPackInput(
 		} else {
 			items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba, reserveByTile[tile.id]))
 			val placement = tile.placement
-			if (tile.pinned && placement != null) {
-				fixedByKey[tile.id.raw] = AtlasPackFixed(placement.pageIndex, placementAffine(placement))
+			if (placement != null) {
+				val fixed = AtlasPackFixed(placement.pageIndex, placementAffine(placement))
+				placedByKey[tile.id.raw] = fixed
+				if (tile.pinned) {
+					fixedByKey[tile.id.raw] = fixed
+				}
 			}
 		}
 	}
-	return RepackPackInput(items, fixedByKey, undecodable, reserveByTile)
+	return RepackPackInput(items, fixedByKey, placedByKey, undecodable, reserveByTile)
 }
 
 /**
@@ -271,6 +287,8 @@ internal class PackedAtlas(
  * @param Function         decodeRaster Yields a tile's decoded pixels, or null.
  * @param AtlasPackOptions options      The packing policy.
  * @param Boolean          keepPinned   Whether pinned tiles stay where they are.
+ * @param Boolean          fixPlaced    Whether every placed tile stays where it is (added art packs
+ *                                      into the gaps).
  * @return PackedAtlas The input and the result, not yet lowered or committed.
  */
 internal fun packAtlasOf(
@@ -278,9 +296,10 @@ internal fun packAtlasOf(
 	decodeRaster: (AtlasTileId) -> DecodedImage?,
 	options: AtlasPackOptions,
 	keepPinned: Boolean = true,
+	fixPlaced: Boolean = false,
 ): PackedAtlas {
 	val input = buildRepackPackInput(model, decodeRaster)
-	return PackedAtlas(input, packAtlas(input.itemsFor(keepPinned), options))
+	return PackedAtlas(input, packAtlas(input.itemsFor(keepPinned, fixPlaced), options))
 }
 
 /**
@@ -290,7 +309,7 @@ internal fun packAtlasOf(
  * @property Map  placementsByTile Every tile's new placement, null for one packed out.
  * @property Int  packedOutCount   Placed-but-unbound tiles the pack could not carry, now unpacked.
  */
-private class LoweredPack(
+internal class LoweredPack(
 	val pages: List<AtlasPage>,
 	val placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
 	val packedOutCount: Int,
@@ -306,7 +325,7 @@ private class LoweredPack(
  * @param AtlasPackResult packResult What the packer produced.
  * @return LoweredPack The pages and placements to commit.
  */
-private fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredPack {
+internal fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredPack {
 	val pages = packResult.pages.map { page -> AtlasPage(page.width, page.height) }
 	val packedByKey = packResult.placements.associateBy { placement -> placement.key }
 	val keptKeys = packResult.fixed.mapTo(HashSet()) { kept -> kept.key }
@@ -334,7 +353,7 @@ private fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredP
  * @param LoweredPack     lowered    Its lowering.
  * @param AtlasPackOptions options   The options it ran with.
  */
-private fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options: AtlasPackOptions) {
+internal fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options: AtlasPackOptions) {
 	val occupancy =
 		packResult.pages.indices.joinToString(separator = ", ") { pageIndex ->
 			"${(packResult.pageOccupancy(pageIndex) * 100f).toInt()}%"

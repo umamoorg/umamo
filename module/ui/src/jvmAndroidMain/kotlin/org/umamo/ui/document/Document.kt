@@ -5,13 +5,9 @@ import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
-import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
-import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3Model
-import org.umamo.format.raster.RasterImage
-import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -97,18 +93,6 @@ sealed interface DocumentLoad {
 }
 
 /**
- * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
- * list and knows nothing about templates, so the template-to-parameters step happens once here for
- * every caller: the shell resolves the preference into it, and the loaders default through it so a
- * caller with no setting to read still seeds the configured default.
- *
- * @param ParameterTemplate template The parameter set to seed.
- * @return SourceArtImportOptions The import options.
- */
-fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
-	SourceArtImportOptions(parameters = template.parameters)
-
-/**
  * Loads a picked/stored file into a [Document] via [loadDocument]'s byte core, reading through
  * FileKit's common API so desktop paths and Android SAF URIs take the same route.  A `.moc3` is the
  * one format routed to the sidecar-discovering loader instead: its manifest, display info, and atlas
@@ -158,18 +142,17 @@ fun loadDocument(
 			UmamoLog.warn("$path is not a format Umamo recognizes")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 		}
-		// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
-		// type that kind's codec is known to produce.
-		when (val kind = codec.kind) {
-			FileKind.Cmo3 -> buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
-			FileKind.Psd, FileKind.Clip, FileKind.Kra -> buildArtDocument(codec.read(bytes) as SourceArt, kind, name, path, importOptions)
-			FileKind.Png, FileKind.Bmp, FileKind.Jpeg, FileKind.WebP, FileKind.Tiff ->
-				buildArtDocument(rasterToSourceArt(codec.read(bytes) as RasterImage, name), kind, name, path, importOptions)
-			FileKind.Moc3, FileKind.Json, FileKind.Uma -> {
-				UmamoLog.warn("$path is a .${kind.extension} file, which the editor shell can't open")
-				DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
-			}
+		if (codec.kind == FileKind.Cmo3) {
+			// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
+			// type that kind's codec is known to produce.
+			return@runCatching buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
 		}
+		val artwork = artworkOf(codec, bytes, name)
+		if (artwork == null) {
+			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")
+			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
+		}
+		buildArtDocument(artwork, codec.kind, name, path, importOptions)
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))

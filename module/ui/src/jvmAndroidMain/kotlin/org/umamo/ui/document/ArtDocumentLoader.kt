@@ -1,7 +1,12 @@
 package org.umamo.ui.document
 
+import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
+import org.umamo.format.FormatCodec
+import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
+import org.umamo.format.raster.RasterImage
+import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
@@ -12,6 +17,7 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.AtlasRepackRefusalReason
+import org.umamo.ui.model.describeImportNotice
 import org.umamo.ui.model.packModelAtOpen
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
@@ -35,6 +41,66 @@ class ArtDocument(
 	override val liveParams: LiveParams,
 	val importNotices: List<SourceArtImportNotice>,
 ) : PuppetDocument
+
+/**
+ * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
+ * list and knows nothing about templates, so the template-to-parameters step happens once here for
+ * every caller: the shell resolves the preference into it, and the loaders default through it so a
+ * caller with no setting to read still seeds the configured default.
+ *
+ * @param ParameterTemplate template The parameter set to seed.
+ * @return SourceArtImportOptions The import options.
+ */
+fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
+	SourceArtImportOptions(parameters = template.parameters)
+
+/**
+ * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
+ * document open and Add Artwork into an open document.
+ *
+ * @property SourceArt art  The parsed source art.
+ * @property FileKind  kind The format it was read from.
+ */
+class ReadArtwork(
+	val art: SourceArt,
+	val kind: FileKind,
+)
+
+/**
+ * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
+ * or PNG / BMP / JPEG / WebP / TIFF as a one-layer document), and null for anything else - a model
+ * format, an unrecognised file, or a file that fails to parse, which is logged.
+ *
+ * @param ByteArray bytes The file contents.
+ * @param String    name  The file name (the extension fallback for detection; the log's name).
+ * @return ReadArtwork? The art and its format, or null.
+ */
+fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
+	val codec = FormatRegistry.detect(bytes, name) ?: return null
+	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind) } }
+		.getOrElse { failure ->
+			UmamoLog.error("failed to read artwork $name", failure)
+			null
+		}
+}
+
+/**
+ * The source art [codec] reads out of [bytes]: a layered reader's document as it is, a flat raster
+ * wrapped as one layer, or null for a kind that is not artwork at all.
+ *
+ * @param FormatCodec codec The detected codec.
+ * @param ByteArray   bytes The file contents.
+ * @param String      name  The file name (a flat raster's one layer is named after it).
+ * @return SourceArt? The art, or null for a non-art kind.
+ */
+internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): SourceArt? =
+	// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
+	// type that kind's codec is known to produce.
+	when (codec.kind) {
+		FileKind.Psd, FileKind.Clip, FileKind.Kra -> codec.read(bytes) as SourceArt
+		FileKind.Png, FileKind.Bmp, FileKind.Jpeg, FileKind.WebP, FileKind.Tiff -> rasterToSourceArt(codec.read(bytes) as RasterImage, name)
+		FileKind.Cmo3, FileKind.Moc3, FileKind.Json, FileKind.Uma -> null
+	}
 
 /**
  * Assembles an [ArtDocument] from parsed source art: the bridge builds the unpacked model, the pack
@@ -90,24 +156,3 @@ internal fun buildArtDocument(
 	)
 	return DocumentLoad.Loaded(ArtDocument(path, puppet, packed.textures, SourceArtRasters(decodeRaster), initialLiveParams(puppet), notices))
 }
-
-/**
- * One import notice as a log line: plain English naming the layer and what happened to it, the same
- * shape the export notices log in.
- *
- * @param SourceArtImportNotice notice The notice.
- * @return String The log text.
- */
-internal fun describeImportNotice(notice: SourceArtImportNotice): String =
-	when (notice) {
-		is SourceArtImportNotice.NonRasterLayer -> "layer '${notice.layerName}' is a ${notice.kind.name.lowercase()} layer with no pixels; skipped"
-		is SourceArtImportNotice.EmptyLayer -> "layer '${notice.layerName}' has no opaque pixels; skipped"
-		is SourceArtImportNotice.BlendUnsupported -> "layer '${notice.layerName}' blends with ${notice.blend.name}, which has no equivalent; imported as Normal"
-		is SourceArtImportNotice.BlendApproximated -> "layer '${notice.layerName}' blends with ${notice.blend.name}; imported as the nearest mode, ${notice.mappedTo.name}"
-		is SourceArtImportNotice.ClipBaseMissing -> "layer '${notice.layerName}' clips to the layer below but has none in its folder; imported unclipped"
-		is SourceArtImportNotice.ChannelMaskDropped -> "layer '${notice.layerName}' writes only some color channels; imported writing all of them"
-		is SourceArtImportNotice.FolderBlendUnsupported -> "folder '${notice.groupPath}' blends with ${notice.blend.name}, which has no equivalent; its part composites as Normal"
-		is SourceArtImportNotice.FolderClipDropped -> "folder '${notice.groupPath}' clips to the layer below; its part imports unclipped"
-		is SourceArtImportNotice.LayerLargerThanPage -> "layer '${notice.layerName}' is larger than the largest atlas page; left unpacked"
-		is SourceArtImportNotice.LayerNotPacked -> "layer '${notice.layerName}' could not be packed (${notice.reason}); left unpacked"
-	}

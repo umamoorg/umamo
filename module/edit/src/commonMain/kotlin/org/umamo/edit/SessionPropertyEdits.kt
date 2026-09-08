@@ -14,6 +14,7 @@ import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.SourceLayerRef
 
 /*
  * Scalar property edits on an EditorSession, mostly driven by the Properties panel's editable controls
@@ -339,6 +340,35 @@ fun EditorSession.setAtlasPlacements(
  */
 fun EditorSession.setAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean) {
 	mutate(DocumentChange.SetAtlasPin(tileIds.toList(), pinned)) { model -> model.withAtlasPins(tileIds, pinned) }
+}
+
+/**
+ * Rebinds one tile to a layer of a listed artwork file, or unbinds it, as one undo step -
+ * withTileSource under the one history push a relink should be.
+ *
+ * @param AtlasTileId     tileId The tile to rebind.
+ * @param SourceLayerRef? source The new binding, or null to unbind.
+ */
+fun EditorSession.setTileSource(tileId: AtlasTileId, source: SourceLayerRef?) {
+	mutate(DocumentChange.SetTileSource(tileId, bound = source != null)) { model -> model.withTileSource(tileId, source) }
+}
+
+/**
+ * Commits a model that already carries an artwork file's additions and their pack as ONE undo step.
+ *
+ * The orchestrator builds [added] off the UI thread (the bridge, the pack around the existing art,
+ * the re-derivation) from the model current when it started, checks nothing moved underneath it, and
+ * lands it here; the page pixels are session state it swaps in beside this commit, which is why the
+ * committed model comes back for the resolver's pre-warm.
+ *
+ * @param String      sourceName    The added file's display name, for the history label.
+ * @param Int         drawableCount How many drawables it added.
+ * @param PuppetModel added         The model with the additions and their pack applied.
+ * @return PuppetModel The committed model.
+ */
+fun EditorSession.commitArtworkAdded(sourceName: String, drawableCount: Int, added: PuppetModel): PuppetModel {
+	mutate(DocumentChange.AddArtwork(sourceName, drawableCount)) { added }
+	return added
 }
 
 /**

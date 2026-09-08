@@ -31,6 +31,21 @@ class CommandRoutingTest {
 
 	private fun routing(hovered: HoveredSurface?): CommandRouting = CommandRouting { hovered }
 
+	/**
+	 * The strip placement rule: a hovered work surface wins, a hovered panel yields to the last work
+	 * surface touched, and with neither the strip has no area (the shell shows it).
+	 */
+	@Test
+	fun theOperationStripGoesToAWorkSurfaceOrNowhere() {
+		val lastWorkSurface = HoveredSurface(uvArea, SpaceKind.UvEditor)
+		assertEquals(viewportArea, CommandRouting({ HoveredSurface(viewportArea, SpaceKind.Viewport2D) }, { lastWorkSurface }).operationStripArea())
+		assertEquals(uvArea, CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { lastWorkSurface }).operationStripArea())
+		assertEquals(uvArea, CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { lastWorkSurface }).operationStripArea(), "a panel yields to the last work surface")
+		assertEquals(uvArea, CommandRouting({ null }, { lastWorkSurface }).operationStripArea(), "no pointer at all still finds the last work surface")
+		assertNull(CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { null }).operationStripArea(), "never a panel")
+		assertNull(routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).operationStripArea(), "the default remembers no work surface")
+	}
+
 	private fun meshDrawable(): Drawable =
 		Drawable(
 			id = DrawableId("a"),
