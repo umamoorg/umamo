@@ -14,16 +14,18 @@ import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 /*
  * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
  * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X). Inter for
- * Latin, Noto Sans CJK JP as the fallback for Japanese; Regular only (heavier weights synthesize).
+ * Latin, Noto Sans CJK JP as the CJK fallback; Regular only (heavier weights synthesize).
  *
  * 独自の文字スケール。役割名は従来と同じにして移行を機械的にする。
  */
 
 /**
  * The UI font family: Inter first, Noto Sans CJK JP second. Listing both in one family lets the text layout
- * fall back to Noto for any glyph Inter does not cover, so Japanese renders from the bundled font rather
- * than relying on the platform's chance system coverage. `@Composable` because the Compose-resources
- * [Font] loader resolves against the resource environment.
+ * fall back to Noto for any glyph Inter does not cover, so CJK renders from the bundled font rather than
+ * relying on the platform's chance system coverage. The JP cut is the whole Noto Sans CJK collection -
+ * kana, Hangul, and the unified ideographs - and only the DEFAULT glyph form for the shared ideographs is
+ * region-specific, so Korean chrome (Hangul, no hanja) renders correctly from it and needs no second face.
+ * `@Composable` because the Compose-resources [Font] loader resolves against the resource environment.
  *
  * @return FontFamily The composed Inter + Noto fallback family.
  */
