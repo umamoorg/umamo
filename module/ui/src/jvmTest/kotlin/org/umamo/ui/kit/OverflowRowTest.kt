@@ -1,12 +1,17 @@
 package org.umamo.ui.kit
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -92,6 +97,44 @@ class OverflowRowTest {
 			onNodeWithTag("present").assertExists()
 			// Nothing collapsed, so no chip: an item with no content costs the strip nothing at all.
 			onNodeWithContentDescription(MORE_LABEL, useUnmergedTree = true).assertDoesNotExist()
+		}
+	}
+
+	/**
+	 * Shrinking a strip with a compressible control past its overflow point, twice: the first pass learns
+	 * the chip's width, so the second packs in two walks that offer the search box two different bounds.
+	 * That used to measure one Measurable twice in a pass, which Compose refuses; the strip must instead
+	 * settle with the box squeezed and the trailing control in the chip.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun shrinkingPastTheOverflowPointSqueezesRatherThanCrashing() {
+		runComposeUiTest {
+			var stripWidth by mutableStateOf(400.dp)
+			setContent {
+				UmamoTheme {
+					Box(modifier = Modifier.width(stripWidth)) {
+						OverflowRow {
+							pinnedItem("a") { Box(modifier = Modifier.size(40.dp).testTag("a")) }
+							item("search", minWidth = 40.dp) { Box(modifier = Modifier.width(120.dp).height(20.dp).testTag("search")) }
+							item("b") { Box(modifier = Modifier.size(40.dp).testTag("b")) }
+							item("c") { Box(modifier = Modifier.size(40.dp).testTag("c")) }
+						}
+					}
+				}
+			}
+			waitForIdle()
+			onNodeWithTag("search").assertWidthIsEqualTo(120.dp)
+			// Past the point where c no longer fits: the chip appears and the box gives up width for b.
+			stripWidth = 180.dp
+			waitForIdle()
+			onNodeWithContentDescription(MORE_LABEL).assertExists()
+			// Narrower again, now with the chip's width known: the second-walk bound differs from the first.
+			stripWidth = 150.dp
+			waitForIdle()
+			onNodeWithTag("a").assertExists()
+			onNodeWithTag("search").assertExists()
+			onNodeWithContentDescription(MORE_LABEL).assertExists()
 		}
 	}
 
