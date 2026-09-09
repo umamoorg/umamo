@@ -34,7 +34,30 @@ data class LayerBounds(
 	val top: Int,
 	val width: Int,
 	val height: Int,
-)
+) {
+	/** The rectangle's area in pixels; zero for an empty one. */
+	val area: Long get() = if (width <= 0 || height <= 0) 0L else width.toLong() * height.toLong()
+
+	/**
+	 * How much of the union of this rectangle and [other] both cover: 1 for the same rectangle, 0 for
+	 * disjoint ones - the overlap measure a layer matcher scores a candidate's placement on.
+	 *
+	 * @param LayerBounds other The other rectangle.
+	 * @return Float The intersection over the union, 0 when either rectangle is empty.
+	 */
+	fun intersectionOverUnion(other: LayerBounds): Float {
+		if (area == 0L || other.area == 0L) {
+			return 0f
+		}
+		val overlapWidth = minOf(left + width, other.left + other.width) - maxOf(left, other.left)
+		val overlapHeight = minOf(top + height, other.top + other.height) - maxOf(top, other.top)
+		if (overlapWidth <= 0 || overlapHeight <= 0) {
+			return 0f
+		}
+		val intersection = overlapWidth.toLong() * overlapHeight.toLong()
+		return intersection.toFloat() / (area + other.area - intersection).toFloat()
+	}
+}
 
 /**
  * How a layer composites onto what's beneath it - the full PSD/Clip Studio/Krita blend-mode set.

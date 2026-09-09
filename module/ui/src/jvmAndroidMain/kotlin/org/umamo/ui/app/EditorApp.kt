@@ -18,6 +18,7 @@ import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.FileSystem
@@ -27,6 +28,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.edit.setTileSource
 import org.umamo.format.FileKind
+import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.ExportNotice
@@ -35,12 +37,14 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.reimport.InventoryLayerMatcher
 import org.umamo.reimport.PollingSourceWatcher
 import org.umamo.reimport.SourceWatchCoordinator
 import org.umamo.reimport.SourceWatchEvent
 import org.umamo.reimport.WatchMode
 import org.umamo.reimport.WatchedReloadResult
 import org.umamo.reimport.WatchedSource
+import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
@@ -59,6 +63,7 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
+import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
@@ -92,18 +97,26 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.LocalSourceSuggestions
 import org.umamo.ui.model.LocalSourceWatch
+import org.umamo.ui.model.MatchArtworkRequest
 import org.umamo.ui.model.RelinkArtworkRequest
 import org.umamo.ui.model.ReloadArtworkRequest
 import org.umamo.ui.model.ReloadArtworkResult
 import org.umamo.ui.model.ReloadEntry
+import org.umamo.ui.model.ReplaceArtworkRequest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.SourceFilePresence
+import org.umamo.ui.model.SourceSuggestionState
+import org.umamo.ui.model.SourceSuggestions
 import org.umamo.ui.model.SourceWatchState
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.model.runAddArtwork
+import org.umamo.ui.model.runMatchArtwork
 import org.umamo.ui.model.runRelinkArtwork
 import org.umamo.ui.model.runReloadArtwork
+import org.umamo.ui.model.runReplaceArtwork
+import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
@@ -121,6 +134,7 @@ import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
+import org.umamo.ui.workspace.commands.ReplaceRequest
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
 import org.umamo.ui.workspace.commands.logCommands
@@ -321,29 +335,58 @@ fun EditorApp(
 			rememberOptions = { _, _ -> },
 		)
 
+	// Picks an artwork file and reads it, describing it the way the document records a file.  A file
+	// that will not read raises the same alert an open would, and null comes back.
+	suspend fun pickArtwork(): PickedArtwork? {
+		val picked = filePicker.openFile(artworkImportExtensions) ?: return null
+		val bytes =
+			runCatching { picked.readBytes() }.getOrElse { failure ->
+				UmamoLog.error("failed to read ${picked.name}", failure)
+				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
+				return null
+			}
+		val read =
+			readArtwork(bytes, picked.name) ?: run {
+				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
+				return null
+			}
+		return PickedArtwork(read, ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash))
+	}
+
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
-	// dirty confirm, unlike the import.  A file that will not read raises the same alert an open would.
-	// The area is the one the command fired over, resolved by the shell before the picker opens; it is
-	// where the operation strip shows once the add lands.
+	// dirty confirm, unlike the import.  The area is the one the command fired over, resolved by the
+	// shell before the picker opens; it is where the operation strip shows once the add lands.
 	fun addArtworkViaPicker(areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
-			val picked = filePicker.openFile(artworkImportExtensions) ?: return@launch
-			val bytes =
-				runCatching { picked.readBytes() }.getOrElse { failure ->
-					UmamoLog.error("failed to read ${picked.name}", failure)
-					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
-					return@launch
-				}
-			val read =
-				readArtwork(bytes, picked.name) ?: run {
-					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
-					return@launch
-				}
-			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash)
-			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
+			val picked = pickArtwork() ?: return@launch
+			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(picked.read.art, picked.descriptor, artworkImportOptions()), areaId)
 		}
+	}
+
+	// The suggestions the last operation that read a file scored for its unresolved bindings, for the
+	// Sources space's review chips.  An operation replaces what stands for the files it read and leaves
+	// the rest; a document swap starts empty.
+	val sourceSuggestions = remember(document, session) { MutableStateFlow<SourceSuggestions>(emptyMap()) }
+
+	fun publishSuggestions(covered: Set<ArtSourceId>, suggestions: SourceSuggestions) {
+		sourceSuggestions.value = sourceSuggestions.value.filterKeys { (sourceId, _) -> sourceId !in covered } + suggestions
+	}
+
+	// One listed file's art the way every operation over it reads it: from disk when the file is there,
+	// else - for a CMO3-origin document whose file is not - from the layer PNGs the official editor
+	// decomposed into the CMO3 at import; null when neither can be read.
+	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
+		val path = source.path
+		if (path != null && sourceFilePresence(path) == true) {
+			val read = readArtworkAt(path) ?: return null
+			return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+		}
+		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
+		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
+		val art = withContext(Dispatchers.Default) { cmo3SourceArtOf(root, source.id) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } } ?: return null
+		return SourceRead(art, contentHash = null, fromCmo3 = true)
 	}
 
 	// The document's artwork watcher: one per open puppet document, over the composable's own scope
@@ -404,7 +447,11 @@ fun EditorApp(
 				documentWatch?.coordinator?.reloadFinished(covered, WatchedReloadResult.Abandoned)
 				return@launch
 			}
-			val result = runReloadArtwork(artworkHostFor(puppetDocument, activeSession), ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			val host = artworkHostFor(puppetDocument, activeSession)
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			if (result == ReloadArtworkResult.Applied || result == ReloadArtworkResult.NothingChanged) {
+				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
+			}
 			documentWatch?.coordinator?.reloadFinished(
 				entries.mapTo(LinkedHashSet()) { entry -> entry.sourceId },
 				when (result) {
@@ -469,18 +516,52 @@ fun EditorApp(
 			return
 		}
 		scope.launch {
-			val path = activeSession.model.value.sources.firstOrNull { source -> source.id == ref.sourceId }?.path
-			val read = if (path != null && sourceFilePresence(path) == true) readArtworkAt(path) else null
-			val art =
-				read?.art
-					?: (puppetDocument as? Cmo3Document)?.let { cmo3Document ->
-						val root = cmo3Document.cmo3.root as? CModelSource ?: return@let null
-						withContext(Dispatchers.Default) { cmo3SourceArtOf(root, ref.sourceId) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } }
-					}
-			if (read == null && art != null) {
+			val source = activeSession.model.value.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
+			val read = source?.let { listed -> readSourceArt(puppetDocument, listed) }
+			if (read?.fromCmo3 == true) {
 				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file is not on this machine")
 			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, art, artworkImportOptions()), areaId)
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, read?.art, artworkImportOptions()), areaId)
+		}
+	}
+
+	// Reads every listed file it can and rebinds the bindings the files no longer resolve to the layers
+	// the matcher is confident about, as one undo step with the threshold on the strip; what it is not
+	// sure about it publishes as suggestions for the rows that need review.
+	fun matchArtwork(areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val entries = ArrayList<ReloadEntry>()
+			for (source in activeSession.model.value.sources) {
+				val read = readSourceArt(puppetDocument, source) ?: continue
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+			}
+			if (entries.isEmpty()) {
+				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				return@launch
+			}
+			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
+			runMatchArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions()),
+				areaId,
+			) { suggestions -> publishSuggestions(covered, suggestions) }
+		}
+	}
+
+	// Repoints one listed file at another the person picks: what the new file resolves by key reloads,
+	// the rest is flagged for review with suggestions scored against the new file's layers.
+	fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val picked = pickArtwork() ?: return@launch
+			runReplaceArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions()),
+				areaId,
+			) { suggestions -> publishSuggestions(setOf(request.sourceId), suggestions) }
 		}
 	}
 
@@ -491,6 +572,8 @@ fun EditorApp(
 			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
 			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
+			matchArtwork = { areaId -> matchArtwork(areaId) },
+			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 
@@ -773,8 +856,33 @@ fun EditorApp(
 		viewportServiceFactory = viewportServiceFactory,
 		artwork = artworkOperations,
 		sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
+		sourceSuggestions = SourceSuggestionState(sourceSuggestions),
 	)
 }
+
+/**
+ * An artwork file as picked and read for an add or a replace.
+ *
+ * @property ReadArtwork         read       The parsed art, its format, and its content hash.
+ * @property ArtSourceDescriptor descriptor The file's name, path, format, and hash as the document records them.
+ */
+private class PickedArtwork(
+	val read: ReadArtwork,
+	val descriptor: ArtSourceDescriptor,
+)
+
+/**
+ * One listed file's art as an operation read it.
+ *
+ * @property SourceArt art         The art.
+ * @property String?   contentHash The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
+ * @property Boolean   fromCmo3    Whether it was read from the CMO3's decomposed layer images rather than the file.
+ */
+private class SourceRead(
+	val art: SourceArt,
+	val contentHash: String?,
+	val fromCmo3: Boolean,
+)
 
 /**
  * One open document's artwork watcher: the platform watcher and the policy over it, closed together.
@@ -921,6 +1029,7 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param ArtworkOperations artwork The app's artwork orchestrations over the hovered area, handed to
  *   the shell for a puppet document only (the shell registers the commands; see fileArtworkCommands).
  * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
+ * @param SourceSuggestionState sourceSuggestions The published relink suggestions for the Sources space's review chips.
  */
 @Composable
 private fun DocumentViewport(
@@ -932,6 +1041,7 @@ private fun DocumentViewport(
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	artwork: ArtworkOperations,
 	sourceWatch: SourceWatchState?,
+	sourceSuggestions: SourceSuggestionState,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -988,6 +1098,7 @@ private fun DocumentViewport(
 					LocalSourceArtRasters provides document.artRasters,
 					LocalSourceFilePresence provides sourceFilePresence,
 					LocalSourceWatch provides sourceWatch,
+					LocalSourceSuggestions provides sourceSuggestions,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,

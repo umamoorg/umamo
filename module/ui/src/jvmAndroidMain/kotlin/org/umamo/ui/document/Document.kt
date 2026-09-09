@@ -7,13 +7,13 @@ import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
-import org.umamo.storage.contentHashOf
 import org.umamo.ui.viewport.LiveParams
 
 /**

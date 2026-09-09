@@ -85,6 +85,11 @@ object ArtworkReloadPlanner {
 	 * @param String?                contentHash The whole-file content hash of the bytes [art] was read from,
 	 *   recorded on the refreshed source; null keeps the record's.  A hash that changed while nothing in the
 	 *   layers did does not by itself make a plan - the watcher acknowledges such a save instead.
+	 * @param ArtSourceDescriptor?   replacement The file the record is repointed to (Replace Artwork): its
+	 *   name, path, and format take over, every binding the new art cannot resolve reads as SourceReplaced,
+	 *   and the plan is made even when no layer changed.  Layers no tile is bound to are NOT minted under
+	 *   a replacement - they are the candidates the unresolved bindings are matched against, and a Reload
+	 *   brings in whatever is still unbound once the review is done.  Null re-reads the record's own file.
 	 * @return ReloadPlan? The plan, or null when there is nothing to commit.
 	 */
 	fun plan(
@@ -94,11 +99,22 @@ object ArtworkReloadPlanner {
 		options: SourceArtImportOptions,
 		oldRasterOf: (AtlasTileId) -> LayerRaster?,
 		contentHash: String? = null,
+		replacement: ArtSourceDescriptor? = null,
 	): ReloadPlan? {
 		val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
 		val layersByKey = rasterLayersByKey(art)
 		val boundTiles = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }
-		val report = KeyReconciler.reconcile(boundTiles.mapNotNull { tile -> tile.source }, art)
+		val keyReport = KeyReconciler.reconcile(boundTiles.mapNotNull { tile -> tile.source }, art)
+		val report =
+			if (replacement == null) {
+				keyReport
+			} else {
+				ReconcileReport(
+					keyReport.results.map { result ->
+						if (result is ReconcileResult.NeedsReview) result.copy(reason = ReviewReason.SourceReplaced) else result
+					},
+				)
+			}
 		val oldInventoryByKey = source.layers.associateBy { layer -> layer.key }
 		val taken = model.atlas.tiles.mapTo(HashSet()) { tile -> tile.id }
 		val replaced = ArrayList<ReplacedTile>()
@@ -119,7 +135,7 @@ object ArtworkReloadPlanner {
 		}
 		val addedKeys = report.results.filterIsInstance<ReconcileResult.Added>().mapTo(HashSet()) { result -> result.layerKey }
 		val added =
-			if (addedKeys.isEmpty()) {
+			if (addedKeys.isEmpty() || replacement != null) {
 				null
 			} else {
 				val subset = LayerSubsetArt(art, art.layers.filter { layer -> layer.id.raw in addedKeys })
@@ -129,11 +145,81 @@ object ArtworkReloadPlanner {
 			rasters.putAll(added.rasterByTile)
 			notices.addAll(added.notices)
 		}
-		val refreshed = source.copy(layers = SourceArtImport.inventoryOf(art), contentHash = contentHash ?: source.contentHash)
-		if (replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash) == source) {
+		val boundKeys = boundTiles.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
+		val layers = inventoryWithMissing(source.layers, SourceArtImport.inventoryOf(art), boundKeys)
+		val refreshed =
+			if (replacement == null) {
+				source.copy(layers = layers, contentHash = contentHash ?: source.contentHash)
+			} else {
+				source.copy(name = replacement.name, path = replacement.path, format = replacement.format, layers = layers, contentHash = contentHash)
+			}
+		if (replacement == null && replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash) == source) {
 			return null
 		}
 		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, report, notices)
+	}
+
+	/**
+	 * Plans rebinding every tile in [accepted] to the layer named beside it, with that layer's art pulled
+	 * in - Match Automatically's step, and the same replacement a relink makes, once per pair.  A pair
+	 * whose tile the model lacks or whose key names no raster layer is skipped; the file's record takes
+	 * the inventory as just read, the lost rows the accepted tiles no longer bind dropped.  Null when
+	 * the file is unknown or no pair could be applied.
+	 *
+	 * @param PuppetModel            model       The model the plan applies to.
+	 * @param ArtSourceId            sourceId    The file whose layers the tiles move to.
+	 * @param SourceArt              art         The file as just read.
+	 * @param List                   accepted    Each tile and the key of the layer it takes.
+	 * @param SourceArtImportOptions options     The threshold and margin a re-born quad uses.
+	 * @param Function               oldRasterOf The document's pixels for a tile, or null when it has none.
+	 * @param String?                contentHash The whole-file hash of the bytes [art] came from; null keeps the record's.
+	 * @return ReloadPlan? The plan, or null when nothing could be rebound.
+	 */
+	fun planMatches(
+		model: PuppetModel,
+		sourceId: ArtSourceId,
+		art: SourceArt,
+		accepted: List<Pair<AtlasTileId, String>>,
+		options: SourceArtImportOptions,
+		oldRasterOf: (AtlasTileId) -> LayerRaster?,
+		contentHash: String? = null,
+	): ReloadPlan? {
+		val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
+		val layersByKey = rasterLayersByKey(art)
+		val oldInventoryByKey = source.layers.associateBy { layer -> layer.key }
+		val taken = model.atlas.tiles.mapTo(HashSet()) { tile -> tile.id }
+		val replaced = ArrayList<ReplacedTile>()
+		val meshes = LinkedHashMap<DrawableId, DrawableMesh>()
+		val outgrown = ArrayList<DrawableId>()
+		val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
+		val notices = ArrayList<SourceArtImportNotice>()
+		val results = ArrayList<ReconcileResult>()
+		val rebound = HashMap<AtlasTileId, String>()
+		for ((tileId, key) in accepted) {
+			val tile = model.atlas.tileById[tileId] ?: continue
+			val layer = layersByKey[key] ?: continue
+			val ref = SourceLayerRef(sourceId, key, stableKey = layer.idIsStable)
+			val oldRef = tile.source
+			val oldInventory = oldRef?.let { previous -> oldInventoryByKey[previous.layerKey] }
+			val replacement =
+				replaceTile(model, tile, layer, ref, oldInventory, options, oldRasterOf, taken, notices, force = oldRef != ref) ?: continue
+			replaced.add(replacement.replaced)
+			rasters[replacement.replaced.tile.id] = replacement.raster
+			meshes.putAll(replacement.meshes)
+			outgrown.addAll(replacement.outgrown)
+			results.add(ReconcileResult.Matched(ref, key))
+			rebound[tileId] = key
+		}
+		if (replaced.isEmpty()) {
+			return null
+		}
+		val boundKeys =
+			model.atlas.tiles
+				.filter { tile -> tile.source?.sourceId == sourceId }
+				.mapNotNullTo(HashSet()) { tile -> rebound[tile.id] ?: tile.source?.layerKey }
+		val layers = inventoryWithMissing(source.layers, SourceArtImport.inventoryOf(art), boundKeys, untouchedKeys = boundKeys - rebound.values.toSet())
+		val refreshed = source.copy(layers = layers, contentHash = contentHash ?: source.contentHash)
+		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, additions = null, outgrown = outgrown), rasters, ReconcileReport(results), notices)
 	}
 
 	/**
@@ -171,7 +257,14 @@ object ArtworkReloadPlanner {
 		val notices = ArrayList<SourceArtImportNotice>()
 		val replacement =
 			replaceTile(model, tile, layer, ref, oldInventory, options, oldRasterOf, taken, notices, force = oldRef != ref) ?: return null
-		val refreshed = source.copy(layers = SourceArtImport.inventoryOf(art))
+		// The file's bindings after the relink: this tile now binds [ref], every other tile what it did.
+		val boundKeys =
+			model.atlas.tiles
+				.filter { candidate -> candidate.id != tileId && candidate.source?.sourceId == ref.sourceId }
+				.mapNotNullTo(HashSet()) { candidate -> candidate.source?.layerKey }
+		val untouchedKeys = boundKeys - ref.layerKey
+		boundKeys.add(ref.layerKey)
+		val refreshed = source.copy(layers = inventoryWithMissing(source.layers, SourceArtImport.inventoryOf(art), boundKeys, untouchedKeys))
 		return ReloadPlan(
 			ArtworkReload(refreshed, listOf(replacement.replaced), replacement.meshes, additions = null, outgrown = replacement.outgrown),
 			mapOf(replacement.replaced.tile.id to replacement.raster),

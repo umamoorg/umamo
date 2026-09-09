@@ -56,6 +56,16 @@ class RelinkRequest(
 )
 
 /**
+ * A request to repoint one artwork record at another file, the payload of the sources.replaceArtwork
+ * command; the app picks the file.
+ *
+ * @property ArtSourceId sourceId The record to repoint.
+ */
+class ReplaceRequest(
+	val sourceId: ArtSourceId,
+)
+
+/**
  * Which listed files a reload covers, the optional payload of the document.reloadArtwork command: the
  * watcher names the files that changed, so the rest are not re-read; a press of Reload passes none
  * and covers every present file.
@@ -74,21 +84,26 @@ class ReloadScope(
  * @property Function addArtwork    Picks a file and adds it to the open document.
  * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
  *   or every one when it is null - and reloads the document from them.
- * @property Function relinkArtwork Rebinds a tile, pulling the layer's art in when its file can be read.
- * @property Function canReload     Whether any listed file could be re-read, queried live.
+ * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
+ * @property Function matchArtwork   Reads every file it can and rebinds the unresolved bindings the matcher is confident about.
+ * @property Function replaceArtwork Picks a file and repoints the named record at it.
+ * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
 	val addArtwork: (areaId: String?) -> Unit,
 	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
+	val matchArtwork: (areaId: String?) -> Unit,
+	val replaceArtwork: (request: ReplaceRequest, areaId: String?) -> Unit,
 	val canReload: () -> Boolean,
 )
 
 /**
  * The artwork commands over the OPEN document: Add Artwork (a second file joins the document), Reload
- * (every present file is re-read and the changed layers land), and the Sources space's relink (a tile
- * rebound, with the layer's art pulled in).  Each is an undoable edit and lands on the operation
- * settings strip.
+ * (every present file is re-read and the changed layers land), the Sources space's relink (a tile
+ * rebound, with the layer's art pulled in), Match Automatically (the bindings the files no longer
+ * resolve rebound to their confident matches), and Replace Artwork (one record repointed at another
+ * file).  Each is an undoable edit and lands on the operation settings strip.
  *
  * Unlike the other file commands these are registered by the SHELL, not the app, with the app's
  * file-reading closures injected as a collaborator: the strip's area (the hovered work surface, else
@@ -121,6 +136,19 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		) { argument ->
 			val request = argument as? RelinkRequest ?: return@Command
 			artwork()?.relinkArtwork?.invoke(request, routing.operationStripArea())
+		},
+		Command(
+			"sources.matchAutomatically",
+			title = Res.string.cmd_sources_match_automatically,
+			availability = CommandAvailability { artwork() != null },
+		) { artwork()?.matchArtwork?.invoke(routing.operationStripArea()) },
+		Command(
+			"sources.replaceArtwork",
+			title = Res.string.cmd_sources_replace_artwork,
+			availability = CommandAvailability { artwork() != null },
+		) { argument ->
+			val request = argument as? ReplaceRequest ?: return@Command
+			artwork()?.replaceArtwork?.invoke(request, routing.operationStripArea())
 		},
 	)
 

@@ -400,6 +400,32 @@ fun EditorSession.commitArtworkRelinked(tileId: AtlasTileId, relinked: PuppetMod
 }
 
 /**
+ * Commits a model that already carries the matcher's accepted rebindings and their pack as ONE undo
+ * step; see [commitArtworkAdded] for the contract.
+ *
+ * @param DocumentChange.MatchArtwork change  The step's counts, for the history label.
+ * @param PuppetModel                 matched The model with the rebindings and their pack applied.
+ * @return PuppetModel The committed model.
+ */
+fun EditorSession.commitArtworkMatched(change: DocumentChange.MatchArtwork, matched: PuppetModel): PuppetModel {
+	mutate(change) { matched }
+	return matched
+}
+
+/**
+ * Commits a model that already carries one record's replacement, the reload it resolved by key, and
+ * its pack as ONE undo step; see [commitArtworkAdded] for the contract.
+ *
+ * @param DocumentChange.ReplaceArtwork change   The step's counts, for the history label.
+ * @param PuppetModel                   replaced The model with the replacement and its pack applied.
+ * @return PuppetModel The committed model.
+ */
+fun EditorSession.commitArtworkReplaced(change: DocumentChange.ReplaceArtwork, replaced: PuppetModel): PuppetModel {
+	mutate(change) { replaced }
+	return replaced
+}
+
+/**
  * Repacks the whole atlas as a single undo step: the new page inventory and every tile's placement
  * land together, with every bound drawable's coordinates re-derived over them - withAtlasRepack's
  * one-pass edit under the one history push a repack should be.

@@ -46,7 +46,10 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.suggestionsFor
 import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -54,9 +57,11 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.DropdownChipStyle
 import org.umamo.ui.kit.FilterSectionLabel
+import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.PopupChip
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.Text
@@ -65,7 +70,9 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.LocalSourceSuggestions
 import org.umamo.ui.model.LocalSourceWatch
+import org.umamo.ui.model.percentOf
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -75,12 +82,16 @@ import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRowDragCancel
 import org.umamo.ui.workspace.commands.RelinkRequest
+import org.umamo.ui.workspace.commands.ReloadScope
+import org.umamo.ui.workspace.commands.ReplaceRequest
 
 /*
  * The Sources space: the linking table between the document's artwork files and its art.  File ->
  * layer -> tile -> drawables, each with a status; a layer row dragged onto a tile row (or the reverse)
- * rebinds the tile, and a tile row's chip picks a layer or unbinds.  Drawable rows select, so the
- * table is also a way into the rig by the art it came from.
+ * rebinds the tile, a tile row's chip picks a layer or unbinds, a row that needs review carries the
+ * matcher's proposal to accept or a relink by hand, and a file row's chip (or its context menu)
+ * replaces or reloads that one file.  Drawable rows select, so the table is also a way into the rig
+ * by the art it came from.
  */
 
 private val SOURCES_ROW_HEIGHT = 22.dp
@@ -144,9 +155,18 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			}
 		}
 	val unboundGroupLabel = stringResource(Res.string.sources_unbound_art)
+	// Two tiers of proposal for a binding the file no longer resolves: the one the last operation that
+	// read the file scored with pixels, else the one the model's own inventory ranks (names, folders,
+	// bounds, hashes) - so the chips show something even before any file is read.
+	val published = LocalSourceSuggestions.current?.suggestions?.collectAsState()?.value.orEmpty()
+	val modelSuggestions =
+		remember(puppet) {
+			puppet.sources.associate { source -> source.id to suggestionsFor(puppet, source.id) }
+		}
+	val suggestionFor: (ArtSourceId, String) -> LayerMatch? = { sourceId, key -> published[sourceId to key] ?: modelSuggestions[sourceId]?.get(key) }
 	val tree =
-		remember(puppet, presenceBySource, unboundGroupLabel) {
-			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel)
+		remember(puppet, presenceBySource, unboundGroupLabel, published) {
+			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel, suggestionFor)
 		}
 	val query = viewState.query
 	val filtered = remember(tree, query, viewState.filter) { filterSourcesTree(tree, query, viewState.filter) }
@@ -250,7 +270,9 @@ private fun selectionTargetsOf(node: SourcesNode, puppet: PuppetModel): List<Sel
 }
 
 /**
- * One row: indent, chevron, icon, label, detail, status, and on a tile row the relink chip.
+ * One row: indent, chevron, icon, label, detail, status, and the trailing chip its kind carries - a
+ * tile row's relink chip, a review row's proposal chip, a file row's actions chip (mirrored in the
+ * file row's context menu).
  *
  * @param SourcesRow  row            The row.
  * @param PuppetModel puppet         The rig, for the relink chip's candidates and the click's targets.
@@ -276,7 +298,6 @@ private fun SourcesRowView(
 ) {
 	val node = row.node
 	val colors = LocalUmamoColors.current
-	val icons = LocalUmamoIcons
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val boundsHolder = remember { SourcesRowBoundsHolder() }
@@ -303,6 +324,86 @@ private fun SourcesRowView(
 			hovered -> colors.rowHover
 			else -> Color.Transparent
 		}
+	val sourceKind = node.kind as? SourcesNodeKind.Source
+	val commands = LocalCommands.current
+	val body: @Composable () -> Unit = {
+		SourcesRowBody(
+			row = row,
+			puppet = puppet,
+			expanded = expanded,
+			background = background,
+			isDragged = isDragged,
+			interaction = interaction,
+			boundsHolder = boundsHolder,
+			payload = payload,
+			onToggle = onToggle,
+			onSelect = onSelect,
+			onRelink = onRelink,
+			dragController = dragController,
+			onDropNow = { currentOnDrop() },
+		)
+	}
+	if (sourceKind == null) {
+		body()
+	} else {
+		// A secondary press falls through the row's clickable to the menu; the two items are the file
+		// chip's, so a mouse and a pen reach the same actions.
+		ContextMenuArea(items = sourceFileMenuItems(sourceKind.sourceId, commands), content = body)
+	}
+}
+
+/**
+ * The file row's two actions, as the chip and the context menu both list them: Replace Artwork…
+ * (`sources.replaceArtwork`) and Reload This File (`document.reloadArtwork` scoped to the file).
+ *
+ * @param ArtSourceId                     sourceId The file.
+ * @param org.umamo.ui.action.CommandRegistry commands The registry to dispatch through.
+ * @return List<MenuItem> The items.
+ */
+@Composable
+private fun sourceFileMenuItems(sourceId: ArtSourceId, commands: org.umamo.ui.action.CommandRegistry): List<MenuItem> =
+	listOf(
+		MenuItem.Action(stringResource(Res.string.sources_file_menu_replace), onSelect = { commands.invoke("sources.replaceArtwork", ReplaceRequest(sourceId)) }),
+		MenuItem.Action(stringResource(Res.string.sources_file_menu_reload), onSelect = { commands.invoke("document.reloadArtwork", ReloadScope(setOf(sourceId))) }),
+	)
+
+/**
+ * The row itself, laid out inside whatever wraps it.
+ *
+ * @param SourcesRow  row            The row.
+ * @param PuppetModel puppet         The rig.
+ * @param Boolean     expanded       Whether the row's children are shown.
+ * @param Color       background     The row's fill for its hover, selection, or drop state.
+ * @param Boolean     isDragged      Whether the row is the one being dragged.
+ * @param MutableInteractionSource interaction The row's hover source.
+ * @param SourcesRowBoundsHolder   boundsHolder The row's coordinates holder.
+ * @param SourcesDragPayload?      payload      What a drag from the row carries, or null when it cannot be dragged.
+ * @param Function    onToggle       Flips the expand state.
+ * @param Function    onSelect       Selects the given targets.
+ * @param Function    onRelink       Rebinds a tile (null unbinds).
+ * @param RowDragController dragController The space's drag state.
+ * @param Function    onDropNow      Applies the drop on release.
+ */
+@Composable
+private fun SourcesRowBody(
+	row: SourcesRow,
+	puppet: PuppetModel,
+	expanded: Boolean,
+	background: Color,
+	isDragged: Boolean,
+	interaction: MutableInteractionSource,
+	boundsHolder: SourcesRowBoundsHolder,
+	payload: SourcesDragPayload?,
+	onToggle: () -> Unit,
+	onSelect: (List<SelectionTarget>) -> Unit,
+	onRelink: (AtlasTileId, SourceLayerRef?) -> Unit,
+	dragController: RowDragController<SourcesDragPayload>,
+	onDropNow: () -> Unit,
+) {
+	val node = row.node
+	val colors = LocalUmamoColors.current
+	val icons = LocalUmamoIcons
+	val commands = LocalCommands.current
 	Row(
 		verticalAlignment = Alignment.CenterVertically,
 		modifier =
@@ -338,7 +439,7 @@ private fun SourcesRowView(
 							val bounds = boundsHolder.coordinates?.boundsInWindow()
 							dragController.drag((bounds?.left ?: 0f) + change.position.x, (bounds?.top ?: 0f) + change.position.y)
 						},
-						onDragEnd = { currentOnDrop() },
+						onDragEnd = { onDropNow() },
 						onDragCancel = { dragController.end() },
 					)
 				}
@@ -372,10 +473,111 @@ private fun SourcesRowView(
 				Text(text = detail, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
 			}
 		}
-		val tileKind = node.kind as? SourcesNodeKind.Tile
-		if (tileKind != null) {
-			Spacer(modifier = Modifier.width(6.dp))
-			RelinkChip(tileId = tileKind.tileId, puppet = puppet, onRelink = onRelink)
+		when (val kind = node.kind) {
+			is SourcesNodeKind.Tile -> {
+				Spacer(modifier = Modifier.width(6.dp))
+				RelinkChip(tileId = kind.tileId, puppet = puppet, onRelink = onRelink)
+			}
+			is SourcesNodeKind.Layer ->
+				if (node.status == SourcesStatus.NeedsReview) {
+					Spacer(modifier = Modifier.width(6.dp))
+					ReviewChip(node = node, ref = kind.ref, puppet = puppet, onRelink = onRelink)
+				}
+			is SourcesNodeKind.Source -> {
+				Spacer(modifier = Modifier.width(6.dp))
+				SourceFileChip(sourceId = kind.sourceId, commands = commands)
+			}
+			is SourcesNodeKind.Drawable, SourcesNodeKind.UnboundGroup -> Unit
+		}
+	}
+}
+
+/**
+ * A file row's actions chip: Replace Artwork… and Reload This File, the same two the row's context
+ * menu offers.
+ *
+ * @param ArtSourceId                         sourceId The file.
+ * @param org.umamo.ui.action.CommandRegistry commands The registry to dispatch through.
+ */
+@Composable
+private fun SourceFileChip(sourceId: ArtSourceId, commands: org.umamo.ui.action.CommandRegistry) {
+	val icons = LocalUmamoIcons
+	var open by remember { mutableStateOf(false) }
+	val items = sourceFileMenuItems(sourceId, commands)
+	PopupChip(
+		contentDescription = stringResource(Res.string.sources_file_menu),
+		icon = icons.dots,
+		expanded = open,
+		onExpandedChange = { next -> open = next },
+		style = DropdownChipStyle.Compact,
+	) {
+		Column(modifier = Modifier.width(RELINK_PANEL_WIDTH / 2)) {
+			for (item in items) {
+				if (item is MenuItem.Action) {
+					RelinkRow(label = item.label, muted = false) {
+						open = false
+						item.onSelect()
+					}
+				}
+			}
+		}
+	}
+}
+
+/**
+ * A review row's chip: the matcher's proposal to accept (the candidate's name and confidence), a relink
+ * by hand through the same list a tile row's chip shows, or leave the binding as it is.  Accepting is
+ * a relink of every tile bound to the lost key, so the art is pulled exactly as a manual relink pulls it.
+ *
+ * @param SourcesNode    node     The review row, carrying its suggestion when there is one.
+ * @param SourceLayerRef ref      The lost binding the row stands for.
+ * @param PuppetModel    puppet   The rig, for the bound tiles and the relink list.
+ * @param Function       onRelink Rebinds a tile (null unbinds).
+ */
+@Composable
+private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetModel, onRelink: (AtlasTileId, SourceLayerRef?) -> Unit) {
+	val colors = LocalUmamoColors.current
+	val icons = LocalUmamoIcons
+	var open by remember { mutableStateOf(false) }
+	var byHand by remember { mutableStateOf(false) }
+	var query by remember { mutableStateOf("") }
+	val boundTiles = remember(puppet, ref) { puppet.atlas.tiles.filter { tile -> tile.source == ref }.map { tile -> tile.id } }
+	val suggestion = node.suggestion
+	val relinkAll: (SourceLayerRef?) -> Unit = { target ->
+		for (tileId in boundTiles) {
+			onRelink(tileId, target)
+		}
+	}
+	PopupChip(
+		contentDescription = stringResource(Res.string.sources_suggestion_title),
+		icon = icons.linked,
+		iconTint = colors.signalCaution,
+		expanded = open,
+		onExpandedChange = { next ->
+			open = next
+			if (!next) {
+				byHand = false
+			}
+		},
+		style = DropdownChipStyle.Compact,
+	) {
+		if (byHand) {
+			RelinkList(puppet = puppet, current = ref, query = query, onQueryChange = { updated -> query = updated }, showUnbind = false) { target ->
+				open = false
+				byHand = false
+				relinkAll(target)
+			}
+		} else {
+			Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
+				if (suggestion != null) {
+					RelinkRow(label = stringResource(Res.string.sources_suggestion_accept, suggestion.candidateName, percentOf(suggestion.score)), muted = false) {
+						open = false
+						relinkAll(SourceLayerRef(ref.sourceId, suggestion.candidateKey, stableKey = layerKeyLooksStable(suggestion.candidateKey)))
+					}
+				}
+				RelinkRow(label = stringResource(Res.string.sources_suggestion_relink), muted = false) { byHand = true }
+				RelinkRow(label = stringResource(Res.string.sources_suggestion_leave), muted = true) { open = false }
+			}
 		}
 	}
 }
@@ -475,11 +677,13 @@ internal class RelinkGroup(
 internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkGroup> {
 	val trimmed = query.trim()
 	return sources.mapNotNull { source ->
+		// A row the file lost is kept for the review, never offered as a target.
+		val present = source.layers.filter { layer -> layer.present }
 		val layers =
 			if (trimmed.isEmpty() || source.name.contains(trimmed, ignoreCase = true)) {
-				source.layers
+				present
 			} else {
-				source.layers.filter { layer -> layer.name.contains(trimmed, ignoreCase = true) }
+				present.filter { layer -> layer.name.contains(trimmed, ignoreCase = true) }
 			}
 		if (layers.isEmpty()) null else RelinkGroup(source, layers)
 	}
@@ -495,12 +699,10 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
  */
 @Composable
 private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (AtlasTileId, SourceLayerRef?) -> Unit) {
-	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
 	val current = puppet.atlas.tileById[tileId]?.source
-	val groups = remember(puppet.sources, query) { relinkGroups(puppet.sources, query) }
 	PopupChip(
 		contentDescription = stringResource(Res.string.sources_relink_title),
 		icon = if (current != null) icons.linked else icons.unlinked,
@@ -509,43 +711,68 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (Atla
 		// The row is 22.dp; the Header face would overflow it.
 		style = DropdownChipStyle.Compact,
 	) {
-		Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
-			SearchField(
-				value = query,
-				onValueChange = { updated -> query = updated },
-				modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-				width = RELINK_PANEL_WIDTH - 16.dp,
-			)
-			// A plain scrolling column, not a lazy list: the popup measures its content intrinsically,
-			// which a lazy list cannot answer (see UvLayerPickerChip).
-			Column(modifier = Modifier.fillMaxWidth().heightIn(max = RELINK_MAX_LIST_HEIGHT).verticalScroll(rememberScrollState())) {
-				if (current != null) {
-					RelinkRow(label = stringResource(Res.string.sources_relink_clear), muted = true) {
-						open = false
-						onRelink(tileId, null)
-					}
-				}
-				if (groups.isEmpty()) {
-					Text(text = stringResource(Res.string.sources_relink_no_matches), color = colors.textMuted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
-				}
-				for (group in groups) {
-					val source = group.source
-					FilterSectionLabel(text = source.name)
-					for (layer in group.layers) {
-						val key = layer.key
-						val bound = current?.sourceId == source.id && current.layerKey == key
-						RelinkRow(label = layer.name, muted = bound, indented = true) {
-							open = false
-							if (!bound) {
-								// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
-								val stable =
-									puppet.atlas.tiles
-										.mapNotNull { tile -> tile.source }
-										.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
-										?.stableKey
-								onRelink(tileId, SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
-							}
+		RelinkList(puppet = puppet, current = current, query = query, onQueryChange = { updated -> query = updated }, showUnbind = current != null) { target ->
+			open = false
+			onRelink(tileId, target)
+		}
+	}
+}
+
+/**
+ * The searchable list of every listed file's present layers, grouped under the file, that a relink
+ * picks from - the tile chip's panel and the review chip's by-hand page.
+ *
+ * @param PuppetModel     puppet        The rig, for the candidates and the strength of a key some tile already binds.
+ * @param SourceLayerRef? current       The binding the picker starts from, shown muted, or null.
+ * @param String          query         The search text.
+ * @param Function        onQueryChange Takes the edited search text.
+ * @param Boolean         showUnbind    Whether the Unbind row leads the list.
+ * @param Function        onPick        Takes the chosen binding, or null for Unbind.
+ */
+@Composable
+private fun RelinkList(
+	puppet: PuppetModel,
+	current: SourceLayerRef?,
+	query: String,
+	onQueryChange: (String) -> Unit,
+	showUnbind: Boolean,
+	onPick: (SourceLayerRef?) -> Unit,
+) {
+	val colors = LocalUmamoColors.current
+	val groups = remember(puppet.sources, query) { relinkGroups(puppet.sources, query) }
+	Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
+		SearchField(
+			value = query,
+			onValueChange = onQueryChange,
+			modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+			width = RELINK_PANEL_WIDTH - 16.dp,
+		)
+		// A plain scrolling column, not a lazy list: the popup measures its content intrinsically,
+		// which a lazy list cannot answer (see UvLayerPickerChip).
+		Column(modifier = Modifier.fillMaxWidth().heightIn(max = RELINK_MAX_LIST_HEIGHT).verticalScroll(rememberScrollState())) {
+			if (showUnbind) {
+				RelinkRow(label = stringResource(Res.string.sources_relink_clear), muted = true) { onPick(null) }
+			}
+			if (groups.isEmpty()) {
+				Text(text = stringResource(Res.string.sources_relink_no_matches), color = colors.textMuted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+			}
+			for (group in groups) {
+				val source = group.source
+				FilterSectionLabel(text = source.name)
+				for (layer in group.layers) {
+					val key = layer.key
+					val bound = current?.sourceId == source.id && current.layerKey == key
+					RelinkRow(label = layer.name, muted = bound, indented = true) {
+						if (bound) {
+							return@RelinkRow
 						}
+						// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
+						val stable =
+							puppet.atlas.tiles
+								.mapNotNull { tile -> tile.source }
+								.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
+								?.stableKey
+						onPick(SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
 					}
 				}
 			}

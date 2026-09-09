@@ -773,6 +773,34 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.relinkArtwork"
 	}
+
+	/**
+	 * Matches the bindings the files no longer resolve to the layers the matcher is confident about:
+	 * every accepted tile rebound with its layer's art pulled in and packed beside the existing art,
+	 * the inventories refreshed - one step for however many files were scored.  Document content, so it
+	 * marks the document dirty.
+	 *
+	 * @property Int matchedCount   How many tiles were rebound.
+	 * @property Int remainingCount How many bindings are still left for review.
+	 */
+	data class MatchArtwork(val matchedCount: Int, val remainingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.matchArtwork"
+	}
+
+	/**
+	 * Repoints one artwork record at another file: the record's name, path, and format rewritten, every
+	 * binding the new file resolves by key reloaded, and the rest flagged for review with the file's
+	 * layers left as their candidates.  Document content, so it marks the document dirty.
+	 *
+	 * @property String sourceName   The new file's display name.
+	 * @property Int    matchedCount How many bindings the new file resolved by key (changed or not).
+	 * @property Int    missingCount How many bindings it did not, left for review.
+	 */
+	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val missingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.replaceArtwork"
+	}
 }
 
 /**

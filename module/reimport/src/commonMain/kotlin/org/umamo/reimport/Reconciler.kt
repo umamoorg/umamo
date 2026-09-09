@@ -1,8 +1,9 @@
 package org.umamo.reimport
 
+import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
-import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.SourceLayerRef
 
 /**
@@ -74,10 +75,62 @@ object KeyReconciler : Reconciler {
 }
 
 /**
- * Heuristic matcher for the hard case: a binding whose layer id no longer resolves, matched against
- * remaining candidates (renames, near-duplicates). Returns the best candidate or null - the caller
- * still routes the decision through review.
+ * One layer a missing layer's binding could move to: its inventory row and, when the file could be
+ * read, its pixels on demand.
+ *
+ * @property ArtSourceLayer row    The candidate as the inventory records it.
+ * @property Function       raster Its pixels, decoded on first use; null when they cannot be read.
+ */
+class MatchCandidate(
+	val row: ArtSourceLayer,
+	val raster: () -> LayerRaster?,
+)
+
+/**
+ * How one candidate scored on each signal, kept beside the score so a person can see why.
+ *
+ * @property Float   name      Name similarity, 0..1.
+ * @property Float   path      Folder-path agreement, 0..1.
+ * @property Float?  bounds    Canvas overlap of the two rectangles, 0..1, or null when either has no known extent.
+ * @property Float?  size      The smaller area over the larger, 0..1, or null when either has no known extent.
+ * @property Float?  pixels    Pixel similarity, 0..1, or null when either side's pixels were not read.
+ * @property Boolean hashEqual Whether both rows carry a content hash and they agree - the same pixels.
+ */
+data class MatchSignals(
+	val name: Float,
+	val path: Float,
+	val bounds: Float?,
+	val size: Float?,
+	val pixels: Float?,
+	val hashEqual: Boolean,
+)
+
+/**
+ * One ranked candidate for a missing layer.
+ *
+ * @property String       key     The candidate's layer key.
+ * @property Float        score   The combined confidence, 0..1.
+ * @property MatchSignals signals The per-signal scores behind it.
+ */
+data class LayerMatch(
+	val key: String,
+	val score: Float,
+	val signals: MatchSignals,
+)
+
+/**
+ * The matcher for the hard case: a binding whose layer key the file no longer has, ranked against the
+ * file's layers no tile is bound to.  Scored rather than decided - the caller applies a threshold or
+ * shows the ranking, and a person can always override.
  */
 fun interface LayerMatcher {
-	fun bestMatch(binding: SourceLayerRef, candidates: List<SourceLayer>): SourceLayer?
+	/**
+	 * Ranks [candidates] for [missing], best first.
+	 *
+	 * @param ArtSourceLayer       missing       The lost layer as the inventory recorded it.
+	 * @param LayerRaster?         missingRaster The pixels the document holds for it, or null.
+	 * @param List<MatchCandidate> candidates    The layers it could move to.
+	 * @return List<LayerMatch> Every candidate with its score, best first; empty when there are none.
+	 */
+	fun rank(missing: ArtSourceLayer, missingRaster: LayerRaster?, candidates: List<MatchCandidate>): List<LayerMatch>
 }

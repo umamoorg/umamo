@@ -52,6 +52,12 @@ data class ArtSource(
  * @property Int     width     The layer's raster width in source pixels.
  * @property Int     height    The layer's raster height in source pixels.
  * @property Boolean visible   The layer's own eye toggle at import.
+ * @property Boolean present   Whether the file still had this layer at the last read.  False keeps the row
+ *   for a layer the file lost while a tile still binds it, so the Sources space can name and size it and
+ *   the matcher can score candidates against it; such a row leaves the inventory once nothing binds it.
+ * @property String? contentHash The content hash (SHA-256 hex) of the layer's pixels at the last read, or
+ *   null where the art was never decoded (a CMO3's decomposed tree).  A renamed layer whose pixels did
+ *   not change is recognised by it outright.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -62,6 +68,8 @@ data class ArtSourceLayer(
 	val width: Int,
 	val height: Int,
 	val visible: Boolean,
+	val present: Boolean = true,
+	val contentHash: String? = null,
 )
 
 /**

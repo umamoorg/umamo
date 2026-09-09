@@ -21,9 +21,10 @@ import org.umamo.ui.workspace.AreaScope
 
 /**
  * The Sources space's area-header controls: Add Artwork… (the file.addArtwork command, so the palette
- * and the button share one path), the name search centered in the flexible middle, the filter chip,
- * and Refresh, which re-probes whether each file is still on disk.  Reads and writes the area's
- * shared SourcesViewState; renders nothing without an open document.
+ * and the button share one path), the name search centered in the flexible middle, Match
+ * Automatically (sources.matchAutomatically), Reload (which also re-probes whether each file is still
+ * on disk), and the filter chip.  Reads and writes the area's shared SourcesViewState; renders nothing
+ * without an open document.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  */
@@ -47,6 +48,19 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 		}
 	}
 	flexibleSpace()
+	item("match") {
+		if (LocalPuppet.current != null) {
+			// Every file is read and the bindings the files no longer resolve move to their confident
+			// matches as one step; the rest keep their proposals on the rows that need review.
+			val commands = LocalCommands.current
+			IconButton(
+				icon = LocalUmamoIcons.wand,
+				onClick = { commands.invoke("sources.matchAutomatically") },
+				contentDescription = stringResource(Res.string.sources_match_automatically),
+				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+			)
+		}
+	}
 	item("reload") {
 		if (LocalPuppet.current != null) {
 			// One button: re-probe every file's presence, then reload the present ones as one undo step

@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.spaces
 
+import org.umamo.reimport.LayerMatch
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
@@ -95,14 +96,29 @@ sealed interface SourcesDetail {
 }
 
 /**
+ * What the document proposes for a binding its file no longer resolves: the layer it would move to
+ * and how sure the matcher is.
+ *
+ * @property String candidateKey  The proposed layer's key.
+ * @property String candidateName The proposed layer's name, for the chip.
+ * @property Float  score         The confidence, 0..1.
+ */
+data class LayerSuggestion(
+	val candidateKey: String,
+	val candidateName: String,
+	val score: Float,
+)
+
+/**
  * One row of the Sources tree.
  *
- * @property String          id       A stable, unique key for expand state and drop hit-testing.
- * @property String          label    The display text (a document name, never localized chrome, except the unbound group's).
- * @property SourcesDetail   detail   The secondary text.
- * @property SourcesNodeKind kind     What the row stands for.
- * @property SourcesStatus   status   The status chip.
- * @property List            children The child rows, in display order.
+ * @property String           id         A stable, unique key for expand state and drop hit-testing.
+ * @property String           label      The display text (a document name, never localized chrome, except the unbound group's).
+ * @property SourcesDetail    detail     The secondary text.
+ * @property SourcesNodeKind  kind       What the row stands for.
+ * @property SourcesStatus    status     The status chip.
+ * @property List             children   The child rows, in display order.
+ * @property LayerSuggestion? suggestion The proposed relink on a row that needs review, or null.
  */
 data class SourcesNode(
 	val id: String,
@@ -111,6 +127,7 @@ data class SourcesNode(
 	val kind: SourcesNodeKind,
 	val status: SourcesStatus,
 	val children: List<SourcesNode>,
+	val suggestion: LayerSuggestion? = null,
 )
 
 /** One visible row after flattening: the node and its depth. */
@@ -121,16 +138,24 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
 
 /**
  * Builds the Sources tree from a puppet: one node per artwork file in document order, each holding
- * its inventory layers in the file's order with the tiles bound to each (and, after them, any tile
- * bound to a key the inventory no longer lists), the drawables over each tile, and last the unbound
- * group when any tile has no binding.
+ * its inventory layers in the file's order with the tiles bound to each - a layer the file lost but a
+ * tile still binds reads as needing review, named and sized as the inventory last saw it, with the
+ * proposed relink when there is one - then any tile bound to a key the inventory never listed, the
+ * drawables over each tile, and last the unbound group when any tile has no binding.
  *
  * @param PuppetModel puppet            The rig to walk.
  * @param Function    presenceOf        Whether each file is still on disk.
  * @param String      unboundGroupLabel The localized label of the unbound-art group.
+ * @param Function    suggestionFor     The best match for a lost binding by file and key, or null; a
+ *   proposal naming a layer the file no longer has or some tile already binds is dropped here.
  * @return List<SourcesNode> The top-level rows.
  */
-fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePresence, unboundGroupLabel: String): List<SourcesNode> {
+fun buildSourcesTree(
+	puppet: PuppetModel,
+	presenceOf: (ArtSource) -> SourcePresence,
+	unboundGroupLabel: String,
+	suggestionFor: (ArtSourceId, String) -> LayerMatch? = { _, _ -> null },
+): List<SourcesNode> {
 	val drawableIdsByTile = puppet.drawableIdsByAtlasTile()
 	val drawableNameById = puppet.drawables.associate { drawable -> drawable.id to drawable.name }
 	val tilesByBinding = puppet.atlas.tiles.filter { tile -> tile.source != null }.groupBy { tile -> tile.source!!.sourceId to tile.source!!.layerKey }
@@ -158,7 +183,8 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 		)
 	}
 
-	fun layerNode(sourceId: ArtSourceId, key: String, label: String, detail: SourcesDetail, listed: Boolean = true): SourcesNode {
+	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true): SourcesNode {
+		val sourceId = source.id
 		val bound = tilesByBinding[sourceId to key].orEmpty()
 		val stable = bound.any { tile -> tile.source?.stableKey == true }
 		val status =
@@ -168,6 +194,19 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 				stable -> SourcesStatus.Bound
 				else -> SourcesStatus.BoundByName
 			}
+		val suggestion =
+			if (status == SourcesStatus.NeedsReview) {
+				suggestionFor(sourceId, key)?.let { match ->
+					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present }
+					if (candidate == null || tilesByBinding.containsKey(sourceId to match.key)) {
+						null
+					} else {
+						LayerSuggestion(match.key, candidate.name, match.score)
+					}
+				}
+			} else {
+				null
+			}
 		return SourcesNode(
 			id = "layer:${sourceId.raw}/$key",
 			label = label,
@@ -175,6 +214,7 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 			kind = SourcesNodeKind.Layer(SourceLayerRef(sourceId, key, stableKey = stable || layerKeyLooksStable(key))),
 			status = status,
 			children = bound.map { tile -> tileNode(tile.id) },
+			suggestion = suggestion,
 		)
 	}
 
@@ -187,18 +227,18 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 			val rowCountByKey = HashMap<String, Int>()
 			val inventoryRows =
 				source.layers.map { layer ->
-					val node = layerNode(source.id, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top))
+					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present)
 					val ordinal = (rowCountByKey[layer.key] ?: 0) + 1
 					rowCountByKey[layer.key] = ordinal
-					if (ordinal == 1) node else node.copy(id = "${node.id}~$ordinal", status = SourcesStatus.Unbound, children = emptyList())
+					if (ordinal == 1) node else node.copy(id = "${node.id}~$ordinal", status = SourcesStatus.Unbound, children = emptyList(), suggestion = null)
 				}
-			// Tiles bound to this file under a key its inventory no longer lists (a layer renamed or removed
-			// upstream, or a CMO3 whose walk found no such layer): shown so the binding is never invisible.
+			// Tiles bound to this file under a key its inventory never listed (a CMO3 whose walk found no such
+			// layer, or a document from before the inventory kept lost rows): shown so the binding is never invisible.
 			val strayRows =
 				tilesByBinding.keys
 					.filter { (sourceId, key) -> sourceId == source.id && key !in inventoryKeys }
 					.sortedBy { (_, key) -> key }
-					.map { (_, key) -> layerNode(source.id, key, key.removePrefix("name:"), SourcesDetail.None, listed = false) }
+					.map { (_, key) -> layerNode(source, key, key.removePrefix("name:"), SourcesDetail.None, listed = false) }
 			SourcesNode(
 				id = "source:${source.id.raw}",
 				label = source.name,

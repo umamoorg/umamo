@@ -9,6 +9,7 @@ import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.format.binary.contentHashOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
@@ -388,7 +389,9 @@ object SourceArtImport {
 	/**
 	 * The pixel-free layer inventory of [art], top-most first: EVERY layer, skipped ones included, so a
 	 * re-import can tell a layer that was there and unusable from one that is new.  The record a fresh
-	 * import stores and a reload replaces.
+	 * import stores and a reload replaces.  Each raster layer carries the content hash of its pixels,
+	 * the one thing about the pixels the inventory keeps, so a later read can recognise a renamed layer
+	 * whose art did not change.
 	 *
 	 * @param SourceArt art The parsed source art.
 	 * @return List<ArtSourceLayer> The inventory rows, in the file's own draw order.
@@ -404,6 +407,7 @@ object SourceArtImport {
 				width = layer.bounds.width,
 				height = layer.bounds.height,
 				visible = layer.visible,
+				contentHash = if (layer.kind == SourceLayerKind.Raster) contentHashOf(layer.raster.rgba) else null,
 			)
 		}
 

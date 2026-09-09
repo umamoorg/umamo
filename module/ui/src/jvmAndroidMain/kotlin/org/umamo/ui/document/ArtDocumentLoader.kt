@@ -9,6 +9,7 @@ import org.umamo.format.FileKind
 import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
@@ -20,7 +21,6 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
-import org.umamo.storage.contentHashOf
 import org.umamo.ui.model.AtlasRepackRefusalReason
 import org.umamo.ui.model.describeImportNotice
 import org.umamo.ui.model.packModelAtOpen

@@ -1,5 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
+import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.MatchSignals
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
@@ -16,6 +18,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -129,6 +132,60 @@ class SourcesTreeTest {
 		assertEquals(listOf(0, 1, 1, 1, 0, 1, 0), closed.map { row -> row.depth })
 		val open = flattenSources(tree) { true }
 		assertTrue(open.any { row -> row.node.id == "drawable:b" && row.depth == 3 }, "an open tile lists its drawables three deep")
+	}
+
+	/**
+	 * A layer the file lost but a tile still binds keeps its row - named and sized as the inventory last
+	 * saw it, reading as needing review - and carries the proposal the matcher made for it, unless the
+	 * proposal names a layer the file no longer has or one some tile already binds.  A binding the
+	 * inventory never listed still falls back to its raw key.
+	 */
+	@Test
+	fun lostRowsReadTheirNameAndCarryAValidSuggestion() {
+		val base = model()
+		val puppet =
+			base.copy(
+				atlas =
+					base.atlas.copy(
+						tiles =
+							base.atlas.tiles + AtlasTile(AtlasTileId("tA9"), "Old brow", 4, 4, source = SourceLayerRef(artA, "lyid:9", true)),
+					),
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) {
+							source
+						} else {
+							source.copy(
+								layers =
+									source.layers +
+										ArtSourceLayer("lyid:5", "Brow", "Head", 12, 22, 4, 4, true) +
+										ArtSourceLayer("lyid:9", "Brow (old)", "Head", 12, 22, 4, 4, true, present = false),
+							)
+						}
+					},
+			)
+
+		fun match(key: String, score: Float): LayerMatch = LayerMatch(key, score, MatchSignals(1f, 1f, 1f, 1f, null, hashEqual = false))
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art") { sourceId, key -> if (sourceId == artA && key == "lyid:9") match("lyid:5", 0.92f) else null }
+		val fileA = tree[0]
+		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/lyid:2", "layer:art-0/lyid:5", "layer:art-0/lyid:9", "layer:art-0/name:Stray"), fileA.children.map { node -> node.id })
+		val lost = fileA.children[3]
+		assertEquals("Brow (old)", lost.label, "the lost row keeps the name the inventory last saw")
+		assertEquals(SourcesDetail.Layer(4, 4, 12, 22), lost.detail)
+		assertEquals(SourcesStatus.NeedsReview, lost.status)
+		assertEquals(listOf("tile:tA9"), lost.children.map { node -> node.id })
+		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.92f), lost.suggestion)
+		assertNull(fileA.children[2].suggestion, "a present row proposes nothing")
+		val stray = fileA.children[4]
+		assertEquals("Stray", stray.label, "a binding the inventory never listed still shows by its key")
+		assertEquals(SourcesStatus.NeedsReview, stray.status)
+
+		val boundElsewhere = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> match("lyid:1", 0.9f) }
+		assertNull(boundElsewhere[0].children[3].suggestion, "a proposal naming a layer some tile binds is dropped")
+		val goneCandidate = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> match("lyid:77", 0.9f) }
+		assertNull(goneCandidate[0].children[3].suggestion, "a proposal naming a layer the file lacks is dropped")
+		val review = filterSourcesTree(tree, "", SourcesFilter.NeedsReview)
+		assertEquals(listOf("layer:art-0/lyid:9", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id })
 	}
 
 	@Test
