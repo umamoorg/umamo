@@ -45,7 +45,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.setTileSource
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTileId
@@ -53,6 +52,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.drawableIdsByAtlasTile
+import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.DropdownChipStyle
 import org.umamo.ui.kit.FilterSectionLabel
@@ -72,6 +72,7 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRowDragCancel
+import org.umamo.ui.workspace.commands.RelinkRequest
 
 /*
  * The Sources space: the linking table between the document's artwork files and its art.  File ->
@@ -167,11 +168,15 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			dragCancelSeam.cancel = null
 		}
 	}
+	// A relink is a command, not a session edit from here: the app reads the layer's file and pulls its
+	// art in (a binding-only change when it cannot), and the shell resolves where the strip shows.
+	val commands = LocalCommands.current
+	val relink: (AtlasTileId, SourceLayerRef?) -> Unit = { tileId, ref -> commands.invoke("sources.relink", RelinkRequest(tileId, ref)) }
 	val performDrop: () -> Unit = {
 		val payload = dragController.draggedPayload
 		val target = dragController.dropTargetKey?.let { key -> nodeById[key] }
 		if (session != null && payload != null && target != null) {
-			relinkFor(payload, target.kind)?.let { (tileId, ref) -> session.setTileSource(tileId, ref) }
+			relinkFor(payload, target.kind)?.let { (tileId, ref) -> relink(tileId, ref) }
 		}
 		dragController.end()
 	}
@@ -198,7 +203,7 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 						session.setSelection(targets.drop(1).fold(SelectionOps.replace(targets.first())) { acc, target -> SelectionOps.add(acc, target) })
 					}
 				},
-				onRelink = { tileId, ref -> session?.setTileSource(tileId, ref) },
+				onRelink = relink,
 				dragController = dragController,
 				onDrop = performDrop,
 			)
@@ -387,8 +392,8 @@ internal class SourcesRowVisual(
 /**
  * The icon a row draws with, carrying the row's status the way a traffic light does: green for a
  * layer bound by a stable key, amber for one bound by name (a binding that holds only while the
- * layer keeps its name and place) or a tile on no page, red for an unbound layer, a missing file, or
- * the unbound-art group.  The glyph itself already says what the row is - a file, a link, a tile, a
+ * layer keeps its name and place), a tile on no page, or a binding whose layer the file lost, red for
+ * an unbound layer, a missing file, or the unbound-art group.  The glyph itself already says what the row is - a file, a link, a tile, a
  * mesh - and a missing file swaps to the missing-file glyph, so the status word is a tooltip, never
  * row text.  Pure, so the mapping is testable without a composition.
  *
@@ -409,6 +414,8 @@ internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: Umam
 			when (node.status) {
 				SourcesStatus.Unbound -> SourcesRowVisual(icons.unlinked, colors.signalBad, Res.string.sources_status_unbound)
 				SourcesStatus.BoundByName -> SourcesRowVisual(icons.linked, colors.signalCaution, Res.string.sources_status_bound_unstable)
+				// The tile is bound, but to a layer its file no longer lists: linked to nothing, waiting on a decision.
+				SourcesStatus.NeedsReview -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_needs_review)
 				else -> SourcesRowVisual(icons.linked, colors.signalGood, Res.string.sources_status_bound)
 			}
 		is SourcesNodeKind.Tile ->

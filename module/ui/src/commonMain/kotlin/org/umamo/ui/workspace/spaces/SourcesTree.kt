@@ -31,6 +31,9 @@ enum class SourcesFilter {
 
 	/** Artwork files that are no longer where the document read them. */
 	Missing,
+
+	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists. */
+	NeedsReview,
 }
 
 /** The status a row shows at its right edge. */
@@ -50,6 +53,9 @@ enum class SourcesStatus {
 
 	/** A tile that is in the document but on no page. */
 	Unplaced,
+
+	/** A binding to a layer its file no longer lists: the tile keeps its art until a person decides. */
+	NeedsReview,
 
 	/** A row with no status of its own. */
 	None,
@@ -152,11 +158,12 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 		)
 	}
 
-	fun layerNode(sourceId: ArtSourceId, key: String, label: String, detail: SourcesDetail): SourcesNode {
+	fun layerNode(sourceId: ArtSourceId, key: String, label: String, detail: SourcesDetail, listed: Boolean = true): SourcesNode {
 		val bound = tilesByBinding[sourceId to key].orEmpty()
 		val stable = bound.any { tile -> tile.source?.stableKey == true }
 		val status =
 			when {
+				!listed -> SourcesStatus.NeedsReview
 				bound.isEmpty() -> SourcesStatus.Unbound
 				stable -> SourcesStatus.Bound
 				else -> SourcesStatus.BoundByName
@@ -191,7 +198,7 @@ fun buildSourcesTree(puppet: PuppetModel, presenceOf: (ArtSource) -> SourcePrese
 				tilesByBinding.keys
 					.filter { (sourceId, key) -> sourceId == source.id && key !in inventoryKeys }
 					.sortedBy { (_, key) -> key }
-					.map { (_, key) -> layerNode(source.id, key, key.removePrefix("name:"), SourcesDetail.None) }
+					.map { (_, key) -> layerNode(source.id, key, key.removePrefix("name:"), SourcesDetail.None, listed = false) }
 			SourcesNode(
 				id = "source:${source.id.raw}",
 				label = source.name,
@@ -250,6 +257,7 @@ fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filter: SourcesFi
 			SourcesFilter.All -> true
 			SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.kind == SourcesNodeKind.UnboundGroup
 			SourcesFilter.Missing -> node.kind is SourcesNodeKind.Source && node.status == SourcesStatus.Missing
+			SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview
 		}
 
 	fun prune(node: SourcesNode, satisfiedAbove: Boolean): SourcesNode? {

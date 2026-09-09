@@ -24,6 +24,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.lineageRoot
 
 /*
  * The semantic diff between two PuppetModels - the input the CMO3 export reconcile dispatches on.
@@ -410,8 +411,11 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
  */
 private fun diffAtlasTiles(baseline: List<AtlasTile>, edited: List<AtlasTile>): List<EntityDiff<AtlasTileId, AtlasTileField>> {
 	val editedById = edited.associateBy { tile -> tile.id }
+	// A reloaded tile is a new tile whose lineage root is the baseline's id; it is the same art to the
+	// graph, compared under the root so the reload reads as that tile changing.
+	val editedByRoot = edited.filter { tile -> tile.replaces != null }.associateBy { tile -> tile.id.lineageRoot }
 	return baseline.mapNotNull { baselineTile ->
-		val editedTile = editedById[baselineTile.id] ?: return@mapNotNull null
+		val editedTile = editedById[baselineTile.id] ?: editedByRoot[baselineTile.id] ?: return@mapNotNull null
 		val fields = atlasTileFields(baselineTile, editedTile)
 		if (fields.isEmpty()) null else EntityDiff.Changed(baselineTile.id, fields)
 	}
@@ -474,7 +478,10 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 		// Absence is "not tracked", not "unbound", for the same reason the page list is only compared
 		// when there is an atlas: a drawable the model carries no art for says nothing about the art the
 		// graph carries for it.
-		if (edited.atlasTileId != null && baseline.atlasTileId != edited.atlasTileId) {
+		// Compared under the lineage root: a drawable carried onto its tile's reload replacement still
+		// samples the same art as far as the graph knows.
+		val editedTileId = edited.atlasTileId
+		if (editedTileId != null && baseline.atlasTileId?.lineageRoot != editedTileId.lineageRoot) {
 			add(DrawableField.ATLAS_TILE)
 		}
 		addAll(meshFields(baseline.mesh, edited.mesh))

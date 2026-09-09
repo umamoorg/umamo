@@ -72,6 +72,8 @@ kotlin {
 				// drive (LocalEditorSession, the session-backed handles); declared directly, the project's
 				// convention even though :edit also surfaces transitively.
 				implementation(project(":edit"))
+				// The re-import engine: the reload planner the Sources space's Reload and relink run.
+				implementation(project(":reimport"))
 				implementation(project(":settings"))
 				implementation(project(":storage"))
 			}

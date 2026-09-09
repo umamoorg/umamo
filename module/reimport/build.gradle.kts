@@ -1,5 +1,6 @@
 // :reimport — non-destructive reconcile over the model's source bindings. Depends on :format (the
-// re-read art) and :runtime (the bindings live on the model's atlas tiles).
+// re-read art), :runtime (the bindings live on the model's atlas tiles), and :interop (the bridge that
+// births a layer's mesh and mints the additions for the layers a file gained).
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -21,7 +22,13 @@ kotlin {
 		commonMain {
 			dependencies {
 				implementation(project(":format"))
+				implementation(project(":interop"))
 				api(project(":runtime"))
+			}
+		}
+		commonTest {
+			dependencies {
+				implementation(kotlin("test"))
 			}
 		}
 	}

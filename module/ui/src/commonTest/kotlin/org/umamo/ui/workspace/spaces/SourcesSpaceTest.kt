@@ -64,6 +64,10 @@ class SourcesSpaceTest {
 		assertSame(icons.unlinked, unbound.icon)
 		assertEquals(colors.signalBad, unbound.tint)
 		assertSame(Res.string.sources_status_unbound, unbound.statusLabel)
+		val review = sourcesRowVisual(node(layer, SourcesStatus.NeedsReview), icons, colors)
+		assertSame(icons.unlinked, review.icon)
+		assertEquals(colors.signalCaution, review.tint, "a binding the file lost is caution, not broken: the tile keeps its art")
+		assertSame(Res.string.sources_status_needs_review, review.statusLabel)
 	}
 
 	/** A tile on no page reads caution; a placed tile and a drawable carry no status at all. */

@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.render.PuppetTextures
@@ -59,7 +60,17 @@ fun prepareCmo3Export(
 				} else {
 					emptyList()
 				}
-			PreparedCmo3Export(document.cmo3, Cmo3Export.apply(edited, document.cmo3, recomposedPages = recomposedPages))
+			val prepared = Cmo3Export.apply(edited, document.cmo3, recomposedPages = recomposedPages)
+			// A reloaded tile reaches the pages but not the retained per-layer images (Phase H writes
+			// that chain); the report says which tiles, so the layered view's staleness is no surprise.
+			val reloadedTileNames = edited.atlas.tiles.filter { tile -> tile.replaces != null }.map { tile -> tile.name }
+			val report =
+				if (reloadedTileNames.isEmpty()) {
+					prepared
+				} else {
+					prepared.copy(notices = prepared.notices + ExportNotice.ReloadedTileImagesStale(reloadedTileNames))
+				}
+			PreparedCmo3Export(document.cmo3, report)
 		}
 		// An artwork-origin document has no retained graph either: the pages it packed at open, or the
 		// session's repack of them, are re-encoded and synthesized into a fresh graph the same way.  Its

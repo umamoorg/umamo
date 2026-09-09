@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.edit.setTileSource
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportNotice
@@ -53,6 +55,7 @@ import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.readArtwork
+import org.umamo.ui.document.readArtworkAt
 import org.umamo.ui.document.recentFiles
 import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.kit.TopLevelMenu
@@ -76,10 +79,15 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.RelinkArtworkRequest
+import org.umamo.ui.model.ReloadArtworkRequest
+import org.umamo.ui.model.ReloadEntry
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.SourceFilePresence
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.model.runAddArtwork
+import org.umamo.ui.model.runRelinkArtwork
+import org.umamo.ui.model.runReloadArtwork
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
@@ -93,6 +101,8 @@ import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
+import org.umamo.ui.workspace.commands.ArtworkOperations
+import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
 import org.umamo.ui.workspace.commands.logCommands
@@ -280,6 +290,19 @@ fun EditorApp(
 		}
 	}
 
+	// The host every artwork operation over the open document lands through: the same one the repack
+	// builds, so an add, a reload, and a relink share its report route and its resolver pre-warm.
+	fun artworkHostFor(puppetDocument: PuppetDocument, activeSession: EditorSession): AtlasRepackHost =
+		AtlasRepackHost(
+			session = activeSession,
+			artRasters = puppetDocument.artRasters,
+			sessionAtlasPages = sessionAtlasPages,
+			premultipliedAlpha = puppetDocument.textures.premultipliedAlpha,
+			scope = scope,
+			report = { report -> commandRegistry.invoke("document.repackReport", report) },
+			rememberOptions = { _, _ -> },
+		)
+
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
 	// dirty confirm, unlike the import.  A file that will not read raises the same alert an open would.
 	// The area is the one the command fired over, resolved by the shell before the picker opens; it is
@@ -300,20 +323,65 @@ fun EditorApp(
 					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 					return@launch
 				}
-			val host =
-				AtlasRepackHost(
-					session = activeSession,
-					artRasters = puppetDocument.artRasters,
-					sessionAtlasPages = sessionAtlasPages,
-					premultipliedAlpha = puppetDocument.textures.premultipliedAlpha,
-					scope = scope,
-					report = { report -> commandRegistry.invoke("document.repackReport", report) },
-					rememberOptions = { _, _ -> },
-				)
 			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension)
-			runAddArtwork(host, AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
+			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
 		}
 	}
+
+	// Reloads every listed artwork file that is present on disk: a file that cannot be read is logged
+	// and skipped, and the reload of the rest lands as one undo step.  Desktop paths only for now - a
+	// platform uri cannot be re-read here, so a document opened through one reloads nothing.
+	fun reloadArtworkFromDisk(areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val entries = ArrayList<ReloadEntry>()
+			for (source in activeSession.model.value.sources) {
+				val path = source.path ?: continue
+				if (sourceFilePresence(path) != true) {
+					continue
+				}
+				val read = readArtworkAt(path)
+				if (read == null) {
+					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
+					continue
+				}
+				entries.add(ReloadEntry(source.id, read.art))
+			}
+			if (entries.isEmpty()) {
+				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				return@launch
+			}
+			runReloadArtwork(artworkHostFor(puppetDocument, activeSession), ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+		}
+	}
+
+	// Rebinds a tile: an unbind is the plain binding edit; a binding to a layer pulls the layer's art
+	// in when its file is on disk, and changes the binding alone otherwise.
+	fun relinkArtwork(request: RelinkRequest, areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		val ref = request.ref
+		if (ref == null) {
+			activeSession.setTileSource(request.tileId, null)
+			return
+		}
+		scope.launch {
+			val path = activeSession.model.value.sources.firstOrNull { source -> source.id == ref.sourceId }?.path
+			val read = if (path != null && sourceFilePresence(path) == true) readArtworkAt(path) else null
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, read?.art, artworkImportOptions()), areaId)
+		}
+	}
+
+	// A reload has something to read when any listed file has a real path - checked without touching
+	// the disk, since the palette asks on every listing; a missing file is found out by the reload.
+	val artworkOperations =
+		ArtworkOperations(
+			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
+			reloadArtwork = { areaId -> reloadArtworkFromDisk(areaId) },
+			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
+			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
+		)
 
 	fun importArtworkViaPicker() {
 		// Every layered and flat-raster format the registry reads comes in through this one row - the
@@ -592,7 +660,7 @@ fun EditorApp(
 		commandRegistry = commandRegistry,
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
-		addArtwork = { areaId -> addArtworkViaPicker(areaId) },
+		artwork = artworkOperations,
 	)
 }
 
@@ -699,6 +767,11 @@ private fun describeExportNotice(notice: ExportNotice): String =
 		is ExportNotice.MissingSourceArt ->
 			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
 				"so its layers are atlas slices rather than the original artwork"
+		is ExportNotice.ReloadedTileImagesStale ->
+			"reloaded art reaches the atlas pages but not the retained layer images of " +
+				notice.tileNames.take(8).joinToString() +
+				(if (notice.tileNames.size > 8) " (+${notice.tileNames.size - 8} more)" else "") +
+				"; the editor's layered view shows the art as imported"
 	}
 
 /**
@@ -716,8 +789,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
- * @param Function addArtwork The app's add-artwork orchestration over the hovered area, handed to the
- *   shell for a puppet document only (the shell registers the command; see fileAddArtworkCommands).
+ * @param ArtworkOperations artwork The app's artwork orchestrations over the hovered area, handed to
+ *   the shell for a puppet document only (the shell registers the commands; see fileArtworkCommands).
  */
 @Composable
 private fun DocumentViewport(
@@ -727,7 +800,7 @@ private fun DocumentViewport(
 	commandRegistry: CommandRegistry,
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
-	addArtwork: (String?) -> Unit,
+	artwork: ArtworkOperations,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -792,8 +865,8 @@ private fun DocumentViewport(
 						viewportHost = viewport?.host,
 						commandRegistry = commandRegistry,
 						appMenu = appMenu,
-						// Registered by the shell (see fileAddArtworkCommands): the strip shows in the hovered area.
-						addArtwork = addArtwork,
+						// Registered by the shell (see fileArtworkCommands): the strip shows in the hovered work surface.
+						artwork = artwork,
 					)
 				}
 			}

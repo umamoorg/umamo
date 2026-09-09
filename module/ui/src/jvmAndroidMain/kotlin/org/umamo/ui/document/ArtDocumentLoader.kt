@@ -1,5 +1,9 @@
 package org.umamo.ui.document
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.FormatCodec
@@ -82,6 +86,31 @@ fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
 			UmamoLog.error("failed to read artwork $name", failure)
 			null
 		}
+}
+
+/**
+ * Reads the artwork file at [path] - a real file-system path recorded on a source at import - off the
+ * calling thread, and null when it cannot: a platform uri (Android's SAF handles have no path to
+ * read), a missing or unreadable file, or bytes that are not artwork.  Every failure is logged, so the
+ * reload that asked can say which file it skipped.
+ *
+ * @param String path The recorded path.
+ * @return ReadArtwork? The art and its format, or null.
+ */
+suspend fun readArtworkAt(path: String): ReadArtwork? {
+	if (path.contains("://")) {
+		return null
+	}
+	val bytes =
+		withContext(Dispatchers.IO) {
+			runCatching { FileSystem.SYSTEM.read(path.toPath()) { readByteArray() } }
+				.getOrElse { failure ->
+					UmamoLog.error("failed to read artwork at $path", failure)
+					null
+				}
+		} ?: return null
+	val name = path.toPath().name
+	return withContext(Dispatchers.Default) { readArtwork(bytes, name) }
 }
 
 /**

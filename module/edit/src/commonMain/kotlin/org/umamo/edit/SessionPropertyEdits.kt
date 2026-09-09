@@ -372,6 +372,34 @@ fun EditorSession.commitArtworkAdded(sourceName: String, drawableCount: Int, add
 }
 
 /**
+ * Commits a model that already carries a reload of the document's artwork files and its pack as ONE
+ * undo step - the same contract as [commitArtworkAdded]: built off the UI thread from the model
+ * current when the reload started, checked against it, landed here, the page pixels swapped in
+ * beside it and the committed model returned for the resolver's pre-warm.
+ *
+ * @param DocumentChange.ReloadArtwork change   The step's counts, for the history label.
+ * @param PuppetModel                  reloaded The model with the reload and its pack applied.
+ * @return PuppetModel The committed model.
+ */
+fun EditorSession.commitArtworkReloaded(change: DocumentChange.ReloadArtwork, reloaded: PuppetModel): PuppetModel {
+	mutate(change) { reloaded }
+	return reloaded
+}
+
+/**
+ * Commits a model that already carries one tile's rebinding with the layer's art pulled in, and its
+ * pack, as ONE undo step; see [commitArtworkAdded] for the contract.
+ *
+ * @param AtlasTileId tileId   The rebound tile's id before the replacement.
+ * @param PuppetModel relinked The model with the relink and its pack applied.
+ * @return PuppetModel The committed model.
+ */
+fun EditorSession.commitArtworkRelinked(tileId: AtlasTileId, relinked: PuppetModel): PuppetModel {
+	mutate(DocumentChange.RelinkArtwork(tileId)) { relinked }
+	return relinked
+}
+
+/**
  * Repacks the whole atlas as a single undo step: the new page inventory and every tile's placement
  * land together, with every bound drawable's coordinates re-derived over them - withAtlasRepack's
  * one-pass edit under the one history push a repack should be.

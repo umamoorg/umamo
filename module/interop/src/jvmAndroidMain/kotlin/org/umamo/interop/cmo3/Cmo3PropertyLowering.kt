@@ -57,6 +57,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
+import org.umamo.runtime.model.lineageRoot
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -645,7 +646,9 @@ internal class Cmo3PropertyLowering(
 		// entries between atlases.  The canvas placement it carries is the fixed point every rewritten
 		// transform pair has to keep composing to (see indexAtlasWeb).
 		val web = indexAtlasWeb(textureManager)
-		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id }
+		// Keyed by lineage root: the diff names the baseline's tile, and a reloaded tile (`<guid>~<n>`)
+		// is that tile's art to the graph, so its placement is what the root's entry takes.
+		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id.lineageRoot }
 
 		for (diff in diffs) {
 			when (diff) {

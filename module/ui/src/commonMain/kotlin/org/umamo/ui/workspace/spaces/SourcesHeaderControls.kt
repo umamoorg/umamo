@@ -45,12 +45,19 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 		}
 	}
 	flexibleSpace()
-	item("refresh") {
+	item("reload") {
 		if (LocalPuppet.current != null) {
+			// One button: re-probe every file's presence, then reload the present ones as one undo step
+			// (the command itself says when nothing changed).  refreshAlert waits for the watcher that
+			// can tell a file changed before anyone asks.
+			val commands = LocalCommands.current
 			IconButton(
-				icon = LocalUmamoIcons.refresh, // refreshAlert also exists for the future when it is detected that a file might be missing.
-				onClick = { viewState.refreshSerial++ },
-				contentDescription = stringResource(Res.string.sources_refresh),
+				icon = LocalUmamoIcons.refresh,
+				onClick = {
+					viewState.refreshSerial++
+					commands.invoke("document.reloadArtwork")
+				},
+				contentDescription = stringResource(Res.string.sources_reload),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 			)
 		}
@@ -84,6 +91,7 @@ private fun FilterDropdownButton(viewState: SourcesViewState) {
 							SourcesFilter.All -> Res.string.sources_filter_all
 							SourcesFilter.Unbound -> Res.string.sources_filter_unbound
 							SourcesFilter.Missing -> Res.string.sources_filter_missing
+							SourcesFilter.NeedsReview -> Res.string.sources_filter_needs_review
 						},
 					),
 			)

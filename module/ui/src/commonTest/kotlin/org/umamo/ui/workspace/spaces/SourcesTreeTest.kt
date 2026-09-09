@@ -86,7 +86,7 @@ class SourcesTreeTest {
 		assertEquals(SourcesStatus.Unbound, fileA.children[1].status, "a layer no tile binds")
 		val stray = fileA.children[2]
 		assertEquals("Stray", stray.label, "a name key shows as the name")
-		assertEquals(SourcesStatus.BoundByName, stray.status)
+		assertEquals(SourcesStatus.NeedsReview, stray.status, "a binding to a layer the file no longer lists waits on a decision")
 		assertEquals(SourcesStatus.Unplaced, stray.children.single().status)
 		assertEquals(SourcesStatus.Unknown, tree[1].status, "no path, no verdict")
 		assertEquals(SourcesDetail.Source("clip", 1, hasPath = false), tree[1].detail)
@@ -108,6 +108,10 @@ class SourcesTreeTest {
 		val missing = filterSourcesTree(tree, "", SourcesFilter.Missing)
 		assertEquals(listOf("source:art-0"), missing.map { node -> node.id })
 		assertEquals(3, missing[0].children.size, "a missing file keeps its whole subtree")
+
+		val review = filterSourcesTree(tree, "", SourcesFilter.NeedsReview)
+		assertEquals(listOf("source:art-0"), review.map { node -> node.id })
+		assertEquals(listOf("layer:art-0/name:Stray"), review[0].children.map { node -> node.id }, "only the stray binding needs review")
 
 		val searched = filterSourcesTree(tree, "wing", SourcesFilter.All)
 		assertEquals(listOf("source:art-1"), searched.map { node -> node.id }, "a search keeps the matching row's ancestors")

@@ -101,3 +101,44 @@ data class ArtworkAdditions(
 	val parts: List<Part>,
 	val rootChildren: List<OrgChild>,
 )
+
+/**
+ * One tile a reload supersedes: the id of the tile the art used to live in, and the tile that holds it
+ * now - a fresh id (`<root>~<n>`), the new size, no placement yet, the old pin, and [AtlasTile.replaces]
+ * naming the old one.
+ *
+ * @property AtlasTileId oldId The superseded tile's id; its pixels stay in the document's raster store.
+ * @property AtlasTile   tile  The replacement, unplaced.
+ */
+data class ReplacedTile(
+	val oldId: AtlasTileId,
+	val tile: AtlasTile,
+)
+
+/**
+ * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, the
+ * tiles whose art changed (each superseded by a fresh, unplaced tile), the meshes the drawables over
+ * them take (an untouched birth quad re-born over the new art, an edited mesh carried with its
+ * coordinates remapped so every vertex samples the same canvas pixel as before), the layers the file
+ * gained, and the drawables whose edited mesh the new opaque art now reaches past.
+ *
+ * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
+ * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
+ * the file lost is deliberately absent - its tile keeps its art and its binding, and the new inventory
+ * simply no longer lists the key, which is what the Sources space shows as needing review.
+ *
+ * @property ArtSource         source          The file's record, carrying the inventory as just read.
+ * @property List              replacedTiles   The tiles whose art changed, each with its replacement.
+ * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable;
+ *   texture coordinates in the ART frame of the drawable's new tile, which the pack that follows
+ *   converts exactly as it does an import's.
+ * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
+ * @property List<DrawableId>  outgrown        Drawables whose kept mesh no longer covers the new opaque art.
+ */
+data class ArtworkReload(
+	val source: ArtSource,
+	val replacedTiles: List<ReplacedTile>,
+	val drawableMeshes: Map<DrawableId, DrawableMesh>,
+	val additions: ArtworkAdditions?,
+	val outgrown: List<DrawableId>,
+)

@@ -744,6 +744,35 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.addArtwork"
 	}
+
+	/**
+	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, the
+	 * layers the files gained added, the inventories refreshed, and the changed tiles packed beside the
+	 * existing art - one step for however many files were read.  Document content, so it marks the
+	 * document dirty.
+	 *
+	 * @property Int fileCount     How many files were re-read.
+	 * @property Int replacedCount How many tiles took new art.
+	 * @property Int addedCount    How many drawables the files' new layers added.
+	 * @property Int missingCount  How many bound layers the files no longer have (left for review).
+	 */
+	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val missingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.reloadArtwork"
+	}
+
+	/**
+	 * Rebinds a tile to another source layer with that layer's art pulled in: the tile replaced, its
+	 * drawables carried over it, the file's inventory refreshed.  Document content, so it marks the
+	 * document dirty.  A rebinding that could not pull the art (the file missing) is a
+	 * [SetTileSource] instead.
+	 *
+	 * @property AtlasTileId tileId The tile that was rebound (its id before the replacement).
+	 */
+	data class RelinkArtwork(val tileId: AtlasTileId) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.relinkArtwork"
+	}
 }
 
 /**

@@ -57,6 +57,8 @@
 	<string name="cmd_import_moc3">MOC3をインポート…</string>
 	<string name="cmd_import_artwork">アートワークをインポート…</string>
 	<string name="cmd_file_add_artwork">アートワークを追加…</string>
+	<string name="cmd_document_reload_artwork">アートワークを再読み込み</string>
+	<string name="cmd_sources_relink">アートを再リンク</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
 	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
@@ -89,6 +91,7 @@
 	<string name="repack_report_pinned_off_page">ピン留めされた配置が最大ページサイズに収まりません。</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamo でも Cubism Editor でも開けますが、収録されているレイヤーはすべて焼き込み済みアトラスの切り出しであり、このリグの元になった原画ではありません。編集可能な本来のレイヤーを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
+	<string name="export_reloaded_tile_images_stale">%1$s のアートはこのファイルの読み込み後に再読み込みされています。アトラスには新しいアートが書き出されますが、Cubism Editor がレイヤー表示に使うレイヤー画像は、原画がファイルに書き込まれるまで読み込み時のままです。</string>
 	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
 	<string name="export_more_subjects">(ほか %1$d 件)</string>
 	<!-- 書き出し通知の対象種別（各行の先頭に [ ] で表示）。 -->
@@ -357,6 +360,8 @@
 	<string name="history_document_tile_source">アートを再リンク</string>
 	<string name="history_document_tile_unbind">アートのリンクを解除</string>
 	<string name="history_document_add_artwork">アートワークを追加</string>
+	<string name="history_document_reload_artwork">アートワークを再読み込み</string>
+	<string name="history_document_relink_artwork">アートを再リンク</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
@@ -364,10 +369,11 @@
 	<string name="outliner_filter_parts">パーツ</string>
 	<string name="outliner_filter_deformers">デフォーマ</string>
 	<string name="sources_add_artwork">アートワークを追加…</string>
-	<string name="sources_refresh">更新</string>
+	<string name="sources_reload">アートワークファイルを再読み込み</string>
 	<string name="sources_filter_all">すべて</string>
 	<string name="sources_filter_unbound">未リンク</string>
 	<string name="sources_filter_missing">見つからないファイル</string>
+	<string name="sources_filter_needs_review">要確認</string>
 	<string name="sources_status_present">あり</string>
 	<string name="sources_status_missing">見つかりません</string>
 	<string name="sources_status_unknown">不明</string>
@@ -375,6 +381,7 @@
 	<string name="sources_status_bound_unstable">名前でリンク</string>
 	<string name="sources_status_unbound">未リンク</string>
 	<string name="sources_status_unplaced">未配置</string>
+	<string name="sources_status_needs_review">要確認：ファイルにこのレイヤーがありません</string>
 	<string name="sources_unbound_art">未リンクのアート</string>
 	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
 	<string name="sources_source_no_path">パス未記録</string>
@@ -483,6 +490,13 @@
 	<string name="notice_import_artwork_added">アートワークを追加しました。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
 	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
+	<string name="notice_reload_done">アートワークを再読み込みしました。</string>
+	<string name="notice_reload_notes">注記付きでアートワークを再読み込みしました。ログを参照してください。</string>
+	<string name="notice_reload_outgrown">アートワークを再読み込みしました。一部のアートがメッシュの外に出ています。ログを参照してください。</string>
+	<string name="notice_reload_no_changes">アートワークファイルに変更はありません。</string>
+	<string name="notice_reload_no_files">読み込めるアートワークファイルがなく、何も再読み込みされませんでした。</string>
+	<string name="notice_relink_pulled">アートを再リンクして再読み込みしました。</string>
+	<string name="notice_relink_binding_only">アートを再リンクしましたが、ファイルを読み込めなかったためアートは変わっていません。</string>
 	<string name="notice_atlas_repack_superseded">再パックを中止しました: パック中にアトラスが変更されました。</string>
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
