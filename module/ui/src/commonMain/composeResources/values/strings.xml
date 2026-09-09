@@ -409,7 +409,7 @@
 	<string name="outliner_filter_parts">Parts</string>
 	<string name="outliner_filter_deformers">Deformers</string>
 	<string name="sources_add_artwork">Add Artwork…</string>
-	<string name="sources_reload">Reload artwork files</string>
+	<string name="sources_reload">Reload Artwork Files</string>
 	<string name="sources_reload_pending">Artwork files changed on disk.  Reload to take the changes.</string>
 	<string name="sources_filter_all">All</string>
 	<string name="sources_filter_unbound">Unbound</string>
