@@ -25,6 +25,9 @@ package org.umamo.runtime.model
  *   flat raster's), recorded so a listing can say what a file is without re-reading it.
  * @property List<ArtSourceLayer> layers The layer inventory as of the last import, in the file's own
  *   draw order (top-most first); empty for a source whose inventory was never walked.
+ * @property String?              contentHash The whole-file content hash (SHA-256 hex) of the bytes the
+ *   document last read for this file, or null when it never read bytes (a CMO3-origin source).  What
+ *   the watcher compares a save against, so an unchanged file is never re-read.
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -32,6 +35,7 @@ data class ArtSource(
 	val path: String?,
 	val format: String,
 	val layers: List<ArtSourceLayer> = emptyList(),
+	val contentHash: String? = null,
 )
 
 /**

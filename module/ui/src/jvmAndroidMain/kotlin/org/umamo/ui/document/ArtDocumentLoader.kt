@@ -20,6 +20,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.storage.contentHashOf
 import org.umamo.ui.model.AtlasRepackRefusalReason
 import org.umamo.ui.model.describeImportNotice
 import org.umamo.ui.model.packModelAtOpen
@@ -62,12 +63,14 @@ fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
  * document open and Add Artwork into an open document.
  *
- * @property SourceArt art  The parsed source art.
- * @property FileKind  kind The format it was read from.
+ * @property SourceArt art         The parsed source art.
+ * @property FileKind  kind        The format it was read from.
+ * @property String    contentHash The whole-file content hash of the bytes it was read from.
  */
 class ReadArtwork(
 	val art: SourceArt,
 	val kind: FileKind,
+	val contentHash: String,
 )
 
 /**
@@ -81,7 +84,7 @@ class ReadArtwork(
  */
 fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
 	val codec = FormatRegistry.detect(bytes, name) ?: return null
-	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind) } }
+	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind, contentHashOf(bytes)) } }
 		.getOrElse { failure ->
 			UmamoLog.error("failed to read artwork $name", failure)
 			null
@@ -146,7 +149,8 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
  * @param FileKind               kind    The format it was read from, recorded on the model's source list.
  * @param String                 name    The file name (the failure display name, the source's name).
  * @param String                 path    The stored path or URI string recorded on the document.
- * @param SourceArtImportOptions options The seed parameters, threshold, and margin the import runs with.
+ * @param SourceArtImportOptions options     The seed parameters, threshold, and margin the import runs with.
+ * @param String?                contentHash The whole-file content hash of the bytes the art was read from, recorded on its source.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(
@@ -155,8 +159,9 @@ internal fun buildArtDocument(
 	name: String,
 	path: String,
 	options: SourceArtImportOptions,
+	contentHash: String? = null,
 ): DocumentLoad {
-	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension), options)
+	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash), options)
 	if (imported.puppet.drawables.isEmpty()) {
 		for (notice in imported.notices) {
 			UmamoLog.warn("import: ${describeImportNotice(notice)}")

@@ -53,7 +53,8 @@
 		}
 	},
 	"import": {
-		"parameterTemplate": "humanoid"
+		"parameterTemplate": "humanoid",
+		"watchMode": "auto"
 	},
 	"app": {
 		"launchCount": 0

@@ -82,6 +82,9 @@ object ArtworkReloadPlanner {
 	 * @param SourceArt              art         The file as just read.
 	 * @param SourceArtImportOptions options     The threshold and margin every re-born quad and added layer use.
 	 * @param Function               oldRasterOf The document's pixels for a tile, or null when it has none.
+	 * @param String?                contentHash The whole-file content hash of the bytes [art] was read from,
+	 *   recorded on the refreshed source; null keeps the record's.  A hash that changed while nothing in the
+	 *   layers did does not by itself make a plan - the watcher acknowledges such a save instead.
 	 * @return ReloadPlan? The plan, or null when there is nothing to commit.
 	 */
 	fun plan(
@@ -90,6 +93,7 @@ object ArtworkReloadPlanner {
 		art: SourceArt,
 		options: SourceArtImportOptions,
 		oldRasterOf: (AtlasTileId) -> LayerRaster?,
+		contentHash: String? = null,
 	): ReloadPlan? {
 		val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
 		val layersByKey = rasterLayersByKey(art)
@@ -125,8 +129,8 @@ object ArtworkReloadPlanner {
 			rasters.putAll(added.rasterByTile)
 			notices.addAll(added.notices)
 		}
-		val refreshed = source.copy(layers = SourceArtImport.inventoryOf(art))
-		if (replaced.isEmpty() && added == null && refreshed == source) {
+		val refreshed = source.copy(layers = SourceArtImport.inventoryOf(art), contentHash = contentHash ?: source.contentHash)
+		if (replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash) == source) {
 			return null
 		}
 		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, report, notices)

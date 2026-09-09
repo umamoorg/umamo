@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.reimport.WatchMode
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
@@ -44,6 +45,10 @@ import org.umamo.ui.resources.settings_colors_warning
 import org.umamo.ui.resources.settings_import_parameter_template
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
 import org.umamo.ui.resources.settings_import_parameter_template_none
+import org.umamo.ui.resources.settings_import_watch_mode
+import org.umamo.ui.resources.settings_import_watch_mode_auto
+import org.umamo.ui.resources.settings_import_watch_mode_notify
+import org.umamo.ui.resources.settings_import_watch_mode_off
 import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
 import org.umamo.ui.resources.settings_interface_theme
@@ -129,6 +134,9 @@ internal fun InterfaceSection() {
 /** The settings key for the parameter set an artwork import seeds; the values are ParameterTemplate keys. */
 internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
 
+/** The settings key for what a document does when a watched artwork file changes; the values are WatchMode keys. */
+internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
+
 /**
  * The Import section: what an artwork import seeds a new model with.  One row today - the parameter
  * template - stored as the template's key so a later template is one more option here and one more
@@ -144,6 +152,14 @@ internal fun ImportSection() {
 			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
 		)
 
+	var watchModeKey by rememberStringSetting(IMPORT_WATCH_MODE_KEY, WatchMode.Default.key)
+	val watchModeLabels =
+		linkedMapOf(
+			WatchMode.Auto.key to stringResource(Res.string.settings_import_watch_mode_auto),
+			WatchMode.Notify.key to stringResource(Res.string.settings_import_watch_mode_notify),
+			WatchMode.Off.key to stringResource(Res.string.settings_import_watch_mode_off),
+		)
+
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_import_parameter_template)) {
 			SelectField(
@@ -151,6 +167,15 @@ internal fun ImportSection() {
 				options = templateLabels.keys.toList(),
 				label = { value -> templateLabels[value] ?: value },
 				onSelect = { value -> templateKey = value },
+			)
+		}
+		// Read live by the open document's watcher, so the switch applies at once.
+		SettingRow(label = stringResource(Res.string.settings_import_watch_mode)) {
+			SelectField(
+				selected = WatchMode.fromKey(watchModeKey).key,
+				options = watchModeLabels.keys.toList(),
+				label = { value -> watchModeLabels[value] ?: value },
+				onSelect = { value -> watchModeKey = value },
 			)
 		}
 	}

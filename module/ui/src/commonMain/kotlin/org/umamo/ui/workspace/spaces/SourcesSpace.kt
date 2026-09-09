@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.LocalSourceWatch
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -123,11 +125,13 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	val selection = LocalSelection.current?.selection ?: Selection()
 	val presenceProbe = LocalSourceFilePresence.current
 	val viewState = scope.spaceState(SOURCES_VIEW_STATE_KEY) { SourcesViewState() }
+	// The watcher's presence serial: a file deleted or returned re-probes without a click.
+	val watchSerial = LocalSourceWatch.current?.serial?.collectAsState()?.value ?: 0
 
 	// The presence probe runs once per source per refresh, off the row composition: a file check per
 	// recompose would hit the disk every time the pointer moves.
 	val presenceBySource =
-		remember(puppet.sources, viewState.refreshSerial, presenceProbe) {
+		remember(puppet.sources, viewState.refreshSerial, watchSerial, presenceProbe) {
 			puppet.sources.associate { source ->
 				val path = source.path
 				val present = if (path == null || presenceProbe == null) null else presenceProbe(path)

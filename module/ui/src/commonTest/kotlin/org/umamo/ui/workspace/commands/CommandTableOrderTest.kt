@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
@@ -261,11 +262,15 @@ class CommandTableOrderTest {
 		assertFalse(relink.availability.isAvailable())
 		var landedArea: String? = "untouched"
 		var landedRequest: RelinkRequest? = null
+		var landedScope: ReloadScope? = null
 		var canReload = false
 		operations =
 			ArtworkOperations(
 				addArtwork = { areaId -> landedArea = areaId },
-				reloadArtwork = { areaId -> landedArea = areaId },
+				reloadArtwork = { areaId, reloadScope ->
+					landedArea = areaId
+					landedScope = reloadScope
+				},
 				relinkArtwork = { request, areaId ->
 					landedRequest = request
 					landedArea = areaId
@@ -281,6 +286,10 @@ class CommandTableOrderTest {
 		landedArea = "untouched"
 		reload.handler.run(null)
 		assertEquals("area-7", landedArea)
+		assertEquals(null, landedScope, "a plain Reload covers every file")
+		val scoped = ReloadScope(setOf(ArtSourceId("art-0")))
+		reload.handler.run(scoped)
+		assertSame(scoped, landedScope, "the watcher's scope reaches the operation")
 		val request = RelinkRequest(AtlasTileId("t1"), null)
 		relink.handler.run(request)
 		assertSame(request, landedRequest, "the relink carries its request")

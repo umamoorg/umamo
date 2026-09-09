@@ -17,6 +17,7 @@ import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.ImportParameterKeys
 import org.umamo.ui.model.RelinkArtworkRequest
 import org.umamo.ui.model.ReloadArtworkRequest
+import org.umamo.ui.model.ReloadArtworkResult
 import org.umamo.ui.model.ReloadEntry
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.runRelinkArtwork
@@ -70,8 +71,8 @@ class ReloadArtworkFlowTest {
 			val placementB = assertNotNull(before.atlas.tileById.getValue(tileB).placement)
 			val drawableA = before.drawables.first { drawable -> drawable.atlasTileId == tileA }
 
-			val request = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerARepainted, layerB, layerC)))), options)
-			assertTrue(runReloadArtwork(host, request, areaId = null), "the reload lands")
+			val request = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerARepainted, layerB, layerC)), contentHash = "hash-v2")), options)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, request, areaId = null), "the reload lands")
 			val reloaded = session.model.value
 			val tileA1 = AtlasTileId("art-0/lyid:1~1")
 			assertEquals(listOf(tileB, tileA1, AtlasTileId("art-0/lyid:3")), reloaded.atlas.tiles.map { tile -> tile.id }, "the changed tile is replaced, the new layer appended")
@@ -83,6 +84,7 @@ class ReloadArtworkFlowTest {
 			assertEquals(tileA1, carriedA.atlasTileId, "the drawable moved onto the replacement")
 			assertEquals(3, reloaded.drawables.size, "the new layer became a drawable")
 			assertEquals(listOf("lyid:1", "lyid:2", "lyid:3"), reloaded.sources.single().layers.map { layer -> layer.key })
+			assertEquals("hash-v2", reloaded.sources.single().contentHash, "the record carries the hash the reload read")
 			withTimeout(120_000) {
 				while (sessionAtlasPages.binding.value.atlas !== reloaded.atlas) {
 					yield()
@@ -123,8 +125,13 @@ class ReloadArtworkFlowTest {
 
 			// Nothing changed since: no step, the model untouched.
 			val settled = session.model.value
-			assertFalse(runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerARepainted, layerB, layerC)))), options), areaId = null))
+			assertEquals(
+				ReloadArtworkResult.NothingChanged,
+				runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerARepainted, layerB, layerC)), contentHash = "hash-v3")), options), areaId = null),
+				"a save that changed bytes but no layer plans nothing",
+			)
 			assertSame(settled, session.model.value)
+			assertEquals("hash-v2", session.model.value.sources.single().contentHash, "and the record keeps the hash of the reload that landed")
 
 			// A relink to another layer of the read file pulls that layer's art; without the file it
 			// changes the binding alone.

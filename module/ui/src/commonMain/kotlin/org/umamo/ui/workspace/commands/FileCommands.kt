@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.Command
@@ -55,18 +56,30 @@ class RelinkRequest(
 )
 
 /**
+ * Which listed files a reload covers, the optional payload of the document.reloadArtwork command: the
+ * watcher names the files that changed, so the rest are not re-read; a press of Reload passes none
+ * and covers every present file.
+ *
+ * @property Set<ArtSourceId> sourceIds The files to re-read.
+ */
+class ReloadScope(
+	val sourceIds: Set<ArtSourceId>,
+)
+
+/**
  * The app's artwork orchestrations the shell's table dispatches to: each reads files the way only the
  * app can (the picker, a path on the platform's file system) and lands the result on the session.
  * Every one takes the area its operation strip shows in, resolved by the shell at dispatch.
  *
  * @property Function addArtwork    Picks a file and adds it to the open document.
- * @property Function reloadArtwork Re-reads every listed file that is present and reloads the document from them.
+ * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
+ *   or every one when it is null - and reloads the document from them.
  * @property Function relinkArtwork Rebinds a tile, pulling the layer's art in when its file can be read.
  * @property Function canReload     Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
 	val addArtwork: (areaId: String?) -> Unit,
-	val reloadArtwork: (areaId: String?) -> Unit,
+	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val canReload: () -> Boolean,
 )
@@ -100,7 +113,7 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,
 			availability = CommandAvailability { artwork()?.canReload?.invoke() == true },
-		) { artwork()?.reloadArtwork?.invoke(routing.operationStripArea()) },
+		) { argument -> artwork()?.reloadArtwork?.invoke(routing.operationStripArea(), argument as? ReloadScope) },
 		Command(
 			"sources.relink",
 			title = Res.string.cmd_sources_relink,

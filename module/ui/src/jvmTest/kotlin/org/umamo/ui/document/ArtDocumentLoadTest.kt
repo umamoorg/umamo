@@ -11,6 +11,7 @@ import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.storage.contentHashOf
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,6 +49,7 @@ class ArtDocumentLoadTest {
 		}
 
 		assertTrue(puppet.drawables.isNotEmpty(), "the PSD has layers to rig")
+		assertEquals(contentHashOf(file.readBytes()), puppet.sources.single().contentHash, "the source records the whole-file hash the watcher compares against")
 		assertEquals(HumanoidParameters.list, puppet.parameters, "the default template seeds the humanoid set")
 		assertTrue(puppet.rendersFromSourceLayers, "a fresh import shows the layers as drawn")
 		assertTrue(puppet.atlas.pages.isNotEmpty(), "the pack at open produced pages")

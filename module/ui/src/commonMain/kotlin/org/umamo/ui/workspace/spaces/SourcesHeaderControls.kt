@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.Checkbox
@@ -12,6 +13,7 @@ import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.model.LocalSourceWatch
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -48,16 +50,17 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 	item("reload") {
 		if (LocalPuppet.current != null) {
 			// One button: re-probe every file's presence, then reload the present ones as one undo step
-			// (the command itself says when nothing changed).  refreshAlert waits for the watcher that
-			// can tell a file changed before anyone asks.
+			// (the command itself says when nothing changed).  The alert glyph is the watcher's: files
+			// changed on disk and await this press (notify mode, or a file edited while the document was closed).
 			val commands = LocalCommands.current
+			val pending = LocalSourceWatch.current?.pending?.collectAsState()?.value.orEmpty()
 			IconButton(
-				icon = LocalUmamoIcons.refresh,
+				icon = if (pending.isEmpty()) LocalUmamoIcons.refresh else LocalUmamoIcons.refreshAlert,
 				onClick = {
 					viewState.refreshSerial++
 					commands.invoke("document.reloadArtwork")
 				},
-				contentDescription = stringResource(Res.string.sources_reload),
+				contentDescription = stringResource(if (pending.isEmpty()) Res.string.sources_reload else Res.string.sources_reload_pending),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 			)
 		}

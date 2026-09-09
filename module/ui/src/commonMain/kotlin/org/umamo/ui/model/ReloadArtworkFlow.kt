@@ -41,13 +41,31 @@ import org.umamo.storage.UmamoLog
 /**
  * One listed file to re-read.
  *
- * @property ArtSourceId sourceId The file's record in the model.
- * @property SourceArt   art      The file as just read.
+ * @property ArtSourceId sourceId    The file's record in the model.
+ * @property SourceArt   art         The file as just read.
+ * @property String?     contentHash The whole-file content hash of the bytes it was read from, recorded
+ *   on the refreshed source so the watcher knows this save was taken; null keeps the record's.
  */
 class ReloadEntry(
 	val sourceId: ArtSourceId,
 	val art: SourceArt,
+	val contentHash: String? = null,
 )
+
+/** How a reload ended - what the watcher needs to know to wait, retry, or let go. */
+enum class ReloadArtworkResult {
+	/** The reload landed as one undo step. */
+	Applied,
+
+	/** The files were read and nothing in them changed the document. */
+	NothingChanged,
+
+	/** The pack could not keep the document's own art in place; the person was shown the report. */
+	Refused,
+
+	/** An edit landed while the reload was being planned; nothing was applied. */
+	Superseded,
+}
 
 /**
  * The files a reload re-reads, as read from disk, with the decoded wrapper of every layer raster
@@ -171,7 +189,7 @@ private fun reloadOutcome(
 	var missing = 0
 	val oldRasterOf = oldRasterLookup(artRasters)
 	for (entry in request.entries) {
-		val plan = ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf) ?: continue
+		val plan = ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf, entry.contentHash) ?: continue
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {
 			UmamoLog.error("reload artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")
@@ -232,9 +250,9 @@ private inline fun packReloaded(
  * @param AtlasRepackHost      host    The session, art, resolver, scope, and shell callbacks.
  * @param ReloadArtworkRequest request The files as read.
  * @param String?              areaId  The area the strip shows in, or null.
- * @return Boolean Whether anything was reloaded.
+ * @return ReloadArtworkResult How the reload ended.
  */
-suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkRequest, areaId: String?): Boolean {
+suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkRequest, areaId: String?): ReloadArtworkResult {
 	val session = host.session
 	val modelAtStart = session.model.value
 	val outcome =
@@ -245,38 +263,40 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 		ReloadOutcome.NothingChanged -> {
 			UmamoLog.info("reload artwork: nothing changed in ${request.entries.size} file(s)")
 			session.emitNotice("notice.reload.noChanges", NoticePlacement.StatusBar)
-			return false
+			return ReloadArtworkResult.NothingChanged
 		}
 		is ReloadOutcome.Refused -> {
 			for (refusal in outcome.refusals) {
 				UmamoLog.warn("reload artwork: the document's tile '${refusal.tileName}' could not be kept in place (${refusal.reason}); nothing was applied")
 			}
 			host.report(AtlasRepackReport(outcome.refusals))
-			return false
+			return ReloadArtworkResult.Refused
 		}
 		is ReloadOutcome.Reloaded -> Unit
 	}
 	if (session.model.value !== modelAtStart) {
 		UmamoLog.warn("reload artwork: the document changed while its files were being reloaded; nothing was applied")
 		session.emitNotice("notice.import.artworkSuperseded", NoticePlacement.StatusBar)
-		return false
+		return ReloadArtworkResult.Superseded
 	}
 	host.artRasters.addDecoded(outcome.decodedByTile)
 	val committed = session.commitArtworkReloaded(outcome.change, outcome.model)
 	host.sessionAtlasPages?.prewarm(committed.atlas, outcome.textures)
 	reportReload(outcome, committed)
+	val change = outcome.change
 	session.emitNotice(
 		when {
 			outcome.outgrown.isNotEmpty() -> "notice.reload.outgrown"
-			outcome.notices.isNotEmpty() || outcome.change.missingCount > 0 -> "notice.reload.notes"
+			outcome.notices.isNotEmpty() || change.missingCount > 0 -> "notice.reload.notes"
 			else -> "notice.reload.done"
 		},
 		NoticePlacement.StatusBar,
+		listOf(change.replacedCount.toString(), change.addedCount.toString(), change.missingCount.toString()),
 	)
 	session.registerAdjustableOperation(committed, areaId, addArtworkParameters(request.options)) { record ->
 		host.scope.launch { adjustReloadArtwork(host, record, request) }
 	}
-	return true
+	return ReloadArtworkResult.Applied
 }
 
 /**

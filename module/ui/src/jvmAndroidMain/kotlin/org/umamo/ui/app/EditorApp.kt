@@ -35,8 +35,16 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.reimport.NioSourceWatcher
+import org.umamo.reimport.SourceWatchCoordinator
+import org.umamo.reimport.SourceWatchEvent
+import org.umamo.reimport.WatchMode
+import org.umamo.reimport.WatchedReloadResult
+import org.umamo.reimport.WatchedSource
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
+import org.umamo.storage.contentHashOfFile
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
@@ -84,11 +92,14 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.LocalSourceWatch
 import org.umamo.ui.model.RelinkArtworkRequest
 import org.umamo.ui.model.ReloadArtworkRequest
+import org.umamo.ui.model.ReloadArtworkResult
 import org.umamo.ui.model.ReloadEntry
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.SourceFilePresence
+import org.umamo.ui.model.SourceWatchState
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.model.runAddArtwork
 import org.umamo.ui.model.runRelinkArtwork
@@ -98,6 +109,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
+import org.umamo.ui.settings.IMPORT_WATCH_MODE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
@@ -108,6 +120,7 @@ import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.RelinkRequest
+import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
 import org.umamo.ui.workspace.commands.logCommands
@@ -328,36 +341,118 @@ fun EditorApp(
 					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 					return@launch
 				}
-			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension)
+			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash)
 			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
 		}
 	}
 
-	// Reloads every listed artwork file that is present on disk: a file that cannot be read is logged
-	// and skipped, and the reload of the rest lands as one undo step.  Desktop paths only for now - a
-	// platform uri cannot be re-read here, so a document opened through one reloads nothing.
-	fun reloadArtworkFromDisk(areaId: String?) {
+	// The document's artwork watcher: one per open puppet document, over the composable's own scope
+	// (its dispatcher confines the coordinator's state), closed when the document goes.  The mode is
+	// read live from settings at every decision, so the Import setting applies at once.
+	val documentWatch: DocumentWatch? =
+		remember(document, session) {
+			val activeSession = session
+			if (document is PuppetDocument && activeSession != null) {
+				val watcher = NioSourceWatcher(scope)
+				DocumentWatch(
+					watcher,
+					SourceWatchCoordinator(
+						scope = scope,
+						watcher = watcher,
+						hashOf = { path -> withContext(Dispatchers.IO) { contentHashOfFile(FileSystem.SYSTEM, path.toPath()) } },
+						exists = { path -> sourceFilePresence(path) },
+						isIdle = { activeSession.isQuiescent },
+						mode = { WatchMode.fromKey(settings.getString(IMPORT_WATCH_MODE_KEY)) },
+					),
+				)
+			} else {
+				null
+			}
+		}
+	DisposableEffect(documentWatch) {
+		onDispose { documentWatch?.close() }
+	}
+
+	// Reloads the listed artwork files that are present on disk - those the scope names, or every one -
+	// as one undo step; a file that cannot be read is logged and skipped.  Desktop paths only for now: a
+	// platform uri cannot be re-read here, so a document opened through one reloads nothing.  The watcher
+	// hears how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
+	fun reloadArtworkFromDisk(areaId: String?, reloadScope: ReloadScope?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
 			val entries = ArrayList<ReloadEntry>()
+			val covered = LinkedHashSet<ArtSourceId>()
 			for (source in activeSession.model.value.sources) {
+				if (reloadScope != null && source.id !in reloadScope.sourceIds) {
+					continue
+				}
 				val path = source.path ?: continue
 				if (sourceFilePresence(path) != true) {
 					continue
 				}
+				covered.add(source.id)
 				val read = readArtworkAt(path)
 				if (read == null) {
 					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
 					continue
 				}
-				entries.add(ReloadEntry(source.id, read.art))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				documentWatch?.coordinator?.reloadFinished(covered, WatchedReloadResult.Abandoned)
 				return@launch
 			}
-			runReloadArtwork(artworkHostFor(puppetDocument, activeSession), ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			val result = runReloadArtwork(artworkHostFor(puppetDocument, activeSession), ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			documentWatch?.coordinator?.reloadFinished(
+				entries.mapTo(LinkedHashSet()) { entry -> entry.sourceId },
+				when (result) {
+					ReloadArtworkResult.Applied -> WatchedReloadResult.Applied
+					ReloadArtworkResult.NothingChanged -> WatchedReloadResult.NothingChanged
+					ReloadArtworkResult.Superseded -> WatchedReloadResult.Superseded
+					ReloadArtworkResult.Refused -> WatchedReloadResult.Abandoned
+				},
+			)
+		}
+	}
+
+	// The watcher follows the model's source list (and the watch-mode setting), and its events land
+	// on the session: a due reload goes THROUGH the command registry, so the strip shows in the last
+	// work surface exactly as a pressed Reload does; the rest are notices.
+	LaunchedEffect(documentWatch, session) {
+		val watch = documentWatch ?: return@LaunchedEffect
+		val activeSession = session ?: return@LaunchedEffect
+
+		fun trackCurrentSources() {
+			watch.coordinator.track(
+				activeSession.model.value.sources.mapNotNull { source ->
+					val path = source.path?.takeIf { candidate -> !candidate.contains("://") } ?: return@mapNotNull null
+					WatchedSource(source.id, path, source.contentHash)
+				},
+			)
+		}
+		launch { activeSession.model.collect { trackCurrentSources() } }
+		launch {
+			settings.changes.collect { changedKey ->
+				if (changedKey == IMPORT_WATCH_MODE_KEY) {
+					trackCurrentSources()
+				}
+			}
+		}
+		watch.coordinator.events.collect { event ->
+			when (event) {
+				is SourceWatchEvent.ReloadDue -> commandRegistry.invoke("document.reloadArtwork", ReloadScope(event.sourceIds))
+				is SourceWatchEvent.ChangedOnDisk ->
+					activeSession.emitNotice("notice.watch.changed", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
+				is SourceWatchEvent.StaleAtOpen ->
+					activeSession.emitNotice("notice.watch.staleAtOpen", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
+				is SourceWatchEvent.Missing -> {
+					val name = activeSession.model.value.sources.firstOrNull { source -> source.id == event.sourceId }?.name ?: event.sourceId.raw
+					UmamoLog.warn("watch artwork: '$name' is no longer where the document read it")
+					activeSession.emitNotice("notice.watch.missing", NoticePlacement.StatusBar, listOf(name))
+				}
+			}
 		}
 	}
 
@@ -394,7 +489,7 @@ fun EditorApp(
 	val artworkOperations =
 		ArtworkOperations(
 			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
-			reloadArtwork = { areaId -> reloadArtworkFromDisk(areaId) },
+			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
@@ -677,7 +772,25 @@ fun EditorApp(
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
 		artwork = artworkOperations,
+		sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
 	)
+}
+
+/**
+ * One open document's artwork watcher: the platform watcher and the policy over it, closed together.
+ *
+ * @property NioSourceWatcher       watcher     The directory watcher.
+ * @property SourceWatchCoordinator coordinator The settle-hash-idle policy the app's events come from.
+ */
+private class DocumentWatch(
+	val watcher: NioSourceWatcher,
+	val coordinator: SourceWatchCoordinator,
+) {
+	/** Stops the policy and the watcher. */
+	fun close() {
+		coordinator.close()
+		watcher.close()
+	}
 }
 
 /**
@@ -807,6 +920,7 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
  * @param ArtworkOperations artwork The app's artwork orchestrations over the hovered area, handed to
  *   the shell for a puppet document only (the shell registers the commands; see fileArtworkCommands).
+ * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
  */
 @Composable
 private fun DocumentViewport(
@@ -817,6 +931,7 @@ private fun DocumentViewport(
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	artwork: ArtworkOperations,
+	sourceWatch: SourceWatchState?,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -872,6 +987,7 @@ private fun DocumentViewport(
 					LocalSessionAtlasPages provides sessionAtlasPages,
 					LocalSourceArtRasters provides document.artRasters,
 					LocalSourceFilePresence provides sourceFilePresence,
+					LocalSourceWatch provides sourceWatch,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,

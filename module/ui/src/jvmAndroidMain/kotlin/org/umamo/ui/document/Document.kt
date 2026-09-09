@@ -13,6 +13,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.storage.contentHashOf
 import org.umamo.ui.viewport.LiveParams
 
 /**
@@ -152,7 +153,7 @@ fun loadDocument(
 			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
-		buildArtDocument(artwork, codec.kind, name, path, importOptions)
+		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes))
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))

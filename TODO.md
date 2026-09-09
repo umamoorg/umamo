@@ -388,8 +388,10 @@ is still ahead.
 	F1 BUILT (2026-09-08): Reload by key - the Sources header's Reload re-reads every present file and
 	lands the changed layers as one strip-adjustable step (a reloaded tile is a NEW tile, `<root>~<n>`,
 	so undo shows the old art by snapshot), and a relink pulls the layer's art at once when the file is
-	present.  NEXT: D as the mesh command, or F2 (watcher), then F3 (fuzzy match + review chips).  See
-	docs/plan/art-sourcing-pipeline.md Phase F § What shipped.
+	present.  F2 BUILT (2026-09-09): the watcher - `NioSourceWatcher` over each file's directory,
+	`SourceWatchCoordinator` (settle, SHA-256 hash against `ArtSource.contentHash`, the idle gate),
+	`import.watchMode` auto / notify / off, stale-at-open notice, the header's alert glyph.  NEXT: D as
+	the mesh command, or F3 (fuzzy match + review chips).  See docs/plan/art-sourcing-pipeline.md Phase F.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 
