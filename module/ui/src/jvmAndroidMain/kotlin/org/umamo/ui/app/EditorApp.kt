@@ -17,7 +17,9 @@ import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
@@ -26,10 +28,12 @@ import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.edit.setTileSource
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
@@ -39,6 +43,7 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.ArtDocument
+import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.DocumentOpenError
@@ -357,7 +362,9 @@ fun EditorApp(
 	}
 
 	// Rebinds a tile: an unbind is the plain binding edit; a binding to a layer pulls the layer's art
-	// in when its file is on disk, and changes the binding alone otherwise.
+	// in when its file is on disk - or, for a CMO3-origin document whose file is not, from the layer
+	// PNGs the official editor decomposed into the CMO3 at import - and changes the binding alone
+	// when neither can be read.
 	fun relinkArtwork(request: RelinkRequest, areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
@@ -369,7 +376,16 @@ fun EditorApp(
 		scope.launch {
 			val path = activeSession.model.value.sources.firstOrNull { source -> source.id == ref.sourceId }?.path
 			val read = if (path != null && sourceFilePresence(path) == true) readArtworkAt(path) else null
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, read?.art, artworkImportOptions()), areaId)
+			val art =
+				read?.art
+					?: (puppetDocument as? Cmo3Document)?.let { cmo3Document ->
+						val root = cmo3Document.cmo3.root as? CModelSource ?: return@let null
+						withContext(Dispatchers.Default) { cmo3SourceArtOf(root, ref.sourceId) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } }
+					}
+			if (read == null && art != null) {
+				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file is not on this machine")
+			}
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, art, artworkImportOptions()), areaId)
 		}
 	}
 

@@ -13,6 +13,7 @@ import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.ui.model.AtlasRepackHost
@@ -118,5 +119,53 @@ class ReloadedCmo3ExportGateTest {
 			for ((pageIndex, bytes) in exportedPages.withIndex()) {
 				assertTrue(expectedPages.any { expected -> expected.contentEquals(bytes) }, "exported page $pageIndex is not one of the reload's pages")
 			}
+		}
+
+	/**
+	 * A relink on a CMO3-origin document whose file is not on this machine reads the target layer
+	 * from the CMO3's own decomposed layer image: the tile is replaced with that layer's pixels at
+	 * the layer's size, not merely rebound.
+	 */
+	@Test
+	fun aRelinkReadsTheDecomposedLayerWhenTheFileIsMissing() =
+		runBlocking {
+			val file = sample
+			if (file == null) {
+				println("cmo3.sample not present; skipping the decomposed relink gate")
+				return@runBlocking
+			}
+			val load = loadDocument(file.readBytes(), file.name, file.path)
+			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the relink must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			// Two placed, stably bound tiles of one file: the first is rebound to the second's layer.
+			val bound = before.atlas.tiles.filter { tile -> tile.placement != null && tile.source?.stableKey == true }
+			val tile = bound.first()
+			val target = bound.first { candidate -> candidate.source?.sourceId == tile.source?.sourceId && candidate.source?.layerKey != tile.source?.layerKey }
+			val targetRef = assertNotNull(target.source)
+			val root = assertIs<CModelSource>(document.cmo3.root)
+			val art = assertNotNull(cmo3SourceArtOf(root, targetRef.sourceId) { resource -> document.cmo3.extractLayerPng(resource) }, "the file reads back from the CMO3")
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tile.id, targetRef, art, SourceArtImportOptions()), areaId = null), "the relink pulls the decomposed layer")
+			val relinked = session.model.value
+			val replacement = relinked.atlas.tiles.first { candidate -> candidate.replaces == tile.id }
+			assertEquals(targetRef, replacement.source)
+			val targetLayer = art.layers.first { layer -> layer.id.raw == targetRef.layerKey }
+			assertEquals(targetLayer.raster.width, replacement.width, "the replacement is the target layer's size")
+			assertEquals(targetLayer.raster.height, replacement.height)
+			val pulled = assertNotNull(document.artRasters.decodeRaster(replacement.id), "the target layer's pixels joined the store")
+			assertTrue(pulled.rgba.contentEquals(targetLayer.raster.rgba), "with the decomposed layer's own bytes")
+			follower.cancel()
 		}
 }

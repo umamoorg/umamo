@@ -1,6 +1,7 @@
 package org.umamo.interop.cmo3
 
 import org.junit.Assume
+import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -462,5 +463,38 @@ class Cmo3AtlasIngestCorpusTest {
 			assertTrue(shared * 2 >= layerIdRows.size, "${cmo3File.name}: the PSD shares most of the CMO3's layer ids ($shared of ${layerIdRows.size})")
 			println("${cmo3File.name} vs ${psdFile.name}: ${layerIdRows.size} layer-id rows, $shared shared with the PSD reader, every name agrees")
 		}
+	}
+
+	/**
+	 * The decomposed layer tree reads back as source art keyed exactly as the bindings are: every
+	 * listed file yields a document whose layer keys are the inventory's, and each raster layer's
+	 * pixels decode at its recorded bounds - the pixels a relink pulls when the file itself is gone.
+	 */
+	@Test
+	fun decomposedLayersReadBackAsSourceArt() {
+		val files = corpusFiles()
+		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		var decodedLayers = 0
+		for (file in files) {
+			val cmo3 = Cmo3.read(file.readBytes())
+			val root = cmo3.root as CModelSource
+			val puppet = Cmo3Import.fromModelSource(root)
+			for (source in puppet.sources) {
+				val art = assertNotNull(cmo3SourceArtOf(root, source.id) { resource -> cmo3.extractLayerPng(resource) }, "${file.name}: '${source.name}' reads back")
+				assertEquals(source.layers.map { layer -> layer.key }, art.layers.map { layer -> layer.id.raw }, "${file.name}: '${source.name}' keys as the inventory does")
+				for ((row, layer) in source.layers.zip(art.layers)) {
+					assertEquals(row.left, layer.bounds.left)
+					assertEquals(row.top, layer.bounds.top)
+					if (layer.kind != SourceLayerKind.Raster) {
+						continue
+					}
+					assertEquals(row.width, layer.raster.width, "${file.name}: '${layer.name}' decodes at its bounds' width")
+					assertEquals(row.height, layer.raster.height, "${file.name}: '${layer.name}' decodes at its bounds' height")
+					decodedLayers++
+				}
+			}
+		}
+		assertTrue(decodedLayers > 0, "some raster layer decoded")
+		println("decomposed art: $decodedLayers layer(s) decoded across ${files.size} file(s)")
 	}
 }

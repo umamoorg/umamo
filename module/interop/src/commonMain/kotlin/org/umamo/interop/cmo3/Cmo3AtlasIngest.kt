@@ -225,8 +225,26 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 private class LayeredImageInventory(val rows: List<ArtSourceLayer>, val refByLayerGuid: Map<String, SourceLayerRef>)
 
 /**
- * The layer inventory of one decomposed artwork file: every image layer under its root group, in the
- * editor's stored order.
+ * One image layer of a decomposed artwork file as the walk found it: the entry, the key the walk
+ * minted for it, whether that key is stable, its folder path, and its place in the stored order.
+ *
+ * @property CLayer  layer     The layer entry.
+ * @property String  key       The binding key ("lyid:<id>", or "name:<name>" with an order suffix on a duplicate).
+ * @property Boolean stable    Whether the key survives a rename (an unsuffixed Photoshop layer id).
+ * @property String  groupPath The slash-joined enclosing-folder path ("" at the root).
+ * @property Int     order     The layer's index in the stored order, top-most first.
+ */
+internal class WalkedCmo3Layer(
+	val layer: CLayer,
+	val key: String,
+	val stable: Boolean,
+	val groupPath: String,
+	val order: Int,
+)
+
+/**
+ * Walks one decomposed artwork file's layer tree: every image layer under its root group, in the
+ * editor's stored order, with its key.
  *
  * Keys are minted the way the PSD reader mints them, so a CMO3-origin document and a fresh read of
  * the same file agree on a layer's identity: "lyid:<id>" when the editor recorded Photoshop's layer
@@ -234,17 +252,14 @@ private class LayeredImageInventory(val rows: List<ArtSourceLayer>, val refByLay
  * construction - a repeated name takes an order suffix ("name:1#2") on every duplicate after the
  * first, and any suffixed key is unstable by definition, because the suffix depends on the tree order.
  *
- * @param CLayeredImage image    The layered image to walk.
- * @param ArtSourceId   sourceId The source id the bindings carry.
- * @return LayeredImageInventory The rows and the per-layer bindings, both empty when the image has no
- *   layer tree.
+ * @param CLayeredImage image The layered image to walk.
+ * @return List<WalkedCmo3Layer> The image layers, empty when the image has no layer tree.
  */
-private fun layeredImageInventory(image: CLayeredImage, sourceId: ArtSourceId): LayeredImageInventory {
+internal fun walkLayeredImage(image: CLayeredImage): List<WalkedCmo3Layer> {
 	// CMO3: CLayeredImage field _rootLayer -> CLayerGroup, whose ACLayerGroup field _children holds the
 	// image layers (CLayer) and nested folders (CLayerGroup) of the decomposed file.
-	val root = image._rootLayer as? ACLayerGroup ?: return LayeredImageInventory(emptyList(), emptyMap())
-	val rows = ArrayList<ArtSourceLayer>()
-	val refByLayerGuid = HashMap<String, SourceLayerRef>()
+	val root = image._rootLayer as? ACLayerGroup ?: return emptyList()
+	val walked = ArrayList<WalkedCmo3Layer>()
 	val duplicateCountByKey = HashMap<String, Int>()
 
 	fun walk(group: ACLayerGroup, path: String) {
@@ -256,36 +271,54 @@ private fun layeredImageInventory(image: CLayeredImage, sourceId: ArtSourceId): 
 					walk(entry, if (path.isEmpty()) name else "$path/$name")
 				}
 				is CLayer -> {
-					// CMO3: ACLayerEntry fields name / isVisible / guid; CLayer field boundsOnImageDoc, a
-					// CRect (x / y / width / height) placing the layer on the source document.
+					// CMO3: ACLayerEntry field name.
 					val name = entry.name.orEmpty()
-					val bounds = entry.boundsOnImageDoc as? CRect
 					val photoshopLayerId = photoshopLayerIdOf(entry.layerIdentifier)
 					val baseKey = if (photoshopLayerId != null) "lyid:$photoshopLayerId" else "name:$name"
 					val duplicateOrdinal = (duplicateCountByKey[baseKey] ?: 0) + 1
 					duplicateCountByKey[baseKey] = duplicateOrdinal
 					val key = if (duplicateOrdinal == 1) baseKey else "$baseKey#$duplicateOrdinal"
-					val stable = photoshopLayerId != null && duplicateOrdinal == 1
-					Cmo3Import.uuidOf(entry.guid)?.let { layerGuid ->
-						refByLayerGuid[layerGuid] = SourceLayerRef(sourceId, layerKey = key, stableKey = stable)
-					}
-					rows.add(
-						ArtSourceLayer(
-							key = key,
-							name = name,
-							groupPath = path,
-							left = bounds?.x ?: 0,
-							top = bounds?.y ?: 0,
-							width = bounds?.width ?: 0,
-							height = bounds?.height ?: 0,
-							visible = entry.isVisible,
-						),
-					)
+					walked.add(WalkedCmo3Layer(entry, key, stable = photoshopLayerId != null && duplicateOrdinal == 1, groupPath = path, order = walked.size))
 				}
 			}
 		}
 	}
 	walk(root, "")
+	return walked
+}
+
+/**
+ * The layer inventory of one decomposed artwork file, over [walkLayeredImage].
+ *
+ * @param CLayeredImage image    The layered image to walk.
+ * @param ArtSourceId   sourceId The source id the bindings carry.
+ * @return LayeredImageInventory The rows and the per-layer bindings, both empty when the image has no
+ *   layer tree.
+ */
+private fun layeredImageInventory(image: CLayeredImage, sourceId: ArtSourceId): LayeredImageInventory {
+	val rows = ArrayList<ArtSourceLayer>()
+	val refByLayerGuid = HashMap<String, SourceLayerRef>()
+	for (walked in walkLayeredImage(image)) {
+		val entry = walked.layer
+		// CMO3: ACLayerEntry fields isVisible / guid; CLayer field boundsOnImageDoc, a CRect (x / y /
+		// width / height) placing the layer on the source document.
+		val bounds = entry.boundsOnImageDoc as? CRect
+		Cmo3Import.uuidOf(entry.guid)?.let { layerGuid ->
+			refByLayerGuid[layerGuid] = SourceLayerRef(sourceId, layerKey = walked.key, stableKey = walked.stable)
+		}
+		rows.add(
+			ArtSourceLayer(
+				key = walked.key,
+				name = entry.name.orEmpty(),
+				groupPath = walked.groupPath,
+				left = bounds?.x ?: 0,
+				top = bounds?.y ?: 0,
+				width = bounds?.width ?: 0,
+				height = bounds?.height ?: 0,
+				visible = entry.isVisible,
+			),
+		)
+	}
 	return LayeredImageInventory(rows, refByLayerGuid)
 }
 
