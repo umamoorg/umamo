@@ -5,11 +5,11 @@ package org.umamo.reimport
  * workflow.
  *
  * Modelled with a `fun interface` (SAM) listener and an [AutoCloseable] subscription so the contract
- * carries no coroutine/Flow dependency at this layer; an implementation bridges to whatever the
- * platform offers (java.nio's WatchService on the desktop JVM and Android, see NioSourceWatcher).
- * The policy above it - settling a burst of events, hashing to skip a save that changed nothing,
- * waiting for the editor to go idle - is [SourceWatchCoordinator]'s, so an implementation only has
- * to say "this path changed".
+ * carries no coroutine/Flow dependency at this layer.  [PollingSourceWatcher] is the one
+ * implementation, over okio so it runs on every Kotlin target; a platform notification API could
+ * back another, but none is needed.  The policy above it - settling a burst of events, hashing to
+ * skip a save that changed nothing, waiting for the editor to go idle - is [SourceWatchCoordinator]'s,
+ * so an implementation only has to say "this path changed".
  */
 interface SourceWatcher {
 	/** Receives change notifications for a watched path. */

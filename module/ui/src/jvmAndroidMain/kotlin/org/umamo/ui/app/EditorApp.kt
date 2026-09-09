@@ -35,7 +35,7 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.interop.moc3.Moc3Sidecars
-import org.umamo.reimport.NioSourceWatcher
+import org.umamo.reimport.PollingSourceWatcher
 import org.umamo.reimport.SourceWatchCoordinator
 import org.umamo.reimport.SourceWatchEvent
 import org.umamo.reimport.WatchMode
@@ -353,7 +353,7 @@ fun EditorApp(
 		remember(document, session) {
 			val activeSession = session
 			if (document is PuppetDocument && activeSession != null) {
-				val watcher = NioSourceWatcher(scope)
+				val watcher = PollingSourceWatcher(scope, FileSystem.SYSTEM, statContext = Dispatchers.IO)
 				DocumentWatch(
 					watcher,
 					SourceWatchCoordinator(
@@ -779,11 +779,11 @@ fun EditorApp(
 /**
  * One open document's artwork watcher: the platform watcher and the policy over it, closed together.
  *
- * @property NioSourceWatcher       watcher     The directory watcher.
+ * @property PollingSourceWatcher   watcher     The file poller.
  * @property SourceWatchCoordinator coordinator The settle-hash-idle policy the app's events come from.
  */
 private class DocumentWatch(
-	val watcher: NioSourceWatcher,
+	val watcher: PollingSourceWatcher,
 	val coordinator: SourceWatchCoordinator,
 ) {
 	/** Stops the policy and the watcher. */
