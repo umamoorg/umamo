@@ -31,7 +31,7 @@ import kotlin.test.assertTrue
 
 /**
  * Match Automatically and Replace Artwork driven the way the shell drives them, over a document built
- * from in-memory art: a file whose layers came back under new keys, one recognisable by its pixels
+ * from in-memory art: a file whose layers came back under new keys, one recognizable by its pixels
  * and one only weakly, matched at the default bar as one step with the weak one left as a suggestion;
  * the strip's threshold re-landing the step with both; undo restoring; a same-format twin replacing
  * the record by key; a cross-format twin flagging every binding with suggestions that Match then

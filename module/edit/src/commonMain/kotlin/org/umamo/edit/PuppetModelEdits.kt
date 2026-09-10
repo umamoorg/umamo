@@ -945,7 +945,7 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
  * its own art, so the repack's re-derivation converts them.
  *
  * Nothing is deleted: a layer the file lost keeps its tile, its pixels, and its binding - the
- * refreshed inventory simply no longer lists the key, which is what the Sources space shows as
+ * refreshed inventory carries its row flagged not present, which is what the Sources space shows as
  * needing review.
  *
  * Refused (returns [this]) when the model does not list the file, a superseded tile is unknown, or

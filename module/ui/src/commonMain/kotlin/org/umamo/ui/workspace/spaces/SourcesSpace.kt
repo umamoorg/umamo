@@ -599,9 +599,9 @@ internal class SourcesRowVisual(
  * The icon a row draws with, carrying the row's status the way a traffic light does: green for a
  * layer bound by a stable key, amber for one bound by name (a binding that holds only while the
  * layer keeps its name and place), a tile on no page, or a binding whose layer the file lost, red for
- * an unbound layer, a missing file, or the unbound-art group.  The glyph itself already says what the row is - a file, a link, a tile, a
- * mesh - and a missing file swaps to the missing-file glyph, so the status word is a tooltip, never
- * row text.  Pure, so the mapping is testable without a composition.
+ * an unbound layer, a missing file, or the unbound-art group.  The glyph itself already says what the
+ * row is - a file, a link, a tile, a mesh - and a missing file swaps to the missing-file glyph, so the
+ * status word is a tooltip, never row text.  Pure, so the mapping is testable without a composition.
  *
  * @param SourcesNode node   The row.
  * @param UmamoIcons  icons  The icon set.

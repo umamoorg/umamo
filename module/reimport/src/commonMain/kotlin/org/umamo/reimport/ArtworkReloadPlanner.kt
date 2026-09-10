@@ -32,10 +32,10 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * live model and against the operation strip's base when a row is adjusted.
  *
  * What it never does: touch a tile whose layer the file lost (the reconcile flags it for review),
- * change a drawable's positions, or delete anything.  A drawable's mesh changes only in the two
- * ways Alexia decided: an untouched birth quad is re-born over the new art, and an edited mesh keeps
- * its vertices with its texture coordinates carried so each vertex samples the canvas pixel it did
- * before - Cubism's own re-import behaviour, where the art moves under a mesh that stays.
+ * change a drawable's positions, or delete anything.  A drawable's mesh changes in only two ways: an
+ * untouched birth quad is re-born over the new art, and an edited mesh keeps its vertices with its
+ * texture coordinates carried so each vertex samples the canvas pixel it did before - Cubism's own
+ * re-import behavior, where the art moves under a mesh that stays.
  */
 
 /**

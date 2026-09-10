@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
 /**
  * Unit-tests the Sources tree: files with their presence, inventory layers with their binding status,
  * tiles under the layers they are bound to (and strays under keys the inventory lacks), drawables
- * under tiles, the unbound-art group, the three filters, and the flatten.  Hand-built rig, no Compose.
+ * under tiles, the unbound-art group, the four filters, and the flatten.  Hand-built rig, no Compose.
  */
 class SourcesTreeTest {
 	private val artA = ArtSourceId("art-0")

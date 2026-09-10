@@ -76,7 +76,7 @@ class ReadArtwork(
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
  * or PNG / BMP / JPEG / WebP / TIFF as a one-layer document), and null for anything else - a model
- * format, an unrecognised file, or a file that fails to parse, which is logged.
+ * format, an unrecognized file, or a file that fails to parse, which is logged.
  *
  * @param ByteArray bytes The file contents.
  * @param String    name  The file name (the extension fallback for detection; the log's name).

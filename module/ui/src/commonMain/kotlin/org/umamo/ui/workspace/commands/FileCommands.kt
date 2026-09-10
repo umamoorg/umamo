@@ -15,8 +15,9 @@ import org.umamo.ui.resources.*
  * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
- * package and invert the dependency.  The add-artwork table is the exception: the shell registers it
- * (with the app's closure injected) because its operation strip needs the hovered area at dispatch.
+ * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
+ * shell registers it (with the app's closures injected) because its operation strip needs the hovered
+ * area at dispatch.
  *
  * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
  * Open / Save is reserved for the native UMA format.

@@ -87,7 +87,7 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 }
 
 /**
- * The filter chip: one of the three views, as exclusive checkboxes in the shared [FilterPopupChip].
+ * The filter chip: one of the four views, as exclusive checkboxes in the shared [FilterPopupChip].
  *
  * @param SourcesViewState viewState The area's shared view state.
  */

@@ -9,7 +9,7 @@ import kotlin.math.min
 
 /*
  * The matcher over what the inventory knows plus, when the file could be read, the pixels: a layer
- * that kept its pixels under a new name is recognised by its content hash outright; otherwise the
+ * that kept its pixels under a new name is recognized by its content hash outright; otherwise the
  * name, the folder, where it sits on the canvas, how big it is, and what it looks like each vote,
  * and the votes are averaged over the signals that could be read.  Pixels are compared only for the
  * candidates the metadata already likes, so a file of hundreds of layers costs a handful of small
@@ -225,7 +225,7 @@ fun pixelSimilarity(first: LayerRaster, second: LayerRaster): Float {
 }
 
 /**
- * The byte offset of the raster pixel a grid cell samples (nearest neighbour).
+ * The byte offset of the raster pixel a grid cell samples (nearest neighbor).
  *
  * @param LayerRaster raster The raster.
  * @param Int         gridX  The cell's column on the grid.

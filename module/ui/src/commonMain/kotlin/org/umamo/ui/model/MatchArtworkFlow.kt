@@ -221,7 +221,7 @@ suspend fun scoreSourceSuggestions(host: AtlasRepackHost, entries: List<ReloadEn
 
 /**
  * The matches to apply out of [suggestions]: those at or above [threshold], best first, each candidate
- * taken once - two lost layers that both prefer one candidate are settled in favour of the more
+ * taken once - two lost layers that both prefer one candidate are settled in favor of the more
  * confident, the other left for a person.
  *
  * @param PuppetModel model       The model, for the tiles bound to each lost key.

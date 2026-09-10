@@ -25,9 +25,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * The two artwork edits: rebinding a tile to a source layer, and appending an artwork file's
- * additions.  Both refuse rather than half-apply - a binding to an unlisted file, or an addition
- * whose ids collide - so the Sources space and the add flow can trust a returned model.
+ * The three artwork edits: rebinding a tile to a source layer, appending an artwork file's
+ * additions, and applying a reload.  All refuse rather than half-apply - a binding to an unlisted
+ * file, an addition or replacement whose ids collide, a reload naming a tile or file the model lacks -
+ * so the Sources space and the artwork flows can trust a returned model.
  */
 class ArtworkEditsTest {
 	private val sourceA = ArtSource(ArtSourceId("art-0"), "a.psd", "/a.psd", "psd", listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 4, 4, true)))

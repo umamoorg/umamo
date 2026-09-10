@@ -417,9 +417,10 @@ fun EditorApp(
 	}
 
 	// Reloads the listed artwork files that are present on disk - those the scope names, or every one -
-	// as one undo step; a file that cannot be read is logged and skipped.  Desktop paths only for now: a
-	// platform uri cannot be re-read here, so a document opened through one reloads nothing.  The watcher
-	// hears how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
+	// as one undo step; a file that cannot be read is logged and skipped.  Real file-system paths only:
+	// a platform uri (an Android SAF handle) has no reader here, so a document opened through one
+	// reloads nothing.  The watcher hears how it ended, so it knows whether to wait for the model's new
+	// hashes, try again, or let go.
 	fun reloadArtworkFromDisk(areaId: String?, reloadScope: ReloadScope?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
