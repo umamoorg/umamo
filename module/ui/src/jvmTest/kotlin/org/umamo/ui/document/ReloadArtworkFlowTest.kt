@@ -148,4 +148,48 @@ class ReloadArtworkFlowTest {
 			assertEquals(refA, session.model.value.atlas.tileById.getValue(pulled.id).source, "but the binding changed")
 			follower.cancel()
 		}
+
+	@Test
+	fun tilesBoundToOneLostKeyRelinkTogetherAsOneStep() =
+		runBlocking {
+			// Two tiles under one binding, the shape a review row's Accept acts on: relinked in one request
+			// they land as one step (a request per tile would race, each superseding the next), with the
+			// file and without it.
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the relink must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val tileA = AtlasTileId("art-0/lyid:1")
+			val tileB = AtlasTileId("art-0/lyid:2")
+			val refC = SourceLayerRef(sourceId, "lyid:3", true)
+			val before = session.model.value
+
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(listOf(tileA, tileB), refC, InMemoryArt(listOf(layerA, layerB, layerC)), options), areaId = null))
+			val relinked = session.model.value
+			assertEquals(listOf(tileA, tileB), relinked.atlas.tiles.mapNotNull { tile -> tile.replaces }, "both tiles were replaced")
+			assertTrue(relinked.atlas.tiles.all { tile -> tile.source == refC }, "both carry the new binding")
+			assertTrue(relinked.atlas.tiles.all { tile -> tile.width == 6 }, "both took the target layer's art")
+			session.undo()
+			assertSame(before, session.model.value, "one step for both")
+			assertFalse(session.canUndo.value)
+
+			// Without the file only the bindings change, still as one step.
+			assertFalse(runRelinkArtwork(host, RelinkArtworkRequest(listOf(tileA, tileB), refC, art = null, options), areaId = null))
+			assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == refC })
+			session.undo()
+			assertSame(before, session.model.value)
+			assertFalse(session.canUndo.value)
+			follower.cancel()
+		}
 }

@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,7 @@ enum class DropdownChipStyle {
  * @param Boolean   enabled            When false the content dims to the disabled tint and clicks are inert
  *   (no-document chrome renders its chips this way rather than hiding them).
  * @param DropdownChipStyle style     Which role the chip plays; see [DropdownChipStyle].
+ * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
  * @param Function  dropdown           The popup content, rendered while expanded.
  */
 @Composable
@@ -81,6 +83,7 @@ fun DropdownChip(
 	label: String? = null,
 	enabled: Boolean = true,
 	style: DropdownChipStyle = DropdownChipStyle.Header,
+	iconTint: Color? = null,
 	dropdown: @Composable () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -151,8 +154,10 @@ fun DropdownChip(
 					// measures the glyph at zero and the chip renders as an empty padding box.  The chip holds
 					// its glyphs at full size and overflows instead - being pushed off the edge is legible,
 					// silently shrinking to nothing is not.
+					// A status tint colors the glyph at rest only; the open and disabled faces keep their own contrast.
+					val glyphColor = if (iconTint != null && enabled && !expanded) iconTint else chipContentColor
 					Canvas(modifier = Modifier.requiredSize(glyphSize)) {
-						drawIcon(icon, chipContentColor)
+						drawIcon(icon, glyphColor)
 					}
 				}
 				if (label != null) {

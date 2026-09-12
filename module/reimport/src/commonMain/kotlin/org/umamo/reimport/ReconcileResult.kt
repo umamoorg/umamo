@@ -13,6 +13,9 @@ import org.umamo.runtime.model.SourceLayerRef
 enum class ReviewReason {
 	/** The re-read art has no layer under the binding's key: removed, or renamed under a weak key. */
 	LayerMissing,
+
+	/** The file was repointed to art that mints different keys (another format), so the binding's key names nothing there. */
+	SourceReplaced,
 }
 
 /**

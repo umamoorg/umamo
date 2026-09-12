@@ -1,6 +1,7 @@
 package org.umamo.ui.document
 
 import org.umamo.edit.seed.HumanoidParameters
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
@@ -11,7 +12,6 @@ import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
-import org.umamo.storage.contentHashOf
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -138,10 +138,11 @@ internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
 internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
 
 /**
- * The Import section: what an artwork import seeds a new model with.  One row today - the parameter
- * template - stored as the template's key so a later template is one more option here and one more
- * enum entry, nothing else.  The import reads the key at the moment it runs, so the change applies
- * to the next import.
+ * The Import section: what an artwork import seeds a new model with, and what a document does when a
+ * watched artwork file changes.  The parameter template is stored as the template's key so a later
+ * template is one more option here and one more enum entry, nothing else; the import reads the key at
+ * the moment it runs, so the change applies to the next import.  The watch mode is stored as the
+ * mode's key and read live by the open document's watcher.
  */
 @Composable
 internal fun ImportSection() {
