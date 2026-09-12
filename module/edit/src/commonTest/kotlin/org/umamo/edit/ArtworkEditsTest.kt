@@ -67,6 +67,27 @@ class ArtworkEditsTest {
 	}
 
 	@Test
+	fun tilesBoundToOneKeyRebindTogetherAsOneStep() {
+		// Two tiles under one lost key, the shape a review row's Accept acts on: they move as one edit,
+		// so one undo brings both back.
+		val second = AtlasTile(AtlasTileId("art-0/lyid:1~1"), "L1", 4, 4, source = refA1, replaces = AtlasTileId("art-0/lyid:1"))
+		val base = model().let { single -> single.copy(atlas = single.atlas.copy(tiles = single.atlas.tiles + second)) }
+		val session = EditorSession(base)
+		val both = base.atlas.tiles.map { tile -> tile.id }
+
+		session.setTileSources(both, null)
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == null }, "both tiles unbound")
+		assertTrue(session.canUndo.value)
+
+		session.undo()
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == refA1 }, "one undo restores both")
+		assertEquals(false, session.canUndo.value, "the two rebinds were one step")
+
+		session.setTileSources(emptyList(), null)
+		assertEquals(false, session.canUndo.value, "an empty call pushes nothing")
+	}
+
+	@Test
 	fun aRebindToAnUnlistedSourceOrAnUnknownTileIsRefused() {
 		val base = model()
 		assertSame(base, base.withTileSource(AtlasTileId("art-0/lyid:1"), SourceLayerRef(ArtSourceId("art-9"), "lyid:1", true)), "an unlisted file")

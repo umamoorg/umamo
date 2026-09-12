@@ -46,15 +46,25 @@ internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit,
 	)
 
 /**
- * A request to rebind one tile, the payload of the sources.relink command.
+ * A request to rebind one or more tiles to one layer, the payload of the sources.relink command: one
+ * tile from the tile chip or a drop, every tile bound to a lost key from a review row, so those land
+ * as one step.
  *
- * @property AtlasTileId     tileId The tile.
- * @property SourceLayerRef? ref    The binding it takes, or null to unbind.
+ * @property List<AtlasTileId> tileIds The tiles.
+ * @property SourceLayerRef?   ref     The binding they take, or null to unbind.
  */
 class RelinkRequest(
-	val tileId: AtlasTileId,
+	val tileIds: List<AtlasTileId>,
 	val ref: SourceLayerRef?,
-)
+) {
+	/**
+	 * The one-tile form.
+	 *
+	 * @param AtlasTileId     tileId The tile.
+	 * @param SourceLayerRef? ref    The binding it takes, or null to unbind.
+	 */
+	constructor(tileId: AtlasTileId, ref: SourceLayerRef?) : this(listOf(tileId), ref)
+}
 
 /**
  * A request to repoint one artwork record at another file, the payload of the sources.replaceArtwork

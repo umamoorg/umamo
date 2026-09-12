@@ -380,7 +380,7 @@
 	<string name="sources_file_menu_replace">アートワークを差し替え…</string>
 	<string name="sources_file_menu_reload">このファイルを再読み込み</string>
 	<string name="sources_suggestion_title">このリンクを確認</string>
-	<string name="sources_suggestion_accept">%1$s を採用（%2$d%%）</string>
+	<string name="sources_suggestion_accept">%1$s を採用（%2$d%）</string>
 	<string name="sources_suggestion_relink">手動で再リンク…</string>
 	<string name="sources_suggestion_leave">今は保留</string>
 	<string name="sources_filter_all">すべて</string>

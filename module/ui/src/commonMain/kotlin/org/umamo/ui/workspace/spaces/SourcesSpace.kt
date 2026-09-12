@@ -159,14 +159,18 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// read the file scored with pixels, else the one the model's own inventory ranks (names, folders,
 	// bounds, hashes) - so the chips show something even before any file is read.
 	val published = LocalSourceSuggestions.current?.suggestions?.collectAsState()?.value.orEmpty()
+	// Keyed on what the ranking reads - the files and the tile bindings - not the whole model: a
+	// vertex drag mints a model per frame, and the name-distance pass over every lost layer and every
+	// candidate must not run on each of them.
 	val modelSuggestions =
-		remember(puppet) {
+		remember(puppet.sources, puppet.atlas.tiles) {
 			puppet.sources.associate { source -> source.id to suggestionsFor(puppet, source.id) }
 		}
-	val suggestionFor: (ArtSourceId, String) -> LayerMatch? = { sourceId, key -> published[sourceId to key] ?: modelSuggestions[sourceId]?.get(key) }
+	val suggestionCandidates: (ArtSourceId, String) -> List<LayerMatch> =
+		{ sourceId, key -> listOfNotNull(published[sourceId to key], modelSuggestions[sourceId]?.get(key)) }
 	val tree =
 		remember(puppet, presenceBySource, unboundGroupLabel, published) {
-			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel, suggestionFor)
+			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel, suggestionCandidates)
 		}
 	val query = viewState.query
 	val filtered = remember(tree, query, viewState.filter) { filterSourcesTree(tree, query, viewState.filter) }
@@ -195,12 +199,12 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// A relink is a command, not a session edit from here: the app reads the layer's file and pulls its
 	// art in (a binding-only change when it cannot), and the shell resolves where the strip shows.
 	val commands = LocalCommands.current
-	val relink: (AtlasTileId, SourceLayerRef?) -> Unit = { tileId, ref -> commands.invoke("sources.relink", RelinkRequest(tileId, ref)) }
+	val relink: (List<AtlasTileId>, SourceLayerRef?) -> Unit = { tileIds, ref -> commands.invoke("sources.relink", RelinkRequest(tileIds, ref)) }
 	val performDrop: () -> Unit = {
 		val payload = dragController.draggedPayload
 		val target = dragController.dropTargetKey?.let { key -> nodeById[key] }
 		if (session != null && payload != null && target != null) {
-			relinkFor(payload, target.kind)?.let { (tileId, ref) -> relink(tileId, ref) }
+			relinkFor(payload, target)?.let { (tileId, ref) -> relink(listOf(tileId), ref) }
 		}
 		dragController.end()
 	}
@@ -236,18 +240,22 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 }
 
 /**
- * The rebind a drop means: a layer onto a tile, or a tile onto a layer; anything else is no drop.
+ * The rebind a drop means: a layer onto a tile, or a tile onto a layer; anything else is no drop.  A
+ * layer row the file lost is no target either - it stands for a review, not for art a tile could take,
+ * and a binding to it would read as needing review the moment it landed.
  *
  * @param SourcesDragPayload payload The dragged row.
- * @param SourcesNodeKind    target  The row it was dropped on.
+ * @param SourcesNode        target  The row it was dropped on.
  * @return Pair? The tile to rebind and its new binding, or null.
  */
-internal fun relinkFor(payload: SourcesDragPayload, target: SourcesNodeKind): Pair<AtlasTileId, SourceLayerRef>? =
-	when {
-		payload is SourcesDragPayload.Layer && target is SourcesNodeKind.Tile -> target.tileId to payload.ref
-		payload is SourcesDragPayload.Tile && target is SourcesNodeKind.Layer -> payload.tileId to target.ref
+internal fun relinkFor(payload: SourcesDragPayload, target: SourcesNode): Pair<AtlasTileId, SourceLayerRef>? {
+	val kind = target.kind
+	return when {
+		payload is SourcesDragPayload.Layer && kind is SourcesNodeKind.Tile -> kind.tileId to payload.ref
+		payload is SourcesDragPayload.Tile && kind is SourcesNodeKind.Layer && target.status != SourcesStatus.NeedsReview -> payload.tileId to kind.ref
 		else -> null
 	}
+}
 
 /**
  * The drawables a row's click selects: a drawable row itself, a tile row every drawable over it, a
@@ -280,7 +288,7 @@ private fun selectionTargetsOf(node: SourcesNode, puppet: PuppetModel): List<Sel
  * @param Boolean     selected       Whether the row's drawable is in the session selection.
  * @param Function    onToggle       Flips the expand state.
  * @param Function    onSelect       Selects the given targets.
- * @param Function    onRelink       Rebinds a tile (null unbinds).
+ * @param Function    onRelink       Rebinds tiles to one layer (null unbinds).
  * @param RowDragController dragController The space's drag state.
  * @param Function    onDrop         Applies the drop on release.
  */
@@ -292,7 +300,7 @@ private fun SourcesRowView(
 	selected: Boolean,
 	onToggle: () -> Unit,
 	onSelect: (List<SelectionTarget>) -> Unit,
-	onRelink: (AtlasTileId, SourceLayerRef?) -> Unit,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
 	dragController: RowDragController<SourcesDragPayload>,
 	onDrop: () -> Unit,
 ) {
@@ -302,9 +310,10 @@ private fun SourcesRowView(
 	val hovered by interaction.collectIsHoveredAsState()
 	val boundsHolder = remember { SourcesRowBoundsHolder() }
 	val currentOnDrop by rememberUpdatedState(onDrop)
+	// A layer the file lost drags nowhere: its binding is what is under review, not a layer to offer.
 	val payload: SourcesDragPayload? =
 		when (val kind = node.kind) {
-			is SourcesNodeKind.Layer -> SourcesDragPayload.Layer(kind.ref)
+			is SourcesNodeKind.Layer -> if (node.status == SourcesStatus.NeedsReview) null else SourcesDragPayload.Layer(kind.ref)
 			is SourcesNodeKind.Tile -> SourcesDragPayload.Tile(kind.tileId)
 			else -> null
 		}
@@ -313,7 +322,7 @@ private fun SourcesRowView(
 		dragController.isDragging &&
 			!isDragged &&
 			dragController.dropTargetKey == node.id &&
-			dragController.draggedPayload?.let { dragged -> relinkFor(dragged, node.kind) } != null
+			dragController.draggedPayload?.let { dragged -> relinkFor(dragged, node) } != null
 	DisposableEffect(node.id) {
 		onDispose { dragController.clearBounds(node.id) }
 	}
@@ -380,7 +389,7 @@ private fun sourceFileMenuItems(sourceId: ArtSourceId, commands: org.umamo.ui.ac
  * @param SourcesDragPayload?      payload      What a drag from the row carries, or null when it cannot be dragged.
  * @param Function    onToggle       Flips the expand state.
  * @param Function    onSelect       Selects the given targets.
- * @param Function    onRelink       Rebinds a tile (null unbinds).
+ * @param Function    onRelink       Rebinds tiles to one layer (null unbinds).
  * @param RowDragController dragController The space's drag state.
  * @param Function    onDropNow      Applies the drop on release.
  */
@@ -396,7 +405,7 @@ private fun SourcesRowBody(
 	payload: SourcesDragPayload?,
 	onToggle: () -> Unit,
 	onSelect: (List<SelectionTarget>) -> Unit,
-	onRelink: (AtlasTileId, SourceLayerRef?) -> Unit,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
 	dragController: RowDragController<SourcesDragPayload>,
 	onDropNow: () -> Unit,
 ) {
@@ -527,25 +536,29 @@ private fun SourceFileChip(sourceId: ArtSourceId, commands: org.umamo.ui.action.
 /**
  * A review row's chip: the matcher's proposal to accept (the candidate's name and confidence), a relink
  * by hand through the same list a tile row's chip shows, or leave the binding as it is.  Accepting is
- * a relink of every tile bound to the lost key, so the art is pulled exactly as a manual relink pulls it.
+ * one relink of every tile bound to the lost key, so the art is pulled exactly as a manual relink pulls
+ * it and the tiles move together as one step.
  *
  * @param SourcesNode    node     The review row, carrying its suggestion when there is one.
  * @param SourceLayerRef ref      The lost binding the row stands for.
- * @param PuppetModel    puppet   The rig, for the bound tiles and the relink list.
- * @param Function       onRelink Rebinds a tile (null unbinds).
+ * @param PuppetModel    puppet   The rig, for the relink list.
+ * @param Function       onRelink Rebinds the tiles as one step (null unbinds).
  */
 @Composable
-private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetModel, onRelink: (AtlasTileId, SourceLayerRef?) -> Unit) {
+private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetModel, onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit) {
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
 	var byHand by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
-	val boundTiles = remember(puppet, ref) { puppet.atlas.tiles.filter { tile -> tile.source == ref }.map { tile -> tile.id } }
+	// The tiles under review are the row's own children: the tree lists them by (file, key), which is
+	// the binding as the tile carries it, whereas the row's ref re-derives the key's strength and can
+	// disagree with a reader-minted one (a flat raster's) - an equality on the ref would find nothing.
+	val boundTiles = remember(node) { node.children.mapNotNull { child -> (child.kind as? SourcesNodeKind.Tile)?.tileId } }
 	val suggestion = node.suggestion
 	val relinkAll: (SourceLayerRef?) -> Unit = { target ->
-		for (tileId in boundTiles) {
-			onRelink(tileId, target)
+		if (boundTiles.isNotEmpty()) {
+			onRelink(boundTiles, target)
 		}
 	}
 	PopupChip(
@@ -695,10 +708,10 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
  *
  * @param AtlasTileId tileId   The tile the chip rebinds.
  * @param PuppetModel puppet   The rig, for the candidates and the current binding.
- * @param Function    onRelink Rebinds the tile (null unbinds).
+ * @param Function    onRelink Rebinds tiles to one layer (null unbinds).
  */
 @Composable
-private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (AtlasTileId, SourceLayerRef?) -> Unit) {
+private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit) {
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
@@ -713,7 +726,7 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (Atla
 	) {
 		RelinkList(puppet = puppet, current = current, query = query, onQueryChange = { updated -> query = updated }, showUnbind = current != null) { target ->
 			open = false
-			onRelink(tileId, target)
+			onRelink(listOf(tileId), target)
 		}
 	}
 }

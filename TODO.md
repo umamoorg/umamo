@@ -92,6 +92,8 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
+	* Deleting a drawable leaves the UV Editor in a bad state just saying "UV Editor" as a placeholder since nothing is selected anymore.
+		* Delete the placeholder.(I hate these!)
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
