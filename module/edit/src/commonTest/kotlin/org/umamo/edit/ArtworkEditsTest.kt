@@ -4,6 +4,7 @@ import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.ArtworkAdditions
+import org.umamo.runtime.model.ArtworkReload
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -15,6 +16,7 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,9 +25,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * The two artwork edits: rebinding a tile to a source layer, and appending an artwork file's
- * additions.  Both refuse rather than half-apply - a binding to an unlisted file, or an addition
- * whose ids collide - so the Sources space and the add flow can trust a returned model.
+ * The three artwork edits: rebinding a tile to a source layer, appending an artwork file's
+ * additions, and applying a reload.  All refuse rather than half-apply - a binding to an unlisted
+ * file, an addition or replacement whose ids collide, a reload naming a tile or file the model lacks -
+ * so the Sources space and the artwork flows can trust a returned model.
  */
 class ArtworkEditsTest {
 	private val sourceA = ArtSource(ArtSourceId("art-0"), "a.psd", "/a.psd", "psd", listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 4, 4, true)))
@@ -61,6 +64,27 @@ class ArtworkEditsTest {
 
 		val unbound = rebound.withTileSource(AtlasTileId("art-0/lyid:1"), null)
 		assertNull(unbound.atlas.tiles.single().source)
+	}
+
+	@Test
+	fun tilesBoundToOneKeyRebindTogetherAsOneStep() {
+		// Two tiles under one lost key, the shape a review row's Accept acts on: they move as one edit,
+		// so one undo brings both back.
+		val second = AtlasTile(AtlasTileId("art-0/lyid:1~1"), "L1", 4, 4, source = refA1, replaces = AtlasTileId("art-0/lyid:1"))
+		val base = model().let { single -> single.copy(atlas = single.atlas.copy(tiles = single.atlas.tiles + second)) }
+		val session = EditorSession(base)
+		val both = base.atlas.tiles.map { tile -> tile.id }
+
+		session.setTileSources(both, null)
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == null }, "both tiles unbound")
+		assertTrue(session.canUndo.value)
+
+		session.undo()
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == refA1 }, "one undo restores both")
+		assertEquals(false, session.canUndo.value, "the two rebinds were one step")
+
+		session.setTileSources(emptyList(), null)
+		assertEquals(false, session.canUndo.value, "an empty call pushes nothing")
 	}
 
 	@Test
@@ -109,5 +133,53 @@ class ArtworkEditsTest {
 		val collidingSource =
 			ArtworkAdditions(source = sourceA, tiles = emptyList(), drawables = emptyList(), parts = emptyList(), rootChildren = emptyList())
 		assertSame(base, base.withArtworkAdded(collidingSource), "a source id the model already lists")
+	}
+
+	@Test
+	fun aReloadSwapsTheTileCarriesTheDrawablesAndAppendsTheAdditions() {
+		val base = model()
+		val newMesh = DrawableMesh(floatArrayOf(0f, 0f, 6f, 0f, 6f, 6f, 0f, 6f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val replacement = AtlasTile(AtlasTileId("art-0/lyid:1~1"), "L1", 6, 6, source = refA1, pinned = true, replaces = AtlasTileId("art-0/lyid:1"))
+		val added = drawable("ArtMesh2", "art-0/lyid:2")
+		val refreshed = sourceA.copy(layers = listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 6, 6, true), ArtSourceLayer("lyid:2", "L2", "", 9, 9, 4, 4, true)))
+		val reload =
+			ArtworkReload(
+				source = refreshed,
+				replacedTiles = listOf(ReplacedTile(AtlasTileId("art-0/lyid:1"), replacement)),
+				drawableMeshes = mapOf(DrawableId("ArtMesh1") to newMesh),
+				additions =
+					ArtworkAdditions(
+						source = refreshed,
+						tiles = listOf(AtlasTile(AtlasTileId("art-0/lyid:2"), "L2", 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:2", true))),
+						drawables = listOf(added),
+						parts = emptyList(),
+						rootChildren = listOf(OrgChild.Drawable(added.id)),
+					),
+				outgrown = emptyList(),
+			)
+
+		val reloaded = base.withArtworkReloaded(reload)
+		assertEquals(listOf("art-0/lyid:1~1", "art-0/lyid:2"), reloaded.atlas.tiles.map { tile -> tile.id.raw }, "the old tile is gone, the replacement and the addition appended")
+		assertSame(replacement, reloaded.atlas.tiles.first())
+		val carried = reloaded.drawables.first { drawable -> drawable.id.raw == "ArtMesh1" }
+		assertEquals(AtlasTileId("art-0/lyid:1~1"), carried.atlasTileId, "the drawable moved onto the replacement")
+		assertSame(newMesh, carried.mesh, "with the mesh the plan decided")
+		assertEquals(listOf("ArtMesh1", "ArtMesh2"), reloaded.drawables.map { drawable -> drawable.id.raw })
+		assertEquals(listOf(OrgChild.Part(PartId("Part1")), OrgChild.Drawable(added.id)), reloaded.rootChildren)
+		assertEquals(refreshed, reloaded.sources.single(), "the file's record takes the new inventory")
+		assertTrue(reloaded.renderRoot != null, "the render root is re-derived")
+	}
+
+	@Test
+	fun aReloadThatCollidesOrNamesTheUnknownIsRefused() {
+		val base = model()
+		val unknownOld =
+			ArtworkReload(sourceA, listOf(ReplacedTile(AtlasTileId("nope"), AtlasTile(AtlasTileId("nope~1"), "x", 1, 1))), emptyMap(), null, emptyList())
+		assertSame(base, base.withArtworkReloaded(unknownOld), "an unknown superseded tile")
+		val collidingNew =
+			ArtworkReload(sourceA, listOf(ReplacedTile(AtlasTileId("art-0/lyid:1"), AtlasTile(AtlasTileId("art-0/lyid:1"), "x", 1, 1))), emptyMap(), null, emptyList())
+		assertSame(base, base.withArtworkReloaded(collidingNew), "a replacement reusing an existing id")
+		val unlisted = ArtworkReload(ArtSource(ArtSourceId("art-9"), "z", null, "psd"), emptyList(), emptyMap(), null, emptyList())
+		assertSame(base, base.withArtworkReloaded(unlisted), "a file the model does not list")
 	}
 }

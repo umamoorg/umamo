@@ -32,8 +32,16 @@ enum class NoticePlacement {
  * @property String messageKey The stable notice key the UI layer resolves to a localized message.
  * @property Long serial The stamping order (see [EditorSession.emitNotice]); higher is newer.
  * @property NoticePlacement placement Where the shell surfaces this notice.
+ * @property List<String> arguments The values the localized message formats in, in its placeholder order
+ *   (a count, a file name); empty for a message with none.  Strings rather than typed values so this
+ *   module stays presentation-free - the UI layer only substitutes.
  */
-data class Notice(val messageKey: String, val serial: Long, val placement: NoticePlacement)
+data class Notice(
+	val messageKey: String,
+	val serial: Long,
+	val placement: NoticePlacement,
+	val arguments: List<String> = emptyList(),
+)
 
 /**
  * The single mutable owner of one open document: the live [model], the ephemeral editor state
@@ -205,6 +213,20 @@ class EditorSession(
 		get() = latches.activeOperator
 
 	/**
+	 * Whether nothing is in flight that a model change would land under: no modal transform operator,
+	 * no viewport gesture, no circle-select stroke, no armed select tool, and no open pie menu.  The gate
+	 * a watched-file reload waits behind, so the art never changes under a hand that is mid-drag.  An
+	 * instantaneous read, like [activeOperator].
+	 */
+	val isQuiescent: Boolean
+		get() =
+			latches.activeOperator == null &&
+				!latches.viewportGestureActive.value &&
+				latches.previewSelection.value == null &&
+				latches.activeSelectTool.value == null &&
+				latches.activePieMenu.value == null
+
+	/**
 	 * Cancels whichever modal transform operator is running, if any - the family-agnostic counterpart to
 	 * [clearMeshOperator] / [clearObjectOperator] / [clearUvOperator].
 	 */
@@ -270,10 +292,11 @@ class EditorSession(
 	 *
 	 * @param String messageKey The stable notice key the UI layer resolves to a localized message.
 	 * @param NoticePlacement placement Where the shell surfaces the notice.
+	 * @param List<String> arguments The values the message formats in, in its placeholder order.
 	 */
-	fun emitNotice(messageKey: String, placement: NoticePlacement = NoticePlacement.StatusBar) {
+	fun emitNotice(messageKey: String, placement: NoticePlacement = NoticePlacement.StatusBar, arguments: List<String> = emptyList()) {
 		noticeSerial += 1
-		mutableNotice.value = Notice(messageKey, noticeSerial, placement)
+		mutableNotice.value = Notice(messageKey, noticeSerial, placement, arguments)
 	}
 
 	/**

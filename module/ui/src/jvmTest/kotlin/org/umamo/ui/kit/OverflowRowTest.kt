@@ -103,8 +103,9 @@ class OverflowRowTest {
 	/**
 	 * Shrinking a strip with a compressible control past its overflow point, twice: the first pass learns
 	 * the chip's width, so the second packs in two walks that offer the search box two different bounds.
-	 * That used to measure one Measurable twice in a pass, which Compose refuses; the strip must instead
-	 * settle with the box squeezed and the trailing control in the chip.
+	 * A strip that measured the box on each walk would measure one Measurable twice in a pass, which
+	 * Compose refuses; the strip must instead settle with the box squeezed and the trailing control in
+	 * the chip.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test

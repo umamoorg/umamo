@@ -51,6 +51,11 @@ data class AtlasPage(
  *   data: no container format encodes it, the model diff reads it as tile metadata, and an export
  *   never sees it.
  * @property Boolean         pinned    Whether a repack keeps this tile's placement where it is.
+ * @property AtlasTileId?    replaces  The tile this one superseded when its source layer was reloaded,
+ *   or null for a tile born at import.  A tile's pixels are immutable: reloading a layer mints a new
+ *   tile (id `<root>~<n>`, see [reloadTileId]) so the old tile and its pixels stay addressable for undo,
+ *   and this is the lineage a consumer keyed on the ORIGINAL tile follows - a CMO3 export resolves the
+ *   reloaded tile to the model image its root imported from.  Editor and native-format data, like [source].
  */
 data class AtlasTile(
 	val id: AtlasTileId,
@@ -60,7 +65,58 @@ data class AtlasTile(
 	val placement: AtlasPlacement? = null,
 	val source: SourceLayerRef? = null,
 	val pinned: Boolean = false,
+	val replaces: AtlasTileId? = null,
 )
+
+/** The separator between a reloaded tile's root id and its revision number. */
+private const val TILE_REVISION_SEPARATOR = '~'
+
+/**
+ * The id this tile's lineage started from: the id before any `~<n>` revision suffix, or the id itself
+ * for a tile born at import.  Readable from the id alone, so a consumer holding only the id (the CMO3
+ * export's model-image web) needs no tile lookup.
+ */
+val AtlasTileId.lineageRoot: AtlasTileId
+	get() {
+		val separator = raw.lastIndexOf(TILE_REVISION_SEPARATOR)
+		if (separator <= 0 || raw.substring(separator + 1).toIntOrNull() == null) {
+			return this
+		}
+		return AtlasTileId(raw.substring(0, separator))
+	}
+
+/**
+ * The revision a tile id carries: 0 for a tile born at import, n for the n-th reload of its lineage.
+ */
+val AtlasTileId.revision: Int
+	get() {
+		val separator = raw.lastIndexOf(TILE_REVISION_SEPARATOR)
+		if (separator <= 0) {
+			return 0
+		}
+		return raw.substring(separator + 1).toIntOrNull() ?: 0
+	}
+
+/**
+ * The id the next reload of [previous]'s lineage mints: the lineage root with the revision after
+ * [previous]'s, skipping any id [taken] already holds so a lineage can never collide with a tile the
+ * document happens to name that way.
+ *
+ * @param AtlasTileId previous The tile being superseded.
+ * @param Set         taken    Every tile id the document has.
+ * @return AtlasTileId The new tile's id.
+ */
+fun reloadTileId(previous: AtlasTileId, taken: Set<AtlasTileId>): AtlasTileId {
+	val root = previous.lineageRoot
+	var revision = previous.revision + 1
+	while (true) {
+		val candidate = AtlasTileId("${root.raw}$TILE_REVISION_SEPARATOR$revision")
+		if (candidate !in taken) {
+			return candidate
+		}
+		revision++
+	}
+}
 
 /**
  * The policy the atlas's pages are composed under: which alpha counts as opaque when a tile is

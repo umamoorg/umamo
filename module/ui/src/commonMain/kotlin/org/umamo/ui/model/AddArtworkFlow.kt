@@ -62,10 +62,7 @@ class AddArtworkRequest(
 	val descriptor: ArtSourceDescriptor,
 	val options: SourceArtImportOptions,
 ) {
-	// LayerRaster is a plain class, so this map keys by identity - which is the point: the wrapper of
-	// one raster is one object for the request's life.  Built eagerly so the off-thread passes only read.
-	private val decodedByRaster: Map<LayerRaster, DecodedImage> =
-		art.layers.associate { layer -> layer.raster to DecodedImage(layer.raster.rgba, layer.raster.width, layer.raster.height) }
+	private val decoded = DecodedLayerRasters(art.layers)
 
 	/**
 	 * The decoded wrapper of one of this file's layer rasters.
@@ -73,8 +70,7 @@ class AddArtworkRequest(
 	 * @param LayerRaster raster The layer's pixels.
 	 * @return DecodedImage The wrapper, the same instance on every call.
 	 */
-	internal fun decodedFor(raster: LayerRaster): DecodedImage =
-		decodedByRaster[raster] ?: DecodedImage(raster.rgba, raster.width, raster.height)
+	internal fun decodedFor(raster: LayerRaster): DecodedImage = decoded.decodedFor(raster)
 }
 
 /** What one add-artwork pass produced, or why it produced nothing. */
@@ -141,7 +137,8 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * unplaced and is a note; the source-layer display still draws it.
  *
  * The new rasters are added to [artRasters] here, before the pack reads them; the store is
- * document-lifetime, so an adjustment finds them already present.
+ * document-lifetime, so an adjustment finds them already present.  The pack itself is
+ * [packNewTilesAround], shared with the reload, relink, and match flows.
  *
  * @param PuppetModel            base               The model the additions join.
  * @param AddArtworkRequest      request            The file.
@@ -168,54 +165,105 @@ private fun addArtworkOutcome(
 	}
 	val decodedByTile = added.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }
 	artRasters.addDecoded(decodedByTile)
+	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
+	return when (val packed = packNewTilesAround(withArt, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
+		is PackAroundOutcome.Refused -> AddArtworkOutcome.Refused(packed.refusals)
+		is PackAroundOutcome.Packed -> AddArtworkOutcome.Added(added, packed.model, packed.textures, packed.notices)
+	}
+}
 
+/** What packing new tiles around the document's art produced, or why nothing was applied. */
+internal sealed interface PackAroundOutcome {
+	/**
+	 * The pack could not keep some of the document's OWN art where it is - a placed tile the packer
+	 * would not hold fixed - so nothing was applied; the refusals name the tiles.
+	 *
+	 * @property List refusals The document's tiles the pack could not keep.
+	 */
+	class Refused(val refusals: List<AtlasRepackRefusal>) : PackAroundOutcome
+
+	/**
+	 * The new tiles packed and the model re-derived over the pages.
+	 *
+	 * @property PuppetModel    model    The model with the pack applied.
+	 * @property PuppetTextures textures The pages the pack composed, index-parallel to the model's.
+	 * @property List           notices  The caller's notes plus every new tile the pack left unplaced.
+	 */
+	class Packed(
+		val model: PuppetModel,
+		val textures: PuppetTextures,
+		val notices: List<SourceArtImportNotice>,
+	) : PackAroundOutcome
+}
+
+/**
+ * Packs the tiles [model] gained into the gaps around the art already on its pages: every tile with a
+ * placement is handed to the packer fixed (pinned or not), the new tiles pack around them at the
+ * document's own page size (once more at [MAX_IMPORT_PAGE_SIZE] if one does not fit), and the result
+ * re-derives through [withAtlasRepack] under the document's current composition so the pages the
+ * existing art sits on compose exactly as they did.  Shared by Add Artwork, Reload, relink, Match
+ * Automatically, and Replace Artwork, which differ only in how the new tiles came to be.
+ *
+ * A refusal over the document's OWN art refuses the whole pack: the lowering would pack that tile
+ * out, and the document's art must not move for tiles being added.  A refusal over a NEW tile is a
+ * note - it stays unplaced and the source-layer display still draws it.
+ *
+ * @param PuppetModel      model              The model carrying the new, unplaced tiles.
+ * @param Set              newTileIds         Which tiles are the new ones.
+ * @param Function         decode             The pixels of any tile, the new ones included.
+ * @param Boolean          premultipliedAlpha The document's texture-convention flag.
+ * @param List             notices            The notes gathered so far, carried through.
+ * @return PackAroundOutcome The packed model and pages, or the refusal.
+ */
+internal fun packNewTilesAround(
+	model: PuppetModel,
+	newTileIds: Set<AtlasTileId>,
+	decode: (AtlasTileId) -> DecodedImage?,
+	premultipliedAlpha: Boolean,
+	notices: List<SourceArtImportNotice>,
+): PackAroundOutcome {
 	// The document's composition governs the pack, so the fixed tiles compose as they already do; the
 	// gutter grows to hold the extrusion when a repack widened it past the default.
-	val composition = withArt.atlas.composition
+	val composition = model.atlas.composition
 	val defaults = AtlasPackOptions()
 	var packOptions =
 		AtlasPackOptions(
-			maxPageSize = repackPageSizeOf(withArt),
+			maxPageSize = repackPageSizeOf(model),
 			gutter = maxOf(defaults.gutter, composition.extrude),
 			extrude = composition.extrude,
 			alphaThreshold = composition.alphaThreshold,
 		)
-	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
-	var packed = packAtlasOf(withArt, decode, packOptions, keepPinned = true, fixPlaced = true)
+	var packed = packAtlasOf(model, decode, packOptions, keepPinned = true, fixPlaced = true)
 	if (packOptions.maxPageSize < MAX_IMPORT_PAGE_SIZE && packed.result.skipped.any { skip -> skip.reason == AtlasPackSkipReason.LargerThanPage }) {
 		packOptions = packOptions.copy(maxPageSize = MAX_IMPORT_PAGE_SIZE)
 		packed = PackedAtlas(packed.input, packAtlas(packed.input.itemsFor(keepPinned = true, fixPlaced = true), packOptions))
 	}
-	// A refusal over the document's OWN art aborts the add: the lowering would pack that tile out,
-	// and the document's art must not move for a file being added.  A refusal over an ADDED tile is a
-	// note - it stays unplaced and the source-layer display still draws it.
-	val addedTileIds = added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }
-	val addedTileNames = added.additions.tiles.mapTo(HashSet()) { tile -> tile.name }
-	val refusals = repackRefusals(withArt, packed.result.skipped, packed.input.undecodableTileIds)
+	val newTileNames = model.atlas.tiles.filter { tile -> tile.id in newTileIds }.mapTo(HashSet()) { tile -> tile.name }
+	val refusals = repackRefusals(model, packed.result.skipped, packed.input.undecodableTileIds)
 	val skippedKeys = packed.result.skipped.mapTo(HashSet()) { skip -> skip.key }
 	val existingRefusals =
 		refusals.filter { refusal ->
-			withArt.atlas.tiles.any { tile -> tile.name == refusal.tileName && tile.id !in addedTileIds && (tile.id.raw in skippedKeys || tile.id in packed.input.undecodableTileIds) }
+			model.atlas.tiles.any { tile -> tile.name == refusal.tileName && tile.id !in newTileIds && (tile.id.raw in skippedKeys || tile.id in packed.input.undecodableTileIds) }
 		}
 	if (existingRefusals.isNotEmpty()) {
-		return AddArtworkOutcome.Refused(existingRefusals)
+		return PackAroundOutcome.Refused(existingRefusals)
 	}
-	val notices = ArrayList(added.notices)
+	val allNotices = ArrayList(notices)
 	for (refusal in refusals) {
-		if (refusal.tileName !in addedTileNames) {
+		if (refusal.tileName !in newTileNames) {
 			continue
 		}
-		notices.add(
+		allNotices.add(
 			when (refusal.reason) {
 				AtlasRepackRefusalReason.LargerThanPage -> SourceArtImportNotice.LayerLargerThanPage(refusal.tileName)
 				else -> SourceArtImportNotice.LayerNotPacked(refusal.tileName, refusal.reason.name)
 			},
 		)
 	}
-	val lowered = lowerPack(withArt.atlas, packed.result)
-	val model = withArt.withAtlasRepack(lowered.pages, lowered.placementsByTile, composition)
+	val lowered = lowerPack(model.atlas, packed.result)
+	val repacked = model.withAtlasRepack(lowered.pages, lowered.placementsByTile, composition)
 	logPack(packed.result, lowered, packOptions)
-	return AddArtworkOutcome.Added(added, model, generatedPuppetTextures(packed.result.pages, model, premultipliedAlpha), notices)
+	return PackAroundOutcome.Packed(repacked, generatedPuppetTextures(packed.result.pages, repacked, premultipliedAlpha), allNotices)
 }
 
 /**

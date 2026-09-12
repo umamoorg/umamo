@@ -10,8 +10,6 @@ import java.util.Locale
  * default is the lever we control, and a per-Activity configuration override can layer on when the
  * Android UX is hardened.
  *
- * JVM／Android 共有実装：JVM 既定ロケールを設定する。CMP のリソース解決がこれを参照する。
- *
  * @param String languageTag The BCP-47 language tag to apply.
  */
 actual fun applyAppLocale(languageTag: String) {

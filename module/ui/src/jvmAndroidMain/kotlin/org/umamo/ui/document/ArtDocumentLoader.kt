@@ -1,10 +1,15 @@
 package org.umamo.ui.document
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okio.FileSystem
+import okio.Path.Companion.toPath
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
 import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
@@ -58,18 +63,20 @@ fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
  * document open and Add Artwork into an open document.
  *
- * @property SourceArt art  The parsed source art.
- * @property FileKind  kind The format it was read from.
+ * @property SourceArt art         The parsed source art.
+ * @property FileKind  kind        The format it was read from.
+ * @property String    contentHash The whole-file content hash of the bytes it was read from.
  */
 class ReadArtwork(
 	val art: SourceArt,
 	val kind: FileKind,
+	val contentHash: String,
 )
 
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
  * or PNG / BMP / JPEG / WebP / TIFF as a one-layer document), and null for anything else - a model
- * format, an unrecognised file, or a file that fails to parse, which is logged.
+ * format, an unrecognized file, or a file that fails to parse, which is logged.
  *
  * @param ByteArray bytes The file contents.
  * @param String    name  The file name (the extension fallback for detection; the log's name).
@@ -77,11 +84,36 @@ class ReadArtwork(
  */
 fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
 	val codec = FormatRegistry.detect(bytes, name) ?: return null
-	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind) } }
+	return runCatching { artworkOf(codec, bytes, name)?.let { art -> ReadArtwork(art, codec.kind, contentHashOf(bytes)) } }
 		.getOrElse { failure ->
 			UmamoLog.error("failed to read artwork $name", failure)
 			null
 		}
+}
+
+/**
+ * Reads the artwork file at [path] - a real file-system path recorded on a source at import - off the
+ * calling thread, and null when it cannot: a platform uri (Android's SAF handles have no path to
+ * read), a missing or unreadable file, or bytes that are not artwork.  Every failure is logged, so the
+ * reload that asked can say which file it skipped.
+ *
+ * @param String path The recorded path.
+ * @return ReadArtwork? The art and its format, or null.
+ */
+suspend fun readArtworkAt(path: String): ReadArtwork? {
+	if (path.contains("://")) {
+		return null
+	}
+	val bytes =
+		withContext(Dispatchers.IO) {
+			runCatching { FileSystem.SYSTEM.read(path.toPath()) { readByteArray() } }
+				.getOrElse { failure ->
+					UmamoLog.error("failed to read artwork at $path", failure)
+					null
+				}
+		} ?: return null
+	val name = path.toPath().name
+	return withContext(Dispatchers.Default) { readArtwork(bytes, name) }
 }
 
 /**
@@ -117,7 +149,8 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
  * @param FileKind               kind    The format it was read from, recorded on the model's source list.
  * @param String                 name    The file name (the failure display name, the source's name).
  * @param String                 path    The stored path or URI string recorded on the document.
- * @param SourceArtImportOptions options The seed parameters, threshold, and margin the import runs with.
+ * @param SourceArtImportOptions options     The seed parameters, threshold, and margin the import runs with.
+ * @param String?                contentHash The whole-file content hash of the bytes the art was read from, recorded on its source.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(
@@ -126,8 +159,9 @@ internal fun buildArtDocument(
 	name: String,
 	path: String,
 	options: SourceArtImportOptions,
+	contentHash: String? = null,
 ): DocumentLoad {
-	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension), options)
+	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash), options)
 	if (imported.puppet.drawables.isEmpty()) {
 		for (notice in imported.notices) {
 			UmamoLog.warn("import: ${describeImportNotice(notice)}")

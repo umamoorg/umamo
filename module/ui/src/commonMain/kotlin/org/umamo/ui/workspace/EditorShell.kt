@@ -84,13 +84,14 @@ import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.theme.hiddenPointerIcon
+import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
 import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
-import org.umamo.ui.workspace.commands.fileAddArtworkCommands
+import org.umamo.ui.workspace.commands.fileArtworkCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
 import org.umamo.ui.workspace.commands.keyformCommands
@@ -128,9 +129,10 @@ import org.umamo.ui.workspace.commands.workspaceCommands
  * @param List appMenu The application menu-bar contents, shown to the left of the workspace tabs; empty
  *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
  *   (the open document, the file picker), while the bar component itself is shared.
- * @param Function? addArtwork The app's add-artwork orchestration (picker, read, append, pack, commit)
- *   over the area the command fires in, or null (the default) when no open document can take artwork.
- *   The shell registers the command itself so the operation strip lands in the hovered area.
+ * @param ArtworkOperations? artwork The app's artwork orchestrations (add a file, reload the listed
+ *   files, relink a tile, match or replace a file's bindings) over the area the command fires in, or
+ *   null (the default) when no open document can take artwork.  The shell registers the commands
+ *   itself so the operation strip lands in the hovered work surface.
  * @param String languageTag The active UI language (BCP-47).
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).
@@ -152,15 +154,15 @@ fun EditorShell(
 	keymap: Keymap = defaultKeymap(),
 	onLayoutChange: (InterfaceLayout) -> Unit = {},
 	onLayoutDragChange: (Boolean) -> Unit = {},
-	addArtwork: ((String?) -> Unit)? = null,
+	artwork: ArtworkOperations? = null,
 ) {
 	// The layout controller outlives recompositions, so it publishes through a live reference to the
 	// persistence hook rather than capturing the first composition's lambda.
 	val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
 	val currentOnLayoutDragChange by rememberUpdatedState(onLayoutDragChange)
 	// Read at dispatch for the same reason: the command table registers once per session, and the app
-	// hands in a fresh closure per composition.
-	val currentAddArtwork by rememberUpdatedState(addArtwork)
+	// hands in a fresh collaborator per composition.
+	val currentArtwork by rememberUpdatedState(artwork)
 	val workspaces =
 		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	val overlays = remember { ShellOverlayState() }
@@ -305,7 +307,7 @@ fun EditorShell(
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
 					atlasCommands(availability, routing, repackAtlas) +
-					fileAddArtworkCommands(routing) { currentAddArtwork },
+					fileArtworkCommands(routing) { currentArtwork },
 			)
 		onDispose { cleanup() }
 	}
@@ -635,6 +637,9 @@ private fun exportReportMessage(report: ExportReport): String {
 
 			is ExportNotice.MissingSourceArt ->
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
+
+			is ExportNotice.ReloadedTileImagesStale ->
+				lines.add("• " + stringResource(Res.string.export_reloaded_tile_images_stale, abbreviatedSubjects(notice.tileNames)))
 
 			is ExportNotice.FeatureStripped ->
 				lines.add(

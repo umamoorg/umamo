@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.ArtworkAdditions
+import org.umamo.runtime.model.ArtworkReload
 import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
@@ -931,6 +932,67 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
 		rootChildren = rootChildren + additions.rootChildren,
 		atlas = atlas.copy(tiles = atlas.tiles + additions.tiles),
 		sources = sources + additions.source,
+	).withDerivedRenderRoot()
+}
+
+/**
+ * This model with one artwork file re-read into it: the file's record replaced by [reload]'s (the
+ * inventory as just read), every superseded tile removed and its replacement appended unplaced, the
+ * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, and
+ * the layers the file gained appended under the same file (tiles, drawables, parts, and root order,
+ * like [withArtworkAdded]).  The render root is re-derived.  The pack that places the new tiles is a
+ * separate step over the result, exactly as for an added file: an unplaced tile's coordinates address
+ * its own art, so the repack's re-derivation converts them.
+ *
+ * Nothing is deleted: a layer the file lost keeps its tile, its pixels, and its binding - the
+ * refreshed inventory carries its row flagged not present, which is what the Sources space shows as
+ * needing review.
+ *
+ * Refused (returns [this]) when the model does not list the file, a superseded tile is unknown, or
+ * any new id collides with one the model has - the planner mints past the model, so a collision is a
+ * caller bug rather than document state to absorb.
+ *
+ * @param ArtworkReload reload The delta to apply.
+ * @return PuppetModel The reloaded model, or [this] when refused.
+ */
+fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
+	if (sources.none { source -> source.id == reload.source.id }) {
+		return this
+	}
+	val existingTileIds = atlas.tiles.mapTo(HashSet()) { tile -> tile.id }
+	val replacedIds = reload.replacedTiles.mapTo(HashSet()) { replaced -> replaced.oldId }
+	if (replacedIds.size != reload.replacedTiles.size || replacedIds.any { oldId -> oldId !in existingTileIds }) {
+		return this
+	}
+	val additions = reload.additions
+	val newTiles = reload.replacedTiles.map { replaced -> replaced.tile } + additions?.tiles.orEmpty()
+	val existingDrawableIds = drawables.mapTo(HashSet()) { drawable -> drawable.id }
+	val existingPartIds = parts.mapTo(HashSet()) { part -> part.id }
+	if (newTiles.any { tile -> tile.id in existingTileIds } ||
+		newTiles.mapTo(HashSet()) { tile -> tile.id }.size != newTiles.size ||
+		additions?.drawables.orEmpty().any { drawable -> drawable.id in existingDrawableIds } ||
+		additions?.parts.orEmpty().any { part -> part.id in existingPartIds }
+	) {
+		return this
+	}
+	val newTileByOldId = reload.replacedTiles.associate { replaced -> replaced.oldId to replaced.tile.id }
+	val movedDrawables =
+		drawables.map { drawable ->
+			val newTileId = drawable.atlasTileId?.let { tileId -> newTileByOldId[tileId] }
+			val mesh = reload.drawableMeshes[drawable.id]
+			if (newTileId == null && mesh == null) {
+				drawable
+			} else {
+				drawable.copy(atlasTileId = newTileId ?: drawable.atlasTileId, mesh = mesh ?: drawable.mesh)
+			}
+		}
+	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds }
+	return copy(
+		parts = parts + additions?.parts.orEmpty(),
+		drawables = movedDrawables + additions?.drawables.orEmpty(),
+		rootChildren = rootChildren + additions?.rootChildren.orEmpty(),
+		atlas = atlas.copy(tiles = keptTiles + newTiles),
+		sources = sources.map { source -> if (source.id == reload.source.id) reload.source else source },
 	).withDerivedRenderRoot()
 }
 

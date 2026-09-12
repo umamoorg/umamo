@@ -9,6 +9,7 @@ import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.format.binary.contentHashOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
@@ -44,14 +45,16 @@ import org.umamo.runtime.model.deriveRenderRoot
 /**
  * What the importer records about the file the art came from.
  *
- * @property String  name   The file's display name (its file name).
- * @property String? path   The advisory external path, or null when the platform has none (a SAF uri).
- * @property String  format The source format's file extension ("psd", "clip", "kra", "png", ...).
+ * @property String  name        The file's display name (its file name).
+ * @property String? path        The advisory external path, or null when the platform has none (a SAF uri).
+ * @property String  format      The source format's file extension ("psd", "clip", "kra", "png", ...).
+ * @property String? contentHash The whole-file content hash of the bytes read, or null when unknown.
  */
 class ArtSourceDescriptor(
 	val name: String,
 	val path: String?,
 	val format: String,
+	val contentHash: String? = null,
 )
 
 /**
@@ -232,10 +235,14 @@ object SourceArtImport {
 	 * same way a duplicate layer key is.  The additions carry no placements: the caller packs them
 	 * around the document's art.
 	 *
-	 * @param SourceArt              art      The parsed source art.
-	 * @param ArtSourceDescriptor    source   What to record about the file it came from.
-	 * @param SourceArtImportOptions options  The threshold and margin (the seed parameters are a fresh import's).
-	 * @param PuppetModel            existing The model the additions will join.
+	 * @param SourceArt              art         The parsed source art.
+	 * @param ArtSourceDescriptor    source      What to record about the file it came from.
+	 * @param SourceArtImportOptions options     The threshold and margin (the seed parameters are a fresh import's).
+	 * @param PuppetModel            existing    The model the additions will join.
+	 * @param ArtSourceId?           underSource The source the additions belong to when the file is one
+	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it and the
+	 *   returned record carries its id, so the caller merges rather than appends the record.  Null mints
+	 *   a new source, the shape a fresh import and Add Artwork take.
 	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
 	 */
 	fun additionsFor(
@@ -243,8 +250,9 @@ object SourceArtImport {
 		source: ArtSourceDescriptor,
 		options: SourceArtImportOptions,
 		existing: PuppetModel,
+		underSource: ArtSourceId? = null,
 	): SourceArtAdditions {
-		val sourceId = ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
+		val sourceId = underSource ?: ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
 		val minter =
 			IdMinter(
 				nextDrawable = nextSuffix(existing.drawables.map { drawable -> drawable.id.raw }, "ArtMesh", first = 1),
@@ -365,24 +373,9 @@ object SourceArtImport {
 		val parts = ArrayList<Part>()
 		val orgRoot = orgChildrenOf(rootChildren, parts, minter, notices)
 
-		// The layer inventory records EVERY layer, skipped ones included, so a re-import can tell a
-		// layer that was there and unusable from one that is new.
-		val inventory =
-			layersTopFirst.map { layer ->
-				ArtSourceLayer(
-					key = layer.id.raw,
-					name = layer.name,
-					groupPath = layer.groupPath,
-					left = layer.bounds.left,
-					top = layer.bounds.top,
-					width = layer.bounds.width,
-					height = layer.bounds.height,
-					visible = layer.visible,
-				)
-			}
 		return SourceArtAdditions(
 			ArtworkAdditions(
-				source = ArtSource(sourceId, source.name, source.path, source.format, inventory),
+				source = ArtSource(sourceId, source.name, source.path, source.format, inventoryOf(art), source.contentHash),
 				tiles = tiles,
 				drawables = drawables,
 				parts = parts,
@@ -392,6 +385,31 @@ object SourceArtImport {
 			notices,
 		)
 	}
+
+	/**
+	 * The pixel-free layer inventory of [art], top-most first: EVERY layer, skipped ones included, so a
+	 * re-import can tell a layer that was there and unusable from one that is new.  The record a fresh
+	 * import stores and a reload replaces.  Each raster layer carries the content hash of its pixels,
+	 * the one thing about the pixels the inventory keeps, so a later read can recognize a renamed layer
+	 * whose art did not change.
+	 *
+	 * @param SourceArt art The parsed source art.
+	 * @return List<ArtSourceLayer> The inventory rows, in the file's own draw order.
+	 */
+	fun inventoryOf(art: SourceArt): List<ArtSourceLayer> =
+		art.layers.sortedBy { layer -> layer.order }.map { layer ->
+			ArtSourceLayer(
+				key = layer.id.raw,
+				name = layer.name,
+				groupPath = layer.groupPath,
+				left = layer.bounds.left,
+				top = layer.bounds.top,
+				width = layer.bounds.width,
+				height = layer.bounds.height,
+				visible = layer.visible,
+				contentHash = if (layer.kind == SourceLayerKind.Raster) contentHashOf(layer.raster.rgba) else null,
+			)
+		}
 
 	/**
 	 * The suffix the next id in a `<prefix><n>` sequence takes: one past the highest suffix among
@@ -414,6 +432,23 @@ object SourceArtImport {
 			}
 		}
 		return if (highest == null) first else highest + 1
+	}
+
+	/**
+	 * The quad a layer is born with, over its opaque bounds as [analyzeAlpha] found them - the mesh an
+	 * import gives every drawable, and the one a reload gives back to a drawable whose quad was never
+	 * edited.  Null when the layer has no opaque pixel under [alphaThreshold], which is the layer the
+	 * import skips.
+	 *
+	 * @param SourceLayer layer          The layer.
+	 * @param Int         alphaThreshold The minimum alpha byte (1..255) for a pixel to count as art.
+	 * @param Int         margin         How far the quad extends past the opaque bounds on every side.
+	 * @return DrawableMesh? The two-triangle quad, or null for a layer with no art.
+	 */
+	fun birthMeshFor(layer: SourceLayer, alphaThreshold: Int, margin: Int): DrawableMesh? {
+		val analysis = layer.analyzeAlpha(alphaThreshold = alphaThreshold) ?: return null
+		val bounds = analysis.opaqueBounds
+		return birthQuad(layer, bounds.left, bounds.top, bounds.width, bounds.height, margin)
 	}
 
 	/**

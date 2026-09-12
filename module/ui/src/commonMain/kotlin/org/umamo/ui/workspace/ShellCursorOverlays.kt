@@ -141,7 +141,7 @@ internal fun ShellNearCursorNotice(pointerPosition: Offset?, modifier: Modifier 
 		// (a keyboard-triggered notice can arrive before any pointer event).
 		val anchor = pointerPosition ?: Offset(constraints.maxWidth / 2f, constraints.maxHeight * 0.75f)
 		TooltipCard(
-			text = noticeText(current.messageKey),
+			text = noticeText(current.messageKey, current.arguments),
 			modifier = Modifier.nearPointer(anchor, SHELL_POINTER_GAP),
 		)
 	}

@@ -25,6 +25,9 @@ package org.umamo.runtime.model
  *   flat raster's), recorded so a listing can say what a file is without re-reading it.
  * @property List<ArtSourceLayer> layers The layer inventory as of the last import, in the file's own
  *   draw order (top-most first); empty for a source whose inventory was never walked.
+ * @property String?              contentHash The whole-file content hash (SHA-256 hex) of the bytes the
+ *   document last read for this file, or null when it never read bytes (a CMO3-origin source).  What
+ *   the watcher compares a save against, so an unchanged file is never re-read.
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -32,6 +35,7 @@ data class ArtSource(
 	val path: String?,
 	val format: String,
 	val layers: List<ArtSourceLayer> = emptyList(),
+	val contentHash: String? = null,
 )
 
 /**
@@ -48,6 +52,12 @@ data class ArtSource(
  * @property Int     width     The layer's raster width in source pixels.
  * @property Int     height    The layer's raster height in source pixels.
  * @property Boolean visible   The layer's own eye toggle at import.
+ * @property Boolean present   Whether the file still had this layer at the last read.  False keeps the row
+ *   for a layer the file lost while a tile still binds it, so the Sources space can name and size it and
+ *   the matcher can score candidates against it; such a row leaves the inventory once nothing binds it.
+ * @property String? contentHash The content hash (SHA-256 hex) of the layer's pixels at the last read, or
+ *   null where the art was never decoded (a CMO3's decomposed tree).  A renamed layer whose pixels did
+ *   not change is recognized by it outright.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -58,6 +68,8 @@ data class ArtSourceLayer(
 	val width: Int,
 	val height: Int,
 	val visible: Boolean,
+	val present: Boolean = true,
+	val contentHash: String? = null,
 )
 
 /**
@@ -71,7 +83,7 @@ data class ArtSourceLayer(
  * @property ArtSourceId sourceId  The [ArtSource] the layer belongs to.
  * @property String      layerKey  The reader's key for the layer within that source.
  * @property Boolean     stableKey Whether the key is a format-minted id (true) or a name-and-order
- *   fallback that only holds as long as the artist's layer organisation does (false).
+ *   fallback that only holds as long as the artist's layer organization does (false).
  */
 data class SourceLayerRef(
 	val sourceId: ArtSourceId,
@@ -100,4 +112,46 @@ data class ArtworkAdditions(
 	val drawables: List<Drawable>,
 	val parts: List<Part>,
 	val rootChildren: List<OrgChild>,
+)
+
+/**
+ * One tile a reload supersedes: the id of the tile the art used to live in, and the tile that holds it
+ * now - a fresh id (`<root>~<n>`), the new size, no placement yet, the old pin, and [AtlasTile.replaces]
+ * naming the old one.
+ *
+ * @property AtlasTileId oldId The superseded tile's id; its pixels stay in the document's raster store.
+ * @property AtlasTile   tile  The replacement, unplaced.
+ */
+data class ReplacedTile(
+	val oldId: AtlasTileId,
+	val tile: AtlasTile,
+)
+
+/**
+ * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, the
+ * tiles whose art changed (each superseded by a fresh, unplaced tile), the meshes the drawables over
+ * them take (an untouched birth quad re-born over the new art, an edited mesh carried with its
+ * coordinates remapped so every vertex samples the same canvas pixel as before), the layers the file
+ * gained, and the drawables whose edited mesh the new opaque art now reaches past.
+ *
+ * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
+ * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
+ * the file lost is deliberately absent - its tile keeps its art and its binding, and the new inventory
+ * carries its row flagged not present ([ArtSourceLayer.present]), which is what the Sources space shows
+ * as needing review.
+ *
+ * @property ArtSource         source          The file's record, carrying the inventory as just read.
+ * @property List              replacedTiles   The tiles whose art changed, each with its replacement.
+ * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable;
+ *   texture coordinates in the ART frame of the drawable's new tile, which the pack that follows
+ *   converts exactly as it does an import's.
+ * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
+ * @property List<DrawableId>  outgrown        Drawables whose kept mesh no longer covers the new opaque art.
+ */
+data class ArtworkReload(
+	val source: ArtSource,
+	val replacedTiles: List<ReplacedTile>,
+	val drawableMeshes: Map<DrawableId, DrawableMesh>,
+	val additions: ArtworkAdditions?,
+	val outgrown: List<DrawableId>,
 )
