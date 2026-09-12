@@ -719,6 +719,88 @@ sealed interface DocumentChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.atlasRepack"
 	}
+
+	/**
+	 * Rebinds one piece of source art to another layer of a listed artwork file, or unbinds it.
+	 * Document content the native format carries, so it marks the document dirty.
+	 *
+	 * @property AtlasTileId tileId The tile rebound.
+	 * @property Boolean     bound  True when a layer was bound, false when the tile was unbound.
+	 */
+	data class SetTileSource(val tileId: AtlasTileId, val bound: Boolean) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = if (bound) "change.document.tileSource" else "change.document.tileUnbind"
+	}
+
+	/**
+	 * Adds an artwork file to the document: its source record and layer inventory, one tile and one
+	 * drawable per layer with art, one part per folder, packed onto the pages beside the existing art.
+	 * Document content, so it marks the document dirty.
+	 *
+	 * @property String sourceName    The file's display name.
+	 * @property Int    drawableCount How many drawables it added.
+	 */
+	data class AddArtwork(val sourceName: String, val drawableCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.addArtwork"
+	}
+
+	/**
+	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, the
+	 * layers the files gained added, the inventories refreshed, and the changed tiles packed beside the
+	 * existing art - one step for however many files were read.  Document content, so it marks the
+	 * document dirty.
+	 *
+	 * @property Int fileCount     How many files were re-read.
+	 * @property Int replacedCount How many tiles took new art.
+	 * @property Int addedCount    How many drawables the files' new layers added.
+	 * @property Int missingCount  How many bound layers the files no longer have (left for review).
+	 */
+	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val missingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.reloadArtwork"
+	}
+
+	/**
+	 * Rebinds a tile to another source layer with that layer's art pulled in: the tile replaced, its
+	 * drawables carried over it, the file's inventory refreshed.  Document content, so it marks the
+	 * document dirty.  A rebinding that could not pull the art (the file missing) is a
+	 * [SetTileSource] instead.
+	 *
+	 * @property AtlasTileId tileId The tile that was rebound (its id before the replacement).
+	 */
+	data class RelinkArtwork(val tileId: AtlasTileId) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.relinkArtwork"
+	}
+
+	/**
+	 * Matches the bindings the files no longer resolve to the layers the matcher is confident about:
+	 * every accepted tile rebound with its layer's art pulled in and packed beside the existing art,
+	 * the inventories refreshed - one step for however many files were scored.  Document content, so it
+	 * marks the document dirty.
+	 *
+	 * @property Int matchedCount   How many tiles were rebound.
+	 * @property Int remainingCount How many bindings are still left for review.
+	 */
+	data class MatchArtwork(val matchedCount: Int, val remainingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.matchArtwork"
+	}
+
+	/**
+	 * Repoints one artwork record at another file: the record's name, path, and format rewritten, every
+	 * binding the new file resolves by key reloaded, and the rest flagged for review with the file's
+	 * layers left as their candidates.  Document content, so it marks the document dirty.
+	 *
+	 * @property String sourceName   The new file's display name.
+	 * @property Int    matchedCount How many bindings the new file resolved by key (changed or not).
+	 * @property Int    missingCount How many bindings it did not, left for review.
+	 */
+	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val missingCount: Int) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.replaceArtwork"
+	}
 }
 
 /**

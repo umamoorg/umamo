@@ -19,6 +19,7 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.viewportChromeCommands
 
@@ -39,6 +40,8 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
+ * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
+ *   to the shell; null (the default) when no open document can take artwork.
  */
 @OptIn(FlowPreview::class)
 @Composable
@@ -47,6 +50,7 @@ fun PersistentEditorShell(
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	appMenu: List<TopLevelMenu> = emptyList(),
+	artwork: ArtworkOperations? = null,
 ) {
 	val settings = LocalSettings.current
 	val initialLayout = remember { loadLayout(settings) }
@@ -112,6 +116,7 @@ fun PersistentEditorShell(
 			keymap = keymap,
 			onLayoutChange = { layout -> latestLayout = layout },
 			onLayoutDragChange = { dragActive -> savePacer.setDragActive(dragActive, latestLayout) },
+			artwork = artwork,
 		)
 	}
 }

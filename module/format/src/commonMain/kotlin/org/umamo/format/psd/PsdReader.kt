@@ -102,6 +102,7 @@ object PsdReader : ArtReader {
 						PsdSourceLayer(
 							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order. See docs/format/PSD.md.
 							id = record.layerId?.let { layerId -> LayerId("lyid:$layerId") } ?: LayerId("${record.name}#$recordIndex"),
+							idIsStable = record.layerId != null,
 							name = record.name,
 							visible = record.visible,
 							groupPath = folderStack.joinToString("/"),
@@ -148,6 +149,7 @@ private fun isPsd(bytes: ByteArray): Boolean {
 /** Concrete [SourceLayer] backing a parsed PSD layer. */
 private data class PsdSourceLayer(
 	override val id: LayerId,
+	override val idIsStable: Boolean,
 	override val name: String,
 	override val visible: Boolean,
 	override val groupPath: String,

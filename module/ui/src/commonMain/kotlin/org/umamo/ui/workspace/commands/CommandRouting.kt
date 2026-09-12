@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.hostsOperationStrip
 
 /*
  * The ONE place a command asks "which area does the pointer mean".
@@ -21,6 +22,11 @@ import org.umamo.ui.workspace.SpaceKind
  *
  * A command that needs a viewport and finds none does NOTHING; it does not reach back to a viewport the
  * pointer has left.  That is Blender's rule and it is the whole point of the seam.
+ *
+ * The one read that does reach back is [CommandRouting.operationStripArea], and it routes no action: it
+ * places the settings strip of a document-wide operation that already ran, and the strip exists only
+ * in a work surface (2D viewport or UV editor), so a command fired over a panel shows it in the last
+ * work surface touched rather than nowhere.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
  * same contract HoveredSurfaceTracker carries.  The backing read is a non-reactive var, so a value
@@ -55,14 +61,43 @@ internal sealed interface TransformTarget {
  * that.  Commands needing a registry take it directly and pick their own lookup, keyed off an area id
  * resolved here.
  *
- * @param Function hoveredSurface Resolves the last-touched editor surface (area id + space kind).
- * @warning The resolver must read LIVE state, not a value captured when the instance was built - one
+ * @param Function hoveredSurface       Resolves the last-touched editor surface (area id + space kind).
+ * @param Function lastTouchedStripHost Resolves the last-touched strip-hosting surface (a 2D viewport or
+ *   UV editor), read only by [operationStripArea].
+ * @warning Both resolvers must read LIVE state, not a value captured when the instance was built - one
  *   instance serves the whole shell for its lifetime, across document swaps and area-tree edits, so a
  *   snapshot would answer with wherever the pointer was at first composition forever.
  */
 internal class CommandRouting(
 	private val hoveredSurface: () -> HoveredSurface?,
+	private val lastTouchedStripHost: () -> HoveredSurface?,
 ) {
+	/**
+	 * A routing that remembers no work surface: the strip placement falls back to the shell's own strip.
+	 * The trailing-lambda form the tables' tests build with, kept as a constructor so that lambda stays
+	 * the hovered resolver rather than silently binding to the last parameter.
+	 *
+	 * @param Function hoveredSurface Resolves the last-touched editor surface.
+	 */
+	constructor(hoveredSurface: () -> HoveredSurface?) : this(hoveredSurface, { null })
+
+	/**
+	 * Where a document-wide operation's settings strip shows: the hovered area when it is a work surface
+	 * (2D viewport or UV editor), else the last work surface the pointer touched, else null - the shell's
+	 * own strip above the status bar.  The strip exists only in those two spaces, so a command fired from
+	 * a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it somewhere
+	 * the rigger will find it.
+	 *
+	 * @return String? The area to show the strip in, or null.
+	 */
+	fun operationStripArea(): String? {
+		val hovered = hoveredSurface()
+		if (hovered != null && hovered.kind.hostsOperationStrip) {
+			return hovered.areaId
+		}
+		return lastTouchedStripHost()?.areaId
+	}
+
 	/**
 	 * The editor surface the pointer last touched, or null before any was touched.
 	 *

@@ -70,6 +70,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 
+## Sources Space
+* Improvements
+	* Hover to show thumbnail of layer, reuse thumbnailer.
+
 ## Texture Authoring/UV Editor
 * We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
 * Follow Selection Header Control - Split it into options and images.
@@ -88,6 +92,8 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
+	* Deleting a drawable leaves the UV Editor in a bad state just saying "UV Editor" as a placeholder since nothing is selected anymore.
+		* Delete the placeholder.(I hate these!)
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
@@ -265,6 +271,25 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
+## Deformer keeps no rest geometry once its last axis is collapsed (found 2026-09-04)
+
+**What.** `withAxisCollapsed` returns null when the last axis goes, and `withParameterDeleted` stores that
+null as a warp's or rotation's `geometryGrid` - so the deformer's lattice / pivot, which lived only in that
+grid, is gone from the model.  The CMO3 export then has nothing to write for it and removes the source's
+`keyformGridSource`; the official editor refuses a source without a default keyform (`setKeyformGridSource`
+rejects null, `getDefaultKeyForm` throws "no KeyForms" - the same refusal that crashed it on the first
+artwork-origin export, fixed for drawables/parts/glue by writing one default cell in
+`Cmo3KeyformLowering.buildBundle`).
+
+**Why it's fine right now.** Nothing in the editor deletes a parameter that keys a deformer's geometry
+except the parameter-delete flow, and the structure round-trip gate only reaches the case by choosing a
+victim parameter that keys deformer geometry.
+
+**Fix sketch.** Keep the rest cell: a last-axis collapse should yield an axis-less one-cell grid holding the
+form at the kept key (the deformer's rest lattice / pivot), not null - for drawables too, since the export
+then writes the same shape the corpus does.  Once that holds, `writeGridWeb`'s empty-bundle branch becomes
+unreachable and can go.
+
 ## Glue intensity has no editable home (deferred 2026-07-29)
 
 **What.** `Glue.intensity` is a real keyable channel — `FormChannel.GLUE_INTENSITY`, with a static on
@@ -314,10 +339,15 @@ decoupling. The front half (steps 1–4) currently only works via a pre-baked CM
 is still ahead.
 
 1. Source-art ingest → neutral model. Built: PSD/CLIP/KRA readers produce `SourceArt` (LayerId / LayerBounds /
-	LayerBlend). Pending, and NEXT (Phase E, decided 2026-09-02; planning opened 2026-09-04): a `SourceArt` → `PuppetModel` path (no
-	fromPsd/fromLayered exists). Layer bounds place each drawable, a bounding quad over the trimmed bounds is
-	the birth mesh, the pack runs at open through the shipped repack chain, and the source-layer key persists
-	on the `AtlasTile`. See § Import.
+	LayerBlend). BUILT (Phase E session 1, 2026-09-04): File > Import > Artwork… runs `SourceArtImport`
+	(:interop `org.umamo.interop.art`): a quad over each layer's trimmed bounds is the birth mesh, folders are
+	parts, the pack runs at open through the repack primitive (`packModelAtOpen`), the source-layer key
+	persists on the `AtlasTile` (`source: SourceLayerRef`) with the file and its layer inventory on
+	`PuppetModel.sources`, and the parameter template (`import.parameterTemplate`, Humanoid / None) seeds
+	the axes. Session 2 (same day): the Sources space (file → layer → tile → drawables, statuses, filters,
+	relink by drag or chip) and Add Artwork… into the open document (`runAddArtwork`, packed into the gaps
+	with every placed tile fixed, one undo step on the operation strip). E is complete on the import side;
+	see docs/plan/art-sourcing-pipeline.md Phase E.
 2. Auto-mesh from art ("mesh from art"). Pending: generate an initial mesh over each layer's opaque region.
 	At birth, positions and UVs are two views of the same art layout — they only diverge once geometry is
 	edited. Foundation built: the per-layer opaque region (alpha-trimmed bounds + occupancy + a marching-squares
@@ -353,14 +383,24 @@ is still ahead.
 	keyform is a delta off. Remaining: topology edits (subdivide / merge / rip) must resize the UV array AND
 	every keyform's delta array to the new vertex count — see § Render "remeshing" and § Shortcuts (M / V / J).
 6. Rigging. Parameters, deformers, keyforms on top of the rest mesh — the actual deformation authoring.
-7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher / SourceBinding. Identity-keyed
-	(LayerId) non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
+7. Re-import (the headline feature). Scaffolded: Reconciler / SourceWatcher over the model's `SourceLayerRef`
+	bindings (persisted since 2026-09-04). Identity-keyed non-destructive reconcile: a matched layer updates its atlas tile/UVs while mesh/deformers/
 	keyforms are preserved; added/removed/renamed layers are flagged and reviewable, never silently deleted.
 	May trigger an atlas repack (the invariant above protects it). See § Reimport. Decided 2026-09-03: the
 	linking table is a Sources space (a tenth SpaceKind: file → layer → tile → drawables, relink by drag or
 	chip, replace a file by repointing it) and reconcile is an OPERATION - matched updates commit as one undo
 	step, needs-review items become row states in that space, the match threshold is an operation-settings
 	parameter; nothing in the flow steals focus. See docs/plan/art-sourcing-pipeline.md Phases E and F.
+	F1 BUILT (2026-09-08): Reload by key - the Sources header's Reload re-reads every present file and
+	lands the changed layers as one strip-adjustable step (a reloaded tile is a NEW tile, `<root>~<n>`,
+	so undo shows the old art by snapshot), and a relink pulls the layer's art at once when the file is
+	present.  F2 BUILT (2026-09-09): the watcher - `PollingSourceWatcher` (okio, commonMain),
+	`SourceWatchCoordinator` (settle, SHA-256 hash against `ArtSource.contentHash`, the idle gate),
+	`import.watchMode` auto / notify / off, stale-at-open notice, the header's alert glyph.  F3 BUILT
+	(2026-09-09): the inventory matcher (name / path / bounds / size / per-layer hash / pixels), lost rows
+	kept for review with suggestion chips, Match Automatically with the threshold on the strip, Replace
+	Artwork on the file row (chip + context menu).  PHASE F COMPLETE.  NEXT: D as the mesh command, then G
+	and H.  See docs/plan/art-sourcing-pipeline.md Phase F.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 

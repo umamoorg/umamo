@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -38,6 +39,8 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Boolean?  expanded           The open state when hoisted; null to let the chip own it.
  * @param Function? onExpandedChange   Open-state sink, required when [expanded] is hoisted.
  * @param Boolean   enabled            When false the chip dims and clicks are inert.
+ * @param DropdownChipStyle style      The face's role: Header chrome by default, Compact for a list row.
+ * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
  * @param Function  content            The panel's rows.
  */
 @Composable
@@ -48,6 +51,8 @@ fun PopupChip(
 	expanded: Boolean? = null,
 	onExpandedChange: ((Boolean) -> Unit)? = null,
 	enabled: Boolean = true,
+	style: DropdownChipStyle = DropdownChipStyle.Header,
+	iconTint: Color? = null,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -67,6 +72,8 @@ fun PopupChip(
 		modifier = modifier,
 		icon = icon,
 		enabled = enabled,
+		style = style,
+		iconTint = iconTint,
 	) {
 		Popup(
 			popupPositionProvider = BelowAnchorPositionProvider,

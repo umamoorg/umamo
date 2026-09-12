@@ -68,6 +68,6 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	// supplier, which defers every raster to first request so opening a model with hundreds of layers
 	// costs no more than opening one without.
 	val tileResources = imported.atlasIngest.imageResourceByTile
-	val artRasters = SourceArtRasters { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
+	val artRasters = SourceArtRasters.fromPng { tileId -> tileResources[tileId]?.let(cmo3::extractLayerPng) }
 	return DocumentLoad.Loaded(Cmo3Document(path, cmo3, puppet, textures, artRasters, initialLiveParams(puppet)))
 }

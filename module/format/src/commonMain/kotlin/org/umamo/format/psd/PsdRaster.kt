@@ -4,20 +4,22 @@
 
 package org.umamo.format.psd
 
+import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.binary.inflateZlib
 
 /**
  * Decodes one PSD layer's channel image data into a straight-alpha RGBA8888 [LayerRaster].
  *
- * EN: A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on
- *     Android.  A layer's pixels are stored as separate
- *     channel planes (R, G, B, alpha, …), each independently compressed; this object decompresses
- *     each plane, reduces it to 8 bits, and interleaves them to RGBA cropped to the layer bounds.
- *     Supported: 8/16-bit RGB(A) and Grayscale, Indexed-color, and 1-bit Bitmap.  CMYK, Lab,
- *     Multichannel, Duotone, and 32-bit float are rejected by [PsdReader] before reaching here.
- * JA: TwelveMonkeys に頼らない純 Kotlin のピクセル復号。各チャンネル面を解凍し 8 ビットへ落として
- *     RGBA に合成する。RGB(A)/グレースケール(8/16bit)・インデックス・1bit のみ対応。
+ * A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on
+ * Android.  A layer's pixels are stored as separate
+ * channel planes (R, G, B, alpha, …), each independently compressed; this object decompresses
+ * each plane, reduces it to 8 bits, and interleaves them to RGBA cropped to the layer bounds.
+ * A raster layer mask (channel -2, and -3 beside a vector mask) is decoded at its own rectangle
+ * and multiplied into the alpha, so the raster is the layer as the artist sees it - the same
+ * baking the CLIP reader applies.  Supported: 8/16-bit RGB(A) and Grayscale, Indexed-color, and
+ * 1-bit Bitmap.  CMYK, Lab, Multichannel, Duotone, and 32-bit float are rejected by
+ * [PsdReader] before reaching here.
  *
  * @see <a href="https://docs.umamo.org/format/PSD.md">PSD.md §4 Channel image data</a>
  */
@@ -34,11 +36,14 @@ internal object PsdRaster {
 	private const val MODE_INDEXED = 2
 	private const val MODE_RGB = 3
 
-	// PSD: channel ids - color channels are 0/1/2…; -1 is the transparency (alpha) channel.
+	// PSD: channel ids - color channels are 0/1/2…; -1 is the transparency (alpha) channel; -2 is the
+	// user layer mask (the rasterized vector mask when a pixel mask sits beside it), -3 that pixel mask.
 	private const val CHANNEL_RED = 0
 	private const val CHANNEL_GREEN = 1
 	private const val CHANNEL_BLUE = 2
 	private const val CHANNEL_ALPHA = -1
+	private const val CHANNEL_USER_MASK = -2
+	private const val CHANNEL_REAL_USER_MASK = -3
 
 	private const val OPAQUE = 0xFF.toByte()
 
@@ -61,7 +66,8 @@ internal object PsdRaster {
 		}
 
 		val rowBytes = bytesPerRow(width, header.depth)
-		val planes = decodePlanes(bytes, record, width, height, header.depth, rowBytes)
+		val decoded = decodePlanes(bytes, record, width, height, header.depth, rowBytes)
+		val planes = decoded.color
 
 		val rgba = ByteArray(width * height * 4)
 		when (header.colorMode) {
@@ -71,13 +77,76 @@ internal object PsdRaster {
 			MODE_BITMAP -> assembleBitmap(planes, rgba, width * height)
 			else -> error("PSD color mode ${header.colorMode} is not supported")
 		}
+		for (maskPlane in decoded.masks) {
+			applyMask(rgba, width, height, record.bounds, maskPlane)
+		}
 		return LayerRaster(width = width, height = height, rgba = rgba)
 	}
 
 	/**
-	 * Decompresses every displayable channel of [record] into an 8-bit-per-pixel plane, keyed by
-	 * channel id.  Mask channels (id < -1) are skipped; the cursor advances by each channel's full
-	 * block length regardless, keeping the channels sequential.
+	 * One decoded mask: its geometry and its plane, sized to the mask's own rectangle.
+	 *
+	 * @property PsdLayerMask mask  The mask's rectangle, default color, and flags.
+	 * @property ByteArray    plane The mask values, row-major over the mask rectangle.
+	 */
+	private class MaskPlane(val mask: PsdLayerMask, val plane: ByteArray)
+
+	/**
+	 * A layer's decoded planes: the displayable color channels by id, and every enabled mask.
+	 *
+	 * @property Map  color The color and alpha planes by channel id, each width*height of the layer.
+	 * @property List masks The enabled raster masks, each over its own rectangle.
+	 */
+	private class DecodedPlanes(val color: Map<Int, ByteArray>, val masks: List<MaskPlane>)
+
+	/**
+	 * Multiplies one mask into the raster's alpha: inside the mask rectangle the stored value, outside
+	 * it the mask's default color, so a mask that hides everything beyond its rectangle does exactly
+	 * that.  The rectangle is always read as canvas-placed: Photoshop sets the "relative to layer"
+	 * flag on every mask in the corpus while still writing canvas coordinates, and offsetting by the
+	 * layer as the flag suggests throws the mask clear of its layer (every masked layer then decodes
+	 * fully transparent).
+	 *
+	 * @param ByteArray   rgba        The layer's RGBA8888 pixels, modified in place.
+	 * @param Int         width       The layer width in pixels.
+	 * @param Int         height      The layer height in pixels.
+	 * @param LayerBounds layerBounds The layer's canvas rectangle (locates the mask against it).
+	 * @param MaskPlane   maskPlane   The mask to apply.
+	 */
+	private fun applyMask(rgba: ByteArray, width: Int, height: Int, layerBounds: LayerBounds, maskPlane: MaskPlane) {
+		val mask = maskPlane.mask
+		val plane = maskPlane.plane
+		val maskWidth = mask.bounds.width
+		val maskHeight = mask.bounds.height
+		// The mask rectangle's origin in LAYER pixel coordinates.
+		val originX = mask.bounds.left - layerBounds.left
+		val originY = mask.bounds.top - layerBounds.top
+		for (row in 0 until height) {
+			val maskRow = row - originY
+			val rowInside = maskRow in 0 until maskHeight
+			for (column in 0 until width) {
+				val maskColumn = column - originX
+				val value =
+					if (rowInside && maskColumn in 0 until maskWidth) {
+						plane[maskRow * maskWidth + maskColumn].toInt() and 0xFF
+					} else {
+						mask.defaultColor
+					}
+				if (value == 0xFF) {
+					continue
+				}
+				val alphaIndex = (row * width + column) * 4 + 3
+				val alpha = rgba[alphaIndex].toInt() and 0xFF
+				rgba[alphaIndex] = ((alpha * value + 127) / 255).toByte()
+			}
+		}
+	}
+
+	/**
+	 * Decompresses every channel of [record] into an 8-bit-per-pixel plane: the displayable channels
+	 * keyed by id at the layer's size, and each enabled mask channel at its own mask rectangle's size.
+	 * A mask channel whose record describes no mask, or a disabled one, is skipped; the cursor advances
+	 * by each channel's full block length regardless, keeping the channels sequential.
 	 *
 	 * @param ByteArray bytes      The complete `.psd` file.
 	 * @param PsdLayerRecord record The layer whose channels to decode.
@@ -85,26 +154,41 @@ internal object PsdRaster {
 	 * @param Int height           Layer height in pixels.
 	 * @param Int depth            Bits per sample (1, 8, or 16).
 	 * @param Int rowBytes         Bytes per decoded channel row for this width and depth.
-	 * @return Map Each channel id mapped to its width*height 8-bit plane.
+	 * @return DecodedPlanes The color planes and the enabled masks.
 	 */
-	private fun decodePlanes(bytes: ByteArray, record: PsdLayerRecord, width: Int, height: Int, depth: Int, rowBytes: Int): Map<Int, ByteArray> {
+	private fun decodePlanes(bytes: ByteArray, record: PsdLayerRecord, width: Int, height: Int, depth: Int, rowBytes: Int): DecodedPlanes {
 		val planes = HashMap<Int, ByteArray>(record.channels.size)
+		val masks = ArrayList<MaskPlane>(2)
 		var cursor = record.channelDataOffset
 		for (channel in record.channels) {
 			val blockStart = cursor
 			val blockEnd = blockStart + channel.length.toInt()
 			cursor = blockEnd
-			// PSD: channel id < -1 is a user/vector layer mask (-2/-3) - not displayable color, skip it.
-			if (channel.id < CHANNEL_ALPHA) {
-				continue
-			}
 			// PSD: each channel block begins with a 2-byte compression code, then the (possibly
 			// compressed) sample bytes for that one channel.
+			if (channel.id < CHANNEL_ALPHA) {
+				// PSD: channel -2 is the user layer mask and -3 the real user mask; each is sized to the
+				// rectangle its mask geometry records, not to the layer.
+				val mask =
+					when (channel.id) {
+						CHANNEL_USER_MASK -> record.userMask
+						CHANNEL_REAL_USER_MASK -> record.realUserMask
+						else -> null
+					}
+				if (mask == null || mask.disabled || mask.bounds.width <= 0 || mask.bounds.height <= 0) {
+					continue
+				}
+				val maskRowBytes = bytesPerRow(mask.bounds.width, depth)
+				val compression = readU16BE(bytes, blockStart)
+				val samples = decodeChannel(bytes, blockStart + 2, blockEnd, compression, mask.bounds.width, mask.bounds.height, depth, maskRowBytes)
+				masks.add(MaskPlane(mask, samplesToPlane(samples, mask.bounds.width, mask.bounds.height, depth, maskRowBytes)))
+				continue
+			}
 			val compression = readU16BE(bytes, blockStart)
 			val samples = decodeChannel(bytes, blockStart + 2, blockEnd, compression, width, height, depth, rowBytes)
 			planes[channel.id] = samplesToPlane(samples, width, height, depth, rowBytes)
 		}
-		return planes
+		return DecodedPlanes(planes, masks)
 	}
 
 	/**

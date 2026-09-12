@@ -110,7 +110,7 @@ private fun StatusNotice() {
 		session.clearNotice(current.serial)
 	}
 	Text(
-		text = noticeText(current.messageKey),
+		text = noticeText(current.messageKey, current.arguments),
 		style = LocalUmamoTypography.current.labelMedium,
 		color = LocalUmamoColors.current.text,
 		maxLines = 1,

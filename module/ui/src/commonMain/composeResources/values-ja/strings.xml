@@ -33,6 +33,7 @@
 	<string name="space_tooldetails">ツール設定</string>
 	<string name="space_history">履歴</string>
 	<string name="space_logs">ログ</string>
+	<string name="space_sources">ソース</string>
 
 	<string name="logs_copy">クリップボードにコピー</string>
 	<string name="logs_export">ファイルに書き出し…</string>
@@ -49,10 +50,17 @@
 	<string name="menu_export">エクスポート</string>
 	<string name="menu_import_cmo3">CMO3…</string>
 	<string name="menu_import_moc3">MOC3…</string>
+	<string name="menu_import_artwork">アートワーク…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
 	<string name="cmd_import_cmo3">CMO3をインポート…</string>
 	<string name="cmd_import_moc3">MOC3をインポート…</string>
+	<string name="cmd_import_artwork">アートワークをインポート…</string>
+	<string name="cmd_file_add_artwork">アートワークを追加…</string>
+	<string name="cmd_document_reload_artwork">アートワークを再読み込み</string>
+	<string name="cmd_sources_relink">アートを再リンク</string>
+	<string name="cmd_sources_match_automatically">アートワークを自動で照合</string>
+	<string name="cmd_sources_replace_artwork">アートワークを差し替え…</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
 	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
@@ -85,6 +93,7 @@
 	<string name="repack_report_pinned_off_page">ピン留めされた配置が最大ページサイズに収まりません。</string>
 	<string name="export_weld_divergence">%1$s のベース形状または UV が編集されています。書き出しは編集どおりの値を保持しますが、Cubism Editor 側でそのメッシュやアトラスを編集すると UV マッピングが再導出されて壊れる可能性があります。</string>
 	<string name="export_missing_source_art">このモデルには元となる原画データがありません(MOC3 由来のため、パックされたテクスチャアトラスのみを保持しています)。%1$d 枚のアトラスから代替のソースドキュメントを再構成したので、リグ情報はすべて保持され Umamo でも Cubism Editor でも開けますが、収録されているレイヤーはすべて焼き込み済みアトラスの切り出しであり、このリグの元になった原画ではありません。編集可能な本来のレイヤーを書き出すには、元のレイヤー原画(PSD/CLIP/KRA)をこのドキュメントに取り込んでください。</string>
+	<string name="export_reloaded_tile_images_stale">%1$s のアートはこのファイルの読み込み後に再読み込みされています。アトラスには新しいアートが書き出されますが、Cubism Editor がレイヤー表示に使うレイヤー画像は、原画がファイルに書き込まれるまで読み込み時のままです。</string>
 	<string name="export_feature_stripped">%1$s は書き出したバージョンでは利用できないため、次の対象から削除されました: %2$s。ドキュメント側には残っているので、新しいバージョンで書き出せば元に戻ります。</string>
 	<string name="export_more_subjects">(ほか %1$d 件)</string>
 	<!-- 書き出し通知の対象種別（各行の先頭に [ ] で表示）。 -->
@@ -192,6 +201,7 @@
 	<string name="open_failed_parse">%1$s を開けませんでした。ファイルが破損している可能性があります。</string>
 	<string name="open_failed_missing_manifest">%1$sをインポートできませんでした。model3.json マニフェストが同じフォルダに見つかりません。</string>
 	<string name="open_failed_missing_texture">%1$sをインポートできませんでした。model3.json が参照するテクスチャが見つからないか読み込めません。</string>
+	<string name="open_failed_no_art_layers">%1$sにはインポートできるピクセルを持つレイヤーがありません。</string>
 
 	<string name="menu_help">ヘルプ</string>
 	<string name="menu_source_code">ソースコード…</string>
@@ -349,12 +359,51 @@
 	<string name="history_document_atlas_pin">アトラス上の画像をピン留め</string>
 	<string name="history_document_atlas_unpin">アトラス上の画像のピン留めを解除</string>
 	<string name="history_document_atlas_repack">アトラスを再パック</string>
+	<string name="history_document_tile_source">アートを再リンク</string>
+	<string name="history_document_tile_unbind">アートのリンクを解除</string>
+	<string name="history_document_add_artwork">アートワークを追加</string>
+	<string name="history_document_reload_artwork">アートワークを再読み込み</string>
+	<string name="history_document_relink_artwork">アートを再リンク</string>
+	<string name="history_document_match_artwork">アートワークを照合</string>
+	<string name="history_document_replace_artwork">アートワークを差し替え</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
 	<string name="outliner_armature">アーマチュア</string>
 	<string name="outliner_filter_parts">パーツ</string>
 	<string name="outliner_filter_deformers">デフォーマ</string>
+	<string name="sources_add_artwork">アートワークを追加…</string>
+	<string name="sources_reload">アートワークファイルを再読み込み</string>
+	<string name="sources_reload_pending">アートワークファイルがディスク上で変更されています。再読み込みで反映します。</string>
+	<string name="sources_match_automatically">自動で照合：ファイルにレイヤーがなくなったアートを、最も近いレイヤーに再リンクします</string>
+	<string name="sources_file_menu">ファイルの操作</string>
+	<string name="sources_file_menu_replace">アートワークを差し替え…</string>
+	<string name="sources_file_menu_reload">このファイルを再読み込み</string>
+	<string name="sources_suggestion_title">このリンクを確認</string>
+	<string name="sources_suggestion_accept">%1$s を採用（%2$d%）</string>
+	<string name="sources_suggestion_relink">手動で再リンク…</string>
+	<string name="sources_suggestion_leave">今は保留</string>
+	<string name="sources_filter_all">すべて</string>
+	<string name="sources_filter_unbound">未リンク</string>
+	<string name="sources_filter_missing">見つからないファイル</string>
+	<string name="sources_filter_needs_review">要確認</string>
+	<string name="sources_status_present">あり</string>
+	<string name="sources_status_missing">見つかりません</string>
+	<string name="sources_status_unknown">不明</string>
+	<string name="sources_status_bound">リンク済み</string>
+	<string name="sources_status_bound_unstable">名前でリンク</string>
+	<string name="sources_status_unbound">未リンク</string>
+	<string name="sources_status_unplaced">未配置</string>
+	<string name="sources_status_needs_review">要確認：ファイルにこのレイヤーがありません</string>
+	<string name="sources_unbound_art">未リンクのアート</string>
+	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
+	<string name="sources_source_no_path">パス未記録</string>
+	<string name="sources_layer_detail">%1$d × %2$d、位置 %3$d, %4$d</string>
+	<string name="sources_tile_page">ページ %1$d</string>
+	<string name="sources_relink_title">レイヤーに再リンク</string>
+	<string name="sources_relink_clear">リンクを解除</string>
+	<string name="sources_relink_no_matches">一致するレイヤーがありません。</string>
+	<string name="sources_empty">ソースアートワークがありません。「アートワークを追加…」でレイヤー付きファイルをこのドキュメントに取り込めます。</string>
 	<string name="outliner_filter_drawables">ドローアブル</string>
 	<string name="outliner_restriction_toggles">制限の切り替え</string>
 	<string name="outliner_column_selectable">選択可否列</string>
@@ -450,6 +499,23 @@
 	<string name="notice_display_partial_source_artwork">一部の描画オブジェクトには原画がないため、アトラスから表示しています。</string>
 	<string name="notice_display_source_artwork_unavailable">すべての描画オブジェクトには原画がないため、アトラスから表示しています。</string>
 	<string name="notice_atlas_repacked">アトラスを再パックしました。</string>
+	<string name="notice_import_artwork_notes">注記付きでアートワークをインポートしました。ログを参照してください。</string>
+	<string name="notice_import_artwork_added">アートワークを追加しました。</string>
+	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
+	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
+	<string name="notice_reload_done">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加。</string>
+	<string name="notice_reload_notes">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件要確認。ログを参照してください。</string>
+	<string name="notice_reload_outgrown">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件要確認。一部のアートがメッシュの外に出ています。ログを参照してください。</string>
+	<string name="notice_watch_changed">%1$d 個のアートワークファイルがディスク上で変更されました。再読み込みで反映します。</string>
+	<string name="notice_watch_stale_at_open">%1$d 個のアートワークファイルが前回の読み込み後に変更されています。再読み込みで反映します。</string>
+	<string name="notice_watch_missing">%1$s は読み込んだ場所にありません。</string>
+	<string name="notice_reload_no_changes">アートワークファイルに変更はありません。</string>
+	<string name="notice_reload_no_files">読み込めるアートワークファイルがなく、何も再読み込みされませんでした。</string>
+	<string name="notice_relink_pulled">アートを再リンクして再読み込みしました。</string>
+	<string name="notice_relink_binding_only">アートを再リンクしましたが、ファイルを読み込めなかったためアートは変わっていません。</string>
+	<string name="notice_match_done">%1$d 件のレイヤーを照合、%2$d 件が要確認です。</string>
+	<string name="notice_match_nothing">十分な確度で照合できたリンクはありません。候補は要確認の行に表示されています。</string>
+	<string name="notice_replace_done">アートワークを差し替えました：%1$d 件をキーで再読み込み、%2$d 件が要確認です。</string>
 	<string name="notice_atlas_repack_superseded">再パックを中止しました: パック中にアトラスが変更されました。</string>
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
@@ -600,6 +666,9 @@
 	<string name="placement_options_angle">角度</string>
 	<string name="placement_options_scale_x">拡大縮小 X</string>
 	<string name="placement_options_scale_y">拡大縮小 Y</string>
+	<string name="import_options_alpha_threshold">アルファしきい値</string>
+	<string name="import_options_margin">初期メッシュの余白</string>
+	<string name="match_options_threshold">照合のしきい値</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>
@@ -659,6 +728,7 @@
 	<string name="settings_category_viewport">ビューポート</string>
 	<string name="settings_category_keybindings">キーバインド</string>
 	<string name="settings_category_pen">ペン</string>
+	<string name="settings_category_import">インポート</string>
 	<!-- 言語名は自言語表記でそのまま表示するため、文字列リソースにはしない。 -->
 	<string name="settings_interface_theme">テーマ</string>
 	<string name="settings_theme_dark">ダーク</string>
@@ -681,6 +751,13 @@
 	<string name="settings_keybindings_reassign">再割り当て</string>
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
+	<string name="settings_import_parameter_template">パラメータテンプレート</string>
+	<string name="settings_import_watch_mode">アートワークファイルの監視</string>
+	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
+	<string name="settings_import_watch_mode_notify">通知のみ</string>
+	<string name="settings_import_watch_mode_off">オフ</string>
+	<string name="settings_import_parameter_template_humanoid">人型</string>
+	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
 	<string name="settings_viewport_zoom_step">ズーム刻み (%)</string>
 	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>

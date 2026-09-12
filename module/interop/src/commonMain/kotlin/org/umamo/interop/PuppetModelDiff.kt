@@ -24,6 +24,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.lineageRoot
 
 /*
  * The semantic diff between two PuppetModels - the input the CMO3 export reconcile dispatches on.
@@ -94,7 +95,7 @@ enum class AtlasTileField {
 	/** Where the tile's art sits on its page - the authored half, and the only one an edit produces. */
 	PLACEMENT,
 
-	/** Its name, pixel size, or recorded source layer: what the art itself is, not where it was packed. */
+	/** Its name, pixel size, or source binding: what the art itself is, not where it was packed. */
 	METADATA,
 }
 
@@ -410,8 +411,11 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
  */
 private fun diffAtlasTiles(baseline: List<AtlasTile>, edited: List<AtlasTile>): List<EntityDiff<AtlasTileId, AtlasTileField>> {
 	val editedById = edited.associateBy { tile -> tile.id }
+	// A reloaded tile is a new tile whose lineage root is the baseline's id; it is the same art to the
+	// graph, compared under the root so the reload reads as that tile changing.
+	val editedByRoot = edited.filter { tile -> tile.replaces != null }.associateBy { tile -> tile.id.lineageRoot }
 	return baseline.mapNotNull { baselineTile ->
-		val editedTile = editedById[baselineTile.id] ?: return@mapNotNull null
+		val editedTile = editedById[baselineTile.id] ?: editedByRoot[baselineTile.id] ?: return@mapNotNull null
 		val fields = atlasTileFields(baselineTile, editedTile)
 		if (fields.isEmpty()) null else EntityDiff.Changed(baselineTile.id, fields)
 	}
@@ -433,7 +437,7 @@ private fun atlasTileFields(baseline: AtlasTile, edited: AtlasTile): Set<AtlasTi
 			baseline.name != edited.name ||
 			baseline.width != edited.width ||
 			baseline.height != edited.height ||
-			baseline.sourceLayerName != edited.sourceLayerName
+			baseline.source != edited.source
 		) {
 			add(AtlasTileField.METADATA)
 		}
@@ -474,11 +478,14 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 		// Absence is "not tracked", not "unbound", for the same reason the page list is only compared
 		// when there is an atlas: a drawable the model carries no art for says nothing about the art the
 		// graph carries for it.
-		if (edited.atlasTileId != null && baseline.atlasTileId != edited.atlasTileId) {
+		// Compared under the lineage root: a drawable carried onto its tile's reload replacement still
+		// samples the same art as far as the graph knows.
+		val editedTileId = edited.atlasTileId
+		if (editedTileId != null && baseline.atlasTileId?.lineageRoot != editedTileId.lineageRoot) {
 			add(DrawableField.ATLAS_TILE)
 		}
 		addAll(meshFields(baseline.mesh, edited.mesh))
-		if (!gridEquals(baseline.geometryGrid, edited.geometryGrid, ::meshDeltaFormEqual)) {
+		if (!gridEquals(restOnlyAsUnkeyed(baseline.geometryGrid), restOnlyAsUnkeyed(edited.geometryGrid), ::meshDeltaFormEqual)) {
 			add(DrawableField.GEOMETRY)
 		}
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
@@ -663,6 +670,24 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
  */
 
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
+
+/**
+ * A drawable's geometry grid with the rest-only shape read as unkeyed: an axis-less grid holding one
+ * cell of zero deltas IS the unkeyed drawable, since both mean "the base mesh, nothing keyed".  The
+ * two spellings arise from the formats - every CMO3 source carries a default form, so an unkeyed
+ * drawable exports as that one cell and re-imports as this grid - and neither is an edit of the
+ * other, so the diff must not call it one.
+ *
+ * @param KeyformGrid? grid The drawable's geometry grid.
+ * @return KeyformGrid? The grid, or null when it is the rest-only shape.
+ */
+private fun restOnlyAsUnkeyed(grid: KeyformGrid<MeshDeltaForm>?): KeyformGrid<MeshDeltaForm>? {
+	if (grid == null || grid.axes.isNotEmpty() || grid.cells.size != 1) {
+		return grid
+	}
+	val deltas = grid.cells.single().form.positionDeltas
+	return if (deltas.all { delta -> delta == 0f }) null else grid
+}
 
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,

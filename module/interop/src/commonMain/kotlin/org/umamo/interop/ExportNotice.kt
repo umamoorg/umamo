@@ -66,6 +66,18 @@ sealed interface ExportNotice {
 	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
 	 */
 	data class MissingSourceArt(val pageCount: Int) : ExportNotice
+
+	/**
+	 * Tiles whose art was reloaded from their source layers since the CMO3 was imported: the written
+	 * atlas pages carry the new art, but the retained per-layer images (the model image each tile
+	 * imported from, and the layered-image tree behind it) still hold the pixels the editor decomposed
+	 * at import.  The official editor renders the new art in its texture-atlas display mode and the
+	 * old in its layered-art mode until the per-tile source chain is written from the document's own
+	 * rasters.
+	 *
+	 * @property List tileNames The reloaded tiles' display names, in document order.
+	 */
+	data class ReloadedTileImagesStale(val tileNames: List<String>) : ExportNotice
 }
 
 /**

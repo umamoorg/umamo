@@ -58,11 +58,16 @@ class AreaHoverStampTest {
 	 * tracker ended up holding.
 	 *
 	 * @param SpaceKind kind The space the leaf hosts.
+	 * @param Function read Which stamp to report; the last-touched surface by default.
 	 * @param Function interact The pointer input to drive.
 	 * @return HoveredSurface? The stamped surface, or null if nothing stamped.
 	 */
 	@OptIn(ExperimentalTestApi::class)
-	private fun stampAfter(kind: SpaceKind, interact: MouseInjectionScope.() -> Unit): HoveredSurface? {
+	private fun stampAfter(
+		kind: SpaceKind,
+		read: (HoveredSurfaceTracker) -> HoveredSurface? = { tracker -> tracker.lastTouched },
+		interact: MouseInjectionScope.() -> Unit,
+	): HoveredSurface? {
 		var result: HoveredSurface? = null
 		runComposeUiTest {
 			val tracker = HoveredSurfaceTracker()
@@ -79,9 +84,26 @@ class AreaHoverStampTest {
 				}
 			}
 			onNodeWithTag("leaf").performMouseInput(interact)
-			result = tracker.lastTouched
+			result = read(tracker)
 		}
 		return result
+	}
+
+	/**
+	 * Only a work surface stamps the strip host: the operation settings strip exists in the 2D viewport
+	 * and the UV editor alone, so a panel touched last must never become where a strip appears.  Swept
+	 * over the enum like the stamp itself, so a kind added later is classified by construction.
+	 */
+	@Test
+	fun onlyWorkSurfacesStampTheStripHost() {
+		for (kind in SpaceKind.entries) {
+			val expected = if (kind.hostsOperationStrip) HoveredSurface("area-1", kind) else null
+			assertEquals(
+				expected,
+				stampAfter(kind, { tracker -> tracker.lastTouchedStripHost }) { moveTo(Offset(200f, 200f)) },
+				"${kind.name} stamped the strip host wrongly",
+			)
+		}
 	}
 
 	/**

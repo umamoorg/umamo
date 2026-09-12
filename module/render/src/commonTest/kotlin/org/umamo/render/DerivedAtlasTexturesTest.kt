@@ -135,7 +135,7 @@ class DerivedAtlasTexturesTest {
 		for ((tile, raster) in extraTiles) {
 			pngByTile[tile.id] = encodeAtlasPng(raster)
 		}
-		val store = SourceArtRasters { tileId -> pngByTile[tileId] }
+		val store = SourceArtRasters.fromPng { tileId -> pngByTile[tileId] }
 		return Fixture(model, store, result.pages.map { page -> DecodedImage(page.rgba, page.width, page.height) }, rasters)
 	}
 
@@ -342,7 +342,7 @@ class DerivedAtlasTexturesTest {
 		val packPlacement = result.placements.single()
 		assertEquals(side - 2, packPlacement.trimWidth, "the border is trimmed away at threshold 128")
 		val fixture = packedFixture()
-		val store = SourceArtRasters { id -> if (id == tileId) encodeAtlasPng(DecodedImage(bordered, side, side)) else null }
+		val store = SourceArtRasters.fromPng { id -> if (id == tileId) encodeAtlasPng(DecodedImage(bordered, side, side)) else null }
 		val tiles = listOf(AtlasTile(tileId, tileId.raw, side, side, atlasPlacementFromPack(packPlacement)))
 		val pages = result.pages.map { page -> AtlasPage(page.width, page.height) }
 		val underPolicy = fixture.model.copy(atlas = PuppetAtlas(pages, tiles, composition = atlasCompositionOf(options)))
@@ -372,7 +372,7 @@ class DerivedAtlasTexturesTest {
 	@Test
 	fun artThatWillNotDecodeIsNotDerivable() {
 		val fixture = packedFixture()
-		val brokenStore = SourceArtRasters { ByteArray(4) }
+		val brokenStore = SourceArtRasters.fromPng { ByteArray(4) }
 
 		assertNull(deriveAtlasTextures(fixture.model, brokenStore, false), "undecodable art cannot compose a page")
 		assertNull(planAtlasDerivation(fixture.model, brokenStore), "the plan refuses before any pixel is composed")

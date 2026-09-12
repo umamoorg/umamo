@@ -1,5 +1,6 @@
 package org.umamo.interop
 
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
@@ -30,6 +31,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -373,6 +375,19 @@ class PuppetModelDiffTest {
 				baseline.copy(atlas = baseline.atlas.copy(tiles = listOf(baseline.atlas.tiles.single().copy(name = "Other")))),
 			)
 		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA))), renamed.atlasTiles)
+
+		// A source binding is what the art IS, so rebinding it reads as metadata like a rename does.
+		val rebound =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(
+					atlas =
+						baseline.atlas.copy(
+							tiles = listOf(baseline.atlas.tiles.single().copy(source = SourceLayerRef(ArtSourceId("art-0"), "lyid:3", stableKey = true))),
+						),
+				),
+			)
+		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA))), rebound.atlasTiles)
 
 		val repaged = diffPuppetModels(baseline, baseline.copy(atlas = baseline.atlas.copy(pages = listOf(AtlasPage(128, 128)))))
 		assertEquals(setOf(DocumentField.ATLAS_PAGES), repaged.document, "the page list is document-level")

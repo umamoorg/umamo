@@ -10,11 +10,12 @@ import org.umamo.ui.resources.*
  * the history labels); an unmapped key falls back to a generic message so a newly added notice never
  * renders blank.
  *
- * @param String messageKey The notice's stable message key.
+ * @param String       messageKey The notice's stable message key.
+ * @param List<String> arguments  The values a formatting message substitutes, in placeholder order.
  * @return String The localized notice message.
  */
 @Composable
-fun noticeText(messageKey: String): String =
+fun noticeText(messageKey: String, arguments: List<String> = emptyList()): String =
 	when (messageKey) {
 		"notice.transform.onlyDrawables" -> stringResource(Res.string.notice_transform_only_drawables)
 		"notice.transform.deformed" -> stringResource(Res.string.notice_transform_deformed)
@@ -38,6 +39,23 @@ fun noticeText(messageKey: String): String =
 		"notice.display.partialSourceArtwork" -> stringResource(Res.string.notice_display_partial_source_artwork)
 		"notice.display.sourceArtworkUnavailable" -> stringResource(Res.string.notice_display_source_artwork_unavailable)
 		"notice.atlas.repacked" -> stringResource(Res.string.notice_atlas_repacked)
+		"notice.import.artworkNotes" -> stringResource(Res.string.notice_import_artwork_notes)
+		"notice.import.artworkAdded" -> stringResource(Res.string.notice_import_artwork_added)
+		"notice.import.artworkSuperseded" -> stringResource(Res.string.notice_import_artwork_superseded)
+		"notice.import.noArtLayers" -> stringResource(Res.string.notice_import_no_art_layers)
+		"notice.reload.done" -> stringResource(Res.string.notice_reload_done, *countArguments(arguments, 3))
+		"notice.reload.notes" -> stringResource(Res.string.notice_reload_notes, *countArguments(arguments, 3))
+		"notice.reload.outgrown" -> stringResource(Res.string.notice_reload_outgrown, *countArguments(arguments, 3))
+		"notice.watch.changed" -> stringResource(Res.string.notice_watch_changed, *countArguments(arguments, 1))
+		"notice.watch.staleAtOpen" -> stringResource(Res.string.notice_watch_stale_at_open, *countArguments(arguments, 1))
+		"notice.watch.missing" -> stringResource(Res.string.notice_watch_missing, arguments.firstOrNull().orEmpty())
+		"notice.reload.noChanges" -> stringResource(Res.string.notice_reload_no_changes)
+		"notice.reload.noFiles" -> stringResource(Res.string.notice_reload_no_files)
+		"notice.relink.pulled" -> stringResource(Res.string.notice_relink_pulled)
+		"notice.relink.bindingOnly" -> stringResource(Res.string.notice_relink_binding_only)
+		"notice.match.done" -> stringResource(Res.string.notice_match_done, *countArguments(arguments, 2))
+		"notice.match.nothing" -> stringResource(Res.string.notice_match_nothing)
+		"notice.replace.done" -> stringResource(Res.string.notice_replace_done, *countArguments(arguments, 2))
 		"notice.atlas.repackSuperseded" -> stringResource(Res.string.notice_atlas_repack_superseded)
 		"notice.atlas.repackUnchanged" -> stringResource(Res.string.notice_atlas_repack_unchanged)
 		"notice.proportional.on" -> stringResource(Res.string.notice_proportional_on)
@@ -46,3 +64,14 @@ fun noticeText(messageKey: String): String =
 		"notice.proportional.connected.off" -> stringResource(Res.string.notice_proportional_connected_off)
 		else -> stringResource(Res.string.notice_unknown)
 	}
+
+/**
+ * The first [count] arguments as integers for a message that formats counts, zero for any the notice
+ * did not carry - a placeholder must never go unfilled.
+ *
+ * @param List<String> arguments The notice's arguments.
+ * @param Int          count     How many the message formats.
+ * @return Array<Any> The values to substitute.
+ */
+private fun countArguments(arguments: List<String>, count: Int): Array<Any> =
+	Array(count) { index -> arguments.getOrNull(index)?.toIntOrNull() ?: 0 }

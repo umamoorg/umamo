@@ -26,6 +26,7 @@ class RasterSourceArtTest {
 		val layer = art.layers.single()
 		assertEquals("hero.png", layer.name, "layer name")
 		assertEquals("hero.png", layer.id.raw, "provisional layer id is the file name")
+		assertTrue(!layer.idIsStable, "a file name is not a layer identity, so the key is marked unstable")
 		assertEquals(0, layer.order, "single layer is top-most")
 		assertEquals("", layer.groupPath, "no enclosing folder")
 		assertEquals(LayerBlend.Normal, layer.blend, "normal blend")

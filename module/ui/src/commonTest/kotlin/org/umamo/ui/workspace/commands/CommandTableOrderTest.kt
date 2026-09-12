@@ -1,18 +1,23 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
+import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.OperationStripState
 import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SplitterDragCancelController
 import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.defaultLayout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -216,11 +221,15 @@ class CommandTableOrderTest {
 	 */
 	@Test
 	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}) + logCommands {}
-		assertEquals(listOf("file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+		val commands = fileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("file.importArtwork", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
+		)
+		assertEquals(
+			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork"),
+			fileArtworkCommands(routing()) { null }.map { command -> command.id },
 		)
 	}
 
@@ -235,6 +244,82 @@ class CommandTableOrderTest {
 		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
 		exportable = true
 		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")
+	}
+
+	/**
+	 * The artwork commands hide themselves while no document can take artwork (the collaborator is
+	 * null), ask LIVE, and hand the handler the area its operation strip shows in - fired over the
+	 * Sources panel, that is the last work surface the pointer touched, never the panel.  Reload also
+	 * asks the collaborator whether any file can be read; relink carries its request through.
+	 */
+	@Test
+	fun artworkCommandsFollowTheCollaboratorAndTheStripArea() {
+		var operations: ArtworkOperations? = null
+		val routing = CommandRouting({ HoveredSurface("sources-1", SpaceKind.Sources) }, { HoveredSurface("area-7", SpaceKind.UvEditor) })
+		val commands = fileArtworkCommands(routing) { operations }
+		val add = commands.first { command -> command.id == "file.addArtwork" }
+		val reload = commands.first { command -> command.id == "document.reloadArtwork" }
+		val relink = commands.first { command -> command.id == "sources.relink" }
+		val match = commands.first { command -> command.id == "sources.matchAutomatically" }
+		val replace = commands.first { command -> command.id == "sources.replaceArtwork" }
+		assertFalse(add.availability.isAvailable(), "nothing to add with no document open")
+		assertFalse(reload.availability.isAvailable())
+		assertFalse(relink.availability.isAvailable())
+		assertFalse(match.availability.isAvailable())
+		assertFalse(replace.availability.isAvailable())
+		var landedArea: String? = "untouched"
+		var landedRequest: RelinkRequest? = null
+		var landedScope: ReloadScope? = null
+		var landedReplace: ReplaceRequest? = null
+		var matched = 0
+		var canReload = false
+		operations =
+			ArtworkOperations(
+				addArtwork = { areaId -> landedArea = areaId },
+				reloadArtwork = { areaId, reloadScope ->
+					landedArea = areaId
+					landedScope = reloadScope
+				},
+				relinkArtwork = { request, areaId ->
+					landedRequest = request
+					landedArea = areaId
+				},
+				matchArtwork = { areaId ->
+					matched++
+					landedArea = areaId
+				},
+				replaceArtwork = { request, areaId ->
+					landedReplace = request
+					landedArea = areaId
+				},
+				canReload = { canReload },
+			)
+		assertTrue(add.availability.isAvailable(), "the collaborator is queried per call")
+		assertFalse(reload.availability.isAvailable(), "a reload needs a file it can read")
+		canReload = true
+		assertTrue(reload.availability.isAvailable())
+		add.handler.run(null)
+		assertEquals("area-7", landedArea, "the strip area reaches the orchestration")
+		landedArea = "untouched"
+		reload.handler.run(null)
+		assertEquals("area-7", landedArea)
+		assertEquals(null, landedScope, "a plain Reload covers every file")
+		val scoped = ReloadScope(setOf(ArtSourceId("art-0")))
+		reload.handler.run(scoped)
+		assertSame(scoped, landedScope, "the watcher's scope reaches the operation")
+		val request = RelinkRequest(AtlasTileId("t1"), null)
+		relink.handler.run(request)
+		assertSame(request, landedRequest, "the relink carries its request")
+		assertEquals("area-7", landedArea)
+		landedArea = "untouched"
+		match.handler.run(null)
+		assertEquals(1, matched)
+		assertEquals("area-7", landedArea, "the match lands its strip in the work surface too")
+		val replaceRequest = ReplaceRequest(ArtSourceId("art-0"))
+		replace.handler.run(replaceRequest)
+		assertSame(replaceRequest, landedReplace, "the replace carries its file")
+		replace.handler.run("not a request")
+		assertSame(replaceRequest, landedReplace, "a payload of the wrong shape is ignored")
 	}
 
 	/** The keyform-authoring table. */

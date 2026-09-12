@@ -35,6 +35,7 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.CloseButton
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.settings_category_colors
+import org.umamo.ui.resources.settings_category_import
 import org.umamo.ui.resources.settings_category_interface
 import org.umamo.ui.resources.settings_category_keybindings
 import org.umamo.ui.resources.settings_category_pen
@@ -61,6 +62,7 @@ internal enum class SettingsCategory(val label: StringResource) {
 	Interface(Res.string.settings_category_interface),
 	Colors(Res.string.settings_category_colors),
 	Viewport(Res.string.settings_category_viewport),
+	Import(Res.string.settings_category_import),
 	Keybindings(Res.string.settings_category_keybindings),
 	Pen(Res.string.settings_category_pen),
 }
@@ -129,6 +131,7 @@ fun SettingsWindow(onDismiss: () -> Unit) {
 							SettingsCategory.Interface -> InterfaceSection()
 							SettingsCategory.Colors -> ColorsSection()
 							SettingsCategory.Viewport -> ViewportSection()
+							SettingsCategory.Import -> ImportSection()
 							SettingsCategory.Keybindings -> KeybindingsSection()
 							SettingsCategory.Pen -> PenSection()
 						}
