@@ -62,10 +62,7 @@ class AddArtworkRequest(
 	val descriptor: ArtSourceDescriptor,
 	val options: SourceArtImportOptions,
 ) {
-	// LayerRaster is a plain class, so this map keys by identity - which is the point: the wrapper of
-	// one raster is one object for the request's life.  Built eagerly so the off-thread passes only read.
-	private val decodedByRaster: Map<LayerRaster, DecodedImage> =
-		art.layers.associate { layer -> layer.raster to DecodedImage(layer.raster.rgba, layer.raster.width, layer.raster.height) }
+	private val decoded = DecodedLayerRasters(art.layers)
 
 	/**
 	 * The decoded wrapper of one of this file's layer rasters.
@@ -73,8 +70,7 @@ class AddArtworkRequest(
 	 * @param LayerRaster raster The layer's pixels.
 	 * @return DecodedImage The wrapper, the same instance on every call.
 	 */
-	internal fun decodedFor(raster: LayerRaster): DecodedImage =
-		decodedByRaster[raster] ?: DecodedImage(raster.rgba, raster.width, raster.height)
+	internal fun decodedFor(raster: LayerRaster): DecodedImage = decoded.decodedFor(raster)
 }
 
 /** What one add-artwork pass produced, or why it produced nothing. */

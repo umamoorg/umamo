@@ -420,7 +420,7 @@
 	<string name="sources_file_menu_replace">Replace Artwork…</string>
 	<string name="sources_file_menu_reload">Reload This File</string>
 	<string name="sources_suggestion_title">Review this binding</string>
-	<string name="sources_suggestion_accept">Accept %1$s (%2$d%%)</string>
+	<string name="sources_suggestion_accept">Accept %1$s (%2$d%)</string>
 	<string name="sources_suggestion_relink">Relink by hand…</string>
 	<string name="sources_suggestion_leave">Leave for now</string>
 	<string name="sources_filter_all">All</string>

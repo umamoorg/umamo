@@ -166,7 +166,7 @@ class SourcesTreeTest {
 			)
 
 		fun match(key: String, score: Float): LayerMatch = LayerMatch(key, score, MatchSignals(1f, 1f, 1f, 1f, null, hashEqual = false))
-		val tree = buildSourcesTree(puppet, ::presence, "Unbound art") { sourceId, key -> if (sourceId == artA && key == "lyid:9") match("lyid:5", 0.92f) else null }
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art") { sourceId, key -> if (sourceId == artA && key == "lyid:9") listOf(match("lyid:5", 0.92f)) else emptyList() }
 		val fileA = tree[0]
 		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/lyid:2", "layer:art-0/lyid:5", "layer:art-0/lyid:9", "layer:art-0/name:Stray"), fileA.children.map { node -> node.id })
 		val lost = fileA.children[3]
@@ -180,12 +180,22 @@ class SourcesTreeTest {
 		assertEquals("Stray", stray.label, "a binding the inventory never listed still shows by its key")
 		assertEquals(SourcesStatus.NeedsReview, stray.status)
 
-		val boundElsewhere = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> match("lyid:1", 0.9f) }
+		val boundElsewhere = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> listOf(match("lyid:1", 0.9f)) }
 		assertNull(boundElsewhere[0].children[3].suggestion, "a proposal naming a layer some tile binds is dropped")
-		val goneCandidate = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> match("lyid:77", 0.9f) }
+		val goneCandidate = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> listOf(match("lyid:77", 0.9f)) }
 		assertNull(goneCandidate[0].children[3].suggestion, "a proposal naming a layer the file lacks is dropped")
+		// A stale published proposal ahead of a live one: the row takes the live one rather than nothing.
+		val staleFirst = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> listOf(match("lyid:1", 0.95f), match("lyid:5", 0.6f)) }
+		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.6f), staleFirst[0].children[3].suggestion, "a dropped proposal does not hide the next one")
 		val review = filterSourcesTree(tree, "", SourcesFilter.NeedsReview)
 		assertEquals(listOf("layer:art-0/lyid:9", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id })
+
+		// Unbind the lost row's one tile: the row reviews nothing now, so it leaves the table at once
+		// rather than waiting for the refresh that prunes it from the inventory.
+		val unbound = puppet.copy(atlas = puppet.atlas.copy(tiles = puppet.atlas.tiles.map { tile -> if (tile.id == AtlasTileId("tA9")) tile.copy(source = null) else tile }))
+		val afterUnbind = buildSourcesTree(unbound, ::presence, "Unbound art")
+		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/lyid:2", "layer:art-0/lyid:5", "layer:art-0/name:Stray"), afterUnbind[0].children.map { node -> node.id })
+		assertTrue(filterSourcesTree(afterUnbind, "", SourcesFilter.NeedsReview)[0].children.none { node -> node.id == "layer:art-0/lyid:9" })
 	}
 
 	@Test
@@ -197,12 +207,16 @@ class SourcesTreeTest {
 	}
 
 	@Test
-	fun aDropRebindsOnlyAcrossTheTwoKinds() {
+	fun aDropRebindsOnlyAcrossTheTwoKindsAndNeverOntoALostRow() {
 		val ref = SourceLayerRef(artA, "lyid:1", true)
-		assertEquals(AtlasTileId("t") to ref, relinkFor(SourcesDragPayload.Layer(ref), SourcesNodeKind.Tile(AtlasTileId("t"))))
-		assertEquals(AtlasTileId("t") to ref, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), SourcesNodeKind.Layer(ref)))
-		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), SourcesNodeKind.Tile(AtlasTileId("u"))))
-		assertEquals(null, relinkFor(SourcesDragPayload.Layer(ref), SourcesNodeKind.Source(artA)))
+
+		fun node(kind: SourcesNodeKind, status: SourcesStatus = SourcesStatus.None): SourcesNode = SourcesNode("row", "Row", SourcesDetail.None, kind, status, emptyList())
+
+		assertEquals(AtlasTileId("t") to ref, relinkFor(SourcesDragPayload.Layer(ref), node(SourcesNodeKind.Tile(AtlasTileId("t")))))
+		assertEquals(AtlasTileId("t") to ref, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.Bound)))
+		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Tile(AtlasTileId("u")))))
+		assertEquals(null, relinkFor(SourcesDragPayload.Layer(ref), node(SourcesNodeKind.Source(artA))))
+		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.NeedsReview)), "a lost row is no target")
 	}
 
 	/**
