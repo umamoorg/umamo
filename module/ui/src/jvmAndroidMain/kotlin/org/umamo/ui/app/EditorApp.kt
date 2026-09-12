@@ -26,7 +26,7 @@ import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.seed.ParameterTemplate
-import org.umamo.edit.setTileSource
+import org.umamo.edit.setTileSources
 import org.umamo.format.FileKind
 import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3
@@ -370,18 +370,24 @@ fun EditorApp(
 	// the rest; a document swap starts empty.
 	val sourceSuggestions = remember(document, session) { MutableStateFlow<SourceSuggestions>(emptyMap()) }
 
+	// Publishes what one operation scored: the files it read take its proposals (an empty map for a
+	// file it read and found nothing for), every other file keeps whatever was published last.
 	fun publishSuggestions(covered: Set<ArtSourceId>, suggestions: SourceSuggestions) {
 		sourceSuggestions.value = sourceSuggestions.value.filterKeys { (sourceId, _) -> sourceId !in covered } + suggestions
 	}
 
-	// One listed file's art the way every operation over it reads it: from disk when the file is there,
-	// else - for a CMO3-origin document whose file is not - from the layer PNGs the official editor
-	// decomposed into the CMO3 at import; null when neither can be read.
+	// One listed file's art the way every operation over it reads it: from disk when the file is there
+	// and reads, else - for a CMO3-origin document - from the layer PNGs the official editor decomposed
+	// into the CMO3 at import, whether the file is gone or is one our reader refuses; null when neither
+	// can be read.
 	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
 		val path = source.path
 		if (path != null && sourceFilePresence(path) == true) {
-			val read = readArtworkAt(path) ?: return null
-			return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+			val read = readArtworkAt(path)
+			if (read != null) {
+				return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+			}
+			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")
 		}
 		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
 		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
@@ -417,9 +423,10 @@ fun EditorApp(
 	}
 
 	// Reloads the listed artwork files that are present on disk - those the scope names, or every one -
-	// as one undo step; a file that cannot be read is logged and skipped.  Desktop paths only for now: a
-	// platform uri cannot be re-read here, so a document opened through one reloads nothing.  The watcher
-	// hears how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
+	// as one undo step; a file that cannot be read is logged and skipped.  Real file-system paths only:
+	// a platform uri (an Android SAF handle) has no reader here, so a document opened through one
+	// reloads nothing.  The watcher hears how it ended, so it knows whether to wait for the model's new
+	// hashes, try again, or let go.
 	fun reloadArtworkFromDisk(areaId: String?, reloadScope: ReloadScope?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
@@ -503,25 +510,25 @@ fun EditorApp(
 		}
 	}
 
-	// Rebinds a tile: an unbind is the plain binding edit; a binding to a layer pulls the layer's art
-	// in when its file is on disk - or, for a CMO3-origin document whose file is not, from the layer
-	// PNGs the official editor decomposed into the CMO3 at import - and changes the binding alone
-	// when neither can be read.
+	// Rebinds one or more tiles as one step: an unbind is the plain binding edit; a binding to a layer
+	// pulls the layer's art in when its file is on disk - or, for a CMO3-origin document whose file is
+	// not, from the layer PNGs the official editor decomposed into the CMO3 at import - and changes
+	// the bindings alone when neither can be read.
 	fun relinkArtwork(request: RelinkRequest, areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		val ref = request.ref
 		if (ref == null) {
-			activeSession.setTileSource(request.tileId, null)
+			activeSession.setTileSources(request.tileIds, null)
 			return
 		}
 		scope.launch {
 			val source = activeSession.model.value.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
 			val read = source?.let { listed -> readSourceArt(puppetDocument, listed) }
 			if (read?.fromCmo3 == true) {
-				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file is not on this machine")
+				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
 			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, read?.art, artworkImportOptions()), areaId)
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions()), areaId)
 		}
 	}
 

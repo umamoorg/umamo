@@ -130,9 +130,9 @@ import org.umamo.ui.workspace.commands.workspaceCommands
  *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
  *   (the open document, the file picker), while the bar component itself is shared.
  * @param ArtworkOperations? artwork The app's artwork orchestrations (add a file, reload the listed
- *   files, relink a tile) over the area the command fires in, or null (the default) when no open
- *   document can take artwork.  The shell registers the commands itself so the operation strip lands
- *   in the hovered work surface.
+ *   files, relink a tile, match or replace a file's bindings) over the area the command fires in, or
+ *   null (the default) when no open document can take artwork.  The shell registers the commands
+ *   itself so the operation strip lands in the hovered work surface.
  * @param String languageTag The active UI language (BCP-47).
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).

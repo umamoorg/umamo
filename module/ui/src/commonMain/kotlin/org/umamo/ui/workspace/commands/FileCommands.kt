@@ -15,8 +15,9 @@ import org.umamo.ui.resources.*
  * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
- * package and invert the dependency.  The add-artwork table is the exception: the shell registers it
- * (with the app's closure injected) because its operation strip needs the hovered area at dispatch.
+ * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
+ * shell registers it (with the app's closures injected) because its operation strip needs the hovered
+ * area at dispatch.
  *
  * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
  * Open / Save is reserved for the native UMA format.
@@ -45,15 +46,25 @@ internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit,
 	)
 
 /**
- * A request to rebind one tile, the payload of the sources.relink command.
+ * A request to rebind one or more tiles to one layer, the payload of the sources.relink command: one
+ * tile from the tile chip or a drop, every tile bound to a lost key from a review row, so those land
+ * as one step.
  *
- * @property AtlasTileId     tileId The tile.
- * @property SourceLayerRef? ref    The binding it takes, or null to unbind.
+ * @property List<AtlasTileId> tileIds The tiles.
+ * @property SourceLayerRef?   ref     The binding they take, or null to unbind.
  */
 class RelinkRequest(
-	val tileId: AtlasTileId,
+	val tileIds: List<AtlasTileId>,
 	val ref: SourceLayerRef?,
-)
+) {
+	/**
+	 * The one-tile form.
+	 *
+	 * @param AtlasTileId     tileId The tile.
+	 * @param SourceLayerRef? ref    The binding it takes, or null to unbind.
+	 */
+	constructor(tileId: AtlasTileId, ref: SourceLayerRef?) : this(listOf(tileId), ref)
+}
 
 /**
  * A request to repoint one artwork record at another file, the payload of the sources.replaceArtwork

@@ -25,9 +25,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * The two artwork edits: rebinding a tile to a source layer, and appending an artwork file's
- * additions.  Both refuse rather than half-apply - a binding to an unlisted file, or an addition
- * whose ids collide - so the Sources space and the add flow can trust a returned model.
+ * The three artwork edits: rebinding a tile to a source layer, appending an artwork file's
+ * additions, and applying a reload.  All refuse rather than half-apply - a binding to an unlisted
+ * file, an addition or replacement whose ids collide, a reload naming a tile or file the model lacks -
+ * so the Sources space and the artwork flows can trust a returned model.
  */
 class ArtworkEditsTest {
 	private val sourceA = ArtSource(ArtSourceId("art-0"), "a.psd", "/a.psd", "psd", listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 4, 4, true)))
@@ -63,6 +64,27 @@ class ArtworkEditsTest {
 
 		val unbound = rebound.withTileSource(AtlasTileId("art-0/lyid:1"), null)
 		assertNull(unbound.atlas.tiles.single().source)
+	}
+
+	@Test
+	fun tilesBoundToOneKeyRebindTogetherAsOneStep() {
+		// Two tiles under one lost key, the shape a review row's Accept acts on: they move as one edit,
+		// so one undo brings both back.
+		val second = AtlasTile(AtlasTileId("art-0/lyid:1~1"), "L1", 4, 4, source = refA1, replaces = AtlasTileId("art-0/lyid:1"))
+		val base = model().let { single -> single.copy(atlas = single.atlas.copy(tiles = single.atlas.tiles + second)) }
+		val session = EditorSession(base)
+		val both = base.atlas.tiles.map { tile -> tile.id }
+
+		session.setTileSources(both, null)
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == null }, "both tiles unbound")
+		assertTrue(session.canUndo.value)
+
+		session.undo()
+		assertTrue(session.model.value.atlas.tiles.all { tile -> tile.source == refA1 }, "one undo restores both")
+		assertEquals(false, session.canUndo.value, "the two rebinds were one step")
+
+		session.setTileSources(emptyList(), null)
+		assertEquals(false, session.canUndo.value, "an empty call pushes nothing")
 	}
 
 	@Test

@@ -57,7 +57,7 @@ data class ArtSource(
  *   the matcher can score candidates against it; such a row leaves the inventory once nothing binds it.
  * @property String? contentHash The content hash (SHA-256 hex) of the layer's pixels at the last read, or
  *   null where the art was never decoded (a CMO3's decomposed tree).  A renamed layer whose pixels did
- *   not change is recognised by it outright.
+ *   not change is recognized by it outright.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -83,7 +83,7 @@ data class ArtSourceLayer(
  * @property ArtSourceId sourceId  The [ArtSource] the layer belongs to.
  * @property String      layerKey  The reader's key for the layer within that source.
  * @property Boolean     stableKey Whether the key is a format-minted id (true) or a name-and-order
- *   fallback that only holds as long as the artist's layer organisation does (false).
+ *   fallback that only holds as long as the artist's layer organization does (false).
  */
 data class SourceLayerRef(
 	val sourceId: ArtSourceId,
@@ -137,7 +137,8 @@ data class ReplacedTile(
  * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
  * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
  * the file lost is deliberately absent - its tile keeps its art and its binding, and the new inventory
- * simply no longer lists the key, which is what the Sources space shows as needing review.
+ * carries its row flagged not present ([ArtSourceLayer.present]), which is what the Sources space shows
+ * as needing review.
  *
  * @property ArtSource         source          The file's record, carrying the inventory as just read.
  * @property List              replacedTiles   The tiles whose art changed, each with its replacement.

@@ -350,7 +350,23 @@ fun EditorSession.setAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean
  * @param SourceLayerRef? source The new binding, or null to unbind.
  */
 fun EditorSession.setTileSource(tileId: AtlasTileId, source: SourceLayerRef?) {
-	mutate(DocumentChange.SetTileSource(tileId, bound = source != null)) { model -> model.withTileSource(tileId, source) }
+	setTileSources(listOf(tileId), source)
+}
+
+/**
+ * Rebinds every tile in [tileIds] to one layer of a listed artwork file, or unbinds them all, as ONE
+ * undo step - what a review row's accepted proposal lands through when the layer's art cannot be
+ * pulled, so the tiles bound to a lost key move together.  A tile the model refuses (unknown, or a
+ * binding to an unlisted file) is left as it is; a call that changes no tile pushes nothing.
+ *
+ * @param Collection<AtlasTileId> tileIds The tiles to rebind, in any order; empty pushes nothing.
+ * @param SourceLayerRef?         source  The new binding, or null to unbind.
+ */
+fun EditorSession.setTileSources(tileIds: Collection<AtlasTileId>, source: SourceLayerRef?) {
+	val first = tileIds.firstOrNull() ?: return
+	mutate(DocumentChange.SetTileSource(first, bound = source != null)) { model ->
+		tileIds.fold(model) { current, tileId -> current.withTileSource(tileId, source) }
+	}
 }
 
 /**

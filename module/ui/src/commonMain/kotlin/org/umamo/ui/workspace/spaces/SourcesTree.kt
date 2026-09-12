@@ -146,15 +146,17 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * @param PuppetModel puppet            The rig to walk.
  * @param Function    presenceOf        Whether each file is still on disk.
  * @param String      unboundGroupLabel The localized label of the unbound-art group.
- * @param Function    suggestionFor     The best match for a lost binding by file and key, or null; a
- *   proposal naming a layer the file no longer has or some tile already binds is dropped here.
+ * @param Function    suggestionsFor    The proposals for a lost binding by file and key, best first
+ *   (the pixel-scored one an operation published, then the one the inventory alone ranks); the row
+ *   takes the first that still holds - one naming a layer the file no longer has or some tile already
+ *   binds is passed over, so a stale published proposal never hides a live one behind it.
  * @return List<SourcesNode> The top-level rows.
  */
 fun buildSourcesTree(
 	puppet: PuppetModel,
 	presenceOf: (ArtSource) -> SourcePresence,
 	unboundGroupLabel: String,
-	suggestionFor: (ArtSourceId, String) -> LayerMatch? = { _, _ -> null },
+	suggestionsFor: (ArtSourceId, String) -> List<LayerMatch> = { _, _ -> emptyList() },
 ): List<SourcesNode> {
 	val drawableIdsByTile = puppet.drawableIdsByAtlasTile()
 	val drawableNameById = puppet.drawables.associate { drawable -> drawable.id to drawable.name }
@@ -196,7 +198,7 @@ fun buildSourcesTree(
 			}
 		val suggestion =
 			if (status == SourcesStatus.NeedsReview) {
-				suggestionFor(sourceId, key)?.let { match ->
+				suggestionsFor(sourceId, key).firstNotNullOfOrNull { match ->
 					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present }
 					if (candidate == null || tilesByBinding.containsKey(sourceId to match.key)) {
 						null
@@ -226,7 +228,13 @@ fun buildSourcesTree(
 			// row own the binding, so no tile is listed twice.
 			val rowCountByKey = HashMap<String, Int>()
 			val inventoryRows =
-				source.layers.map { layer ->
+				source.layers.mapNotNull { layer ->
+					// A row the file lost is kept only while a tile binds it - its whole purpose is the
+					// review of those tiles.  Once the last one is unbound or relinked away the row would
+					// review nothing, so it leaves the table ahead of the refresh that prunes it.
+					if (!layer.present && !tilesByBinding.containsKey(source.id to layer.key)) {
+						return@mapNotNull null
+					}
 					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present)
 					val ordinal = (rowCountByKey[layer.key] ?: 0) + 1
 					rowCountByKey[layer.key] = ordinal

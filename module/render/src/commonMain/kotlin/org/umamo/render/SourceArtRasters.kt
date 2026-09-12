@@ -31,17 +31,19 @@ class SourceArtRasters(
 	// is not a getOrPut - getOrPut treats a stored null as absent and would retry the decode every time.
 	private val decodedByTile = HashMap<AtlasTileId, DecodedImage?>()
 
-	// Rasters added after the store was built - artwork brought into an open document - read before
-	// the injected decoder.  An immutable map swapped whole behind a volatile reference, so the
-	// off-thread repack decode sees a complete map or the previous one, never a half-written one.
+	// Rasters added after the store was built - artwork brought into an open document, the replacement
+	// tiles a reload mints - read before the injected decoder.  An immutable map swapped whole behind a
+	// volatile reference, so the off-thread repack decode sees a complete map or the previous one,
+	// never a half-written one.
 	@Volatile
 	private var added: Map<AtlasTileId, DecodedImage> = emptyMap()
 
 	/**
 	 * Adds already-decoded rasters for tiles the injected decoder knows nothing about - the layers of
-	 * an artwork file added to the document after it opened.  Document-lifetime like the rest of the
-	 * store: an added raster stays even if the edit that brought it is undone, which is harmless since
-	 * its tile is then gone from the model.  Re-adding a tile replaces its raster.
+	 * an artwork file added to the document after it opened, and the replacement tiles a reload,
+	 * relink, or match mints over new art.  Document-lifetime like the rest of the store: an added
+	 * raster stays even if the edit that brought it is undone, which is harmless since its tile is then
+	 * gone from the model.  Re-adding a tile replaces its raster.
 	 *
 	 * @param Map rasters The decoded pixels by tile.
 	 */

@@ -8,7 +8,7 @@ import org.umamo.runtime.model.BlendMode
  * One thing an artwork import could not carry onto the model as drawn, named so the rigger can act
  * on it.  Anything unrepresentable surfaces as a notice, never as a silent drop - the same rule the
  * export notices follow.  Presentation-free: the shell logs each one and raises a single status
- * notice, and a later listing shows them per layer.
+ * notice.
  */
 sealed interface SourceArtImportNotice {
 	/** A text, vector, adjustment, or fill layer: no stored pixels, so no drawable. */

@@ -35,7 +35,8 @@ data class ReconcileReport(
  * The reconcile every reload runs: a binding matches when the re-read art has a raster layer under
  * exactly its key, a raster layer no binding names is added, and a binding whose key the art no
  * longer has needs review.  Keys only - the readers mint them stable where the format allows (a CLIP
- * or Krita uuid, Photoshop's lyid) and the fuzzy matching a weak key needs is a later matcher's work.
+ * or Krita uuid, Photoshop's lyid) and the fuzzy matching a weak key needs is a [LayerMatcher]'s work
+ * ([InventoryLayerMatcher], run over the review half by [suggestionsFor]), never this reconcile's.
  *
  * Non-raster layers (folders, text, adjustment layers) are invisible to it: they never became tiles
  * at import, so they are neither matched nor added, and a raster layer that turned into one reads as

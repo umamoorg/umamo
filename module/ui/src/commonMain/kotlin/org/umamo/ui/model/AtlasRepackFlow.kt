@@ -268,7 +268,8 @@ fun repackPageSizeOf(model: PuppetModel): Int = model.atlas.pages.maxOfOrNull { 
 
 /**
  * One pack before anything is committed: the decoded input and what the packer made of it.  Shared
- * by the repack command and the pack an artwork import runs at open, so both pack the same way.
+ * by the repack command, the pack an artwork import runs at open, and the pack-around that lands new
+ * tiles in an open document, so all of them pack the same way.
  *
  * @property RepackPackInput input  The decoded tiles and their reserves.
  * @property AtlasPackResult result The packer's placements, pages, and skips.
@@ -280,8 +281,8 @@ internal class PackedAtlas(
 
 /**
  * Decodes and packs [model]'s atlas under [options].  Pure and thread-agnostic given a thread-safe
- * [decodeRaster]: the repack command runs it on the default dispatcher, the import at open runs it
- * inline.
+ * [decodeRaster]: the repack command and the artwork flows run it on the default dispatcher, the
+ * import at open runs it inline.
  *
  * @param PuppetModel      model        The model to pack.
  * @param Function         decodeRaster Yields a tile's decoded pixels, or null.

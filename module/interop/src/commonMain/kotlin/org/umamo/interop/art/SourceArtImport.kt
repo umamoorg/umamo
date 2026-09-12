@@ -390,7 +390,7 @@ object SourceArtImport {
 	 * The pixel-free layer inventory of [art], top-most first: EVERY layer, skipped ones included, so a
 	 * re-import can tell a layer that was there and unusable from one that is new.  The record a fresh
 	 * import stores and a reload replaces.  Each raster layer carries the content hash of its pixels,
-	 * the one thing about the pixels the inventory keeps, so a later read can recognise a renamed layer
+	 * the one thing about the pixels the inventory keeps, so a later read can recognize a renamed layer
 	 * whose art did not change.
 	 *
 	 * @param SourceArt art The parsed source art.

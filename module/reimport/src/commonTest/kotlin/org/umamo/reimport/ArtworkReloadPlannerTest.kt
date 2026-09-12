@@ -144,6 +144,27 @@ class ArtworkReloadPlannerTest {
 	}
 
 	@Test
+	fun aRelinkAcrossFilesReadsTheOldRowFromTheTilesOwnFile() {
+		// Tile 2 (file a, layer at (30, 40)) moves to file b's layer at (50, 60).  The edited mesh stays on
+		// the canvas, so its coordinates carry by the delta between the OLD row in file a and the new
+		// layer: read the old row from file b instead and the carry would be zero.
+		val other = ArtSourceId("art-1")
+		val layer3 = TestLayer("lyid:3", "Three", 0, LayerBounds(50, 60, 4, 4), solidRaster(4, 4, 3))
+		val otherArt = TestArt(listOf(layer3))
+		val model = model().let { base -> base.copy(sources = base.sources + ArtSource(other, "b.psd", "/b.psd", "psd", SourceArtImport.inventoryOf(otherArt))) }
+		val target = SourceLayerRef(other, "lyid:3", true)
+		val plan = assertNotNull(ArtworkReloadPlanner.planMatches(model, other, otherArt, listOf(tile2 to "lyid:3"), options, oldRasterOf))
+		val replaced = plan.reload.replacedTiles.single()
+		assertEquals(tile2, replaced.oldId)
+		assertEquals(target, replaced.tile.source)
+		val carried = plan.reload.drawableMeshes.getValue(DrawableId("d2"))
+		assertContentEquals(floatArrayOf(-5f, -5f, -4.75f, -5f, -5f, -4.75f), carried.uvs, "carried by the old row's origin in file a")
+		assertEquals(other, plan.reload.source.id, "the target file's record is the one refreshed")
+		assertEquals(listOf("lyid:3"), plan.reload.source.layers.map { layer -> layer.key })
+		assertTrue(plan.reload.source.layers.single().present, "the new binding's row is present, not lost")
+	}
+
+	@Test
 	fun aLayerErasedToNothingLeavesItsTile() {
 		val erased = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), LayerRaster(4, 4, ByteArray(64)))
 		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(erased, layer2)), options, oldRasterOf))

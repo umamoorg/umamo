@@ -31,7 +31,7 @@ import kotlin.test.assertTrue
 
 /**
  * Match Automatically and Replace Artwork driven the way the shell drives them, over a document built
- * from in-memory art: a file whose layers came back under new keys, one recognisable by its pixels
+ * from in-memory art: a file whose layers came back under new keys, one recognizable by its pixels
  * and one only weakly, matched at the default bar as one step with the weak one left as a suggestion;
  * the strip's threshold re-landing the step with both; undo restoring; a same-format twin replacing
  * the record by key; a cross-format twin flagging every binding with suggestions that Match then
@@ -93,7 +93,7 @@ class MatchArtworkFlowTest {
 			assertTrue(eyeSuggestion.score < 0.7f, "below the bar: ${eyeSuggestion.score}")
 			assertTrue(eyeSuggestion.score >= 0.5f, "but not hopeless: ${eyeSuggestion.score}")
 			assertNotNull(eyeSuggestion.signals.pixels, "the pixels were compared")
-			assertEquals("change.document.matchArtwork", currentStepLabel(session), "one step, labelled as a match")
+			assertEquals("change.document.matchArtwork", currentStepLabel(session), "one step, labeled as a match")
 
 			// The strip's threshold row: lowering the bar re-lands the same step with both.
 			val record = assertNotNull(session.adjustableOperation.value, "the match registered on the strip")
@@ -115,6 +115,105 @@ class MatchArtworkFlowTest {
 			assertSame(before, session.model.value)
 			session.redo()
 			assertEquals(setOf("lyid:5", "lyid:6"), session.model.value.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }.toSet())
+			follower.cancel()
+		}
+
+	@Test
+	fun raisingTheThresholdPastTheMatchAmendsTheStepBackToTheBase() =
+		runBlocking {
+			// A rename at the same place with repainted pixels scores just under certain, so the strip's
+			// threshold can be raised past it.  Doing so must take the rebinding with it - the step amends
+			// back to the base and the proposal is published - so the strip and the document agree; a
+			// certain (hash-equal) match scores exactly 1 and survives any bar, which is right.
+			val repainted = InMemoryLayer("lyid:5", "Hair Front", 0, LayerBounds(10, 10, 8, 8), solidRaster(8, 8, 3))
+			val load = buildArtDocument(InMemoryArt(listOf(hair)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the match must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			var published: SourceSuggestions = emptyMap()
+
+			val request = MatchArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(repainted)), contentHash = "hash-v2")), threshold = 0.7f, options)
+			assertTrue(runMatchArtwork(host, request, areaId = null) { suggestions -> published = suggestions })
+			assertEquals(listOf("lyid:5"), session.model.value.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey })
+			assertTrue(published.isEmpty())
+			val record = assertNotNull(session.adjustableOperation.value)
+
+			val raised = record.parameters.map { parameter -> if (parameter.key == MatchParameterKeys.THRESHOLD && parameter is OperatorParameter.FloatParameter) parameter.copy(value = 100f) else parameter }
+			session.adjustLastOperation(raised)
+			withTimeout(120_000) {
+				while (session.model.value !== before) {
+					yield()
+				}
+			}
+			assertEquals(listOf("lyid:1"), session.model.value.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }, "the rebinding went with the bar")
+			val proposal = assertNotNull(published[sourceId to "lyid:1"], "the proposal is published for the review row")
+			assertEquals("lyid:5", proposal.key)
+			assertTrue(proposal.score < 1f && proposal.score >= 0.7f, "near certain, not certain: ${proposal.score}")
+			assertTrue(session.canUndo.value, "the step still stands, holding the base")
+			assertEquals("change.document.matchArtwork", currentStepLabel(session))
+
+			// And back down: the same record re-lands the rebinding.
+			val lowered = record.parameters.map { parameter -> if (parameter.key == MatchParameterKeys.THRESHOLD && parameter is OperatorParameter.FloatParameter) parameter.copy(value = 70f) else parameter }
+			session.adjustLastOperation(lowered)
+			withTimeout(120_000) {
+				while (session.model.value.atlas.tiles.any { tile -> tile.source?.layerKey == "lyid:1" }) {
+					yield()
+				}
+			}
+			assertTrue(published.isEmpty())
+			session.undo()
+			assertSame(before, session.model.value)
+			follower.cancel()
+		}
+
+	@Test
+	fun twoLostLayersPreferringOneCandidateSettleOnTheMoreConfidentAndKeepTheOther() =
+		runBlocking {
+			// Two layers with the same pixels come back as ONE layer under a new key: both hash-match it.
+			// One takes it; the other must stay a suggestion, counted as remaining, not vanish because its
+			// candidate was spoken for.
+			val front = InMemoryLayer("lyid:1", "Hair Front", 0, LayerBounds(10, 10, 8, 8), solidRaster(8, 8, 1))
+			val back = InMemoryLayer("lyid:2", "Hair Back", 1, LayerBounds(10, 30, 8, 8), front.raster)
+			val merged = InMemoryLayer("lyid:5", "Hair", 0, LayerBounds(10, 10, 8, 8), front.raster)
+			val load = buildArtDocument(InMemoryArt(listOf(front, back)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the match must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			var published: SourceSuggestions = emptyMap()
+
+			val request = MatchArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(merged)), contentHash = "hash-v2")), threshold = 0.7f, options)
+			assertTrue(runMatchArtwork(host, request, areaId = null) { suggestions -> published = suggestions })
+			val matched = session.model.value
+			assertEquals(setOf("lyid:5", "lyid:2"), matched.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }.toSet(), "one moved, one stayed")
+			val notice = assertNotNull(session.notice.value)
+			assertEquals("notice.match.done", notice.messageKey)
+			assertEquals(listOf("1", "1"), notice.arguments, "one matched, one remaining")
+			val leftover = assertNotNull(published[sourceId to "lyid:2"], "the loser keeps its proposal")
+			assertEquals("lyid:5", leftover.key)
+			assertTrue(leftover.signals.hashEqual)
 			follower.cancel()
 		}
 
