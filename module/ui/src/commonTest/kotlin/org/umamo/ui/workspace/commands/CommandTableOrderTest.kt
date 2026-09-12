@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
@@ -226,7 +227,10 @@ class CommandTableOrderTest {
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
-		assertEquals(listOf("file.addArtwork", "document.reloadArtwork", "sources.relink"), fileArtworkCommands(routing()) { null }.map { command -> command.id })
+		assertEquals(
+			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork"),
+			fileArtworkCommands(routing()) { null }.map { command -> command.id },
+		)
 	}
 
 	/**
@@ -256,18 +260,36 @@ class CommandTableOrderTest {
 		val add = commands.first { command -> command.id == "file.addArtwork" }
 		val reload = commands.first { command -> command.id == "document.reloadArtwork" }
 		val relink = commands.first { command -> command.id == "sources.relink" }
+		val match = commands.first { command -> command.id == "sources.matchAutomatically" }
+		val replace = commands.first { command -> command.id == "sources.replaceArtwork" }
 		assertFalse(add.availability.isAvailable(), "nothing to add with no document open")
 		assertFalse(reload.availability.isAvailable())
 		assertFalse(relink.availability.isAvailable())
+		assertFalse(match.availability.isAvailable())
+		assertFalse(replace.availability.isAvailable())
 		var landedArea: String? = "untouched"
 		var landedRequest: RelinkRequest? = null
+		var landedScope: ReloadScope? = null
+		var landedReplace: ReplaceRequest? = null
+		var matched = 0
 		var canReload = false
 		operations =
 			ArtworkOperations(
 				addArtwork = { areaId -> landedArea = areaId },
-				reloadArtwork = { areaId -> landedArea = areaId },
+				reloadArtwork = { areaId, reloadScope ->
+					landedArea = areaId
+					landedScope = reloadScope
+				},
 				relinkArtwork = { request, areaId ->
 					landedRequest = request
+					landedArea = areaId
+				},
+				matchArtwork = { areaId ->
+					matched++
+					landedArea = areaId
+				},
+				replaceArtwork = { request, areaId ->
+					landedReplace = request
 					landedArea = areaId
 				},
 				canReload = { canReload },
@@ -281,10 +303,23 @@ class CommandTableOrderTest {
 		landedArea = "untouched"
 		reload.handler.run(null)
 		assertEquals("area-7", landedArea)
+		assertEquals(null, landedScope, "a plain Reload covers every file")
+		val scoped = ReloadScope(setOf(ArtSourceId("art-0")))
+		reload.handler.run(scoped)
+		assertSame(scoped, landedScope, "the watcher's scope reaches the operation")
 		val request = RelinkRequest(AtlasTileId("t1"), null)
 		relink.handler.run(request)
 		assertSame(request, landedRequest, "the relink carries its request")
 		assertEquals("area-7", landedArea)
+		landedArea = "untouched"
+		match.handler.run(null)
+		assertEquals(1, matched)
+		assertEquals("area-7", landedArea, "the match lands its strip in the work surface too")
+		val replaceRequest = ReplaceRequest(ArtSourceId("art-0"))
+		replace.handler.run(replaceRequest)
+		assertSame(replaceRequest, landedReplace, "the replace carries its file")
+		replace.handler.run("not a request")
+		assertSame(replaceRequest, landedReplace, "a payload of the wrong shape is ignored")
 	}
 
 	/** The keyform-authoring table. */

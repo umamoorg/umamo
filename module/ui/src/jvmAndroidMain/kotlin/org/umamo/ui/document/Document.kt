@@ -7,6 +7,7 @@ import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.PuppetTextures
@@ -102,7 +103,7 @@ sealed interface DocumentLoad {
  * @param PlatformFile           file          The picked or reconstructed file handle.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with; ignored by
  *   the model formats.
- * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognised, or failed to parse).
+ * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognized, or failed to parse).
  */
 suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions()): DocumentLoad {
 	val bytes =
@@ -121,7 +122,7 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
  * [FormatRegistry], with a file-extension fallback on [name] - then building the matching document:
  * a `.cmo3` imports as the puppet it holds, a layered artwork file (PSD / CLIP / KRA) or a flat
  * raster (PNG / BMP / JPEG / WebP / TIFF) becomes a fresh rig through the artwork import, packed at
- * open.  Returns a [DocumentLoad.Failed] if the content is unrecognised, not openable in the editor
+ * open.  Returns a [DocumentLoad.Failed] if the content is unrecognized, not openable in the editor
  * shell, or fails to parse - failures are logged, never thrown, so the UI keeps the document it had.
  *
  * @param ByteArray              bytes         The file contents.
@@ -152,7 +153,7 @@ fun loadDocument(
 			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
-		buildArtDocument(artwork, codec.kind, name, path, importOptions)
+		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes))
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))

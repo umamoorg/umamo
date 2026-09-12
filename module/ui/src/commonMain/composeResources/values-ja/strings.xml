@@ -59,6 +59,8 @@
 	<string name="cmd_file_add_artwork">アートワークを追加…</string>
 	<string name="cmd_document_reload_artwork">アートワークを再読み込み</string>
 	<string name="cmd_sources_relink">アートを再リンク</string>
+	<string name="cmd_sources_match_automatically">アートワークを自動で照合</string>
+	<string name="cmd_sources_replace_artwork">アートワークを差し替え…</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
 	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
@@ -362,6 +364,8 @@
 	<string name="history_document_add_artwork">アートワークを追加</string>
 	<string name="history_document_reload_artwork">アートワークを再読み込み</string>
 	<string name="history_document_relink_artwork">アートを再リンク</string>
+	<string name="history_document_match_artwork">アートワークを照合</string>
+	<string name="history_document_replace_artwork">アートワークを差し替え</string>
 	<string name="history_document_runtime_target">ランタイムターゲットを設定</string>
 
 	<string name="outliner_root">人形</string>
@@ -370,6 +374,15 @@
 	<string name="outliner_filter_deformers">デフォーマ</string>
 	<string name="sources_add_artwork">アートワークを追加…</string>
 	<string name="sources_reload">アートワークファイルを再読み込み</string>
+	<string name="sources_reload_pending">アートワークファイルがディスク上で変更されています。再読み込みで反映します。</string>
+	<string name="sources_match_automatically">自動で照合：ファイルにレイヤーがなくなったアートを、最も近いレイヤーに再リンクします</string>
+	<string name="sources_file_menu">ファイルの操作</string>
+	<string name="sources_file_menu_replace">アートワークを差し替え…</string>
+	<string name="sources_file_menu_reload">このファイルを再読み込み</string>
+	<string name="sources_suggestion_title">このリンクを確認</string>
+	<string name="sources_suggestion_accept">%1$s を採用（%2$d%）</string>
+	<string name="sources_suggestion_relink">手動で再リンク…</string>
+	<string name="sources_suggestion_leave">今は保留</string>
 	<string name="sources_filter_all">すべて</string>
 	<string name="sources_filter_unbound">未リンク</string>
 	<string name="sources_filter_missing">見つからないファイル</string>
@@ -490,13 +503,19 @@
 	<string name="notice_import_artwork_added">アートワークを追加しました。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
 	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
-	<string name="notice_reload_done">アートワークを再読み込みしました。</string>
-	<string name="notice_reload_notes">注記付きでアートワークを再読み込みしました。ログを参照してください。</string>
-	<string name="notice_reload_outgrown">アートワークを再読み込みしました。一部のアートがメッシュの外に出ています。ログを参照してください。</string>
+	<string name="notice_reload_done">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加。</string>
+	<string name="notice_reload_notes">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件要確認。ログを参照してください。</string>
+	<string name="notice_reload_outgrown">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件要確認。一部のアートがメッシュの外に出ています。ログを参照してください。</string>
+	<string name="notice_watch_changed">%1$d 個のアートワークファイルがディスク上で変更されました。再読み込みで反映します。</string>
+	<string name="notice_watch_stale_at_open">%1$d 個のアートワークファイルが前回の読み込み後に変更されています。再読み込みで反映します。</string>
+	<string name="notice_watch_missing">%1$s は読み込んだ場所にありません。</string>
 	<string name="notice_reload_no_changes">アートワークファイルに変更はありません。</string>
 	<string name="notice_reload_no_files">読み込めるアートワークファイルがなく、何も再読み込みされませんでした。</string>
 	<string name="notice_relink_pulled">アートを再リンクして再読み込みしました。</string>
 	<string name="notice_relink_binding_only">アートを再リンクしましたが、ファイルを読み込めなかったためアートは変わっていません。</string>
+	<string name="notice_match_done">%1$d 件のレイヤーを照合、%2$d 件が要確認です。</string>
+	<string name="notice_match_nothing">十分な確度で照合できたリンクはありません。候補は要確認の行に表示されています。</string>
+	<string name="notice_replace_done">アートワークを差し替えました：%1$d 件をキーで再読み込み、%2$d 件が要確認です。</string>
 	<string name="notice_atlas_repack_superseded">再パックを中止しました: パック中にアトラスが変更されました。</string>
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
@@ -649,6 +668,7 @@
 	<string name="placement_options_scale_y">拡大縮小 Y</string>
 	<string name="import_options_alpha_threshold">アルファしきい値</string>
 	<string name="import_options_margin">初期メッシュの余白</string>
+	<string name="match_options_threshold">照合のしきい値</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>
@@ -732,6 +752,10 @@
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
 	<string name="settings_import_parameter_template">パラメータテンプレート</string>
+	<string name="settings_import_watch_mode">アートワークファイルの監視</string>
+	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
+	<string name="settings_import_watch_mode_notify">通知のみ</string>
+	<string name="settings_import_watch_mode_off">オフ</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->

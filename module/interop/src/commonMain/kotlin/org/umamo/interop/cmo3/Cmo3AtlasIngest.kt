@@ -46,8 +46,8 @@ import org.umamo.runtime.model.SourceLayerRef
  * @property Map         imageResourceByTile The graph resource holding each tile's pixels, for the
  *   document's pixel supplier - metadata ingest reads no bytes, so decoding stays the caller's.
  * @property List        sources             The layered images the editor imported, as the model's
- *   source list: identity, name, and the advisory PSD path, with NO layer inventory - the editor's
- *   decomposed layer tree is walked by a later phase.
+ *   source list: identity, name, the advisory PSD path, and the layer inventory walked from the
+ *   editor's decomposed layer tree ([walkLayeredImage]) - the same walk that mints each tile's binding.
  */
 public class Cmo3AtlasIngest(
 	public val atlas: PuppetAtlas,

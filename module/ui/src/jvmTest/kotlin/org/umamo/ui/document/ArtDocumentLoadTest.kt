@@ -1,6 +1,7 @@
 package org.umamo.ui.document
 
 import org.umamo.edit.seed.HumanoidParameters
+import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
@@ -48,6 +49,7 @@ class ArtDocumentLoadTest {
 		}
 
 		assertTrue(puppet.drawables.isNotEmpty(), "the PSD has layers to rig")
+		assertEquals(contentHashOf(file.readBytes()), puppet.sources.single().contentHash, "the source records the whole-file hash the watcher compares against")
 		assertEquals(HumanoidParameters.list, puppet.parameters, "the default template seeds the humanoid set")
 		assertTrue(puppet.rendersFromSourceLayers, "a fresh import shows the layers as drawn")
 		assertTrue(puppet.atlas.pages.isNotEmpty(), "the pack at open produced pages")

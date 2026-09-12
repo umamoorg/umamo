@@ -18,6 +18,7 @@ import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.FileSystem
@@ -25,8 +26,9 @@ import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.seed.ParameterTemplate
-import org.umamo.edit.setTileSource
+import org.umamo.edit.setTileSources
 import org.umamo.format.FileKind
+import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.ExportNotice
@@ -35,8 +37,18 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.interop.moc3.Moc3Sidecars
+import org.umamo.reimport.InventoryLayerMatcher
+import org.umamo.reimport.PollingSourceWatcher
+import org.umamo.reimport.SourceWatchCoordinator
+import org.umamo.reimport.SourceWatchEvent
+import org.umamo.reimport.WatchMode
+import org.umamo.reimport.WatchedReloadResult
+import org.umamo.reimport.WatchedSource
+import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.storage.FileKitFilePicker
 import org.umamo.storage.UmamoLog
+import org.umamo.storage.contentHashOfFile
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
@@ -51,6 +63,7 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
+import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
@@ -84,20 +97,32 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.LocalSourceFilePresence
+import org.umamo.ui.model.LocalSourceSuggestions
+import org.umamo.ui.model.LocalSourceWatch
+import org.umamo.ui.model.MatchArtworkRequest
 import org.umamo.ui.model.RelinkArtworkRequest
 import org.umamo.ui.model.ReloadArtworkRequest
+import org.umamo.ui.model.ReloadArtworkResult
 import org.umamo.ui.model.ReloadEntry
+import org.umamo.ui.model.ReplaceArtworkRequest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.SourceFilePresence
+import org.umamo.ui.model.SourceSuggestionState
+import org.umamo.ui.model.SourceSuggestions
+import org.umamo.ui.model.SourceWatchState
 import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.model.runAddArtwork
+import org.umamo.ui.model.runMatchArtwork
 import org.umamo.ui.model.runRelinkArtwork
 import org.umamo.ui.model.runReloadArtwork
+import org.umamo.ui.model.runReplaceArtwork
+import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
+import org.umamo.ui.settings.IMPORT_WATCH_MODE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
@@ -108,6 +133,8 @@ import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.RelinkRequest
+import org.umamo.ui.workspace.commands.ReloadScope
+import org.umamo.ui.workspace.commands.ReplaceRequest
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
 import org.umamo.ui.workspace.commands.logCommands
@@ -308,84 +335,240 @@ fun EditorApp(
 			rememberOptions = { _, _ -> },
 		)
 
+	// Picks an artwork file and reads it, describing it the way the document records a file.  A file
+	// that will not read raises the same alert an open would, and null comes back.
+	suspend fun pickArtwork(): PickedArtwork? {
+		val picked = filePicker.openFile(artworkImportExtensions) ?: return null
+		val bytes =
+			runCatching { picked.readBytes() }.getOrElse { failure ->
+				UmamoLog.error("failed to read ${picked.name}", failure)
+				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
+				return null
+			}
+		val read =
+			readArtwork(bytes, picked.name) ?: run {
+				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
+				return null
+			}
+		return PickedArtwork(read, ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash))
+	}
+
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
-	// dirty confirm, unlike the import.  A file that will not read raises the same alert an open would.
-	// The area is the one the command fired over, resolved by the shell before the picker opens; it is
-	// where the operation strip shows once the add lands.
+	// dirty confirm, unlike the import.  The area is the one the command fired over, resolved by the
+	// shell before the picker opens; it is where the operation strip shows once the add lands.
 	fun addArtworkViaPicker(areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
-			val picked = filePicker.openFile(artworkImportExtensions) ?: return@launch
-			val bytes =
-				runCatching { picked.readBytes() }.getOrElse { failure ->
-					UmamoLog.error("failed to read ${picked.name}", failure)
-					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
-					return@launch
-				}
-			val read =
-				readArtwork(bytes, picked.name) ?: run {
-					commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
-					return@launch
-				}
-			val descriptor = ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension)
-			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(read.art, descriptor, artworkImportOptions()), areaId)
+			val picked = pickArtwork() ?: return@launch
+			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(picked.read.art, picked.descriptor, artworkImportOptions()), areaId)
 		}
 	}
 
-	// Reloads every listed artwork file that is present on disk: a file that cannot be read is logged
-	// and skipped, and the reload of the rest lands as one undo step.  Desktop paths only for now - a
-	// platform uri cannot be re-read here, so a document opened through one reloads nothing.
-	fun reloadArtworkFromDisk(areaId: String?) {
+	// The suggestions the last operation that read a file scored for its unresolved bindings, for the
+	// Sources space's review chips.  An operation replaces what stands for the files it read and leaves
+	// the rest; a document swap starts empty.
+	val sourceSuggestions = remember(document, session) { MutableStateFlow<SourceSuggestions>(emptyMap()) }
+
+	// Publishes what one operation scored: the files it read take its proposals (an empty map for a
+	// file it read and found nothing for), every other file keeps whatever was published last.
+	fun publishSuggestions(covered: Set<ArtSourceId>, suggestions: SourceSuggestions) {
+		sourceSuggestions.value = sourceSuggestions.value.filterKeys { (sourceId, _) -> sourceId !in covered } + suggestions
+	}
+
+	// One listed file's art the way every operation over it reads it: from disk when the file is there
+	// and reads, else - for a CMO3-origin document - from the layer PNGs the official editor decomposed
+	// into the CMO3 at import, whether the file is gone or is one our reader refuses; null when neither
+	// can be read.
+	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
+		val path = source.path
+		if (path != null && sourceFilePresence(path) == true) {
+			val read = readArtworkAt(path)
+			if (read != null) {
+				return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+			}
+			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")
+		}
+		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
+		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
+		val art = withContext(Dispatchers.Default) { cmo3SourceArtOf(root, source.id) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } } ?: return null
+		return SourceRead(art, contentHash = null, fromCmo3 = true)
+	}
+
+	// The document's artwork watcher: one per open puppet document, over the composable's own scope
+	// (its dispatcher confines the coordinator's state), closed when the document goes.  The mode is
+	// read live from settings at every decision, so the Import setting applies at once.
+	val documentWatch: DocumentWatch? =
+		remember(document, session) {
+			val activeSession = session
+			if (document is PuppetDocument && activeSession != null) {
+				val watcher = PollingSourceWatcher(scope, FileSystem.SYSTEM, statContext = Dispatchers.IO)
+				DocumentWatch(
+					watcher,
+					SourceWatchCoordinator(
+						scope = scope,
+						watcher = watcher,
+						hashOf = { path -> withContext(Dispatchers.IO) { contentHashOfFile(FileSystem.SYSTEM, path.toPath()) } },
+						exists = { path -> sourceFilePresence(path) },
+						isIdle = { activeSession.isQuiescent },
+						mode = { WatchMode.fromKey(settings.getString(IMPORT_WATCH_MODE_KEY)) },
+					),
+				)
+			} else {
+				null
+			}
+		}
+	DisposableEffect(documentWatch) {
+		onDispose { documentWatch?.close() }
+	}
+
+	// Reloads the listed artwork files that are present on disk - those the scope names, or every one -
+	// as one undo step; a file that cannot be read is logged and skipped.  Real file-system paths only:
+	// a platform uri (an Android SAF handle) has no reader here, so a document opened through one
+	// reloads nothing.  The watcher hears how it ended, so it knows whether to wait for the model's new
+	// hashes, try again, or let go.
+	fun reloadArtworkFromDisk(areaId: String?, reloadScope: ReloadScope?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
 			val entries = ArrayList<ReloadEntry>()
+			val covered = LinkedHashSet<ArtSourceId>()
 			for (source in activeSession.model.value.sources) {
+				if (reloadScope != null && source.id !in reloadScope.sourceIds) {
+					continue
+				}
 				val path = source.path ?: continue
 				if (sourceFilePresence(path) != true) {
 					continue
 				}
+				covered.add(source.id)
 				val read = readArtworkAt(path)
 				if (read == null) {
 					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
 					continue
 				}
-				entries.add(ReloadEntry(source.id, read.art))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				documentWatch?.coordinator?.reloadFinished(covered, WatchedReloadResult.Abandoned)
 				return@launch
 			}
-			runReloadArtwork(artworkHostFor(puppetDocument, activeSession), ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			val host = artworkHostFor(puppetDocument, activeSession)
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
+			if (result == ReloadArtworkResult.Applied || result == ReloadArtworkResult.NothingChanged) {
+				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
+			}
+			documentWatch?.coordinator?.reloadFinished(
+				entries.mapTo(LinkedHashSet()) { entry -> entry.sourceId },
+				when (result) {
+					ReloadArtworkResult.Applied -> WatchedReloadResult.Applied
+					ReloadArtworkResult.NothingChanged -> WatchedReloadResult.NothingChanged
+					ReloadArtworkResult.Superseded -> WatchedReloadResult.Superseded
+					ReloadArtworkResult.Refused -> WatchedReloadResult.Abandoned
+				},
+			)
 		}
 	}
 
-	// Rebinds a tile: an unbind is the plain binding edit; a binding to a layer pulls the layer's art
-	// in when its file is on disk - or, for a CMO3-origin document whose file is not, from the layer
-	// PNGs the official editor decomposed into the CMO3 at import - and changes the binding alone
-	// when neither can be read.
+	// The watcher follows the model's source list (and the watch-mode setting), and its events land
+	// on the session: a due reload goes THROUGH the command registry, so the strip shows in the last
+	// work surface exactly as a pressed Reload does; the rest are notices.
+	LaunchedEffect(documentWatch, session) {
+		val watch = documentWatch ?: return@LaunchedEffect
+		val activeSession = session ?: return@LaunchedEffect
+
+		fun trackCurrentSources() {
+			watch.coordinator.track(
+				activeSession.model.value.sources.mapNotNull { source ->
+					val path = source.path?.takeIf { candidate -> !candidate.contains("://") } ?: return@mapNotNull null
+					WatchedSource(source.id, path, source.contentHash)
+				},
+			)
+		}
+		launch { activeSession.model.collect { trackCurrentSources() } }
+		launch {
+			settings.changes.collect { changedKey ->
+				if (changedKey == IMPORT_WATCH_MODE_KEY) {
+					trackCurrentSources()
+				}
+			}
+		}
+		watch.coordinator.events.collect { event ->
+			when (event) {
+				is SourceWatchEvent.ReloadDue -> commandRegistry.invoke("document.reloadArtwork", ReloadScope(event.sourceIds))
+				is SourceWatchEvent.ChangedOnDisk ->
+					activeSession.emitNotice("notice.watch.changed", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
+				is SourceWatchEvent.StaleAtOpen ->
+					activeSession.emitNotice("notice.watch.staleAtOpen", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
+				is SourceWatchEvent.Missing -> {
+					val name = activeSession.model.value.sources.firstOrNull { source -> source.id == event.sourceId }?.name ?: event.sourceId.raw
+					UmamoLog.warn("watch artwork: '$name' is no longer where the document read it")
+					activeSession.emitNotice("notice.watch.missing", NoticePlacement.StatusBar, listOf(name))
+				}
+			}
+		}
+	}
+
+	// Rebinds one or more tiles as one step: an unbind is the plain binding edit; a binding to a layer
+	// pulls the layer's art in when its file is on disk - or, for a CMO3-origin document whose file is
+	// not, from the layer PNGs the official editor decomposed into the CMO3 at import - and changes
+	// the bindings alone when neither can be read.
 	fun relinkArtwork(request: RelinkRequest, areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		val ref = request.ref
 		if (ref == null) {
-			activeSession.setTileSource(request.tileId, null)
+			activeSession.setTileSources(request.tileIds, null)
 			return
 		}
 		scope.launch {
-			val path = activeSession.model.value.sources.firstOrNull { source -> source.id == ref.sourceId }?.path
-			val read = if (path != null && sourceFilePresence(path) == true) readArtworkAt(path) else null
-			val art =
-				read?.art
-					?: (puppetDocument as? Cmo3Document)?.let { cmo3Document ->
-						val root = cmo3Document.cmo3.root as? CModelSource ?: return@let null
-						withContext(Dispatchers.Default) { cmo3SourceArtOf(root, ref.sourceId) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } }
-					}
-			if (read == null && art != null) {
-				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file is not on this machine")
+			val source = activeSession.model.value.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
+			val read = source?.let { listed -> readSourceArt(puppetDocument, listed) }
+			if (read?.fromCmo3 == true) {
+				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
 			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileId, ref, art, artworkImportOptions()), areaId)
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions()), areaId)
+		}
+	}
+
+	// Reads every listed file it can and rebinds the bindings the files no longer resolve to the layers
+	// the matcher is confident about, as one undo step with the threshold on the strip; what it is not
+	// sure about it publishes as suggestions for the rows that need review.
+	fun matchArtwork(areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val entries = ArrayList<ReloadEntry>()
+			for (source in activeSession.model.value.sources) {
+				val read = readSourceArt(puppetDocument, source) ?: continue
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+			}
+			if (entries.isEmpty()) {
+				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				return@launch
+			}
+			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
+			runMatchArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions()),
+				areaId,
+			) { suggestions -> publishSuggestions(covered, suggestions) }
+		}
+	}
+
+	// Repoints one listed file at another the person picks: what the new file resolves by key reloads,
+	// the rest is flagged for review with suggestions scored against the new file's layers.
+	fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
+		val puppetDocument = document as? PuppetDocument ?: return
+		val activeSession = session ?: return
+		scope.launch {
+			val picked = pickArtwork() ?: return@launch
+			runReplaceArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions()),
+				areaId,
+			) { suggestions -> publishSuggestions(setOf(request.sourceId), suggestions) }
 		}
 	}
 
@@ -394,8 +577,10 @@ fun EditorApp(
 	val artworkOperations =
 		ArtworkOperations(
 			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
-			reloadArtwork = { areaId -> reloadArtworkFromDisk(areaId) },
+			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
+			matchArtwork = { areaId -> matchArtwork(areaId) },
+			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 
@@ -677,7 +862,50 @@ fun EditorApp(
 		appMenu = appMenu,
 		viewportServiceFactory = viewportServiceFactory,
 		artwork = artworkOperations,
+		sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
+		sourceSuggestions = SourceSuggestionState(sourceSuggestions),
 	)
+}
+
+/**
+ * An artwork file as picked and read for an add or a replace.
+ *
+ * @property ReadArtwork         read       The parsed art, its format, and its content hash.
+ * @property ArtSourceDescriptor descriptor The file's name, path, format, and hash as the document records them.
+ */
+private class PickedArtwork(
+	val read: ReadArtwork,
+	val descriptor: ArtSourceDescriptor,
+)
+
+/**
+ * One listed file's art as an operation read it.
+ *
+ * @property SourceArt art         The art.
+ * @property String?   contentHash The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
+ * @property Boolean   fromCmo3    Whether it was read from the CMO3's decomposed layer images rather than the file.
+ */
+private class SourceRead(
+	val art: SourceArt,
+	val contentHash: String?,
+	val fromCmo3: Boolean,
+)
+
+/**
+ * One open document's artwork watcher: the platform watcher and the policy over it, closed together.
+ *
+ * @property PollingSourceWatcher   watcher     The file poller.
+ * @property SourceWatchCoordinator coordinator The settle-hash-idle policy the app's events come from.
+ */
+private class DocumentWatch(
+	val watcher: PollingSourceWatcher,
+	val coordinator: SourceWatchCoordinator,
+) {
+	/** Stops the policy and the watcher. */
+	fun close() {
+		coordinator.close()
+		watcher.close()
+	}
 }
 
 /**
@@ -807,6 +1035,8 @@ private fun describeExportNotice(notice: ExportNotice): String =
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
  * @param ArtworkOperations artwork The app's artwork orchestrations over the hovered area, handed to
  *   the shell for a puppet document only (the shell registers the commands; see fileArtworkCommands).
+ * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
+ * @param SourceSuggestionState sourceSuggestions The published relink suggestions for the Sources space's review chips.
  */
 @Composable
 private fun DocumentViewport(
@@ -817,6 +1047,8 @@ private fun DocumentViewport(
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	artwork: ArtworkOperations,
+	sourceWatch: SourceWatchState?,
+	sourceSuggestions: SourceSuggestionState,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -872,6 +1104,8 @@ private fun DocumentViewport(
 					LocalSessionAtlasPages provides sessionAtlasPages,
 					LocalSourceArtRasters provides document.artRasters,
 					LocalSourceFilePresence provides sourceFilePresence,
+					LocalSourceWatch provides sourceWatch,
+					LocalSourceSuggestions provides sourceSuggestions,
 					LocalPuppetRenderSync provides viewport?.renderSync,
 					LocalPuppetViewportService provides viewport?.service,
 					LocalSelection provides editorState,

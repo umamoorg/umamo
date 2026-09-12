@@ -6,6 +6,7 @@ import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.ui.model.percentOf
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.umamoDarkColors
@@ -120,5 +121,22 @@ class SourcesSpaceTest {
 		assertEquals(listOf("Extra parts.psd"), byFile.map { group -> group.source.name })
 		assertEquals(listOf("Background"), byFile[0].layers.map { layer -> layer.name }, "a file-name match keeps every layer of that file")
 		assertTrue(relinkGroups(sources, "nothing here").isEmpty())
+	}
+
+	/** A row the file lost is kept for review, never offered as a relink target. */
+	@Test
+	fun lostRowsAreNeverRelinkTargets() {
+		val sources = listOf(ArtSource(artA, "a.psd", null, "psd", listOf(layer("lyid:1", "Hair"), layer("lyid:2", "Old hair").copy(present = false))))
+		assertEquals(listOf("Hair"), relinkGroups(sources, "").single().layers.map { layer -> layer.name })
+		assertTrue(relinkGroups(sources, "old").isEmpty())
+	}
+
+	/** The chip's confidence is a whole percentage, rounded, never past the ends. */
+	@Test
+	fun suggestionScoresReadAsWholePercentages() {
+		assertEquals(92, percentOf(0.924f))
+		assertEquals(93, percentOf(0.925f))
+		assertEquals(100, percentOf(1.2f))
+		assertEquals(0, percentOf(-0.1f))
 	}
 }

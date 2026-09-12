@@ -1382,4 +1382,28 @@ class EditorSessionTest {
 			return if (session.historyView.value.cursor == before) null else Unit
 		}
 	}
+
+	/**
+	 * The idle gate a watched-file reload waits behind: every latch that means a hand is mid-gesture
+	 * closes it, and releasing the latch opens it again.
+	 */
+	@Test
+	fun quiescenceFollowsEveryLatch() {
+		val session = EditorSession(model())
+		assertTrue(session.isQuiescent, "a fresh session is idle")
+		session.setViewportGestureActive(true)
+		assertFalse(session.isQuiescent, "a viewport drag")
+		session.setViewportGestureActive(false)
+		assertTrue(session.isQuiescent)
+		session.setPreviewSelection(emptySet())
+		assertFalse(session.isQuiescent, "a circle stroke")
+		session.setPreviewSelection(null)
+		assertTrue(session.isQuiescent)
+		session.openPieMenu(PieMenuKind.Snap)
+		assertFalse(session.isQuiescent, "an open pie menu")
+		session.closePieMenu()
+		assertTrue(session.isQuiescent)
+		session.emitNotice("notice.test", NoticePlacement.StatusBar, listOf("7"))
+		assertEquals(listOf("7"), session.notice.value?.arguments, "a notice carries its arguments")
+	}
 }

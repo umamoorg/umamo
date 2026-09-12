@@ -105,5 +105,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.document.addArtwork" -> stringResource(Res.string.history_document_add_artwork)
 		"change.document.reloadArtwork" -> stringResource(Res.string.history_document_reload_artwork)
 		"change.document.relinkArtwork" -> stringResource(Res.string.history_document_relink_artwork)
+		"change.document.matchArtwork" -> stringResource(Res.string.history_document_match_artwork)
+		"change.document.replaceArtwork" -> stringResource(Res.string.history_document_replace_artwork)
 		else -> stringResource(Res.string.history_unknown)
 	}

@@ -70,6 +70,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 
+## Sources Space
+* Improvements
+	* Hover to show thumbnail of layer, reuse thumbnailer.
+
 ## Texture Authoring/UV Editor
 * We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
 * Follow Selection Header Control - Split it into options and images.
@@ -88,6 +92,8 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
+	* Deleting a drawable leaves the UV Editor in a bad state just saying "UV Editor" as a placeholder since nothing is selected anymore.
+		* Delete the placeholder.(I hate these!)
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.
@@ -388,8 +394,13 @@ is still ahead.
 	F1 BUILT (2026-09-08): Reload by key - the Sources header's Reload re-reads every present file and
 	lands the changed layers as one strip-adjustable step (a reloaded tile is a NEW tile, `<root>~<n>`,
 	so undo shows the old art by snapshot), and a relink pulls the layer's art at once when the file is
-	present.  NEXT: D as the mesh command, or F2 (watcher), then F3 (fuzzy match + review chips).  See
-	docs/plan/art-sourcing-pipeline.md Phase F § What shipped.
+	present.  F2 BUILT (2026-09-09): the watcher - `PollingSourceWatcher` (okio, commonMain),
+	`SourceWatchCoordinator` (settle, SHA-256 hash against `ArtSource.contentHash`, the idle gate),
+	`import.watchMode` auto / notify / off, stale-at-open notice, the header's alert glyph.  F3 BUILT
+	(2026-09-09): the inventory matcher (name / path / bounds / size / per-layer hash / pixels), lost rows
+	kept for review with suggestion chips, Match Automatically with the threshold on the strip, Replace
+	Artwork on the file row (chip + context menu).  PHASE F COMPLETE.  NEXT: D as the mesh command, then G
+	and H.  See docs/plan/art-sourcing-pipeline.md Phase F.
 9. Native UMA format. See § Format / UMA. The source-agnostic container storing decoupled geometry + UVs +
 	source art with stable layer identity — the format that preserves the decoupling CMO3 fights against.
 

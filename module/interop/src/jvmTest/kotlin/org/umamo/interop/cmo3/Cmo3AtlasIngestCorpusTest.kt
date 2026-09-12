@@ -383,9 +383,9 @@ class Cmo3AtlasIngestCorpusTest {
 
 	/**
 	 * Every CMO3-origin tile that recovers a source binding names one of the layered images the texture
-	 * manager lists, keyed by layer name and marked unstable: the editor's decomposed layer tree mints
-	 * no id, so a name is all a CMO3 can offer, and the model must say so rather than pass it off as a
-	 * stable key.
+	 * manager lists, keyed the way the inventory walk keys the decomposed tree: by the Photoshop layer
+	 * id the editor recorded ("lyid:", stable unless suffixed for a duplicate), else by name ("name:",
+	 * never stable) - and the model must say which, rather than pass a name off as a stable key.
 	 */
 	@Test
 	fun corpusTilesBindToTheLayeredImagesTheEditorDecomposed() {
@@ -412,7 +412,7 @@ class Cmo3AtlasIngestCorpusTest {
 			}
 			assertTrue(bound > 0, "${file.name}: at least one tile recovers its source layer")
 			// The inventory walk lists the decomposed layer tree, and every binding names one of its rows
-			// under the same name key - the Sources space shows a stray binding otherwise.
+			// under the same key - the Sources space shows a stray binding otherwise.
 			val inventoryKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { layer -> layer.key } }
 			assertTrue(puppet.sources.any { source -> source.layers.isNotEmpty() }, "${file.name}: the layered images list their layers")
 			for (source in puppet.sources) {

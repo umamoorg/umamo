@@ -77,6 +77,8 @@
 	<string name="cmd_file_add_artwork">Add Artwork…</string>
 	<string name="cmd_document_reload_artwork">Reload Artwork</string>
 	<string name="cmd_sources_relink">Relink Art</string>
+	<string name="cmd_sources_match_automatically">Match Artwork Automatically</string>
+	<string name="cmd_sources_replace_artwork">Replace Artwork…</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
@@ -400,6 +402,8 @@
 	<string name="history_document_add_artwork">Add Artwork</string>
 	<string name="history_document_reload_artwork">Reload Artwork</string>
 	<string name="history_document_relink_artwork">Relink Art</string>
+	<string name="history_document_match_artwork">Match Artwork</string>
+	<string name="history_document_replace_artwork">Replace Artwork</string>
 	<string name="history_document_runtime_target">Set Runtime Target</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
@@ -409,7 +413,16 @@
 	<string name="outliner_filter_parts">Parts</string>
 	<string name="outliner_filter_deformers">Deformers</string>
 	<string name="sources_add_artwork">Add Artwork…</string>
-	<string name="sources_reload">Reload artwork files</string>
+	<string name="sources_reload">Reload Artwork Files</string>
+	<string name="sources_reload_pending">Artwork files changed on disk.  Reload to take the changes.</string>
+	<string name="sources_match_automatically">Match Automatically: rebind the art whose layers the files no longer have to their best matches</string>
+	<string name="sources_file_menu">File actions</string>
+	<string name="sources_file_menu_replace">Replace Artwork…</string>
+	<string name="sources_file_menu_reload">Reload This File</string>
+	<string name="sources_suggestion_title">Review this binding</string>
+	<string name="sources_suggestion_accept">Accept %1$s (%2$d%)</string>
+	<string name="sources_suggestion_relink">Relink by hand…</string>
+	<string name="sources_suggestion_leave">Leave for now</string>
 	<string name="sources_filter_all">All</string>
 	<string name="sources_filter_unbound">Unbound</string>
 	<string name="sources_filter_missing">Missing Files</string>
@@ -537,13 +550,19 @@
 	<string name="notice_import_artwork_added">Artwork added.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
-	<string name="notice_reload_done">Artwork reloaded.</string>
-	<string name="notice_reload_notes">Artwork reloaded with notes.  See the log.</string>
-	<string name="notice_reload_outgrown">Artwork reloaded; some art now reaches past its mesh.  See the log.</string>
+	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added.</string>
+	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d need review.  See the log.</string>
+	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d need review; some art now reaches past its mesh.  See the log.</string>
+	<string name="notice_watch_changed">%1$d artwork file(s) changed on disk.  Press Reload to take the changes.</string>
+	<string name="notice_watch_stale_at_open">%1$d artwork file(s) changed since they were last read.  Press Reload to take the changes.</string>
+	<string name="notice_watch_missing">%1$s is no longer where the document read it.</string>
 	<string name="notice_reload_no_changes">The artwork file(s) have not changed.</string>
 	<string name="notice_reload_no_files">No artwork file could be read; nothing was reloaded.</string>
 	<string name="notice_relink_pulled">Art relinked and reloaded.</string>
 	<string name="notice_relink_binding_only">Art relinked; its file could not be read, so the art did not change.</string>
+	<string name="notice_match_done">%1$d layer(s) matched, %2$d left for review.</string>
+	<string name="notice_match_nothing">No binding matched confidently enough; the suggestions are on the rows that need review.</string>
+	<string name="notice_replace_done">Artwork replaced: %1$d layer(s) reloaded by key, %2$d left for review.</string>
 	<string name="notice_atlas_repack_superseded">Repack canceled: the atlas changed while packing.</string>
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
@@ -705,6 +724,7 @@
 	<string name="placement_options_scale_y">Scale Y</string>
 	<string name="import_options_alpha_threshold">Alpha Threshold</string>
 	<string name="import_options_margin">Birth Mesh Margin</string>
+	<string name="match_options_threshold">Match Threshold</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
@@ -791,6 +811,10 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>
+	<string name="settings_import_watch_mode">Watch Artwork Files</string>
+	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
+	<string name="settings_import_watch_mode_notify">Notify Only</string>
+	<string name="settings_import_watch_mode_off">Off</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->

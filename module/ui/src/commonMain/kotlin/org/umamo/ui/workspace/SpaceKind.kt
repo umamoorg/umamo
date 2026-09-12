@@ -31,7 +31,7 @@ enum class SpaceKind(val key: String) {
 
 	/**
 	 * The source-art linking table: each artwork file, its layers, the tiles bound to them, and the
-	 * drawables over each tile - where art is added to a document, relinked, and (later) reconciled.
+	 * drawables over each tile - where art is added to a document, reloaded, relinked, and matched.
 	 */
 	Sources("sources"),
 
