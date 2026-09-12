@@ -416,7 +416,7 @@
 	<string name="sources_reload">Reload Artwork Files</string>
 	<string name="sources_reload_pending">Artwork files changed on disk.  Reload to take the changes.</string>
 	<string name="sources_match_automatically">Match Automatically: rebind the art whose layers the files no longer have to their best matches</string>
-	<string name="sources_file_menu">File actions</string>
+	<string name="sources_file_menu">File Actions</string>
 	<string name="sources_file_menu_replace">Replace Artwork…</string>
 	<string name="sources_file_menu_reload">Reload This File</string>
 	<string name="sources_suggestion_title">Review this binding</string>
