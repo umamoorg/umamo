@@ -216,10 +216,18 @@ fun EditorShell(
 	// and unregistration can never drift apart.
 	//
 	// ONE routing seam serves every group, remembered for the shell's lifetime.  It closes over nothing but
-	// the tracker (itself remembered for the same lifetime), so it cannot go stale across a document swap
-	// and the groups that must NOT re-register on one can hold it safely.
+	// the tracker and the layout controller (both remembered for the same lifetime, and both read live at
+	// dispatch), so it cannot go stale across a document swap and the groups that must NOT re-register on
+	// one can hold it safely.
 	val service = LocalPuppetViewportService.current
-	val routing = remember { CommandRouting({ hoveredSurfaces.lastTouched }, { hoveredSurfaces.lastTouchedStripHost }) }
+	val routing =
+		remember {
+			CommandRouting(
+				{ hoveredSurfaces.lastTouched },
+				{ hoveredSurfaces.lastTouchedStripHost },
+				{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
+			)
+		}
 	DisposableEffect(commandRegistry, dragController) {
 		val cleanup =
 			commandRegistry.registerAll(

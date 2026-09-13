@@ -127,10 +127,10 @@ internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Comp
 }
 
 /**
- * Whether the shell's own strip shows a record: one that names no area (no work surface had been
- * touched), or one whose named area cannot show it now - the area was switched to a panel or closed
- * after the operation ran.  Every record shows exactly once: the area's host takes a record whose area
- * still hosts a strip, and the shell takes every other.
+ * Whether the shell's own strip shows a record: one that names no area (the workspace had no work
+ * surface to name), or one whose named area cannot show it now - the area was switched to a panel or
+ * closed after the operation ran.  Every record shows exactly once: the area's host takes a record whose
+ * area still hosts a strip, and the shell takes every other.
  *
  * @param String?  areaId  The area the record names, or null.
  * @param Function spaceOf The space the live area tree hosts at an id, or null for an id it lacks.
@@ -140,10 +140,10 @@ internal fun shellShowsStrip(areaId: String?, spaceOf: (String) -> SpaceKind?): 
 	areaId == null || spaceOf(areaId)?.hostsOperationStrip != true
 
 /**
- * The strip for an operation the area tree cannot show: it ran with no work surface to show in (the
- * pointer had touched no 2D viewport or UV editor yet), or the area it named has since been switched to
- * a panel or closed.  The shell mounts it above the status bar.  Draws nothing while the adjustable
- * operation names an area that still hosts a strip (that area's host shows it) or while there is none.
+ * The strip for an operation the area tree cannot show: it ran in a workspace with no 2D viewport or UV
+ * editor at all, or the area it named has since been switched to a panel or closed.  The shell mounts it
+ * above the status bar.  Draws nothing while the adjustable operation names an area that still hosts a
+ * strip (that area's host shows it) or while there is none.
  *
  * @param Function spaceOf  The space the live area tree hosts at an id, or null for an id it lacks.
  * @param Modifier modifier The layout modifier.

@@ -33,6 +33,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
+* Dirty state handling: Not all instances of dirty are handled.  For example, I can close the application without it asking to save a dirty document.
 
 ## UI - Dialogs
 * The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved

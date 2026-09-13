@@ -33,7 +33,8 @@ class CommandRoutingTest {
 
 	/**
 	 * The strip placement rule: a hovered work surface wins, a hovered panel yields to the last work
-	 * surface touched, and with neither the strip has no area (the shell shows it).
+	 * surface touched, an untouched shell yields to the workspace's first work surface, and with none of
+	 * those the strip has no area (the shell shows it).
 	 */
 	@Test
 	fun theOperationStripGoesToAWorkSurfaceOrNowhere() {
@@ -43,7 +44,20 @@ class CommandRoutingTest {
 		assertEquals(uvArea, CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { lastWorkSurface }).operationStripArea(), "a panel yields to the last work surface")
 		assertEquals(uvArea, CommandRouting({ null }, { lastWorkSurface }).operationStripArea(), "no pointer at all still finds the last work surface")
 		assertNull(CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { null }).operationStripArea(), "never a panel")
-		assertNull(routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).operationStripArea(), "the default remembers no work surface")
+		assertNull(routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)).operationStripArea(), "the default remembers no work surface and knows no workspace")
+
+		// A fresh shell: the pointer went straight from the file picker to a panel, so no work surface was
+		// ever touched, and the workspace's first one takes the strip - a hovered or remembered one still wins.
+		val untouched = CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { null }, { viewportArea })
+		assertEquals(viewportArea, untouched.operationStripArea(), "an untouched shell yields to the workspace's first work surface")
+		assertEquals(uvArea, CommandRouting({ null }, { lastWorkSurface }, { viewportArea }).operationStripArea(), "the last touched still outranks the workspace default")
+		assertEquals(uvArea, CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { null }, { viewportArea }).operationStripArea(), "and so does the hovered one")
+		assertNull(CommandRouting({ null }, { null }, { null }).operationStripArea(), "a workspace of panels alone leaves the shell's strip")
+		var workspaceDefault: String? = null
+		val live = CommandRouting({ null }, { null }, { workspaceDefault })
+		assertNull(live.operationStripArea())
+		workspaceDefault = viewportArea
+		assertEquals(viewportArea, live.operationStripArea(), "the workspace default is read per call, so a workspace switch is seen")
 	}
 
 	private fun meshDrawable(): Drawable =

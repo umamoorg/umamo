@@ -364,4 +364,24 @@ class WorkspaceModelTest {
 		assertTrue(shellShowsStrip("panel", spaceOf), "an area switched to a panel cannot, so the shell does")
 		assertTrue(shellShowsStrip("gone", spaceOf), "a closed area cannot either")
 	}
+
+	/**
+	 * The first leaf in tree order is the workspace's default strip host: a split's first child before its
+	 * second, however deep, and null when no leaf qualifies.
+	 */
+	@Test
+	fun theFirstQualifyingLeafFollowsTreeOrder() {
+		val root =
+			SplitNode(
+				SplitOrientation.Horizontal,
+				0.5f,
+				SplitNode(SplitOrientation.Vertical, 0.5f, LeafArea("sources", SpaceKind.Sources), LeafArea("uv", SpaceKind.UvEditor)),
+				LeafArea("view", SpaceKind.Viewport2D),
+			)
+		assertEquals("uv", root.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id, "the first work surface, reading the tree first-child first")
+		assertEquals("view", root.firstLeafOrNull { leaf -> leaf.space == SpaceKind.Viewport2D }?.id)
+		assertNull(root.firstLeafOrNull { leaf -> leaf.space == SpaceKind.Logs })
+		val panelsOnly = SplitNode(SplitOrientation.Vertical, 0.5f, LeafArea("outliner", SpaceKind.Outliner), LeafArea("logs", SpaceKind.Logs))
+		assertNull(panelsOnly.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }, "a workspace of panels alone has no strip host")
+	}
 }
