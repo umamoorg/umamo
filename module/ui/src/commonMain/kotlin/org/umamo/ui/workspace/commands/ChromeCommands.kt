@@ -3,10 +3,10 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.AreaDragController
-import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SplitterDragCancelController
 import org.umamo.ui.workspace.WorkspaceLayoutController
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 
 /**
  * The shell-chrome commands: overlay toggles (palette, preferences, Help), the drag cancels, and

@@ -28,6 +28,10 @@ package org.umamo.runtime.model
  * @property String?              contentHash The whole-file content hash (SHA-256 hex) of the bytes the
  *   document last read for this file, or null when it never read bytes (a CMO3-origin source).  What
  *   the watcher compares a save against, so an unchanged file is never re-read.
+ * @property Long?                lastModified The file's modification time (epoch milliseconds) when the
+ *   document last read it - or, for a CMO3-origin source, when the official editor did - or null when
+ *   neither is known.  The stale-at-open check falls back to it where no hash was recorded, since a
+ *   CMO3 keeps the time but not a hash.
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -36,6 +40,7 @@ data class ArtSource(
 	val format: String,
 	val layers: List<ArtSourceLayer> = emptyList(),
 	val contentHash: String? = null,
+	val lastModified: Long? = null,
 )
 
 /**
@@ -58,6 +63,9 @@ data class ArtSource(
  * @property String? contentHash The content hash (SHA-256 hex) of the layer's pixels at the last read, or
  *   null where the art was never decoded (a CMO3's decomposed tree).  A renamed layer whose pixels did
  *   not change is recognized by it outright.
+ * @property Boolean empty     Whether the layer had no pixel with any alpha at the last read - erased to
+ *   nothing rather than deleted.  A tile bound to such a layer keeps its art and reads as needing review,
+ *   since the artist may have meant either; false where the art was never decoded.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -70,6 +78,7 @@ data class ArtSourceLayer(
 	val visible: Boolean,
 	val present: Boolean = true,
 	val contentHash: String? = null,
+	val empty: Boolean = false,
 )
 
 /**
@@ -92,19 +101,65 @@ data class SourceLayerRef(
 )
 
 /**
+ * Where a delta places one child among a container's existing children.
+ */
+sealed interface OrgSlot {
+	/**
+	 * Directly after [anchor], a child the container already has (or one the same delta placed before it).
+	 *
+	 * @property OrgChild anchor The child to follow.
+	 */
+	data class After(val anchor: OrgChild) : OrgSlot
+
+	/**
+	 * Directly before [anchor], a child the container already has.
+	 *
+	 * @property OrgChild anchor The child to precede.
+	 */
+	data class Before(val anchor: OrgChild) : OrgSlot
+
+	/** After every child the container has. */
+	data object End : OrgSlot
+}
+
+/**
+ * One child a delta places inside the model's existing org tree: a reload found a layer in a folder
+ * the document already keeps as a part (or at the root), and the file says where among that folder's
+ * layers it sits, so the drawable lands there rather than at the bottom.  An anchor the container no
+ * longer has places the child at the end.
+ *
+ * @property PartId?  container The part whose children it joins, or null for the root.
+ * @property OrgChild child     The child: a drawable of the delta, or one of its new parts.
+ * @property OrgSlot  slot      Where among the container's children it goes.
+ */
+data class OrgInsertion(
+	val container: PartId?,
+	val child: OrgChild,
+	val slot: OrgSlot,
+)
+
+/**
  * What one artwork file adds to a model: the file's record, its tiles, the drawables and parts born
- * from its layers, and the org children to append at the root.  A delta rather than a model, so the
- * same additions can be appended to a fresh model at open or to a document already being rigged.
+ * from its layers, and where they join the org tree - a fresh file's whole tree after the model's root
+ * children, a listed file's new layers placed among the children the model already has.  A delta
+ * rather than a model, so the same additions can be appended to a fresh model at open or to a document
+ * already being rigged.
  *
  * Every id in here is already minted past the receiving model's (`ArtMesh<n>`, `Part<n>`, `art-<k>`),
- * and the parts' children reference only ids in this delta.  Pixels are absent - they travel beside
- * it to the document's raster store.
+ * and the new parts' children reference only ids in this delta.  Pixels are absent - they travel
+ * beside it to the document's raster store.
  *
  * @property ArtSource       source       The file and its layer inventory.
  * @property List<AtlasTile> tiles        One unplaced tile per imported layer, bound to that layer.
  * @property List<Drawable>  drawables    One drawable per tile, over its birth mesh.
- * @property List<Part>      parts        One part per folder, nested by the parts' own children.
- * @property List<OrgChild>  rootChildren The file's top-level order, appended after the model's own.
+ * @property List<Part>      parts        One NEW part per folder the model has no part for, nested by the
+ *   parts' own children.
+ * @property List<OrgChild>  rootChildren A fresh file's top-level order, appended after the model's own;
+ *   empty for a listed file, whose new children are [insertions].
+ * @property List            insertions   A listed file's new children placed among the existing ones - at
+ *   the root or inside a part the document already keeps for the folder - in the order the file gives
+ *   them, each anchored to its nearest sibling in the file; applied in list order, so a child may anchor
+ *   on one placed before it.  Empty for a fresh file, whose folders are all new.
  */
 data class ArtworkAdditions(
 	val source: ArtSource,
@@ -112,6 +167,7 @@ data class ArtworkAdditions(
 	val drawables: List<Drawable>,
 	val parts: List<Part>,
 	val rootChildren: List<OrgChild>,
+	val insertions: List<OrgInsertion> = emptyList(),
 )
 
 /**
@@ -147,6 +203,9 @@ data class ReplacedTile(
  *   converts exactly as it does an import's.
  * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
  * @property List<DrawableId>  outgrown        Drawables whose kept mesh no longer covers the new opaque art.
+ * @property List<AtlasTileId> retiredTiles    Tiles a rebinding made redundant: a lost layer's rig work took
+ *   the layer a reload had minted a fresh, untouched drawable for, so that drawable and its tile go (the
+ *   pixels stay in the raster store for undo).  Never a replaced tile; a part minted for the drawable stays.
  */
 data class ArtworkReload(
 	val source: ArtSource,
@@ -154,4 +213,5 @@ data class ArtworkReload(
 	val drawableMeshes: Map<DrawableId, DrawableMesh>,
 	val additions: ArtworkAdditions?,
 	val outgrown: List<DrawableId>,
+	val retiredTiles: List<AtlasTileId> = emptyList(),
 )

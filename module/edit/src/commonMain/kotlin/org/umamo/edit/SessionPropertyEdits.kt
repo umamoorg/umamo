@@ -370,6 +370,16 @@ fun EditorSession.setTileSources(tileIds: Collection<AtlasTileId>, source: Sourc
 }
 
 /**
+ * Removes the tile [tileId] from the atlas as one undo step, when no drawable samples it; a tile some
+ * drawable still samples, or one the model lacks, pushes nothing.
+ *
+ * @param AtlasTileId tileId The tile to remove.
+ */
+fun EditorSession.deleteTile(tileId: AtlasTileId) {
+	mutate(DocumentChange.DeleteTile(tileId)) { model -> model.withTileDeleted(tileId) }
+}
+
+/**
  * Commits a model that already carries an artwork file's additions and their pack as ONE undo step.
  *
  * The orchestrator builds [added] off the UI thread (the bridge, the pack around the existing art,

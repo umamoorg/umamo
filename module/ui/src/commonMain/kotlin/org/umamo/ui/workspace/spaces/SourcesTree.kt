@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.tileCarriesNoRigWork
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
@@ -22,18 +23,22 @@ enum class SourcePresence {
 	Unknown,
 }
 
-/** Which rows the Sources space shows. */
+/**
+ * The kinds of row the Sources space can show or hide, each toggled on its own: the table shows the
+ * rows of every enabled kind, with their descendants and the ancestors that give them context.  With
+ * every kind enabled nothing is hidden at all.
+ */
 enum class SourcesFilter {
-	/** Every row. */
-	All,
+	/** Layers some tile is bound to, by a stable key or by name. */
+	Bound,
 
 	/** Layers no tile is bound to, and tiles bound to no layer. */
 	Unbound,
 
-	/** Artwork files that are no longer where the document read them. */
+	/** Artwork files that are no longer where the document read them, with everything under them. */
 	Missing,
 
-	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists. */
+	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists, or has erased to nothing. */
 	NeedsReview,
 }
 
@@ -57,6 +62,9 @@ enum class SourcesStatus {
 
 	/** A binding to a layer its file no longer lists: the tile keeps its art until a person decides. */
 	NeedsReview,
+
+	/** A binding to a layer the file still has but erased to nothing: the tile keeps its art until a person decides. */
+	Emptied,
 
 	/** A row with no status of its own. */
 	None,
@@ -96,17 +104,21 @@ sealed interface SourcesDetail {
 }
 
 /**
- * What the document proposes for a binding its file no longer resolves: the layer it would move to
- * and how sure the matcher is.
+ * What the document proposes for a binding its file no longer resolves: the layer it would move to,
+ * how sure the matcher is, and the tiles that go with the move.
  *
- * @property String candidateKey  The proposed layer's key.
- * @property String candidateName The proposed layer's name, for the chip.
- * @property Float  score         The confidence, 0..1.
+ * @property String            candidateKey  The proposed layer's key.
+ * @property String            candidateName The proposed layer's name, for the chip.
+ * @property Float             score         The confidence, 0..1.
+ * @property List<AtlasTileId> retires       The tiles bound to the proposed layer that accepting retires
+ *   with their drawables - a fresh, untouched drawable a reload minted for the layer - so the chip can
+ *   say so; empty when the layer is unbound.
  */
 data class LayerSuggestion(
 	val candidateKey: String,
 	val candidateName: String,
 	val score: Float,
+	val retires: List<AtlasTileId> = emptyList(),
 )
 
 /**
@@ -148,8 +160,10 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * @param String      unboundGroupLabel The localized label of the unbound-art group.
  * @param Function    suggestionsFor    The proposals for a lost binding by file and key, best first
  *   (the pixel-scored one an operation published, then the one the inventory alone ranks); the row
- *   takes the first that still holds - one naming a layer the file no longer has or some tile already
- *   binds is passed over, so a stale published proposal never hides a live one behind it.
+ *   takes the first that still holds - one naming a layer the file no longer has, or a layer bound to a
+ *   tile with rig work over it, is passed over, so a stale published proposal never hides a live one
+ *   behind it; a layer bound only to fresh, untouched drawables stands, and the proposal names the
+ *   tiles accepting it retires.
  * @return List<SourcesNode> The top-level rows.
  */
 fun buildSourcesTree(
@@ -185,7 +199,7 @@ fun buildSourcesTree(
 		)
 	}
 
-	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true): SourcesNode {
+	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true, emptied: Boolean = false): SourcesNode {
 		val sourceId = source.id
 		val bound = tilesByBinding[sourceId to key].orEmpty()
 		val stable = bound.any { tile -> tile.source?.stableKey == true }
@@ -193,17 +207,19 @@ fun buildSourcesTree(
 			when {
 				!listed -> SourcesStatus.NeedsReview
 				bound.isEmpty() -> SourcesStatus.Unbound
+				emptied -> SourcesStatus.Emptied
 				stable -> SourcesStatus.Bound
 				else -> SourcesStatus.BoundByName
 			}
 		val suggestion =
-			if (status == SourcesStatus.NeedsReview) {
+			if (status == SourcesStatus.NeedsReview || status == SourcesStatus.Emptied) {
 				suggestionsFor(sourceId, key).firstNotNullOfOrNull { match ->
-					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present }
-					if (candidate == null || tilesByBinding.containsKey(sourceId to match.key)) {
-						null
-					} else {
-						LayerSuggestion(match.key, candidate.name, match.score)
+					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present && !layer.empty }
+					val boundToCandidate = tilesByBinding[sourceId to match.key].orEmpty()
+					when {
+						candidate == null -> null
+						boundToCandidate.any { tile -> !puppet.tileCarriesNoRigWork(tile.id, candidate) } -> null
+						else -> LayerSuggestion(match.key, candidate.name, match.score, boundToCandidate.map { tile -> tile.id })
 					}
 				}
 			} else {
@@ -235,7 +251,7 @@ fun buildSourcesTree(
 					if (!layer.present && !tilesByBinding.containsKey(source.id to layer.key)) {
 						return@mapNotNull null
 					}
-					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present)
+					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present, emptied = layer.empty)
 					val ordinal = (rowCountByKey[layer.key] ?: 0) + 1
 					rowCountByKey[layer.key] = ordinal
 					if (ordinal == 1) node else node.copy(id = "${node.id}~$ordinal", status = SourcesStatus.Unbound, children = emptyList(), suggestion = null)
@@ -288,25 +304,30 @@ fun buildSourcesTree(
 fun layerKeyLooksStable(key: String): Boolean = !key.startsWith("name:") && !key.contains('#')
 
 /**
- * Prunes the tree to [filter] and [query]: a row survives when it satisfies the filter (or sits under
- * one that does) and its label matches the query, or when any descendant survives.  Ancestors of a
- * surviving row are kept for context, exactly as the outliner's search does.
+ * Prunes the tree to [filters] and [query]: a row survives when it is of an enabled kind (or sits
+ * under one that is) and its label matches the query, or when any descendant survives.  Ancestors
+ * of a surviving row are kept for context, exactly as the outliner's search does.  With every kind
+ * enabled only the query prunes, so a file with no layers still lists; with none enabled nothing does.
  *
- * @param List<SourcesNode> nodes  The top-level rows.
- * @param String            query  The name search; blank matches everything.
- * @param SourcesFilter     filter Which rows to show.
+ * @param List<SourcesNode>  nodes   The top-level rows.
+ * @param String             query   The name search; blank matches everything.
+ * @param Set<SourcesFilter> filters The kinds of row to show.
  * @return List<SourcesNode> The surviving rows.
  */
-fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filter: SourcesFilter): List<SourcesNode> {
+fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filters: Set<SourcesFilter>): List<SourcesNode> {
 	val trimmed = query.trim()
+	val unfiltered = filters.size == SourcesFilter.entries.size
 
 	fun matchesFilter(node: SourcesNode): Boolean =
-		when (filter) {
-			SourcesFilter.All -> true
-			SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.kind == SourcesNodeKind.UnboundGroup
-			SourcesFilter.Missing -> node.kind is SourcesNodeKind.Source && node.status == SourcesStatus.Missing
-			SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview
-		}
+		unfiltered ||
+			filters.any { filter ->
+				when (filter) {
+					SourcesFilter.Bound -> node.status == SourcesStatus.Bound || node.status == SourcesStatus.BoundByName
+					SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.kind == SourcesNodeKind.UnboundGroup
+					SourcesFilter.Missing -> node.kind is SourcesNodeKind.Source && node.status == SourcesStatus.Missing
+					SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied
+				}
+			}
 
 	fun prune(node: SourcesNode, satisfiedAbove: Boolean): SourcesNode? {
 		val satisfied = satisfiedAbove || matchesFilter(node)

@@ -156,6 +156,23 @@ class LayerRaster(
 )
 
 /**
+ * Whether every pixel of this raster is fully transparent - a layer the artist erased to nothing, as
+ * opposed to one that merely fell under an import's alpha threshold.
+ *
+ * @return Boolean True when no pixel has any alpha.
+ */
+fun LayerRaster.isFullyTransparent(): Boolean {
+	var offset = 3
+	while (offset < rgba.size) {
+		if (rgba[offset].toInt() != 0) {
+			return false
+		}
+		offset += 4
+	}
+	return true
+}
+
+/**
  * One layer of ingested source art, neutral across PSD/CLIP/KRA. [id] is the re-import join key;
  * [groupPath] is the slash-joined group hierarchy used as the PSD fallback key when [id] is weak.
  */

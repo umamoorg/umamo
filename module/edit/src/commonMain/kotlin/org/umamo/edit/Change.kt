@@ -733,6 +733,19 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
+	 * Removes one piece of source art from the atlas: a tile no drawable samples (its drawables were
+	 * deleted, or it never had any), so it stops taking a page slot and a Sources row.  Its pixels stay
+	 * in the document's raster store, so undo shows it again.  Document content, so it marks the
+	 * document dirty.
+	 *
+	 * @property AtlasTileId tileId The tile removed.
+	 */
+	data class DeleteTile(val tileId: AtlasTileId) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.deleteTile"
+	}
+
+	/**
 	 * Adds an artwork file to the document: its source record and layer inventory, one tile and one
 	 * drawable per layer with art, one part per folder, packed onto the pages beside the existing art.
 	 * Document content, so it marks the document dirty.
@@ -746,17 +759,18 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
-	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, the
-	 * layers the files gained added, the inventories refreshed, and the changed tiles packed beside the
-	 * existing art - one step for however many files were read.  Document content, so it marks the
-	 * document dirty.
+	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, a lost
+	 * layer's tile rebound to the layer that re-created it, the layers the files gained added, the
+	 * inventories refreshed, and the changed tiles packed beside the existing art - one step for however
+	 * many files were read.  Document content, so it marks the document dirty.
 	 *
 	 * @property Int fileCount     How many files were re-read.
-	 * @property Int replacedCount How many tiles took new art.
+	 * @property Int replacedCount How many tiles took new art (the rebound ones among them).
 	 * @property Int addedCount    How many drawables the files' new layers added.
+	 * @property Int matchedCount  How many tiles the matcher rebound to a re-created layer.
 	 * @property Int missingCount  How many bound layers the files no longer have (left for review).
 	 */
-	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val missingCount: Int) : DocumentChange {
+	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val matchedCount: Int, val missingCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.reloadArtwork"
 	}
@@ -790,14 +804,16 @@ sealed interface DocumentChange : Change {
 
 	/**
 	 * Repoints one artwork record at another file: the record's name, path, and format rewritten, every
-	 * binding the new file resolves by key reloaded, and the rest flagged for review with the file's
-	 * layers left as their candidates.  Document content, so it marks the document dirty.
+	 * binding the new file resolves by key reloaded, the confident matches rebound, and the rest flagged
+	 * for review with the file's layers left as their candidates.  Document content, so it marks the
+	 * document dirty.
 	 *
 	 * @property String sourceName   The new file's display name.
 	 * @property Int    matchedCount How many bindings the new file resolved by key (changed or not).
-	 * @property Int    missingCount How many bindings it did not, left for review.
+	 * @property Int    reboundCount How many bindings the matcher rebound to the new file's layers.
+	 * @property Int    missingCount How many bindings neither resolved, left for review.
 	 */
-	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val missingCount: Int) : DocumentChange {
+	data class ReplaceArtwork(val sourceName: String, val matchedCount: Int, val reboundCount: Int, val missingCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.replaceArtwork"
 	}

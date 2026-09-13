@@ -23,8 +23,9 @@ import org.umamo.reimport.ArtworkReloadPlanner
 import org.umamo.reimport.InventoryLayerMatcher
 import org.umamo.reimport.LayerMatch
 import org.umamo.reimport.ReconcileResult
-import org.umamo.reimport.inventoryWithMissing
-import org.umamo.reimport.suggestionsFor
+import org.umamo.reimport.confidentMatches
+import org.umamo.reimport.retirableTiles
+import org.umamo.reimport.suggestionsAgainstRead
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -37,12 +38,13 @@ import org.umamo.storage.UmamoLog
 
 /*
  * Match Automatically and Replace Artwork: the two operations that resolve a binding the file no
- * longer carries a key for.  Match scores every such binding against the file's unbound layers and
- * rebinds the confident ones, with the threshold on the operation strip so the same read files
- * re-score at another bar; Replace repoints one record at another file, reloading what the new file
- * resolves by key and leaving the rest for the matcher.  Both pack, commit, and register exactly as a
- * reload does, and both publish the suggestions they could not apply, scored with the pixels they
- * read, for the Sources space's review chips.
+ * longer carries a key for.  Match scores every such binding against the file's unbound layers (and
+ * the layers bound only to fresh, untouched drawables, which a match then retires) and rebinds the
+ * confident ones, with the threshold on the operation strip so the same read files re-score at another
+ * bar; Replace repoints one record at another file, reloading what the new file resolves by key,
+ * rebinding what the matcher is confident about at the same threshold row, and leaving the rest for
+ * review.  Both pack, commit, and register exactly as a reload does, and both publish the suggestions
+ * they could not apply, scored with the pixels they read, for the Sources space's review chips.
  */
 
 /** The strip row keys the match operation reads its values back by. */
@@ -62,11 +64,17 @@ typealias SourceSuggestions = Map<Pair<ArtSourceId, String>, LayerMatch>
  * @property List                   entries   The present files, each with its art.
  * @property Float                  threshold The confidence at or above which a match is applied, 0..1.
  * @property SourceArtImportOptions options   The threshold and margin every re-born quad uses.
+ * @property SourceSuggestions      standing  The proposals published for the review chips as they
+ *   stand: a lost binding the read files offer no unbound candidate for falls back to its standing
+ *   proposal when that names a layer bound only to fresh, untouched drawables (a reload minted them
+ *   for the re-created layer), and taking it retires those drawables - so a Match after a reload
+ *   merges at the bar the way Accept on the row does.
  */
 class MatchArtworkRequest(
 	val entries: List<ReloadEntry>,
 	val threshold: Float,
 	val options: SourceArtImportOptions,
+	val standing: SourceSuggestions = emptyMap(),
 ) {
 	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
 
@@ -87,6 +95,8 @@ class MatchArtworkRequest(
  * @property ArtSourceDescriptor    descriptor  The new file's name, path, and format.
  * @property String?                contentHash The whole-file content hash of the bytes [art] came from.
  * @property SourceArtImportOptions options     The threshold and margin a re-born quad uses.
+ * @property Float                  threshold   The confidence, 0..1, at or above which a binding the new
+ *   file does not resolve by key takes its best candidate among the file's layers in the same step.
  */
 class ReplaceArtworkRequest(
 	val sourceId: ArtSourceId,
@@ -94,6 +104,7 @@ class ReplaceArtworkRequest(
 	val descriptor: ArtSourceDescriptor,
 	val contentHash: String?,
 	val options: SourceArtImportOptions,
+	val threshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
 	private val decoded = DecodedLayerRasters(art.layers)
 
@@ -139,6 +150,7 @@ private sealed interface MatchOutcome {
 	 * @property List              outgrown      Drawables whose kept mesh no longer covers the new art.
 	 * @property DocumentChange    change        The step's counts.
 	 * @property SourceSuggestions suggestions   The best candidate per binding still unresolved.
+	 * @property List              rebindings    What the matcher rebound and retired, for the log.
 	 */
 	class Applied(
 		val model: PuppetModel,
@@ -148,6 +160,7 @@ private sealed interface MatchOutcome {
 		val outgrown: List<DrawableId>,
 		val change: DocumentChange,
 		val suggestions: SourceSuggestions,
+		val rebindings: List<Rebinding>,
 	) : MatchOutcome
 }
 
@@ -184,7 +197,7 @@ private fun tileRasterLookup(artRasters: SourceArtRasters): (AtlasTileId) -> Lay
 /**
  * Scores [sourceId]'s unresolved bindings against [art]: the model's inventory refreshed against the
  * read art (so a file never reloaded still scores), the tiles' pixels and the art's layers handed
- * to the matcher.
+ * to the matcher - the one scorer the reload planner runs before it mints.
  *
  * @param PuppetModel           model      The model as it stands.
  * @param ArtSourceId           sourceId   The file.
@@ -200,12 +213,8 @@ private fun scoreSource(
 	inventory: List<ArtSourceLayer>,
 	tileRaster: (AtlasTileId) -> LayerRaster?,
 ): Map<String, LayerMatch> {
-	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return emptyMap()
-	val boundKeys = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
-	val refreshed = source.copy(layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys))
-	val scoringModel = model.copy(sources = model.sources.map { candidate -> if (candidate.id == sourceId) refreshed else candidate })
 	val rasterByKey = art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associate { layer -> layer.id.raw to layer.raster }
-	return suggestionsFor(scoringModel, sourceId, tileRaster, { key -> rasterByKey[key] }, InventoryLayerMatcher)
+	return suggestionsAgainstRead(model, sourceId, inventory, tileRaster, { key -> rasterByKey[key] }, InventoryLayerMatcher)
 }
 
 /**
@@ -228,27 +237,6 @@ suspend fun scoreSourceSuggestions(host: AtlasRepackHost, entries: List<ReloadEn
 		}
 		suggestions
 	}
-
-/**
- * The matches to apply out of [suggestions]: those at or above [threshold], best first, each candidate
- * taken once - two lost layers that both prefer one candidate are settled in favor of the more
- * confident, the other left for a person (its suggestion stands, so it is still counted as remaining).
- *
- * @param Map   suggestions The best candidate per lost key.
- * @param Float threshold   The confidence bar, 0..1.
- * @return Map<String, String> The candidate key each accepted LOST key moves to.
- */
-private fun acceptedMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Map<String, String> {
-	val takenCandidates = HashSet<String>()
-	val accepted = LinkedHashMap<String, String>()
-	for ((lostKey, match) in suggestions.entries.sortedByDescending { (_, match) -> match.score }) {
-		if (match.score < threshold || !takenCandidates.add(match.key)) {
-			continue
-		}
-		accepted[lostKey] = match.key
-	}
-	return accepted
-}
 
 /**
  * Scores every file in [request] against [base], rebinds the confident matches, and packs the tiles
@@ -275,11 +263,13 @@ private fun matchOutcome(
 	val notices = ArrayList<SourceArtImportNotice>()
 	val outgrown = ArrayList<DrawableId>()
 	val remaining = LinkedHashMap<Pair<ArtSourceId, String>, LayerMatch>()
+	val rebindings = ArrayList<Rebinding>()
 	var matched = 0
 	val tileRaster = tileRasterLookup(artRasters)
 	for (entry in request.entries) {
-		val suggestions = scoreSource(model, entry.sourceId, entry.art, entry.inventory, tileRaster)
-		val acceptedByLostKey = acceptedMatches(suggestions, threshold)
+		val suggestions = LinkedHashMap(scoreSource(model, entry.sourceId, entry.art, entry.inventory, tileRaster))
+		val retirable = standingMerges(model, entry, request.standing, suggestions)
+		val acceptedByLostKey = confidentMatches(suggestions, threshold)
 		for ((lostKey, match) in suggestions) {
 			if (lostKey !in acceptedByLostKey) {
 				remaining[entry.sourceId to lostKey] = match
@@ -294,14 +284,24 @@ private fun matchOutcome(
 				val binding = tile.source?.takeIf { source -> source.sourceId == entry.sourceId } ?: return@mapNotNull null
 				acceptedByLostKey[binding.layerKey]?.let { candidateKey -> tile.id to candidateKey }
 			}
+		val retire = acceptedByLostKey.values.flatMapTo(HashSet()) { candidateKey -> retirable[candidateKey].orEmpty() }
 		val plan =
-			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory)
+			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified, retire = retire)
 				?: continue
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {
 			UmamoLog.error("match artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")
 			continue
 		}
+		// The rebound tiles are the ones the plan replaced; the log names them from the model before.
+		rebindings.addAll(
+			accepted.mapNotNull { (tileId, key) ->
+				val tile = model.atlas.tileById[tileId] ?: return@mapNotNull null
+				val score = tile.source?.layerKey?.let { lostKey -> suggestions[lostKey]?.score } ?: return@mapNotNull null
+				Rebinding.Rebound(tile.name, entry.art.layers.firstOrNull { layer -> layer.id.raw == key }?.name ?: key, score)
+			},
+		)
+		rebindings.addAll(rebindingsOf(plan, model, entry.art).filterIsInstance<Rebinding.Retired>())
 		model = next
 		rasters.putAll(plan.rasterByTile)
 		notices.addAll(plan.notices)
@@ -313,17 +313,53 @@ private fun matchOutcome(
 	}
 	val change = DocumentChange.MatchArtwork(matched, remaining.size)
 	return packMatched(model, rasters.mapValues { (_, raster) -> request.decodedFor(raster) }, notices, artRasters, premultipliedAlpha) { packedModel, textures, packedNotices, decodedByTile ->
-		MatchOutcome.Applied(packedModel, textures, decodedByTile, packedNotices, outgrown, change, remaining)
+		MatchOutcome.Applied(packedModel, textures, decodedByTile, packedNotices, outgrown, change, remaining, rebindings)
 	}
 }
 
 /**
+ * The standing proposals that still hold for [entry]'s file, folded into [suggestions] where the read
+ * offered no unbound candidate: the lost key must still be bound, the proposed layer must be present
+ * and bound only to tiles that carry no rig work, and those tiles are what taking the proposal retires.
+ *
+ * @param PuppetModel       model       The model as it stands.
+ * @param ReloadEntry       entry       The file as read.
+ * @param SourceSuggestions standing    The published proposals.
+ * @param MutableMap        suggestions The scored proposals, added to in place.
+ * @return Map<String, List<AtlasTileId>> The tiles to retire per proposed layer key.
+ */
+private fun standingMerges(model: PuppetModel, entry: ReloadEntry, standing: SourceSuggestions, suggestions: MutableMap<String, LayerMatch>): Map<String, List<AtlasTileId>> {
+	val retirable = HashMap<String, List<AtlasTileId>>()
+	val boundKeys = model.atlas.tiles.filter { tile -> tile.source?.sourceId == entry.sourceId }.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
+	for ((binding, match) in standing) {
+		val (sourceId, lostKey) = binding
+		if (sourceId != entry.sourceId || lostKey in suggestions || lostKey !in boundKeys || match.key !in boundKeys) {
+			continue
+		}
+		if (entry.inventory.none { row -> row.key == match.key && !row.empty }) {
+			continue
+		}
+		val tiles = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId && tile.source?.layerKey == match.key }.map { tile -> tile.id }
+		val retiring = retirableTiles(model, sourceId, match.key, except = emptySet())
+		if (retiring.size != tiles.size) {
+			// Rig work sits over the proposed layer now: the proposal no longer holds.
+			continue
+		}
+		suggestions[lostKey] = match
+		retirable[match.key] = retiring
+	}
+	return retirable
+}
+
+/**
  * Repoints [request]'s record at its new file over [base]: the bindings the file resolves by key
- * reload, the rest are flagged, and the unresolved ones are scored against the file's layers.
+ * reload, the confident matches rebind, the rest are flagged, and the still-unresolved ones are
+ * scored against the file's layers.
  *
  * @param PuppetModel            base               The model the replacement applies to.
  * @param ReplaceArtworkRequest  request            The record and the new file.
  * @param SourceArtImportOptions options            The threshold and margin to plan with.
+ * @param Float                  threshold          The bar a binding's best candidate must reach.
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
  * @return MatchOutcome The outcome.
@@ -332,24 +368,26 @@ private fun replaceOutcome(
 	base: PuppetModel,
 	request: ReplaceArtworkRequest,
 	options: SourceArtImportOptions,
+	threshold: Float,
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
 ): MatchOutcome {
 	val tileRaster = tileRasterLookup(artRasters)
 	val plan =
-		ArtworkReloadPlanner.plan(base, request.sourceId, request.art, options, tileRaster, request.contentHash, replacement = request.descriptor, inventory = request.inventory)
+		ArtworkReloadPlanner.plan(base, request.sourceId, request.art, options, tileRaster, request.contentHash, replacement = request.descriptor, inventory = request.inventory, matchThreshold = threshold)
 			?: return MatchOutcome.NothingApplied(emptyMap())
 	val model = base.withArtworkReloaded(plan.reload)
 	if (model === base) {
 		UmamoLog.error("replace artwork: the plan for '${request.descriptor.name}' collides with the document's ids; nothing was applied")
 		return MatchOutcome.NothingApplied(emptyMap())
 	}
-	val suggestions =
-		scoreSource(model, request.sourceId, request.art, request.inventory, tileRaster).entries.associate { (lostKey, match) -> (request.sourceId to lostKey) to match }
+	val suggestions = plan.leftovers.entries.associate { (lostKey, match) -> (request.sourceId to lostKey) to match }
 	val resolvedByKey = plan.report.results.count { result -> result is ReconcileResult.Matched }
-	val change = DocumentChange.ReplaceArtwork(request.descriptor.name, resolvedByKey, plan.report.needsReview.size)
+	val rebound = plan.report.results.count { result -> result is ReconcileResult.Rebound }
+	val change = DocumentChange.ReplaceArtwork(request.descriptor.name, resolvedByKey, rebound, plan.report.needsReview.size)
+	val rebindings = rebindingsOf(plan, base, request.art)
 	return packMatched(model, plan.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }, plan.notices, artRasters, premultipliedAlpha) { packedModel, textures, notices, decodedByTile ->
-		MatchOutcome.Applied(packedModel, textures, decodedByTile, notices, plan.reload.outgrown, change, suggestions)
+		MatchOutcome.Applied(packedModel, textures, decodedByTile, notices, plan.reload.outgrown, change, suggestions, rebindings)
 	}
 }
 
@@ -408,7 +446,9 @@ suspend fun runMatchArtwork(host: AtlasRepackHost, request: MatchArtworkRequest,
 	if (!landMatch(host, "match artwork", modelAtStart, outcome, publish) { model -> session.commitArtworkMatched(outcome.appliedChange<DocumentChange.MatchArtwork>(), model) }) {
 		if (outcome is MatchOutcome.NothingApplied) {
 			UmamoLog.info("match artwork: no binding scored at or above ${percentOf(request.threshold)}% across ${request.entries.size} file(s); ${outcome.suggestions.size} suggestion(s) published")
-			session.emitNotice("notice.match.nothing", NoticePlacement.StatusBar)
+			// No suggestion at all means no candidate was left to score - every layer is bound to rig
+			// work - which is a different thing to tell a person than a bar nothing reached.
+			session.emitNotice(if (outcome.suggestions.isEmpty()) "notice.match.noCandidates" else "notice.match.nothing", NoticePlacement.StatusBar)
 		}
 		return false
 	}
@@ -487,7 +527,8 @@ private suspend fun adjustMatch(
 
 /**
  * Repoints one artwork record at another file as ONE undo step, registered on the strip with the
- * import rows, and publishes the suggestions for whatever the new file did not resolve by key.
+ * threshold row ahead of the import rows, and publishes the suggestions for whatever the new file
+ * resolved neither by key nor by a confident match.
  *
  * @param AtlasRepackHost       host    The session, art, resolver, scope, and shell callbacks.
  * @param ReplaceArtworkRequest request The record and the new file.
@@ -500,14 +541,14 @@ suspend fun runReplaceArtwork(host: AtlasRepackHost, request: ReplaceArtworkRequ
 	val modelAtStart = session.model.value
 	val outcome =
 		withContext(Dispatchers.Default) {
-			replaceOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha)
+			replaceOutcome(modelAtStart, request, request.options, request.threshold, host.artRasters, host.premultipliedAlpha)
 		}
 	if (!landMatch(host, "replace artwork", modelAtStart, outcome, publish) { model -> session.commitArtworkReplaced(outcome.appliedChange<DocumentChange.ReplaceArtwork>(), model) }) {
 		return false
 	}
 	val change = (outcome as MatchOutcome.Applied).change as DocumentChange.ReplaceArtwork
-	session.emitNotice("notice.replace.done", NoticePlacement.StatusBar, listOf(change.matchedCount.toString(), change.missingCount.toString()))
-	session.registerAdjustableOperation(session.model.value, areaId, addArtworkParameters(request.options)) { record ->
+	session.emitNotice("notice.replace.done", NoticePlacement.StatusBar, listOf(change.matchedCount.toString(), change.reboundCount.toString(), change.missingCount.toString()))
+	session.registerAdjustableOperation(session.model.value, areaId, matchArtworkParameters(request.threshold, request.options)) { record ->
 		host.scope.launch { adjustReplaceArtwork(host, record, request, publish) }
 	}
 	return true
@@ -523,7 +564,7 @@ suspend fun runReplaceArtwork(host: AtlasRepackHost, request: ReplaceArtworkRequ
  */
 internal suspend fun adjustReplaceArtwork(host: AtlasRepackHost, record: AdjustableOperation, request: ReplaceArtworkRequest, publish: (SourceSuggestions) -> Unit) {
 	adjustMatch(host, record, "replace artwork", publish) { base, parameters ->
-		replaceOutcome(base, request, addArtworkOptionsOf(parameters, request.options), host.artRasters, host.premultipliedAlpha)
+		replaceOutcome(base, request, addArtworkOptionsOf(parameters, request.options), matchThresholdOf(parameters, request.threshold), host.artRasters, host.premultipliedAlpha)
 	}
 }
 
@@ -614,11 +655,15 @@ private fun reportMatch(operation: String, outcome: MatchOutcome.Applied, commit
 	for ((binding, match) in outcome.suggestions) {
 		UmamoLog.info("$operation: '${binding.second}' in '${binding.first.raw}' left for review; best candidate '${match.key}' at ${percentOf(match.score)}%")
 	}
+	reportRebindings(operation, outcome.rebindings)
 	when (val change = outcome.change) {
 		is DocumentChange.MatchArtwork ->
 			UmamoLog.info("$operation: ${change.matchedCount} tile(s) rebound, ${change.remainingCount} left for review; now ${committed.atlas.pages.size} page(s); ${outcome.notices.size} note(s)")
 		is DocumentChange.ReplaceArtwork ->
-			UmamoLog.info("$operation: '${change.sourceName}' -> ${change.matchedCount} tile(s) reloaded by key, ${change.missingCount} left for review; ${outcome.notices.size} note(s)")
+			UmamoLog.info(
+				"$operation: '${change.sourceName}' -> ${change.matchedCount} tile(s) reloaded by key, ${change.reboundCount} rebound by match," +
+					" ${change.missingCount} left for review; ${outcome.notices.size} note(s)",
+			)
 		else -> UmamoLog.info("$operation: landed")
 	}
 }

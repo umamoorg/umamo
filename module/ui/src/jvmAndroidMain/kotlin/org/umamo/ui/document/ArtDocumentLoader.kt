@@ -63,15 +63,32 @@ fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
  * document open and Add Artwork into an open document.
  *
- * @property SourceArt art         The parsed source art.
- * @property FileKind  kind        The format it was read from.
- * @property String    contentHash The whole-file content hash of the bytes it was read from.
+ * @property SourceArt art          The parsed source art.
+ * @property FileKind  kind         The format it was read from.
+ * @property String    contentHash  The whole-file content hash of the bytes it was read from.
+ * @property Long?     lastModified The file's modification time (epoch milliseconds) when read, or null
+ *   when the bytes came without a file the platform can stat.
  */
 class ReadArtwork(
 	val art: SourceArt,
 	val kind: FileKind,
 	val contentHash: String,
+	val lastModified: Long? = null,
 )
+
+/**
+ * The modification time of the file at [path], or null when there is no such file or the string is
+ * not a path the platform can stat (a content uri).
+ *
+ * @param String path The stored path.
+ * @return Long? The time in epoch milliseconds, or null.
+ */
+fun fileModifiedAtMillis(path: String): Long? {
+	if (path.contains("://")) {
+		return null
+	}
+	return runCatching { FileSystem.SYSTEM.metadataOrNull(path.toPath())?.lastModifiedAtMillis }.getOrNull()
+}
 
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
@@ -113,7 +130,9 @@ suspend fun readArtworkAt(path: String): ReadArtwork? {
 				}
 		} ?: return null
 	val name = path.toPath().name
-	return withContext(Dispatchers.Default) { readArtwork(bytes, name) }
+	val lastModified = withContext(Dispatchers.IO) { fileModifiedAtMillis(path) }
+	val read = withContext(Dispatchers.Default) { readArtwork(bytes, name) } ?: return null
+	return ReadArtwork(read.art, read.kind, read.contentHash, lastModified)
 }
 
 /**
@@ -151,6 +170,7 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
  * @param String                 path    The stored path or URI string recorded on the document.
  * @param SourceArtImportOptions options     The seed parameters, threshold, and margin the import runs with.
  * @param String?                contentHash The whole-file content hash of the bytes the art was read from, recorded on its source.
+ * @param Long?                  lastModified The file's modification time when read, recorded on its source; null when unknown.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(
@@ -160,8 +180,9 @@ internal fun buildArtDocument(
 	path: String,
 	options: SourceArtImportOptions,
 	contentHash: String? = null,
+	lastModified: Long? = null,
 ): DocumentLoad {
-	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash), options)
+	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
 	if (imported.puppet.drawables.isEmpty()) {
 		for (notice in imported.notices) {
 			UmamoLog.warn("import: ${describeImportNotice(notice)}")

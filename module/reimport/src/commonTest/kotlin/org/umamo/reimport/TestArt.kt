@@ -5,6 +5,7 @@ import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerId
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
+import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 
@@ -28,12 +29,25 @@ internal class TestLayer(
 	override val blend: LayerBlend = LayerBlend.Normal
 }
 
-/** An in-memory source document over [layers]. */
+/** An in-memory source document over [layers], with the folders [groups] describes. */
 internal class TestArt(
 	override val layers: List<SourceLayer>,
 	override val widthPx: Int = 64,
 	override val heightPx: Int = 64,
+	override val groups: List<SourceGroup> = emptyList(),
 ) : SourceArt
+
+/** An in-memory plain folder at [path], named by its last segment. */
+internal class TestGroup(
+	override val path: String,
+) : SourceGroup {
+	override val name: String = path.substringAfterLast('/')
+	override val visible: Boolean = true
+	override val opacity: Float = 1f
+	override val clipped: Boolean = false
+	override val blend: LayerBlend = LayerBlend.Normal
+	override val passThrough: Boolean = true
+}
 
 /**
  * A raster filled with one opaque color.

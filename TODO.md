@@ -33,10 +33,12 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
+* Dirty state handling: Not all instances of dirty are handled.  For example, I can close the application without it asking to save a dirty document.
 
 ## UI - Dialogs
 * The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
 	* This can have better wording if the buttons are configurable.
+* Enter does not work for the default action.
 
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.
@@ -69,6 +71,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Object and Mesh Editing
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
+	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
 ## Sources Space
 * Improvements
@@ -92,8 +95,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
 	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
-	* Deleting a drawable leaves the UV Editor in a bad state just saying "UV Editor" as a placeholder since nothing is selected anymore.
-		* Delete the placeholder.(I hate these!)
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
 		* Implementation difficulty: This moves the UV vertex that has been disconnected from its sibling, which is one vertex in the mesh, on top of each other.  We will have to either walk the UV/mesh to find the sibling or store it.  Selected to Adjacent Unselected is only needed if rip is supported in UVs.

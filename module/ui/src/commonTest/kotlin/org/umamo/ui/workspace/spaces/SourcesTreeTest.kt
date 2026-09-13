@@ -10,8 +10,10 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -98,27 +100,46 @@ class SourcesTreeTest {
 		assertEquals(listOf("tile:tLoose"), unbound.children.map { node -> node.id })
 	}
 
+	/**
+	 * Each kind of row is its own toggle: the table shows the rows of every enabled kind with their
+	 * descendants and the ancestors that give them context, kinds combine by union, every kind on
+	 * hides nothing, and none on shows nothing.
+	 */
 	@Test
-	fun theFiltersKeepWhatTheyNameAndTheirAncestors() {
+	fun theFiltersKeepWhatTheyNameAndTheirAncestorsAndCombine() {
 		val tree = buildSourcesTree(model(), ::presence, "Unbound art")
+		val everything = SourcesFilter.entries.toSet()
 
-		val unbound = filterSourcesTree(tree, "", SourcesFilter.Unbound)
+		val unbound = filterSourcesTree(tree, "", setOf(SourcesFilter.Unbound))
 		assertEquals(listOf("source:art-0", "source:art-1", SOURCES_UNBOUND_GROUP_ID), unbound.map { node -> node.id })
 		assertEquals(listOf("layer:art-0/lyid:2"), unbound[0].children.map { node -> node.id }, "only the unbound layer survives under the file")
 		assertEquals(listOf("layer:art-1/uuid-9"), unbound[1].children.map { node -> node.id })
 		assertEquals(listOf("tile:tLoose"), unbound[2].children.map { node -> node.id }, "the unbound group keeps its tiles")
 
-		val missing = filterSourcesTree(tree, "", SourcesFilter.Missing)
+		val bound = filterSourcesTree(tree, "", setOf(SourcesFilter.Bound))
+		assertEquals(listOf("source:art-0"), bound.map { node -> node.id }, "only the file with a bound layer")
+		assertEquals(listOf("layer:art-0/lyid:1"), bound[0].children.map { node -> node.id })
+		assertEquals(listOf("tile:tA1"), bound[0].children[0].children.map { node -> node.id }, "with its tile and drawables beneath")
+
+		val missing = filterSourcesTree(tree, "", setOf(SourcesFilter.Missing))
 		assertEquals(listOf("source:art-0"), missing.map { node -> node.id })
 		assertEquals(3, missing[0].children.size, "a missing file keeps its whole subtree")
 
-		val review = filterSourcesTree(tree, "", SourcesFilter.NeedsReview)
+		val review = filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))
 		assertEquals(listOf("source:art-0"), review.map { node -> node.id })
 		assertEquals(listOf("layer:art-0/name:Stray"), review[0].children.map { node -> node.id }, "only the stray binding needs review")
 
-		val searched = filterSourcesTree(tree, "wing", SourcesFilter.All)
+		val both = filterSourcesTree(tree, "", setOf(SourcesFilter.Unbound, SourcesFilter.NeedsReview))
+		assertEquals(listOf("layer:art-0/lyid:2", "layer:art-0/name:Stray"), both[0].children.map { node -> node.id }, "two kinds combine by union")
+		assertEquals(3, both.size, "the unbound group still shows")
+
+		assertEquals(tree, filterSourcesTree(tree, "", everything), "every kind on hides nothing")
+		assertTrue(filterSourcesTree(tree, "", emptySet()).isEmpty(), "no kind on shows nothing")
+
+		val searched = filterSourcesTree(tree, "wing", everything)
 		assertEquals(listOf("source:art-1"), searched.map { node -> node.id }, "a search keeps the matching row's ancestors")
 		assertEquals(listOf("layer:art-1/uuid-9"), searched[0].children.map { node -> node.id })
+		assertTrue(filterSourcesTree(tree, "wing", setOf(SourcesFilter.Bound)).isEmpty(), "a search narrows within the enabled kinds")
 	}
 
 	@Test
@@ -187,7 +208,7 @@ class SourcesTreeTest {
 		// A stale published proposal ahead of a live one: the row takes the live one rather than nothing.
 		val staleFirst = buildSourcesTree(puppet, ::presence, "Unbound art") { _, _ -> listOf(match("lyid:1", 0.95f), match("lyid:5", 0.6f)) }
 		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.6f), staleFirst[0].children[3].suggestion, "a dropped proposal does not hide the next one")
-		val review = filterSourcesTree(tree, "", SourcesFilter.NeedsReview)
+		val review = filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))
 		assertEquals(listOf("layer:art-0/lyid:9", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id })
 
 		// Unbind the lost row's one tile: the row reviews nothing now, so it leaves the table at once
@@ -195,7 +216,26 @@ class SourcesTreeTest {
 		val unbound = puppet.copy(atlas = puppet.atlas.copy(tiles = puppet.atlas.tiles.map { tile -> if (tile.id == AtlasTileId("tA9")) tile.copy(source = null) else tile }))
 		val afterUnbind = buildSourcesTree(unbound, ::presence, "Unbound art")
 		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/lyid:2", "layer:art-0/lyid:5", "layer:art-0/name:Stray"), afterUnbind[0].children.map { node -> node.id })
-		assertTrue(filterSourcesTree(afterUnbind, "", SourcesFilter.NeedsReview)[0].children.none { node -> node.id == "layer:art-0/lyid:9" })
+		assertTrue(filterSourcesTree(afterUnbind, "", setOf(SourcesFilter.NeedsReview))[0].children.none { node -> node.id == "layer:art-0/lyid:9" })
+	}
+
+	/** A bound layer erased to nothing reads as its own review state and joins the review filter; an unbound one is simply unbound. */
+	@Test
+	fun anErasedBoundLayerReadsAsEmptiedAndJoinsTheReviewFilter() {
+		val base = model()
+		val puppet =
+			base.copy(
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) source else source.copy(layers = source.layers.map { layer -> layer.copy(empty = true) })
+					},
+			)
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art")
+		val fileA = tree[0]
+		assertEquals(SourcesStatus.Emptied, fileA.children[0].status, "bound and erased")
+		assertEquals(SourcesStatus.Unbound, fileA.children[1].status, "unbound and erased is just unbound")
+		val review = filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))
+		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id }, "the emptied row reviews beside the stray")
 	}
 
 	@Test
@@ -258,5 +298,49 @@ class SourcesTreeTest {
 		fun ids(nodes: List<SourcesNode>): List<String> = nodes.flatMap { node -> listOf(node.id) + ids(node.children) }
 		val allIds = ids(listOf(file))
 		assertEquals(allIds.size, allIds.toSet().size, "no row id repeats anywhere in the tree")
+	}
+
+	/**
+	 * A proposal naming a layer some tile binds stands when only a fresh, untouched drawable sits over
+	 * that tile (a reload minted it for the re-created layer before the match could take it), and names
+	 * the tile accepting it retires; the same layer under rig work is passed over.
+	 */
+	@Test
+	fun aProposalNamingALayerUnderAFreshDrawableStandsAndSaysWhatItRetires() {
+		val base = model()
+		val freshQuad = DrawableMesh(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val fresh = drawable("e", "tA5").copy(mesh = freshQuad)
+		val puppet =
+			base.copy(
+				drawables = base.drawables + fresh,
+				atlas =
+					base.atlas.copy(
+						tiles =
+							base.atlas.tiles +
+								AtlasTile(AtlasTileId("tA5"), "Brow", 4, 4, source = SourceLayerRef(artA, "lyid:5", true)) +
+								AtlasTile(AtlasTileId("tA9"), "Old brow", 4, 4, source = SourceLayerRef(artA, "lyid:9", true)),
+					),
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) {
+							source
+						} else {
+							source.copy(
+								layers =
+									source.layers +
+										ArtSourceLayer("lyid:5", "Brow", "Head", 12, 22, 4, 4, true) +
+										ArtSourceLayer("lyid:9", "Brow (old)", "Head", 12, 22, 4, 4, true, present = false),
+							)
+						}
+					},
+			)
+
+		fun match(key: String, score: Float): LayerMatch = LayerMatch(key, score, MatchSignals(1f, 1f, 1f, 1f, null, hashEqual = false))
+		val proposals: (ArtSourceId, String) -> List<LayerMatch> = { sourceId, key -> if (sourceId == artA && key == "lyid:9") listOf(match("lyid:5", 0.6f)) else emptyList() }
+		val lost = buildSourcesTree(puppet, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.6f, retires = listOf(AtlasTileId("tA5"))), lost.suggestion)
+		val rigged = puppet.copy(drawables = puppet.drawables.map { drawable -> if (drawable.id.raw == "e") drawable.copy(parentDeformerId = DeformerId("warp")) else drawable })
+		val riggedLost = buildSourcesTree(rigged, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		assertNull(riggedLost.suggestion, "under rig work the layer is passed over")
 	}
 }

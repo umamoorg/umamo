@@ -26,7 +26,8 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * The one read that does reach back is [CommandRouting.operationStripArea], and it routes no action: it
  * places the settings strip of a document-wide operation that already ran, and the strip exists only
  * in a work surface (2D viewport or UV editor), so a command fired over a panel shows it in the last
- * work surface touched rather than nowhere.
+ * work surface touched - or, when the pointer has touched none since the shell opened, in the first
+ * work surface of the active workspace - rather than nowhere.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
  * same contract HoveredSurfaceTracker carries.  The backing read is a non-reactive var, so a value
@@ -64,29 +65,35 @@ internal sealed interface TransformTarget {
  * @param Function hoveredSurface       Resolves the last-touched editor surface (area id + space kind).
  * @param Function lastTouchedStripHost Resolves the last-touched strip-hosting surface (a 2D viewport or
  *   UV editor), read only by [operationStripArea].
- * @warning Both resolvers must read LIVE state, not a value captured when the instance was built - one
- *   instance serves the whole shell for its lifetime, across document swaps and area-tree edits, so a
- *   snapshot would answer with wherever the pointer was at first composition forever.
+ * @param Function defaultStripHost     Resolves the active workspace's first strip-hosting area in tree
+ *   order, or null when it has none; read only by [operationStripArea], and only when the pointer has
+ *   touched no work surface since the shell opened.
+ * @warning Every resolver must read LIVE state, not a value captured when the instance was built - one
+ *   instance serves the whole shell for its lifetime, across document swaps, workspace switches, and
+ *   area-tree edits, so a snapshot would answer with wherever the pointer was at first composition forever.
  */
 internal class CommandRouting(
 	private val hoveredSurface: () -> HoveredSurface?,
 	private val lastTouchedStripHost: () -> HoveredSurface?,
+	private val defaultStripHost: () -> String? = { null },
 ) {
 	/**
-	 * A routing that remembers no work surface: the strip placement falls back to the shell's own strip.
-	 * The trailing-lambda form the tables' tests build with, kept as a constructor so that lambda stays
-	 * the hovered resolver rather than silently binding to the last parameter.
+	 * A routing that remembers no work surface and knows no workspace: the strip placement falls back to
+	 * the shell's own strip.  The trailing-lambda form the tables' tests build with, kept as a constructor
+	 * so that lambda stays the hovered resolver rather than silently binding to the last parameter.
 	 *
 	 * @param Function hoveredSurface Resolves the last-touched editor surface.
 	 */
-	constructor(hoveredSurface: () -> HoveredSurface?) : this(hoveredSurface, { null })
+	constructor(hoveredSurface: () -> HoveredSurface?) : this(hoveredSurface, { null }, { null })
 
 	/**
 	 * Where a document-wide operation's settings strip shows: the hovered area when it is a work surface
-	 * (2D viewport or UV editor), else the last work surface the pointer touched, else null - the shell's
-	 * own strip above the status bar.  The strip exists only in those two spaces, so a command fired from
-	 * a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it somewhere
-	 * the rigger will find it.
+	 * (2D viewport or UV editor), else the last work surface the pointer touched, else the workspace's
+	 * first work surface, else null - the shell's own strip above the status bar, which only a workspace
+	 * with no work surface at all reaches.  The strip exists only in those two spaces, so a command fired
+	 * from a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it
+	 * somewhere the rigger will find it, including on a freshly opened document whose viewports the
+	 * pointer has not crossed yet.
 	 *
 	 * @return String? The area to show the strip in, or null.
 	 */
@@ -95,7 +102,7 @@ internal class CommandRouting(
 		if (hovered != null && hovered.kind.hostsOperationStrip) {
 			return hovered.areaId
 		}
-		return lastTouchedStripHost()?.areaId
+		return lastTouchedStripHost()?.areaId ?: defaultStripHost()
 	}
 
 	/**

@@ -15,6 +15,10 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
@@ -130,6 +134,41 @@ class ArtworkReloadPlannerTest {
 		assertTrue(plan.rasterByTile.containsKey(AtlasTileId("art-0/lyid:3")))
 	}
 
+	/**
+	 * A reload that finds a new layer inside a folder the document already holds as a part (the case
+	 * of every CMO3-origin document, whose parts are the PSD's folders) lands it in that part and mints
+	 * no part for any folder it added nothing to.
+	 */
+	@Test
+	fun anAddedLayerJoinsTheExistingPartOfItsFolderAndUntouchedFoldersMintNothing() {
+		val headLayer1 = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), solidRaster(4, 4, 1), groupPath = "Head")
+		val bodyLayer2 = TestLayer("lyid:2", "Two", 1, LayerBounds(30, 40, 4, 4), solidRaster(4, 4, 2), groupPath = "Body")
+		val base = model()
+		val headPart = PartId("Part1")
+		val bodyPart = PartId("Part2")
+		val model =
+			base.copy(
+				parts =
+					listOf(
+						Part(headPart, "Head", listOf(OrgChild.Drawable(DrawableId("d1")))),
+						Part(bodyPart, "Body", listOf(OrgChild.Drawable(DrawableId("d2")))),
+					),
+				rootChildren = listOf(OrgChild.Part(headPart), OrgChild.Part(bodyPart)),
+				sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(TestArt(listOf(headLayer1, bodyLayer2))))),
+			)
+		val brow = TestLayer("lyid:3", "Brow", 2, LayerBounds(50, 50, 2, 2), solidRaster(2, 2, 3), groupPath = "Head")
+		val art = TestArt(listOf(headLayer1, bodyLayer2, brow), groups = listOf(TestGroup("Head"), TestGroup("Body"), TestGroup("Legs")))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model, source, art, options, oldRasterOf))
+		val additions = assertNotNull(plan.reload.additions)
+		assertTrue(additions.parts.isEmpty(), "no part is minted: Head exists, and Body and Legs gained nothing")
+		assertTrue(additions.rootChildren.isEmpty())
+		assertEquals(
+			listOf(OrgInsertion(headPart, OrgChild.Drawable(DrawableId("ArtMesh1")), OrgSlot.After(OrgChild.Drawable(DrawableId("d1"))))),
+			additions.insertions,
+			"the brow joins the Head part, right after the layer above it in the file",
+		)
+	}
+
 	@Test
 	fun aRelinkPullsTheTargetLayer() {
 		val art = TestArt(listOf(layer1, layer2))
@@ -164,23 +203,60 @@ class ArtworkReloadPlannerTest {
 		assertTrue(plan.reload.source.layers.single().present, "the new binding's row is present, not lost")
 	}
 
+	/** The read's modification time rides the refreshed record like the hash, and alone plans nothing. */
 	@Test
-	fun aLayerErasedToNothingLeavesItsTile() {
+	fun theModificationTimeIsRecordedLikeTheHashAndAloneChangesNothing() {
+		val art = TestArt(listOf(layer1, layer2))
+		assertNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf, contentHash = "h", lastModified = 5L), "a time and hash alone plan nothing")
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), solidRaster(4, 4, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(repainted, layer2)), options, oldRasterOf, contentHash = "h", lastModified = 5L))
+		assertEquals(5L, plan.reload.source.lastModified)
+		assertEquals("h", plan.reload.source.contentHash)
+		val matched = assertNotNull(ArtworkReloadPlanner.planMatches(model(), source, art, listOf(tile1 to "lyid:2"), options, oldRasterOf, lastModified = 7L))
+		assertEquals(7L, matched.reload.source.lastModified)
+		val replaced = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd", lastModified = 9L)))
+		assertEquals(9L, replaced.reload.source.lastModified, "a replacement records its own file's time")
+	}
+
+	/**
+	 * A layer erased to nothing is not a deletion the reconcile can act on: the tile keeps its art, the
+	 * inventory records the layer as empty, and the binding goes to review with its own reason - the
+	 * artist may have deleted it this way or left it blank on purpose.
+	 */
+	@Test
+	fun aLayerErasedToNothingLeavesItsTileAndGoesToReview() {
 		val erased = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), LayerRaster(4, 4, ByteArray(64)))
 		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(erased, layer2)), options, oldRasterOf))
-		// The tile keeps the art it had; the inventory records the layer's new hash, and the note says why nothing moved.
 		assertTrue(plan.reload.replacedTiles.isEmpty())
 		assertEquals(listOf(SourceArtImportNotice.EmptyLayer("One")), plan.notices)
+		assertEquals(listOf(ReconcileResult.NeedsReview(ref1, ReviewReason.LayerEmptied)), plan.report.needsReview)
+		val row = plan.reload.source.layers.first { layer -> layer.key == "lyid:1" }
+		assertTrue(row.present && row.empty, "still in the file, recorded as empty")
+		assertEquals(listOf(10, 20, 4, 4), listOf(row.left, row.top, row.width, row.height), "with the frame the art last had, not the collapse")
+
+		// The artist undoes the erasure (the art program saves the layer collapsed to nothing meanwhile):
+		// the art is back where the tile's art came from, so nothing is replaced and no coordinate moves.
+		val collapsed = TestLayer("lyid:1", "One", 0, LayerBounds(0, 0, 0, 0), LayerRaster(0, 0, ByteArray(0)))
+		val whileErased = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(collapsed, layer2)), options, oldRasterOf))
+		val erasedModel = model().copy(sources = listOf(whileErased.reload.source))
+		val restored = assertNotNull(ArtworkReloadPlanner.plan(erasedModel, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf))
+		assertTrue(restored.reload.replacedTiles.isEmpty(), "the same art at the same frame replaces nothing")
+		assertTrue(restored.reload.drawableMeshes.isEmpty(), "and moves no coordinate")
+		assertTrue(restored.report.needsReview.isEmpty(), "and the review is over")
+		val back = restored.reload.source.layers.first { layer -> layer.key == "lyid:1" }
+		assertTrue(back.present && !back.empty, "the row reads as art again")
 	}
 
 	@Test
 	fun acceptedMatchesReplaceTheirTilesInOnePlanAndDropTheLostRows() {
-		// Layer 2 was renamed under a new key on an earlier reload, so its row is kept not present and
-		// the tile still binds the old key; the matcher's accepted pair moves the tile to the new layer.
+		// Layer 2 was renamed under a new key and left for review by an earlier reload (its bar raised
+		// past the match), so its row is kept not present and the tile still binds the old key; the
+		// matcher's accepted pair moves the tile to the new layer.
 		val renamed = TestLayer("lyid:5", "Two (final)", 1, LayerBounds(30, 40, 4, 4), layer2.raster)
-		val afterRename = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(layer1, renamed)), options, oldRasterOf))
-		assertEquals(listOf(true, true, false), afterRename.reload.source.layers.map { layer -> layer.present })
-		val model = model().copy(sources = listOf(afterRename.reload.source))
+		val previous = model().sources.single()
+		val lostRows = inventoryWithMissing(previous.layers, SourceArtImport.inventoryOf(TestArt(listOf(layer1, renamed))), boundKeys = setOf("lyid:1", "lyid:2"))
+		assertEquals(listOf(true, true, false), lostRows.map { layer -> layer.present })
+		val model = model().copy(sources = listOf(previous.copy(layers = lostRows)))
 		val plan = assertNotNull(ArtworkReloadPlanner.planMatches(model, source, TestArt(listOf(layer1, renamed)), listOf(tile2 to "lyid:5"), options, oldRasterOf))
 		val replaced = plan.reload.replacedTiles.single()
 		assertEquals(tile2, replaced.oldId)
@@ -193,8 +269,9 @@ class ArtworkReloadPlannerTest {
 	}
 
 	@Test
-	fun aReplacementRewritesTheRecordAndFlagsEveryUnresolvedBinding() {
-		// The same art saved from another program: new keys for the same layers.
+	fun aReplacementRewritesTheRecordReboundsTheConfidentBindingsAndFlagsTheRest() {
+		// The same art saved from another program: new keys for the same layers, so both bindings are
+		// rebound by their pixels inside the replace step itself.
 		val clipOne = TestLayer("clip:a", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster)
 		val clipTwo = TestLayer("clip:b", "Two", 1, LayerBounds(30, 40, 4, 4), layer2.raster)
 		val descriptor = ArtSourceDescriptor("a.clip", "/a.clip", "clip")
@@ -203,17 +280,130 @@ class ArtworkReloadPlannerTest {
 		assertEquals("/a.clip", plan.reload.source.path)
 		assertEquals("clip", plan.reload.source.format)
 		assertEquals("h", plan.reload.source.contentHash)
-		assertEquals(listOf("clip:a", "clip:b", "lyid:1", "lyid:2"), plan.reload.source.layers.map { layer -> layer.key })
-		assertEquals(listOf(true, true, false, false), plan.reload.source.layers.map { layer -> layer.present })
-		assertTrue(plan.reload.replacedTiles.isEmpty(), "no binding resolved by key")
-		assertNull(plan.reload.additions, "the new file's layers stay unbound as the candidates the review matches against")
+		assertEquals(listOf(tile1, tile2), plan.reload.replacedTiles.map { replaced -> replaced.oldId }, "both bindings rebound")
+		assertEquals(listOf(SourceLayerRef(source, "clip:a", true), SourceLayerRef(source, "clip:b", true)), plan.reload.replacedTiles.map { replaced -> replaced.tile.source })
+		assertEquals(listOf(ReconcileResult.Rebound(ref1, "clip:a", 1f), ReconcileResult.Rebound(ref2, "clip:b", 1f)), plan.report.results)
+		assertEquals(listOf("clip:a", "clip:b"), plan.reload.source.layers.map { layer -> layer.key }, "no lost row remains")
+		assertNull(plan.reload.additions)
+
+		// Art that resolves nothing: every binding is flagged as replaced, and the new file's layers stay
+		// unbound as the candidates the review matches against.
+		val strangers =
+			TestArt(
+				listOf(
+					TestLayer("clip:y", "Why", 0, LayerBounds(200, 200, 8, 8), solidRaster(8, 8, 7)),
+					TestLayer("clip:z", "Zed", 1, LayerBounds(300, 300, 8, 8), solidRaster(8, 8, 8)),
+				),
+			)
+		val flagged = assertNotNull(ArtworkReloadPlanner.plan(model(), source, strangers, options, oldRasterOf, contentHash = "h", replacement = descriptor))
+		assertEquals(listOf("clip:y", "clip:z", "lyid:1", "lyid:2"), flagged.reload.source.layers.map { layer -> layer.key })
+		assertEquals(listOf(true, true, false, false), flagged.reload.source.layers.map { layer -> layer.present })
+		assertTrue(flagged.reload.replacedTiles.isEmpty(), "no binding resolved by key or by match")
+		assertNull(flagged.reload.additions, "the new file's layers stay unbound as the candidates the review matches against")
 		assertEquals(
 			listOf(ReconcileResult.NeedsReview(ref1, ReviewReason.SourceReplaced), ReconcileResult.NeedsReview(ref2, ReviewReason.SourceReplaced)),
-			plan.report.needsReview,
+			flagged.report.needsReview,
 		)
 		// A same-format twin resolves by key and the plan still lands, if only to rewrite the record.
 		val twin = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(layer1, layer2)), options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd")))
 		assertEquals("b.psd", twin.reload.source.name)
 		assertTrue(twin.report.needsReview.isEmpty())
+	}
+
+	@Test
+	fun aReCreatedLayerIsReboundInTheReloadInsteadOfMinted() {
+		// Layer 1 deleted and re-created under a new key (a duplicate, a paste) with its pixels and place:
+		// the rigged tile follows it in the same step and nothing is minted beside it.
+		val recreated = TestLayer("lyid:3", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster)
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(recreated, layer2)), options, oldRasterOf))
+		val replaced = plan.reload.replacedTiles.single()
+		assertEquals(tile1, replaced.oldId)
+		assertEquals(SourceLayerRef(source, "lyid:3", true), replaced.tile.source)
+		assertEquals("One", replaced.tile.name)
+		assertSame(recreated.raster, plan.rasterByTile.getValue(replaced.tile.id))
+		assertNull(plan.reload.additions, "the re-created layer is not minted beside the rebound tile")
+		assertTrue(plan.reload.retiredTiles.isEmpty())
+		assertEquals(listOf(ReconcileResult.Rebound(ref1, "lyid:3", 1f), ReconcileResult.Matched(ref2, "lyid:2")), plan.report.results)
+		assertTrue(plan.report.needsReview.isEmpty())
+		assertEquals(listOf("lyid:3", "lyid:2"), plan.reload.source.layers.map { layer -> layer.key }, "no lost row is kept")
+		assertTrue(plan.reload.source.layers.all { layer -> layer.present })
+		assertTrue(plan.leftovers.isEmpty())
+		val expected = SourceArtImport.birthMeshFor(recreated, options.alphaThreshold, options.birthMeshMargin)!!
+		assertContentEquals(expected.positions, plan.reload.drawableMeshes.getValue(DrawableId("d1")).positions, "the untouched quad is re-born over the layer")
+	}
+
+	@Test
+	fun belowTheBarTheLayerIsMintedAndTheRowStaysForReviewWhileALowerBarRebinds() {
+		// Layer 1 deleted and an unrelated layer added: nothing near the bar, so the stranger is minted
+		// and the binding waits for a person; the same read at a lower bar rebinds instead.
+		val stranger = TestLayer("lyid:3", "Something else", 0, LayerBounds(200, 200, 8, 8), solidRaster(8, 8, 7))
+		val art = TestArt(listOf(stranger, layer2))
+		val atBar = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf))
+		assertEquals(listOf(ReconcileResult.NeedsReview(ref1, ReviewReason.LayerMissing)), atBar.report.needsReview)
+		assertEquals(listOf(AtlasTileId("art-0/lyid:3")), assertNotNull(atBar.reload.additions).tiles.map { tile -> tile.id }, "the stranger is minted")
+		assertTrue(atBar.reload.replacedTiles.isEmpty())
+		assertEquals(listOf(true, true, false), atBar.reload.source.layers.map { layer -> layer.present })
+		val leftover = assertNotNull(atBar.leftovers["lyid:1"], "the proposal under the bar is handed out, scored before the mint")
+		assertEquals("lyid:3", leftover.key)
+		val lowered = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf, matchThreshold = 0f))
+		assertEquals(tile1, lowered.reload.replacedTiles.single().oldId)
+		assertNull(lowered.reload.additions)
+		val rebound = lowered.report.results.filterIsInstance<ReconcileResult.Rebound>().single()
+		assertEquals("lyid:3", rebound.layerKey)
+		assertTrue(rebound.score < InventoryLayerMatcher.DEFAULT_THRESHOLD, "well under the default bar: ${rebound.score}")
+		assertTrue(lowered.report.needsReview.isEmpty())
+		assertTrue(lowered.leftovers.isEmpty())
+	}
+
+	@Test
+	fun twoLostKeysPreferringOneAddedLayerSettleOnTheMoreConfident() {
+		// Both layers deleted and one re-created with layer 1's pixels; the other lost binding hashes to
+		// it too (the same pixels), so the first in binding order takes it and the other waits.
+		val samePixels = TestLayer("lyid:2", "Two", 1, LayerBounds(30, 40, 4, 4), layer1.raster)
+		val model = model().copy(sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(TestArt(listOf(layer1, samePixels))))))
+		val rasters = mapOf(tile1 to layer1.raster, tile2 to layer1.raster)
+		val twin = TestLayer("lyid:3", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster)
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model, source, TestArt(listOf(twin)), options, { tileId -> rasters[tileId] }))
+		assertEquals(listOf(tile1), plan.reload.replacedTiles.map { replaced -> replaced.oldId }, "one binding takes the twin")
+		assertEquals(listOf(ReconcileResult.NeedsReview(ref2, ReviewReason.LayerMissing)), plan.report.needsReview, "the other stays for review")
+		assertNull(plan.reload.additions, "the twin is not minted, it was claimed")
+		assertEquals(listOf("lyid:3", "lyid:2"), plan.reload.source.layers.map { layer -> layer.key })
+		assertEquals(listOf(true, false), plan.reload.source.layers.map { layer -> layer.present })
+	}
+
+	@Test
+	fun anAcceptedMatchRetiresTheUntouchedDrawableOverItsLayerAndKeepsARiggedOne() {
+		// Layer 1 was re-created under lyid:3 and an earlier reload minted a fresh drawable for it (the
+		// match scored under the bar); accepting the reload's proposal now moves the rigged tile onto the
+		// layer and retires the fresh drawable with its tile - the tile the proposal named, and only
+		// when it still carries no rig work: the same fresh drawable, once edited, stays, and the layer
+		// is then bound twice for a person to sort out.
+		val recreated = TestLayer("lyid:3", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster)
+		val freshQuad = SourceArtImport.birthMeshFor(recreated, options.alphaThreshold, options.birthMeshMargin)!!
+		val tile3 = AtlasTileId("art-0/lyid:3")
+		val base = model()
+		val freshInventory =
+			inventoryWithMissing(base.sources.single().layers, SourceArtImport.inventoryOf(TestArt(listOf(recreated, layer2))), boundKeys = setOf("lyid:1", "lyid:2", "lyid:3"))
+		val afterMint =
+			base.copy(
+				drawables = base.drawables + drawable("d3", tile3, freshQuad),
+				rootChildren = base.rootChildren + OrgChild.Drawable(DrawableId("d3")),
+				atlas = base.atlas.copy(tiles = base.atlas.tiles + AtlasTile(tile3, "One", 4, 4, source = SourceLayerRef(source, "lyid:3", true))),
+				sources = listOf(base.sources.single().copy(layers = freshInventory)),
+			)
+		val rasters = oldRasters + (tile3 to recreated.raster)
+		val art = TestArt(listOf(recreated, layer2))
+		assertTrue(suggestionsFor(afterMint, source).isEmpty(), "on the model alone the bound layer is no candidate; the proposal is the reload's")
+		val plan = assertNotNull(ArtworkReloadPlanner.planMatches(afterMint, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
+		assertEquals(tile1, plan.reload.replacedTiles.single().oldId)
+		assertEquals(listOf(tile3), plan.reload.retiredTiles, "the fresh drawable's tile goes with the move")
+		assertEquals(listOf("lyid:3", "lyid:2"), plan.reload.source.layers.map { layer -> layer.key }, "the lost row leaves; the claimed layer stays bound through the rebound tile")
+		val unnamed = assertNotNull(ArtworkReloadPlanner.planMatches(afterMint, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }))
+		assertTrue(unnamed.reload.retiredTiles.isEmpty(), "a relink that names nothing retires nothing")
+
+		val editedFresh = DrawableMesh(floatArrayOf(10f, 20f, 11f, 20f, 10f, 21f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
+		val edited = afterMint.copy(drawables = afterMint.drawables.map { drawable -> if (drawable.id.raw == "d3") drawable.copy(mesh = editedFresh) else drawable })
+		val kept = assertNotNull(ArtworkReloadPlanner.planMatches(edited, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
+		assertTrue(kept.reload.retiredTiles.isEmpty(), "rig work over the layer is never removed, whatever the proposal named")
 	}
 }

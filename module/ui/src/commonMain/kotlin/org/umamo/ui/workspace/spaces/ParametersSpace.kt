@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -101,7 +100,11 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.LocalRowDragCancel
+import org.umamo.ui.workspace.rowdrag.RowCoordinatesHolder
+import org.umamo.ui.workspace.rowdrag.RowDragController
+import org.umamo.ui.workspace.rowdrag.RowDragLabel
+import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
+import org.umamo.ui.workspace.rowdrag.rowDropHighlight
 import kotlin.math.abs
 
 /** A value within this of a parameter's default counts as "at default" - no reset glyph, no drift. */
@@ -313,13 +316,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// cancel on the shell's seam so Escape aborts the drag (the grip is pointerInput, never focusable,
 	// so it does not reintroduce the link-icon focus bug).
 	val dragController = remember { RowDragController<ParameterMoveSubject>() }
-	val dragCancelSeam = LocalRowDragCancel.current
-	DisposableEffect(dragController.isDragging) {
-		if (dragController.isDragging) {
-			dragCancelSeam.cancel = { dragController.cancel() }
-		}
-		onDispose { dragCancelSeam.cancel = null }
-	}
+	dragController.parkCancelOnSeam()
 
 	// The "add" items every parameter menu ends with: Add Key Form / Add Blend Shape parameter, and New
 	// Group. Each creates a document edit and opens the created item for inline rename. Shared by the
@@ -706,9 +703,9 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 				VerticalScrollbarOverlay(listState)
 			}
 		}
-		// The floating drag ghost follows the cursor over everything (reuses the outliner's label).
+		// The floating drag ghost follows the cursor over everything.
 		if (dragController.isDragging) {
-			OutlinerDragLabel(
+			RowDragLabel(
 				label = draggedRowLabel(rows, dragController.draggingKey),
 				cursorX = dragController.dragWindowX,
 				cursorY = dragController.dragWindowY,
@@ -1208,12 +1205,6 @@ private fun RangeField(
 	}
 }
 
-/** A non-snapshot holder for the grip's latest layout coordinates, for the drag gesture's window origin. */
-private class GripCoordinatesHolder {
-	/** The grip's most recent layout coordinates, or null before the first layout pass. */
-	var coordinates: LayoutCoordinates? = null
-}
-
 /**
  * The leading drag handle of a parameter row (a slider, a pad, or a group header). Dragging it reorders
  * the row or moves it into / out of a group. Uses raw pointerInput (immediate drag on a dedicated grip,
@@ -1237,7 +1228,7 @@ private fun ParameterGripHandle(
 	onSelect: () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
-	val gripCoordinates = remember { GripCoordinatesHolder() }
+	val gripCoordinates = remember { RowCoordinatesHolder() }
 	val touchSlop = LocalViewConfiguration.current.touchSlop
 	// Read at gesture time, not keyed into pointerInput: the callbacks are rebuilt on every recomposition
 	// of the panel, and keying the gesture to them would cancel an in-flight drag the moment anything
@@ -1446,14 +1437,9 @@ private fun ParameterGroupHeaderBody(
 				.fillMaxWidth()
 				.height(GROUP_HEADER_HEIGHT)
 				.clip(shapes.small)
-				.background(if (nesting) colors.dropTargetBackground else colors.tabBackground, shape = shapes.small)
-				.then(
-					if (nesting) {
-						Modifier.border(1.dp, colors.accent, shapes.small)
-					} else {
-						Modifier
-					},
-				)
+				.background(colors.tabBackground, shape = shapes.small)
+				// A "nest into" drop rings the island the way every row drag rings its target.
+				.rowDropHighlight(nesting, shapes.small, colors)
 				// A single tap toggles the group immediately (no double-tap wait, so it never feels laggy);
 				// a double tap opens inline rename.
 				.singleOrDoubleClick(onSingle = onToggle, onDouble = onStartRename)

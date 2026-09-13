@@ -110,6 +110,7 @@ enum class DocumentField {
 	PARAMETER_TREE,
 	ROOT_CHILDREN,
 	ATLAS_PAGES,
+	SOURCE_FILES,
 }
 
 /**
@@ -629,7 +630,31 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
 		if (baseline.rootChildren != edited.rootChildren) {
 			add(DocumentField.ROOT_CHILDREN)
 		}
+		// The file each source record points at - its name, path, and modification time - and nothing
+		// else about the record: the inventory and the hashes change on every reload and have no CMO3
+		// home, so they must not turn a reload into a document change the export cannot lower.  Only
+		// the records BOTH models list: a record one side lacks is art added this session, or a page
+		// slice a fresh synthesis minted under its own id, and has no layered image to repoint.
+		if (sourceFilesChanged(baseline, edited)) {
+			add(DocumentField.SOURCE_FILES)
+		}
 	}
+
+/**
+ * Whether any source record both models list points at a different file in [edited]: another name,
+ * path, or modification time.
+ *
+ * @param PuppetModel baseline The graph-derived baseline.
+ * @param PuppetModel edited   The session's current model.
+ * @return Boolean True when a shared record was repointed.
+ */
+private fun sourceFilesChanged(baseline: PuppetModel, edited: PuppetModel): Boolean {
+	val baselineById = baseline.sources.associateBy { source -> source.id }
+	return edited.sources.any { source ->
+		val before = baselineById[source.id] ?: return@any false
+		before.name != source.name || before.path != source.path || before.lastModified != source.lastModified
+	}
+}
 
 /**
  * The identity sequence of one tree level - a Param's id or a Group's id, in order.  Group content

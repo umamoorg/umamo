@@ -9,6 +9,7 @@ import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.format.art.isFullyTransparent
 import org.umamo.format.binary.contentHashOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
@@ -21,6 +22,8 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
@@ -49,12 +52,14 @@ import org.umamo.runtime.model.deriveRenderRoot
  * @property String? path        The advisory external path, or null when the platform has none (a SAF uri).
  * @property String  format      The source format's file extension ("psd", "clip", "kra", "png", ...).
  * @property String? contentHash The whole-file content hash of the bytes read, or null when unknown.
+ * @property Long?   lastModified The file's modification time (epoch milliseconds) when read, or null when unknown.
  */
 class ArtSourceDescriptor(
 	val name: String,
 	val path: String?,
 	val format: String,
 	val contentHash: String? = null,
+	val lastModified: Long? = null,
 )
 
 /**
@@ -141,6 +146,15 @@ private class FolderNode(
 
 	/** The top-most order under this folder, so it sorts among its siblings where its first layer is. */
 	var firstOrder: Int = Int.MAX_VALUE
+}
+
+/** One direct child of a folder as the FILE orders it: a layer by key, or a sub-folder by path. */
+private sealed interface FileSibling {
+	val order: Int
+
+	class Layer(override val order: Int, val key: String) : FileSibling
+
+	class Folder(override val order: Int, val path: String) : FileSibling
 }
 
 /** One entry of a folder's children: a drawable, or a nested folder, with the order it sorts by. */
@@ -241,8 +255,18 @@ object SourceArtImport {
 	 * @param PuppetModel            existing    The model the additions will join.
 	 * @param ArtSourceId?           underSource The source the additions belong to when the file is one
 	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it and the
-	 *   returned record carries its id, so the caller merges rather than appends the record.  Null mints
-	 *   a new source, the shape a fresh import and Add Artwork take.
+	 *   returned record carries its id, so the caller merges rather than appends the record.  Only the
+	 *   folders the added layers live in become parts; a folder the document already keeps as a part
+	 *   (the part holding the most drawables of that folder, found through the source's bindings) takes
+	 *   the new layers as children instead of being minted again; and every new child of the root or of
+	 *   such a part is placed among the existing children where the file puts it, anchored to its
+	 *   nearest sibling in the file.  Null mints a new source with every folder of the file, the shape a
+	 *   fresh import and Add Artwork take.
+	 * @param Set<String>?           layerKeys   The keys of the layers to mint, or null for every layer.  A
+	 *   reload names the layers the file gained while handing over the WHOLE file, so the placement can
+	 *   see the layers around them.
+	 * @param List<ArtSourceLayer>?  inventory   The inventory of [art] when the caller already computed it
+	 *   (it hashes every layer's pixels); computed here when null.
 	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
 	 */
 	fun additionsFor(
@@ -251,6 +275,8 @@ object SourceArtImport {
 		options: SourceArtImportOptions,
 		existing: PuppetModel,
 		underSource: ArtSourceId? = null,
+		layerKeys: Set<String>? = null,
+		inventory: List<ArtSourceLayer>? = null,
 	): SourceArtAdditions {
 		val sourceId = underSource ?: ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
 		val minter =
@@ -268,6 +294,9 @@ object SourceArtImport {
 		val rasterByTile = LinkedHashMap<AtlasTileId, LayerRaster>()
 		val usedTileKeys = existing.atlas.tiles.mapTo(HashSet()) { tile -> tile.id.raw }
 		for (layer in layersTopFirst) {
+			if (layerKeys != null && layer.id.raw !in layerKeys) {
+				continue
+			}
 			if (layer.kind != SourceLayerKind.Raster) {
 				notices.add(SourceArtImportNotice.NonRasterLayer(layer.name, layer.kind))
 				continue
@@ -344,26 +373,54 @@ object SourceArtImport {
 			drawables[index] = drawables[index].copy(maskedBy = listOf(base.drawableId))
 		}
 
-		// Pass 3: the org tree.  Every folder becomes a part, nested by path; each folder sorts among
-		// its siblings where its top-most layer sits, so the panel reads in the file's own order.
+		// Pass 3: the org tree.  A fresh file mints every folder as a part, nested by path, and its whole
+		// tree lands after the model's root children.  A file the document already lists mints only the
+		// folders its added layers live in, a folder the document already keeps as a part takes the
+		// layers as children instead, and every new child of the root or of such a part is placed among
+		// the existing children where the file puts it.  Each folder sorts among its siblings where its
+		// top-most layer sits, so the panel reads in the file's own order.
+		val existingPartByPath = if (underSource == null) emptyMap() else existingPartsByFolder(existing, underSource)
 		val folderByPath = LinkedHashMap<String, FolderNode>()
-		for (group in art.groups) {
-			folderByPath[group.path] = folderNodeOf(group)
+		if (underSource == null) {
+			for (group in art.groups) {
+				folderByPath[group.path] = folderNodeOf(group)
+			}
+		} else {
+			val groupByPath = art.groups.associateBy { group -> group.path }
+			for (entry in imported) {
+				for (path in ancestorPathsOf(entry.layer.groupPath)) {
+					val group = groupByPath[path]
+					if (group != null && path !in folderByPath) {
+						folderByPath[path] = folderNodeOf(group)
+					}
+				}
+			}
 		}
 		for (entry in imported) {
 			ensureFolders(entry.layer.groupPath, folderByPath)
 		}
-		val rootChildren = ArrayList<FolderChild>()
+		// Where a new child gathers: the root's list, an anchored part's list (placed among that part's
+		// existing children below), or a new folder's own node.
+		val rootGathered = ArrayList<FolderChild>()
+		val gatheredByAnchor = LinkedHashMap<String, MutableList<FolderChild>>()
+
+		fun gatheredFor(parentPath: String): MutableList<FolderChild> =
+			when {
+				parentPath.isEmpty() -> rootGathered
+				parentPath in existingPartByPath -> gatheredByAnchor.getOrPut(parentPath) { ArrayList() }
+				else -> folderByPath.getValue(parentPath).children
+			}
 		for (folder in folderByPath.values) {
-			val parentPath = folder.path.substringBeforeLast('/', missingDelimiterValue = "")
-			val siblings = if (parentPath.isEmpty()) rootChildren else folderByPath.getValue(parentPath).children
-			siblings.add(FolderChild.Folder(folder))
+			if (folder.path in existingPartByPath) {
+				// Anchored to a part the document has: its children lower into that part, and the folder
+				// itself is never a child of anything new.
+				continue
+			}
+			gatheredFor(folder.path.substringBeforeLast('/', missingDelimiterValue = "")).add(FolderChild.Folder(folder))
 		}
 		for (entry in imported) {
-			val parentPath = entry.layer.groupPath
-			val siblings = if (parentPath.isEmpty()) rootChildren else folderByPath.getValue(parentPath).children
-			siblings.add(FolderChild.Layer(entry.layer.order, entry.drawableId))
-			var ancestorPath = parentPath
+			gatheredFor(entry.layer.groupPath).add(FolderChild.Layer(entry.layer.order, entry.drawableId))
+			var ancestorPath = entry.layer.groupPath
 			while (ancestorPath.isNotEmpty()) {
 				val ancestor = folderByPath.getValue(ancestorPath)
 				ancestor.firstOrder = minOf(ancestor.firstOrder, entry.layer.order)
@@ -371,19 +428,291 @@ object SourceArtImport {
 			}
 		}
 		val parts = ArrayList<Part>()
-		val orgRoot = orgChildrenOf(rootChildren, parts, minter, notices)
+		val orgRoot: List<OrgChild>
+		val insertions: List<OrgInsertion>
+		if (underSource == null) {
+			orgRoot = orgChildrenOf(rootGathered, parts, minter, notices)
+			insertions = emptyList()
+		} else {
+			orgRoot = emptyList()
+			val placer = InsertionPlacer(art, existing, underSource, existingPartByPath, imported)
+			val placed = ArrayList<OrgInsertion>()
+			placer.place(container = null, containerPath = "", gathered = rootGathered, parts, minter, notices, placed)
+			for ((containerPath, gathered) in gatheredByAnchor) {
+				placer.place(existingPartByPath.getValue(containerPath), containerPath, gathered, parts, minter, notices, placed)
+			}
+			insertions = placed
+		}
 
 		return SourceArtAdditions(
 			ArtworkAdditions(
-				source = ArtSource(sourceId, source.name, source.path, source.format, inventoryOf(art), source.contentHash),
+				source = ArtSource(sourceId, source.name, source.path, source.format, inventory ?: inventoryOf(art), source.contentHash, source.lastModified),
 				tiles = tiles,
 				drawables = drawables,
 				parts = parts,
 				rootChildren = orgRoot,
+				insertions = insertions,
 			),
 			rasterByTile,
 			notices,
 		)
+	}
+
+	/**
+	 * Places a listed file's new children among a container's existing ones by the file's order.
+	 *
+	 * The file's direct children of a folder - its layers and its sub-folders, each with the order it
+	 * sorts by (a folder's is its top-most layer's) - are the siblings; a new child goes directly after
+	 * its nearest sibling above that the container can show (an existing drawable bound to that layer, the
+	 * part the document keeps for that folder, or a child this delta placed before it), else directly
+	 * before its nearest such sibling below, else at the end.  So a layer added at the top of the file
+	 * lands first, and one added between two layers lands between their drawables.
+	 *
+	 * @property SourceArt   art               The whole file, for the siblings.
+	 * @property PuppetModel existing          The model, for what each container already holds.
+	 * @property ArtSourceId sourceId          The file's record, for the bindings that name existing drawables.
+	 * @property Map         existingPartByPath The part the document keeps per folder path.
+	 * @property List        imported          The layers this delta minted, with their drawables.
+	 */
+	private class InsertionPlacer(
+		private val art: SourceArt,
+		private val existing: PuppetModel,
+		sourceId: ArtSourceId,
+		private val existingPartByPath: Map<String, PartId>,
+		imported: List<ImportedLayer>,
+	) {
+		/** The drawables each layer key has: the delta's new one, else every existing drawable over the bound tile. */
+		private val drawablesByKey: Map<String, List<DrawableId>> = boundDrawablesByLayerKey(existing, sourceId) + imported.associate { entry -> entry.layer.id.raw to listOf(entry.drawableId) }
+
+		/** Each folder's top-most layer order over the WHOLE file, so a sub-folder sorts among layers. */
+		private val minOrderByPath: Map<String, Int> = minOrderByGroupPath(art)
+
+		/** The parts this delta minted, by folder path, so a later child can anchor on a new folder. */
+		private val newPartByPath = HashMap<String, PartId>()
+
+		/**
+		 * Places [gathered]'s children into [container], appending one insertion per child to [into].
+		 *
+		 * @param PartId?     container     The part, or null for the root.
+		 * @param String      containerPath The folder path the container stands for ("" at the root).
+		 * @param List        gathered      The new children, in any order.
+		 * @param MutableList parts         Every part minted so far, appended to for a new folder.
+		 * @param IdMinter    minter        The id sequence a new folder's part takes.
+		 * @param MutableList notices       Appended with a new folder's composite notes.
+		 * @param MutableList into          The insertions, appended in the file's order.
+		 */
+		fun place(
+			container: PartId?,
+			containerPath: String,
+			gathered: List<FolderChild>,
+			parts: MutableList<Part>,
+			minter: IdMinter,
+			notices: MutableList<SourceArtImportNotice>,
+			into: MutableList<OrgInsertion>,
+		) {
+			val existingChildren = if (container == null) existing.rootChildren else existing.parts.first { part -> part.id == container }.children
+			val present = HashSet<OrgChild>(existingChildren)
+			val siblings = fileSiblingsOf(containerPath)
+			for (child in gathered.sortedBy { candidate -> candidate.order }) {
+				val orgChild =
+					when (child) {
+						is FolderChild.Layer -> OrgChild.Drawable(child.drawableId)
+						is FolderChild.Folder -> {
+							val minted = orgChildrenOf(listOf(child), parts, minter, notices).single()
+							newPartByPath[child.node.path] = (minted as OrgChild.Part).id
+							minted
+						}
+					}
+				into.add(OrgInsertion(container, orgChild, slotFor(child.order, siblings, present, orgChild)))
+				present.add(orgChild)
+			}
+		}
+
+		/**
+		 * The file's direct children of [containerPath], sorted by the order they sit at.
+		 *
+		 * @param String containerPath The folder ("" at the root).
+		 * @return List<FileSibling> The layers and sub-folders, top-most first.
+		 */
+		private fun fileSiblingsOf(containerPath: String): List<FileSibling> {
+			val siblings = ArrayList<FileSibling>()
+			for (layer in art.layers) {
+				if (layer.groupPath == containerPath) {
+					siblings.add(FileSibling.Layer(layer.order, layer.id.raw))
+				}
+			}
+			val folderPaths = LinkedHashSet<String>(minOrderByPath.keys)
+			for (group in art.groups) {
+				folderPaths.add(group.path)
+			}
+			for (path in folderPaths) {
+				if (path.substringBeforeLast('/', missingDelimiterValue = "") == containerPath && path != containerPath) {
+					siblings.add(FileSibling.Folder(minOrderByPath[path] ?: Int.MAX_VALUE, path))
+				}
+			}
+			return siblings.sortedBy { sibling -> sibling.order }
+		}
+
+		/**
+		 * Where a child at [order] goes among [siblings]: after the nearest one above the container can
+		 * show, else before the nearest one below it can, else at the end.
+		 *
+		 * @param Int               order    The child's order in the file.
+		 * @param List<FileSibling> siblings The container's children as the file orders them.
+		 * @param Set<OrgChild>     present  What the container holds now, this delta's earlier placements included.
+		 * @param OrgChild          self     The child being placed, never its own anchor.
+		 * @return OrgSlot The slot.
+		 */
+		private fun slotFor(order: Int, siblings: List<FileSibling>, present: Set<OrgChild>, self: OrgChild): OrgSlot {
+			for (sibling in siblings.filter { candidate -> candidate.order < order }.asReversed()) {
+				val anchor = shownChildOf(sibling, present, self)
+				if (anchor != null) {
+					return OrgSlot.After(anchor)
+				}
+			}
+			for (sibling in siblings.filter { candidate -> candidate.order > order }) {
+				val anchor = shownChildOf(sibling, present, self)
+				if (anchor != null) {
+					return OrgSlot.Before(anchor)
+				}
+			}
+			return OrgSlot.End
+		}
+
+		/**
+		 * The child the container shows for [sibling], or null when it shows none: a skipped layer, a
+		 * layer whose drawable the rigger moved elsewhere, a folder with no part.
+		 *
+		 * @param FileSibling   sibling The layer or folder.
+		 * @param Set<OrgChild> present What the container holds.
+		 * @param OrgChild      self    The child being placed.
+		 * @return OrgChild? The shown child, or null.
+		 */
+		private fun shownChildOf(sibling: FileSibling, present: Set<OrgChild>, self: OrgChild): OrgChild? {
+			val candidates =
+				when (sibling) {
+					is FileSibling.Layer -> drawablesByKey[sibling.key].orEmpty().map { drawableId -> OrgChild.Drawable(drawableId) }
+					is FileSibling.Folder -> listOfNotNull((existingPartByPath[sibling.path] ?: newPartByPath[sibling.path])?.let { partId -> OrgChild.Part(partId) })
+				}
+			return candidates.firstOrNull { candidate -> candidate != self && candidate in present }
+		}
+	}
+
+	/**
+	 * Every existing drawable each layer of [sourceId]'s file has, by the layer's key: the tiles bound
+	 * to the file and the drawables over them.
+	 *
+	 * @param PuppetModel existing The model.
+	 * @param ArtSourceId sourceId The file.
+	 * @return Map The drawable ids per bound layer key.
+	 */
+	private fun boundDrawablesByLayerKey(existing: PuppetModel, sourceId: ArtSourceId): Map<String, List<DrawableId>> {
+		val drawablesByTile = existing.drawables.groupBy { drawable -> drawable.atlasTileId }
+		val result = HashMap<String, List<DrawableId>>()
+		for (tile in existing.atlas.tiles) {
+			val ref = tile.source ?: continue
+			if (ref.sourceId != sourceId) {
+				continue
+			}
+			val drawables = drawablesByTile[tile.id].orEmpty().map { drawable -> drawable.id }
+			if (drawables.isNotEmpty()) {
+				result[ref.layerKey] = result[ref.layerKey].orEmpty() + drawables
+			}
+		}
+		return result
+	}
+
+	/**
+	 * The top-most layer order under every folder path of [art], the folder's own order among its siblings.
+	 *
+	 * @param SourceArt art The file.
+	 * @return Map The minimum order per folder path; a folder with no layer under it is absent.
+	 */
+	private fun minOrderByGroupPath(art: SourceArt): Map<String, Int> {
+		val minOrder = HashMap<String, Int>()
+		for (layer in art.layers) {
+			for (path in ancestorPathsOf(layer.groupPath)) {
+				minOrder[path] = minOf(minOrder[path] ?: Int.MAX_VALUE, layer.order)
+			}
+		}
+		return minOrder
+	}
+
+	/**
+	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: for every drawable bound
+	 * to the file, its layer's folder (from the recorded inventory) and the part holding the drawable
+	 * directly; a folder maps to the part holding the most of its drawables, and a folder with no
+	 * drawable of its own (one holding only sub-folders) to the part that holds a mapped sub-folder's
+	 * part.  A CMO3-origin document has no folder binding on its parts, so this is what says "Front
+	 * hair" already exists.
+	 *
+	 * @param PuppetModel existing The model the additions will join.
+	 * @param ArtSourceId sourceId The file whose folders are being placed.
+	 * @return Map<String, PartId> The part per folder path; a folder reached by neither rule is absent.
+	 */
+	private fun existingPartsByFolder(existing: PuppetModel, sourceId: ArtSourceId): Map<String, PartId> {
+		val rowByKey = existing.sources.firstOrNull { source -> source.id == sourceId }?.layers?.associateBy { row -> row.key }.orEmpty()
+		val folderByDrawable = HashMap<DrawableId, String>()
+		for (drawable in existing.drawables) {
+			val tile = drawable.atlasTileId?.let { tileId -> existing.atlas.tileById[tileId] } ?: continue
+			val ref = tile.source ?: continue
+			if (ref.sourceId != sourceId) {
+				continue
+			}
+			val folder = rowByKey[ref.layerKey]?.groupPath ?: continue
+			if (folder.isNotEmpty()) {
+				folderByDrawable[drawable.id] = folder
+			}
+		}
+		val countByFolderAndPart = LinkedHashMap<String, LinkedHashMap<PartId, Int>>()
+		val parentByPart = HashMap<PartId, PartId>()
+		for (part in existing.parts) {
+			for (child in part.children) {
+				when (child) {
+					is OrgChild.Part -> parentByPart[child.id] = part.id
+					is OrgChild.Drawable -> {
+						val folder = folderByDrawable[child.id] ?: continue
+						val counts = countByFolderAndPart.getOrPut(folder) { LinkedHashMap() }
+						counts[part.id] = (counts[part.id] ?: 0) + 1
+					}
+				}
+			}
+		}
+		val partByFolder = LinkedHashMap<String, PartId>()
+		for ((folder, counts) in countByFolderAndPart) {
+			partByFolder[folder] = counts.maxBy { (_, count) -> count }.key
+		}
+		// A folder no drawable sits in directly is reached through a mapped sub-folder: its part is the
+		// one holding that sub-folder's part.  A direct mapping always wins over an inferred one.
+		for ((folder, partId) in countByFolderAndPart.keys.associateWith { folder -> partByFolder.getValue(folder) }) {
+			var ancestorFolder = folder.substringBeforeLast('/', missingDelimiterValue = "")
+			var ancestorPart = parentByPart[partId]
+			while (ancestorFolder.isNotEmpty() && ancestorPart != null && ancestorFolder !in partByFolder) {
+				partByFolder[ancestorFolder] = ancestorPart
+				ancestorFolder = ancestorFolder.substringBeforeLast('/', missingDelimiterValue = "")
+				ancestorPart = parentByPart[ancestorPart]
+			}
+		}
+		return partByFolder
+	}
+
+	/**
+	 * Every folder path along [groupPath], outermost first ("Head", "Head/Hair", ...); empty at the root.
+	 *
+	 * @param String groupPath The slash-joined path.
+	 * @return List<String> The ancestor paths, the path itself last.
+	 */
+	private fun ancestorPathsOf(groupPath: String): List<String> {
+		if (groupPath.isEmpty()) {
+			return emptyList()
+		}
+		val paths = ArrayList<String>()
+		var path = ""
+		for (segment in groupPath.split('/')) {
+			path = if (path.isEmpty()) segment else "$path/$segment"
+			paths.add(path)
+		}
+		return paths
 	}
 
 	/**
@@ -408,6 +737,7 @@ object SourceArtImport {
 				height = layer.bounds.height,
 				visible = layer.visible,
 				contentHash = if (layer.kind == SourceLayerKind.Raster) contentHashOf(layer.raster.rgba) else null,
+				empty = layer.kind == SourceLayerKind.Raster && layer.raster.isFullyTransparent(),
 			)
 		}
 

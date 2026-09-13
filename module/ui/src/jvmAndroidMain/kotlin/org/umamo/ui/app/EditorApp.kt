@@ -25,6 +25,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.deleteTile
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.edit.setTileSources
 import org.umamo.format.FileKind
@@ -69,6 +70,7 @@ import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
+import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
@@ -170,8 +172,45 @@ private val artworkImportExtensions: List<String> =
  * (Android's SAF content handles have no path to probe) and a path the file system refuses both read
  * as unknown rather than missing - the space must never accuse a file it could not check.
  */
-private val sourceFilePresence: SourceFilePresence = { path ->
-	if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
+private val sourceFilePresence: SourceFilePresence =
+	LoggedSourceFilePresence { path ->
+		if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
+	}::probe
+
+/**
+ * The presence probe with a log line the first time a path is asked about and whenever its answer
+ * changes - found, missing, or unknowable - so a document whose recorded path is wrong shows the
+ * exact path being checked.  The Sources space asks on every refresh and the watcher every second,
+ * so only a change earns a line.  Shared across documents for the app's life, like the probe itself.
+ *
+ * @property SourceFilePresence answers The probe the answers come from.
+ */
+internal class LoggedSourceFilePresence(
+	private val answers: SourceFilePresence,
+) {
+	/** The last answer per path; copy-on-write, since the watcher asks off the UI thread. */
+	@Volatile
+	private var lastAnswerByPath: Map<String, Boolean?> = emptyMap()
+
+	/**
+	 * Answers for [path], logging when the answer is new.
+	 *
+	 * @param String path The advisory path the model recorded.
+	 * @return Boolean? The answer: present, missing, or null for unknown.
+	 */
+	fun probe(path: String): Boolean? {
+		val answer = answers(path)
+		val known = lastAnswerByPath
+		if (path !in known || known[path] != answer) {
+			lastAnswerByPath = known + (path to answer)
+			when (answer) {
+				true -> UmamoLog.info("source artwork: found at $path")
+				false -> UmamoLog.warn("source artwork: missing at $path")
+				null -> UmamoLog.info("source artwork: presence unknown at $path (not a file path this platform can probe)")
+			}
+		}
+		return answer
+	}
 }
 
 /**
@@ -292,6 +331,16 @@ fun EditorApp(
 		when (load) {
 			is DocumentLoad.Loaded -> {
 				settings.addRecentFile(load.document.path)
+				// What the document says about its artwork files, before anything probes them: the recorded
+				// path is what a reload, the watcher, and the Sources space will all go by.
+				for (source in (load.document as? PuppetDocument)?.puppet?.sources.orEmpty()) {
+					val recorded = source.path
+					if (recorded == null) {
+						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) has no recorded path")
+					} else {
+						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) recorded at $recorded")
+					}
+				}
 				onOpen(load.document)
 			}
 			is DocumentLoad.Failed -> commandRegistry.invoke("document.openFailed", load.failure)
@@ -350,7 +399,8 @@ fun EditorApp(
 				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 				return null
 			}
-		return PickedArtwork(read, ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash))
+		val path = picked.absolutePath()
+		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path?.let(::fileModifiedAtMillis)))
 	}
 
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
@@ -382,17 +432,22 @@ fun EditorApp(
 	// can be read.
 	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
 		val path = source.path
-		if (path != null && sourceFilePresence(path) == true) {
+		if (path == null) {
+			UmamoLog.info("read artwork: '${source.name}' has no recorded path; falling back to what the document holds")
+		} else if (sourceFilePresence(path) != true) {
+			UmamoLog.info("read artwork: '${source.name}' is not at $path; falling back to what the document holds")
+		} else {
 			val read = readArtworkAt(path)
 			if (read != null) {
-				return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+				UmamoLog.info("read artwork: '${source.name}' read from $path")
+				return SourceRead(read.art, read.contentHash, read.lastModified, fromCmo3 = false)
 			}
 			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")
 		}
 		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
 		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
 		val art = withContext(Dispatchers.Default) { cmo3SourceArtOf(root, source.id) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } } ?: return null
-		return SourceRead(art, contentHash = null, fromCmo3 = true)
+		return SourceRead(art, contentHash = null, lastModified = null, fromCmo3 = true)
 	}
 
 	// The document's artwork watcher: one per open puppet document, over the composable's own scope
@@ -410,6 +465,7 @@ fun EditorApp(
 						watcher = watcher,
 						hashOf = { path -> withContext(Dispatchers.IO) { contentHashOfFile(FileSystem.SYSTEM, path.toPath()) } },
 						exists = { path -> sourceFilePresence(path) },
+						modifiedAtOf = { path -> withContext(Dispatchers.IO) { fileModifiedAtMillis(path) } },
 						isIdle = { activeSession.isQuiescent },
 						mode = { WatchMode.fromKey(settings.getString(IMPORT_WATCH_MODE_KEY)) },
 					),
@@ -447,7 +503,7 @@ fun EditorApp(
 					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
 					continue
 				}
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
@@ -455,8 +511,10 @@ fun EditorApp(
 				return@launch
 			}
 			val host = artworkHostFor(puppetDocument, activeSession)
-			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
-			if (result == ReloadArtworkResult.Applied || result == ReloadArtworkResult.NothingChanged) {
+			// A reload that lands publishes what its matcher left under the bar (scored before it minted);
+			// one that found nothing changed re-scores the files as they stand.
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { suggestions -> publishSuggestions(covered, suggestions) }
+			if (result == ReloadArtworkResult.NothingChanged) {
 				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
 			}
 			documentWatch?.coordinator?.reloadFinished(
@@ -482,7 +540,7 @@ fun EditorApp(
 			watch.coordinator.track(
 				activeSession.model.value.sources.mapNotNull { source ->
 					val path = source.path?.takeIf { candidate -> !candidate.contains("://") } ?: return@mapNotNull null
-					WatchedSource(source.id, path, source.contentHash)
+					WatchedSource(source.id, path, source.contentHash, source.lastModified)
 				},
 			)
 		}
@@ -528,7 +586,7 @@ fun EditorApp(
 			if (read?.fromCmo3 == true) {
 				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
 			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions()), areaId)
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions(), request.retire), areaId)
 		}
 	}
 
@@ -542,7 +600,7 @@ fun EditorApp(
 			val entries = ArrayList<ReloadEntry>()
 			for (source in activeSession.model.value.sources) {
 				val read = readSourceArt(puppetDocument, source) ?: continue
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
@@ -551,14 +609,15 @@ fun EditorApp(
 			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
 			runMatchArtwork(
 				artworkHostFor(puppetDocument, activeSession),
-				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions()),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions(), standing = sourceSuggestions.value),
 				areaId,
 			) { suggestions -> publishSuggestions(covered, suggestions) }
 		}
 	}
 
 	// Repoints one listed file at another the person picks: what the new file resolves by key reloads,
-	// the rest is flagged for review with suggestions scored against the new file's layers.
+	// what the matcher is confident about rebinds, and the rest is flagged for review with suggestions
+	// scored against the new file's layers.
 	fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
@@ -566,7 +625,7 @@ fun EditorApp(
 			val picked = pickArtwork() ?: return@launch
 			runReplaceArtwork(
 				artworkHostFor(puppetDocument, activeSession),
-				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions()),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
 				areaId,
 			) { suggestions -> publishSuggestions(setOf(request.sourceId), suggestions) }
 		}
@@ -581,6 +640,8 @@ fun EditorApp(
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
 			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
+			// A plain session edit: the tile leaves the atlas, its pixels stay in the store for undo.
+			deleteArt = { request -> session?.deleteTile(request.tileId) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 
@@ -882,12 +943,14 @@ private class PickedArtwork(
  * One listed file's art as an operation read it.
  *
  * @property SourceArt art         The art.
- * @property String?   contentHash The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
- * @property Boolean   fromCmo3    Whether it was read from the CMO3's decomposed layer images rather than the file.
+ * @property String?   contentHash  The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
+ * @property Long?     lastModified The file's modification time when read, or null when it came from a CMO3's own layers.
+ * @property Boolean   fromCmo3     Whether it was read from the CMO3's decomposed layer images rather than the file.
  */
 private class SourceRead(
 	val art: SourceArt,
 	val contentHash: String?,
+	val lastModified: Long?,
 	val fromCmo3: Boolean,
 )
 

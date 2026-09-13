@@ -16,6 +16,9 @@ enum class ReviewReason {
 
 	/** The file was repointed to art that mints different keys (another format), so the binding's key names nothing there. */
 	SourceReplaced,
+
+	/** The layer is still in the file but erased to nothing: deleted by another route, or meant to be blank - a person decides. */
+	LayerEmptied,
 }
 
 /**
@@ -34,6 +37,17 @@ sealed interface ReconcileResult {
 
 	/** A layer the re-read art has that no tile is bound to; it becomes a new tile bound to it. */
 	data class Added(val layerKey: String) : ReconcileResult
+
+	/**
+	 * A binding whose key the re-read art no longer has, rebound by the matcher to a layer no tile was
+	 * bound to at or above the threshold - the lost layer re-created under a new key - so its tile
+	 * takes that layer's art in the same step instead of a fresh drawable being minted beside it.
+	 *
+	 * @property SourceLayerRef binding  The binding as it was, under the lost key.
+	 * @property String         layerKey The layer it moved to.
+	 * @property Float          score    The matcher's confidence, 0..1.
+	 */
+	data class Rebound(val binding: SourceLayerRef, val layerKey: String, val score: Float) : ReconcileResult
 
 	/** Needs human review - surfaced, never deleted. */
 	data class NeedsReview(val binding: SourceLayerRef, val reason: ReviewReason) : ReconcileResult
