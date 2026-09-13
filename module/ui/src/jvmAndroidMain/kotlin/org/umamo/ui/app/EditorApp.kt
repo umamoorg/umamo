@@ -511,8 +511,10 @@ fun EditorApp(
 				return@launch
 			}
 			val host = artworkHostFor(puppetDocument, activeSession)
-			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions()), areaId)
-			if (result == ReloadArtworkResult.Applied || result == ReloadArtworkResult.NothingChanged) {
+			// A reload that lands publishes what its matcher left under the bar (scored before it minted);
+			// one that found nothing changed re-scores the files as they stand.
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { suggestions -> publishSuggestions(covered, suggestions) }
+			if (result == ReloadArtworkResult.NothingChanged) {
 				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
 			}
 			documentWatch?.coordinator?.reloadFinished(
@@ -584,7 +586,7 @@ fun EditorApp(
 			if (read?.fromCmo3 == true) {
 				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
 			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions()), areaId)
+			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions(), request.retire), areaId)
 		}
 	}
 
@@ -607,14 +609,15 @@ fun EditorApp(
 			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
 			runMatchArtwork(
 				artworkHostFor(puppetDocument, activeSession),
-				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions()),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions(), standing = sourceSuggestions.value),
 				areaId,
 			) { suggestions -> publishSuggestions(covered, suggestions) }
 		}
 	}
 
 	// Repoints one listed file at another the person picks: what the new file resolves by key reloads,
-	// the rest is flagged for review with suggestions scored against the new file's layers.
+	// what the matcher is confident about rebinds, and the rest is flagged for review with suggestions
+	// scored against the new file's layers.
 	fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
@@ -622,7 +625,7 @@ fun EditorApp(
 			val picked = pickArtwork() ?: return@launch
 			runReplaceArtwork(
 				artworkHostFor(puppetDocument, activeSession),
-				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions()),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
 				areaId,
 			) { suggestions -> publishSuggestions(setOf(request.sourceId), suggestions) }
 		}

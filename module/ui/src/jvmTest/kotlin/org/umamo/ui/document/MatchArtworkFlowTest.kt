@@ -15,17 +15,22 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.MatchArtworkRequest
 import org.umamo.ui.model.MatchParameterKeys
+import org.umamo.ui.model.ReloadArtworkRequest
+import org.umamo.ui.model.ReloadArtworkResult
 import org.umamo.ui.model.ReloadEntry
 import org.umamo.ui.model.ReplaceArtworkRequest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.SourceSuggestions
 import org.umamo.ui.model.runMatchArtwork
+import org.umamo.ui.model.runReloadArtwork
 import org.umamo.ui.model.runReplaceArtwork
+import org.umamo.ui.model.scoreSourceSuggestions
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -34,8 +39,8 @@ import kotlin.test.assertTrue
  * from in-memory art: a file whose layers came back under new keys, one recognizable by its pixels
  * and one only weakly, matched at the default bar as one step with the weak one left as a suggestion;
  * the strip's threshold re-landing the step with both; undo restoring; a same-format twin replacing
- * the record by key; a cross-format twin flagging every binding with suggestions that Match then
- * resolves.
+ * the record by key; a cross-format twin rebinding every binding by its pixels inside the replace
+ * step; and a Match after a reload merging the fresh drawable the reload minted into the rigged tile.
  */
 class MatchArtworkFlowTest {
 	/**
@@ -218,7 +223,7 @@ class MatchArtworkFlowTest {
 		}
 
 	@Test
-	fun replaceReloadsBykeyForATwinAndFlagsEverythingForACrossFormatOne() =
+	fun replaceReloadsByKeyForATwinAndReboundsEverythingForACrossFormatOne() =
 		runBlocking {
 			val load = buildArtDocument(InMemoryArt(listOf(hair, eye)), FileKind.Psd, "a.psd", "/art/a.psd", options)
 			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
@@ -249,8 +254,8 @@ class MatchArtworkFlowTest {
 			assertEquals("change.document.replaceArtwork", currentStepLabel(session))
 			assertTrue(published.isEmpty())
 
-			// A cross-format twin: the same art under other keys.  Every binding is flagged, none reloaded,
-			// nothing added, and the pixel-scored suggestions arrive with the step.
+			// A cross-format twin: the same art under other keys.  Every binding is rebound by its pixels
+			// inside the replace step, nothing minted, no lost row, nothing left to suggest.
 			val clipHair = InMemoryLayer("clip:a", "Hair Front", 0, LayerBounds(10, 10, 8, 8), hair.raster)
 			val clipEye = InMemoryLayer("clip:b", "Eye L", 1, LayerBounds(40, 40, 8, 8), eye.raster)
 			val clip = ArtSourceDescriptor("a.clip", "/art/a.clip", "clip", "hash-c")
@@ -258,27 +263,79 @@ class MatchArtworkFlowTest {
 			assertTrue(runReplaceArtwork(host, ReplaceArtworkRequest(sourceId, clipArt, clip, contentHash = "hash-c", options), areaId = null) { suggestions -> published = suggestions })
 			val replaced = session.model.value
 			assertEquals("clip", replaced.sources.single().format)
-			assertEquals(listOf("clip:a", "clip:b", "lyid:1", "lyid:2"), replaced.sources.single().layers.map { layer -> layer.key })
-			assertEquals(listOf(true, true, false, false), replaced.sources.single().layers.map { layer -> layer.present })
-			assertEquals(2, replaced.atlas.tiles.size, "the new file's layers were not minted as tiles")
+			assertEquals(listOf("clip:a", "clip:b"), replaced.sources.single().layers.map { layer -> layer.key }, "no lost row remains")
+			assertEquals(setOf("clip:a", "clip:b"), replaced.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }.toSet(), "both bindings moved")
+			assertEquals(setOf(AtlasTileId("art-0/lyid:1"), AtlasTileId("art-0/lyid:2")), replaced.atlas.tiles.mapNotNull { tile -> tile.replaces }.toSet(), "the two tiles were replaced")
+			assertEquals(2, replaced.atlas.tiles.size, "and none minted")
+			assertEquals(2, replaced.drawables.size)
 			assertEquals("change.document.replaceArtwork", currentStepLabel(session))
-			assertEquals(setOf(sourceId to "lyid:1", sourceId to "lyid:2"), published.keys)
-			assertEquals("clip:a", published.getValue(sourceId to "lyid:1").key)
-			assertEquals("clip:b", published.getValue(sourceId to "lyid:2").key)
-			assertEquals(1f, published.getValue(sourceId to "lyid:1").score, "the same pixels are a certain match")
+			val notice = assertNotNull(session.notice.value)
+			assertEquals("notice.replace.done", notice.messageKey)
+			assertEquals(listOf("0", "2", "0"), notice.arguments, "none by key, two matched, none for review")
+			assertTrue(published.isEmpty(), "nothing is left to suggest")
+			val record = assertNotNull(session.adjustableOperation.value)
+			assertEquals(MatchParameterKeys.THRESHOLD, record.parameters.first().key, "the replace strip leads with the bar")
 
-			// Match Automatically then resolves every binding, and the lost rows leave the inventory.
+			// Nothing left to match: no step, the model untouched, and the notice says why.
 			val matchRequest = MatchArtworkRequest(listOf(ReloadEntry(sourceId, clipArt, contentHash = "hash-c")), threshold = 0.7f, options)
-			assertTrue(runMatchArtwork(host, matchRequest, areaId = null) { suggestions -> published = suggestions })
-			val resolved = session.model.value
-			assertEquals(setOf("clip:a", "clip:b"), resolved.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }.toSet())
-			assertEquals(listOf("clip:a", "clip:b"), resolved.sources.single().layers.map { layer -> layer.key })
-			assertEquals("change.document.matchArtwork", currentStepLabel(session))
-			assertTrue(published.isEmpty())
-
-			// Nothing left to match: no step, the model untouched.
 			assertFalse(runMatchArtwork(host, matchRequest, areaId = null) { suggestions -> published = suggestions })
-			assertSame(resolved, session.model.value)
+			assertSame(replaced, session.model.value)
+			assertEquals("notice.match.noCandidates", assertNotNull(session.notice.value).messageKey)
+			follower.cancel()
+		}
+
+	/**
+	 * A reload whose lost layer's best candidate scores under the bar mints the candidate as a fresh
+	 * drawable; the lost row then proposes that layer all the same, since only a fresh, untouched
+	 * drawable sits over it, and a Match at a lower bar moves the rigged tile onto the layer and
+	 * retires the fresh drawable with its tile - one step, no doubled art.
+	 */
+	@Test
+	fun aMatchAfterAReloadMergesTheFreshDrawableIntoTheRiggedTile() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(hair, eye)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the pass must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val tileHair = AtlasTileId("art-0/lyid:1")
+			val fringe = InMemoryLayer("lyid:5", "Fringe", 0, LayerBounds(100, 100, 8, 8), solidRaster(8, 8, 0xF0.toByte()))
+			val reloadEntry = ReloadEntry(sourceId, InMemoryArt(listOf(fringe, eye)), contentHash = "hash-v2")
+			var published: SourceSuggestions = emptyMap()
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, ReloadArtworkRequest(listOf(reloadEntry), options), areaId = null) { suggestions -> published = suggestions })
+			val minted = session.model.value
+			assertEquals(3, minted.drawables.size, "under the bar, the stranger is minted")
+			val freshTile = AtlasTileId("art-0/lyid:5")
+			assertNotNull(minted.atlas.tileById[freshTile])
+			assertNotNull(minted.atlas.tileById[tileHair], "the lost binding's tile stands")
+			val proposal = assertNotNull(published[sourceId to "lyid:1"], "the reload publishes the proposal it scored before minting")
+			assertEquals("lyid:5", proposal.key)
+			assertTrue(proposal.score < 0.7f, "under the bar: ${proposal.score}")
+			assertTrue(scoreSourceSuggestions(host, listOf(reloadEntry)).isEmpty(), "re-scored on the model alone, the bound layer is no candidate")
+
+			var afterMatch: SourceSuggestions = emptyMap()
+			assertTrue(runMatchArtwork(host, MatchArtworkRequest(listOf(reloadEntry), threshold = 0.1f, options, standing = published), areaId = null) { suggestions -> afterMatch = suggestions })
+			val merged = session.model.value
+			assertEquals(2, merged.drawables.size, "the fresh drawable is gone")
+			assertNull(merged.atlas.tileById[freshTile], "with its tile")
+			val rebound = merged.atlas.tiles.first { tile -> tile.replaces == tileHair }
+			assertEquals("lyid:5", rebound.source?.layerKey, "the rigged tile took the layer")
+			assertNotNull(rebound.placement)
+			assertEquals(listOf("lyid:5", "lyid:2"), merged.sources.single().layers.map { layer -> layer.key })
+			assertTrue(afterMatch.isEmpty())
+			assertEquals("change.document.matchArtwork", currentStepLabel(session))
+			session.undo()
+			assertSame(minted, session.model.value, "one step")
 			follower.cancel()
 		}
 }

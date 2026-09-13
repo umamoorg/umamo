@@ -183,12 +183,12 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// A relink is a command, not a session edit from here: the app reads the layer's file and pulls its
 	// art in (a binding-only change when it cannot), and the shell resolves where the strip shows.
 	val commands = LocalCommands.current
-	val relink: (List<AtlasTileId>, SourceLayerRef?) -> Unit = { tileIds, ref -> commands.invoke("sources.relink", RelinkRequest(tileIds, ref)) }
+	val relink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit = { tileIds, ref, retire -> commands.invoke("sources.relink", RelinkRequest(tileIds, ref, retire)) }
 	val performDrop: () -> Unit = {
 		val payload = dragController.draggedPayload
 		val target = dragController.dropTargetKey?.let { key -> nodeById[key] }
 		if (session != null && payload != null && target != null) {
-			relinkFor(payload, target)?.let { (tileId, ref) -> relink(listOf(tileId), ref) }
+			relinkFor(payload, target)?.let { (tileId, ref) -> relink(listOf(tileId), ref, emptyList()) }
 		}
 		dragController.end()
 	}
@@ -278,7 +278,7 @@ private fun selectionTargetsOf(node: SourcesNode, puppet: PuppetModel): List<Sel
  * @param Boolean     selected       Whether the row's drawable is in the session selection.
  * @param Function    onToggle       Flips the expand state.
  * @param Function    onSelect       Selects the given targets.
- * @param Function    onRelink       Rebinds tiles to one layer (null unbinds).
+ * @param Function    onRelink       Rebinds tiles to one layer (null unbinds), retiring the tiles the accepted proposal named.
  * @param RowDragController dragController The space's drag state.
  * @param Function    onDrop         Applies the drop on release.
  */
@@ -290,7 +290,7 @@ private fun SourcesRowView(
 	selected: Boolean,
 	onToggle: () -> Unit,
 	onSelect: (List<SelectionTarget>) -> Unit,
-	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit,
 	dragController: RowDragController<SourcesDragPayload>,
 	onDrop: () -> Unit,
 ) {
@@ -382,7 +382,7 @@ private fun sourceFileMenuItems(sourceId: ArtSourceId, commands: org.umamo.ui.ac
  * @param SourcesDragPayload?      payload      What a drag from the row carries, or null when it cannot be dragged.
  * @param Function    onToggle       Flips the expand state.
  * @param Function    onSelect       Selects the given targets.
- * @param Function    onRelink       Rebinds tiles to one layer (null unbinds).
+ * @param Function    onRelink       Rebinds tiles to one layer (null unbinds), retiring the tiles the accepted proposal named.
  * @param RowDragController dragController The space's drag state.
  * @param Function    onDropNow      Applies the drop on release.
  */
@@ -399,7 +399,7 @@ private fun SourcesRowBody(
 	payload: SourcesDragPayload?,
 	onToggle: () -> Unit,
 	onSelect: (List<SelectionTarget>) -> Unit,
-	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit,
 	dragController: RowDragController<SourcesDragPayload>,
 	onDropNow: () -> Unit,
 ) {
@@ -514,18 +514,20 @@ private fun SourceFileChip(sourceId: ArtSourceId, commands: org.umamo.ui.action.
 }
 
 /**
- * A review row's chip: the matcher's proposal to accept (the candidate's name and confidence), a relink
- * by hand through the same list a tile row's chip shows, or leave the binding as it is.  Accepting is
- * one relink of every tile bound to the lost key, so the art is pulled exactly as a manual relink pulls
- * it and the tiles move together as one step.
+ * A review row's chip: the matcher's proposal to accept (the candidate's name and confidence, and
+ * whether a fresh drawable over the candidate goes with it), a relink by hand through the same list a
+ * tile row's chip shows, or leave the binding as it is.  Accepting is one relink of every tile bound to
+ * the lost key, so the art is pulled exactly as a manual relink pulls it and the tiles move together as
+ * one step, naming the tiles the proposal retires; the planner re-checks those for rig work before any
+ * leaves.  A relink by hand names none.
  *
  * @param SourcesNode    node     The review row, carrying its suggestion when there is one.
  * @param SourceLayerRef ref      The lost binding the row stands for.
  * @param PuppetModel    puppet   The rig, for the relink list.
- * @param Function       onRelink Rebinds the tiles as one step (null unbinds).
+ * @param Function       onRelink Rebinds the tiles as one step (null unbinds), with the tiles the proposal retires.
  */
 @Composable
-private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetModel, onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit) {
+private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetModel, onRelink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit) {
 	val colors = LocalUmamoColors.current
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
@@ -536,9 +538,9 @@ private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetMod
 	// disagree with a reader-minted one (a flat raster's) - an equality on the ref would find nothing.
 	val boundTiles = remember(node) { node.children.mapNotNull { child -> (child.kind as? SourcesNodeKind.Tile)?.tileId } }
 	val suggestion = node.suggestion
-	val relinkAll: (SourceLayerRef?) -> Unit = { target ->
+	val relinkAll: (SourceLayerRef?, List<AtlasTileId>) -> Unit = { target, retire ->
 		if (boundTiles.isNotEmpty()) {
-			onRelink(boundTiles, target)
+			onRelink(boundTiles, target, retire)
 		}
 	}
 	// The proposal page is a kit Menu, like every other menu in the application; picking Relink by
@@ -547,10 +549,16 @@ private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetMod
 	val menuItems =
 		buildList {
 			if (suggestion != null) {
+				val acceptLabel =
+					if (suggestion.retires.isEmpty()) {
+						stringResource(Res.string.sources_suggestion_accept, suggestion.candidateName, percentOf(suggestion.score))
+					} else {
+						stringResource(Res.string.sources_suggestion_accept_merge, suggestion.candidateName, percentOf(suggestion.score))
+					}
 				add(
 					MenuItem.Action(
-						label = stringResource(Res.string.sources_suggestion_accept, suggestion.candidateName, percentOf(suggestion.score)),
-						onSelect = { relinkAll(SourceLayerRef(ref.sourceId, suggestion.candidateKey, stableKey = layerKeyLooksStable(suggestion.candidateKey))) },
+						label = acceptLabel,
+						onSelect = { relinkAll(SourceLayerRef(ref.sourceId, suggestion.candidateKey, stableKey = layerKeyLooksStable(suggestion.candidateKey)), suggestion.retires) },
 					),
 				)
 			}
@@ -570,7 +578,7 @@ private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetMod
 	) {
 		if (byHand) {
 			Menu(
-				items = relinkMenuItems(puppet, ref, query, { updated -> query = updated }, showUnbind = false) { target -> relinkAll(target) },
+				items = relinkMenuItems(puppet, ref, query, { updated -> query = updated }, showUnbind = false) { target -> relinkAll(target, emptyList()) },
 				onDismissRequest = {
 					open = false
 					byHand = false
@@ -706,13 +714,13 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
  *
  * @param AtlasTileId tileId   The tile the chip rebinds.
  * @param PuppetModel puppet   The rig, for the candidates and the current binding.
- * @param Function    onRelink Rebinds tiles to one layer (null unbinds).
+ * @param Function    onRelink Rebinds tiles to one layer (null unbinds); a chip relink retires nothing.
  */
 @Composable
 private fun RelinkChip(
 	tileId: AtlasTileId,
 	puppet: PuppetModel,
-	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit,
 	canDelete: Boolean,
 	onDelete: () -> Unit,
 ) {
@@ -731,7 +739,7 @@ private fun RelinkChip(
 		Menu(
 			items =
 				relinkMenuItems(puppet, current, query, { updated -> query = updated }, showUnbind = current != null, onDelete = onDelete.takeIf { canDelete }) { target ->
-					onRelink(listOf(tileId), target)
+					onRelink(listOf(tileId), target, emptyList())
 				},
 			onDismissRequest = { open = false },
 			positionProvider = BelowAnchorPositionProvider,

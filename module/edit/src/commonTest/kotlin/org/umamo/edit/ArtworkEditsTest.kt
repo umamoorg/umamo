@@ -21,6 +21,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -240,5 +241,33 @@ class ArtworkEditsTest {
 		assertSame(base, base.withArtworkReloaded(collidingNew), "a replacement reusing an existing id")
 		val unlisted = ArtworkReload(ArtSource(ArtSourceId("art-9"), "z", null, "psd"), emptyList(), emptyMap(), null, emptyList())
 		assertSame(base, base.withArtworkReloaded(unlisted), "a file the model does not list")
+	}
+
+	/**
+	 * A reload's retired tiles leave with their drawables and every reference to them scrubbed, the way a
+	 * delete scrubs them; a retired tile the model lacks, or one the same delta also supersedes, refuses
+	 * the whole delta.
+	 */
+	@Test
+	fun aReloadRetiresTheTilesItNamesWithTheirDrawables() {
+		val base = model()
+		val fresh = drawable("ArtMesh3", "art-0/lyid:3")
+		val freshTile = AtlasTile(AtlasTileId("art-0/lyid:3"), "L3", 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:3", true))
+		val withFresh =
+			base.copy(
+				drawables = listOf(base.drawables.single().copy(maskedBy = listOf(fresh.id)), fresh),
+				parts = listOf(base.parts.single().copy(children = base.parts.single().children + OrgChild.Drawable(fresh.id))),
+				atlas = base.atlas.copy(tiles = base.atlas.tiles + freshTile),
+			).withDerivedRenderRoot()
+		val reload = ArtworkReload(sourceA, replacedTiles = emptyList(), drawableMeshes = emptyMap(), additions = null, outgrown = emptyList(), retiredTiles = listOf(freshTile.id))
+		val retired = withFresh.withArtworkReloaded(reload)
+		assertEquals(listOf("ArtMesh1"), retired.drawables.map { drawable -> drawable.id.raw }, "the fresh drawable is gone")
+		assertEquals(listOf(AtlasTileId("art-0/lyid:1")), retired.atlas.tiles.map { tile -> tile.id }, "with its tile")
+		assertEquals(listOf(OrgChild.Drawable(DrawableId("ArtMesh1"))), retired.parts.single().children, "and its place in the part")
+		assertTrue(retired.drawables.single().maskedBy.isEmpty(), "and the mask that named it")
+		assertTrue(retired.renderRoot != null, "the render root is re-derived")
+		assertSame(withFresh, withFresh.withArtworkReloaded(reload.copy(retiredTiles = listOf(AtlasTileId("nope")))), "an unknown retired tile refuses")
+		val alsoReplaced = ArtworkReload(sourceA, listOf(ReplacedTile(freshTile.id, AtlasTile(AtlasTileId("art-0/lyid:3~1"), "L3", 4, 4))), emptyMap(), null, emptyList(), retiredTiles = listOf(freshTile.id))
+		assertSame(withFresh, withFresh.withArtworkReloaded(alsoReplaced), "a tile both superseded and retired refuses")
 	}
 }

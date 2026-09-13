@@ -52,10 +52,13 @@ internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit,
  *
  * @property List<AtlasTileId> tileIds The tiles.
  * @property SourceLayerRef?   ref     The binding they take, or null to unbind.
+ * @property List<AtlasTileId> retire  The tiles bound to the target layer that go with the move, as the
+ *   accepted proposal named them (a fresh drawable a reload minted for the layer); empty otherwise.
  */
 class RelinkRequest(
 	val tileIds: List<AtlasTileId>,
 	val ref: SourceLayerRef?,
+	val retire: List<AtlasTileId> = emptyList(),
 ) {
 	/**
 	 * The one-tile form.
