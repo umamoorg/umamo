@@ -577,4 +577,23 @@ class AtlasPackTest {
 			AtlasPackItem("a", 4, 4, ByteArray(4 * 4 * 3))
 		}
 	}
+
+	/**
+	 * A fixed tile flush against the page edge keeps its place: only its ART decides whether it fits,
+	 * and a reserve or gutter spilling past the edge is clamped rather than refused.  A free pack puts
+	 * tiles exactly there, and a mesh reach re-measured from page coordinates can round a pixel wider
+	 * than the reach it was packed with - refusing that would pack a document's own art out.
+	 */
+	@Test
+	fun aFixedTileWhoseGutterSpillsPastTheEdgeIsKept() {
+		// 6x6 art at (58, 58) on a 64 page: the art ends at 64 exactly; the gutter would end at 66.
+		val kept = fixedPackItem("kept", 6, 6, pageIndex = 0, tileToPage = floatArrayOf(1f, 0f, 58f, 0f, 1f, 58f))
+		val result = packAtlas(listOf(kept), AtlasPackOptions(maxPageSize = 64, gutter = 2, extrude = 2))
+		assertTrue(result.skipped.isEmpty(), "a spilled gutter does not refuse: ${result.skipped}")
+		assertEquals("kept", result.fixed.single().key)
+
+		// One pixel further and the art itself leaves the page: that is still a refusal.
+		val over = fixedPackItem("over", 6, 6, pageIndex = 0, tileToPage = floatArrayOf(1f, 0f, 59f, 0f, 1f, 59f))
+		assertEquals(listOf(AtlasPackSkip("over", AtlasPackSkipReason.FixedOutsidePage)), packAtlas(listOf(over), AtlasPackOptions(maxPageSize = 64)).skipped)
+	}
 }

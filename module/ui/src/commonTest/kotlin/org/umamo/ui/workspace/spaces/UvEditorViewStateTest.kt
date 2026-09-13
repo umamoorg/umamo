@@ -147,6 +147,28 @@ class UvEditorViewStateTest {
 		assertEquals(0, resolved.pageIndex, "the first meshed drawable's page is the fallback")
 	}
 
+	/** A selection naming a drawable the model no longer has (just deleted) is no selection: the first meshed drawable stands in. */
+	@Test
+	fun aSelectionOfADeletedDrawableFallsBackToTheFirstMeshedOne() {
+		val model = modelOf(meshedDrawable("b"))
+		val page =
+			resolveUvEditorPage(
+				model = model,
+				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("gone")), activeDrawableId = DrawableId("gone")),
+				objectSelection = Selection(),
+				textures = twoPageTextures(),
+			)
+		assertEquals(1, page?.pageIndex, "the kept drawable's page, not the placeholder")
+		val viaObject =
+			resolveUvEditorPage(
+				model = model,
+				meshSelection = MeshSelection(),
+				objectSelection = Selection(setOf(SelectionTarget.Drawable(DrawableId("gone"))), SelectionTarget.Drawable(DrawableId("gone"))),
+				textures = twoPageTextures(),
+			)
+		assertEquals(1, viaObject?.pageIndex)
+	}
+
 	/** With no meshed drawable anywhere the resolution is null (the space shows its placeholder). */
 	@Test
 	fun resolvesNullWithNothingMeshed() {

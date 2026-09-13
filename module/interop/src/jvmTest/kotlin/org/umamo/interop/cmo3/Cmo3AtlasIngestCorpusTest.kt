@@ -1,6 +1,7 @@
 package org.umamo.interop.cmo3
 
 import org.junit.Assume
+import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
@@ -12,12 +13,15 @@ import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.format.psd.PsdReader
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.atlasPixelOf
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -375,5 +379,122 @@ class Cmo3AtlasIngestCorpusTest {
 			worstRotatedResidual <= tolerance,
 			"a rotated placement composes to $worstRotatedResidual, past the $tolerance bound",
 		)
+	}
+
+	/**
+	 * Every CMO3-origin tile that recovers a source binding names one of the layered images the texture
+	 * manager lists, keyed the way the inventory walk keys the decomposed tree: by the Photoshop layer
+	 * id the editor recorded ("lyid:", stable unless suffixed for a duplicate), else by name ("name:",
+	 * never stable) - and the model must say which, rather than pass a name off as a stable key.
+	 */
+	@Test
+	fun corpusTilesBindToTheLayeredImagesTheEditorDecomposed() {
+		val files = corpusFiles()
+		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		for (file in files) {
+			val puppet = Cmo3Import.fromModelSource(Cmo3.read(file.readBytes()).root as CModelSource)
+			if (puppet.atlas.tiles.isEmpty()) {
+				// The blank skeleton: no PSD was ever imported into it, so there is nothing to bind.
+				println("${file.name}: no tiles, nothing to bind")
+				continue
+			}
+			val sourceIds = puppet.sources.map { source -> source.id }.toSet()
+			assertTrue(puppet.sources.isNotEmpty(), "${file.name}: the layered images the editor imported are listed")
+			assertTrue(puppet.sources.all { source -> source.format.isNotEmpty() }, "${file.name}: every source records its format")
+			var bound = 0
+			for (tile in puppet.atlas.tiles) {
+				val source = tile.source ?: continue
+				bound++
+				assertTrue(source.sourceId in sourceIds, "${file.name}: tile '${tile.name}' binds to a listed source")
+				val byLayerId = source.layerKey.startsWith("lyid:")
+				assertTrue(byLayerId || source.layerKey.startsWith("name:"), "${file.name}: tile '${tile.name}' is keyed by Photoshop layer id or by name")
+				assertEquals(byLayerId && '#' !in source.layerKey, source.stableKey, "${file.name}: a layer-id key is stable, a name or suffixed key is not")
+			}
+			assertTrue(bound > 0, "${file.name}: at least one tile recovers its source layer")
+			// The inventory walk lists the decomposed layer tree, and every binding names one of its rows
+			// under the same key - the Sources space shows a stray binding otherwise.
+			val inventoryKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { layer -> layer.key } }
+			assertTrue(puppet.sources.any { source -> source.layers.isNotEmpty() }, "${file.name}: the layered images list their layers")
+			for (source in puppet.sources) {
+				// The Sources space keys its rows on the layer key; Erica alone has twenty layers named "1".
+				assertEquals(source.layers.size, inventoryKeysBySource.getValue(source.id).size, "${file.name}: '${source.name}' lists one key per layer")
+			}
+			var stray = 0
+			for (tile in puppet.atlas.tiles) {
+				val source = tile.source ?: continue
+				if (source.layerKey !in inventoryKeysBySource[source.sourceId].orEmpty()) {
+					stray++
+				}
+			}
+			assertEquals(0, stray, "${file.name}: bindings that name no inventory row")
+			println("${file.name}: ${puppet.sources.size} source(s), ${puppet.sources.sumOf { source -> source.layers.size }} inventory rows, $bound of ${puppet.atlas.tiles.size} tiles bound")
+		}
+	}
+
+	/**
+	 * The walk's layer-id keys are the PSD reader's own: for every corpus CMO3 with a same-named PSD
+	 * beside it (test/corpus/psd/<name>.psd), the layered image the editor decomposed from that PSD
+	 * shares its "lyid:" keys with a fresh read of the file, and each shared key names the same layer in
+	 * both.  That is the identity a CMO3-origin document re-imports against its PSD on, so a numeric
+	 * coincidence would be caught by the name check and a wrong byte order by the share count.
+	 */
+	@Test
+	fun cmo3LayerIdsAreThePsdReadersKeys() {
+		val pairs =
+			corpusFiles().mapNotNull { cmo3File ->
+				val psdFile = File(cmo3File.parentFile?.parentFile, "psd/${cmo3File.nameWithoutExtension}.psd")
+				if (psdFile.isFile) cmo3File to psdFile else null
+			}
+		Assume.assumeTrue("no corpus CMO3 has a same-named PSD beside it", pairs.isNotEmpty())
+		for ((cmo3File, psdFile) in pairs) {
+			val puppet = Cmo3Import.fromModelSource(Cmo3.read(cmo3File.readBytes()).root as CModelSource)
+			val psdNameByKey = PsdReader.read(psdFile.readBytes()).layers.associate { layer -> layer.id.raw to layer.name }
+			// The decomposed image with the most layers is the model's main PSD; its recorded name is the
+			// artist's file name, not the corpus's, so it cannot be matched by name.
+			val source = assertNotNull(puppet.sources.filter { source -> source.format == "psd" }.maxByOrNull { source -> source.layers.size }, "${cmo3File.name}: a decomposed PSD is listed")
+			val layerIdRows = source.layers.filter { layer -> layer.key.startsWith("lyid:") }
+			assertTrue(layerIdRows.isNotEmpty(), "${cmo3File.name}: the editor recorded Photoshop layer ids")
+			var shared = 0
+			for (row in layerIdRows) {
+				val psdName = psdNameByKey[row.key] ?: continue
+				shared++
+				assertEquals(psdName, row.name, "${cmo3File.name}: ${row.key} names the same layer in the CMO3 and the PSD")
+			}
+			assertTrue(shared * 2 >= layerIdRows.size, "${cmo3File.name}: the PSD shares most of the CMO3's layer ids ($shared of ${layerIdRows.size})")
+			println("${cmo3File.name} vs ${psdFile.name}: ${layerIdRows.size} layer-id rows, $shared shared with the PSD reader, every name agrees")
+		}
+	}
+
+	/**
+	 * The decomposed layer tree reads back as source art keyed exactly as the bindings are: every
+	 * listed file yields a document whose layer keys are the inventory's, and each raster layer's
+	 * pixels decode at its recorded bounds - the pixels a relink pulls when the file itself is gone.
+	 */
+	@Test
+	fun decomposedLayersReadBackAsSourceArt() {
+		val files = corpusFiles()
+		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		var decodedLayers = 0
+		for (file in files) {
+			val cmo3 = Cmo3.read(file.readBytes())
+			val root = cmo3.root as CModelSource
+			val puppet = Cmo3Import.fromModelSource(root)
+			for (source in puppet.sources) {
+				val art = assertNotNull(cmo3SourceArtOf(root, source.id) { resource -> cmo3.extractLayerPng(resource) }, "${file.name}: '${source.name}' reads back")
+				assertEquals(source.layers.map { layer -> layer.key }, art.layers.map { layer -> layer.id.raw }, "${file.name}: '${source.name}' keys as the inventory does")
+				for ((row, layer) in source.layers.zip(art.layers)) {
+					assertEquals(row.left, layer.bounds.left)
+					assertEquals(row.top, layer.bounds.top)
+					if (layer.kind != SourceLayerKind.Raster) {
+						continue
+					}
+					assertEquals(row.width, layer.raster.width, "${file.name}: '${layer.name}' decodes at its bounds' width")
+					assertEquals(row.height, layer.raster.height, "${file.name}: '${layer.name}' decodes at its bounds' height")
+					decodedLayers++
+				}
+			}
+		}
+		assertTrue(decodedLayers > 0, "some raster layer decoded")
+		println("decomposed art: $decodedLayers layer(s) decoded across ${files.size} file(s)")
 	}
 }

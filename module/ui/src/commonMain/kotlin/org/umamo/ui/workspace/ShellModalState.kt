@@ -6,6 +6,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.kit.InlineEditController
 import org.umamo.ui.kit.MenuBarController
 import org.umamo.ui.model.SelectionHandle
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 
 /**
  * Everything the shell's modal key ladder consults, in one aggregate.

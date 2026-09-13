@@ -41,3 +41,10 @@ value class KeyformId(val raw: String)
  */
 @JvmInline
 value class AtlasTileId(val raw: String)
+
+/**
+ * One artwork file in the document's source list ([PuppetModel.sources]) - what a tile's
+ * [SourceLayerRef] names as the file half of its binding.
+ */
+@JvmInline
+value class ArtSourceId(val raw: String)

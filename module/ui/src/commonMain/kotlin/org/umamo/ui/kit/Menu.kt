@@ -28,7 +28,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -39,6 +44,9 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.search_hint
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -65,6 +73,9 @@ private val MENU_MIN_HEIGHT = 96.dp
 
 /** The cap used when a menu is measured unbounded (no window height to subtract from). */
 private val MENU_FALLBACK_MAX_HEIGHT = 360.dp
+
+/** The inset a pinned search box keeps from the menu's edges, matching the rows' own. */
+private val MENU_SEARCH_INSET = 8.dp
 
 /** The gap between a row's leading icon (or its reserved slot) and the label. */
 private val MENU_ICON_LABEL_GAP = 8.dp
@@ -118,6 +129,9 @@ fun Menu(
  * the icon slot so all labels share one column (Blender-style); each flyout is its own panel, so the
  * decision never leaks across nesting levels.
  *
+ * A [MenuItem.Search] pins above the scrolling rows and fixes the panel to its width; without one the
+ * panel hugs its widest row.
+ *
  * @param List items The entries to render.
  * @param Function dismissRoot Closes the entire menu tree.
  * @param Modifier modifier Modifier for the column.
@@ -125,65 +139,123 @@ fun Menu(
 @Composable
 private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: Modifier = Modifier) {
 	val colors = LocalUmamoColors.current
+	val density = LocalDensity.current
 	var openSubmenuIndex by remember { mutableStateOf<Int?>(null) }
-	val reserveIconSlot = items.any { menuEntry -> menuEntry is MenuItem.Action && menuEntry.icon != null }
+	val searches = items.filterIsInstance<MenuItem.Search>()
+	val rows = items.filter { menuEntry -> menuEntry !is MenuItem.Search }
+	val fixedWidth = searches.firstOrNull()?.width
+	// A search menu caps its rows well under the window: a picker over a whole layer inventory would
+	// otherwise stand as tall as the window, fit neither below nor above its chip, and open clamped to
+	// the window's bottom edge - far from the chip - until a search shrank it back under the anchor.
+	val searchRowsCap = searches.firstOrNull()?.maxRowsHeight
+	val reserveIconSlot = rows.any { menuEntry -> menuEntry is MenuItem.Action && menuEntry.icon != null }
 	val scrollState = rememberScrollState()
+	// The pinned search's height, measured, so the row cap below leaves room for it: the rows' box is
+	// still measured against the window height, not the height left under the search.
+	var pinnedHeight by remember { mutableStateOf(0.dp) }
 	Surface(color = colors.menuBackground, shape = LocalUmamoShapes.current.medium) {
-		// A popup is measured against the window, so its incoming max height IS the window height: cap the
-		// rows to that minus a margin and only then scroll.  A long-but-fitting menu (the blend modes) shows
-		// in full instead of being cut off at an arbitrary constant.
-		BoxWithConstraints {
-			val available = this@BoxWithConstraints.maxHeight
-			val rowCap =
-				if (available == Dp.Infinity) {
-					MENU_FALLBACK_MAX_HEIGHT
-				} else {
-					(available - MENU_WINDOW_MARGIN).coerceAtLeast(MENU_MIN_HEIGHT)
+		Column(modifier = if (fixedWidth != null) Modifier.width(fixedWidth) else Modifier) {
+			if (searches.isNotEmpty()) {
+				Column(modifier = Modifier.onSizeChanged { size -> pinnedHeight = with(density) { size.height.toDp() } }) {
+					for (search in searches) {
+						MenuSearchRow(search)
+					}
 				}
-			Box {
-				// The cap and the scroll ride on an OUTER column so the row column below keeps measuring its
-				// IntrinsicSize.Max width exactly as before - intrinsics are asked of that node, never
-				// through the scrolling one.
-				Column(modifier = Modifier.heightIn(max = rowCap).verticalScroll(scrollState)) {
-					Column(modifier = modifier.width(IntrinsicSize.Max).padding(vertical = 2.dp)) {
-						items.forEachIndexed { index, item ->
-							when (item) {
-								is MenuItem.Action ->
-									MenuActionRow(
-										item = item,
-										reserveIconSlot = reserveIconSlot,
-										onClick = {
-											item.onSelect()
-											dismissRoot()
-										},
-									)
+			}
+			// A popup is measured against the window, so its incoming max height IS the window height: cap the
+			// rows to that minus a margin and only then scroll.  A long-but-fitting menu (the blend modes) shows
+			// in full instead of being cut off at an arbitrary constant.
+			BoxWithConstraints {
+				val available = this@BoxWithConstraints.maxHeight
+				val windowCap =
+					if (available == Dp.Infinity) {
+						MENU_FALLBACK_MAX_HEIGHT
+					} else {
+						(available - MENU_WINDOW_MARGIN - pinnedHeight).coerceAtLeast(MENU_MIN_HEIGHT)
+					}
+				val rowCap = if (searchRowsCap != null && searchRowsCap < windowCap) searchRowsCap else windowCap
+				Box {
+					// The cap and the scroll ride on an OUTER column so the row column below keeps measuring its
+					// IntrinsicSize.Max width exactly as before - intrinsics are asked of that node, never
+					// through the scrolling one.  Under a search the width is the search's, and the rows fill it.
+					Column(modifier = Modifier.heightIn(max = rowCap).verticalScroll(scrollState)) {
+						val rowColumnWidth = if (fixedWidth != null) Modifier.fillMaxWidth() else Modifier.width(IntrinsicSize.Max)
+						Column(modifier = modifier.then(rowColumnWidth).padding(vertical = 2.dp)) {
+							rows.forEachIndexed { index, item ->
+								when (item) {
+									is MenuItem.Action ->
+										MenuActionRow(
+											item = item,
+											reserveIconSlot = reserveIconSlot,
+											onClick = {
+												item.onSelect()
+												dismissRoot()
+											},
+										)
 
-								is MenuItem.Separator -> MenuSeparatorRow()
-								is MenuItem.Submenu ->
-									MenuSubmenuRow(
-										item = item,
-										reserveIconSlot = reserveIconSlot,
-										expanded = openSubmenuIndex == index,
-										onRequestOpen = { openSubmenuIndex = index },
-										onRequestClose = {
-											if (openSubmenuIndex == index) {
-												openSubmenuIndex = null
-											}
-										},
-										dismissRoot = dismissRoot,
-									)
+									is MenuItem.Separator -> MenuSeparatorRow()
+									is MenuItem.Heading -> MenuHeadingRow(item)
+									is MenuItem.Submenu ->
+										MenuSubmenuRow(
+											item = item,
+											reserveIconSlot = reserveIconSlot,
+											expanded = openSubmenuIndex == index,
+											onRequestOpen = { openSubmenuIndex = index },
+											onRequestClose = {
+												if (openSubmenuIndex == index) {
+													openSubmenuIndex = null
+												}
+											},
+											dismissRoot = dismissRoot,
+										)
+
+									is MenuItem.Search -> Unit
+								}
 							}
 						}
 					}
-				}
-				// matchParentSize keeps the scrollbar a pure overlay: it fills its own box rather than the
-				// popup's window-sized constraints, so it can no longer inflate the menu to full height.
-				Box(modifier = Modifier.matchParentSize()) {
-					VerticalScrollbarOverlay(scrollState)
+					// matchParentSize keeps the scrollbar a pure overlay: it fills its own box rather than the
+					// popup's window-sized constraints, so it can no longer inflate the menu to full height.
+					Box(modifier = Modifier.matchParentSize()) {
+						VerticalScrollbarOverlay(scrollState)
+					}
 				}
 			}
 		}
 	}
+}
+
+/**
+ * The pinned search box: the kit [SearchField] at the panel's width less the row inset, focused as
+ * soon as it composes so the menu opens ready to type into.  Esc and a pick dismiss the menu as ever -
+ * the popup owns both - and Compose hands focus back to whatever held it before the popup opened.
+ *
+ * @param MenuItem.Search item The search entry.
+ */
+@Composable
+private fun MenuSearchRow(item: MenuItem.Search) {
+	val focusRequester = remember { FocusRequester() }
+	SearchField(
+		value = item.value,
+		onValueChange = item.onValueChange,
+		modifier = Modifier.padding(horizontal = MENU_SEARCH_INSET, vertical = 6.dp).focusRequester(focusRequester),
+		width = item.width - MENU_SEARCH_INSET * 2,
+		placeholder = item.placeholder ?: stringResource(Res.string.search_hint),
+	)
+	LaunchedEffect(focusRequester) {
+		focusRequester.requestFocus()
+	}
+}
+
+/**
+ * A section heading: the same muted caption a filter panel heads its groups with, so a menu's file
+ * names and a panel's section titles read as one thing.  Inert, and outside the icon column.
+ *
+ * @param MenuItem.Heading item The heading entry.
+ */
+@Composable
+private fun MenuHeadingRow(item: MenuItem.Heading) {
+	FilterSectionLabel(text = item.label)
 }
 
 /**
@@ -232,12 +304,17 @@ private fun MenuActionRow(item: MenuItem.Action, reserveIconSlot: Boolean, onCli
 		} else if (reserveIconSlot) {
 			Spacer(modifier = Modifier.width(MENU_ICON_SIZE + MENU_ICON_LABEL_GAP))
 		}
+		// One line, ellipsized, and the row's slack is the label's: a fixed-width menu (one with a search
+		// box) must never wrap a long layer name, and the shortcut stays at the row's end.  A hugging menu
+		// is as wide as its widest row, so nothing changes there.
 		Text(
 			text = item.label,
 			style = typography.labelMedium,
 			color = if (item.enabled) colors.text else colors.textMuted,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			modifier = Modifier.weight(1f),
 		)
-		Spacer(modifier = Modifier.weight(1f))
 		if (item.shortcut != null) {
 			Spacer(modifier = Modifier.width(ROW_TRAILING_GAP))
 			Text(text = item.shortcut, style = typography.labelSmall, color = colors.textMuted)

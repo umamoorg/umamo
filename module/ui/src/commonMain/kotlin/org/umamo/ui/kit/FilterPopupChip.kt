@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -40,7 +41,9 @@ fun FilterPopupChip(
 
 /**
  * A muted caption heading one group of rows inside a [FilterPopupChip] panel.  Extracted so every
- * filter panel's section headings share one type style and inset.
+ * filter panel's section headings share one type style and inset.  One line, ellipsized: a heading
+ * that names a document object (an artwork file) can be arbitrarily long, and it must not widen or
+ * wrap the panel the rows beneath it are sized for.
  *
  * @param String   text     The heading text.
  * @param Modifier modifier The layout modifier.
@@ -51,6 +54,8 @@ fun FilterSectionLabel(text: String, modifier: Modifier = Modifier) {
 		text = text,
 		style = LocalUmamoTypography.current.labelSmall,
 		color = LocalUmamoColors.current.textMuted,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
 		modifier = modifier.padding(horizontal = 8.dp, vertical = 2.dp),
 	)
 }

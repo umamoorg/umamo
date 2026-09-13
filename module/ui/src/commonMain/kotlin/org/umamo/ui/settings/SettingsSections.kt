@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.reimport.WatchMode
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
 import org.umamo.ui.kit.NumberField
@@ -40,6 +42,13 @@ import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
+import org.umamo.ui.resources.settings_import_parameter_template
+import org.umamo.ui.resources.settings_import_parameter_template_humanoid
+import org.umamo.ui.resources.settings_import_parameter_template_none
+import org.umamo.ui.resources.settings_import_watch_mode
+import org.umamo.ui.resources.settings_import_watch_mode_auto
+import org.umamo.ui.resources.settings_import_watch_mode_notify
+import org.umamo.ui.resources.settings_import_watch_mode_off
 import org.umamo.ui.resources.settings_interface_history_steps
 import org.umamo.ui.resources.settings_interface_language
 import org.umamo.ui.resources.settings_interface_theme
@@ -117,6 +126,57 @@ internal fun InterfaceSection() {
 				onValueChange = { committed -> historyLimit = committed },
 				range = HistorySettings.HISTORY_LIMIT_RANGE,
 				modifier = Modifier.width(80.dp),
+			)
+		}
+	}
+}
+
+/** The settings key for the parameter set an artwork import seeds; the values are ParameterTemplate keys. */
+internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
+
+/** The settings key for what a document does when a watched artwork file changes; the values are WatchMode keys. */
+internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
+
+/**
+ * The Import section: what an artwork import seeds a new model with, and what a document does when a
+ * watched artwork file changes.  The parameter template is stored as the template's key so a later
+ * template is one more option here and one more enum entry, nothing else; the import reads the key at
+ * the moment it runs, so the change applies to the next import.  The watch mode is stored as the
+ * mode's key and read live by the open document's watcher.
+ */
+@Composable
+internal fun ImportSection() {
+	var templateKey by rememberStringSetting(IMPORT_PARAMETER_TEMPLATE_KEY, ParameterTemplate.Default.key)
+	val templateLabels =
+		linkedMapOf(
+			ParameterTemplate.Humanoid.key to stringResource(Res.string.settings_import_parameter_template_humanoid),
+			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
+		)
+
+	var watchModeKey by rememberStringSetting(IMPORT_WATCH_MODE_KEY, WatchMode.Default.key)
+	val watchModeLabels =
+		linkedMapOf(
+			WatchMode.Auto.key to stringResource(Res.string.settings_import_watch_mode_auto),
+			WatchMode.Notify.key to stringResource(Res.string.settings_import_watch_mode_notify),
+			WatchMode.Off.key to stringResource(Res.string.settings_import_watch_mode_off),
+		)
+
+	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
+		SettingRow(label = stringResource(Res.string.settings_import_parameter_template)) {
+			SelectField(
+				selected = ParameterTemplate.fromKey(templateKey).key,
+				options = templateLabels.keys.toList(),
+				label = { value -> templateLabels[value] ?: value },
+				onSelect = { value -> templateKey = value },
+			)
+		}
+		// Read live by the open document's watcher, so the switch applies at once.
+		SettingRow(label = stringResource(Res.string.settings_import_watch_mode)) {
+			SelectField(
+				selected = WatchMode.fromKey(watchModeKey).key,
+				options = watchModeLabels.keys.toList(),
+				label = { value -> watchModeLabels[value] ?: value },
+				onSelect = { value -> watchModeKey = value },
 			)
 		}
 	}

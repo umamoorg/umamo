@@ -18,6 +18,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
+import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.placementAffine
 import java.util.IdentityHashMap
 
@@ -116,15 +117,19 @@ internal class Cmo3AtlasWebLowering(
 		val modelImageByTileId = web.modelImageByTileId
 
 		// --- Classify every edited tile; ANY gap declines whole. ---
-		val baselinePlacementByTileId = baseline.atlas.tiles.associateBy({ tile -> tile.id.raw }, { tile -> tile.placement })
+		// Every tile is keyed by its LINEAGE ROOT: a reloaded tile (`<guid>~<n>`, AtlasTile.replaces) is
+		// the model image its root imported from as far as the web knows, so its placement reads as that
+		// entry moving.  Its pixels reach the pages; the retained model image stays the import's until
+		// the per-tile source chain is written (Phase H), which the export report says.
+		val baselinePlacementByTileId = baseline.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
 		val editedTileIds = HashSet<String>()
 		val changedPlacementByTileId = HashMap<String, Pair<AtlasPlacement?, AtlasPlacement>>()
-		val boundTileIds = edited.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId?.raw }
+		val boundTileIds = edited.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId?.lineageRoot?.raw }
 		val moves = ArrayList<Pair<AtlasEntrySite, AtlasPlacement>>()
 		val packOuts = ArrayList<AtlasEntrySite>()
 		val packInPlacementByTileId = LinkedHashMap<String, AtlasPlacement>()
 		for (tile in edited.atlas.tiles) {
-			val tileId = tile.id.raw
+			val tileId = tile.id.lineageRoot.raw
 			editedTileIds.add(tileId)
 			val newPlacement = tile.placement
 			val site = siteByTileId[tileId]
@@ -242,7 +247,7 @@ internal class Cmo3AtlasWebLowering(
 		// Every EDITED drawable over a packed-in tile must have been found file-side, or its
 		// re-derived page-frame coordinates would export with nothing retargeting its sampling.
 		for (tileId in packInPlacementByTileId.keys) {
-			val editedBound = edited.drawables.count { drawable -> drawable.atlasTileId?.raw == tileId }
+			val editedBound = edited.drawables.count { drawable -> drawable.atlasTileId?.lineageRoot?.raw == tileId }
 			val found = packInCandidates.count { candidate -> candidate.tileId == tileId }
 			if (editedBound != found) {
 				return Result.Declined
