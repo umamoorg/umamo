@@ -8,12 +8,12 @@ import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.OperationStripState
-import org.umamo.ui.workspace.RowDragCancelController
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SplitterDragCancelController
 import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.defaultLayout
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

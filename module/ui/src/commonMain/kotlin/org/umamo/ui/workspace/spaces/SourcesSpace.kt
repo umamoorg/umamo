@@ -2,7 +2,6 @@ package org.umamo.ui.workspace.spaces
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -31,8 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,15 +69,21 @@ import org.umamo.ui.model.percentOf
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.UmamoColors
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.LocalRowDragCancel
 import org.umamo.ui.workspace.commands.DeleteArtRequest
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.ReplaceRequest
+import org.umamo.ui.workspace.rowdrag.RowCoordinatesHolder
+import org.umamo.ui.workspace.rowdrag.RowDragController
+import org.umamo.ui.workspace.rowdrag.RowDragLabel
+import org.umamo.ui.workspace.rowdrag.dragRowOnLongPress
+import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
+import org.umamo.ui.workspace.rowdrag.rowDropHighlight
 
 /*
  * The Sources space: the linking table between the document's artwork files and its art.  File ->
@@ -104,11 +107,6 @@ internal sealed interface SourcesDragPayload {
 	data class Layer(val ref: SourceLayerRef) : SourcesDragPayload
 
 	data class Tile(val tileId: AtlasTileId) : SourcesDragPayload
-}
-
-/** A plain holder for a row's coordinates, so publishing them never forces a recompose. */
-private class SourcesRowBoundsHolder {
-	var coordinates: LayoutCoordinates? = null
 }
 
 /**
@@ -181,15 +179,7 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Drag-and-drop: long-press a layer or tile row, drop it on the other kind to rebind.  Transient,
 	// per space instance; Escape cancels through the shell's shared seam like the outliner.
 	val dragController = remember { RowDragController<SourcesDragPayload>() }
-	val dragCancelSeam = LocalRowDragCancel.current
-	DisposableEffect(dragController.isDragging) {
-		if (dragController.isDragging) {
-			dragCancelSeam.cancel = { dragController.cancel() }
-		}
-		onDispose {
-			dragCancelSeam.cancel = null
-		}
-	}
+	dragController.parkCancelOnSeam()
 	// A relink is a command, not a session edit from here: the app reads the layer's file and pulls its
 	// art in (a binding-only change when it cannot), and the shell resolves where the strip shows.
 	val commands = LocalCommands.current
@@ -230,6 +220,12 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 				onDrop = performDrop,
 			)
 		}
+	}
+	// A name chip follows the cursor while dragging, so there is something clearly "in hand" beyond the
+	// faded row: the row being dragged (a layer or a tile).
+	val draggingLabel = dragController.draggingKey?.let { id -> nodeById[id]?.label }
+	if (dragController.isDragging && draggingLabel != null) {
+		RowDragLabel(label = draggingLabel, cursorX = dragController.dragWindowX, cursorY = dragController.dragWindowY)
 	}
 }
 
@@ -302,7 +298,7 @@ private fun SourcesRowView(
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
-	val boundsHolder = remember { SourcesRowBoundsHolder() }
+	val boundsHolder = remember { RowCoordinatesHolder() }
 	val currentOnDrop by rememberUpdatedState(onDrop)
 	// A layer the file lost drags nowhere: its binding is what is under review, not a layer to offer.
 	val payload: SourcesDragPayload? =
@@ -320,9 +316,10 @@ private fun SourcesRowView(
 	DisposableEffect(node.id) {
 		onDispose { dragController.clearBounds(node.id) }
 	}
+	// A valid target (a layer under a dragged tile, a tile under a dragged layer) takes the shared drop ring;
+	// anything else under the pointer shows nothing, so the rigger sees where a release would bind.
 	val background =
 		when {
-			isDropTarget -> colors.accent.copy(alpha = 0.35f)
 			selected -> colors.accent.copy(alpha = 0.25f)
 			hovered -> colors.rowHover
 			else -> Color.Transparent
@@ -335,6 +332,7 @@ private fun SourcesRowView(
 			puppet = puppet,
 			expanded = expanded,
 			background = background,
+			isDropTarget = isDropTarget,
 			isDragged = isDragged,
 			interaction = interaction,
 			boundsHolder = boundsHolder,
@@ -376,10 +374,11 @@ private fun sourceFileMenuItems(sourceId: ArtSourceId, commands: org.umamo.ui.ac
  * @param SourcesRow  row            The row.
  * @param PuppetModel puppet         The rig.
  * @param Boolean     expanded       Whether the row's children are shown.
- * @param Color       background     The row's fill for its hover, selection, or drop state.
+ * @param Color       background     The row's fill for its hover or selection state.
+ * @param Boolean     isDropTarget   Whether a release would bind onto this row, which draws the drop ring.
  * @param Boolean     isDragged      Whether the row is the one being dragged.
  * @param MutableInteractionSource interaction The row's hover source.
- * @param SourcesRowBoundsHolder   boundsHolder The row's coordinates holder.
+ * @param RowCoordinatesHolder     boundsHolder The row's coordinates holder.
  * @param SourcesDragPayload?      payload      What a drag from the row carries, or null when it cannot be dragged.
  * @param Function    onToggle       Flips the expand state.
  * @param Function    onSelect       Selects the given targets.
@@ -393,9 +392,10 @@ private fun SourcesRowBody(
 	puppet: PuppetModel,
 	expanded: Boolean,
 	background: Color,
+	isDropTarget: Boolean,
 	isDragged: Boolean,
 	interaction: MutableInteractionSource,
-	boundsHolder: SourcesRowBoundsHolder,
+	boundsHolder: RowCoordinatesHolder,
 	payload: SourcesDragPayload?,
 	onToggle: () -> Unit,
 	onSelect: (List<SelectionTarget>) -> Unit,
@@ -405,6 +405,7 @@ private fun SourcesRowBody(
 ) {
 	val node = row.node
 	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
 	val icons = LocalUmamoIcons
 	val commands = LocalCommands.current
 	Row(
@@ -413,8 +414,10 @@ private fun SourcesRowBody(
 			Modifier
 				.fillMaxWidth()
 				.height(SOURCES_ROW_HEIGHT)
-				.background(background)
+				// The dragged row fades whole, fill and ring included, so the alpha layer wraps what follows.
 				.alpha(if (isDragged) 0.4f else 1f)
+				.background(background, shape = shapes.small)
+				.rowDropHighlight(isDropTarget, shapes.small, colors)
 				.onGloballyPositioned { coordinates ->
 					boundsHolder.coordinates = coordinates
 					dragController.reportBounds(node.id, coordinates.boundsInWindow())
@@ -429,23 +432,8 @@ private fun SourcesRowBody(
 						onSelect(targets)
 					}
 				}
-				.pointerInput(payload) {
-					if (payload == null) {
-						return@pointerInput
-					}
-					detectDragGesturesAfterLongPress(
-						onDragStart = { offset ->
-							val bounds = boundsHolder.coordinates?.boundsInWindow()
-							dragController.start(node.id, payload, (bounds?.left ?: 0f) + offset.x, (bounds?.top ?: 0f) + offset.y)
-						},
-						onDrag = { change, _ ->
-							val bounds = boundsHolder.coordinates?.boundsInWindow()
-							dragController.drag((bounds?.left ?: 0f) + change.position.x, (bounds?.top ?: 0f) + change.position.y)
-						},
-						onDragEnd = { onDropNow() },
-						onDragCancel = { dragController.end() },
-					)
-				}
+				// Long-press to pick a layer or tile row up; a file or drawable row (no payload) never lifts.
+				.dragRowOnLongPress(dragController, node.id, payload, boundsHolder, onDropNow)
 				.padding(start = SOURCES_INDENT_PER_DEPTH * row.depth + 4.dp, end = 6.dp),
 	) {
 		Box(modifier = Modifier.width(SOURCES_CHEVRON_WIDTH), contentAlignment = Alignment.Center) {

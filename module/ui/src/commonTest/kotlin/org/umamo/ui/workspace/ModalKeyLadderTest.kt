@@ -32,6 +32,7 @@ import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.viewport.pieMenuEntriesFor
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

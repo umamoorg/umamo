@@ -32,54 +32,6 @@ import kotlin.math.roundToInt
 /** The square edge of the Outliner hover preview - bigger than the picker slot so the art is easy to read. */
 private val OUTLINER_PREVIEW_SIZE = 120.dp
 
-/** Places a popup at a fixed window point (the drag cursor), nudged down-right so it clears the pointer. */
-private class CursorPopupPositionProvider(private val cursorX: Float, private val cursorY: Float) : PopupPositionProvider {
-	override fun calculatePosition(
-		anchorBounds: IntRect,
-		windowSize: IntSize,
-		layoutDirection: LayoutDirection,
-		popupContentSize: IntSize,
-	): IntOffset = IntOffset((cursorX + 14f).roundToInt(), (cursorY + 8f).roundToInt())
-}
-
-/**
- * The little name chip that follows the cursor while a row is being dragged, so there is something obviously
- * "in hand" beyond the faded source row. Non-focusable and mounted at the space root, positioned in window
- * coordinates at the drag pointer.
- *
- * ドラッグ中にカーソルに追従する名前チップ。掴んでいる対象を視覚的に示す。
- *
- * @param String label The dragged row's display name.
- * @param Float cursorX The drag pointer X, in window pixels.
- * @param Float cursorY The drag pointer Y, in window pixels.
- */
-@Composable
-fun OutlinerDragLabel(label: String, cursorX: Float, cursorY: Float) {
-	val colors = LocalUmamoColors.current
-	val shapes = LocalUmamoShapes.current
-	val typography = LocalUmamoTypography.current
-	Popup(
-		popupPositionProvider = CursorPopupPositionProvider(cursorX, cursorY),
-		properties = PopupProperties(focusable = false, clippingEnabled = false),
-	) {
-		Surface(
-			color = colors.menuBackground,
-			shape = shapes.small,
-			border = BorderStroke(1.dp, colors.panelBorder),
-			shadowElevation = 6.dp,
-		) {
-			Text(
-				text = label,
-				style = typography.labelSmall,
-				color = colors.text,
-				maxLines = 1,
-				overflow = TextOverflow.Ellipsis,
-				modifier = Modifier.widthIn(max = 220.dp).padding(horizontal = 8.dp, vertical = 3.dp),
-			)
-		}
-	}
-}
-
 /**
  * Positions the Outliner hover preview just to the right of the hovered row (anchored by its window
  * bounds), flipping to the left when it would overflow the window's right edge and clamping to the window
