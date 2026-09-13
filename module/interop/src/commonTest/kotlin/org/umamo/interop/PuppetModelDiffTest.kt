@@ -400,6 +400,8 @@ class PuppetModelDiffTest {
 		assertTrue(DocumentField.SOURCE_FILES !in reloaded.document, "a reload's inventory and hash are not")
 		val touched = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(lastModified = 123L))))
 		assertEquals(setOf(DocumentField.SOURCE_FILES), touched.document, "the file's modification time is, since the CMO3 keeps it")
+		val foreign = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(id = ArtSourceId("page-0"), name = "page-0.png", path = null))))
+		assertTrue(DocumentField.SOURCE_FILES !in foreign.document, "a record only one side lists (a fresh synthesis's page slices, art added this session) is not a repointed file")
 		assertEquals(setOf(DocumentField.ATLAS_PAGES), repaged.document, "the page list is document-level")
 		assertTrue(repaged.atlasTiles.isEmpty(), "resizing a page moves no tile")
 

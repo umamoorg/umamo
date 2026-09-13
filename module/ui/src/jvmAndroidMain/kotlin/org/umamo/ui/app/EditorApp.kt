@@ -25,6 +25,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.deleteTile
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.edit.setTileSources
 import org.umamo.format.FileKind
@@ -636,6 +637,8 @@ fun EditorApp(
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
 			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
+			// A plain session edit: the tile leaves the atlas, its pixels stay in the store for undo.
+			deleteArt = { request -> session?.deleteTile(request.tileId) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 

@@ -204,7 +204,7 @@ class ArtworkEditsTest {
 		assertEquals(listOf(OrgChild.Drawable(added.id), OrgChild.Drawable(second.id), kept), reloaded.parts.single().children, "before the kept child, then after the one just placed")
 		assertEquals(listOf(OrgChild.Drawable(top.id), OrgChild.Part(PartId("Part1"))), reloaded.rootChildren, "a top-of-file layer lands first at the root")
 		assertEquals(listOf("ArtMesh1", "ArtMesh2", "ArtMesh3", "ArtMesh4"), reloaded.drawables.map { drawable -> drawable.id.raw })
-		assertEquals(RenderDrawable(DrawableId("ArtMesh4")), reloaded.renderRoot?.children?.first(), "and draws in front")
+		assertEquals(RenderDrawable(DrawableId("ArtMesh4")), reloaded.renderRoot?.children?.last(), "and draws last of all, so in front (the render root runs back to front)")
 
 		val fallbacks = additions.copy(insertions = listOf(OrgInsertion(PartId("Part1"), OrgChild.Drawable(added.id), OrgSlot.After(OrgChild.Drawable(DrawableId("gone")))), OrgInsertion(null, OrgChild.Drawable(top.id), OrgSlot.End)))
 		val fallen = base.withArtworkReloaded(reload.copy(additions = fallbacks))
@@ -214,6 +214,19 @@ class ArtworkEditsTest {
 		val unknownPart = additions.copy(insertions = listOf(OrgInsertion(PartId("Part9"), OrgChild.Drawable(added.id), OrgSlot.End)))
 		assertSame(base, base.withArtworkReloaded(reload.copy(additions = unknownPart)), "a part the model lacks refuses the reload")
 		assertSame(base, base.withArtworkAdded(unknownPart.copy(source = sourceA.copy(id = ArtSourceId("art-1")))), "and the addition")
+	}
+
+	/** A tile no drawable samples can leave the atlas; one still sampled, or one the model lacks, cannot. */
+	@Test
+	fun anUnsampledTileCanBeDeletedAndASampledOneCannot() {
+		val base = model()
+		val orphan = AtlasTile(AtlasTileId("art-0/lyid:2"), "L2", 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:2", true))
+		val withOrphan = base.copy(atlas = base.atlas.copy(tiles = base.atlas.tiles + orphan))
+		val deleted = withOrphan.withTileDeleted(orphan.id)
+		assertEquals(listOf(AtlasTileId("art-0/lyid:1")), deleted.atlas.tiles.map { tile -> tile.id }, "the orphan is gone")
+		assertEquals(withOrphan.drawables, deleted.drawables, "and nothing else moved")
+		assertSame(withOrphan, withOrphan.withTileDeleted(AtlasTileId("art-0/lyid:1")), "a tile a drawable samples stays")
+		assertSame(withOrphan, withOrphan.withTileDeleted(AtlasTileId("nope")), "an unknown tile is a no-op")
 	}
 
 	@Test

@@ -733,6 +733,19 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
+	 * Removes one piece of source art from the atlas: a tile no drawable samples (its drawables were
+	 * deleted, or it never had any), so it stops taking a page slot and a Sources row.  Its pixels stay
+	 * in the document's raster store, so undo shows it again.  Document content, so it marks the
+	 * document dirty.
+	 *
+	 * @property AtlasTileId tileId The tile removed.
+	 */
+	data class DeleteTile(val tileId: AtlasTileId) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.document.deleteTile"
+	}
+
+	/**
 	 * Adds an artwork file to the document: its source record and layer inventory, one tile and one
 	 * drawable per layer with art, one part per folder, packed onto the pages beside the existing art.
 	 * Document content, so it marks the document dirty.

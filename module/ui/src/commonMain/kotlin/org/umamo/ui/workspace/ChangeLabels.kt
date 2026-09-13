@@ -102,6 +102,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.document.atlasRepack" -> stringResource(Res.string.history_document_atlas_repack)
 		"change.document.tileSource" -> stringResource(Res.string.history_document_tile_source)
 		"change.document.tileUnbind" -> stringResource(Res.string.history_document_tile_unbind)
+		"change.document.deleteTile" -> stringResource(Res.string.history_document_delete_tile)
 		"change.document.addArtwork" -> stringResource(Res.string.history_document_add_artwork)
 		"change.document.reloadArtwork" -> stringResource(Res.string.history_document_reload_artwork)
 		"change.document.relinkArtwork" -> stringResource(Res.string.history_document_relink_artwork)
