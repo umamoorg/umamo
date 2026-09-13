@@ -49,7 +49,7 @@ fun DrawableMesh.isUntouchedBirthQuad(
 	tileHeight: Int,
 	layerLeft: Float,
 	layerTop: Float,
-	tolerance: Float = 0.5f,
+	tolerance: Float = 0.1f,
 ): Boolean {
 	if (vertexCount != 4 || artUvs.size != 8 || !indices.contentEquals(BIRTH_QUAD_INDICES)) {
 		return false
