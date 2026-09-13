@@ -1115,15 +1115,18 @@ internal class Cmo3PropertyLowering(
 	}
 
 	/**
-	 * Lowers each listed file's name and path onto the layered image the editor decomposed it into, so
-	 * a document reopened in either editor points at the file the rigger last relinked.
+	 * Lowers each listed file's name, path, and modification time onto the layered image the editor
+	 * decomposed it into, so a document reopened in either editor points at the file the rigger last
+	 * relinked and knows when it was read.
 	 *
 	 * CMO3: CModelSource field textureManager -> CTextureManager field _rawImages -> LayeredImageWrapper
-	 * field image -> CLayeredImage fields name / psdFile.  The image is keyed by the guid the import
-	 * minted the source id from; psdFile is the external-reference file shape, its text the absolute
-	 * path on the machine that linked it (docs/format/CMO3.md section 4).  A source with no image - art
-	 * added to a CMO3-origin document - has nowhere to write to and is noted; psdFileLastModified is
-	 * left as it was, since the document records no modification time.
+	 * field image -> CLayeredImage fields name / psdFile / psdFileLastModified.  The image is keyed by
+	 * the guid the import minted the source id from; psdFile is the external-reference file shape, its
+	 * text the absolute path on the machine that linked it, and psdFileLastModified the source's
+	 * modification time in epoch milliseconds (docs/format/CMO3.md section 4).  Only a record the
+	 * baseline also lists is a repointed file; one it lacks is art added this session, whose export
+	 * story is the atlas web's, and is passed over here.  A shared record whose image the graph has
+	 * lost is noted; a record with no known time leaves the image's as it was.
 	 */
 	private fun lowerSourceFiles() {
 		val textureManager = index.modelSource.textureManager as? CTextureManager
@@ -1139,8 +1142,8 @@ internal class Cmo3PropertyLowering(
 		}
 		val baselineById = baseline.sources.associateBy { source -> source.id }
 		for (source in edited.sources) {
-			val before = baselineById[source.id]
-			if (before != null && before.name == source.name && before.path == source.path && before.lastModified == source.lastModified) {
+			val before = baselineById[source.id] ?: continue
+			if (before.name == source.name && before.path == source.path && before.lastModified == source.lastModified) {
 				continue
 			}
 			val image = imageByGuid[source.id.raw]
