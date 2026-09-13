@@ -57,12 +57,16 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.DisclosureChevron
+import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.DropdownChipStyle
 import org.umamo.ui.kit.FilterSectionLabel
+import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.PopupChip
+import org.umamo.ui.kit.PopupPanel
 import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.IconSlot
@@ -503,7 +507,7 @@ private fun SourcesRowBody(
 
 /**
  * A file row's actions chip: Replace Artwork… and Reload This File, the same two the row's context
- * menu offers.
+ * menu offers, drawn as the kit [Menu] so the chip and the context menu are one menu in two places.
  *
  * @param ArtSourceId                         sourceId The file.
  * @param org.umamo.ui.action.CommandRegistry commands The registry to dispatch through.
@@ -513,23 +517,14 @@ private fun SourceFileChip(sourceId: ArtSourceId, commands: org.umamo.ui.action.
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
 	val items = sourceFileMenuItems(sourceId, commands)
-	PopupChip(
+	DropdownChip(
+		expanded = open,
+		onExpandRequest = { open = true },
 		contentDescription = stringResource(Res.string.sources_file_menu),
 		icon = icons.dots,
-		expanded = open,
-		onExpandedChange = { next -> open = next },
 		style = DropdownChipStyle.Compact,
 	) {
-		Column(modifier = Modifier.width(RELINK_PANEL_WIDTH / 2)) {
-			for (item in items) {
-				if (item is MenuItem.Action) {
-					RelinkRow(label = item.label, muted = false) {
-						open = false
-						item.onSelect()
-					}
-				}
-			}
-		}
+		Menu(items = items, onDismissRequest = { open = false }, positionProvider = BelowAnchorPositionProvider)
 	}
 }
 
@@ -561,36 +556,56 @@ private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetMod
 			onRelink(boundTiles, target)
 		}
 	}
-	PopupChip(
+	// The proposal page is a kit Menu, like every other menu in the application; picking Relink by
+	// hand… flips the SAME open chip to the stay-open list panel (the menu row runs its action before
+	// the root dismiss, so the dismiss sees the flag and keeps the chip open).
+	val menuItems =
+		buildList {
+			if (suggestion != null) {
+				add(
+					MenuItem.Action(
+						label = stringResource(Res.string.sources_suggestion_accept, suggestion.candidateName, percentOf(suggestion.score)),
+						onSelect = { relinkAll(SourceLayerRef(ref.sourceId, suggestion.candidateKey, stableKey = layerKeyLooksStable(suggestion.candidateKey))) },
+					),
+				)
+			}
+			add(MenuItem.Action(label = stringResource(Res.string.sources_suggestion_relink), onSelect = { byHand = true }))
+			add(MenuItem.Action(label = stringResource(Res.string.sources_suggestion_leave), onSelect = {}))
+		}
+	DropdownChip(
+		expanded = open,
+		onExpandRequest = {
+			open = true
+			byHand = false
+		},
 		contentDescription = stringResource(Res.string.sources_suggestion_title),
 		icon = icons.linked,
-		iconTint = colors.signalCaution,
-		expanded = open,
-		onExpandedChange = { next ->
-			open = next
-			if (!next) {
-				byHand = false
-			}
-		},
 		style = DropdownChipStyle.Compact,
+		iconTint = colors.signalCaution,
 	) {
 		if (byHand) {
-			RelinkList(puppet = puppet, current = ref, query = query, onQueryChange = { updated -> query = updated }, showUnbind = false) { target ->
-				open = false
-				byHand = false
-				relinkAll(target)
+			PopupPanel(
+				onDismissRequest = {
+					open = false
+					byHand = false
+				},
+			) {
+				RelinkList(puppet = puppet, current = ref, query = query, onQueryChange = { updated -> query = updated }, showUnbind = false) { target ->
+					open = false
+					byHand = false
+					relinkAll(target)
+				}
 			}
 		} else {
-			Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
-				if (suggestion != null) {
-					RelinkRow(label = stringResource(Res.string.sources_suggestion_accept, suggestion.candidateName, percentOf(suggestion.score)), muted = false) {
+			Menu(
+				items = menuItems,
+				onDismissRequest = {
+					if (!byHand) {
 						open = false
-						relinkAll(SourceLayerRef(ref.sourceId, suggestion.candidateKey, stableKey = layerKeyLooksStable(suggestion.candidateKey)))
 					}
-				}
-				RelinkRow(label = stringResource(Res.string.sources_suggestion_relink), muted = false) { byHand = true }
-				RelinkRow(label = stringResource(Res.string.sources_suggestion_leave), muted = true) { open = false }
-			}
+				},
+				positionProvider = BelowAnchorPositionProvider,
+			)
 		}
 	}
 }

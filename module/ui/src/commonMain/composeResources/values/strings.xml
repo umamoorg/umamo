@@ -440,7 +440,7 @@
 	<string name="sources_source_no_path">no path recorded</string>
 	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
 	<string name="sources_tile_page">page %1$d</string>
-	<string name="sources_relink_title">Relink to a layer</string>
+	<string name="sources_relink_title">Relink to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
 	<string name="sources_empty">No source artwork.  Add Artwork… brings a layered file into this document.</string>
