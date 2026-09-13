@@ -92,6 +92,8 @@ object ArtworkReloadPlanner {
 	 *   brings in whatever is still unbound once the review is done.  Null re-reads the record's own file.
 	 * @param List<ArtSourceLayer>  inventory   The inventory of [art], for a caller that already computed it
 	 *   (it hashes every layer's pixels, so one read file should pay for it once); computed here by default.
+	 * @param Long?                  lastModified The file's modification time when [art] was read, recorded on
+	 *   the refreshed source; null keeps the record's.  A replacement records its own descriptor's instead.
 	 * @return ReloadPlan? The plan, or null when there is nothing to commit.
 	 */
 	fun plan(
@@ -103,6 +105,7 @@ object ArtworkReloadPlanner {
 		contentHash: String? = null,
 		replacement: ArtSourceDescriptor? = null,
 		inventory: List<ArtSourceLayer> = SourceArtImport.inventoryOf(art),
+		lastModified: Long? = null,
 	): ReloadPlan? {
 		val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
 		val layersByKey = rasterLayersByKey(art)
@@ -153,11 +156,20 @@ object ArtworkReloadPlanner {
 		val layers = inventoryWithMissing(source.layers, inventory, boundKeys)
 		val refreshed =
 			if (replacement == null) {
-				source.copy(layers = layers, contentHash = contentHash ?: source.contentHash)
+				source.copy(layers = layers, contentHash = contentHash ?: source.contentHash, lastModified = lastModified ?: source.lastModified)
 			} else {
-				source.copy(name = replacement.name, path = replacement.path, format = replacement.format, layers = layers, contentHash = contentHash)
+				source.copy(
+					name = replacement.name,
+					path = replacement.path,
+					format = replacement.format,
+					layers = layers,
+					contentHash = contentHash,
+					lastModified = replacement.lastModified,
+				)
 			}
-		if (replacement == null && replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash) == source) {
+		// The hash and the time say when the file was read, not what changed in it: masked out, so a save
+		// that changed no layer plans nothing (the watcher acknowledges it instead).
+		if (replacement == null && replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash, lastModified = source.lastModified) == source) {
 			return null
 		}
 		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, report, notices)
@@ -181,6 +193,7 @@ object ArtworkReloadPlanner {
 	 * @param Function               oldRasterOf The document's pixels for a tile, or null when it has none.
 	 * @param String?                contentHash The whole-file hash of the bytes [art] came from; null keeps the record's.
 	 * @param List<ArtSourceLayer>  inventory   The inventory of [art], for a caller that already computed it; computed here by default.
+	 * @param Long?                  lastModified The file's modification time when [art] was read; null keeps the record's.
 	 * @return ReloadPlan? The plan, or null when nothing could be rebound.
 	 */
 	fun planMatches(
@@ -192,6 +205,7 @@ object ArtworkReloadPlanner {
 		oldRasterOf: (AtlasTileId) -> LayerRaster?,
 		contentHash: String? = null,
 		inventory: List<ArtSourceLayer> = SourceArtImport.inventoryOf(art),
+		lastModified: Long? = null,
 	): ReloadPlan? {
 		val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
 		val layersByKey = rasterLayersByKey(art)
@@ -228,7 +242,7 @@ object ArtworkReloadPlanner {
 				rebound[tile.id] ?: tile.source?.takeIf { previous -> previous.sourceId == sourceId }?.layerKey
 			}
 		val layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys - rebound.values.toSet())
-		val refreshed = source.copy(layers = layers, contentHash = contentHash ?: source.contentHash)
+		val refreshed = source.copy(layers = layers, contentHash = contentHash ?: source.contentHash, lastModified = lastModified ?: source.lastModified)
 		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, additions = null, outgrown = outgrown), rasters, ReconcileReport(results), notices)
 	}
 

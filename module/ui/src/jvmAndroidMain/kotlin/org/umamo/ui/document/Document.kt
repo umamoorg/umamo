@@ -153,7 +153,7 @@ fun loadDocument(
 			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
-		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes))
+		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path))
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))

@@ -295,7 +295,7 @@ private fun matchOutcome(
 				acceptedByLostKey[binding.layerKey]?.let { candidateKey -> tile.id to candidateKey }
 			}
 		val plan =
-			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory)
+			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified)
 				?: continue
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {

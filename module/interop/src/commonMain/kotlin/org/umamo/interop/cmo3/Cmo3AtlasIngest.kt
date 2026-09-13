@@ -143,6 +143,9 @@ public fun cmo3AtlasIngest(modelSource: CModelSource): Cmo3AtlasIngest {
 				path = (image.psdFile as? FileRef)?.textPath?.takeIf { path -> path.isNotEmpty() },
 				format = name.substringAfterLast('.', missingDelimiterValue = "psd").lowercase(),
 				layers = inventory.rows,
+				// CMO3: CLayeredImage field psdFileLastModified - the source's modification time when the
+				// editor imported it (epoch milliseconds), zero when it never recorded one.
+				lastModified = image.psdFileLastModified.takeIf { millis -> millis > 0L },
 			),
 		)
 	}

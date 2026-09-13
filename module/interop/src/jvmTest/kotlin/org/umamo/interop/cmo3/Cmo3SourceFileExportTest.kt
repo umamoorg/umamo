@@ -27,11 +27,16 @@ class Cmo3SourceFileExportTest {
 		val cmo3 = Cmo3.read(file.readBytes())
 		val puppet = Cmo3Import.fromModelSource(cmo3.root as CModelSource)
 		assertTrue(puppet.sources.isNotEmpty(), "the sample lists its decomposed artwork")
+		assertTrue(puppet.sources.all { source -> source.lastModified != null }, "the editor's psdFileLastModified comes in as the record's time")
 		val relinked =
 			puppet.copy(
 				sources =
 					puppet.sources.mapIndexed { index, source ->
-						if (index == 0) source.copy(name = "Relinked.clip", path = "/home/rigger/art/Relinked.clip") else source.copy(path = "/home/rigger/art/${source.name}")
+						if (index == 0) {
+							source.copy(name = "Relinked.clip", path = "/home/rigger/art/Relinked.clip", lastModified = 1_700_000_000_000L)
+						} else {
+							source.copy(path = "/home/rigger/art/${source.name}")
+						}
 					},
 			)
 
@@ -43,6 +48,8 @@ class Cmo3SourceFileExportTest {
 		val first = reread.sources.first()
 		assertEquals("Relinked.clip", first.name, "the new name came back")
 		assertEquals("clip", first.format, "and the format follows the name")
+		assertEquals(1_700_000_000_000L, first.lastModified, "and so did the modification time")
+		assertEquals(puppet.sources.drop(1).map { source -> source.lastModified }, reread.sources.drop(1).map { source -> source.lastModified }, "an untouched time stays")
 		assertEquals(puppet.sources.first().layers.map { layer -> layer.key }, first.layers.map { layer -> layer.key }, "the inventory is untouched")
 	}
 }
