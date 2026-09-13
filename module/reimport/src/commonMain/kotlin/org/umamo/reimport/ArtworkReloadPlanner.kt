@@ -6,6 +6,7 @@ import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.format.art.isFullyTransparent
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
@@ -128,9 +129,18 @@ object ArtworkReloadPlanner {
 		val outgrown = ArrayList<DrawableId>()
 		val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
 		val notices = ArrayList<SourceArtImportNotice>()
+		val emptied = ArrayList<ReconcileResult>()
 		for (tile in boundTiles) {
 			val ref = tile.source ?: continue
 			val layer = layersByKey[ref.layerKey] ?: continue
+			if (layer.raster.isFullyTransparent()) {
+				// Erased to nothing rather than deleted: the tile keeps its art and the binding goes to
+				// review, since the artist may have meant either (deleted the layer another way, or left
+				// it blank on purpose).
+				notices.add(SourceArtImportNotice.EmptyLayer(layer.name))
+				emptied.add(ReconcileResult.NeedsReview(ref, ReviewReason.LayerEmptied))
+				continue
+			}
 			val replacement =
 				replaceTile(model, tile, layer, ref, oldInventoryByKey[ref.layerKey], options, oldRasterOf, taken, notices, force = false)
 					?: continue
@@ -172,7 +182,7 @@ object ArtworkReloadPlanner {
 		if (replacement == null && replaced.isEmpty() && added == null && refreshed.copy(contentHash = source.contentHash, lastModified = source.lastModified) == source) {
 			return null
 		}
-		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, report, notices)
+		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, ReconcileReport(report.results + emptied), notices)
 	}
 
 	/**

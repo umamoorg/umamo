@@ -63,6 +63,9 @@ data class ArtSource(
  * @property String? contentHash The content hash (SHA-256 hex) of the layer's pixels at the last read, or
  *   null where the art was never decoded (a CMO3's decomposed tree).  A renamed layer whose pixels did
  *   not change is recognized by it outright.
+ * @property Boolean empty     Whether the layer had no pixel with any alpha at the last read - erased to
+ *   nothing rather than deleted.  A tile bound to such a layer keeps its art and reads as needing review,
+ *   since the artist may have meant either; false where the art was never decoded.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -75,6 +78,7 @@ data class ArtSourceLayer(
 	val visible: Boolean,
 	val present: Boolean = true,
 	val contentHash: String? = null,
+	val empty: Boolean = false,
 )
 
 /**

@@ -218,13 +218,20 @@ class ArtworkReloadPlannerTest {
 		assertEquals(9L, replaced.reload.source.lastModified, "a replacement records its own file's time")
 	}
 
+	/**
+	 * A layer erased to nothing is not a deletion the reconcile can act on: the tile keeps its art, the
+	 * inventory records the layer as empty, and the binding goes to review with its own reason - the
+	 * artist may have deleted it this way or left it blank on purpose.
+	 */
 	@Test
-	fun aLayerErasedToNothingLeavesItsTile() {
+	fun aLayerErasedToNothingLeavesItsTileAndGoesToReview() {
 		val erased = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), LayerRaster(4, 4, ByteArray(64)))
 		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(erased, layer2)), options, oldRasterOf))
-		// The tile keeps the art it had; the inventory records the layer's new hash, and the note says why nothing moved.
 		assertTrue(plan.reload.replacedTiles.isEmpty())
 		assertEquals(listOf(SourceArtImportNotice.EmptyLayer("One")), plan.notices)
+		assertEquals(listOf(ReconcileResult.NeedsReview(ref1, ReviewReason.LayerEmptied)), plan.report.needsReview)
+		val row = plan.reload.source.layers.first { layer -> layer.key == "lyid:1" }
+		assertTrue(row.present && row.empty, "still in the file, recorded as empty")
 	}
 
 	@Test

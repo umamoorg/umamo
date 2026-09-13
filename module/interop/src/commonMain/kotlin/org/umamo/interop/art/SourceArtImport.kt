@@ -9,6 +9,7 @@ import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.format.art.isFullyTransparent
 import org.umamo.format.binary.contentHashOf
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
@@ -736,6 +737,7 @@ object SourceArtImport {
 				height = layer.bounds.height,
 				visible = layer.visible,
 				contentHash = if (layer.kind == SourceLayerKind.Raster) contentHashOf(layer.raster.rgba) else null,
+				empty = layer.kind == SourceLayerKind.Raster && layer.raster.isFullyTransparent(),
 			)
 		}
 

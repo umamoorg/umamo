@@ -397,6 +397,7 @@
 	<string name="sources_status_unbound">未リンク</string>
 	<string name="sources_status_unplaced">未配置</string>
 	<string name="sources_status_needs_review">要確認：ファイルにこのレイヤーがありません</string>
+	<string name="sources_status_emptied">要確認：ファイル内でこのレイヤーは空です</string>
 	<string name="sources_unbound_art">未リンクのアート</string>
 	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
 	<string name="sources_source_no_path">パス未記録</string>

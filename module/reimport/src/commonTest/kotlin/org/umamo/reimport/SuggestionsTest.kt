@@ -75,6 +75,28 @@ class SuggestionsTest {
 		assertEquals("lyid:4", suggestions.getValue("name:Eye L#1").key, "the bound Nose is never a candidate")
 		assertEquals("lyid:5", suggestions.getValue("lyid:9").key)
 		assertEquals("lyid:6", suggestions.getValue("lyid:77").key, "a binding the inventory never listed is scored from its tile")
+
+		// A layer erased to nothing is reviewed like a lost one, and never offered as a candidate.
+		val erasedModel =
+			model.copy(
+				sources =
+					listOf(
+						model.sources.single().copy(
+							layers =
+								listOf(
+									row("lyid:3", "Nose", 50, 50).copy(empty = true),
+									row("lyid:4", "Eye Left", 0, 0),
+									row("lyid:8", "Nose (blank)", 50, 50).copy(empty = true),
+									row("lyid:9", "Mouth", 100, 100, present = false),
+									row("lyid:5", "Mouth Open", 100, 100),
+								),
+						),
+					),
+			)
+		val erased = suggestionsFor(erasedModel, source)
+		val proposedForNose = erased.getValue("lyid:3").key
+		assertTrue(proposedForNose == "lyid:4" || proposedForNose == "lyid:5", "the emptied Nose is proposed a layer with art, got $proposedForNose")
+		assertTrue(erased.values.none { match -> match.key == "lyid:8" }, "the blank namesake is never a candidate")
 		assertTrue(suggestionsFor(model, ArtSourceId("art-9")).isEmpty(), "an unknown file proposes nothing")
 	}
 }

@@ -64,9 +64,10 @@ private fun missingRowFor(row: ArtSourceLayer?, tile: AtlasTile): ArtSourceLayer
 	row ?: ArtSourceLayer(tile.source?.layerKey ?: tile.id.raw, tile.name, "", 0, 0, 0, 0, visible = true, present = false)
 
 /**
- * The best candidate for every binding to [sourceId] its inventory does not list as present, keyed by
- * the lost layer's key.  The candidates are the file's present layers no tile is bound to.  Without
- * rasters the ranking rests on the inventory alone; with them the matcher compares pixels too.
+ * The best candidate for every binding to [sourceId] its inventory does not list as present - or lists
+ * as erased to nothing - keyed by the lost layer's key.  The candidates are the file's present layers
+ * with art that no tile is bound to.  Without rasters the ranking rests on the inventory alone; with
+ * them the matcher compares pixels too.
  *
  * @param PuppetModel  model             The document's model.
  * @param ArtSourceId  sourceId          The file whose lost layers are scored.
@@ -91,7 +92,7 @@ fun suggestionsFor(
 	}
 	val candidates =
 		source.layers
-			.filter { row -> row.present && row.key !in tileByKey && row.width > 0 && row.height > 0 }
+			.filter { row -> row.present && !row.empty && row.key !in tileByKey && row.width > 0 && row.height > 0 }
 			.map { row -> MatchCandidate(row) { candidateRasterOf(row.key) } }
 	if (candidates.isEmpty()) {
 		return emptyMap()
@@ -104,7 +105,7 @@ fun suggestionsFor(
 			continue
 		}
 		val row = rowByKey[key]
-		if (row != null && row.present) {
+		if (row != null && row.present && !row.empty) {
 			continue
 		}
 		val best = matcher.rank(missingRowFor(row, tile), missingRasterOf(tile.id), candidates).firstOrNull() ?: continue

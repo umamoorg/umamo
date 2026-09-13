@@ -37,7 +37,7 @@ enum class SourcesFilter {
 	/** Artwork files that are no longer where the document read them, with everything under them. */
 	Missing,
 
-	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists. */
+	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists, or has erased to nothing. */
 	NeedsReview,
 }
 
@@ -61,6 +61,9 @@ enum class SourcesStatus {
 
 	/** A binding to a layer its file no longer lists: the tile keeps its art until a person decides. */
 	NeedsReview,
+
+	/** A binding to a layer the file still has but erased to nothing: the tile keeps its art until a person decides. */
+	Emptied,
 
 	/** A row with no status of its own. */
 	None,
@@ -189,7 +192,7 @@ fun buildSourcesTree(
 		)
 	}
 
-	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true): SourcesNode {
+	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true, emptied: Boolean = false): SourcesNode {
 		val sourceId = source.id
 		val bound = tilesByBinding[sourceId to key].orEmpty()
 		val stable = bound.any { tile -> tile.source?.stableKey == true }
@@ -197,13 +200,14 @@ fun buildSourcesTree(
 			when {
 				!listed -> SourcesStatus.NeedsReview
 				bound.isEmpty() -> SourcesStatus.Unbound
+				emptied -> SourcesStatus.Emptied
 				stable -> SourcesStatus.Bound
 				else -> SourcesStatus.BoundByName
 			}
 		val suggestion =
-			if (status == SourcesStatus.NeedsReview) {
+			if (status == SourcesStatus.NeedsReview || status == SourcesStatus.Emptied) {
 				suggestionsFor(sourceId, key).firstNotNullOfOrNull { match ->
-					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present }
+					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present && !layer.empty }
 					if (candidate == null || tilesByBinding.containsKey(sourceId to match.key)) {
 						null
 					} else {
@@ -239,7 +243,7 @@ fun buildSourcesTree(
 					if (!layer.present && !tilesByBinding.containsKey(source.id to layer.key)) {
 						return@mapNotNull null
 					}
-					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present)
+					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present, emptied = layer.empty)
 					val ordinal = (rowCountByKey[layer.key] ?: 0) + 1
 					rowCountByKey[layer.key] = ordinal
 					if (ordinal == 1) node else node.copy(id = "${node.id}~$ordinal", status = SourcesStatus.Unbound, children = emptyList(), suggestion = null)
@@ -313,7 +317,7 @@ fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filters: Set<Sour
 					SourcesFilter.Bound -> node.status == SourcesStatus.Bound || node.status == SourcesStatus.BoundByName
 					SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.kind == SourcesNodeKind.UnboundGroup
 					SourcesFilter.Missing -> node.kind is SourcesNodeKind.Source && node.status == SourcesStatus.Missing
-					SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview
+					SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied
 				}
 			}
 

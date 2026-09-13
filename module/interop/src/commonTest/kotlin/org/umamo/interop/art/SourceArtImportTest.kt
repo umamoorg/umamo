@@ -253,6 +253,15 @@ class SourceArtImportTest {
 		assertEquals(false, assertNotNull(glowTile.source).stableKey, "a name-and-order key is recorded as unstable")
 	}
 
+	/** The inventory marks a raster layer with no alpha anywhere as empty; every other row is not. */
+	@Test
+	fun theInventoryMarksAnErasedLayerEmpty() {
+		val rows = SourceArtImport.inventoryOf(fixture()).associateBy { row -> row.key }
+		assertTrue(rows.getValue("lyid:3").empty, "the Empty layer has no alpha")
+		assertTrue(!rows.getValue("lyid:2").empty, "Face has art")
+		assertTrue(!rows.getValue("lyid:0").empty, "a text layer is not a raster erased to nothing")
+	}
+
 	@Test
 	fun theSourceListRecordsTheFileAndEveryLayerSkippedOnesIncluded() {
 		val puppet = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet

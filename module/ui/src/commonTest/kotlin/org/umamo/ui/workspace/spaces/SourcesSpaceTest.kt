@@ -69,6 +69,10 @@ class SourcesSpaceTest {
 		assertSame(icons.unlinked, review.icon)
 		assertEquals(colors.signalCaution, review.tint, "a binding the file lost is caution, not broken: the tile keeps its art")
 		assertSame(Res.string.sources_status_needs_review, review.statusLabel)
+		val emptied = sourcesRowVisual(node(layer, SourcesStatus.Emptied), icons, colors)
+		assertSame(icons.unlinked, emptied.icon)
+		assertEquals(colors.signalCaution, emptied.tint)
+		assertSame(Res.string.sources_status_emptied, emptied.statusLabel, "the same wait, its own reason")
 	}
 
 	/** A tile on no page reads caution; a placed tile and a drawable carry no status at all. */
@@ -126,8 +130,8 @@ class SourcesSpaceTest {
 	/** A row the file lost is kept for review, never offered as a relink target. */
 	@Test
 	fun lostRowsAreNeverRelinkTargets() {
-		val sources = listOf(ArtSource(artA, "a.psd", null, "psd", listOf(layer("lyid:1", "Hair"), layer("lyid:2", "Old hair").copy(present = false))))
-		assertEquals(listOf("Hair"), relinkGroups(sources, "").single().layers.map { layer -> layer.name })
+		val sources = listOf(ArtSource(artA, "a.psd", null, "psd", listOf(layer("lyid:1", "Hair"), layer("lyid:2", "Old hair").copy(present = false), layer("lyid:3", "Blank").copy(empty = true))))
+		assertEquals(listOf("Hair"), relinkGroups(sources, "").single().layers.map { layer -> layer.name }, "neither a lost row nor an erased one is a target")
 		assertTrue(relinkGroups(sources, "old").isEmpty())
 	}
 

@@ -307,7 +307,7 @@ private fun SourcesRowView(
 	// A layer the file lost drags nowhere: its binding is what is under review, not a layer to offer.
 	val payload: SourcesDragPayload? =
 		when (val kind = node.kind) {
-			is SourcesNodeKind.Layer -> if (node.status == SourcesStatus.NeedsReview) null else SourcesDragPayload.Layer(kind.ref)
+			is SourcesNodeKind.Layer -> if (node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied) null else SourcesDragPayload.Layer(kind.ref)
 			is SourcesNodeKind.Tile -> SourcesDragPayload.Tile(kind.tileId)
 			else -> null
 		}
@@ -489,7 +489,7 @@ private fun SourcesRowBody(
 				)
 			}
 			is SourcesNodeKind.Layer ->
-				if (node.status == SourcesStatus.NeedsReview) {
+				if (node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied) {
 					Spacer(modifier = Modifier.width(6.dp))
 					ReviewChip(node = node, ref = kind.ref, puppet = puppet, onRelink = onRelink)
 				}
@@ -643,6 +643,8 @@ internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: Umam
 				SourcesStatus.BoundByName -> SourcesRowVisual(icons.linked, colors.signalCaution, Res.string.sources_status_bound_unstable)
 				// The tile is bound, but to a layer its file no longer lists: linked to nothing, waiting on a decision.
 				SourcesStatus.NeedsReview -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_needs_review)
+				// Bound to a layer the file still has but erased: the same wait, with a different reason on the tooltip.
+				SourcesStatus.Emptied -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_emptied)
 				else -> SourcesRowVisual(icons.linked, colors.signalGood, Res.string.sources_status_bound)
 			}
 		is SourcesNodeKind.Tile ->
@@ -698,8 +700,8 @@ internal class RelinkGroup(
 internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkGroup> {
 	val trimmed = query.trim()
 	return sources.mapNotNull { source ->
-		// A row the file lost is kept for the review, never offered as a target.
-		val present = source.layers.filter { layer -> layer.present }
+		// A row the file lost is kept for the review, never offered as a target; a layer erased to nothing has no art to give.
+		val present = source.layers.filter { layer -> layer.present && !layer.empty }
 		val layers =
 			if (trimmed.isEmpty() || source.name.contains(trimmed, ignoreCase = true)) {
 				present

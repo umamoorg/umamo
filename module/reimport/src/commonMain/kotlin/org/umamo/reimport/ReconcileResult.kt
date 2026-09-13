@@ -16,6 +16,9 @@ enum class ReviewReason {
 
 	/** The file was repointed to art that mints different keys (another format), so the binding's key names nothing there. */
 	SourceReplaced,
+
+	/** The layer is still in the file but erased to nothing: deleted by another route, or meant to be blank - a person decides. */
+	LayerEmptied,
 }
 
 /**

@@ -217,6 +217,25 @@ class SourcesTreeTest {
 		assertTrue(filterSourcesTree(afterUnbind, "", setOf(SourcesFilter.NeedsReview))[0].children.none { node -> node.id == "layer:art-0/lyid:9" })
 	}
 
+	/** A bound layer erased to nothing reads as its own review state and joins the review filter; an unbound one is simply unbound. */
+	@Test
+	fun anErasedBoundLayerReadsAsEmptiedAndJoinsTheReviewFilter() {
+		val base = model()
+		val puppet =
+			base.copy(
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) source else source.copy(layers = source.layers.map { layer -> layer.copy(empty = true) })
+					},
+			)
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art")
+		val fileA = tree[0]
+		assertEquals(SourcesStatus.Emptied, fileA.children[0].status, "bound and erased")
+		assertEquals(SourcesStatus.Unbound, fileA.children[1].status, "unbound and erased is just unbound")
+		val review = filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))
+		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id }, "the emptied row reviews beside the stray")
+	}
+
 	@Test
 	fun keyShapesSayWhatTheyAre() {
 		assertTrue(layerKeyLooksStable("lyid:12"))
