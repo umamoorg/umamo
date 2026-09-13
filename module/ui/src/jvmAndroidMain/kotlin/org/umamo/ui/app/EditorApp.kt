@@ -170,8 +170,45 @@ private val artworkImportExtensions: List<String> =
  * (Android's SAF content handles have no path to probe) and a path the file system refuses both read
  * as unknown rather than missing - the space must never accuse a file it could not check.
  */
-private val sourceFilePresence: SourceFilePresence = { path ->
-	if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
+private val sourceFilePresence: SourceFilePresence =
+	LoggedSourceFilePresence { path ->
+		if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
+	}::probe
+
+/**
+ * The presence probe with a log line the first time a path is asked about and whenever its answer
+ * changes - found, missing, or unknowable - so a document whose recorded path is wrong shows the
+ * exact path being checked.  The Sources space asks on every refresh and the watcher every second,
+ * so only a change earns a line.  Shared across documents for the app's life, like the probe itself.
+ *
+ * @property SourceFilePresence answers The probe the answers come from.
+ */
+internal class LoggedSourceFilePresence(
+	private val answers: SourceFilePresence,
+) {
+	/** The last answer per path; copy-on-write, since the watcher asks off the UI thread. */
+	@Volatile
+	private var lastAnswerByPath: Map<String, Boolean?> = emptyMap()
+
+	/**
+	 * Answers for [path], logging when the answer is new.
+	 *
+	 * @param String path The advisory path the model recorded.
+	 * @return Boolean? The answer: present, missing, or null for unknown.
+	 */
+	fun probe(path: String): Boolean? {
+		val answer = answers(path)
+		val known = lastAnswerByPath
+		if (path !in known || known[path] != answer) {
+			lastAnswerByPath = known + (path to answer)
+			when (answer) {
+				true -> UmamoLog.info("source artwork: found at $path")
+				false -> UmamoLog.warn("source artwork: missing at $path")
+				null -> UmamoLog.info("source artwork: presence unknown at $path (not a file path this platform can probe)")
+			}
+		}
+		return answer
+	}
 }
 
 /**
@@ -292,6 +329,16 @@ fun EditorApp(
 		when (load) {
 			is DocumentLoad.Loaded -> {
 				settings.addRecentFile(load.document.path)
+				// What the document says about its artwork files, before anything probes them: the recorded
+				// path is what a reload, the watcher, and the Sources space will all go by.
+				for (source in (load.document as? PuppetDocument)?.puppet?.sources.orEmpty()) {
+					val recorded = source.path
+					if (recorded == null) {
+						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) has no recorded path")
+					} else {
+						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) recorded at $recorded")
+					}
+				}
 				onOpen(load.document)
 			}
 			is DocumentLoad.Failed -> commandRegistry.invoke("document.openFailed", load.failure)
@@ -382,9 +429,14 @@ fun EditorApp(
 	// can be read.
 	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
 		val path = source.path
-		if (path != null && sourceFilePresence(path) == true) {
+		if (path == null) {
+			UmamoLog.info("read artwork: '${source.name}' has no recorded path; falling back to what the document holds")
+		} else if (sourceFilePresence(path) != true) {
+			UmamoLog.info("read artwork: '${source.name}' is not at $path; falling back to what the document holds")
+		} else {
 			val read = readArtworkAt(path)
 			if (read != null) {
+				UmamoLog.info("read artwork: '${source.name}' read from $path")
 				return SourceRead(read.art, read.contentHash, fromCmo3 = false)
 			}
 			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")

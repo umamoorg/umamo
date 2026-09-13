@@ -1,5 +1,6 @@
 package org.umamo.interop
 
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendShapeBinding
@@ -110,6 +111,7 @@ enum class DocumentField {
 	PARAMETER_TREE,
 	ROOT_CHILDREN,
 	ATLAS_PAGES,
+	SOURCE_FILES,
 }
 
 /**
@@ -629,7 +631,22 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
 		if (baseline.rootChildren != edited.rootChildren) {
 			add(DocumentField.ROOT_CHILDREN)
 		}
+		// The file each source record points at - its name and path - and nothing else about the
+		// record: the inventory and the hashes change on every reload and have no CMO3 home, so they
+		// must not turn a reload into a document change the export cannot lower.
+		if (sourceFilesOf(baseline) != sourceFilesOf(edited)) {
+			add(DocumentField.SOURCE_FILES)
+		}
 	}
+
+/**
+ * The file each of [model]'s source records points at, by record id.
+ *
+ * @param PuppetModel model The model.
+ * @return Map The name and path per source id.
+ */
+private fun sourceFilesOf(model: PuppetModel): Map<ArtSourceId, Pair<String, String?>> =
+	model.sources.associate { source -> source.id to (source.name to source.path) }
 
 /**
  * The identity sequence of one tree level - a Param's id or a Group's id, in order.  Group content
