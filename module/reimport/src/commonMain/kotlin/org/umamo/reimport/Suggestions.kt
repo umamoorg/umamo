@@ -25,6 +25,11 @@ import org.umamo.runtime.model.PuppetModel
  * to those layers the plan did not carry into their tiles is still seen by the next reload instead of
  * being recorded as already taken.
  *
+ * A row that reads as erased keeps the canvas frame its art last had: an art program saves an erased
+ * layer with a collapsed rectangle, and the tile still holds the art from the frame before, so a
+ * reload that finds the art back (an undo in the art program) measures it against that frame rather
+ * than against the collapse - which would carry every coordinate by the bogus difference.
+ *
  * @param List<ArtSourceLayer> previous      The inventory as the document held it.
  * @param List<ArtSourceLayer> fresh         The inventory of the art as just read.
  * @param Set<String>          boundKeys     The keys the tiles bound to this file carry after the plan.
@@ -41,8 +46,14 @@ fun inventoryWithMissing(
 	val freshKeys = fresh.mapTo(HashSet()) { row -> row.key }
 	val refreshed =
 		fresh.map { row ->
-			val kept = if (row.key in untouchedKeys) previousByKey[row.key] else null
-			if (kept != null && kept.present) kept else row
+			val previousRow = previousByKey[row.key]
+			when {
+				row.key in untouchedKeys && previousRow != null && previousRow.present -> previousRow
+				// The previous row already holds the last frame with art when it was itself erased.
+				row.empty && previousRow != null ->
+					row.copy(left = previousRow.left, top = previousRow.top, width = previousRow.width, height = previousRow.height)
+				else -> row
+			}
 		}
 	val lost =
 		previous

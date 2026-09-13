@@ -30,6 +30,14 @@ class SuggestionsTest {
 		assertEquals(listOf("a", "d"), inventoryWithMissing(previous, fresh, boundKeys = setOf("a")).map { layer -> layer.key }, "an unbound lost row is dropped")
 		val untouched = inventoryWithMissing(previous, fresh, boundKeys = setOf("a"), untouchedKeys = setOf("a"))
 		assertEquals(0, untouched.first().left, "a bound layer the plan left alone keeps its previous row, so the next reload still sees its change")
+
+		// An erased layer saves with a collapsed rectangle; its row keeps the frame the art last had.
+		val erasedFresh = listOf(row("a", "A", 0, 0).copy(width = 0, height = 0, empty = true, contentHash = "blank"))
+		val erased = inventoryWithMissing(listOf(row("a", "A", 30, 40)), erasedFresh, boundKeys = setOf("a")).single()
+		assertEquals(listOf(30, 40, 10, 10), listOf(erased.left, erased.top, erased.width, erased.height), "the frame the art last had")
+		assertTrue(erased.empty && erased.contentHash == "blank", "while the erasure itself is recorded")
+		val stillErased = inventoryWithMissing(listOf(erased), erasedFresh, boundKeys = setOf("a")).single()
+		assertEquals(listOf(30, 40, 10, 10), listOf(stillErased.left, stillErased.top, stillErased.width, stillErased.height), "and keeps it across further saves")
 	}
 
 	@Test

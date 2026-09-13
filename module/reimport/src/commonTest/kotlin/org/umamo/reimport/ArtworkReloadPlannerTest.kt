@@ -232,6 +232,19 @@ class ArtworkReloadPlannerTest {
 		assertEquals(listOf(ReconcileResult.NeedsReview(ref1, ReviewReason.LayerEmptied)), plan.report.needsReview)
 		val row = plan.reload.source.layers.first { layer -> layer.key == "lyid:1" }
 		assertTrue(row.present && row.empty, "still in the file, recorded as empty")
+		assertEquals(listOf(10, 20, 4, 4), listOf(row.left, row.top, row.width, row.height), "with the frame the art last had, not the collapse")
+
+		// The artist undoes the erasure (the art program saves the layer collapsed to nothing meanwhile):
+		// the art is back where the tile's art came from, so nothing is replaced and no coordinate moves.
+		val collapsed = TestLayer("lyid:1", "One", 0, LayerBounds(0, 0, 0, 0), LayerRaster(0, 0, ByteArray(0)))
+		val whileErased = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(collapsed, layer2)), options, oldRasterOf))
+		val erasedModel = model().copy(sources = listOf(whileErased.reload.source))
+		val restored = assertNotNull(ArtworkReloadPlanner.plan(erasedModel, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf))
+		assertTrue(restored.reload.replacedTiles.isEmpty(), "the same art at the same frame replaces nothing")
+		assertTrue(restored.reload.drawableMeshes.isEmpty(), "and moves no coordinate")
+		assertTrue(restored.report.needsReview.isEmpty(), "and the review is over")
+		val back = restored.reload.source.layers.first { layer -> layer.key == "lyid:1" }
+		assertTrue(back.present && !back.empty, "the row reads as art again")
 	}
 
 	@Test
