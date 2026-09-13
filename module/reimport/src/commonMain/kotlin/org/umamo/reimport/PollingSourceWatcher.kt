@@ -1,5 +1,6 @@
 package org.umamo.reimport
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,6 +21,11 @@ import kotlin.coroutines.EmptyCoroutineContext
  * "something happened"; an art program's temp-file-then-rename save changes the watched file's
  * metadata like any other write.
  *
+ * A file's baseline stamp is taken the moment it is watched, not at the loop's next tick: a caller
+ * that hashes the file right after subscribing (the coordinator's open-time check) waits on the
+ * subscription's [SourceWatcher.Subscription.awaitArmed], so the stamp precedes the hash and a save
+ * landing between the two is a change against the stamp rather than the stamp itself.
+ *
  * Listeners are called in [scope]'s own dispatcher; the stats run under [statContext] (an IO
  * dispatcher from the app), so a slow network drive never holds the UI.
  *
@@ -37,33 +43,27 @@ class PollingSourceWatcher(
 	/** What a stat sees of a file: absent, or its size and modification time. */
 	private data class Stamp(val size: Long?, val modifiedAtMillis: Long?)
 
-	/** One watch() call and the stamp it last saw. */
-	private class Registration(val path: String, val filePath: Path, val listener: SourceWatcher.ChangeListener) {
-		var last: Stamp? = null
-	}
-
-	private val registrations = ArrayList<Registration>()
-	private var loop: Job? = null
-
 	/**
-	 * Begins polling [path].
+	 * One watch() call, the stamp it last saw, and the signal that it has seen one.
 	 *
-	 * @param String         path     The file to watch; a uri gets a no-op handle.
-	 * @param ChangeListener listener Told in the scope whenever the file's size, modification time, or existence changes.
-	 * @return AutoCloseable The subscription.
+	 * @property String         path     The path as the caller gave it, echoed to the listener.
+	 * @property Path           filePath The path as okio reads it.
+	 * @property ChangeListener listener Who hears the changes.
 	 */
-	override fun watch(path: String, listener: SourceWatcher.ChangeListener): AutoCloseable {
-		if (path.contains("://")) {
-			return AutoCloseable {}
+	private inner class Registration(val path: String, val filePath: Path, val listener: SourceWatcher.ChangeListener) : SourceWatcher.Subscription {
+		/** The stamp last seen, or null until the baseline stat lands. */
+		var last: Stamp? = null
+
+		/** Completed once [last] is set, or on close, so a waiter is never left hanging. */
+		val armed = CompletableDeferred<Unit>()
+
+		override suspend fun awaitArmed() {
+			armed.await()
 		}
-		val filePath = runCatching { path.toPath() }.getOrNull() ?: return AutoCloseable {}
-		val registration = Registration(path, filePath, listener)
-		registrations.add(registration)
-		if (loop == null) {
-			loop = scope.launch { pollLoop() }
-		}
-		return AutoCloseable {
-			registrations.remove(registration)
+
+		override fun close() {
+			registrations.remove(this)
+			armed.complete(Unit)
 			if (registrations.isEmpty()) {
 				loop?.cancel()
 				loop = null
@@ -71,16 +71,66 @@ class PollingSourceWatcher(
 		}
 	}
 
+	/** A subscription for a path that cannot be polled: armed from the start, hears nothing, closes to nothing. */
+	private object NoOpSubscription : SourceWatcher.Subscription {
+		override suspend fun awaitArmed() = Unit
+
+		override fun close() = Unit
+	}
+
+	private val registrations = ArrayList<Registration>()
+	private var loop: Job? = null
+
+	/**
+	 * Begins polling [path]: its baseline stamp is taken at once (off the caller's thread), and every
+	 * later tick compares against it.
+	 *
+	 * @param String         path     The file to watch; a uri gets a no-op subscription.
+	 * @param ChangeListener listener Told in the scope whenever the file's size, modification time, or existence changes.
+	 * @return Subscription The subscription.
+	 */
+	override fun watch(path: String, listener: SourceWatcher.ChangeListener): SourceWatcher.Subscription {
+		if (path.contains("://")) {
+			return NoOpSubscription
+		}
+		val filePath = runCatching { path.toPath() }.getOrNull() ?: return NoOpSubscription
+		val registration = Registration(path, filePath, listener)
+		registrations.add(registration)
+		scope.launch { baseline(registration) }
+		if (loop == null) {
+			loop = scope.launch { pollLoop() }
+		}
+		return registration
+	}
+
 	/** Stops polling; every subscription is dead after this. */
 	override fun close() {
+		for (registration in registrations.toList()) {
+			registration.armed.complete(Unit)
+		}
 		registrations.clear()
 		loop?.cancel()
 		loop = null
 	}
 
 	/**
-	 * Stats every watched file each period and reports the ones whose stamp moved.  The first stat of
-	 * a registration only records its stamp - a file is not "changed" by being watched.
+	 * Takes a registration's baseline stamp and arms it.  A tick that stat-ed the file first has already
+	 * set the baseline; that one stands, since a change between the two stats must then be reported
+	 * against it rather than folded into a later one.
+	 *
+	 * @param Registration registration The registration to baseline.
+	 */
+	private suspend fun baseline(registration: Registration) {
+		val stamp = withContext(statContext) { stampOf(registration.filePath) }
+		if (registration.last == null) {
+			registration.last = stamp
+		}
+		registration.armed.complete(Unit)
+	}
+
+	/**
+	 * Stats every watched file each period and reports the ones whose stamp moved.  A registration
+	 * still waiting on its baseline takes this stat as it - a file is not "changed" by being watched.
 	 */
 	private suspend fun pollLoop() {
 		while (true) {

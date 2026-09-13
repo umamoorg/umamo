@@ -1,5 +1,6 @@
 package org.umamo.reimport
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -22,17 +23,38 @@ class SourceWatchCoordinatorTest {
 	private val fileA = ArtSourceId("art-0")
 	private val fileB = ArtSourceId("art-1")
 
-	/** A watcher the test fires by hand, recording who watches what. */
-	private class FakeWatcher : SourceWatcher {
+	/**
+	 * A watcher the test fires by hand, recording who watches what.  Every subscription is armed at
+	 * once unless [armByHand] is set, in which case the test arms it through [arm].
+	 */
+	private class FakeWatcher(private val armByHand: Boolean = false) : SourceWatcher {
 		val listeners = LinkedHashMap<String, MutableList<SourceWatcher.ChangeListener>>()
+		val armed = LinkedHashMap<String, CompletableDeferred<Unit>>()
 
-		override fun watch(path: String, listener: SourceWatcher.ChangeListener): AutoCloseable {
+		override fun watch(path: String, listener: SourceWatcher.ChangeListener): SourceWatcher.Subscription {
 			listeners.getOrPut(path) { ArrayList() }.add(listener)
-			return AutoCloseable { listeners[path]?.remove(listener) }
+			val signal = armed.getOrPut(path) { CompletableDeferred() }
+			if (!armByHand) {
+				signal.complete(Unit)
+			}
+			return object : SourceWatcher.Subscription {
+				override suspend fun awaitArmed() {
+					signal.await()
+				}
+
+				override fun close() {
+					listeners[path]?.remove(listener)
+					signal.complete(Unit)
+				}
+			}
 		}
 
 		fun fire(path: String) {
 			listeners[path].orEmpty().toList().forEach { listener -> listener.onChanged(path) }
+		}
+
+		fun arm(path: String) {
+			armed.getValue(path).complete(Unit)
 		}
 	}
 
@@ -49,8 +71,8 @@ class SourceWatchCoordinatorTest {
 	 * The coordinator over the TEST scope itself (this coroutines-test version does not advance
 	 * backgroundScope work on advanceUntilIdle), so every test ends by calling [finish].
 	 */
-	private class Harness(scope: TestScope, val mode: () -> WatchMode, val idle: () -> Boolean = { true }) {
-		val watcher = FakeWatcher()
+	private class Harness(scope: TestScope, val mode: () -> WatchMode, val idle: () -> Boolean = { true }, armByHand: Boolean = false) {
+		val watcher = FakeWatcher(armByHand)
 		val disk = Disk()
 		val events = ArrayList<SourceWatchEvent>()
 		val coordinator =
@@ -72,7 +94,41 @@ class SourceWatchCoordinatorTest {
 		}
 	}
 
-	private fun TestScope.harness(mode: WatchMode = WatchMode.Auto, idle: () -> Boolean = { true }): Harness = Harness(this, { mode }, idle)
+	private fun TestScope.harness(mode: WatchMode = WatchMode.Auto, idle: () -> Boolean = { true }, armByHand: Boolean = false): Harness =
+		Harness(this, { mode }, idle, armByHand)
+
+	@Test
+	fun theOpenTimeHashWaitsForTheWatchToArm() =
+		runTest {
+			// The hash must not be read before the watcher holds its baseline: a save between the two
+			// would otherwise become the baseline and go unreported.  Here the disk changes while the
+			// watch is still arming, and the check reads the state AFTER arming.
+			val harness = harness(armByHand = true)
+			harness.disk.hashByPath["/a.psd"] = "h1"
+			harness.coordinator.track(listOf(WatchedSource(fileA, "/a.psd", "h1")))
+			advanceTimeBy(1_000)
+			assertTrue(harness.events.isEmpty(), "nothing is read while the watch arms")
+			assertTrue(harness.coordinator.pending.value.isEmpty())
+
+			harness.disk.hashByPath["/a.psd"] = "h2"
+			harness.watcher.arm("/a.psd")
+			advanceTimeBy(1)
+			assertEquals(listOf<SourceWatchEvent>(SourceWatchEvent.StaleAtOpen(setOf(fileA))), harness.events, "the check ran once armed and saw the change")
+			assertEquals(setOf(fileA), harness.coordinator.pending.value)
+			harness.finish()
+		}
+
+	@Test
+	fun aWatchStoppedWhileArmingIsSkippedWithoutHanging() =
+		runTest {
+			val harness = harness(armByHand = true)
+			harness.disk.hashByPath["/a.psd"] = "h2"
+			harness.coordinator.track(listOf(WatchedSource(fileA, "/a.psd", "h1")))
+			harness.coordinator.track(emptyList())
+			advanceTimeBy(1_000)
+			assertTrue(harness.events.isEmpty(), "an untracked file is never checked")
+			harness.finish()
+		}
 
 	@Test
 	fun aSettledChangeReloadsOnceAndANoOpSaveIsDropped() =

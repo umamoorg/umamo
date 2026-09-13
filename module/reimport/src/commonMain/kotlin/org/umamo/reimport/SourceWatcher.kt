@@ -18,11 +18,25 @@ interface SourceWatcher {
 	}
 
 	/**
-	 * Begins watching [path]; close the returned handle to stop.
+	 * One watch of one file: close it to stop the notifications, and wait on [awaitArmed] before
+	 * reading the file for a baseline of your own.
+	 */
+	interface Subscription : AutoCloseable {
+		/**
+		 * Suspends until the watcher holds the file's baseline, from which point every change is
+		 * reported.  A change the watcher first sees while taking that baseline is folded into it, so a
+		 * caller that reads the file BEFORE this returns and takes what it read as current could have the
+		 * file change under it, unreported, in between.  Returns at once for a closed subscription.
+		 */
+		suspend fun awaitArmed()
+	}
+
+	/**
+	 * Begins watching [path]; close the returned subscription to stop.
 	 *
 	 * @param String         path     The file to watch.
 	 * @param ChangeListener listener Told whenever the file is written, replaced, created, or deleted.
-	 * @return AutoCloseable The subscription; closing it stops the notifications.
+	 * @return Subscription The subscription; closing it stops the notifications.
 	 */
-	fun watch(path: String, listener: ChangeListener): AutoCloseable
+	fun watch(path: String, listener: ChangeListener): Subscription
 }

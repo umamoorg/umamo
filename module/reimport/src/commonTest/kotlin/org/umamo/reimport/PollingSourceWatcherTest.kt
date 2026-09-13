@@ -67,6 +67,37 @@ class PollingSourceWatcherTest {
 		}
 
 	@Test
+	fun aFileWatchedWhileTheLoopRunsIsBaselinedAtOnceSoASaveBeforeTheNextTickIsSeen() =
+		runTest {
+			// The loop is already ticking for one file.  A second file joins mid-period and is saved
+			// before the next tick: its baseline must be the stamp at watch time, not the tick's, or the
+			// save would become the baseline and never be reported.
+			val fileSystem = FakeFileSystem()
+			val directory = "/art".toPath()
+			val first = directory / "a.psd"
+			val second = directory / "b.psd"
+			fileSystem.createDirectories(directory)
+			fileSystem.write(first) { writeUtf8("1") }
+			fileSystem.write(second) { writeUtf8("1") }
+			val watcher = PollingSourceWatcher(this, fileSystem, pollMillis = 100)
+			val deliveries = ArrayList<String>()
+			watcher.watch(first.toString()) { path -> deliveries.add(path) }
+			advanceTimeBy(150)
+			assertTrue(deliveries.isEmpty())
+
+			val late = watcher.watch(second.toString()) { path -> deliveries.add(path) }
+			late.awaitArmed()
+			fileSystem.write(second) { writeUtf8("22") }
+			advanceTimeBy(100)
+			assertEquals(listOf(second.toString()), deliveries, "the save after the watch-time baseline is a change")
+
+			// Arming is a one-time event; a closed subscription arms too, so a waiter never hangs.
+			late.close()
+			late.awaitArmed()
+			watcher.close()
+		}
+
+	@Test
 	fun aUriGetsANoOpHandle() =
 		runTest {
 			val watcher = PollingSourceWatcher(this, FakeFileSystem(), pollMillis = 100)

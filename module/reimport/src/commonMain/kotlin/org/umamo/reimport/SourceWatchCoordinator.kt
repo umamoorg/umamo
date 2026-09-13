@@ -69,7 +69,7 @@ enum class WatchedReloadResult {
 /** One tracked file's live state. */
 private class TrackedSource(
 	var source: WatchedSource,
-	var handle: AutoCloseable,
+	var handle: SourceWatcher.Subscription,
 ) {
 	/** The hash last read from the disk, or null when the file could not be read. */
 	var observedHash: String? = null
@@ -290,11 +290,16 @@ class SourceWatchCoordinator(
 	 * The one-time check a newly tracked file gets: its disk hash against the recorded one, so a file
 	 * edited while the document was closed is reported before anyone asks.  Batched per track call.
 	 *
+	 * Each file is hashed only once its watch is armed: the watcher's baseline stamp then precedes the
+	 * hash, so a save landing between the two reads as a change against that stamp on the next tick
+	 * instead of becoming the stamp and going unreported.
+	 *
 	 * @param List<TrackedSource> entries The files that just began tracking.
 	 */
 	private suspend fun checkAtOpen(entries: List<TrackedSource>) {
 		val stale = LinkedHashSet<ArtSourceId>()
 		for (entry in entries) {
+			entry.handle.awaitArmed()
 			if (!tracked.containsValue(entry)) {
 				continue
 			}
