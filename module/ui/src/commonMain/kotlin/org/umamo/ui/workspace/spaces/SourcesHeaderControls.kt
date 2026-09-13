@@ -87,7 +87,8 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 }
 
 /**
- * The filter chip: one of the four views, as exclusive checkboxes in the shared [FilterPopupChip].
+ * The filter chip: one checkbox per kind of row, each toggled on its own like the outliner's, in the
+ * shared [FilterPopupChip].
  *
  * @param SourcesViewState viewState The area's shared view state.
  */
@@ -95,17 +96,17 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 private fun FilterDropdownButton(viewState: SourcesViewState) {
 	FilterPopupChip(
 		contentDescription = stringResource(Res.string.common_filters),
-		icon = if (viewState.filter == SourcesFilter.All) LocalUmamoIcons.filterUnfiltered else LocalUmamoIcons.filterFiltered,
+		icon = if (viewState.isUnfiltered) LocalUmamoIcons.filterUnfiltered else LocalUmamoIcons.filterFiltered,
 	) {
 		FilterSectionLabel(stringResource(Res.string.common_filters))
 		for (filter in SourcesFilter.entries) {
 			Checkbox(
-				checked = viewState.filter == filter,
-				onCheckedChange = { checked -> viewState.filter = if (checked) filter else SourcesFilter.All },
+				checked = filter in viewState.filters,
+				onCheckedChange = { checked -> viewState.setShown(filter, checked) },
 				label =
 					stringResource(
 						when (filter) {
-							SourcesFilter.All -> Res.string.sources_filter_all
+							SourcesFilter.Bound -> Res.string.sources_filter_bound
 							SourcesFilter.Unbound -> Res.string.sources_filter_unbound
 							SourcesFilter.Missing -> Res.string.sources_filter_missing
 							SourcesFilter.NeedsReview -> Res.string.sources_filter_needs_review

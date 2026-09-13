@@ -167,7 +167,7 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel, suggestionCandidates)
 		}
 	val query = viewState.query
-	val filtered = remember(tree, query, viewState.filter) { filterSourcesTree(tree, query, viewState.filter) }
+	val filtered = remember(tree, query, viewState.filters) { filterSourcesTree(tree, query, viewState.filters) }
 	// Expand state by node id, per space instance and NOT keyed on the puppet (the model changes
 	// identity on every edit).  Files and the unbound group open by default; layers and tiles close.
 	val expanded = remember { mutableStateMapOf<String, Boolean>() }
