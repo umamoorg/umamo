@@ -1,12 +1,23 @@
 package org.umamo.ui.kit
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.UmamoIcon
 
 /**
- * One entry in a [Menu]: a clickable action, a nested submenu, or a separator.  This is a data model,
- * not a Compose slot DSL - a caller builds a List<MenuItem> (resolving localized chrome via
- * stringResource at the call site and passing user data such as file names verbatim) and one renderer
- * draws every menu identically across the menu bar, context menus, and the area type selector.
+ * How tall a search menu's rows grow before they scroll, unless its [MenuItem.Search] says otherwise.
+ * A picker over a document's whole layer inventory would otherwise take the general rule - rows up to
+ * the window's height - and a menu that tall fits neither below nor above its chip, so the popup is
+ * clamped to the window's bottom edge and opens far from the chip until a search shrinks it.
+ */
+val MENU_SEARCH_ROWS_MAX_HEIGHT: Dp = 320.dp
+
+/**
+ * One entry in a [Menu]: a clickable action, a nested submenu, a separator, a section heading, or a
+ * search box.  This is a data model, not a Compose slot DSL - a caller builds a List<MenuItem>
+ * (resolving localized chrome via stringResource at the call site and passing user data such as file
+ * names verbatim) and one renderer draws every menu identically across the menu bar, context menus,
+ * the area type selector, and the searchable pickers.
  *
  * The label is a plain String rather than a StringResource because menus mix localized chrome ("Open")
  * with user data (a recent-file name, a space title) that has no StringResource; the call site resolves
@@ -57,6 +68,44 @@ sealed interface MenuItem {
 
 	/** A horizontal rule separating groups of rows. */
 	data object Separator : MenuItem
+
+	/**
+	 * A muted caption over the rows that follow it - a file name over its layers, a group's title over
+	 * its entries.  Inert: it neither hovers nor clicks nor dismisses, and it ignores the icon column the
+	 * action rows share.  One line, ellipsized, because a heading naming a document object (an artwork
+	 * file) can be arbitrarily long and must not widen the menu the rows beneath it are sized for.
+	 *
+	 * @property String label The heading text.
+	 */
+	data class Heading(
+		val label: String,
+	) : MenuItem
+
+	/**
+	 * A search box pinned above the rows, taking focus when the menu opens so typing starts at once.
+	 * The menu does no filtering: the caller keeps the query, filters the rows it passes, and hands the
+	 * query back here - the model stays a plain list, and the ranking rule (a name match, a whole file
+	 * when the file name matches, the palette's ranker) stays where the data is.  One per menu, listed
+	 * first; the panel pins every Search item above the rows whatever its position.
+	 *
+	 * The menu takes [width] as its own, fixed: a search menu that re-hugged its widest surviving row
+	 * would resize under the user's hands on every keystroke.  Its rows scroll past [maxRowsHeight], a
+	 * cap well under the window so the menu stays anchored under its chip however long the unfiltered
+	 * list is (see [MENU_SEARCH_ROWS_MAX_HEIGHT]).
+	 *
+	 * @property String    value         The current query.
+	 * @property Function  onValueChange Takes the edited query; the clear affordance reports an empty string.
+	 * @property Dp        width         The menu's width, which the box fills less the row inset.
+	 * @property String?   placeholder   The dimmed hint while the query is empty, or null for the kit's default.
+	 * @property Dp        maxRowsHeight How tall the rows grow before they scroll.
+	 */
+	data class Search(
+		val value: String,
+		val onValueChange: (String) -> Unit,
+		val width: Dp,
+		val placeholder: String? = null,
+		val maxRowsHeight: Dp = MENU_SEARCH_ROWS_MAX_HEIGHT,
+	) : MenuItem
 }
 
 /**
