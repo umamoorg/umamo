@@ -70,3 +70,17 @@ data class LeafArea(
 	val id: String,
 	val space: SpaceKind,
 ) : AreaNode
+
+/**
+ * The space the leaf [areaId] currently hosts under this node, or null when no leaf here has that id -
+ * the live answer to "does this area still host X", for a stamp or a record that names an area by id
+ * and may have outlived its kind or the area itself.
+ *
+ * @param String areaId The leaf's area id.
+ * @return SpaceKind? The hosted space, or null.
+ */
+fun AreaNode.spaceOf(areaId: String): SpaceKind? =
+	when (this) {
+		is LeafArea -> if (id == areaId) space else null
+		is SplitNode -> first.spaceOf(areaId) ?: second.spaceOf(areaId)
+	}

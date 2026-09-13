@@ -487,8 +487,9 @@ fun EditorShell(
 							AreaDragOverlay(controller = dragController, modifier = Modifier.fillMaxSize())
 						}
 						// An operation that ran in no particular area shows its settings strip here, above the
-						// status bar; one that ran in an area shows it in that area instead.
-						ShellOperationStrip()
+						// status bar; one that ran in an area shows it in that area instead - unless that area
+						// has since stopped hosting a strip (switched to a panel, or closed), when it shows here.
+						ShellOperationStrip(spaceOf = { areaId -> workspaces.layout.activeWorkspace()?.root?.spaceOf(areaId) })
 						// The bottom status strip is the Column's last child: fixed-height chrome under the
 						// weight(1f) content Box, so the area tree fills the gap between the tabs and the strip.
 						StatusBar(modifier = Modifier.fillMaxWidth())

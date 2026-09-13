@@ -127,17 +127,32 @@ internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Comp
 }
 
 /**
- * The strip for an operation that ran with no work surface to show in (the pointer had touched no 2D
- * viewport or UV editor yet): the shell mounts it above the status bar.  Draws nothing while the
- * adjustable operation names an area (the area's host shows it) or while there is none.
+ * Whether the shell's own strip shows a record: one that names no area (no work surface had been
+ * touched), or one whose named area cannot show it now - the area was switched to a panel or closed
+ * after the operation ran.  Every record shows exactly once: the area's host takes a record whose area
+ * still hosts a strip, and the shell takes every other.
  *
+ * @param String?  areaId  The area the record names, or null.
+ * @param Function spaceOf The space the live area tree hosts at an id, or null for an id it lacks.
+ * @return Boolean True when the shell draws the strip.
+ */
+internal fun shellShowsStrip(areaId: String?, spaceOf: (String) -> SpaceKind?): Boolean =
+	areaId == null || spaceOf(areaId)?.hostsOperationStrip != true
+
+/**
+ * The strip for an operation the area tree cannot show: it ran with no work surface to show in (the
+ * pointer had touched no 2D viewport or UV editor yet), or the area it named has since been switched to
+ * a panel or closed.  The shell mounts it above the status bar.  Draws nothing while the adjustable
+ * operation names an area that still hosts a strip (that area's host shows it) or while there is none.
+ *
+ * @param Function spaceOf  The space the live area tree hosts at an id, or null for an id it lacks.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-internal fun ShellOperationStrip(modifier: Modifier = Modifier) {
+internal fun ShellOperationStrip(spaceOf: (String) -> SpaceKind?, modifier: Modifier = Modifier) {
 	val session = LocalEditorSession.current ?: return
 	val record = session.adjustableOperation.collectAsState().value ?: return
-	if (record.areaId != null) {
+	if (!shellShowsStrip(record.areaId, spaceOf)) {
 		return
 	}
 	Box(modifier = modifier.fillMaxWidth().padding(start = STRIP_MARGIN, bottom = 4.dp), contentAlignment = Alignment.BottomStart) {

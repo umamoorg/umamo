@@ -28,8 +28,10 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  *
  * It means "the last area touched that still exists": moving off an area deliberately does NOT clear it
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the
- * status bar), but an area that is closed, joined away, or switched out from under the pointer releases
- * it via [releaseArea] - the same eviction-on-dispose the other per-area registries do.
+ * status bar), but an area that is closed or joined away releases it via [releaseArea] - the same
+ * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
+ * general stamp (it still exists, and the next pointer event over it re-stamps the new kind) but gives
+ * up its strip-host stamp at once through [releaseStripHost], since that stamp asserts a kind.
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
@@ -37,14 +39,32 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * [lastTouchedStripHost] is the one deliberate reach-back: the operation settings strip exists only in
  * a work surface (hostsOperationStrip), so a document-wide operation fired over a panel needs the work
  * surface the pointer touched LAST, however long ago, to place its strip.  It places a panel for an
- * operation that already ran; no command routes an action through it.
+ * operation that already ran; no command routes an action through it.  It must never name an area
+ * that no longer hosts a strip: the area's host would refuse the record and the shell's fallback would
+ * defer to the area, and the strip would show nowhere.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */
 	var lastTouched: HoveredSurface? = null
 
-	/** The strip-hosting surface the pointer last touched, or null before any was (or after it died). */
+	/**
+	 * The strip-hosting surface the pointer last touched, or null before any was (or after it died or
+	 * stopped hosting a strip).
+	 */
 	var lastTouchedStripHost: HoveredSurface? = null
+
+	/**
+	 * Releases [areaId]'s strip-host claim, if it holds one - the leaf calls this when its space changes,
+	 * because the claim asserts the kind the area had when touched and that kind is now gone.  The
+	 * general stamp is untouched; the area still exists.
+	 *
+	 * @param String areaId The leaf whose space changed.
+	 */
+	fun releaseStripHost(areaId: String) {
+		if (lastTouchedStripHost?.areaId == areaId) {
+			lastTouchedStripHost = null
+		}
+	}
 
 	/**
 	 * Releases [areaId]'s claim on the pointer, if it holds one.

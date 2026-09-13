@@ -117,6 +117,14 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 		DisposableEffect(hoveredTracker, area.id) {
 			onDispose { hoveredTracker.releaseArea(area.id) }
 		}
+		// The strip-host claim asserts the KIND the area had when touched, so a space change (the leaf
+		// survives it under the same id) releases that claim on its own - without waiting for a pointer
+		// event over the area, which a header-dropdown switch followed by a command elsewhere never sends.
+		// A document-wide operation fired from a panel would otherwise be routed to this area, whose host
+		// refuses a non-hosting kind while the shell's fallback defers to the area, and show nowhere.
+		DisposableEffect(hoveredTracker, area.id, area.space) {
+			onDispose { hoveredTracker.releaseStripHost(area.id) }
+		}
 	}
 
 	Box(
