@@ -170,6 +170,30 @@ class ArtworkEditsTest {
 		assertTrue(reloaded.renderRoot != null, "the render root is re-derived")
 	}
 
+	/** Additions can land inside a part the model already holds, after its children; naming an unknown part refuses. */
+	@Test
+	fun additionsInsideAnExistingPartAppendAfterItsChildren() {
+		val base = model()
+		val added = drawable("ArtMesh2", "art-0/lyid:2")
+		val additions =
+			ArtworkAdditions(
+				source = sourceA,
+				tiles = listOf(AtlasTile(AtlasTileId("art-0/lyid:2"), "L2", 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:2", true))),
+				drawables = listOf(added),
+				parts = emptyList(),
+				rootChildren = emptyList(),
+				childrenByPart = mapOf(PartId("Part1") to listOf(OrgChild.Drawable(added.id))),
+			)
+		val reload = ArtworkReload(sourceA, replacedTiles = emptyList(), drawableMeshes = emptyMap(), additions = additions, outgrown = emptyList())
+		val reloaded = base.withArtworkReloaded(reload)
+		assertEquals(listOf(OrgChild.Drawable(DrawableId("ArtMesh1")), OrgChild.Drawable(added.id)), reloaded.parts.single().children, "appended after the part's own children")
+		assertEquals(base.rootChildren, reloaded.rootChildren, "nothing lands at the root")
+		assertEquals(listOf("ArtMesh1", "ArtMesh2"), reloaded.drawables.map { drawable -> drawable.id.raw })
+		val unknownPart = additions.copy(childrenByPart = mapOf(PartId("Part9") to listOf(OrgChild.Drawable(added.id))))
+		assertSame(base, base.withArtworkReloaded(reload.copy(additions = unknownPart)), "a part the model lacks refuses the reload")
+		assertSame(base, base.withArtworkAdded(unknownPart.copy(source = sourceA.copy(id = ArtSourceId("art-1")))), "and the addition")
+	}
+
 	@Test
 	fun aReloadThatCollidesOrNamesTheUnknownIsRefused() {
 		val base = model()

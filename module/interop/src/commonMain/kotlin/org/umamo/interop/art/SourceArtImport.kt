@@ -241,8 +241,11 @@ object SourceArtImport {
 	 * @param PuppetModel            existing    The model the additions will join.
 	 * @param ArtSourceId?           underSource The source the additions belong to when the file is one
 	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it and the
-	 *   returned record carries its id, so the caller merges rather than appends the record.  Null mints
-	 *   a new source, the shape a fresh import and Add Artwork take.
+	 *   returned record carries its id, so the caller merges rather than appends the record.  Only the
+	 *   folders the added layers live in become parts, and a folder the document already keeps as a part
+	 *   (the part holding the most drawables of that folder, found through the source's bindings) takes
+	 *   the new layers as children instead of being minted again.  Null mints a new source with every
+	 *   folder of the file, the shape a fresh import and Add Artwork take.
 	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
 	 */
 	fun additionsFor(
@@ -344,17 +347,37 @@ object SourceArtImport {
 			drawables[index] = drawables[index].copy(maskedBy = listOf(base.drawableId))
 		}
 
-		// Pass 3: the org tree.  Every folder becomes a part, nested by path; each folder sorts among
-		// its siblings where its top-most layer sits, so the panel reads in the file's own order.
+		// Pass 3: the org tree.  A fresh file mints every folder as a part, nested by path; a file the
+		// document already lists mints only the folders its added layers live in, and a folder the
+		// document already keeps as a part takes the layers as children instead.  Each folder sorts
+		// among its siblings where its top-most layer sits, so the panel reads in the file's own order.
+		val existingPartByPath = if (underSource == null) emptyMap() else existingPartsByFolder(existing, underSource)
 		val folderByPath = LinkedHashMap<String, FolderNode>()
-		for (group in art.groups) {
-			folderByPath[group.path] = folderNodeOf(group)
+		if (underSource == null) {
+			for (group in art.groups) {
+				folderByPath[group.path] = folderNodeOf(group)
+			}
+		} else {
+			val groupByPath = art.groups.associateBy { group -> group.path }
+			for (entry in imported) {
+				for (path in ancestorPathsOf(entry.layer.groupPath)) {
+					val group = groupByPath[path]
+					if (group != null && path !in folderByPath) {
+						folderByPath[path] = folderNodeOf(group)
+					}
+				}
+			}
 		}
 		for (entry in imported) {
 			ensureFolders(entry.layer.groupPath, folderByPath)
 		}
 		val rootChildren = ArrayList<FolderChild>()
 		for (folder in folderByPath.values) {
+			if (folder.path in existingPartByPath) {
+				// Anchored to a part the document has: its children lower into that part, and the folder
+				// itself is never a child of anything new.
+				continue
+			}
 			val parentPath = folder.path.substringBeforeLast('/', missingDelimiterValue = "")
 			val siblings = if (parentPath.isEmpty()) rootChildren else folderByPath.getValue(parentPath).children
 			siblings.add(FolderChild.Folder(folder))
@@ -372,6 +395,14 @@ object SourceArtImport {
 		}
 		val parts = ArrayList<Part>()
 		val orgRoot = orgChildrenOf(rootChildren, parts, minter, notices)
+		val childrenByPart = LinkedHashMap<PartId, List<OrgChild>>()
+		for (folder in folderByPath.values) {
+			val anchor = existingPartByPath[folder.path] ?: continue
+			val lowered = orgChildrenOf(folder.children, parts, minter, notices)
+			if (lowered.isNotEmpty()) {
+				childrenByPart[anchor] = childrenByPart[anchor].orEmpty() + lowered
+			}
+		}
 
 		return SourceArtAdditions(
 			ArtworkAdditions(
@@ -380,10 +411,88 @@ object SourceArtImport {
 				drawables = drawables,
 				parts = parts,
 				rootChildren = orgRoot,
+				childrenByPart = childrenByPart,
 			),
 			rasterByTile,
 			notices,
 		)
+	}
+
+	/**
+	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: for every drawable bound
+	 * to the file, its layer's folder (from the recorded inventory) and the part holding the drawable
+	 * directly; a folder maps to the part holding the most of its drawables, and a folder with no
+	 * drawable of its own (one holding only sub-folders) to the part that holds a mapped sub-folder's
+	 * part.  A CMO3-origin document has no folder binding on its parts, so this is what says "Front
+	 * hair" already exists.
+	 *
+	 * @param PuppetModel existing The model the additions will join.
+	 * @param ArtSourceId sourceId The file whose folders are being placed.
+	 * @return Map<String, PartId> The part per folder path; a folder reached by neither rule is absent.
+	 */
+	private fun existingPartsByFolder(existing: PuppetModel, sourceId: ArtSourceId): Map<String, PartId> {
+		val rowByKey = existing.sources.firstOrNull { source -> source.id == sourceId }?.layers?.associateBy { row -> row.key }.orEmpty()
+		val folderByDrawable = HashMap<DrawableId, String>()
+		for (drawable in existing.drawables) {
+			val tile = drawable.atlasTileId?.let { tileId -> existing.atlas.tileById[tileId] } ?: continue
+			val ref = tile.source ?: continue
+			if (ref.sourceId != sourceId) {
+				continue
+			}
+			val folder = rowByKey[ref.layerKey]?.groupPath ?: continue
+			if (folder.isNotEmpty()) {
+				folderByDrawable[drawable.id] = folder
+			}
+		}
+		val countByFolderAndPart = LinkedHashMap<String, LinkedHashMap<PartId, Int>>()
+		val parentByPart = HashMap<PartId, PartId>()
+		for (part in existing.parts) {
+			for (child in part.children) {
+				when (child) {
+					is OrgChild.Part -> parentByPart[child.id] = part.id
+					is OrgChild.Drawable -> {
+						val folder = folderByDrawable[child.id] ?: continue
+						val counts = countByFolderAndPart.getOrPut(folder) { LinkedHashMap() }
+						counts[part.id] = (counts[part.id] ?: 0) + 1
+					}
+				}
+			}
+		}
+		val partByFolder = LinkedHashMap<String, PartId>()
+		for ((folder, counts) in countByFolderAndPart) {
+			partByFolder[folder] = counts.maxBy { (_, count) -> count }.key
+		}
+		// A folder no drawable sits in directly is reached through a mapped sub-folder: its part is the
+		// one holding that sub-folder's part.  A direct mapping always wins over an inferred one.
+		for ((folder, partId) in countByFolderAndPart.keys.associateWith { folder -> partByFolder.getValue(folder) }) {
+			var ancestorFolder = folder.substringBeforeLast('/', missingDelimiterValue = "")
+			var ancestorPart = parentByPart[partId]
+			while (ancestorFolder.isNotEmpty() && ancestorPart != null && ancestorFolder !in partByFolder) {
+				partByFolder[ancestorFolder] = ancestorPart
+				ancestorFolder = ancestorFolder.substringBeforeLast('/', missingDelimiterValue = "")
+				ancestorPart = parentByPart[ancestorPart]
+			}
+		}
+		return partByFolder
+	}
+
+	/**
+	 * Every folder path along [groupPath], outermost first ("Head", "Head/Hair", ...); empty at the root.
+	 *
+	 * @param String groupPath The slash-joined path.
+	 * @return List<String> The ancestor paths, the path itself last.
+	 */
+	private fun ancestorPathsOf(groupPath: String): List<String> {
+		if (groupPath.isEmpty()) {
+			return emptyList()
+		}
+		val paths = ArrayList<String>()
+		var path = ""
+		for (segment in groupPath.split('/')) {
+			path = if (path.isEmpty()) segment else "$path/$segment"
+			paths.add(path)
+		}
+		return paths
 	}
 
 	/**

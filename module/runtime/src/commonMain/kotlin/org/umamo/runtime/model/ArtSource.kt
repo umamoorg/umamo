@@ -93,18 +93,24 @@ data class SourceLayerRef(
 
 /**
  * What one artwork file adds to a model: the file's record, its tiles, the drawables and parts born
- * from its layers, and the org children to append at the root.  A delta rather than a model, so the
- * same additions can be appended to a fresh model at open or to a document already being rigged.
+ * from its layers, and the org children to append - at the root, or inside parts the model already
+ * holds.  A delta rather than a model, so the same additions can be appended to a fresh model at
+ * open or to a document already being rigged.
  *
  * Every id in here is already minted past the receiving model's (`ArtMesh<n>`, `Part<n>`, `art-<k>`),
- * and the parts' children reference only ids in this delta.  Pixels are absent - they travel beside
- * it to the document's raster store.
+ * and the new parts' children reference only ids in this delta.  Pixels are absent - they travel
+ * beside it to the document's raster store.
  *
- * @property ArtSource       source       The file and its layer inventory.
- * @property List<AtlasTile> tiles        One unplaced tile per imported layer, bound to that layer.
- * @property List<Drawable>  drawables    One drawable per tile, over its birth mesh.
- * @property List<Part>      parts        One part per folder, nested by the parts' own children.
- * @property List<OrgChild>  rootChildren The file's top-level order, appended after the model's own.
+ * @property ArtSource       source        The file and its layer inventory.
+ * @property List<AtlasTile> tiles         One unplaced tile per imported layer, bound to that layer.
+ * @property List<Drawable>  drawables     One drawable per tile, over its birth mesh.
+ * @property List<Part>      parts         One NEW part per folder the model has no part for, nested by
+ *   the parts' own children.
+ * @property List<OrgChild>  rootChildren  The file's top-level order, appended after the model's own.
+ * @property Map             childrenByPart Children to append inside parts the model ALREADY holds,
+ *   by that part's id: a layer a reload found in a folder the document already keeps as a part lands in
+ *   that part, after its existing children, rather than in a second part of the same name.  Empty for
+ *   a fresh file, whose folders are all new.
  */
 data class ArtworkAdditions(
 	val source: ArtSource,
@@ -112,6 +118,7 @@ data class ArtworkAdditions(
 	val drawables: List<Drawable>,
 	val parts: List<Part>,
 	val rootChildren: List<OrgChild>,
+	val childrenByPart: Map<PartId, List<OrgChild>> = emptyMap(),
 )
 
 /**

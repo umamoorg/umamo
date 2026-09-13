@@ -69,6 +69,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Object and Mesh Editing
 * Improvements
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
+	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
 ## Sources Space
 * Improvements

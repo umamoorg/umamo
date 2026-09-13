@@ -15,6 +15,8 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
@@ -128,6 +130,37 @@ class ArtworkReloadPlannerTest {
 		assertEquals(listOf(true, true, false), plan.reload.source.layers.map { layer -> layer.present })
 		assertEquals(listOf(ReconcileResult.NeedsReview(ref2, ReviewReason.LayerMissing)), plan.report.needsReview)
 		assertTrue(plan.rasterByTile.containsKey(AtlasTileId("art-0/lyid:3")))
+	}
+
+	/**
+	 * A reload that finds a new layer inside a folder the document already holds as a part (the case
+	 * of every CMO3-origin document, whose parts are the PSD's folders) lands it in that part and mints
+	 * no part for any folder it added nothing to.
+	 */
+	@Test
+	fun anAddedLayerJoinsTheExistingPartOfItsFolderAndUntouchedFoldersMintNothing() {
+		val headLayer1 = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), solidRaster(4, 4, 1), groupPath = "Head")
+		val bodyLayer2 = TestLayer("lyid:2", "Two", 1, LayerBounds(30, 40, 4, 4), solidRaster(4, 4, 2), groupPath = "Body")
+		val base = model()
+		val headPart = PartId("Part1")
+		val bodyPart = PartId("Part2")
+		val model =
+			base.copy(
+				parts =
+					listOf(
+						Part(headPart, "Head", listOf(OrgChild.Drawable(DrawableId("d1")))),
+						Part(bodyPart, "Body", listOf(OrgChild.Drawable(DrawableId("d2")))),
+					),
+				rootChildren = listOf(OrgChild.Part(headPart), OrgChild.Part(bodyPart)),
+				sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(TestArt(listOf(headLayer1, bodyLayer2))))),
+			)
+		val brow = TestLayer("lyid:3", "Brow", 2, LayerBounds(50, 50, 2, 2), solidRaster(2, 2, 3), groupPath = "Head")
+		val art = TestArt(listOf(headLayer1, bodyLayer2, brow), groups = listOf(TestGroup("Head"), TestGroup("Body"), TestGroup("Legs")))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model, source, art, options, oldRasterOf))
+		val additions = assertNotNull(plan.reload.additions)
+		assertTrue(additions.parts.isEmpty(), "no part is minted: Head exists, and Body and Legs gained nothing")
+		assertTrue(additions.rootChildren.isEmpty())
+		assertEquals(mapOf(headPart to listOf(OrgChild.Drawable(DrawableId("ArtMesh1")))), additions.childrenByPart, "the brow joins the Head part")
 	}
 
 	@Test

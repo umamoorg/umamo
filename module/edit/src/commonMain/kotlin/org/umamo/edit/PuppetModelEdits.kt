@@ -14,6 +14,8 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
@@ -922,12 +924,13 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
 	val existingPartIds = parts.mapTo(HashSet()) { part -> part.id }
 	if (additions.tiles.any { tile -> tile.id in existingTileIds } ||
 		additions.drawables.any { drawable -> drawable.id in existingDrawableIds } ||
-		additions.parts.any { part -> part.id in existingPartIds }
+		additions.parts.any { part -> part.id in existingPartIds } ||
+		additions.childrenByPart.keys.any { partId -> partId !in existingPartIds }
 	) {
 		return this
 	}
 	return copy(
-		parts = parts + additions.parts,
+		parts = parts.withAppendedChildren(additions.childrenByPart) + additions.parts,
 		drawables = drawables + additions.drawables,
 		rootChildren = rootChildren + additions.rootChildren,
 		atlas = atlas.copy(tiles = atlas.tiles + additions.tiles),
@@ -936,11 +939,25 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
 }
 
 /**
+ * These parts with [childrenByPart]'s children appended after each named part's own.
+ *
+ * @param Map childrenByPart The children to append, by the part they join.
+ * @return List<Part> The parts, the named ones grown.
+ */
+private fun List<Part>.withAppendedChildren(childrenByPart: Map<PartId, List<OrgChild>>): List<Part> =
+	if (childrenByPart.isEmpty()) {
+		this
+	} else {
+		map { part -> childrenByPart[part.id]?.let { appended -> part.copy(children = part.children + appended) } ?: part }
+	}
+
+/**
  * This model with one artwork file re-read into it: the file's record replaced by [reload]'s (the
  * inventory as just read), every superseded tile removed and its replacement appended unplaced, the
  * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, and
- * the layers the file gained appended under the same file (tiles, drawables, parts, and root order,
- * like [withArtworkAdded]).  The render root is re-derived.  The pack that places the new tiles is a
+ * the layers the file gained appended under the same file (tiles, drawables, new parts, root order,
+ * and children inside the parts the document already holds, like [withArtworkAdded]).  The render
+ * root is re-derived.  The pack that places the new tiles is a
  * separate step over the result, exactly as for an added file: an unplaced tile's coordinates address
  * its own art, so the repack's re-derivation converts them.
  *
@@ -971,7 +988,8 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 	if (newTiles.any { tile -> tile.id in existingTileIds } ||
 		newTiles.mapTo(HashSet()) { tile -> tile.id }.size != newTiles.size ||
 		additions?.drawables.orEmpty().any { drawable -> drawable.id in existingDrawableIds } ||
-		additions?.parts.orEmpty().any { part -> part.id in existingPartIds }
+		additions?.parts.orEmpty().any { part -> part.id in existingPartIds } ||
+		additions?.childrenByPart.orEmpty().keys.any { partId -> partId !in existingPartIds }
 	) {
 		return this
 	}
@@ -988,7 +1006,7 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 		}
 	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds }
 	return copy(
-		parts = parts + additions?.parts.orEmpty(),
+		parts = parts.withAppendedChildren(additions?.childrenByPart.orEmpty()) + additions?.parts.orEmpty(),
 		drawables = movedDrawables + additions?.drawables.orEmpty(),
 		rootChildren = rootChildren + additions?.rootChildren.orEmpty(),
 		atlas = atlas.copy(tiles = keptTiles + newTiles),

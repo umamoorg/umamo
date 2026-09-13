@@ -328,6 +328,49 @@ class SourceArtImportTest {
 		assertEquals(fresh.drawables.map { drawable -> drawable.id }, overBlank.drawables.map { drawable -> drawable.id }, "over a blank model the additions are the fresh import's")
 	}
 
+	/**
+	 * A reload's additions (under a listed source) mint only the folders the added layers live in, and a
+	 * folder the document already keeps as a part - found through the source's bindings, since a part
+	 * carries no folder of its own - takes the layers as children instead of a second part of the same
+	 * name; a new sub-folder inside such a part is minted as a new part under it.
+	 */
+	@Test
+	fun additionsUnderAListedSourceReuseTheDocumentsPartsAndMintNoEmptyFolders() {
+		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val headPart = existing.parts.first { part -> part.name == "Head" }
+		val bodyPart = existing.parts.first { part -> part.name == "Body" }
+		val brow = layer("lyid:8", "Brow", order = 8, left = 90, top = 30, raster = rasterOf(4, 4), groupPath = "Head")
+		val lash = layer("lyid:9", "Lash", order = 9, left = 95, top = 45, raster = rasterOf(3, 3), groupPath = "Head/Lashes")
+		val tail = layer("lyid:10", "Tail", order = 10, left = 0, top = 80, raster = rasterOf(6, 6), groupPath = "Body/Tail")
+		val addedArt =
+			FixtureArt(
+				widthPx = 200,
+				heightPx = 100,
+				layers = listOf(brow, lash, tail),
+				groups = fixture().groups + FixtureGroup("Head/Lashes", "Lashes") + FixtureGroup("Body/Tail", "Tail"),
+			)
+
+		val added = SourceArtImport.additionsFor(addedArt, descriptor, SourceArtImportOptions(), existing, underSource = ArtSourceId("art-0")).additions
+		val byName = added.drawables.associateBy { drawable -> drawable.name }
+		assertEquals(listOf("Lashes", "Tail"), added.parts.map { part -> part.name }, "only the folders the document has no part for are minted; Head, Body, Arm, and Solo are not")
+		assertEquals(listOf(PartId("Part5"), PartId("Part6")), added.parts.map { part -> part.id }, "past the document's four parts")
+		assertTrue(added.rootChildren.isEmpty(), "nothing lands at the root: every added layer sits under a folder the document holds")
+		val lashes = added.parts.first { part -> part.name == "Lashes" }
+		assertEquals(listOf(OrgChild.Drawable(byName.getValue("Lash").id)), lashes.children)
+		assertEquals(
+			mapOf(
+				headPart.id to listOf(OrgChild.Drawable(byName.getValue("Brow").id), OrgChild.Part(lashes.id)),
+				bodyPart.id to listOf(OrgChild.Part(added.parts.first { part -> part.name == "Tail" }.id)),
+			),
+			added.childrenByPart,
+			"the new layer and the new sub-folder join the existing Head part; the new Body sub-folder joins Body",
+		)
+
+		val fresh = SourceArtImport.additionsFor(addedArt, ArtSourceDescriptor("other.psd", null, "psd"), SourceArtImportOptions(), existing).additions
+		assertEquals(listOf("Head", "Lashes", "Body", "Tail", "Arm"), fresh.parts.map { part -> part.name }, "a NEW file still mints every folder it has, an empty one (Arm) sorting last")
+		assertTrue(fresh.childrenByPart.isEmpty())
+	}
+
 	/** Two layers sharing a weak key still get distinct tiles, disambiguated by draw order. */
 	@Test
 	fun aDuplicateLayerKeyIsDisambiguatedByOrder() {
