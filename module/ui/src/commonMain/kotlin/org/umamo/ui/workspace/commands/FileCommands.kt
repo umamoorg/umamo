@@ -67,6 +67,16 @@ class RelinkRequest(
 }
 
 /**
+ * A request to remove one piece of source art from the atlas, the payload of the sources.deleteArt
+ * command: a tile no drawable samples, which otherwise lingers on a page and in the Sources table.
+ *
+ * @property AtlasTileId tileId The tile to remove.
+ */
+class DeleteArtRequest(
+	val tileId: AtlasTileId,
+)
+
+/**
  * A request to repoint one artwork record at another file, the payload of the sources.replaceArtwork
  * command; the app picks the file.
  *
@@ -98,6 +108,7 @@ class ReloadScope(
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
  * @property Function matchArtwork   Reads every file it can and rebinds the unresolved bindings the matcher is confident about.
  * @property Function replaceArtwork Picks a file and repoints the named record at it.
+ * @property Function deleteArt      Removes a tile no drawable samples from the atlas.
  * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
@@ -106,6 +117,7 @@ class ArtworkOperations(
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val matchArtwork: (areaId: String?) -> Unit,
 	val replaceArtwork: (request: ReplaceRequest, areaId: String?) -> Unit,
+	val deleteArt: (request: DeleteArtRequest) -> Unit,
 	val canReload: () -> Boolean,
 )
 
@@ -160,6 +172,14 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		) { argument ->
 			val request = argument as? ReplaceRequest ?: return@Command
 			artwork()?.replaceArtwork?.invoke(request, routing.operationStripArea())
+		},
+		Command(
+			"sources.deleteArt",
+			title = Res.string.cmd_sources_delete_art,
+			availability = CommandAvailability { artwork() != null },
+		) { argument ->
+			val request = argument as? DeleteArtRequest ?: return@Command
+			artwork()?.deleteArt?.invoke(request)
 		},
 	)
 

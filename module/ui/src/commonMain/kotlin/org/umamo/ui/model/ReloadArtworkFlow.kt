@@ -160,7 +160,8 @@ private sealed interface ReloadOutcome {
 	 * The delta applied and packed.
 	 *
 	 * @property PuppetModel    model         The base with the reload applied and packed.
-	 * @property PuppetTextures textures      The pages the pack composed, index-parallel to the model's.
+	 * @property PuppetTextures? textures     The pages the pack composed, index-parallel to the model's, or
+	 *   null when the pass minted no tile and so packed nothing - the pages stand as they are.
 	 * @property Map            decodedByTile The new tiles' pixels, for the raster store.
 	 * @property List           notices       The planner's notes plus every new tile the pack left unplaced.
 	 * @property List           outgrown      Drawables whose kept mesh no longer covers the new art.
@@ -168,7 +169,7 @@ private sealed interface ReloadOutcome {
 	 */
 	class Reloaded(
 		val model: PuppetModel,
-		val textures: PuppetTextures,
+		val textures: PuppetTextures?,
 		val decodedByTile: Map<AtlasTileId, DecodedImage>,
 		val notices: List<SourceArtImportNotice>,
 		val outgrown: List<DrawableId>,
@@ -238,7 +239,9 @@ private fun reloadOutcome(
 
 /**
  * Packs the tiles a reload or relink minted (all of them unplaced) around the document's art and
- * builds the outcome from the result.
+ * builds the outcome from the result.  A pass that minted no tile - a layer the file lost, an
+ * inventory refresh - packs nothing at all: the pack would resize a page whose art did not change,
+ * and a placement is only ever moved by the operation that put a tile there.
  *
  * @param PuppetModel      model              The model with the delta applied.
  * @param Map              decodedByTile      The new tiles' pixels.
@@ -254,8 +257,11 @@ private inline fun packReloaded(
 	notices: List<SourceArtImportNotice>,
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
-	reloaded: (PuppetModel, PuppetTextures, List<SourceArtImportNotice>, Map<AtlasTileId, DecodedImage>) -> ReloadOutcome,
+	reloaded: (PuppetModel, PuppetTextures?, List<SourceArtImportNotice>, Map<AtlasTileId, DecodedImage>) -> ReloadOutcome,
 ): ReloadOutcome {
+	if (decodedByTile.isEmpty()) {
+		return reloaded(model, null, notices, decodedByTile)
+	}
 	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
 	return when (val packed = packNewTilesAround(model, decodedByTile.keys, decode, premultipliedAlpha, notices)) {
 		is PackAroundOutcome.Refused -> ReloadOutcome.Refused(packed.refusals)
@@ -305,7 +311,7 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 	}
 	host.artRasters.addDecoded(outcome.decodedByTile)
 	val committed = session.commitArtworkReloaded(outcome.change, outcome.model)
-	host.sessionAtlasPages?.prewarm(committed.atlas, outcome.textures)
+	prewarmPages(host, committed, outcome.textures)
 	reportReload(outcome, committed)
 	val change = outcome.change
 	session.emitNotice(
@@ -352,12 +358,26 @@ internal suspend fun adjustReloadArtwork(host: AtlasRepackHost, record: Adjustab
 		is ReloadOutcome.Reloaded -> Unit
 	}
 	host.artRasters.addDecoded(outcome.decodedByTile)
-	host.sessionAtlasPages?.prewarm(outcome.model.atlas, outcome.textures)
+	prewarmPages(host, outcome.model, outcome.textures)
 	if (!host.session.amendLastCommit(record, outcome.model)) {
 		UmamoLog.info("reload artwork: the adjustment was superseded before it landed; nothing was applied")
 		return
 	}
 	reportReload(outcome, outcome.model)
+}
+
+/**
+ * Pre-warms the session's page resolver with the pages a pass composed, when it composed any; a pass
+ * that packed nothing leaves the resolver to the pages it already holds.
+ *
+ * @param AtlasRepackHost host     The session's resolver.
+ * @param PuppetModel     model    The model whose atlas the pages belong to.
+ * @param PuppetTextures? textures The pages, or null when the pass packed nothing.
+ */
+private fun prewarmPages(host: AtlasRepackHost, model: PuppetModel, textures: PuppetTextures?) {
+	if (textures != null) {
+		host.sessionAtlasPages?.prewarm(model.atlas, textures)
+	}
 }
 
 /**
@@ -510,7 +530,7 @@ private inline fun landRelink(
 	}
 	host.artRasters.addDecoded(outcome.decodedByTile)
 	val committed = commit(outcome.model)
-	host.sessionAtlasPages?.prewarm(committed.atlas, outcome.textures)
+	prewarmPages(host, committed, outcome.textures)
 	reportReload(outcome, committed)
 	session.emitNotice(if (outcome.outgrown.isEmpty()) "notice.relink.pulled" else "notice.reload.outgrown", NoticePlacement.StatusBar)
 	return true
@@ -547,7 +567,7 @@ internal suspend fun adjustRelinkArtwork(host: AtlasRepackHost, record: Adjustab
 		is ReloadOutcome.Reloaded -> Unit
 	}
 	host.artRasters.addDecoded(outcome.decodedByTile)
-	host.sessionAtlasPages?.prewarm(outcome.model.atlas, outcome.textures)
+	prewarmPages(host, outcome.model, outcome.textures)
 	if (!host.session.amendLastCommit(record, outcome.model)) {
 		UmamoLog.info("relink artwork: the adjustment was superseded before it landed; nothing was applied")
 		return

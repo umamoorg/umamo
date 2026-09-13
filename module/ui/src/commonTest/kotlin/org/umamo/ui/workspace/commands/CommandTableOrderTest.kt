@@ -228,7 +228,7 @@ class CommandTableOrderTest {
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
 		assertEquals(
-			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork"),
+			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt"),
 			fileArtworkCommands(routing()) { null }.map { command -> command.id },
 		)
 	}
@@ -271,6 +271,7 @@ class CommandTableOrderTest {
 		var landedRequest: RelinkRequest? = null
 		var landedScope: ReloadScope? = null
 		var landedReplace: ReplaceRequest? = null
+		var deleted: DeleteArtRequest? = null
 		var matched = 0
 		var canReload = false
 		operations =
@@ -292,6 +293,7 @@ class CommandTableOrderTest {
 					landedReplace = request
 					landedArea = areaId
 				},
+				deleteArt = { request -> deleted = request },
 				canReload = { canReload },
 			)
 		assertTrue(add.availability.isAvailable(), "the collaborator is queried per call")
@@ -320,6 +322,9 @@ class CommandTableOrderTest {
 		assertSame(replaceRequest, landedReplace, "the replace carries its file")
 		replace.handler.run("not a request")
 		assertSame(replaceRequest, landedReplace, "a payload of the wrong shape is ignored")
+		val deleteRequest = DeleteArtRequest(AtlasTileId("t9"))
+		commands.first { command -> command.id == "sources.deleteArt" }.handler.run(deleteRequest)
+		assertSame(deleteRequest, deleted, "the delete carries its tile")
 	}
 
 	/** The keyform-authoring table. */

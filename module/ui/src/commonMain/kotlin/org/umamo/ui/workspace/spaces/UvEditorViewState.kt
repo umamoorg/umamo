@@ -111,11 +111,13 @@ internal fun resolveUvEditorPage(
 		}
 	}
 
-	val activeDrawableId =
-		meshSelection.activeDrawableId
-			?: (objectSelection.active as? SelectionTarget.Drawable)?.id
-			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }?.id
-	val activeDrawable = model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId }
+	// The selection may still name a drawable the model no longer has (the one just deleted): that is
+	// no selection, and the first meshed drawable stands in, so the space never goes blank over a
+	// document that has art to show.
+	val selectedDrawableId = meshSelection.activeDrawableId ?: (objectSelection.active as? SelectionTarget.Drawable)?.id
+	val activeDrawable =
+		selectedDrawableId?.let { drawableId -> model.drawables.firstOrNull { drawable -> drawable.id == drawableId } }
+			?: model.drawables.firstOrNull { drawable -> drawable.mesh != null }
 
 	if (activeDrawable?.mesh == null) {
 		return null

@@ -61,6 +61,7 @@
 	<string name="cmd_sources_relink">アートを再リンク</string>
 	<string name="cmd_sources_match_automatically">アートワークを自動で照合</string>
 	<string name="cmd_sources_replace_artwork">アートワークを差し替え…</string>
+	<string name="cmd_sources_delete_art">アートを削除</string>
 	<string name="cmd_export_cmo3">CMO3をエクスポート…</string>
 	<string name="cmd_export_moc3">MOC3をエクスポート…</string>
 	<string name="menu_exit">終了</string>
@@ -361,6 +362,7 @@
 	<string name="history_document_atlas_repack">アトラスを再パック</string>
 	<string name="history_document_tile_source">アートを再リンク</string>
 	<string name="history_document_tile_unbind">アートのリンクを解除</string>
+	<string name="history_document_delete_tile">アートを削除</string>
 	<string name="history_document_add_artwork">アートワークを追加</string>
 	<string name="history_document_reload_artwork">アートワークを再読み込み</string>
 	<string name="history_document_relink_artwork">アートを再リンク</string>
@@ -402,6 +404,7 @@
 	<string name="sources_tile_page">ページ %1$d</string>
 	<string name="sources_relink_title">レイヤーに再リンク</string>
 	<string name="sources_relink_clear">リンクを解除</string>
+	<string name="sources_relink_delete">アートを削除</string>
 	<string name="sources_relink_no_matches">一致するレイヤーがありません。</string>
 	<string name="sources_empty">ソースアートワークがありません。「アートワークを追加…」でレイヤー付きファイルをこのドキュメントに取り込めます。</string>
 	<string name="outliner_filter_drawables">ドローアブル</string>

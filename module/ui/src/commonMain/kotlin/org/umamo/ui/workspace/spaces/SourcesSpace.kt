@@ -77,6 +77,7 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRowDragCancel
+import org.umamo.ui.workspace.commands.DeleteArtRequest
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.ReplaceRequest
@@ -478,7 +479,14 @@ private fun SourcesRowBody(
 		when (val kind = node.kind) {
 			is SourcesNodeKind.Tile -> {
 				Spacer(modifier = Modifier.width(6.dp))
-				RelinkChip(tileId = kind.tileId, puppet = puppet, onRelink = onRelink)
+				RelinkChip(
+					tileId = kind.tileId,
+					puppet = puppet,
+					onRelink = onRelink,
+					// Only a tile nothing samples may leave the atlas; a sampled one would strand its drawables.
+					canDelete = puppet.drawables.none { drawable -> drawable.atlasTileId == kind.tileId },
+					onDelete = { commands.invoke("sources.deleteArt", DeleteArtRequest(kind.tileId)) },
+				)
 			}
 			is SourcesNodeKind.Layer ->
 				if (node.status == SourcesStatus.NeedsReview) {
@@ -711,7 +719,13 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
  * @param Function    onRelink Rebinds tiles to one layer (null unbinds).
  */
 @Composable
-private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit) {
+private fun RelinkChip(
+	tileId: AtlasTileId,
+	puppet: PuppetModel,
+	onRelink: (List<AtlasTileId>, SourceLayerRef?) -> Unit,
+	canDelete: Boolean,
+	onDelete: () -> Unit,
+) {
 	val icons = LocalUmamoIcons
 	var open by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
@@ -725,7 +739,10 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (List
 		style = DropdownChipStyle.Compact,
 	) {
 		Menu(
-			items = relinkMenuItems(puppet, current, query, { updated -> query = updated }, showUnbind = current != null) { target -> onRelink(listOf(tileId), target) },
+			items =
+				relinkMenuItems(puppet, current, query, { updated -> query = updated }, showUnbind = current != null, onDelete = onDelete.takeIf { canDelete }) { target ->
+					onRelink(listOf(tileId), target)
+				},
 			onDismissRequest = { open = false },
 			positionProvider = BelowAnchorPositionProvider,
 		)
@@ -743,6 +760,8 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (List
  * @param String          query         The search text.
  * @param Function        onQueryChange Takes the edited search text.
  * @param Boolean         showUnbind    Whether the Unbind row leads the list.
+ * @param Function?       onDelete      Removes the tile from the atlas, offered as a Delete Art row when
+ *   non-null (a tile no drawable samples); null hides the row.
  * @param Function        onPick        Takes the chosen binding, or null for Unbind; the menu dismisses itself.
  * @return List<MenuItem> The menu, search box first.
  */
@@ -753,15 +772,22 @@ private fun relinkMenuItems(
 	query: String,
 	onQueryChange: (String) -> Unit,
 	showUnbind: Boolean,
+	onDelete: (() -> Unit)? = null,
 	onPick: (SourceLayerRef?) -> Unit,
 ): List<MenuItem> {
 	val groups = remember(puppet.sources, query) { relinkGroups(puppet.sources, query) }
 	val unbindLabel = stringResource(Res.string.sources_relink_clear)
+	val deleteLabel = stringResource(Res.string.sources_relink_delete)
 	val noMatchesLabel = stringResource(Res.string.sources_relink_no_matches)
 	return buildList {
 		add(MenuItem.Search(value = query, onValueChange = onQueryChange, width = RELINK_PANEL_WIDTH))
 		if (showUnbind) {
 			add(MenuItem.Action(label = unbindLabel, onSelect = { onPick(null) }))
+		}
+		if (onDelete != null) {
+			add(MenuItem.Action(label = deleteLabel, onSelect = onDelete))
+		}
+		if (showUnbind || onDelete != null) {
 			add(MenuItem.Separator)
 		}
 		if (groups.isEmpty()) {

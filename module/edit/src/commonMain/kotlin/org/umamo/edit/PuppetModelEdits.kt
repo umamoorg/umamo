@@ -942,6 +942,22 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
 }
 
 /**
+ * This model without the tile [tileId]: the tile and its placement gone from the atlas, its drawables
+ * untouched because there are none - a tile some drawable samples is refused, since removing it would
+ * strand the drawable's coordinates.  The pages are derived state, so the page the tile sat on simply
+ * composes without it.  Refused (returns [this]) for a tile the model lacks.
+ *
+ * @param AtlasTileId tileId The tile to remove.
+ * @return PuppetModel The model without the tile, or [this] when refused.
+ */
+fun PuppetModel.withTileDeleted(tileId: AtlasTileId): PuppetModel {
+	if (atlas.tileById[tileId] == null || drawables.any { drawable -> drawable.atlasTileId == tileId }) {
+		return this
+	}
+	return copy(atlas = atlas.copy(tiles = atlas.tiles.filter { tile -> tile.id != tileId }))
+}
+
+/**
  * The org tree after a delta's insertions: the parts and the root children.
  *
  * @property List<Part>     parts        The parts, the ones that took children rebuilt.

@@ -79,6 +79,7 @@
 	<string name="cmd_sources_relink">Relink Art</string>
 	<string name="cmd_sources_match_automatically">Match Artwork Automatically</string>
 	<string name="cmd_sources_replace_artwork">Replace Artwork…</string>
+	<string name="cmd_sources_delete_art">Delete Art</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="cmd_export_moc3">Export MOC3…</string>
 	<string name="menu_exit">Exit</string>
@@ -399,6 +400,7 @@
 	<string name="history_document_atlas_repack">Repack Atlas</string>
 	<string name="history_document_tile_source">Relink Art</string>
 	<string name="history_document_tile_unbind">Unbind Art</string>
+	<string name="history_document_delete_tile">Delete Art</string>
 	<string name="history_document_add_artwork">Add Artwork</string>
 	<string name="history_document_reload_artwork">Reload Artwork</string>
 	<string name="history_document_relink_artwork">Relink Art</string>
@@ -435,13 +437,14 @@
 	<string name="sources_status_unbound">Unbound</string>
 	<string name="sources_status_unplaced">Unplaced</string>
 	<string name="sources_status_needs_review">Needs review: the file no longer has this layer</string>
-	<string name="sources_unbound_art">Unbound art</string>
+	<string name="sources_unbound_art">Unbound Art</string>
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
 	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
 	<string name="sources_tile_page">page %1$d</string>
 	<string name="sources_relink_title">Relink to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
+	<string name="sources_relink_delete">Delete Art</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
 	<string name="sources_empty">No source artwork.  Add Artwork… brings a layered file into this document.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
