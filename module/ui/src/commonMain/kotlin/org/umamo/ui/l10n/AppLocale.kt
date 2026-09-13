@@ -7,7 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * The active UI language tag (BCP-47, e.g. "en" / "ja" / "ko") for the composition, driven by the
+ * The active UI language tag (BCP-47, e.g. "en" / "ja" / "zh-CN") for the composition, driven by the
  * localization.locale setting rather than the OS locale. Descendants that need the raw tag read
  * `LocalAppLocale.current`; most code just calls stringResource() and lets the catalogs resolve.
  */

@@ -13,6 +13,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.inter_regular
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 import org.umamo.ui.resources.noto_sans_cjk_kr_regular
+import org.umamo.ui.resources.noto_sans_cjk_sc_regular
 
 /*
  * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
@@ -45,6 +46,8 @@ internal fun cjkFontFor(languageTag: String): FontResource =
 	// Match the language subtag alone, so a regional tag resolves like the bare one.
 	when (languageTag.substringBefore('-').lowercase()) {
 		"ko" -> Res.font.noto_sans_cjk_kr_regular
+		// Simplified is the only Chinese catalog.  A Traditional one must split this on region (TW / HK).
+		"zh" -> Res.font.noto_sans_cjk_sc_regular
 		else -> Res.font.noto_sans_cjk_jp_regular
 	}
 
