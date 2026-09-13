@@ -22,6 +22,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.ImportParameterKeys
+import org.umamo.ui.model.MatchParameterKeys
 import org.umamo.ui.model.RelinkArtworkRequest
 import org.umamo.ui.model.ReloadArtworkRequest
 import org.umamo.ui.model.ReloadArtworkResult
@@ -43,8 +44,9 @@ import kotlin.test.assertTrue
  * Reload and relink driven the way the shell drives them, over a document built from in-memory art
  * so no corpus is needed: a repainted and grown layer, an unchanged one, and a new one land as one
  * step; the pages the session publishes equal their derivation; undo shows the old pixels again by
- * pure snapshot; an adjustment re-lands the step; a reload with nothing changed pushes nothing; and a
- * relink pulls the target layer's art when its file is read and changes the binding alone when not.
+ * pure snapshot; an adjustment re-lands the step; a reload with nothing changed pushes nothing; a
+ * relink pulls the target layer's art when its file is read and changes the binding alone when not;
+ * and a layer re-created under a new key is rebound in the reload at the strip's bar.
  */
 class ReloadArtworkFlowTest {
 	private val options = SourceArtImportOptions(alphaThreshold = 1, birthMeshMargin = 2)
@@ -94,7 +96,7 @@ class ReloadArtworkFlowTest {
 			// hand: the tile moved there through the repack edit (its coordinates re-derived with it).
 			val movedPlacement = AtlasPlacement(1, 2f, 2f, 1f, 1f, 0f)
 			val placements = packedOnce.atlas.tiles.associate { tile -> tile.id to (if (tile.id == bigTile.id) movedPlacement else tile.placement) }
-			val withBig = session.commitArtworkReloaded(DocumentChange.ReloadArtwork(1, 0, 0, 0), packedOnce.withAtlasRepack(packedOnce.atlas.pages + AtlasPage(256, 256), placements, packedOnce.atlas.composition))
+			val withBig = session.commitArtworkReloaded(DocumentChange.ReloadArtwork(1, 0, 0, 0, 0), packedOnce.withAtlasRepack(packedOnce.atlas.pages + AtlasPage(256, 256), placements, packedOnce.atlas.composition))
 			val bigPlacement = assertNotNull(withBig.atlas.tileById.getValue(bigTile.id).placement)
 			assertEquals(2, withBig.atlas.pages.size, "onto a second page")
 			assertEquals(1, bigPlacement.pageIndex)
@@ -312,6 +314,105 @@ class ReloadArtworkFlowTest {
 			session.undo()
 			assertSame(before, session.model.value)
 			assertFalse(session.canUndo.value)
+			follower.cancel()
+		}
+
+	/**
+	 * A layer deleted and re-created under a new key with its pixels and place - Photoshop's duplicate,
+	 * delete the original, rename - reloads as one step that rebinds the rigged tile instead of minting
+	 * a fresh drawable beside it, and the strip leads with the Match Threshold row that decided it.
+	 */
+	@Test
+	fun aReCreatedLayerReloadsAsARebindingWithTheThresholdRowFirst() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the reload must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val tileA = AtlasTileId("art-0/lyid:1")
+			val recreatedA = InMemoryLayer("lyid:3", "A", 0, LayerBounds(10, 10, 8, 8), layerA.raster)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(recreatedA, layerB)), contentHash = "v2")), options), areaId = null))
+			val reloaded = session.model.value
+			assertEquals(2, reloaded.drawables.size, "nothing was minted")
+			val rebound = reloaded.atlas.tiles.first { tile -> tile.replaces == tileA }
+			assertEquals("lyid:3", rebound.source?.layerKey, "the rigged tile follows the re-created layer")
+			assertNotNull(rebound.placement, "and is packed")
+			assertEquals(listOf("lyid:3", "lyid:2"), reloaded.sources.single().layers.map { layer -> layer.key }, "no lost row")
+			assertTrue(reloaded.sources.single().layers.all { layer -> layer.present })
+			val notice = assertNotNull(session.notice.value)
+			assertEquals("notice.reload.done", notice.messageKey)
+			assertEquals(listOf("1", "0", "1", "0"), notice.arguments, "one updated, none added, one matched, none missing")
+			val record = assertNotNull(session.adjustableOperation.value, "the reload registered on the strip")
+			assertEquals(MatchParameterKeys.THRESHOLD, record.parameters.first().key, "the strip leads with the bar")
+			assertEquals("change.document.reloadArtwork", session.historyView.value.let { view -> view.steps[view.cursor].labelKey })
+			follower.cancel()
+		}
+
+	/**
+	 * A re-created layer repainted at the same place scores under certain: raising the reload's bar to
+	 * 100% re-lands the same step with the layer minted and the binding left for review, and lowering
+	 * it rebinds again - the strip and the document always agree.
+	 */
+	@Test
+	fun raisingTheReloadThresholdReLandsTheStepWithTheLayerMintedInstead() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the reload must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			val tileA = AtlasTileId("art-0/lyid:1")
+			val repaintedA = InMemoryLayer("lyid:3", "A", 0, LayerBounds(10, 10, 8, 8), solidRaster(8, 8, 3))
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(repaintedA, layerB)), contentHash = "v2")), options), areaId = null))
+			assertEquals(2, session.model.value.drawables.size, "rebound at the default bar")
+			assertTrue(session.model.value.atlas.tiles.any { tile -> tile.replaces == tileA })
+			val record = assertNotNull(session.adjustableOperation.value)
+
+			val raised = record.parameters.map { parameter -> if (parameter.key == MatchParameterKeys.THRESHOLD && parameter is OperatorParameter.FloatParameter) parameter.copy(value = 100f) else parameter }
+			session.adjustLastOperation(raised)
+			withTimeout(120_000) {
+				while (session.model.value.drawables.size != 3) {
+					yield()
+				}
+			}
+			val minted = session.model.value
+			assertNotNull(minted.atlas.tileById[tileA], "the old tile stands, unreplaced")
+			assertNotNull(minted.atlas.tileById[AtlasTileId("art-0/lyid:3")], "the layer was minted")
+			assertEquals(false, minted.sources.single().layers.first { layer -> layer.key == "lyid:1" }.present, "the binding waits for review")
+			assertEquals("change.document.reloadArtwork", session.historyView.value.let { view -> view.steps[view.cursor].labelKey })
+
+			val lowered = record.parameters.map { parameter -> if (parameter.key == MatchParameterKeys.THRESHOLD && parameter is OperatorParameter.FloatParameter) parameter.copy(value = 70f) else parameter }
+			session.adjustLastOperation(lowered)
+			withTimeout(120_000) {
+				while (session.model.value.drawables.size != 2) {
+					yield()
+				}
+			}
+			assertTrue(session.model.value.atlas.tiles.any { tile -> tile.replaces == tileA }, "rebound again")
+			session.undo()
+			assertSame(before, session.model.value, "one step throughout")
 			follower.cancel()
 		}
 }

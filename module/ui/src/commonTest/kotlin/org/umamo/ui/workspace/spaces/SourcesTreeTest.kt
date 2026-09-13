@@ -10,8 +10,10 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -296,5 +298,49 @@ class SourcesTreeTest {
 		fun ids(nodes: List<SourcesNode>): List<String> = nodes.flatMap { node -> listOf(node.id) + ids(node.children) }
 		val allIds = ids(listOf(file))
 		assertEquals(allIds.size, allIds.toSet().size, "no row id repeats anywhere in the tree")
+	}
+
+	/**
+	 * A proposal naming a layer some tile binds stands when only a fresh, untouched drawable sits over
+	 * that tile (a reload minted it for the re-created layer before the match could take it), and names
+	 * the tile accepting it retires; the same layer under rig work is passed over.
+	 */
+	@Test
+	fun aProposalNamingALayerUnderAFreshDrawableStandsAndSaysWhatItRetires() {
+		val base = model()
+		val freshQuad = DrawableMesh(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val fresh = drawable("e", "tA5").copy(mesh = freshQuad)
+		val puppet =
+			base.copy(
+				drawables = base.drawables + fresh,
+				atlas =
+					base.atlas.copy(
+						tiles =
+							base.atlas.tiles +
+								AtlasTile(AtlasTileId("tA5"), "Brow", 4, 4, source = SourceLayerRef(artA, "lyid:5", true)) +
+								AtlasTile(AtlasTileId("tA9"), "Old brow", 4, 4, source = SourceLayerRef(artA, "lyid:9", true)),
+					),
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) {
+							source
+						} else {
+							source.copy(
+								layers =
+									source.layers +
+										ArtSourceLayer("lyid:5", "Brow", "Head", 12, 22, 4, 4, true) +
+										ArtSourceLayer("lyid:9", "Brow (old)", "Head", 12, 22, 4, 4, true, present = false),
+							)
+						}
+					},
+			)
+
+		fun match(key: String, score: Float): LayerMatch = LayerMatch(key, score, MatchSignals(1f, 1f, 1f, 1f, null, hashEqual = false))
+		val proposals: (ArtSourceId, String) -> List<LayerMatch> = { sourceId, key -> if (sourceId == artA && key == "lyid:9") listOf(match("lyid:5", 0.6f)) else emptyList() }
+		val lost = buildSourcesTree(puppet, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.6f, retires = listOf(AtlasTileId("tA5"))), lost.suggestion)
+		val rigged = puppet.copy(drawables = puppet.drawables.map { drawable -> if (drawable.id.raw == "e") drawable.copy(parentDeformerId = DeformerId("warp")) else drawable })
+		val riggedLost = buildSourcesTree(rigged, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		assertNull(riggedLost.suggestion, "under rig work the layer is passed over")
 	}
 }

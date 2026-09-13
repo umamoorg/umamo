@@ -39,7 +39,7 @@ private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
  * @param Set<DrawableId> ids The drawables to delete.
  * @return PuppetModel The model with those drawables and their references gone.
  */
-private fun PuppetModel.removingDrawables(ids: Set<DrawableId>): PuppetModel {
+internal fun PuppetModel.removingDrawables(ids: Set<DrawableId>): PuppetModel {
 	if (ids.isEmpty()) {
 		return this
 	}

@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.tileCarriesNoRigWork
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
@@ -103,17 +104,21 @@ sealed interface SourcesDetail {
 }
 
 /**
- * What the document proposes for a binding its file no longer resolves: the layer it would move to
- * and how sure the matcher is.
+ * What the document proposes for a binding its file no longer resolves: the layer it would move to,
+ * how sure the matcher is, and the tiles that go with the move.
  *
- * @property String candidateKey  The proposed layer's key.
- * @property String candidateName The proposed layer's name, for the chip.
- * @property Float  score         The confidence, 0..1.
+ * @property String            candidateKey  The proposed layer's key.
+ * @property String            candidateName The proposed layer's name, for the chip.
+ * @property Float             score         The confidence, 0..1.
+ * @property List<AtlasTileId> retires       The tiles bound to the proposed layer that accepting retires
+ *   with their drawables - a fresh, untouched drawable a reload minted for the layer - so the chip can
+ *   say so; empty when the layer is unbound.
  */
 data class LayerSuggestion(
 	val candidateKey: String,
 	val candidateName: String,
 	val score: Float,
+	val retires: List<AtlasTileId> = emptyList(),
 )
 
 /**
@@ -155,8 +160,10 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * @param String      unboundGroupLabel The localized label of the unbound-art group.
  * @param Function    suggestionsFor    The proposals for a lost binding by file and key, best first
  *   (the pixel-scored one an operation published, then the one the inventory alone ranks); the row
- *   takes the first that still holds - one naming a layer the file no longer has or some tile already
- *   binds is passed over, so a stale published proposal never hides a live one behind it.
+ *   takes the first that still holds - one naming a layer the file no longer has, or a layer bound to a
+ *   tile with rig work over it, is passed over, so a stale published proposal never hides a live one
+ *   behind it; a layer bound only to fresh, untouched drawables stands, and the proposal names the
+ *   tiles accepting it retires.
  * @return List<SourcesNode> The top-level rows.
  */
 fun buildSourcesTree(
@@ -208,10 +215,11 @@ fun buildSourcesTree(
 			if (status == SourcesStatus.NeedsReview || status == SourcesStatus.Emptied) {
 				suggestionsFor(sourceId, key).firstNotNullOfOrNull { match ->
 					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present && !layer.empty }
-					if (candidate == null || tilesByBinding.containsKey(sourceId to match.key)) {
-						null
-					} else {
-						LayerSuggestion(match.key, candidate.name, match.score)
+					val boundToCandidate = tilesByBinding[sourceId to match.key].orEmpty()
+					when {
+						candidate == null -> null
+						boundToCandidate.any { tile -> !puppet.tileCarriesNoRigWork(tile.id, candidate) } -> null
+						else -> LayerSuggestion(match.key, candidate.name, match.score, boundToCandidate.map { tile -> tile.id })
 					}
 				}
 			} else {

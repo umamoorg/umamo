@@ -77,8 +77,10 @@ private fun missingRowFor(row: ArtSourceLayer?, tile: AtlasTile): ArtSourceLayer
 /**
  * The best candidate for every binding to [sourceId] its inventory does not list as present - or lists
  * as erased to nothing - keyed by the lost layer's key.  The candidates are the file's present layers
- * with art that no tile is bound to.  Without rasters the ranking rests on the inventory alone; with
- * them the matcher compares pixels too.
+ * with art that no tile is bound to - never a bound one, since on the model alone nothing tells a
+ * re-created layer's fresh drawable from any other untouched drawable; the proposal that names a
+ * bound layer comes only from a reload that scored the binding before it minted the layer.  Without
+ * rasters the ranking rests on the inventory alone; with them the matcher compares pixels too.
  *
  * @param PuppetModel  model             The document's model.
  * @param ArtSourceId  sourceId          The file whose lost layers are scored.
@@ -123,4 +125,76 @@ fun suggestionsFor(
 		suggestions[key] = best
 	}
 	return suggestions
+}
+
+/**
+ * The suggestions for [sourceId]'s unresolved bindings against its art as just read: the record's
+ * inventory refreshed with [inventory] first - the lost rows kept, and every bound layer's previous row
+ * kept too, since nothing here carries a change into a tile - so a file never reloaded still scores,
+ * then [suggestionsFor] over that.  What the reload planner scores before it mints, and what an
+ * operation that read the file publishes for the review chips.
+ *
+ * @param PuppetModel          model             The model as it stands.
+ * @param ArtSourceId          sourceId          The file.
+ * @param List<ArtSourceLayer> inventory         The inventory of the file as just read.
+ * @param Function             missingRasterOf   The document's pixels for a tile, or null when unread.
+ * @param Function             candidateRasterOf The pixels of a present layer by key, or null when unread.
+ * @param LayerMatcher         matcher           The matcher to rank with.
+ * @return Map<String, LayerMatch> Each unresolved binding's best match by its key; one with no candidate is absent.
+ */
+fun suggestionsAgainstRead(
+	model: PuppetModel,
+	sourceId: ArtSourceId,
+	inventory: List<ArtSourceLayer>,
+	missingRasterOf: (AtlasTileId) -> LayerRaster? = { null },
+	candidateRasterOf: (String) -> LayerRaster? = { null },
+	matcher: LayerMatcher = InventoryLayerMatcher,
+): Map<String, LayerMatch> {
+	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return emptyMap()
+	val boundKeys = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
+	val refreshed = source.copy(layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys))
+	val scoringModel = model.copy(sources = model.sources.map { candidate -> if (candidate.id == sourceId) refreshed else candidate })
+	return suggestionsFor(scoringModel, sourceId, missingRasterOf, candidateRasterOf, matcher)
+}
+
+/**
+ * The matches to apply out of [suggestions]: those at or above [threshold], best first, each candidate
+ * taken once - two lost layers that both prefer one candidate are settled in favor of the more
+ * confident, the other left for a person (its suggestion stands).
+ *
+ * @param Map<String, LayerMatch> suggestions The best candidate per lost key.
+ * @param Float                   threshold   The confidence bar, 0..1, inclusive.
+ * @return Map<String, String> The candidate key each accepted lost key moves to, most confident first.
+ */
+fun confidentMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Map<String, String> {
+	val takenCandidates = HashSet<String>()
+	val accepted = LinkedHashMap<String, String>()
+	for ((lostKey, match) in suggestions.entries.sortedByDescending { (_, match) -> match.score }) {
+		if (match.score < threshold || !takenCandidates.add(match.key)) {
+			continue
+		}
+		accepted[lostKey] = match.key
+	}
+	return accepted
+}
+
+/**
+ * The tiles a rebinding onto [candidateKey] may retire: every tile of [sourceId] bound to that key
+ * other than [except] whose drawables carry no rig work - the fresh drawable a reload minted for the
+ * layer before the lost layer's rig work claimed it.  A tile with rig work over it stays bound; two
+ * tiles then share the layer, which a person sorts out.  What the Sources space shows against a
+ * proposal naming a bound layer, and what a match re-checks before it retires anything.
+ *
+ * @param PuppetModel      model        The model the rebinding applies to.
+ * @param ArtSourceId      sourceId     The file.
+ * @param String           candidateKey The layer being claimed.
+ * @param Set<AtlasTileId> except       The tiles doing the claiming.
+ * @return List<AtlasTileId> The tiles to retire, in atlas order.
+ */
+fun retirableTiles(model: PuppetModel, sourceId: ArtSourceId, candidateKey: String, except: Set<AtlasTileId>): List<AtlasTileId> {
+	val row = model.sources.firstOrNull { source -> source.id == sourceId }?.layers?.firstOrNull { layer -> layer.key == candidateKey }
+	return model.atlas.tiles
+		.filter { tile -> tile.id !in except && tile.source?.sourceId == sourceId && tile.source?.layerKey == candidateKey }
+		.filter { tile -> model.tileCarriesNoRigWork(tile.id, row) }
+		.map { tile -> tile.id }
 }

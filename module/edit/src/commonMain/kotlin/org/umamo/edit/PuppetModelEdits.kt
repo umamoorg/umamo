@@ -1037,9 +1037,9 @@ private fun List<OrgChild>.withInserted(child: OrgChild, slot: OrgSlot): List<Or
  * refreshed inventory carries its row flagged not present, which is what the Sources space shows as
  * needing review.
  *
- * Refused (returns [this]) when the model does not list the file, a superseded tile is unknown, or
- * any new id collides with one the model has - the planner mints past the model, so a collision is a
- * caller bug rather than document state to absorb.
+ * Refused (returns [this]) when the model does not list the file, a superseded or retired tile is
+ * unknown, a retired tile is also superseded, or any new id collides with one the model has - the
+ * planner mints past the model, so a collision is a caller bug rather than document state to absorb.
  *
  * @param ArtworkReload reload The delta to apply.
  * @return PuppetModel The reloaded model, or [this] when refused.
@@ -1051,6 +1051,10 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 	val existingTileIds = atlas.tiles.mapTo(HashSet()) { tile -> tile.id }
 	val replacedIds = reload.replacedTiles.mapTo(HashSet()) { replaced -> replaced.oldId }
 	if (replacedIds.size != reload.replacedTiles.size || replacedIds.any { oldId -> oldId !in existingTileIds }) {
+		return this
+	}
+	val retiredIds = reload.retiredTiles.toSet()
+	if (retiredIds.any { tileId -> tileId !in existingTileIds || tileId in replacedIds }) {
 		return this
 	}
 	val additions = reload.additions
@@ -1076,15 +1080,19 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 				drawable.copy(atlasTileId = newTileId ?: drawable.atlasTileId, mesh = mesh ?: drawable.mesh)
 			}
 		}
-	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds }
+	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds && tile.id !in retiredIds }
 	val placed = placeInsertions(parts, rootChildren, additions?.insertions.orEmpty())
-	return copy(
-		parts = placed.parts + additions?.parts.orEmpty(),
-		drawables = movedDrawables + additions?.drawables.orEmpty(),
-		rootChildren = placed.rootChildren + additions?.rootChildren.orEmpty(),
-		atlas = atlas.copy(tiles = keptTiles + newTiles),
-		sources = sources.map { source -> if (source.id == reload.source.id) reload.source else source },
-	).withDerivedRenderRoot()
+	val reloaded =
+		copy(
+			parts = placed.parts + additions?.parts.orEmpty(),
+			drawables = movedDrawables + additions?.drawables.orEmpty(),
+			rootChildren = placed.rootChildren + additions?.rootChildren.orEmpty(),
+			atlas = atlas.copy(tiles = keptTiles + newTiles),
+			sources = sources.map { source -> if (source.id == reload.source.id) reload.source else source },
+		)
+	// A retired tile's drawables leave with it, every reference scrubbed the way a delete scrubs them.
+	val retiredDrawables = reloaded.drawables.filter { drawable -> drawable.atlasTileId in retiredIds }.mapTo(HashSet()) { drawable -> drawable.id }
+	return reloaded.removingDrawables(retiredDrawables).withDerivedRenderRoot()
 }
 
 /**
