@@ -61,10 +61,13 @@ class SourceWatchCoordinatorTest {
 	/** The disk: a hash per path, or null for a file that cannot be read; absent means missing. */
 	private class Disk {
 		val hashByPath = HashMap<String, String?>()
+		val modifiedAtByPath = HashMap<String, Long>()
 
 		fun hashOf(path: String): String? = hashByPath[path]
 
 		fun exists(path: String): Boolean = hashByPath.containsKey(path)
+
+		fun modifiedAt(path: String): Long? = modifiedAtByPath[path]
 	}
 
 	/**
@@ -85,6 +88,7 @@ class SourceWatchCoordinatorTest {
 				mode = mode,
 				settleMillis = 100,
 				idlePollMillis = 10,
+				modifiedAtOf = { path -> disk.modifiedAt(path) },
 			)
 		private val collector: Job = scope.launch { coordinator.events.collect { event -> events.add(event) } }
 
@@ -251,6 +255,34 @@ class SourceWatchCoordinatorTest {
 			assertTrue(off.events.isEmpty())
 			notify.finish()
 			off.finish()
+		}
+
+	/**
+	 * A file the document recorded no hash for (a CMO3-origin source) is judged at open by its
+	 * modification time against the recorded one; a recorded hash always outranks the time; and with
+	 * neither recorded there is nothing to judge by.
+	 */
+	@Test
+	fun aFileWithNoRecordedHashIsStaleAtOpenByItsModificationTime() =
+		runTest {
+			val harness = harness()
+			harness.disk.hashByPath["/a.psd"] = "h1"
+			harness.disk.modifiedAtByPath["/a.psd"] = 2_000L
+			harness.disk.hashByPath["/b.psd"] = "h2"
+			harness.disk.modifiedAtByPath["/b.psd"] = 2_000L
+			harness.disk.hashByPath["/c.psd"] = "h3"
+			harness.disk.modifiedAtByPath["/c.psd"] = 2_000L
+			harness.coordinator.track(
+				listOf(
+					WatchedSource(fileA, "/a.psd", recordedHash = null, recordedModifiedAt = 1_000L),
+					WatchedSource(fileB, "/b.psd", recordedHash = "h2", recordedModifiedAt = 1_000L),
+					WatchedSource(ArtSourceId("art-2"), "/c.psd", recordedHash = null, recordedModifiedAt = null),
+				),
+			)
+			advanceUntilIdle()
+			assertEquals(listOf<SourceWatchEvent>(SourceWatchEvent.StaleAtOpen(setOf(fileA))), harness.events, "only the hash-less file whose time moved is stale; a matching hash outranks a moved time, and no record at all is silent")
+			assertEquals(setOf(fileA), harness.coordinator.pending.value)
+			harness.finish()
 		}
 
 	@Test

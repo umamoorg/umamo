@@ -1140,7 +1140,7 @@ internal class Cmo3PropertyLowering(
 		val baselineById = baseline.sources.associateBy { source -> source.id }
 		for (source in edited.sources) {
 			val before = baselineById[source.id]
-			if (before != null && before.name == source.name && before.path == source.path) {
+			if (before != null && before.name == source.name && before.path == source.path && before.lastModified == source.lastModified) {
 				continue
 			}
 			val image = imageByGuid[source.id.raw]
@@ -1157,6 +1157,13 @@ internal class Cmo3PropertyLowering(
 					}
 			fileRef.archivePath = null
 			fileRef.textPath = source.path.orEmpty()
+			// CMO3: CLayeredImage field psdFileLastModified - epoch milliseconds; a record with no known
+			// time leaves the image's as it was.
+			val lastModified = source.lastModified
+			if (lastModified != null) {
+				image.psdFileLastModified = lastModified
+				editor.ensureChildSlot(image, "CLayeredImage", "psdFileLastModified", "_rootLayer")
+			}
 		}
 	}
 

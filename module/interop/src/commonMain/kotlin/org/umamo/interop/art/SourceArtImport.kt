@@ -51,12 +51,14 @@ import org.umamo.runtime.model.deriveRenderRoot
  * @property String? path        The advisory external path, or null when the platform has none (a SAF uri).
  * @property String  format      The source format's file extension ("psd", "clip", "kra", "png", ...).
  * @property String? contentHash The whole-file content hash of the bytes read, or null when unknown.
+ * @property Long?   lastModified The file's modification time (epoch milliseconds) when read, or null when unknown.
  */
 class ArtSourceDescriptor(
 	val name: String,
 	val path: String?,
 	val format: String,
 	val contentHash: String? = null,
+	val lastModified: Long? = null,
 )
 
 /**
@@ -443,7 +445,7 @@ object SourceArtImport {
 
 		return SourceArtAdditions(
 			ArtworkAdditions(
-				source = ArtSource(sourceId, source.name, source.path, source.format, inventory ?: inventoryOf(art), source.contentHash),
+				source = ArtSource(sourceId, source.name, source.path, source.format, inventory ?: inventoryOf(art), source.contentHash, source.lastModified),
 				tiles = tiles,
 				drawables = drawables,
 				parts = parts,

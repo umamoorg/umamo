@@ -28,6 +28,10 @@ package org.umamo.runtime.model
  * @property String?              contentHash The whole-file content hash (SHA-256 hex) of the bytes the
  *   document last read for this file, or null when it never read bytes (a CMO3-origin source).  What
  *   the watcher compares a save against, so an unchanged file is never re-read.
+ * @property Long?                lastModified The file's modification time (epoch milliseconds) when the
+ *   document last read it - or, for a CMO3-origin source, when the official editor did - or null when
+ *   neither is known.  The stale-at-open check falls back to it where no hash was recorded, since a
+ *   CMO3 keeps the time but not a hash.
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -36,6 +40,7 @@ data class ArtSource(
 	val format: String,
 	val layers: List<ArtSourceLayer> = emptyList(),
 	val contentHash: String? = null,
+	val lastModified: Long? = null,
 )
 
 /**

@@ -203,6 +203,21 @@ class ArtworkReloadPlannerTest {
 		assertTrue(plan.reload.source.layers.single().present, "the new binding's row is present, not lost")
 	}
 
+	/** The read's modification time rides the refreshed record like the hash, and alone plans nothing. */
+	@Test
+	fun theModificationTimeIsRecordedLikeTheHashAndAloneChangesNothing() {
+		val art = TestArt(listOf(layer1, layer2))
+		assertNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf, contentHash = "h", lastModified = 5L), "a time and hash alone plan nothing")
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), solidRaster(4, 4, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(repainted, layer2)), options, oldRasterOf, contentHash = "h", lastModified = 5L))
+		assertEquals(5L, plan.reload.source.lastModified)
+		assertEquals("h", plan.reload.source.contentHash)
+		val matched = assertNotNull(ArtworkReloadPlanner.planMatches(model(), source, art, listOf(tile1 to "lyid:2"), options, oldRasterOf, lastModified = 7L))
+		assertEquals(7L, matched.reload.source.lastModified)
+		val replaced = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd", lastModified = 9L)))
+		assertEquals(9L, replaced.reload.source.lastModified, "a replacement records its own file's time")
+	}
+
 	@Test
 	fun aLayerErasedToNothingLeavesItsTile() {
 		val erased = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), LayerRaster(4, 4, ByteArray(64)))

@@ -47,11 +47,14 @@ import org.umamo.storage.UmamoLog
  * @property SourceArt   art         The file as just read.
  * @property String?     contentHash The whole-file content hash of the bytes it was read from, recorded
  *   on the refreshed source so the watcher knows this save was taken; null keeps the record's.
+ * @property Long?       lastModified The file's modification time when read, recorded beside the hash;
+ *   null keeps the record's.
  */
 class ReloadEntry(
 	val sourceId: ArtSourceId,
 	val art: SourceArt,
 	val contentHash: String? = null,
+	val lastModified: Long? = null,
 ) {
 	/**
 	 * The inventory of [art], computed once for the entry's life: it hashes every layer's pixels, and
@@ -210,7 +213,7 @@ private fun reloadOutcome(
 	var missing = 0
 	val oldRasterOf = oldRasterLookup(artRasters)
 	for (entry in request.entries) {
-		val plan = ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf, entry.contentHash, inventory = entry.inventory) ?: continue
+		val plan = ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified) ?: continue
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {
 			UmamoLog.error("reload artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")

@@ -69,6 +69,7 @@ import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
+import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
@@ -397,7 +398,8 @@ fun EditorApp(
 				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 				return null
 			}
-		return PickedArtwork(read, ArtSourceDescriptor(picked.name, picked.absolutePath(), read.kind.extension, read.contentHash))
+		val path = picked.absolutePath()
+		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path?.let(::fileModifiedAtMillis)))
 	}
 
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
@@ -437,14 +439,14 @@ fun EditorApp(
 			val read = readArtworkAt(path)
 			if (read != null) {
 				UmamoLog.info("read artwork: '${source.name}' read from $path")
-				return SourceRead(read.art, read.contentHash, fromCmo3 = false)
+				return SourceRead(read.art, read.contentHash, read.lastModified, fromCmo3 = false)
 			}
 			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")
 		}
 		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
 		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
 		val art = withContext(Dispatchers.Default) { cmo3SourceArtOf(root, source.id) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } } ?: return null
-		return SourceRead(art, contentHash = null, fromCmo3 = true)
+		return SourceRead(art, contentHash = null, lastModified = null, fromCmo3 = true)
 	}
 
 	// The document's artwork watcher: one per open puppet document, over the composable's own scope
@@ -462,6 +464,7 @@ fun EditorApp(
 						watcher = watcher,
 						hashOf = { path -> withContext(Dispatchers.IO) { contentHashOfFile(FileSystem.SYSTEM, path.toPath()) } },
 						exists = { path -> sourceFilePresence(path) },
+						modifiedAtOf = { path -> withContext(Dispatchers.IO) { fileModifiedAtMillis(path) } },
 						isIdle = { activeSession.isQuiescent },
 						mode = { WatchMode.fromKey(settings.getString(IMPORT_WATCH_MODE_KEY)) },
 					),
@@ -499,7 +502,7 @@ fun EditorApp(
 					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
 					continue
 				}
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
@@ -534,7 +537,7 @@ fun EditorApp(
 			watch.coordinator.track(
 				activeSession.model.value.sources.mapNotNull { source ->
 					val path = source.path?.takeIf { candidate -> !candidate.contains("://") } ?: return@mapNotNull null
-					WatchedSource(source.id, path, source.contentHash)
+					WatchedSource(source.id, path, source.contentHash, source.lastModified)
 				},
 			)
 		}
@@ -594,7 +597,7 @@ fun EditorApp(
 			val entries = ArrayList<ReloadEntry>()
 			for (source in activeSession.model.value.sources) {
 				val read = readSourceArt(puppetDocument, source) ?: continue
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash))
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
 			}
 			if (entries.isEmpty()) {
 				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
@@ -934,12 +937,14 @@ private class PickedArtwork(
  * One listed file's art as an operation read it.
  *
  * @property SourceArt art         The art.
- * @property String?   contentHash The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
- * @property Boolean   fromCmo3    Whether it was read from the CMO3's decomposed layer images rather than the file.
+ * @property String?   contentHash  The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
+ * @property Long?     lastModified The file's modification time when read, or null when it came from a CMO3's own layers.
+ * @property Boolean   fromCmo3     Whether it was read from the CMO3's decomposed layer images rather than the file.
  */
 private class SourceRead(
 	val art: SourceArt,
 	val contentHash: String?,
+	val lastModified: Long?,
 	val fromCmo3: Boolean,
 )
 

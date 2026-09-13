@@ -29,11 +29,14 @@ import org.umamo.runtime.model.ArtSourceId
  * @property ArtSourceId sourceId     The file's record in the model.
  * @property String      path         The path the document recorded for it.
  * @property String?     recordedHash The content hash the document last read, or null when it never read bytes.
+ * @property Long?       recordedModifiedAt The file's modification time (epoch milliseconds) the document
+ *   recorded, or null; the stale-at-open check's fallback where no hash was recorded (a CMO3-origin file).
  */
 class WatchedSource(
 	val sourceId: ArtSourceId,
 	val path: String,
 	val recordedHash: String?,
+	val recordedModifiedAt: Long? = null,
 )
 
 /** What the coordinator tells the app. */
@@ -105,6 +108,7 @@ class SourceWatchCoordinator(
 	private val mode: () -> WatchMode,
 	private val settleMillis: Long = DEFAULT_SETTLE_MILLIS,
 	private val idlePollMillis: Long = DEFAULT_IDLE_POLL_MILLIS,
+	private val modifiedAtOf: suspend (String) -> Long? = { null },
 ) {
 	private val tracked = LinkedHashMap<ArtSourceId, TrackedSource>()
 	private val mutablePending = MutableStateFlow<Set<ArtSourceId>>(emptySet())
@@ -287,8 +291,11 @@ class SourceWatchCoordinator(
 	}
 
 	/**
-	 * The one-time check a newly tracked file gets: its disk hash against the recorded one, so a file
-	 * edited while the document was closed is reported before anyone asks.  Batched per track call.
+	 * The one-time check a newly tracked file gets: its disk hash against the recorded one - or, for a
+	 * file the document recorded no hash for (a CMO3-origin source), its modification time against the
+	 * recorded one - so a file edited while the document was closed is reported before anyone asks.
+	 * Batched per track call.  The hash is the surer signal and wins wherever it exists; a time can move
+	 * with no change in the bytes, which a reload then finds and acknowledges.
 	 *
 	 * Each file is hashed only once its watch is armed: the watcher's baseline stamp then precedes the
 	 * hash, so a save landing between the two reads as a change against that stamp on the next tick
@@ -309,8 +316,7 @@ class SourceWatchCoordinator(
 				continue
 			}
 			entry.observedHash = hash
-			val recorded = entry.source.recordedHash
-			if (recorded != null && hash != recorded) {
+			if (isStaleAtOpen(entry.source, hash)) {
 				stale.add(entry.source.sourceId)
 				setPending(entry.source.sourceId, true)
 			}
@@ -318,6 +324,24 @@ class SourceWatchCoordinator(
 		if (stale.isNotEmpty()) {
 			mutableEvents.tryEmit(SourceWatchEvent.StaleAtOpen(stale))
 		}
+	}
+
+	/**
+	 * Whether a newly tracked file differs from what the document recorded: by hash when one was
+	 * recorded, else by modification time when one was, else not knowable.
+	 *
+	 * @param WatchedSource source The file as recorded.
+	 * @param String        hash   Its hash on disk now.
+	 * @return Boolean True when the file changed while the document was closed.
+	 */
+	private suspend fun isStaleAtOpen(source: WatchedSource, hash: String): Boolean {
+		val recordedHash = source.recordedHash
+		if (recordedHash != null) {
+			return hash != recordedHash
+		}
+		val recordedModifiedAt = source.recordedModifiedAt ?: return false
+		val modifiedAt = modifiedAtOf(source.path) ?: return false
+		return modifiedAt != recordedModifiedAt
 	}
 
 	/**
