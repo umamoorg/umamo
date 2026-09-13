@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,14 +33,17 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
 
 /**
- * The two roles a [DropdownChip] plays: a [Header] chrome chip (content-width, tab-fill, an accent open
- * state, a right/down disclosure chevron) or a form [Field] (fills its column over the control fill, a
- * down/up chevron pushed to the trailing edge) that sits beside the other form controls.  A sanctioned
- * variation of the one chip rather than a fork, so both roles share the anatomy.
+ * The roles a [DropdownChip] plays: a [Header] chrome chip (content-width, tab-fill, an accent open
+ * state, a right/down disclosure chevron), a form [Field] (fills its column over the control fill, a
+ * down/up chevron pushed to the trailing edge) that sits beside the other form controls, or a [Compact]
+ * header chip sized for a 22.dp list row (a 14.dp glyph in 2.dp padding, so the face is 18.dp tall
+ * where a Header's 24.dp would overflow the row).  Sanctioned variations of the one chip rather than
+ * forks, so every role shares the anatomy.
  */
 enum class DropdownChipStyle {
 	Header,
 	Field,
+	Compact,
 }
 
 /**
@@ -65,6 +69,8 @@ enum class DropdownChipStyle {
  * @param String    label              Optional labelMedium text between the icon and the chevron.
  * @param Boolean   enabled            When false the content dims to the disabled tint and clicks are inert
  *   (no-document chrome renders its chips this way rather than hiding them).
+ * @param DropdownChipStyle style     Which role the chip plays; see [DropdownChipStyle].
+ * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
  * @param Function  dropdown           The popup content, rendered while expanded.
  */
 @Composable
@@ -77,6 +83,7 @@ fun DropdownChip(
 	label: String? = null,
 	enabled: Boolean = true,
 	style: DropdownChipStyle = DropdownChipStyle.Header,
+	iconTint: Color? = null,
 	dropdown: @Composable () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -86,6 +93,12 @@ fun DropdownChip(
 	// A disabled chip shows no hover feedback (the border and fill stay at rest).
 	val hovered = hoveredLive && enabled
 	val isField = style == DropdownChipStyle.Field
+	// A Compact chip keeps the Header anatomy at list-row scale: the glyph matches the row's own 14.dp
+	// icons and the padding halves, so the 18.dp face sits inside a 22.dp row instead of overflowing it.
+	val isCompact = style == DropdownChipStyle.Compact
+	val facePadding = if (isCompact) 2.dp else 4.dp
+	val glyphSize = if (isCompact) 14.dp else 16.dp
+	val chevronSize = if (isCompact) 10.dp else 12.dp
 	val borderColor =
 		when {
 			expanded -> colors.accent
@@ -132,7 +145,7 @@ fun DropdownChip(
 						.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
 						.border(width = 1.dp, color = borderColor, shape = shapes.small)
 						.background(backgroundColor, shape = shapes.small)
-						.padding(4.dp)
+						.padding(facePadding)
 						.semantics { this.contentDescription = contentDescription },
 				verticalAlignment = Alignment.CenterVertically,
 			) {
@@ -141,8 +154,10 @@ fun DropdownChip(
 					// measures the glyph at zero and the chip renders as an empty padding box.  The chip holds
 					// its glyphs at full size and overflows instead - being pushed off the edge is legible,
 					// silently shrinking to nothing is not.
-					Canvas(modifier = Modifier.requiredSize(16.dp)) {
-						drawIcon(icon, chipContentColor)
+					// A status tint colors the glyph at rest only; the open and disabled faces keep their own contrast.
+					val glyphColor = if (iconTint != null && enabled && !expanded) iconTint else chipContentColor
+					Canvas(modifier = Modifier.requiredSize(glyphSize)) {
+						drawIcon(icon, glyphColor)
 					}
 				}
 				if (label != null) {
@@ -169,7 +184,7 @@ fun DropdownChip(
 						expanded -> LocalUmamoIcons.chevronDown
 						else -> LocalUmamoIcons.chevronRight
 					}
-				Canvas(modifier = Modifier.requiredSize(12.dp)) {
+				Canvas(modifier = Modifier.requiredSize(chevronSize)) {
 					drawIcon(chevron, chipContentColor)
 				}
 			}

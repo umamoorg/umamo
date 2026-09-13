@@ -68,7 +68,7 @@ class RelationPickRequest(
 )
 
 /**
- * The shell slot holding the one in-flight relation pick, mirroring [RowDragCancelController].  A pick is
+ * The shell slot holding the one in-flight relation pick, mirroring [org.umamo.ui.workspace.rowdrag.RowDragCancelController].  A pick is
  * deliberately NOT an [org.umamo.edit.ToolLatches] latch: every latch is scoped to one viewport area, but a
  * pick must also resolve from the outliner, and the latches are non-reactive vars while both resolving
  * surfaces need to gate their composition on this state.  Parking it here also keeps a panel concern out of

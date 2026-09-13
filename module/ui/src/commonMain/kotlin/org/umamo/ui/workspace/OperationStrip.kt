@@ -80,18 +80,32 @@ private val STRIP_MARGIN = 8.dp
 private val STRIP_MIN_WIDTH = 300.dp
 
 /**
+ * Whether a space hosts the operation settings strip: the 2D viewport and the UV editor, the two work
+ * surfaces, and nothing else.  A panel never shows the strip - Blender's redo panel is a region of the
+ * editors that have one - so a command fired over a panel places its strip in the last work surface the
+ * pointer touched instead (CommandRouting.operationStripArea), and a work surface switched to a panel
+ * after the operation stops showing it.
+ */
+internal val SpaceKind.hostsOperationStrip: Boolean
+	get() = this == SpaceKind.Viewport2D || this == SpaceKind.UvEditor
+
+/**
  * Hosts the strip for one area over [content]: the space body renders under the strip's inset, and
  * the strip itself draws in the bottom-left whenever the session's adjustable operation names
- * [areaId].  Mounted by the area leaf, so every space kind is covered by the one host.
+ * [areaId] and [kind] hosts the strip.  Mounted by every area leaf, so the gate lives in one place
+ * rather than in each space.
  *
- * @param String?  areaId  The hosting area's id.
- * @param Function content The space body.
+ * @param String?   areaId  The hosting area's id.
+ * @param SpaceKind kind    The space the area currently hosts.
+ * @param Function  content The space body.
  */
 @Composable
-internal fun OperationStripHost(areaId: String?, content: @Composable () -> Unit) {
+internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Composable () -> Unit) {
 	val session = LocalEditorSession.current
-	// Only a record naming THIS area shows here; one naming another area, or none, is that area's.
-	val record = session?.adjustableOperation?.collectAsState()?.value?.takeIf { candidate -> candidate.areaId == areaId }
+	// Only a record naming THIS area shows here, and only while the area is a work surface; one naming
+	// another area, or none, is that area's.
+	val record =
+		session?.adjustableOperation?.collectAsState()?.value?.takeIf { candidate -> candidate.areaId == areaId && kind.hostsOperationStrip }
 	var stripHeight by remember { mutableStateOf(0.dp) }
 	val density = LocalDensity.current
 	val inset: Dp = if (record != null) stripHeight + STRIP_MARGIN else 0.dp
@@ -113,17 +127,32 @@ internal fun OperationStripHost(areaId: String?, content: @Composable () -> Unit
 }
 
 /**
- * The strip for an operation that ran in no particular area: the shell mounts it above the status
- * bar.  Draws nothing while the adjustable operation names an area (the area's host shows it) or
- * while there is none.
+ * Whether the shell's own strip shows a record: one that names no area (the workspace had no work
+ * surface to name), or one whose named area cannot show it now - the area was switched to a panel or
+ * closed after the operation ran.  Every record shows exactly once: the area's host takes a record whose
+ * area still hosts a strip, and the shell takes every other.
  *
+ * @param String?  areaId  The area the record names, or null.
+ * @param Function spaceOf The space the live area tree hosts at an id, or null for an id it lacks.
+ * @return Boolean True when the shell draws the strip.
+ */
+internal fun shellShowsStrip(areaId: String?, spaceOf: (String) -> SpaceKind?): Boolean =
+	areaId == null || spaceOf(areaId)?.hostsOperationStrip != true
+
+/**
+ * The strip for an operation the area tree cannot show: it ran in a workspace with no 2D viewport or UV
+ * editor at all, or the area it named has since been switched to a panel or closed.  The shell mounts it
+ * above the status bar.  Draws nothing while the adjustable operation names an area that still hosts a
+ * strip (that area's host shows it) or while there is none.
+ *
+ * @param Function spaceOf  The space the live area tree hosts at an id, or null for an id it lacks.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
-internal fun ShellOperationStrip(modifier: Modifier = Modifier) {
+internal fun ShellOperationStrip(spaceOf: (String) -> SpaceKind?, modifier: Modifier = Modifier) {
 	val session = LocalEditorSession.current ?: return
 	val record = session.adjustableOperation.collectAsState().value ?: return
-	if (record.areaId != null) {
+	if (!shellShowsStrip(record.areaId, spaceOf)) {
 		return
 	}
 	Box(modifier = modifier.fillMaxWidth().padding(start = STRIP_MARGIN, bottom = 4.dp), contentAlignment = Alignment.BottomStart) {

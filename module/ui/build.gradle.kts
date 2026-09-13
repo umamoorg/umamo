@@ -72,6 +72,8 @@ kotlin {
 				// drive (LocalEditorSession, the session-backed handles); declared directly, the project's
 				// convention even though :edit also surfaces transitively.
 				implementation(project(":edit"))
+				// The re-import engine: the reload planner the Sources space's Reload and relink run.
+				implementation(project(":reimport"))
 				implementation(project(":settings"))
 				implementation(project(":storage"))
 			}
@@ -157,4 +159,6 @@ umamoTestCorpus {
 	// (test/corpus/moc3/modelG) saved as a .cmo3.  It lives OUTSIDE the golden glob because a
 	// converted file fails the corpus invariants by nature, and it self-skips until the file exists.
 	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/invalid/modelG.cmo3")
+	// The artwork-import gate's fixture: a real layered PSD, imported, packed at open, and exported.
+	sampleWithCorpusDefault("psd.sample", "psd/EricaTamamo.psd")
 }

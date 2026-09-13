@@ -41,6 +41,27 @@ internal data class PsdChannelInfo(
 )
 
 /**
+ * One raster layer mask's geometry, from the layer's mask data block: where its pixels sit, what
+ * value it takes outside them, and whether it applies at all.
+ *
+ * PSD: a mask channel's plane is sized to THIS rectangle, not the layer's, and the mask reads as
+ * [defaultColor] everywhere outside it.  The rectangle is in canvas coordinates: Photoshop sets the
+ * "position relative to layer" flag on every mask in the corpus and writes canvas coordinates
+ * anyway, so the flag is recorded but never applied.
+ *
+ * @property LayerBounds bounds          The mask's rectangle in canvas pixels (top-left origin, width and height).
+ * @property Int         defaultColor    The mask value (0 or 255) outside [bounds].
+ * @property Boolean     relativeToLayer The flags byte's bit 0, as stored; advisory only (see above).
+ * @property Boolean     disabled        Whether the mask is switched off (its channel is still stored).
+ */
+internal data class PsdLayerMask(
+	val bounds: LayerBounds,
+	val defaultColor: Int,
+	val relativeToLayer: Boolean,
+	val disabled: Boolean,
+)
+
+/**
  * Per-layer metadata read from a PSD's "Layer and Mask Information" section.
  *
  * We parse this ourselves rather than leaning on a library that keeps its layer structures private:
@@ -69,6 +90,13 @@ internal data class PsdLayerRecord(
 	// and reorder for the life of the layer; null when the writer omits lyid (some exporters do), in
 	// which case the reader falls back to a name+order identity.
 	val layerId: Int?,
+	// PSD: the raster layer mask stored in channel -2, or null when the layer has none.  When a
+	// layer carries both a vector mask and a pixel mask, this describes the rasterized vector mask
+	// and [realUserMask] the pixel one.
+	val userMask: PsdLayerMask?,
+	// PSD: the pixel mask stored in channel -3 when the mask data block carries its "real" rectangle
+	// (a layer with both a vector and a pixel mask); null otherwise.
+	val realUserMask: PsdLayerMask?,
 	// PSD: this layer's channels, in storage order; their lengths drive the channel-data layout.
 	val channels: List<PsdChannelInfo>,
 	// Absolute file offset of this layer's channel image data (assigned after all records are read).
@@ -165,7 +193,7 @@ internal object PsdLayerRecords {
 			val dividerType = findAdditionalInfoInt(buffer, extraDataStart, extraDataEnd, "lsct") ?: 0
 			// PSD: the lyid block carries Photoshop's stable per-layer id (absent when the writer omits it).
 			val layerId = findAdditionalInfoInt(buffer, extraDataStart, extraDataEnd, "lyid")
-			skipLengthPrefixed(buffer) // PSD: layer mask / adjustment data
+			val (userMask, realUserMask) = readLayerMaskData(buffer)
 			skipLengthPrefixed(buffer) // PSD: layer blending ranges
 			val nameLength = buffer.readU8() // PSD: legacy Pascal-string name length
 			// The name is user text, not a tag: decode UTF-8, never readAscii (which is US-ASCII and
@@ -187,6 +215,8 @@ internal object PsdLayerRecords {
 					// PSD: a folder header's blend mode key is "pass" exactly when the folder is pass-through.
 					passThrough = blendKey == "pass",
 					layerId = layerId,
+					userMask = userMask,
+					realUserMask = realUserMask,
 					channels = channelInfos,
 					channelDataOffset = 0, // placeholder; filled in below once the data start is known
 				)
@@ -204,6 +234,92 @@ internal object PsdLayerRecords {
 			}
 
 		return PsdParse(header = header, colorModeData = colorModeData, records = withOffsets)
+	}
+
+	/**
+	 * Reads a layer record's Layer Mask / Adjustment Layer Data block, leaving the cursor just past it.
+	 *
+	 * PSD: u32 size (0 = no mask), then the mask rectangle (i32 top / left / bottom / right), a u8
+	 * default color (0 or 255), and a u8 flags byte - bit 0 = rectangle relative to the layer, bit 1 =
+	 * mask disabled, bit 4 = mask parameters follow (a flags byte, then a u8 density and / or an f64
+	 * feather for the user and the vector mask as its bits say).  A 20-byte block ends with 2 bytes of
+	 * padding; a longer one carries the "real" user mask instead - u8 real flags, u8 real background,
+	 * and the real rectangle - which describes the pixel mask (channel -3) when a vector mask (whose
+	 * rasterization is channel -2) sits beside it.
+	 *
+	 * @param ByteReader buffer The reader, positioned at the block's size field.
+	 * @return Pair The channel -2 mask and the channel -3 mask, either null when absent.
+	 */
+	private fun readLayerMaskData(buffer: ByteReader): Pair<PsdLayerMask?, PsdLayerMask?> {
+		val size = buffer.readU32AsInt()
+		val end = buffer.position + size
+		if (size < 20) {
+			buffer.position = end
+			return null to null
+		}
+		val userMask = readMaskGeometry(buffer)
+		if ((userMask.flagsBits and 0x10) != 0) {
+			val parameterFlags = buffer.readU8()
+			if ((parameterFlags and 0x01) != 0) {
+				buffer.position += 1
+			}
+			if ((parameterFlags and 0x02) != 0) {
+				buffer.position += 8
+			}
+			if ((parameterFlags and 0x04) != 0) {
+				buffer.position += 1
+			}
+			if ((parameterFlags and 0x08) != 0) {
+				buffer.position += 8
+			}
+		}
+		var realUserMask: PsdLayerMask? = null
+		if (end - buffer.position >= 18) {
+			// PSD: real flags, real user mask background, real rectangle - the pixel mask's own geometry.
+			val realFlags = buffer.readU8()
+			val realBackground = buffer.readU8()
+			val realTop = buffer.readU32().toInt()
+			val realLeft = buffer.readU32().toInt()
+			val realBottom = buffer.readU32().toInt()
+			val realRight = buffer.readU32().toInt()
+			realUserMask =
+				PsdLayerMask(
+					bounds = LayerBounds(left = realLeft, top = realTop, width = realRight - realLeft, height = realBottom - realTop),
+					defaultColor = realBackground,
+					relativeToLayer = (realFlags and 0x01) != 0,
+					disabled = (realFlags and 0x02) != 0,
+				)
+		}
+		buffer.position = end
+		return userMask.mask to realUserMask
+	}
+
+	/** A parsed mask rectangle with the raw flags byte, so the caller can read the parameter bit. */
+	private class MaskGeometry(val mask: PsdLayerMask, val flagsBits: Int)
+
+	/**
+	 * Reads one mask geometry: the rectangle, the default color, and the flags.
+	 *
+	 * @param ByteReader buffer The reader, positioned at the rectangle's top field.
+	 * @return MaskGeometry The mask plus its raw flags.
+	 */
+	private fun readMaskGeometry(buffer: ByteReader): MaskGeometry {
+		// PSD: the rectangle is signed - a mask can sit partly off the canvas.
+		val top = buffer.readU32().toInt()
+		val left = buffer.readU32().toInt()
+		val bottom = buffer.readU32().toInt()
+		val right = buffer.readU32().toInt()
+		val defaultColor = buffer.readU8()
+		val flags = buffer.readU8()
+		return MaskGeometry(
+			PsdLayerMask(
+				bounds = LayerBounds(left = left, top = top, width = right - left, height = bottom - top),
+				defaultColor = defaultColor,
+				relativeToLayer = (flags and 0x01) != 0,
+				disabled = (flags and 0x02) != 0,
+			),
+			flags,
+		)
 	}
 
 	/**

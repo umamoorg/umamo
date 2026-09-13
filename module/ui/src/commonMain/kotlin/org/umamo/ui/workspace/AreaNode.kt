@@ -70,3 +70,31 @@ data class LeafArea(
 	val id: String,
 	val space: SpaceKind,
 ) : AreaNode
+
+/**
+ * The space the leaf [areaId] currently hosts under this node, or null when no leaf here has that id -
+ * the live answer to "does this area still host X", for a stamp or a record that names an area by id
+ * and may have outlived its kind or the area itself.
+ *
+ * @param String areaId The leaf's area id.
+ * @return SpaceKind? The hosted space, or null.
+ */
+fun AreaNode.spaceOf(areaId: String): SpaceKind? =
+	when (this) {
+		is LeafArea -> if (id == areaId) space else null
+		is SplitNode -> first.spaceOf(areaId) ?: second.spaceOf(areaId)
+	}
+
+/**
+ * The first leaf under this node that [predicate] accepts, in tree order (a split's first child before
+ * its second: left before right, top before bottom), or null when none does - how a caller finds "some
+ * area of this kind" when the pointer has named none.
+ *
+ * @param Function predicate Whether a leaf qualifies.
+ * @return LeafArea? The first qualifying leaf, or null.
+ */
+fun AreaNode.firstLeafOrNull(predicate: (LeafArea) -> Boolean): LeafArea? =
+	when (this) {
+		is LeafArea -> if (predicate(this)) this else null
+		is SplitNode -> first.firstLeafOrNull(predicate) ?: second.firstLeafOrNull(predicate)
+	}

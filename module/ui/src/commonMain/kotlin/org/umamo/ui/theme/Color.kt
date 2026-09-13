@@ -65,6 +65,12 @@ import androidx.compose.ui.graphics.Color
  * @property Color keyedOnKeyBackground       Translucent background wash paired with [keyedOnKey].
  * @property Color keyedBetweenBackground     Translucent background wash paired with [keyedBetween].
  * @property Color keyedModifiedBackground    Translucent background wash paired with [keyedModified].
+ * @property Color signalGood         Glyph tint for a healthy state a panel reports (a layer bound by a
+ *   stable key): the green of a traffic light, identical in both schemes.
+ * @property Color signalCaution      Glyph tint for a state that works but will not survive a change (a
+ *   binding by name, an unplaced tile): the amber of a traffic light.
+ * @property Color signalBad          Glyph tint for a broken state (an unbound layer, a missing file): the
+ *   red of a traffic light.
  * @property Color buttonHover        Hover fill for unselected ButtonGroup segments (stronger than
  *   rowHover in dark).
  * @property Color sliderTrack        Recessed slider track / pad groove (unfilled).
@@ -133,6 +139,9 @@ data class UmamoColors(
 	val keyedOnKeyBackground: Color,
 	val keyedBetweenBackground: Color,
 	val keyedModifiedBackground: Color,
+	val signalGood: Color,
+	val signalCaution: Color,
+	val signalBad: Color,
 	val buttonHover: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
@@ -177,6 +186,13 @@ private val keyframeOnKey = Color(0xFFD1B727)
 private val keyframeBetween = Color(0xFF5FC729)
 private val keyframeModified = Color(0xFFDF8431)
 private const val KEYED_BACKGROUND_ALPHA = 0.22f
+
+// The traffic-light signals (good / caution / bad), identical in both schemes for the same reason as the
+// keyframe colors.  Deliberately not the keyframe trio: keyedBetween is a keyframe state, not a health
+// report, and one color must not carry two meanings across panels.
+private val signalGreen = Color(0xFF58B65C)
+private val signalAmber = Color(0xFFD9A62B)
+private val signalRed = Color(0xFFE05252)
 private val brandPurpleBright = Color(0xFFD394ED)
 
 // The light scheme deepens the accent so white on-accent text reads at ~5.6:1 (the dark purple family
@@ -233,6 +249,9 @@ val umamoDarkColors =
 		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		signalGood = signalGreen,
+		signalCaution = signalAmber,
+		signalBad = signalRed,
 		buttonHover = Color(0xFF656565),
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
@@ -300,6 +319,9 @@ val umamoLightColors =
 		keyedOnKeyBackground = keyframeOnKey.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		keyedBetweenBackground = keyframeBetween.copy(alpha = KEYED_BACKGROUND_ALPHA),
 		keyedModifiedBackground = keyframeModified.copy(alpha = KEYED_BACKGROUND_ALPHA),
+		signalGood = signalGreen,
+		signalCaution = signalAmber,
+		signalBad = signalRed,
 		buttonHover = Color(0xFFEDEDED),
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),

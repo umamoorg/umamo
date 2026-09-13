@@ -58,11 +58,16 @@ class AreaHoverStampTest {
 	 * tracker ended up holding.
 	 *
 	 * @param SpaceKind kind The space the leaf hosts.
+	 * @param Function read Which stamp to report; the last-touched surface by default.
 	 * @param Function interact The pointer input to drive.
 	 * @return HoveredSurface? The stamped surface, or null if nothing stamped.
 	 */
 	@OptIn(ExperimentalTestApi::class)
-	private fun stampAfter(kind: SpaceKind, interact: MouseInjectionScope.() -> Unit): HoveredSurface? {
+	private fun stampAfter(
+		kind: SpaceKind,
+		read: (HoveredSurfaceTracker) -> HoveredSurface? = { tracker -> tracker.lastTouched },
+		interact: MouseInjectionScope.() -> Unit,
+	): HoveredSurface? {
 		var result: HoveredSurface? = null
 		runComposeUiTest {
 			val tracker = HoveredSurfaceTracker()
@@ -79,9 +84,26 @@ class AreaHoverStampTest {
 				}
 			}
 			onNodeWithTag("leaf").performMouseInput(interact)
-			result = tracker.lastTouched
+			result = read(tracker)
 		}
 		return result
+	}
+
+	/**
+	 * Only a work surface stamps the strip host: the operation settings strip exists in the 2D viewport
+	 * and the UV editor alone, so a panel touched last must never become where a strip appears.  Swept
+	 * over the enum like the stamp itself, so a kind added later is classified by construction.
+	 */
+	@Test
+	fun onlyWorkSurfacesStampTheStripHost() {
+		for (kind in SpaceKind.entries) {
+			val expected = if (kind.hostsOperationStrip) HoveredSurface("area-1", kind) else null
+			assertEquals(
+				expected,
+				stampAfter(kind, { tracker -> tracker.lastTouchedStripHost }) { moveTo(Offset(200f, 200f)) },
+				"${kind.name} stamped the strip host wrongly",
+			)
+		}
 	}
 
 	/**
@@ -170,6 +192,45 @@ class AreaHoverStampTest {
 				tracker.lastTouched,
 				"the leaf kept its id across the switch, so a stamp keyed only on the id would still say Outliner",
 			)
+		}
+
+	/**
+	 * Switching a work surface to a panel releases its strip-host claim at once, with no pointer event
+	 * over the area: a document-wide command fired elsewhere right after the switch would otherwise be
+	 * routed to an area whose host refuses a non-hosting kind, and its strip would show nowhere.  The
+	 * general stamp stays, since the area still exists, and follows the new kind on the next touch.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aSpaceChangeReleasesTheStripHostWithoutAPointerEvent() =
+		runComposeUiTest {
+			val tracker = HoveredSurfaceTracker()
+			var switchToLogs: (() -> Unit)? = null
+			setContent {
+				var space by remember { mutableStateOf(SpaceKind.Viewport2D) }
+				switchToLogs = { space = SpaceKind.Logs }
+				UmamoTheme {
+					CompositionLocalProvider(
+						LocalSpaceRegistry provides stubRegistry(),
+						LocalHoveredSurfaceTracker provides tracker,
+					) {
+						Box(modifier = Modifier.size(400.dp, 300.dp).testTag("leaf")) {
+							AreaLeaf(area = LeafArea("area-1", space), onCommand = {})
+						}
+					}
+				}
+			}
+			onNodeWithTag("leaf").performMouseInput { moveTo(Offset(200f, 200f)) }
+			assertEquals(HoveredSurface("area-1", SpaceKind.Viewport2D), tracker.lastTouchedStripHost)
+
+			switchToLogs?.invoke()
+			waitForIdle()
+			assertNull(tracker.lastTouchedStripHost, "the strip-host claim is released by the switch itself")
+			assertEquals(HoveredSurface("area-1", SpaceKind.Viewport2D), tracker.lastTouched, "the general stamp survives until the next touch")
+
+			onNodeWithTag("leaf").performMouseInput { moveTo(Offset(210f, 200f)) }
+			assertEquals(HoveredSurface("area-1", SpaceKind.Logs), tracker.lastTouched)
+			assertNull(tracker.lastTouchedStripHost, "a panel never re-claims the strip host")
 		}
 
 	/**

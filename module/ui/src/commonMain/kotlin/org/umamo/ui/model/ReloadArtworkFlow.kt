@@ -1,0 +1,678 @@
+package org.umamo.ui.model
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.umamo.edit.AdjustableOperation
+import org.umamo.edit.DocumentChange
+import org.umamo.edit.NoticePlacement
+import org.umamo.edit.commitArtworkRelinked
+import org.umamo.edit.commitArtworkReloaded
+import org.umamo.edit.setTileSources
+import org.umamo.edit.withArtworkReloaded
+import org.umamo.format.art.LayerRaster
+import org.umamo.format.art.SourceArt
+import org.umamo.interop.art.SourceArtImport
+import org.umamo.interop.art.SourceArtImportNotice
+import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.reimport.ArtworkReloadPlanner
+import org.umamo.reimport.InventoryLayerMatcher
+import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.ReconcileResult
+import org.umamo.reimport.ReloadPlan
+import org.umamo.render.DecodedImage
+import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
+import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.ArtSourceLayer
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.storage.UmamoLog
+
+/*
+ * Reloading the document's artwork files, and relinking a tile with the layer's art pulled in: the
+ * planner's delta applied to the live model, the changed tiles packed into the gaps around the art
+ * that did not change, committed as one undo step and registered on the operation settings strip.
+ * Add Artwork's shape throughout - the same pack-around primitive, the same supersede check, the
+ * same amend-in-place adjustment - because a reload is an import of the layers that changed.
+ *
+ * A reloaded tile is a NEW tile (see AtlasTile.replaces): its pixels join the raster store beside the
+ * old tile's, so an undo shows the old art again by pure snapshot, and nothing here ever overwrites
+ * a raster the document already holds.
+ */
+
+/**
+ * One listed file to re-read.
+ *
+ * @property ArtSourceId sourceId    The file's record in the model.
+ * @property SourceArt   art         The file as just read.
+ * @property String?     contentHash The whole-file content hash of the bytes it was read from, recorded
+ *   on the refreshed source so the watcher knows this save was taken; null keeps the record's.
+ * @property Long?       lastModified The file's modification time when read, recorded beside the hash;
+ *   null keeps the record's.
+ */
+class ReloadEntry(
+	val sourceId: ArtSourceId,
+	val art: SourceArt,
+	val contentHash: String? = null,
+	val lastModified: Long? = null,
+) {
+	/**
+	 * The inventory of [art], computed once for the entry's life: it hashes every layer's pixels, and
+	 * the planner, the scorer, and every strip adjustment over this read want the same rows.
+	 */
+	val inventory: List<ArtSourceLayer> by lazy { SourceArtImport.inventoryOf(art) }
+}
+
+/** How a reload ended - what the watcher needs to know to wait, retry, or let go. */
+enum class ReloadArtworkResult {
+	/** The reload landed as one undo step. */
+	Applied,
+
+	/** The files were read and nothing in them changed the document. */
+	NothingChanged,
+
+	/** The pack could not keep the document's own art in place; the person was shown the report. */
+	Refused,
+
+	/** An edit landed while the reload was being planned; nothing was applied. */
+	Superseded,
+}
+
+/**
+ * The files a reload re-reads, as read from disk, with the decoded wrapper of every layer raster
+ * minted once so a re-run hands the raster store the same instances (the renderer's texture cache
+ * keys on that identity).
+ *
+ * @property List                   entries        The files, each with its art.
+ * @property SourceArtImportOptions options        The threshold and margin the first run uses.
+ * @property Float                  matchThreshold The confidence, 0..1, at or above which a lost binding
+ *   takes the layer that re-created it in the same step.
+ */
+class ReloadArtworkRequest(
+	val entries: List<ReloadEntry>,
+	val options: SourceArtImportOptions,
+	val matchThreshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
+) {
+	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
+
+	/**
+	 * The decoded wrapper of one of the files' layer rasters.
+	 *
+	 * @param LayerRaster raster The layer's pixels.
+	 * @return DecodedImage The wrapper, the same instance on every call.
+	 */
+	internal fun decodedFor(raster: LayerRaster): DecodedImage = decoded.decodedFor(raster)
+}
+
+/**
+ * The tiles to rebind to one layer, with the layer's file as read when it could be.  One tile for the
+ * tile chip and a drop; every tile bound to a lost key for a review row's accepted proposal or relink
+ * by hand, so those move as one step.
+ *
+ * @property List<AtlasTileId>      tileIds The tiles, in any order.
+ * @property SourceLayerRef         ref     The binding they take.
+ * @property SourceArt?             art     The file [ref] names, or null when it could not be read
+ *   (missing, unreadable, or a platform uri) - the bindings then change alone.
+ * @property SourceArtImportOptions options The threshold and margin a re-born quad uses.
+ * @property List<AtlasTileId>      retire  The tiles bound to the target layer that go with the move -
+ *   the fresh drawable a reload minted for it, named by the proposal being accepted; each is re-checked
+ *   for rig work before it leaves.  Empty for a relink by hand or a drop.
+ */
+class RelinkArtworkRequest(
+	val tileIds: List<AtlasTileId>,
+	val ref: SourceLayerRef,
+	val art: SourceArt?,
+	val options: SourceArtImportOptions,
+	val retire: List<AtlasTileId> = emptyList(),
+) {
+	/**
+	 * The one-tile form.
+	 *
+	 * @param AtlasTileId            tileId  The tile.
+	 * @param SourceLayerRef         ref     The binding it takes.
+	 * @param SourceArt?             art     The file [ref] names, or null when it could not be read.
+	 * @param SourceArtImportOptions options The threshold and margin a re-born quad uses.
+	 */
+	constructor(tileId: AtlasTileId, ref: SourceLayerRef, art: SourceArt?, options: SourceArtImportOptions) : this(listOf(tileId), ref, art, options)
+
+	/**
+	 * The inventory of [art], computed once for the request's life; empty without the file.
+	 */
+	val inventory: List<ArtSourceLayer> by lazy { art?.let(SourceArtImport::inventoryOf).orEmpty() }
+
+	private val decoded = DecodedLayerRasters(art?.layers.orEmpty())
+
+	/**
+	 * The decoded wrapper of one of the file's layer rasters.
+	 *
+	 * @param LayerRaster raster The layer's pixels.
+	 * @return DecodedImage The wrapper, the same instance on every call.
+	 */
+	internal fun decodedFor(raster: LayerRaster): DecodedImage = decoded.decodedFor(raster)
+}
+
+/** What one reload pass produced, or why it produced nothing. */
+private sealed interface ReloadOutcome {
+	/** No file changed in any way the document records. */
+	data object NothingChanged : ReloadOutcome
+
+	/**
+	 * The pack could not keep some of the document's own art where it is; nothing was applied.
+	 *
+	 * @property List refusals The document's tiles the pack could not keep.
+	 */
+	class Refused(val refusals: List<AtlasRepackRefusal>) : ReloadOutcome
+
+	/**
+	 * The delta applied and packed.
+	 *
+	 * @property PuppetModel    model         The base with the reload applied and packed.
+	 * @property PuppetTextures? textures     The pages the pack composed, index-parallel to the model's, or
+	 *   null when the pass minted no tile and so packed nothing - the pages stand as they are.
+	 * @property Map            decodedByTile The new tiles' pixels, for the raster store.
+	 * @property List           notices       The planner's notes plus every new tile the pack left unplaced.
+	 * @property List           outgrown      Drawables whose kept mesh no longer covers the new art.
+	 * @property DocumentChange.ReloadArtwork change The step's counts.
+	 * @property List           rebindings    What the matcher rebound and retired, for the log.
+	 * @property SourceSuggestions suggestions The proposals the matcher made but did not apply, by file
+	 *   and lost key, scored before the pass minted anything - for the review chips.
+	 */
+	class Reloaded(
+		val model: PuppetModel,
+		val textures: PuppetTextures?,
+		val decodedByTile: Map<AtlasTileId, DecodedImage>,
+		val notices: List<SourceArtImportNotice>,
+		val outgrown: List<DrawableId>,
+		val change: DocumentChange.ReloadArtwork,
+		val rebindings: List<Rebinding> = emptyList(),
+		val suggestions: SourceSuggestions = emptyMap(),
+	) : ReloadOutcome
+}
+
+/**
+ * One thing the matcher did inside a reload, replace, match, or relink, as the log tells it: a lost
+ * layer's tile rebound to the layer that re-created it, or a fresh drawable retired because a rigged
+ * tile claimed its layer.
+ */
+internal sealed interface Rebinding {
+	/**
+	 * A tile rebound by the matcher.
+	 *
+	 * @property String tileName  The tile as it was named.
+	 * @property String layerName The layer it moved to.
+	 * @property Float  score     The matcher's confidence, 0..1.
+	 */
+	class Rebound(val tileName: String, val layerName: String, val score: Float) : Rebinding
+
+	/**
+	 * A fresh drawable removed with its tile because a rigged tile took its layer.
+	 *
+	 * @property String drawableName The drawable that went.
+	 * @property String layerName    The layer it sat over.
+	 */
+	class Retired(val drawableName: String, val layerName: String) : Rebinding
+}
+
+/**
+ * The rebindings one plan made, named from the model it was planned against and the art it read.
+ *
+ * @param ReloadPlan  plan The plan.
+ * @param PuppetModel base The model the plan applies to (the names before the step).
+ * @param SourceArt   art  The file as read, for the layer names.
+ * @return List<Rebinding> The rebound tiles, then the retired drawables.
+ */
+internal fun rebindingsOf(plan: ReloadPlan, base: PuppetModel, art: SourceArt): List<Rebinding> {
+	val layerNameByKey = art.layers.associate { layer -> layer.id.raw to layer.name }
+	val rebound =
+		plan.report.results.filterIsInstance<ReconcileResult.Rebound>().flatMap { result ->
+			base.atlas.tiles
+				.filter { tile -> tile.source == result.binding }
+				.map { tile -> Rebinding.Rebound(tile.name, layerNameByKey[result.layerKey] ?: result.layerKey, result.score) }
+		}
+	val retired =
+		plan.reload.retiredTiles.flatMap { tileId ->
+			val tile = base.atlas.tileById[tileId]
+			val layerName = tile?.source?.layerKey?.let { key -> layerNameByKey[key] ?: key } ?: tileId.raw
+			base.drawables.filter { drawable -> drawable.atlasTileId == tileId }.map { drawable -> Rebinding.Retired(drawable.name, layerName) }
+		}
+	return rebound + retired
+}
+
+/**
+ * Logs each rebinding under [operation].
+ *
+ * @param String          operation  The log prefix.
+ * @param List<Rebinding> rebindings What the matcher did.
+ */
+internal fun reportRebindings(operation: String, rebindings: List<Rebinding>) {
+	for (rebinding in rebindings) {
+		when (rebinding) {
+			is Rebinding.Rebound -> UmamoLog.info("$operation: '${rebinding.tileName}' rebound to layer '${rebinding.layerName}' at ${percentOf(rebinding.score)}%")
+			is Rebinding.Retired -> UmamoLog.info("$operation: the new drawable '${rebinding.drawableName}' over layer '${rebinding.layerName}' was removed; a rebound tile took the layer")
+		}
+	}
+}
+
+/**
+ * The document's pixels for a tile as the planner reads them: the raster store's decoded image,
+ * rewrapped.
+ *
+ * @param SourceArtRasters artRasters The document's raster store.
+ * @return Function The lookup, null for a tile the store cannot decode.
+ */
+private fun oldRasterLookup(artRasters: SourceArtRasters): (AtlasTileId) -> LayerRaster? =
+	{ tileId -> artRasters.decodeRaster(tileId)?.let { decoded -> LayerRaster(decoded.width, decoded.height, decoded.rgba) } }
+
+/**
+ * Applies [request]'s files to [base] one after another and packs the tiles they replaced or added
+ * into the gaps around the rest.
+ *
+ * @param PuppetModel            base               The model the reload applies to.
+ * @param ReloadArtworkRequest   request            The files as read.
+ * @param SourceArtImportOptions options            The threshold and margin to plan with.
+ * @param Float                  matchThreshold     The bar a lost binding's best candidate must reach.
+ * @param SourceArtRasters       artRasters         The document's raster store (read, never written here).
+ * @param Boolean                premultipliedAlpha The document's texture-convention flag.
+ * @return ReloadOutcome The outcome.
+ */
+private fun reloadOutcome(
+	base: PuppetModel,
+	request: ReloadArtworkRequest,
+	options: SourceArtImportOptions,
+	matchThreshold: Float,
+	artRasters: SourceArtRasters,
+	premultipliedAlpha: Boolean,
+): ReloadOutcome {
+	var model = base
+	val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
+	val notices = ArrayList<SourceArtImportNotice>()
+	val outgrown = ArrayList<DrawableId>()
+	val rebindings = ArrayList<Rebinding>()
+	val suggestions = LinkedHashMap<Pair<ArtSourceId, String>, LayerMatch>()
+	var replaced = 0
+	var added = 0
+	var matched = 0
+	var missing = 0
+	val oldRasterOf = oldRasterLookup(artRasters)
+	for (entry in request.entries) {
+		val plan =
+			ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified, matchThreshold = matchThreshold)
+				?: continue
+		val next = model.withArtworkReloaded(plan.reload)
+		if (next === model) {
+			UmamoLog.error("reload artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")
+			continue
+		}
+		rebindings.addAll(rebindingsOf(plan, model, entry.art))
+		for ((lostKey, match) in plan.leftovers) {
+			suggestions[entry.sourceId to lostKey] = match
+		}
+		model = next
+		rasters.putAll(plan.rasterByTile)
+		notices.addAll(plan.notices)
+		outgrown.addAll(plan.reload.outgrown)
+		replaced += plan.reload.replacedTiles.size
+		added += plan.reload.additions?.drawables?.size ?: 0
+		matched += plan.report.results.count { result -> result is ReconcileResult.Rebound }
+		missing += plan.report.needsReview.size
+	}
+	if (model === base) {
+		return ReloadOutcome.NothingChanged
+	}
+	val change = DocumentChange.ReloadArtwork(request.entries.size, replaced, added, matched, missing)
+	return packReloaded(model, rasters.mapValues { (_, raster) -> request.decodedFor(raster) }, notices, artRasters, premultipliedAlpha) { packedModel, textures, packedNotices, decodedByTile ->
+		ReloadOutcome.Reloaded(packedModel, textures, decodedByTile, packedNotices, outgrown, change, rebindings, suggestions)
+	}
+}
+
+/**
+ * Packs the tiles a reload or relink minted (all of them unplaced) around the document's art and
+ * builds the outcome from the result.  A pass that minted no tile - a layer the file lost, an
+ * inventory refresh - packs nothing at all: the pack would resize a page whose art did not change,
+ * and a placement is only ever moved by the operation that put a tile there.
+ *
+ * @param PuppetModel      model              The model with the delta applied.
+ * @param Map              decodedByTile      The new tiles' pixels.
+ * @param List             notices            The notes so far.
+ * @param SourceArtRasters artRasters         The document's raster store, for every other tile.
+ * @param Boolean          premultipliedAlpha The document's texture-convention flag.
+ * @param Function         reloaded           Builds the success outcome from the packed model.
+ * @return ReloadOutcome The outcome, refused when the document's own art could not be kept.
+ */
+private inline fun packReloaded(
+	model: PuppetModel,
+	decodedByTile: Map<AtlasTileId, DecodedImage>,
+	notices: List<SourceArtImportNotice>,
+	artRasters: SourceArtRasters,
+	premultipliedAlpha: Boolean,
+	reloaded: (PuppetModel, PuppetTextures?, List<SourceArtImportNotice>, Map<AtlasTileId, DecodedImage>) -> ReloadOutcome,
+): ReloadOutcome {
+	if (decodedByTile.isEmpty()) {
+		return reloaded(model, null, notices, decodedByTile)
+	}
+	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
+	return when (val packed = packNewTilesAround(model, decodedByTile.keys, decode, premultipliedAlpha, notices)) {
+		is PackAroundOutcome.Refused -> ReloadOutcome.Refused(packed.refusals)
+		is PackAroundOutcome.Packed -> reloaded(packed.model, packed.textures, packed.notices, decodedByTile)
+	}
+}
+
+/**
+ * Reloads the document's artwork files as ONE undo step and registers it on the operation settings
+ * strip (Match Threshold - the bar a lost layer's re-creation must reach to be rebound in the step -
+ * then Alpha Threshold and Birth Mesh Margin, the rows every re-born quad and added layer take).
+ *
+ * Runs on the UI thread; the planning and the pack hop to the default dispatcher.  The delta is
+ * planned against the model current at the start, so any edit landing meanwhile supersedes it.  The
+ * new rasters join the store only once the commit is certain.  A reload that lands publishes the
+ * proposals its matcher left under the bar (scored before it minted anything, so a lost row can still
+ * offer the layer the reload minted a fresh drawable for); one that lands nothing publishes nothing.
+ *
+ * @param AtlasRepackHost      host    The session, art, resolver, scope, and shell callbacks.
+ * @param ReloadArtworkRequest request The files as read.
+ * @param String?              areaId  The area the strip shows in, or null.
+ * @param Function             publish Takes the proposals left under the bar, for the review chips.
+ * @return ReloadArtworkResult How the reload ended.
+ */
+suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkRequest, areaId: String?, publish: (SourceSuggestions) -> Unit = {}): ReloadArtworkResult {
+	val session = host.session
+	val modelAtStart = session.model.value
+	val outcome =
+		withContext(Dispatchers.Default) {
+			reloadOutcome(modelAtStart, request, request.options, request.matchThreshold, host.artRasters, host.premultipliedAlpha)
+		}
+	when (outcome) {
+		ReloadOutcome.NothingChanged -> {
+			UmamoLog.info("reload artwork: nothing changed in ${request.entries.size} file(s)")
+			session.emitNotice("notice.reload.noChanges", NoticePlacement.StatusBar)
+			return ReloadArtworkResult.NothingChanged
+		}
+		is ReloadOutcome.Refused -> {
+			for (refusal in outcome.refusals) {
+				UmamoLog.warn("reload artwork: the document's tile '${refusal.tileName}' could not be kept in place (${refusal.reason}); nothing was applied")
+			}
+			host.report(AtlasRepackReport(outcome.refusals))
+			return ReloadArtworkResult.Refused
+		}
+		is ReloadOutcome.Reloaded -> Unit
+	}
+	if (session.model.value !== modelAtStart) {
+		UmamoLog.warn("reload artwork: the document changed while its files were being reloaded; nothing was applied")
+		session.emitNotice("notice.import.artworkSuperseded", NoticePlacement.StatusBar)
+		return ReloadArtworkResult.Superseded
+	}
+	host.artRasters.addDecoded(outcome.decodedByTile)
+	val committed = session.commitArtworkReloaded(outcome.change, outcome.model)
+	prewarmPages(host, committed, outcome.textures)
+	publish(outcome.suggestions)
+	reportReload(outcome, committed)
+	val change = outcome.change
+	session.emitNotice(
+		when {
+			outcome.outgrown.isNotEmpty() -> "notice.reload.outgrown"
+			outcome.notices.isNotEmpty() || change.missingCount > 0 -> "notice.reload.notes"
+			else -> "notice.reload.done"
+		},
+		NoticePlacement.StatusBar,
+		listOf(change.replacedCount.toString(), change.addedCount.toString(), change.matchedCount.toString(), change.missingCount.toString()),
+	)
+	session.registerAdjustableOperation(committed, areaId, matchArtworkParameters(request.matchThreshold, request.options)) { record ->
+		host.scope.launch { adjustReloadArtwork(host, record, request, publish) }
+	}
+	return ReloadArtworkResult.Applied
+}
+
+/**
+ * Re-plans the reload for an adjustment of the strip: the record's rows become the options, the SAME
+ * read files are planned again over the record's base model, packed, and landed over the operation's
+ * own step.  A record cleared while the pass ran makes [org.umamo.edit.EditorSession.amendLastCommit]
+ * drop the result.
+ *
+ * @param AtlasRepackHost      host    The session, resolver, and shell callbacks the first run had.
+ * @param AdjustableOperation  record  The record with the adjusted parameters.
+ * @param ReloadArtworkRequest request The first run's files.
+ * @param Function             publish Takes the proposals left under the adjusted bar.
+ */
+internal suspend fun adjustReloadArtwork(host: AtlasRepackHost, record: AdjustableOperation, request: ReloadArtworkRequest, publish: (SourceSuggestions) -> Unit = {}) {
+	val base = record.baseSnapshot.model
+	val options = addArtworkOptionsOf(record.parameters, request.options)
+	val matchThreshold = matchThresholdOf(record.parameters, request.matchThreshold)
+	val outcome =
+		withContext(Dispatchers.Default) {
+			reloadOutcome(base, request, options, matchThreshold, host.artRasters, host.premultipliedAlpha)
+		}
+	when (outcome) {
+		ReloadOutcome.NothingChanged -> {
+			UmamoLog.warn("reload artwork: under the adjusted options nothing changes; the previous result stands")
+			return
+		}
+		is ReloadOutcome.Refused -> {
+			host.report(AtlasRepackReport(outcome.refusals))
+			return
+		}
+		is ReloadOutcome.Reloaded -> Unit
+	}
+	host.artRasters.addDecoded(outcome.decodedByTile)
+	prewarmPages(host, outcome.model, outcome.textures)
+	if (!host.session.amendLastCommit(record, outcome.model)) {
+		UmamoLog.info("reload artwork: the adjustment was superseded before it landed; nothing was applied")
+		return
+	}
+	publish(outcome.suggestions)
+	reportReload(outcome, outcome.model)
+}
+
+/**
+ * Pre-warms the session's page resolver with the pages a pass composed, when it composed any; a pass
+ * that packed nothing leaves the resolver to the pages it already holds.
+ *
+ * @param AtlasRepackHost host     The session's resolver.
+ * @param PuppetModel     model    The model whose atlas the pages belong to.
+ * @param PuppetTextures? textures The pages, or null when the pass packed nothing.
+ */
+private fun prewarmPages(host: AtlasRepackHost, model: PuppetModel, textures: PuppetTextures?) {
+	if (textures != null) {
+		host.sessionAtlasPages?.prewarm(model.atlas, textures)
+	}
+}
+
+/**
+ * Logs one reload pass the way the first run and an adjustment both report it.
+ *
+ * @param ReloadOutcome.Reloaded outcome   What the pass produced.
+ * @param PuppetModel            committed The model that landed.
+ */
+private fun reportReload(outcome: ReloadOutcome.Reloaded, committed: PuppetModel) {
+	for (notice in outcome.notices) {
+		UmamoLog.warn("reload artwork: ${describeImportNotice(notice)}")
+	}
+	for (drawableId in outcome.outgrown) {
+		val name = committed.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.name ?: drawableId.raw
+		UmamoLog.warn("reload artwork: the new art of '$name' reaches past its edited mesh; re-mesh it or extend the mesh")
+	}
+	reportRebindings("reload artwork", outcome.rebindings)
+	val change = outcome.change
+	UmamoLog.info(
+		"reload artwork: ${change.fileCount} file(s) -> ${change.replacedCount} tile(s) updated, ${change.addedCount} drawable(s) added," +
+			" ${change.matchedCount} rebound by match, ${change.missingCount} layer(s) missing, ${outcome.outgrown.size} outgrown;" +
+			" now ${committed.atlas.pages.size} page(s); ${outcome.notices.size} note(s)",
+	)
+}
+
+/**
+ * Rebinds one or more tiles to another source layer, pulling the layer's art in when the file could
+ * be read: each tile is replaced with the layer's art and its drawables carried over it, all as ONE
+ * undo step, packed beside the rest and registered on the strip like a reload; without the file, or
+ * when the layer has no art to give, only the bindings change (still one step) and the notice says so.
+ *
+ * @param AtlasRepackHost      host    The session, art, resolver, scope, and shell callbacks.
+ * @param RelinkArtworkRequest request The tiles, their new binding, and the file when read.
+ * @param String?              areaId  The area the strip shows in, or null.
+ * @return Boolean Whether the art was pulled (a binding-only change returns false).
+ */
+suspend fun runRelinkArtwork(host: AtlasRepackHost, request: RelinkArtworkRequest, areaId: String?): Boolean {
+	val session = host.session
+	val modelAtStart = session.model.value
+	val plan =
+		withContext(Dispatchers.Default) {
+			planRelinkOf(modelAtStart, request, request.options, host.artRasters)
+		}
+	if (plan == null) {
+		val unchanged = request.tileIds.filter { tileId -> modelAtStart.atlas.tileById[tileId]?.source == request.ref }
+		val toRebind = request.tileIds - unchanged.toSet()
+		if (toRebind.isEmpty()) {
+			UmamoLog.info("relink artwork: ${describeTiles(request.tileIds)} already holds this binding and this art; nothing to pull")
+			return false
+		}
+		session.setTileSources(toRebind, request.ref)
+		UmamoLog.warn("relink artwork: ${describeTiles(toRebind)} rebound to '${request.ref.layerKey}' without its art (the file could not be read, or the layer has none)")
+		session.emitNotice("notice.relink.bindingOnly", NoticePlacement.StatusBar)
+		return false
+	}
+	val outcome =
+		withContext(Dispatchers.Default) {
+			relinkOutcome(modelAtStart, plan, request, host.artRasters, host.premultipliedAlpha)
+		}
+	if (!landRelink(host, request, modelAtStart, outcome) { model -> session.commitArtworkRelinked(request.tileIds.first(), model) }) {
+		return false
+	}
+	session.registerAdjustableOperation(session.model.value, areaId, addArtworkParameters(request.options)) { record ->
+		host.scope.launch { adjustRelinkArtwork(host, record, request) }
+	}
+	return true
+}
+
+/**
+ * Plans [request]'s tiles onto their new layer over [base]: every tile paired with the one key, so
+ * the tiles bound to a lost key move in one plan.  Null without the file or when nothing pulls.
+ *
+ * @param PuppetModel            base       The model the relink applies to.
+ * @param RelinkArtworkRequest   request    The tiles and their binding.
+ * @param SourceArtImportOptions options    The threshold and margin to plan with.
+ * @param SourceArtRasters       artRasters The document's raster store.
+ * @return ReloadPlan? The plan, or null when there is nothing to pull.
+ */
+private fun planRelinkOf(base: PuppetModel, request: RelinkArtworkRequest, options: SourceArtImportOptions, artRasters: SourceArtRasters): ReloadPlan? {
+	val art = request.art ?: return null
+	val pairs = request.tileIds.map { tileId -> tileId to request.ref.layerKey }
+	return ArtworkReloadPlanner.planMatches(base, request.ref.sourceId, art, pairs, options, oldRasterLookup(artRasters), inventory = request.inventory, retire = request.retire.toSet())
+}
+
+/**
+ * The tiles of a relink as the log names them.
+ *
+ * @param List<AtlasTileId> tileIds The tiles.
+ * @return String One id quoted, or a count.
+ */
+private fun describeTiles(tileIds: List<AtlasTileId>): String = tileIds.singleOrNull()?.let { tileId -> "'${tileId.raw}'" } ?: "${tileIds.size} tiles"
+
+/**
+ * Applies a relink plan to [base] and packs its one new tile.
+ *
+ * @param PuppetModel          base               The model the relink applies to.
+ * @param ReloadPlan           plan               The planner's delta for the tile.
+ * @param RelinkArtworkRequest request            The request, for the decoded wrappers.
+ * @param SourceArtRasters     artRasters         The document's raster store.
+ * @param Boolean              premultipliedAlpha The document's texture-convention flag.
+ * @return ReloadOutcome The outcome.
+ */
+private fun relinkOutcome(
+	base: PuppetModel,
+	plan: ReloadPlan,
+	request: RelinkArtworkRequest,
+	artRasters: SourceArtRasters,
+	premultipliedAlpha: Boolean,
+): ReloadOutcome {
+	val model = base.withArtworkReloaded(plan.reload)
+	if (model === base) {
+		UmamoLog.error("relink artwork: the plan for ${describeTiles(request.tileIds)} collides with the document's ids; nothing was applied")
+		return ReloadOutcome.NothingChanged
+	}
+	val change = DocumentChange.ReloadArtwork(1, plan.reload.replacedTiles.size, 0, 0, 0)
+	val rebindings = request.art?.let { art -> rebindingsOf(plan, base, art) }.orEmpty()
+	return packReloaded(model, plan.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }, plan.notices, artRasters, premultipliedAlpha) { packedModel, textures, notices, decodedByTile ->
+		ReloadOutcome.Reloaded(packedModel, textures, decodedByTile, notices, plan.reload.outgrown, change, rebindings)
+	}
+}
+
+/**
+ * Lands a relink outcome: the supersede check, the rasters into the store, the commit, the pre-warm,
+ * the log, and the notice.
+ *
+ * @param AtlasRepackHost      host         The session, art, resolver, and shell callbacks.
+ * @param RelinkArtworkRequest request      The request, for the log.
+ * @param PuppetModel          modelAtStart The model the outcome was planned against.
+ * @param ReloadOutcome        outcome      What the pass produced.
+ * @param Function             commit       Commits the packed model and returns the committed one.
+ * @return Boolean Whether the outcome landed.
+ */
+private inline fun landRelink(
+	host: AtlasRepackHost,
+	request: RelinkArtworkRequest,
+	modelAtStart: PuppetModel,
+	outcome: ReloadOutcome,
+	commit: (PuppetModel) -> PuppetModel,
+): Boolean {
+	val session = host.session
+	when (outcome) {
+		ReloadOutcome.NothingChanged -> return false
+		is ReloadOutcome.Refused -> {
+			host.report(AtlasRepackReport(outcome.refusals))
+			return false
+		}
+		is ReloadOutcome.Reloaded -> Unit
+	}
+	if (session.model.value !== modelAtStart) {
+		UmamoLog.warn("relink artwork: the document changed while ${describeTiles(request.tileIds)} was being relinked; nothing was applied")
+		session.emitNotice("notice.import.artworkSuperseded", NoticePlacement.StatusBar)
+		return false
+	}
+	host.artRasters.addDecoded(outcome.decodedByTile)
+	val committed = commit(outcome.model)
+	prewarmPages(host, committed, outcome.textures)
+	reportReload(outcome, committed)
+	session.emitNotice(if (outcome.outgrown.isEmpty()) "notice.relink.pulled" else "notice.reload.outgrown", NoticePlacement.StatusBar)
+	return true
+}
+
+/**
+ * Re-plans a relink for an adjustment of the strip over the record's base, landing through
+ * [org.umamo.edit.EditorSession.amendLastCommit].
+ *
+ * @param AtlasRepackHost      host    The session, resolver, and shell callbacks the first run had.
+ * @param AdjustableOperation  record  The record with the adjusted parameters.
+ * @param RelinkArtworkRequest request The first run's request.
+ */
+internal suspend fun adjustRelinkArtwork(host: AtlasRepackHost, record: AdjustableOperation, request: RelinkArtworkRequest) {
+	if (request.art == null) {
+		return
+	}
+	val base = record.baseSnapshot.model
+	val options = addArtworkOptionsOf(record.parameters, request.options)
+	val outcome =
+		withContext(Dispatchers.Default) {
+			val plan = planRelinkOf(base, request, options, host.artRasters)
+			if (plan == null) ReloadOutcome.NothingChanged else relinkOutcome(base, plan, request, host.artRasters, host.premultipliedAlpha)
+		}
+	when (outcome) {
+		ReloadOutcome.NothingChanged -> {
+			UmamoLog.warn("relink artwork: under the adjusted options nothing changes; the previous result stands")
+			return
+		}
+		is ReloadOutcome.Refused -> {
+			host.report(AtlasRepackReport(outcome.refusals))
+			return
+		}
+		is ReloadOutcome.Reloaded -> Unit
+	}
+	host.artRasters.addDecoded(outcome.decodedByTile)
+	prewarmPages(host, outcome.model, outcome.textures)
+	if (!host.session.amendLastCommit(record, outcome.model)) {
+		UmamoLog.info("relink artwork: the adjustment was superseded before it landed; nothing was applied")
+		return
+	}
+	reportReload(outcome, outcome.model)
+}

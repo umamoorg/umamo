@@ -18,6 +18,7 @@ import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.render.DecodedImage
+import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.atlasCompositionOf
 import org.umamo.render.atlasPlacementFromPack
@@ -35,6 +36,13 @@ import org.umamo.storage.UmamoLog
 
 /** The maximum page size a repack packs against when the document has no pages to take one from. */
 const val DEFAULT_REPACK_PAGE_SIZE: Int = 4096
+
+/**
+ * The page size an artwork import retries at when a layer's trimmed art does not fit the default page
+ * - the largest page the official editor's own atlas settings offer, and what desktop GL 3.3 and GLES
+ * 3.0 both guarantee.  Art that does not fit even this stays unpacked and is named in the import notes.
+ */
+const val MAX_IMPORT_PAGE_SIZE: Int = 8192
 
 /** Why one tile kept the whole repack from running. */
 enum class AtlasRepackRefusalReason {
@@ -82,12 +90,14 @@ class AtlasRepackReport(
 /**
  * What one repack feeds the packer.
  *
- * The items are every tile as a FREE item; the pinned tiles' placements sit beside them so one
- * decoded input serves a pack that keeps the pins and a pack that ignores them - the strip's Keep
- * Pinned Tiles row flips between the two without re-decoding.
+ * The items are every tile as a FREE item; the placed tiles' placements sit beside them in the
+ * packer's fixed form so one decoded input serves a pack that keeps the pins, a pack that ignores
+ * them, and a pack that holds EVERY placed tile still (art added to an open document packs into the
+ * gaps) - the strip's Keep Pinned Tiles row flips between the first two without re-decoding.
  *
  * @property List items              The tiles' pixels plus their mesh reserves, all free.
  * @property Map  fixedByKey         The pinned placed tiles' placements as the packer's fixed form, by key.
+ * @property Map  placedByKey        EVERY placed tile's placement as the packer's fixed form, by key.
  * @property Set  undecodableTileIds Tiles whose art would not decode or disagrees with its tile.
  * @property Map  reserveByTile      The mesh reserves the items were built with, kept so the commit
  *                                   can tell whether a mesh edit during the pack staled them.
@@ -95,22 +105,31 @@ class AtlasRepackReport(
 internal class RepackPackInput(
 	val items: List<AtlasPackItem>,
 	val fixedByKey: Map<String, AtlasPackFixed>,
+	val placedByKey: Map<String, AtlasPackFixed>,
 	val undecodableTileIds: Set<AtlasTileId>,
 	val reserveByTile: Map<AtlasTileId, AtlasPackReserve>,
 ) {
 	/**
-	 * The items to pack: the pinned tiles fixed where they are when [keepPinned], else every tile free.
-	 * Items hold their pixels by reference, so the fixed copies cost nothing.
+	 * The items to pack: every placed tile fixed where it is when [fixPlaced], else the pinned tiles
+	 * fixed when [keepPinned], else every tile free.  Items hold their pixels by reference, so the
+	 * fixed copies cost nothing.
 	 *
 	 * @param Boolean keepPinned Whether the pinned tiles stay put.
+	 * @param Boolean fixPlaced  Whether every placed tile stays put, pinned or not.
 	 * @return List The pack items.
 	 */
-	fun itemsFor(keepPinned: Boolean): List<AtlasPackItem> {
-		if (!keepPinned || fixedByKey.isEmpty()) {
+	fun itemsFor(keepPinned: Boolean, fixPlaced: Boolean = false): List<AtlasPackItem> {
+		val fixedForms =
+			when {
+				fixPlaced -> placedByKey
+				keepPinned -> fixedByKey
+				else -> emptyMap()
+			}
+		if (fixedForms.isEmpty()) {
 			return items
 		}
 		return items.map { item ->
-			val fixed = fixedByKey[item.key] ?: return@map item
+			val fixed = fixedForms[item.key] ?: return@map item
 			AtlasPackItem(item.key, item.width, item.height, item.rgba, item.reserve, fixed)
 		}
 	}
@@ -138,6 +157,7 @@ internal fun buildRepackPackInput(
 	val reserveByTile = meshReserveByTile(model)
 	val items = ArrayList<AtlasPackItem>()
 	val fixedByKey = HashMap<String, AtlasPackFixed>()
+	val placedByKey = HashMap<String, AtlasPackFixed>()
 	val undecodable = HashSet<AtlasTileId>()
 	for (tile in model.atlas.tiles) {
 		if (tile.id !in boundTileIds && tile.placement == null) {
@@ -149,12 +169,16 @@ internal fun buildRepackPackInput(
 		} else {
 			items.add(AtlasPackItem(tile.id.raw, raster.width, raster.height, raster.rgba, reserveByTile[tile.id]))
 			val placement = tile.placement
-			if (tile.pinned && placement != null) {
-				fixedByKey[tile.id.raw] = AtlasPackFixed(placement.pageIndex, placementAffine(placement))
+			if (placement != null) {
+				val fixed = AtlasPackFixed(placement.pageIndex, placementAffine(placement))
+				placedByKey[tile.id.raw] = fixed
+				if (tile.pinned) {
+					fixedByKey[tile.id.raw] = fixed
+				}
 			}
 		}
 	}
-	return RepackPackInput(items, fixedByKey, undecodable, reserveByTile)
+	return RepackPackInput(items, fixedByKey, placedByKey, undecodable, reserveByTile)
 }
 
 /**
@@ -243,13 +267,50 @@ class AtlasRepackHost(
 fun repackPageSizeOf(model: PuppetModel): Int = model.atlas.pages.maxOfOrNull { page -> maxOf(page.width, page.height) } ?: DEFAULT_REPACK_PAGE_SIZE
 
 /**
+ * One pack before anything is committed: the decoded input and what the packer made of it.  Shared
+ * by the repack command, the pack an artwork import runs at open, and the pack-around that lands new
+ * tiles in an open document, so all of them pack the same way.
+ *
+ * @property RepackPackInput input  The decoded tiles and their reserves.
+ * @property AtlasPackResult result The packer's placements, pages, and skips.
+ */
+internal class PackedAtlas(
+	val input: RepackPackInput,
+	val result: AtlasPackResult,
+)
+
+/**
+ * Decodes and packs [model]'s atlas under [options].  Pure and thread-agnostic given a thread-safe
+ * [decodeRaster]: the repack command and the artwork flows run it on the default dispatcher, the
+ * import at open runs it inline.
+ *
+ * @param PuppetModel      model        The model to pack.
+ * @param Function         decodeRaster Yields a tile's decoded pixels, or null.
+ * @param AtlasPackOptions options      The packing policy.
+ * @param Boolean          keepPinned   Whether pinned tiles stay where they are.
+ * @param Boolean          fixPlaced    Whether every placed tile stays where it is (added art packs
+ *                                      into the gaps).
+ * @return PackedAtlas The input and the result, not yet lowered or committed.
+ */
+internal fun packAtlasOf(
+	model: PuppetModel,
+	decodeRaster: (AtlasTileId) -> DecodedImage?,
+	options: AtlasPackOptions,
+	keepPinned: Boolean = true,
+	fixPlaced: Boolean = false,
+): PackedAtlas {
+	val input = buildRepackPackInput(model, decodeRaster)
+	return PackedAtlas(input, packAtlas(input.itemsFor(keepPinned, fixPlaced), options))
+}
+
+/**
  * What one pack produced for the model: the new pages and every tile's lowered placement.
  *
  * @property List pages            The new page inventory.
  * @property Map  placementsByTile Every tile's new placement, null for one packed out.
  * @property Int  packedOutCount   Placed-but-unbound tiles the pack could not carry, now unpacked.
  */
-private class LoweredPack(
+internal class LoweredPack(
 	val pages: List<AtlasPage>,
 	val placementsByTile: Map<AtlasTileId, AtlasPlacement?>,
 	val packedOutCount: Int,
@@ -265,7 +326,7 @@ private class LoweredPack(
  * @param AtlasPackResult packResult What the packer produced.
  * @return LoweredPack The pages and placements to commit.
  */
-private fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredPack {
+internal fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredPack {
 	val pages = packResult.pages.map { page -> AtlasPage(page.width, page.height) }
 	val packedByKey = packResult.placements.associateBy { placement -> placement.key }
 	val keptKeys = packResult.fixed.mapTo(HashSet()) { kept -> kept.key }
@@ -293,7 +354,7 @@ private fun lowerPack(atlas: PuppetAtlas, packResult: AtlasPackResult): LoweredP
  * @param LoweredPack     lowered    Its lowering.
  * @param AtlasPackOptions options   The options it ran with.
  */
-private fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options: AtlasPackOptions) {
+internal fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options: AtlasPackOptions) {
 	val occupancy =
 		packResult.pages.indices.joinToString(separator = ", ") { pageIndex ->
 			"${(packResult.pageOccupancy(pageIndex) * 100f).toInt()}%"
@@ -352,11 +413,12 @@ suspend fun runAtlasRepack(
 
 	// Only a BOUND failure refuses the repack; a placed-unbound tile that cannot come along packs out
 	// instead, logged in the lowering.
-	val (packInput, packResult) =
+	val packed =
 		withContext(Dispatchers.Default) {
-			val input = buildRepackPackInput(modelAtStart) { tileId -> host.artRasters.decodeRaster(tileId) }
-			input to packAtlas(input.itemsFor(keepPinned), options)
+			packAtlasOf(modelAtStart, { tileId -> host.artRasters.decodeRaster(tileId) }, options, keepPinned)
 		}
+	val packInput = packed.input
+	val packResult = packed.result
 
 	val refusals = repackRefusals(modelAtStart, packResult.skipped, packInput.undecodableTileIds)
 	if (refusals.isNotEmpty()) {
@@ -452,4 +514,47 @@ internal suspend fun adjustAtlasRepack(
 	}
 	host.rememberOptions(options, keepPinned)
 	logPack(packResult, lowered, options)
+}
+
+/**
+ * An artwork-origin document as it opens: the model with its pages packed, the pages themselves, and
+ * whatever the pack could not carry.
+ *
+ * @property PuppetModel    model    The packed model.
+ * @property PuppetTextures textures The composed pages, index-parallel to the model's page list.
+ * @property List           refusals Bound tiles the pack left unplaced, each with the packer's reason.
+ */
+class PackedAtOpen(
+	val model: PuppetModel,
+	val textures: PuppetTextures,
+	val refusals: List<AtlasRepackRefusal>,
+)
+
+/**
+ * Packs an UNPACKED model's atlas as an artwork import opens it: every tile unplaced, every drawable's
+ * coordinates addressing its own art, which is exactly the state the repack's re-derivation moves onto
+ * pages through the identity mapping.  Packs at [DEFAULT_REPACK_PAGE_SIZE] first and once more at
+ * [MAX_IMPORT_PAGE_SIZE] if any tile did not fit, then commits through [withAtlasRepack] under the
+ * packer's default composition.
+ *
+ * Unlike the repack command, a refusal is NOT fatal: a document is still worth opening with one layer
+ * unpacked, so a tile the pack cannot carry stays unplaced (its coordinates keep addressing the art,
+ * which the source-layer display still draws) and is reported, never dropped.
+ *
+ * @param PuppetModel model        The unpacked model.
+ * @param Function    decodeRaster Yields a tile's decoded pixels, or null.
+ * @return PackedAtOpen The packed model, its pages, and the refusals.
+ */
+fun packModelAtOpen(model: PuppetModel, decodeRaster: (AtlasTileId) -> DecodedImage?): PackedAtOpen {
+	var options = AtlasPackOptions(maxPageSize = DEFAULT_REPACK_PAGE_SIZE)
+	var packed = packAtlasOf(model, decodeRaster, options, keepPinned = false)
+	if (packed.result.skipped.any { skip -> skip.reason == AtlasPackSkipReason.LargerThanPage }) {
+		options = options.copy(maxPageSize = MAX_IMPORT_PAGE_SIZE)
+		packed = PackedAtlas(packed.input, packAtlas(packed.input.itemsFor(keepPinned = false), options))
+	}
+	val refusals = repackRefusals(model, packed.result.skipped, packed.input.undecodableTileIds)
+	val lowered = lowerPack(model.atlas, packed.result)
+	val repacked = model.withAtlasRepack(lowered.pages, lowered.placementsByTile, atlasCompositionOf(options))
+	logPack(packed.result, lowered, options)
+	return PackedAtOpen(repacked, generatedPuppetTextures(packed.result.pages, repacked, premultipliedAlpha = false), refusals)
 }

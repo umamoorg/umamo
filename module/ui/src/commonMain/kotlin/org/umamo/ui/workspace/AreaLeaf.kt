@@ -117,6 +117,14 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 		DisposableEffect(hoveredTracker, area.id) {
 			onDispose { hoveredTracker.releaseArea(area.id) }
 		}
+		// The strip-host claim asserts the KIND the area had when touched, so a space change (the leaf
+		// survives it under the same id) releases that claim on its own - without waiting for a pointer
+		// event over the area, which a header-dropdown switch followed by a command elsewhere never sends.
+		// A document-wide operation fired from a panel would otherwise be routed to this area, whose host
+		// refuses a non-hosting kind while the shell's fallback defers to the area, and show nowhere.
+		DisposableEffect(hoveredTracker, area.id, area.space) {
+			onDispose { hoveredTracker.releaseStripHost(area.id) }
+		}
 	}
 
 	Box(
@@ -145,8 +153,9 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 					AreaHeader(area = area, scope = scope, onCommand = onCommand)
 					Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
 						// The operation settings strip is hosted here, under the header and over the space body,
-						// so every space kind gets it and its inset reaches the space's own bottom-left chrome.
-						OperationStripHost(areaId = area.id) {
+						// so its inset reaches the space's own bottom-left chrome; the host itself shows the strip
+						// only in a work surface (hostsOperationStrip).
+						OperationStripHost(areaId = area.id, kind = area.space) {
 							registry.descriptor(area.space).content(scope)
 						}
 					}

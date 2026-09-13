@@ -88,8 +88,31 @@ class PsdSyntheticTest {
 	}
 
 	/**
+	 * A raster layer mask for the synthetic layer: its plane over its own rectangle, and the mask
+	 * data block's default color and disabled flag.
+	 *
+	 * @property ByteArray plane        The mask values, row-major over the rectangle.
+	 * @property Int       left         The rectangle's left edge in canvas pixels.
+	 * @property Int       top          The rectangle's top edge in canvas pixels.
+	 * @property Int       width        The rectangle's width.
+	 * @property Int       height       The rectangle's height.
+	 * @property Int       defaultColor The mask value outside the rectangle (0 or 255).
+	 * @property Boolean   disabled     Whether the mask is switched off.
+	 */
+	private class SyntheticMask(
+		val plane: ByteArray,
+		val left: Int,
+		val top: Int,
+		val width: Int,
+		val height: Int,
+		val defaultColor: Int,
+		val disabled: Boolean = false,
+	)
+
+	/**
 	 * Builds a minimal valid version-1 RGB PSD with a single layer carrying the given channel planes,
-	 * optionally embedding a `lyid` block so the stable-id path can be exercised.
+	 * optionally embedding a `lyid` block so the stable-id path can be exercised, and optionally a
+	 * raster layer mask (channel -2 plus its 20-byte mask data block).
 	 *
 	 * @param Int width           Canvas/layer width.
 	 * @param Int height          Canvas/layer height.
@@ -100,6 +123,7 @@ class PsdSyntheticTest {
 	 * @param ByteArray alpha     Alpha plane.
 	 * @param Int compression     The compression to apply to every channel.
 	 * @param Int? layerId        The lyid to embed, or null to omit the block.
+	 * @param SyntheticMask? mask The raster layer mask to attach, or null for none.
 	 * @return ByteArray The complete `.psd` bytes.
 	 */
 	private fun buildRgbPsd(
@@ -112,9 +136,12 @@ class PsdSyntheticTest {
 		alpha: ByteArray,
 		compression: Int,
 		layerId: Int? = null,
+		mask: SyntheticMask? = null,
 	): ByteArray {
 		val channels = listOf(0 to red, 1 to green, 2 to blue, -1 to alpha)
-		val blocks = channels.map { (id, plane) -> id to encodeChannel(plane, width, height, compression) }
+		val blocks =
+			channels.map { (id, plane) -> id to encodeChannel(plane, width, height, compression) } +
+				listOfNotNull(mask?.let { attached -> -2 to encodeChannel(attached.plane, attached.width, attached.height, compression) })
 
 		val out = Buffer()
 
@@ -139,7 +166,7 @@ class PsdSyntheticTest {
 		out.writeInt(0) // left
 		out.writeInt(height) // bottom
 		out.writeInt(width) // right
-		out.writeShort(channels.size)
+		out.writeShort(blocks.size)
 		for ((id, block) in blocks) {
 			out.writeShort(id)
 			out.writeInt(block.size)
@@ -154,8 +181,19 @@ class PsdSyntheticTest {
 		// decodes.  (Also keeps this out of kotlin.text.Charsets, which is JVM-only.)
 		val nameBytes = name.encodeToByteArray()
 		val additional = if (layerId != null) lyidBlock(layerId) else ByteArray(0)
-		out.writeInt(4 + 4 + 1 + nameBytes.size + additional.size) // extra data: mask + ranges + name + additional info
-		out.writeInt(0) // layer mask data length
+		val maskBlockLength = if (mask != null) 20 else 0
+		out.writeInt(4 + maskBlockLength + 4 + 1 + nameBytes.size + additional.size) // extra data: mask + ranges + name + additional info
+		out.writeInt(maskBlockLength) // layer mask data length
+		if (mask != null) {
+			// PSD: rectangle (top, left, bottom, right), default color, flags (bit 1 = disabled), 2 padding.
+			out.writeInt(mask.top)
+			out.writeInt(mask.left)
+			out.writeInt(mask.top + mask.height)
+			out.writeInt(mask.left + mask.width)
+			out.writeByte(mask.defaultColor)
+			out.writeByte(if (mask.disabled) 0x02 else 0)
+			out.writeShort(0)
+		}
 		out.writeInt(0) // blending ranges length
 		out.writeByte(nameBytes.size)
 		out.write(nameBytes)
@@ -239,6 +277,33 @@ class PsdSyntheticTest {
 	@Test
 	fun usesLyidAsStableIdWhenPresent() {
 		assertDecodes(compressionRaw, layerId = 42)
+	}
+
+	/**
+	 * A raster layer mask bakes into the alpha: inside its rectangle the stored value scales the
+	 * alpha, outside it the default color does - so a black default hides everything beyond the
+	 * rectangle, exactly as the artist sees the layer.  The mask rectangle is the right column only,
+	 * with one full and one half value, so both the placement and the multiply are pinned.
+	 */
+	@Test
+	fun aLayerMaskBakesIntoTheAlpha() {
+		val mask = SyntheticMask(plane = byteArrayOf(0xFF.toByte(), 0x80.toByte()), left = 1, top = 0, width = 1, height = 2, defaultColor = 0)
+		val bytes = buildRgbPsd(width, height, "Masked", red, green, blue, alpha, compressionRle, mask = mask)
+		val layer = PsdReader.read(bytes).layers.single()
+
+		val alphas = (0 until 4).map { pixelIndex -> layer.raster.rgba[pixelIndex * 4 + 3].toInt() and 0xFF }
+		assertEquals(listOf(0, 80, 0, (123 * 0x80 + 127) / 255), alphas, "left column hidden by the default color, right column scaled by the mask")
+		assertEquals(listOf(10, 50, 90, 120), (0 until 4).map { pixelIndex -> layer.raster.rgba[pixelIndex * 4].toInt() and 0xFF }, "color channels are untouched")
+	}
+
+	/** A disabled mask is stored but does not apply; a white default leaves the outside alone. */
+	@Test
+	fun aDisabledMaskLeavesTheAlphaAlone() {
+		val mask = SyntheticMask(plane = byteArrayOf(0, 0), left = 1, top = 0, width = 1, height = 2, defaultColor = 0, disabled = true)
+		val bytes = buildRgbPsd(width, height, "Masked", red, green, blue, alpha, compressionRaw, mask = mask)
+		val layer = PsdReader.read(bytes).layers.single()
+
+		assertContentEquals(expectedRgba, layer.raster.rgba, "a disabled mask changes nothing")
 	}
 
 	/**
