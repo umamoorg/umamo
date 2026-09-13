@@ -126,6 +126,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Parameters
 * Improvements
 	* Search in header.
+* Parameter templates:
+	* Need a way to apply these without having to do a fresh import.
 
 ## Workspace
 * Menu: Add Previous/Next workspace to the Workspace main menu at the top.
