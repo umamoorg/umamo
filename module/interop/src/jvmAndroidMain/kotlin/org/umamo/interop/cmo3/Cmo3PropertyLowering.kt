@@ -7,6 +7,7 @@ import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
+import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CPartForm
@@ -19,8 +20,10 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
+import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.AtlasTileField
 import org.umamo.interop.DeformerField
@@ -57,6 +60,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
+import org.umamo.runtime.model.lineageRoot
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -645,7 +649,9 @@ internal class Cmo3PropertyLowering(
 		// entries between atlases.  The canvas placement it carries is the fixed point every rewritten
 		// transform pair has to keep composing to (see indexAtlasWeb).
 		val web = indexAtlasWeb(textureManager)
-		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id }
+		// Keyed by lineage root: the diff names the baseline's tile, and a reloaded tile (`<guid>~<n>`)
+		// is that tile's art to the graph, so its placement is what the root's entry takes.
+		val editedTileById = edited.atlas.tiles.associateBy { tile -> tile.id.lineageRoot }
 
 		for (diff in diffs) {
 			when (diff) {
@@ -736,6 +742,7 @@ internal class Cmo3PropertyLowering(
 				DocumentField.RUNTIME_TARGET -> target.setTargetVersionNo(edited.runtimeTarget.cmo3TargetVersionNo())
 				DocumentField.CANVAS_SIZE -> lowerCanvasSize()
 				DocumentField.SOURCE_LAYER_DISPLAY -> lowerSourceLayerDisplay()
+				DocumentField.SOURCE_FILES -> lowerSourceFiles()
 				// A page appearing, vanishing, or resizing is a repack's output, and repacking rewrites
 				// the page IMAGES too.  When the caller patched them (pagesRecomposed) the page set IS
 				// reconciled and nothing is owed; otherwise the per-tile placements still lower and this
@@ -1105,6 +1112,62 @@ internal class Cmo3PropertyLowering(
 			newElements = orderedSources,
 			assign = { list -> sourceSet._sources = list },
 		)
+	}
+
+	/**
+	 * Lowers each listed file's name, path, and modification time onto the layered image the editor
+	 * decomposed it into, so a document reopened in either editor points at the file the rigger last
+	 * relinked and knows when it was read.
+	 *
+	 * CMO3: CModelSource field textureManager -> CTextureManager field _rawImages -> LayeredImageWrapper
+	 * field image -> CLayeredImage fields name / psdFile / psdFileLastModified.  The image is keyed by
+	 * the guid the import minted the source id from; psdFile is the external-reference file shape, its
+	 * text the absolute path on the machine that linked it, and psdFileLastModified the source's
+	 * modification time in epoch milliseconds (docs/format/CMO3.md section 4).  Only a record the
+	 * baseline also lists is a repointed file; one it lacks is art added this session, whose export
+	 * story is the atlas web's, and is passed over here.  A shared record whose image the graph has
+	 * lost is noted; a record with no known time leaves the image's as it was.
+	 */
+	private fun lowerSourceFiles() {
+		val textureManager = index.modelSource.textureManager as? CTextureManager
+		if (textureManager == null) {
+			unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoTextureManagerToReconcile)
+			return
+		}
+		val imageByGuid = HashMap<String, CLayeredImage>()
+		for (wrapper in Cmo3Import.elementsOf(textureManager._rawImages)) {
+			val image = (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage ?: continue
+			val guid = Cmo3Import.uuidOf(image.guid) ?: continue
+			imageByGuid.putIfAbsent(guid, image)
+		}
+		val baselineById = baseline.sources.associateBy { source -> source.id }
+		for (source in edited.sources) {
+			val before = baselineById[source.id] ?: continue
+			if (before.name == source.name && before.path == source.path && before.lastModified == source.lastModified) {
+				continue
+			}
+			val image = imageByGuid[source.id.raw]
+			if (image == null) {
+				unsupported(ExportEntityCategory.Document, source.name, ExportNoticeReason.NoMatchingSourceToReconcile)
+				continue
+			}
+			image.name = source.name
+			val fileRef =
+				image.psdFile as? FileRef
+					?: FileRef().also { created ->
+						image.psdFile = created
+						editor.ensureChildSlot(image, "CLayeredImage", "psdFile", "description")
+					}
+			fileRef.archivePath = null
+			fileRef.textPath = source.path.orEmpty()
+			// CMO3: CLayeredImage field psdFileLastModified - epoch milliseconds; a record with no known
+			// time leaves the image's as it was.
+			val lastModified = source.lastModified
+			if (lastModified != null) {
+				image.psdFileLastModified = lastModified
+				editor.ensureChildSlot(image, "CLayeredImage", "psdFileLastModified", "_rootLayer")
+			}
+		}
 	}
 
 	/**

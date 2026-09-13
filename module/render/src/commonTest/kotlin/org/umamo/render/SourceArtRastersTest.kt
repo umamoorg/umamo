@@ -203,7 +203,7 @@ class SourceArtRastersTest {
 	fun rasterDecodesOnceAndCaches() {
 		var readCount = 0
 		val store =
-			SourceArtRasters { _ ->
+			SourceArtRasters.fromPng { _ ->
 				readCount++
 				onePixelPng()
 			}
@@ -219,7 +219,7 @@ class SourceArtRastersTest {
 	fun rasterRemembersFailures() {
 		var readCount = 0
 		val store =
-			SourceArtRasters { _ ->
+			SourceArtRasters.fromPng { _ ->
 				readCount++
 				byteArrayOf(0, 1, 2)
 			}
@@ -228,11 +228,67 @@ class SourceArtRastersTest {
 		assertEquals(1, readCount, "a remembered failure is not retried")
 	}
 
+	/**
+	 * A store over already-decoded rasters (an artwork-origin document) hands out the SAME instance from
+	 * its cached and its uncached read: the renderer's texture cache and the viewport's freshness test
+	 * compare decoded images by identity, so a fresh wrapper per call would read as a changed image.
+	 */
+	@Test
+	fun aDecodedStoreSharesOneInstanceAcrossBothReads() {
+		val image = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val store = SourceArtRasters { requested -> if (requested == AtlasTileId("a")) image else null }
+		assertSame(image, store.rasterFor(AtlasTileId("a")), "the cached read hands out the supplied instance")
+		assertSame(image, store.decodeRaster(AtlasTileId("a")), "so does the uncached read")
+		assertNull(store.decodeRaster(AtlasTileId("b")), "an unknown tile has no raster either way")
+	}
+
+	/**
+	 * Rasters added after the store was built (artwork brought into an open document) read from both
+	 * twins and never shadow what the decoder already answers for other tiles.
+	 */
+	@Test
+	fun addedRastersReadFromBothTwinsWithoutShadowingTheDecoder() {
+		val decoded = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val store = SourceArtRasters { requested -> if (requested == AtlasTileId("base")) decoded else null }
+		val added = DecodedImage(byteArrayOf(5, 6, 7, 8), 1, 1)
+		store.addDecoded(mapOf(AtlasTileId("new") to added))
+
+		assertSame(added, store.decodeRaster(AtlasTileId("new")), "the uncached read sees the added raster")
+		assertSame(added, store.rasterFor(AtlasTileId("new")), "so does the cached one")
+		assertSame(decoded, store.rasterFor(AtlasTileId("base")), "the decoder's own tiles are untouched")
+		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile is still unknown")
+	}
+
+	/**
+	 * A raster added for a tile the cached read already answered replaces that answer: a reload's
+	 * replacement id is minted against the model as it stands, so reload, undo, reload reuses the id
+	 * with new pixels, and the cache must not keep handing out the first reload's.
+	 */
+	@Test
+	fun anAddedRasterReplacesACachedOneForTheSameTile() {
+		val first = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val second = DecodedImage(byteArrayOf(5, 6, 7, 8), 1, 1)
+		val store = SourceArtRasters { null }
+		val reused = AtlasTileId("art-0/lyid:1~1")
+
+		store.addDecoded(mapOf(reused to first))
+		assertSame(first, store.rasterFor(reused), "the cached read takes the first reload's pixels")
+		store.addDecoded(mapOf(reused to second))
+		assertSame(second, store.rasterFor(reused), "and the second reload's once they replace them")
+		assertSame(second, store.decodeRaster(reused), "the same instance from the uncached read")
+
+		// A tile the cache learned as absent is likewise superseded by an added raster.
+		val late = AtlasTileId("late")
+		assertNull(store.rasterFor(late))
+		store.addDecoded(mapOf(late to first))
+		assertSame(first, store.rasterFor(late), "a remembered miss does not outlive the raster's arrival")
+	}
+
 	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
 		val known = AtlasTileId("a")
-		val store = SourceArtRasters { requested -> if (requested == known) onePixelPng() else null }
+		val store = SourceArtRasters.fromPng { requested -> if (requested == known) onePixelPng() else null }
 		assertNotNull(store.rasterFor(known), "a known tile decodes")
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
 		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")

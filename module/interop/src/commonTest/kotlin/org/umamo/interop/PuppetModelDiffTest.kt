@@ -1,5 +1,8 @@
 package org.umamo.interop
 
+import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
@@ -30,6 +33,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -374,7 +378,30 @@ class PuppetModelDiffTest {
 			)
 		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA))), renamed.atlasTiles)
 
+		// A source binding is what the art IS, so rebinding it reads as metadata like a rename does.
+		val rebound =
+			diffPuppetModels(
+				baseline,
+				baseline.copy(
+					atlas =
+						baseline.atlas.copy(
+							tiles = listOf(baseline.atlas.tiles.single().copy(source = SourceLayerRef(ArtSourceId("art-0"), "lyid:3", stableKey = true))),
+						),
+				),
+			)
+		assertEquals(listOf(EntityDiff.Changed(tileId, setOf(AtlasTileField.METADATA))), rebound.atlasTiles)
+
 		val repaged = diffPuppetModels(baseline, baseline.copy(atlas = baseline.atlas.copy(pages = listOf(AtlasPage(128, 128)))))
+		val record = ArtSource(ArtSourceId("art-0"), "a.psd", "/a.psd", "psd", listOf(ArtSourceLayer("lyid:3", "L", "", 0, 0, 4, 4, true)))
+		val listed = baseline.copy(sources = listOf(record))
+		val relinked = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(path = "/elsewhere/a.psd"))))
+		assertEquals(setOf(DocumentField.SOURCE_FILES), relinked.document, "a source record pointing at another file is a document change")
+		val reloaded = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(contentHash = "other", layers = emptyList()))))
+		assertTrue(DocumentField.SOURCE_FILES !in reloaded.document, "a reload's inventory and hash are not")
+		val touched = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(lastModified = 123L))))
+		assertEquals(setOf(DocumentField.SOURCE_FILES), touched.document, "the file's modification time is, since the CMO3 keeps it")
+		val foreign = diffPuppetModels(listed, listed.copy(sources = listOf(record.copy(id = ArtSourceId("page-0"), name = "page-0.png", path = null))))
+		assertTrue(DocumentField.SOURCE_FILES !in foreign.document, "a record only one side lists (a fresh synthesis's page slices, art added this session) is not a repointed file")
 		assertEquals(setOf(DocumentField.ATLAS_PAGES), repaged.document, "the page list is document-level")
 		assertTrue(repaged.atlasTiles.isEmpty(), "resizing a page moves no tile")
 

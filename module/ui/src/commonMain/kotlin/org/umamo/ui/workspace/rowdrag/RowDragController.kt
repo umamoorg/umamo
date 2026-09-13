@@ -1,10 +1,19 @@
-package org.umamo.ui.workspace.spaces
+package org.umamo.ui.workspace.rowdrag
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+
+/*
+ * Row drag-and-drop, shared by every space that drags rows (the outliner, the parameters panel, the
+ * Sources table): the transient drag state and hit-test here, the Escape seam in RowDragCancel.kt, the
+ * long-press pickup in RowDragGesture.kt, the cursor chip in RowDragLabel.kt, and the drop-target ring
+ * in RowDropHighlight.kt.  What a drag MEANS - which rows may take a drop, and what a release does -
+ * stays with each space and its :edit rules; nothing here knows a payload's kind.
+ */
 
 /**
  * A panel's row drag-and-drop state, shared by every row so the rows stay thin: each reports its
@@ -16,9 +25,6 @@ import androidx.compose.ui.geometry.Rect
  *
  * Holds only transient interaction state (never document state), so it is remembered per panel
  * instance and discarded with it.
- *
- * パネルの行ドラッグ＆ドロップ状態。各行が境界と操作を報告し、空間が落下先を読んで指標表示と移動
- * 適用を行う。行は安定した文字列キーで識別し、ドラッグ対象はパネル固有の Payload。
  */
 class RowDragController<Payload : Any> {
 	/** The row key currently being dragged, or null when no drag is in progress. */
@@ -141,4 +147,15 @@ class RowDragController<Payload : Any> {
 			}
 			return ((dragWindowY - bounds.top) / height).coerceIn(0f, 1f)
 		}
+}
+
+/**
+ * A plain, non-snapshot holder for a row's latest layout coordinates.  Writing it from
+ * onGloballyPositioned does not invalidate the composition (unlike Compose state), so the per-frame
+ * layout callbacks during a scroll cost nothing; the drag gesture reads the live window bounds from it
+ * to convert a press into window coordinates, and a hover effect to anchor a preview.
+ */
+class RowCoordinatesHolder {
+	/** The row's most recent layout coordinates, or null before the first layout pass. */
+	var coordinates: LayoutCoordinates? = null
 }

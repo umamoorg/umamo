@@ -7,7 +7,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * A coordination seam between an in-flight divider (splitter) drag and the editor shell's Escape
- * precedence, mirroring [RowDragCancelController].
+ * precedence, mirroring [org.umamo.ui.workspace.rowdrag.RowDragCancelController].
  *
  * A divider drag keeps its [SplitterDragSession] in the dragged SplitContainer's own remembered state,
  * which the shell cannot see - unlike an area CORNER drag, whose state lives in the shell-level

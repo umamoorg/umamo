@@ -197,4 +197,19 @@ class PuppetAtlasTest {
 		assertTrue(PuppetAtlas.Empty.isEmpty)
 		assertTrue(PuppetAtlas(pages = listOf(AtlasPage(1, 1))).isEmpty.not(), "a page alone is still an atlas")
 	}
+
+	/**
+	 * A tile's source binding is document data that rides through every tile edit: a placement change
+	 * copies the tile and must keep the binding, and a model with no linked art has no sources at all.
+	 */
+	@Test
+	fun aTileKeepsItsSourceBindingThroughAPlacementChange() {
+		val source = SourceLayerRef(ArtSourceId("art-0"), layerKey = "lyid:7", stableKey = true)
+		val tile = unpackedTile("t0").copy(source = source)
+		val placed = tile.copy(placement = AtlasPlacement(0, 1f, 2f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f))
+
+		assertEquals(source, placed.source, "the binding is what the tile IS, not where it packs")
+		assertNull(unpackedTile("t1").source, "a tile with no retained binding has none")
+		assertTrue(modelOf(PuppetAtlas.Empty).sources.isEmpty(), "a document with no linked art lists no sources")
+	}
 }
