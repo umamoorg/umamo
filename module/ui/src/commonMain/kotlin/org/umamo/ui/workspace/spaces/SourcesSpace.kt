@@ -7,20 +7,16 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -62,12 +58,8 @@ import org.umamo.ui.kit.ContextMenuArea
 import org.umamo.ui.kit.DisclosureChevron
 import org.umamo.ui.kit.DropdownChip
 import org.umamo.ui.kit.DropdownChipStyle
-import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
-import org.umamo.ui.kit.PopupChip
-import org.umamo.ui.kit.PopupPanel
-import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.IconSlot
 import org.umamo.ui.model.LocalEditorSession
@@ -103,11 +95,8 @@ private val SOURCES_INDENT_PER_DEPTH = 12.dp
 private val SOURCES_CHEVRON_WIDTH = 14.dp
 private val SOURCES_ICON_WIDTH = 16.dp
 
-/** The relink panel's width; fixed so the list stays put as the search narrows it. */
+/** The relink menu's width, which its search box fixes so the rows stay put as the search narrows them. */
 private val RELINK_PANEL_WIDTH = 320.dp
-
-/** How tall the relink list grows before it scrolls. */
-private val RELINK_MAX_LIST_HEIGHT = 320.dp
 
 /** What a dragged row carries: the binding a layer row stands for, or the tile a tile row stands for. */
 internal sealed interface SourcesDragPayload {
@@ -584,18 +573,14 @@ private fun ReviewChip(node: SourcesNode, ref: SourceLayerRef, puppet: PuppetMod
 		iconTint = colors.signalCaution,
 	) {
 		if (byHand) {
-			PopupPanel(
+			Menu(
+				items = relinkMenuItems(puppet, ref, query, { updated -> query = updated }, showUnbind = false) { target -> relinkAll(target) },
 				onDismissRequest = {
 					open = false
 					byHand = false
 				},
-			) {
-				RelinkList(puppet = puppet, current = ref, query = query, onQueryChange = { updated -> query = updated }, showUnbind = false) { target ->
-					open = false
-					byHand = false
-					relinkAll(target)
-				}
-			}
+				positionProvider = BelowAnchorPositionProvider,
+			)
 		} else {
 			Menu(
 				items = menuItems,
@@ -718,8 +703,8 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
 }
 
 /**
- * A tile row's relink chip: a searchable list of every listed file's layers, grouped under the file,
- * plus Unbind while the tile is bound.  Picking closes the panel and rebinds as one undo step.
+ * A tile row's relink chip: a searchable menu of every listed file's layers, grouped under the file,
+ * plus Unbind while the tile is bound.  Picking closes the menu and rebinds as one undo step.
  *
  * @param AtlasTileId tileId   The tile the chip rebinds.
  * @param PuppetModel puppet   The rig, for the candidates and the current binding.
@@ -731,108 +716,79 @@ private fun RelinkChip(tileId: AtlasTileId, puppet: PuppetModel, onRelink: (List
 	var open by remember { mutableStateOf(false) }
 	var query by remember { mutableStateOf("") }
 	val current = puppet.atlas.tileById[tileId]?.source
-	PopupChip(
+	DropdownChip(
+		expanded = open,
+		onExpandRequest = { open = true },
 		contentDescription = stringResource(Res.string.sources_relink_title),
 		icon = if (current != null) icons.linked else icons.unlinked,
-		expanded = open,
-		onExpandedChange = { next -> open = next },
 		// The row is 22.dp; the Header face would overflow it.
 		style = DropdownChipStyle.Compact,
 	) {
-		RelinkList(puppet = puppet, current = current, query = query, onQueryChange = { updated -> query = updated }, showUnbind = current != null) { target ->
-			open = false
-			onRelink(listOf(tileId), target)
-		}
+		Menu(
+			items = relinkMenuItems(puppet, current, query, { updated -> query = updated }, showUnbind = current != null) { target -> onRelink(listOf(tileId), target) },
+			onDismissRequest = { open = false },
+			positionProvider = BelowAnchorPositionProvider,
+		)
 	}
 }
 
 /**
- * The searchable list of every listed file's present layers, grouped under the file, that a relink
- * picks from - the tile chip's panel and the review chip's by-hand page.
+ * The searchable relink menu: every listed file's present layers under the file's name, with the
+ * search box on top and Unbind leading when asked - the tile chip's menu and the review chip's by-hand
+ * page, as one kit [Menu] like every other menu.  The current binding reads dimmed and does nothing;
+ * a query that matches nothing leaves one dimmed line saying so.
  *
  * @param PuppetModel     puppet        The rig, for the candidates and the strength of a key some tile already binds.
- * @param SourceLayerRef? current       The binding the picker starts from, shown muted, or null.
+ * @param SourceLayerRef? current       The binding the picker starts from, shown dimmed, or null.
  * @param String          query         The search text.
  * @param Function        onQueryChange Takes the edited search text.
  * @param Boolean         showUnbind    Whether the Unbind row leads the list.
- * @param Function        onPick        Takes the chosen binding, or null for Unbind.
+ * @param Function        onPick        Takes the chosen binding, or null for Unbind; the menu dismisses itself.
+ * @return List<MenuItem> The menu, search box first.
  */
 @Composable
-private fun RelinkList(
+private fun relinkMenuItems(
 	puppet: PuppetModel,
 	current: SourceLayerRef?,
 	query: String,
 	onQueryChange: (String) -> Unit,
 	showUnbind: Boolean,
 	onPick: (SourceLayerRef?) -> Unit,
-) {
-	val colors = LocalUmamoColors.current
+): List<MenuItem> {
 	val groups = remember(puppet.sources, query) { relinkGroups(puppet.sources, query) }
-	Column(modifier = Modifier.width(RELINK_PANEL_WIDTH)) {
-		SearchField(
-			value = query,
-			onValueChange = onQueryChange,
-			modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-			width = RELINK_PANEL_WIDTH - 16.dp,
-		)
-		// A plain scrolling column, not a lazy list: the popup measures its content intrinsically,
-		// which a lazy list cannot answer (see UvLayerPickerChip).
-		Column(modifier = Modifier.fillMaxWidth().heightIn(max = RELINK_MAX_LIST_HEIGHT).verticalScroll(rememberScrollState())) {
-			if (showUnbind) {
-				RelinkRow(label = stringResource(Res.string.sources_relink_clear), muted = true) { onPick(null) }
-			}
-			if (groups.isEmpty()) {
-				Text(text = stringResource(Res.string.sources_relink_no_matches), color = colors.textMuted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
-			}
-			for (group in groups) {
-				val source = group.source
-				FilterSectionLabel(text = source.name)
-				for (layer in group.layers) {
-					val key = layer.key
-					val bound = current?.sourceId == source.id && current.layerKey == key
-					RelinkRow(label = layer.name, muted = bound, indented = true) {
-						if (bound) {
-							return@RelinkRow
-						}
-						// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
-						val stable =
-							puppet.atlas.tiles
-								.mapNotNull { tile -> tile.source }
-								.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
-								?.stableKey
-						onPick(SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
-					}
-				}
+	val unbindLabel = stringResource(Res.string.sources_relink_clear)
+	val noMatchesLabel = stringResource(Res.string.sources_relink_no_matches)
+	return buildList {
+		add(MenuItem.Search(value = query, onValueChange = onQueryChange, width = RELINK_PANEL_WIDTH))
+		if (showUnbind) {
+			add(MenuItem.Action(label = unbindLabel, onSelect = { onPick(null) }))
+			add(MenuItem.Separator)
+		}
+		if (groups.isEmpty()) {
+			add(MenuItem.Action(label = noMatchesLabel, onSelect = {}, enabled = false))
+		}
+		for (group in groups) {
+			val source = group.source
+			add(MenuItem.Heading(source.name))
+			for (layer in group.layers) {
+				val key = layer.key
+				val bound = current?.sourceId == source.id && current.layerKey == key
+				add(
+					MenuItem.Action(
+						label = layer.name,
+						enabled = !bound,
+						onSelect = {
+							// A layer some tile already binds says how strong its key is; otherwise the key's shape does.
+							val stable =
+								puppet.atlas.tiles
+									.mapNotNull { tile -> tile.source }
+									.firstOrNull { ref -> ref.sourceId == source.id && ref.layerKey == key }
+									?.stableKey
+							onPick(SourceLayerRef(source.id, key, stableKey = stable ?: layerKeyLooksStable(key)))
+						},
+					),
+				)
 			}
 		}
 	}
-}
-
-/**
- * One row of the relink list: the label, hover-highlighted, acting on click.
- *
- * @param String   label    The row text.
- * @param Boolean  muted    Whether the row reads as secondary (the current binding, the unbind action).
- * @param Boolean  indented Whether the row sits under a file heading, inset past it.
- * @param Function onClick  Invoked when the row is chosen.
- */
-@Composable
-private fun RelinkRow(label: String, muted: Boolean, indented: Boolean = false, onClick: () -> Unit) {
-	val colors = LocalUmamoColors.current
-	val interaction = remember { MutableInteractionSource() }
-	val hovered by interaction.collectIsHoveredAsState()
-	Text(
-		text = label,
-		color = if (muted) colors.textMuted else colors.text,
-		maxLines = 1,
-		overflow = TextOverflow.Ellipsis,
-		modifier =
-			Modifier
-				.fillMaxWidth()
-				.hoverable(interaction)
-				.background(if (hovered) colors.rowHover else Color.Transparent)
-				.focusProperties { canFocus = false }
-				.clickable(onClick = onClick)
-				.padding(start = if (indented) 16.dp else 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-	)
 }
