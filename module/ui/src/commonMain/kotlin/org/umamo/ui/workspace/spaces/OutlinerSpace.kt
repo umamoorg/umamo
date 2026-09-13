@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -50,7 +49,6 @@ import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -100,8 +98,13 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.drawIcon
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRelationPick
-import org.umamo.ui.workspace.LocalRowDragCancel
 import org.umamo.ui.workspace.PickClickOutcome
+import org.umamo.ui.workspace.rowdrag.RowCoordinatesHolder
+import org.umamo.ui.workspace.rowdrag.RowDragController
+import org.umamo.ui.workspace.rowdrag.RowDragLabel
+import org.umamo.ui.workspace.rowdrag.dragRowOnLongPress
+import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
+import org.umamo.ui.workspace.rowdrag.rowDropHighlight
 
 /** Per-depth indentation, matching the Parameters space's folder indent. */
 private val INDENT_PER_DEPTH = 12.dp
@@ -136,17 +139,6 @@ private data class FlatRow(val node: OutlinerNode, val depth: Int)
  * @property Rect            rowBounds The hovered row's bounds in window pixels.
  */
 private data class HoverPreview(val target: SelectionTarget, val name: String, val rowBounds: Rect)
-
-/**
- * A plain, non-snapshot holder for a row's latest layout coordinates. Writing it from onGloballyPositioned
- * does not invalidate the composition (unlike Compose state), so the per-frame layout callbacks during a
- * scroll cost nothing; the hover effect reads the live window bounds from it only when it needs to anchor a
- * preview.
- */
-private class OutlinerRowBoundsHolder {
-	/** The row's most recent layout coordinates, or null before the first layout pass. */
-	var coordinates: LayoutCoordinates? = null
-}
 
 /**
  * The outliner space: the unified Blender-style tree that folds Cubism's split Part and Deformer panels
@@ -187,18 +179,9 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// Drag-and-drop state: long-press a row to pick it up, drop onto another to reparent. Transient, so
 	// remembered per outliner instance (never keyed on the puppet).
 	val dragController = remember { RowDragController<SelectionTarget>() }
-	// While a drag is in flight, park its cancel with the shell (via the shared seam) so Escape aborts the
-	// drag instead of falling through to the shell's clear-selection branch. isDragging is snapshot state,
-	// so this effect re-keys on drag start/end; onDispose also covers the space closing mid-drag.
-	val dragCancelSeam = LocalRowDragCancel.current
-	DisposableEffect(dragController.isDragging) {
-		if (dragController.isDragging) {
-			dragCancelSeam.cancel = { dragController.cancel() }
-		}
-		onDispose {
-			dragCancelSeam.cancel = null
-		}
-	}
+	// While a drag is in flight its cancel is parked with the shell, so Escape aborts the drag instead of
+	// falling through to the shell's clear-selection branch.
+	dragController.parkCancelOnSeam()
 	val rootLabel = stringResource(Res.string.outliner_root)
 	val armatureLabel = stringResource(Res.string.outliner_armature)
 	val tree = remember(puppet, rootLabel, armatureLabel) { buildOutlinerTree(puppet, rootLabel, armatureLabel) }
@@ -442,7 +425,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		val draggingLabel =
 			dragController.draggingKey?.let { id -> rows.firstOrNull { it.node.id == id }?.node?.label }
 		if (dragController.isDragging && draggingLabel != null) {
-			OutlinerDragLabel(
+			RowDragLabel(
 				label = draggingLabel,
 				cursorX = dragController.dragWindowX,
 				cursorY = dragController.dragWindowY,
@@ -731,7 +714,7 @@ private fun OutlinerRowBody(
 	val hovered by interaction.collectIsHoveredAsState()
 	// Plain (non-snapshot) holder for the row's layout coordinates so onGloballyPositioned never forces a
 	// recompose; the hover effect reads the live window bounds from it on demand to anchor the preview.
-	val boundsHolder = remember { OutlinerRowBoundsHolder() }
+	val boundsHolder = remember { RowCoordinatesHolder() }
 	// While a relation pick is armed, report this row as what a click here would bind, so the shell's badge
 	// names it exactly as it does for a viewport hover.  Withdrawn on leaving, and only if still ours.
 	val relationPick = LocalRelationPick.current
@@ -763,10 +746,10 @@ private fun OutlinerRowBody(
 	DisposableEffect(node.id) {
 		onDispose { dragController.clearBounds(node.id) }
 	}
+	// A "nest inside" drop draws the shared drop ring over whatever fill the row has; before / after draw
+	// an edge line instead (below).
 	val background =
 		when {
-			// A "nest inside" drop fills the row; before / after instead draw an edge line (below).
-			isIntoTarget -> colors.dropTargetBackground
 			selected -> colors.selection
 			hovered -> colors.rowHover
 			ancestorOfSelection -> colors.selectionAncestorBackground
@@ -775,7 +758,6 @@ private fun OutlinerRowBody(
 		}
 	val borderColor =
 		when {
-			isIntoTarget -> colors.accent
 			selected -> colors.selection
 			hovered -> colors.rowHover
 			ancestorOfSelection -> colors.accent
@@ -796,11 +778,15 @@ private fun OutlinerRowBody(
 		modifier =
 			Modifier.width(rowWidth)
 				.height(ROW_HEIGHT)
+				// The dragged row fades while it is in flight - the whole row, fill and ring included, so the
+				// alpha layer wraps everything painted below it.
+				.alpha(if (isDragged) 0.4f else 1f)
 				// Background and border paint on the full row, before padding insets the content - otherwise the
 				// selection / hover band is drawn inside the 2dp vertical padding, so the highlighted rows read
 				// as having extra vertical padding while the plain rows (no visible band) do not.
 				.background(background, shape = shapes.medium)
 				.border(BorderStroke(1.dp, borderColor), shapes.medium)
+				.rowDropHighlight(isIntoTarget, shapes.medium, colors)
 				// Dashed vertical guide lines, one per ancestor indent column, so deep branches line up
 				// visually (Blender's outliner ancestry lines). Painted over the zebra fill but behind the
 				// content; depth 0 (the root) draws none. The dash phase is offset by the row's stacked height
@@ -857,39 +843,15 @@ private fun OutlinerRowBody(
 					)
 				}
 				.hoverable(interaction)
-				// The dragged row fades while it is in flight.
-				.alpha(if (isDragged) 0.4f else 1f)
 				.onGloballyPositioned { coordinates ->
 					boundsHolder.coordinates = coordinates
 					// Publish the window bounds so a drag can hit-test the drop target against every visible row.
 					dragController.reportBounds(node.id, coordinates.boundsInWindow())
 				}
-				// Long-press then drag to reparent: the gesture is distinct from the tap-to-select loop below, so
-				// a press still selects first, then a hold begins the drag. Only real rows pick up. The
-				// drop is applied on release by the space (which reads the controller's target).
-				.pointerInput(node.target) {
-					detectDragGesturesAfterLongPress(
-						onDragStart = { offset ->
-							val target = node.target
-							if (target != null) {
-								// Seed the drag position with the press point so the initial target is this row (i.e.
-								// none) - never a stale target left over from the previous drag.
-								val rowBounds = boundsHolder.coordinates?.boundsInWindow()
-								val rowLeft = rowBounds?.left ?: 0f
-								val rowTop = rowBounds?.top ?: 0f
-								dragController.start(node.id, target, rowLeft + offset.x, rowTop + offset.y)
-							}
-						},
-						onDrag = { change, _ ->
-							val rowBounds = boundsHolder.coordinates?.boundsInWindow()
-							val rowLeft = rowBounds?.left ?: 0f
-							val rowTop = rowBounds?.top ?: 0f
-							dragController.drag(rowLeft + change.position.x, rowTop + change.position.y)
-						},
-						onDragEnd = { currentOnDrop() },
-						onDragCancel = { dragController.end() },
-					)
-				}
+				// Long-press then drag to reparent: distinct from the tap-to-select loop below, so a press still
+				// selects first, then a hold begins the drag.  Only real rows (a target) pick up; the drop is
+				// applied on release by the space, which reads the controller's target.
+				.dragRowOnLongPress(dragController, node.id, node.target, boundsHolder) { currentOnDrop() }
 				// Selection covers the whole row (indent, icon, label, blank space) so clicking anywhere but the
 				// chevron or eye selects; those consume their own press, which this skips via the consumed check.
 				// A second unmodified press within the double-click window opens the inline rename instead of

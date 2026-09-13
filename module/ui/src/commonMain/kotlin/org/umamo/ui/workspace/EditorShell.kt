@@ -106,6 +106,8 @@ import org.umamo.ui.workspace.commands.transformCommands
 import org.umamo.ui.workspace.commands.uvCommands
 import org.umamo.ui.workspace.commands.viewCommands
 import org.umamo.ui.workspace.commands.workspaceCommands
+import org.umamo.ui.workspace.rowdrag.LocalRowDragCancel
+import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 
 /**
  * The whole editor shell: workspace tabs over a recursive, switchable, splittable area tree, with the
