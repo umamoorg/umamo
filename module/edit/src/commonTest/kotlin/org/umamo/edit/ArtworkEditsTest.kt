@@ -12,10 +12,13 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
@@ -170,26 +173,45 @@ class ArtworkEditsTest {
 		assertTrue(reloaded.renderRoot != null, "the render root is re-derived")
 	}
 
-	/** Additions can land inside a part the model already holds, after its children; naming an unknown part refuses. */
+	/**
+	 * A delta's insertions place new children among the existing ones - before or after an anchor, at
+	 * the end, and after a child the same delta placed just before - in the root and in a part the model
+	 * already holds; an anchor the container lacks falls to the end; a container the model lacks refuses.
+	 */
 	@Test
-	fun additionsInsideAnExistingPartAppendAfterItsChildren() {
+	fun insertionsPlaceNewChildrenAmongTheExistingOnes() {
 		val base = model()
 		val added = drawable("ArtMesh2", "art-0/lyid:2")
+		val second = drawable("ArtMesh3", "art-0/lyid:3")
+		val top = drawable("ArtMesh4", "art-0/lyid:4")
+		val kept = OrgChild.Drawable(DrawableId("ArtMesh1"))
 		val additions =
 			ArtworkAdditions(
 				source = sourceA,
-				tiles = listOf(AtlasTile(AtlasTileId("art-0/lyid:2"), "L2", 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), "lyid:2", true))),
-				drawables = listOf(added),
+				tiles = listOf(added, second, top).map { drawable -> AtlasTile(drawable.atlasTileId!!, drawable.name, 4, 4, source = SourceLayerRef(ArtSourceId("art-0"), drawable.atlasTileId!!.raw.substringAfter('/'), true)) },
+				drawables = listOf(added, second, top),
 				parts = emptyList(),
 				rootChildren = emptyList(),
-				childrenByPart = mapOf(PartId("Part1") to listOf(OrgChild.Drawable(added.id))),
+				insertions =
+					listOf(
+						OrgInsertion(PartId("Part1"), OrgChild.Drawable(added.id), OrgSlot.Before(kept)),
+						OrgInsertion(PartId("Part1"), OrgChild.Drawable(second.id), OrgSlot.After(OrgChild.Drawable(added.id))),
+						OrgInsertion(null, OrgChild.Drawable(top.id), OrgSlot.Before(OrgChild.Part(PartId("Part1")))),
+					),
 			)
 		val reload = ArtworkReload(sourceA, replacedTiles = emptyList(), drawableMeshes = emptyMap(), additions = additions, outgrown = emptyList())
 		val reloaded = base.withArtworkReloaded(reload)
-		assertEquals(listOf(OrgChild.Drawable(DrawableId("ArtMesh1")), OrgChild.Drawable(added.id)), reloaded.parts.single().children, "appended after the part's own children")
-		assertEquals(base.rootChildren, reloaded.rootChildren, "nothing lands at the root")
-		assertEquals(listOf("ArtMesh1", "ArtMesh2"), reloaded.drawables.map { drawable -> drawable.id.raw })
-		val unknownPart = additions.copy(childrenByPart = mapOf(PartId("Part9") to listOf(OrgChild.Drawable(added.id))))
+		assertEquals(listOf(OrgChild.Drawable(added.id), OrgChild.Drawable(second.id), kept), reloaded.parts.single().children, "before the kept child, then after the one just placed")
+		assertEquals(listOf(OrgChild.Drawable(top.id), OrgChild.Part(PartId("Part1"))), reloaded.rootChildren, "a top-of-file layer lands first at the root")
+		assertEquals(listOf("ArtMesh1", "ArtMesh2", "ArtMesh3", "ArtMesh4"), reloaded.drawables.map { drawable -> drawable.id.raw })
+		assertEquals(RenderDrawable(DrawableId("ArtMesh4")), reloaded.renderRoot?.children?.first(), "and draws in front")
+
+		val fallbacks = additions.copy(insertions = listOf(OrgInsertion(PartId("Part1"), OrgChild.Drawable(added.id), OrgSlot.After(OrgChild.Drawable(DrawableId("gone")))), OrgInsertion(null, OrgChild.Drawable(top.id), OrgSlot.End)))
+		val fallen = base.withArtworkReloaded(reload.copy(additions = fallbacks))
+		assertEquals(listOf(kept, OrgChild.Drawable(added.id)), fallen.parts.single().children, "a missing anchor falls to the end")
+		assertEquals(listOf(OrgChild.Part(PartId("Part1")), OrgChild.Drawable(top.id)), fallen.rootChildren)
+
+		val unknownPart = additions.copy(insertions = listOf(OrgInsertion(PartId("Part9"), OrgChild.Drawable(added.id), OrgSlot.End)))
 		assertSame(base, base.withArtworkReloaded(reload.copy(additions = unknownPart)), "a part the model lacks refuses the reload")
 		assertSame(base, base.withArtworkAdded(unknownPart.copy(source = sourceA.copy(id = ArtSourceId("art-1")))), "and the addition")
 	}

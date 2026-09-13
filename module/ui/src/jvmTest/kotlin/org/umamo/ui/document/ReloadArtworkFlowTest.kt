@@ -12,6 +12,8 @@ import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.model.AtlasRepackHost
 import org.umamo.ui.model.ImportParameterKeys
@@ -45,7 +47,9 @@ class ReloadArtworkFlowTest {
 	private val layerA = InMemoryLayer("lyid:1", "A", 0, LayerBounds(10, 10, 8, 8), solidRaster(8, 8, 1))
 	private val layerB = InMemoryLayer("lyid:2", "B", 1, LayerBounds(40, 40, 8, 8), solidRaster(8, 8, 2))
 	private val layerARepainted = InMemoryLayer("lyid:1", "A", 0, LayerBounds(10, 10, 12, 12), solidRaster(12, 12, 9))
-	private val layerC = InMemoryLayer("lyid:3", "C", 2, LayerBounds(5, 50, 6, 6), solidRaster(6, 6, 3))
+
+	/** Inserted at the TOP of the file (above A and B), the way an artist adds a layer in Photoshop. */
+	private val layerC = InMemoryLayer("lyid:3", "C", -1, LayerBounds(5, 50, 6, 6), solidRaster(6, 6, 3))
 
 	@Test
 	fun aReloadLandsTheChangedLayersAsOneStepAndUndoShowsTheOldArt() =
@@ -83,7 +87,8 @@ class ReloadArtworkFlowTest {
 			val carriedA = reloaded.drawables.first { drawable -> drawable.id == drawableA.id }
 			assertEquals(tileA1, carriedA.atlasTileId, "the drawable moved onto the replacement")
 			assertEquals(3, reloaded.drawables.size, "the new layer became a drawable")
-			assertEquals(listOf("lyid:1", "lyid:2", "lyid:3"), reloaded.sources.single().layers.map { layer -> layer.key })
+			assertEquals(OrgChild.Drawable(DrawableId("ArtMesh3")), reloaded.rootChildren.first(), "placed first, where the file put it, so it draws in front")
+			assertEquals(listOf("lyid:3", "lyid:1", "lyid:2"), reloaded.sources.single().layers.map { layer -> layer.key }, "the inventory reads in the file's order, the new top layer first")
 			assertEquals("hash-v2", reloaded.sources.single().contentHash, "the record carries the hash the reload read")
 			withTimeout(120_000) {
 				while (sessionAtlasPages.binding.value.atlas !== reloaded.atlas) {

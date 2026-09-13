@@ -92,25 +92,65 @@ data class SourceLayerRef(
 )
 
 /**
+ * Where a delta places one child among a container's existing children.
+ */
+sealed interface OrgSlot {
+	/**
+	 * Directly after [anchor], a child the container already has (or one the same delta placed before it).
+	 *
+	 * @property OrgChild anchor The child to follow.
+	 */
+	data class After(val anchor: OrgChild) : OrgSlot
+
+	/**
+	 * Directly before [anchor], a child the container already has.
+	 *
+	 * @property OrgChild anchor The child to precede.
+	 */
+	data class Before(val anchor: OrgChild) : OrgSlot
+
+	/** After every child the container has. */
+	data object End : OrgSlot
+}
+
+/**
+ * One child a delta places inside the model's existing org tree: a reload found a layer in a folder
+ * the document already keeps as a part (or at the root), and the file says where among that folder's
+ * layers it sits, so the drawable lands there rather than at the bottom.  An anchor the container no
+ * longer has places the child at the end.
+ *
+ * @property PartId?  container The part whose children it joins, or null for the root.
+ * @property OrgChild child     The child: a drawable of the delta, or one of its new parts.
+ * @property OrgSlot  slot      Where among the container's children it goes.
+ */
+data class OrgInsertion(
+	val container: PartId?,
+	val child: OrgChild,
+	val slot: OrgSlot,
+)
+
+/**
  * What one artwork file adds to a model: the file's record, its tiles, the drawables and parts born
- * from its layers, and the org children to append - at the root, or inside parts the model already
- * holds.  A delta rather than a model, so the same additions can be appended to a fresh model at
- * open or to a document already being rigged.
+ * from its layers, and where they join the org tree - a fresh file's whole tree after the model's root
+ * children, a listed file's new layers placed among the children the model already has.  A delta
+ * rather than a model, so the same additions can be appended to a fresh model at open or to a document
+ * already being rigged.
  *
  * Every id in here is already minted past the receiving model's (`ArtMesh<n>`, `Part<n>`, `art-<k>`),
  * and the new parts' children reference only ids in this delta.  Pixels are absent - they travel
  * beside it to the document's raster store.
  *
- * @property ArtSource       source        The file and its layer inventory.
- * @property List<AtlasTile> tiles         One unplaced tile per imported layer, bound to that layer.
- * @property List<Drawable>  drawables     One drawable per tile, over its birth mesh.
- * @property List<Part>      parts         One NEW part per folder the model has no part for, nested by
- *   the parts' own children.
- * @property List<OrgChild>  rootChildren  The file's top-level order, appended after the model's own.
- * @property Map             childrenByPart Children to append inside parts the model ALREADY holds,
- *   by that part's id: a layer a reload found in a folder the document already keeps as a part lands in
- *   that part, after its existing children, rather than in a second part of the same name.  Empty for
- *   a fresh file, whose folders are all new.
+ * @property ArtSource       source       The file and its layer inventory.
+ * @property List<AtlasTile> tiles        One unplaced tile per imported layer, bound to that layer.
+ * @property List<Drawable>  drawables    One drawable per tile, over its birth mesh.
+ * @property List<Part>      parts        One NEW part per folder the model has no part for, nested by the
+ *   parts' own children.
+ * @property List<OrgChild>  rootChildren A fresh file's top-level order, appended after the model's own;
+ *   empty for a listed file, whose new children are [insertions].
+ * @property List            insertions   A listed file's new children placed among the existing ones - at
+ *   the root or inside a part the document already keeps for the folder - in the order the file gives
+ *   them, each anchored to its nearest sibling in the file; applied in list order, so a child may anchor
+ *   on one placed before it.  Empty for a fresh file, whose folders are all new.
  */
 data class ArtworkAdditions(
 	val source: ArtSource,
@@ -118,7 +158,7 @@ data class ArtworkAdditions(
 	val drawables: List<Drawable>,
 	val parts: List<Part>,
 	val rootChildren: List<OrgChild>,
-	val childrenByPart: Map<PartId, List<OrgChild>> = emptyMap(),
+	val insertions: List<OrgInsertion> = emptyList(),
 )
 
 /**

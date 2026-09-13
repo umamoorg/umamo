@@ -15,6 +15,8 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
@@ -160,7 +162,11 @@ class ArtworkReloadPlannerTest {
 		val additions = assertNotNull(plan.reload.additions)
 		assertTrue(additions.parts.isEmpty(), "no part is minted: Head exists, and Body and Legs gained nothing")
 		assertTrue(additions.rootChildren.isEmpty())
-		assertEquals(mapOf(headPart to listOf(OrgChild.Drawable(DrawableId("ArtMesh1")))), additions.childrenByPart, "the brow joins the Head part")
+		assertEquals(
+			listOf(OrgInsertion(headPart, OrgChild.Drawable(DrawableId("ArtMesh1")), OrgSlot.After(OrgChild.Drawable(DrawableId("d1"))))),
+			additions.insertions,
+			"the brow joins the Head part, right after the layer above it in the file",
+		)
 	}
 
 	@Test

@@ -13,6 +13,8 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterNode
@@ -329,46 +331,57 @@ class SourceArtImportTest {
 	}
 
 	/**
-	 * A reload's additions (under a listed source) mint only the folders the added layers live in, and a
+	 * A reload's additions (under a listed source) mint only the folders the added layers live in; a
 	 * folder the document already keeps as a part - found through the source's bindings, since a part
 	 * carries no folder of its own - takes the layers as children instead of a second part of the same
-	 * name; a new sub-folder inside such a part is minted as a new part under it.
+	 * name; a new sub-folder inside such a part is minted as a new part under it; and every new child is
+	 * placed among the existing children where the file puts it: after its nearest shown sibling above,
+	 * else before its nearest below, so a layer added at the top of the file lands first.
 	 */
 	@Test
-	fun additionsUnderAListedSourceReuseTheDocumentsPartsAndMintNoEmptyFolders() {
+	fun additionsUnderAListedSourceReuseTheDocumentsPartsAndPlaceByTheFilesOrder() {
 		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val existingByName = existing.drawables.associateBy { drawable -> drawable.name }
 		val headPart = existing.parts.first { part -> part.name == "Head" }
 		val bodyPart = existing.parts.first { part -> part.name == "Body" }
+		val armPart = existing.parts.first { part -> part.name == "Arm" }
+		val cap = layer("lyid:11", "Cap", order = -1, left = 0, top = 0, raster = rasterOf(2, 2))
 		val brow = layer("lyid:8", "Brow", order = 8, left = 90, top = 30, raster = rasterOf(4, 4), groupPath = "Head")
 		val lash = layer("lyid:9", "Lash", order = 9, left = 95, top = 45, raster = rasterOf(3, 3), groupPath = "Head/Lashes")
 		val tail = layer("lyid:10", "Tail", order = 10, left = 0, top = 80, raster = rasterOf(6, 6), groupPath = "Body/Tail")
-		val addedArt =
+		val wholeFile =
 			FixtureArt(
 				widthPx = 200,
 				heightPx = 100,
-				layers = listOf(brow, lash, tail),
+				layers = fixture().layers + cap + brow + lash + tail,
 				groups = fixture().groups + FixtureGroup("Head/Lashes", "Lashes") + FixtureGroup("Body/Tail", "Tail"),
 			)
+		val gained = setOf("lyid:11", "lyid:8", "lyid:9", "lyid:10")
 
-		val added = SourceArtImport.additionsFor(addedArt, descriptor, SourceArtImportOptions(), existing, underSource = ArtSourceId("art-0")).additions
+		val added = SourceArtImport.additionsFor(wholeFile, descriptor, SourceArtImportOptions(), existing, underSource = ArtSourceId("art-0"), layerKeys = gained).additions
 		val byName = added.drawables.associateBy { drawable -> drawable.name }
+		assertEquals(listOf("Cap", "Brow", "Lash", "Tail"), added.drawables.map { drawable -> drawable.name }, "only the named layers are minted, top-most first")
 		assertEquals(listOf("Lashes", "Tail"), added.parts.map { part -> part.name }, "only the folders the document has no part for are minted; Head, Body, Arm, and Solo are not")
 		assertEquals(listOf(PartId("Part5"), PartId("Part6")), added.parts.map { part -> part.id }, "past the document's four parts")
-		assertTrue(added.rootChildren.isEmpty(), "nothing lands at the root: every added layer sits under a folder the document holds")
+		assertTrue(added.rootChildren.isEmpty(), "a listed file appends nothing after the root; its new children are placed")
 		val lashes = added.parts.first { part -> part.name == "Lashes" }
+		val tailPart = added.parts.first { part -> part.name == "Tail" }
 		assertEquals(listOf(OrgChild.Drawable(byName.getValue("Lash").id)), lashes.children)
 		assertEquals(
-			mapOf(
-				headPart.id to listOf(OrgChild.Drawable(byName.getValue("Brow").id), OrgChild.Part(lashes.id)),
-				bodyPart.id to listOf(OrgChild.Part(added.parts.first { part -> part.name == "Tail" }.id)),
+			listOf(
+				OrgInsertion(null, OrgChild.Drawable(byName.getValue("Cap").id), OrgSlot.Before(OrgChild.Part(headPart.id))),
+				OrgInsertion(headPart.id, OrgChild.Drawable(byName.getValue("Brow").id), OrgSlot.After(OrgChild.Drawable(existingByName.getValue("Face").id))),
+				OrgInsertion(headPart.id, OrgChild.Part(lashes.id), OrgSlot.After(OrgChild.Drawable(byName.getValue("Brow").id))),
+				OrgInsertion(bodyPart.id, OrgChild.Part(tailPart.id), OrgSlot.After(OrgChild.Part(armPart.id))),
 			),
-			added.childrenByPart,
-			"the new layer and the new sub-folder join the existing Head part; the new Body sub-folder joins Body",
+			added.insertions,
+			"the top layer goes before the root's first folder; Brow after Face (the empty layer above it shows nothing); the new Lashes folder after Brow; the new Tail folder after Arm",
 		)
 
-		val fresh = SourceArtImport.additionsFor(addedArt, ArtSourceDescriptor("other.psd", null, "psd"), SourceArtImportOptions(), existing).additions
-		assertEquals(listOf("Head", "Lashes", "Body", "Tail", "Arm"), fresh.parts.map { part -> part.name }, "a NEW file still mints every folder it has, an empty one (Arm) sorting last")
-		assertTrue(fresh.childrenByPart.isEmpty())
+		val fresh = SourceArtImport.additionsFor(wholeFile, ArtSourceDescriptor("other.psd", null, "psd"), SourceArtImportOptions(), existing).additions
+		assertEquals(listOf("Head", "Lashes", "Body", "Arm", "Tail", "Solo"), fresh.parts.map { part -> part.name }, "a NEW file still mints every folder it has, in pre-order")
+		assertTrue(fresh.insertions.isEmpty(), "and appends its whole tree after the root")
+		assertEquals(OrgChild.Drawable(fresh.drawables.first { drawable -> drawable.name == "Cap" }.id), fresh.rootChildren.first())
 	}
 
 	/** Two layers sharing a weak key still get distinct tiles, disambiguated by draw order. */

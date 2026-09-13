@@ -15,6 +15,8 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.OrgInsertion
+import org.umamo.runtime.model.OrgSlot
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
@@ -925,39 +927,93 @@ fun PuppetModel.withArtworkAdded(additions: ArtworkAdditions): PuppetModel {
 	if (additions.tiles.any { tile -> tile.id in existingTileIds } ||
 		additions.drawables.any { drawable -> drawable.id in existingDrawableIds } ||
 		additions.parts.any { part -> part.id in existingPartIds } ||
-		additions.childrenByPart.keys.any { partId -> partId !in existingPartIds }
+		additions.insertions.any { insertion -> insertion.container != null && insertion.container !in existingPartIds }
 	) {
 		return this
 	}
+	val placed = placeInsertions(parts, rootChildren, additions.insertions)
 	return copy(
-		parts = parts.withAppendedChildren(additions.childrenByPart) + additions.parts,
+		parts = placed.parts + additions.parts,
 		drawables = drawables + additions.drawables,
-		rootChildren = rootChildren + additions.rootChildren,
+		rootChildren = placed.rootChildren + additions.rootChildren,
 		atlas = atlas.copy(tiles = atlas.tiles + additions.tiles),
 		sources = sources + additions.source,
 	).withDerivedRenderRoot()
 }
 
 /**
- * These parts with [childrenByPart]'s children appended after each named part's own.
+ * The org tree after a delta's insertions: the parts and the root children.
  *
- * @param Map childrenByPart The children to append, by the part they join.
- * @return List<Part> The parts, the named ones grown.
+ * @property List<Part>     parts        The parts, the ones that took children rebuilt.
+ * @property List<OrgChild> rootChildren The root's children.
  */
-private fun List<Part>.withAppendedChildren(childrenByPart: Map<PartId, List<OrgChild>>): List<Part> =
-	if (childrenByPart.isEmpty()) {
-		this
-	} else {
-		map { part -> childrenByPart[part.id]?.let { appended -> part.copy(children = part.children + appended) } ?: part }
+private class PlacedOrgTree(
+	val parts: List<Part>,
+	val rootChildren: List<OrgChild>,
+)
+
+/**
+ * [insertions] applied in order to [parts] and [rootChildren]: each child goes directly after or before
+ * its anchor among the container's children as they stand at that moment (an earlier insertion
+ * included), or at the end when the slot says so or the anchor is not there any more.
+ *
+ * @param List<Part>         parts        The parts as they stand.
+ * @param List<OrgChild>     rootChildren The root's children as they stand.
+ * @param List<OrgInsertion> insertions   The children to place, in order.
+ * @return PlacedOrgTree The placed tree; the same lists when there is nothing to place.
+ */
+private fun placeInsertions(parts: List<Part>, rootChildren: List<OrgChild>, insertions: List<OrgInsertion>): PlacedOrgTree {
+	if (insertions.isEmpty()) {
+		return PlacedOrgTree(parts, rootChildren)
 	}
+	var root = rootChildren
+	val childrenByPart = LinkedHashMap<PartId, List<OrgChild>>()
+	for (part in parts) {
+		childrenByPart[part.id] = part.children
+	}
+	for (insertion in insertions) {
+		val container = insertion.container
+		if (container == null) {
+			root = root.withInserted(insertion.child, insertion.slot)
+		} else {
+			childrenByPart[container] = childrenByPart.getValue(container).withInserted(insertion.child, insertion.slot)
+		}
+	}
+	val placedParts =
+		parts.map { part ->
+			val children = childrenByPart.getValue(part.id)
+			if (children === part.children) part else part.copy(children = children)
+		}
+	return PlacedOrgTree(placedParts, root)
+}
+
+/**
+ * This list with [child] at [slot]: after or before the anchor when the list holds it, else at the end.
+ *
+ * @param OrgChild child The child to place.
+ * @param OrgSlot  slot  Where it goes.
+ * @return List<OrgChild> The grown list.
+ */
+private fun List<OrgChild>.withInserted(child: OrgChild, slot: OrgSlot): List<OrgChild> {
+	val index =
+		when (slot) {
+			is OrgSlot.After -> indexOf(slot.anchor).let { anchorIndex -> if (anchorIndex < 0) size else anchorIndex + 1 }
+			is OrgSlot.Before -> indexOf(slot.anchor).let { anchorIndex -> if (anchorIndex < 0) size else anchorIndex }
+			OrgSlot.End -> size
+		}
+	val grown = ArrayList<OrgChild>(size + 1)
+	grown.addAll(this)
+	grown.add(index, child)
+	return grown
+}
 
 /**
  * This model with one artwork file re-read into it: the file's record replaced by [reload]'s (the
  * inventory as just read), every superseded tile removed and its replacement appended unplaced, the
  * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, and
- * the layers the file gained appended under the same file (tiles, drawables, new parts, root order,
- * and children inside the parts the document already holds, like [withArtworkAdded]).  The render
- * root is re-derived.  The pack that places the new tiles is a
+ * the layers the file gained appended under the same file (tiles, drawables, new parts, and each new
+ * child placed among the existing children where the file puts it, like [withArtworkAdded]).  The
+ * render root is re-derived, so a layer added at the top of the file draws in front.  The pack that places the new tiles is a
  * separate step over the result, exactly as for an added file: an unplaced tile's coordinates address
  * its own art, so the repack's re-derivation converts them.
  *
@@ -989,7 +1045,7 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 		newTiles.mapTo(HashSet()) { tile -> tile.id }.size != newTiles.size ||
 		additions?.drawables.orEmpty().any { drawable -> drawable.id in existingDrawableIds } ||
 		additions?.parts.orEmpty().any { part -> part.id in existingPartIds } ||
-		additions?.childrenByPart.orEmpty().keys.any { partId -> partId !in existingPartIds }
+		additions?.insertions.orEmpty().any { insertion -> insertion.container != null && insertion.container !in existingPartIds }
 	) {
 		return this
 	}
@@ -1005,10 +1061,11 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 			}
 		}
 	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds }
+	val placed = placeInsertions(parts, rootChildren, additions?.insertions.orEmpty())
 	return copy(
-		parts = parts.withAppendedChildren(additions?.childrenByPart.orEmpty()) + additions?.parts.orEmpty(),
+		parts = placed.parts + additions?.parts.orEmpty(),
 		drawables = movedDrawables + additions?.drawables.orEmpty(),
-		rootChildren = rootChildren + additions?.rootChildren.orEmpty(),
+		rootChildren = placed.rootChildren + additions?.rootChildren.orEmpty(),
 		atlas = atlas.copy(tiles = keptTiles + newTiles),
 		sources = sources.map { source -> if (source.id == reload.source.id) reload.source else source },
 	).withDerivedRenderRoot()

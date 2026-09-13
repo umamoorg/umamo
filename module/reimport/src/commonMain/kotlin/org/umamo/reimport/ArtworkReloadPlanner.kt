@@ -141,8 +141,9 @@ object ArtworkReloadPlanner {
 			if (addedKeys.isEmpty() || replacement != null) {
 				null
 			} else {
-				val subset = LayerSubsetArt(art, art.layers.filter { layer -> layer.id.raw in addedKeys })
-				SourceArtImport.additionsFor(subset, ArtSourceDescriptor(source.name, source.path, source.format), options, model, underSource = sourceId)
+				// The whole file goes to the bridge with the gained layers named, so each new drawable is
+				// placed among the existing ones where the file puts it.
+				SourceArtImport.additionsFor(art, ArtSourceDescriptor(source.name, source.path, source.format), options, model, underSource = sourceId, layerKeys = addedKeys, inventory = inventory)
 			}
 		if (added != null) {
 			rasters.putAll(added.rasterByTile)
