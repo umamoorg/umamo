@@ -7,6 +7,14 @@
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 * Android GLES renderer backend (deferred 2026-06-21)
 
+## WORK STEPS - 2026-09-14
+1.) Leftovers - Art Sourcing Pipeline Verification
+2.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit
+3.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening
+4.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
+5.) (Everything required for glue, deformers, and so on.)
+6.) UMA Format (Phase G - Art Sourcing Pipeline)
+
 ## VERY IMPORTANT
 * Hire translators for localization.
 * Final pass on keyboard shortcuts.
