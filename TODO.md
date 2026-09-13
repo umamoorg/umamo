@@ -9,18 +9,19 @@
 
 ## WORK STEPS - 2026-09-14
 1.) Leftovers - Art Sourcing Pipeline Verification
-2.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit
-3.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening
-4.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
-5.) (Everything required for glue, deformers, and so on.)
-6.) UMA Format (Phase G - Art Sourcing Pipeline)
+2.) Operation Strip - Make sure all application operations are using it.
+3.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit
+4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening
+5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
+6.) (Everything required for glue, deformers, and so on.)
+7.) UMA Format (Phase G - Art Sourcing Pipeline)
 
 ## VERY IMPORTANT
 * Hire translators for localization.
 * Final pass on keyboard shortcuts.
 * Final pass on default settings.
+* Final pass on default workspace layouts.
 * Final pass on theme colors.
-	* This includes MeshEditColors.kt.(One full pass has already been done.)
 
 ## User Stories
 * glTF export for easy import into game engines.  (Requested; far future.)
