@@ -57,6 +57,11 @@ class SourceArtRasters(
 	/**
 	 * A tile's pixels, decoding them on first request and caching the result (failures included).
 	 *
+	 * A raster added through [addDecoded] wins over the cache: a reload's replacement id (`<root>~<n>`)
+	 * is minted past the ids the model holds NOW, so reload, undo, reload mints the same id twice with
+	 * different pixels, and a cache entry taken between the two would otherwise stand in for the second.
+	 * Both twins then hand out the added instance, which is what the identity comparisons need.
+	 *
 	 * CALLER-CONFINED: the cache is a plain map with no synchronization, so every call must come from
 	 * the same thread (today, the UI thread).  A second caller would not merely race the map - it could
 	 * hand out a SECOND decoded instance for one tile, and both the renderer's texture cache and the
@@ -67,6 +72,7 @@ class SourceArtRasters(
 	 * @return DecodedImage? The decoded raster, or null when the tile has no usable pixels.
 	 */
 	fun rasterFor(tileId: AtlasTileId): DecodedImage? {
+		added[tileId]?.let { raster -> return raster }
 		if (decodedByTile.containsKey(tileId)) {
 			return decodedByTile[tileId]
 		}

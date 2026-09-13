@@ -150,6 +150,48 @@ class ReloadArtworkFlowTest {
 		}
 
 	@Test
+	fun aReloadAfterAnUndoReusesTheReplacementIdAndTheStoreServesTheNewPixels() =
+		runBlocking {
+			// The replacement id is minted past the ids the model holds, so reload, undo, reload mints
+			// `~1` twice.  The raster store is document-lifetime and its cached read (the UV editor's pick
+			// surface) may have answered `~1` after the first reload; it must answer the second's pixels now.
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the reload must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			val tileA1 = AtlasTileId("art-0/lyid:1~1")
+
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerARepainted, layerB)), "hash-v2")), options), areaId = null))
+			assertTrue(session.model.value.atlas.tileById.containsKey(tileA1))
+			val firstPixels = assertNotNull(document.artRasters.rasterFor(tileA1), "the cached read answers the first reload")
+			assertEquals(9.toByte(), firstPixels.rgba[0])
+			session.undo()
+			assertSame(before, session.model.value)
+
+			val repaintedAgain = InMemoryLayer("lyid:1", "A", 0, LayerBounds(10, 10, 10, 10), solidRaster(10, 10, 7))
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(repaintedAgain, layerB)), "hash-v3")), options), areaId = null))
+			assertTrue(session.model.value.atlas.tileById.containsKey(tileA1), "the replacement id is minted again")
+			assertEquals(10, session.model.value.atlas.tileById.getValue(tileA1).width)
+			val secondPixels = assertNotNull(document.artRasters.rasterFor(tileA1), "the cached read answers the second reload")
+			assertEquals(7.toByte(), secondPixels.rgba[0], "with the second reload's pixels, not the cached first")
+			assertEquals(10, secondPixels.width)
+			assertSame(secondPixels, document.artRasters.decodeRaster(tileA1), "one instance from both reads")
+			follower.cancel()
+		}
+
+	@Test
 	fun tilesBoundToOneLostKeyRelinkTogetherAsOneStep() =
 		runBlocking {
 			// Two tiles under one binding, the shape a review row's Accept acts on: relinked in one request

@@ -259,6 +259,31 @@ class SourceArtRastersTest {
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile is still unknown")
 	}
 
+	/**
+	 * A raster added for a tile the cached read already answered replaces that answer: a reload's
+	 * replacement id is minted against the model as it stands, so reload, undo, reload reuses the id
+	 * with new pixels, and the cache must not keep handing out the first reload's.
+	 */
+	@Test
+	fun anAddedRasterReplacesACachedOneForTheSameTile() {
+		val first = DecodedImage(byteArrayOf(1, 2, 3, 4), 1, 1)
+		val second = DecodedImage(byteArrayOf(5, 6, 7, 8), 1, 1)
+		val store = SourceArtRasters { null }
+		val reused = AtlasTileId("art-0/lyid:1~1")
+
+		store.addDecoded(mapOf(reused to first))
+		assertSame(first, store.rasterFor(reused), "the cached read takes the first reload's pixels")
+		store.addDecoded(mapOf(reused to second))
+		assertSame(second, store.rasterFor(reused), "and the second reload's once they replace them")
+		assertSame(second, store.decodeRaster(reused), "the same instance from the uncached read")
+
+		// A tile the cache learned as absent is likewise superseded by an added raster.
+		val late = AtlasTileId("late")
+		assertNull(store.rasterFor(late))
+		store.addDecoded(mapOf(late to first))
+		assertSame(first, store.rasterFor(late), "a remembered miss does not outlive the raster's arrival")
+	}
+
 	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
