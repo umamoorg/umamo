@@ -135,12 +135,15 @@ public object Cmo3Conversion {
 		// Every fresh-graph export is by definition source-art-less - the stand-in document above is
 		// sliced out of the atlas - so the notice leads the report rather than hiding behind the
 		// per-entity findings.  It is the one finding that describes the WHOLE file rather than an
-		// entity in it, which no amount of per-drawable detail would tell the user.
-		return Result(
-			model,
-			report.copy(notices = listOf(ExportNotice.MissingSourceArt(effectivePages.size)) + report.notices),
-			effectivePuppet,
-		)
+		// entity in it, which no amount of per-drawable detail would tell the user.  A twin the
+		// prepass had to leave sharing its slot follows it, for the same reason.
+		val leading = ArrayList<ExportNotice>()
+		leading.add(ExportNotice.MissingSourceArt(effectivePages.size))
+		if (undedup.sharedDrawableIds.isNotEmpty()) {
+			val nameById = effectivePuppet.drawables.associate { drawable -> drawable.id.raw to drawable.name }
+			leading.add(ExportNotice.SharedAtlasSlotKept(undedup.sharedDrawableIds.map { drawableId -> nameById[drawableId] ?: drawableId }))
+		}
+		return Result(model, report.copy(notices = leading + report.notices), effectivePuppet)
 	}
 
 	/**

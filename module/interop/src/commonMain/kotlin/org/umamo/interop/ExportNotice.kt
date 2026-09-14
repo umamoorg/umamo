@@ -78,6 +78,18 @@ sealed interface ExportNotice {
 	 * @property List tileNames The reloaded tiles' display names, in document order.
 	 */
 	data class ReloadedTileImagesStale(val tileNames: List<String>) : ExportNotice
+
+	/**
+	 * Drawables that share one atlas slot with a twin at another canvas placement and could not be
+	 * given a slot of their own because their patch is too large for a page even on its own.  A CMO3
+	 * model image carries a single canvas placement, so the official editor shows such a drawable at
+	 * the first twin's placement in its layered-art display mode; the texture-atlas mode and the
+	 * runtime are unaffected.  A transparent twin (a hit area's) is not reported: nothing shows at
+	 * either placement.
+	 *
+	 * @property List drawableNames The affected drawables' display names, in document order.
+	 */
+	data class SharedAtlasSlotKept(val drawableNames: List<String>) : ExportNotice
 }
 
 /**
