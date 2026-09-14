@@ -1076,11 +1076,6 @@ private fun describeExportNotice(notice: ExportNotice): String =
 		is ExportNotice.MissingSourceArt ->
 			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
 				"so its layers are atlas slices rather than the original artwork"
-		is ExportNotice.ReloadedTileImagesStale ->
-			"reloaded art reaches the atlas pages but not the retained layer images of " +
-				notice.tileNames.take(8).joinToString() +
-				(if (notice.tileNames.size > 8) " (+${notice.tileNames.size - 8} more)" else "") +
-				"; the editor's layered view shows the art as imported"
 		is ExportNotice.SharedAtlasSlotKept ->
 			"twins sharing one atlas slot could not be given their own: " +
 				notice.drawableNames.take(8).joinToString() +

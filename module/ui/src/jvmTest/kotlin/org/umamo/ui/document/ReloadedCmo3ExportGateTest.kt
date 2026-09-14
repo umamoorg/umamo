@@ -32,8 +32,9 @@ import kotlin.test.assertTrue
  * A CMO3-origin document with a reloaded tile still exports through its retained graph: the
  * reloaded tile is a NEW tile in the model, and the atlas web has to read it as the entry its lineage
  * root imported from - moved to the replacement's placement - rather than as a pack-in with no model
- * image, which would decline the whole reconcile.  The pages carry the new pixels; the report names
- * the tile whose retained layer image is now stale.
+ * image, which would decline the whole reconcile.  The pages carry the new pixels, and so does the
+ * retained layer the root's model image composites, so the official editor's layered view shows the
+ * reloaded art.
  *
  * Skips without the corpus sample.
  */
@@ -107,12 +108,20 @@ class ReloadedCmo3ExportGateTest {
 				prepared.report.notices.none { notice -> notice is ExportNotice.UnsupportedChange && notice.reason == ExportNoticeReason.AtlasTileRebindingNotLowered },
 				"the drawables over the replacement are not rebindings as far as the graph knows",
 			)
-			val stale = assertNotNull(prepared.report.notices.filterIsInstance<ExportNotice.ReloadedTileImagesStale>().singleOrNull(), "the report names the stale retained image")
-			assertEquals(listOf(replacement.name), stale.tileNames)
+			assertTrue(
+				prepared.report.notices.none { notice -> notice is ExportNotice.UnsupportedChange && notice.reason == ExportNoticeReason.AtlasTileMetadataNotReconcilable },
+				"the reloaded tile's metadata is reconciled by the layer rewrite",
+			)
 
 			val reread = Cmo3.read(Cmo3.write(prepared.model))
 			val reimported = Cmo3Import.fromModelSource(reread.root as CModelSource)
 			assertEquals(newPlacement, reimported.atlas.tileById.getValue(tile.id).placement, "the root's entry moved to the replacement's placement")
+			// The retained layer holds the repainted pixels: the layered-art reader decodes them back
+			// out of the root's own layer, keyed as the reload keyed it.
+			val rereadArt = assertNotNull(cmo3SourceArtOf(reread.root as CModelSource, ref.sourceId) { resource -> reread.extractLayerPng(resource) }, "the file reads back")
+			val rereadLayer = assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == ref.layerKey }, "the reloaded layer is listed under its key")
+			assertEquals(tile.width to tile.height, rereadLayer.raster.width to rereadLayer.raster.height)
+			assertTrue(rereadLayer.raster.rgba.contentEquals(repainted.raster.rgba), "the layer's pixels are the repainted ones")
 			val exportedPages = cmo3AtlasPages(reread.root as CModelSource) { resource -> reread.extractLayerPng(resource) }.pageBytes
 			val expectedPages = effective.atlases.map { page -> encodeAtlasPng(page) }
 			assertEquals(expectedPages.size, exportedPages.size, "exported page count")

@@ -89,6 +89,9 @@ internal class Cmo3PropertyLowering(
 	// placements (Cmo3Export's same-count patch); the stale-page notices below are then false and stay
 	// quiet.  Defaults false so every other construction keeps the honest warning.
 	private val pagesRecomposed: Boolean = false,
+	// The lineage roots whose layer web the atlas-web reconcile minted or rewrote to the edited art;
+	// their metadata (name, size, binding) is reconciled there, so no notice is owed for it.
+	private val reconciledTileIds: Set<String> = emptySet(),
 ) {
 	private val editedParameterById = edited.parameters.associateBy(Parameter::id)
 	private val editedPartById = edited.parts.associateBy(Part::id)
@@ -663,7 +666,7 @@ internal class Cmo3PropertyLowering(
 					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
 
 				is EntityDiff.Changed -> {
-					if (AtlasTileField.METADATA in diff.fields) {
+					if (AtlasTileField.METADATA in diff.fields && diff.id.raw !in reconciledTileIds) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
 					}
 					if (AtlasTileField.PLACEMENT !in diff.fields) {

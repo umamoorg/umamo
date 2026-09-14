@@ -178,45 +178,13 @@ internal object Cmo3SourceLayerWeb {
 		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
 		nowMillis: Long,
 	): Written {
-		val layeredImage = CLayeredImage()
-		val rootChildren = CArrayList<Any?>()
-		val rootGroup = layerGroup("root", layeredImage, rootChildren, names)
-		val layerEntryList = CArrayList<Any?>(mutableListOf<Any?>(rootGroup))
-		layeredImage.apply {
-			name = image.name
-			memo = ""
-			// CMO3: CLayeredImage fields width / height - the source document's own frame; the
-			// inventory's canvas coordinates live in the document canvas, so that is the frame here.
-			width = image.width
-			height = image.height
-			// CMO3: CLayeredImage field psdFile - the external-reference <file> shape whose text is the
-			// source's path on the importing machine; the name stands in when the record has none.
-			psdFile = FileRef().apply { textPath = image.path ?: image.name }
-			description = ""
-			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
-			// CMO3: CLayeredImage field psdFileLastModified - the source's modification time as last read.
-			psdFileLastModified = image.lastModified ?: nowMillis
-			_rootLayer = rootGroup
-			layerSet =
-				LayerSet().apply {
-					_layeredImage = layeredImage
-					_layerEntryList = layerEntryList
-				}
-		}
-		val wrapper =
-			LayeredImageWrapper().apply {
-				this.image = layeredImage
-				importedTimeMSec = nowMillis
-				lastModifiedTimeMSec = image.lastModified ?: nowMillis
-			}
-		val groupModelImages = CArrayList<Any?>()
-		val group =
-			CModelImageGroup().apply {
-				memo = ""
-				groupName = image.name
-				_linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
-				_modelImages = groupModelImages
-			}
+		val minted = mintLayeredImage(image.name, image.path, image.lastModified, image.width, image.height, names, nowMillis)
+		val layeredImage = minted.image
+		val rootChildren = minted.rootChildren
+		val rootGroup = minted.rootGroup
+		val layerEntryList = minted.layerEntryList
+		val group = mintModelImageGroup(image.name, layeredImage)
+		val groupModelImages = checkNotNull(mutableGraphListOf(group._modelImages)) { "mintModelImageGroup builds a list" }
 		// Folders are minted on first encounter along each layer's path, so only the folders that
 		// hold a written layer exist, nested the way the file nests them.
 		val childrenByPath = HashMap<String, CArrayList<Any?>>()
@@ -242,55 +210,24 @@ internal object Cmo3SourceLayerWeb {
 			val pngBytes = PngCodec.write(raster)
 			val path = names.nextImageFileBufPath()
 			pngEntries.add(Cmo3FreshFile.PngEntry(path, pngBytes))
-			val resource =
-				CImageResource().apply {
-					// CMO3: CImageResource - the layer's own pixels, the document's raster for the tile.
-					width = raster.width
-					height = raster.height
-					type = "INT_ARGB"
-					imageFileBuf = FileRef().apply { archivePath = path }
-					imageFileBuf_size = pngBytes.size
-				}
+			val resource = layerResource(path, raster, pngBytes.size)
 			val folder = folderAt(layerInput.groupPath)
 			val layer =
-				CLayer().apply {
-					// CMO3: CLayer - the tile's layer on the file's document.
-					name = layerInput.name
-					memo = ""
-					isVisible = layerInput.visible
-					blend = names.sharedBlend
-					guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
-					opacity255 = 255
-					_optionOfIOption = names.sharedOptions
-					_layeredImage = layeredImage
-					imageResource = resource
-					// CMO3: CLayer field boundsOnImageDoc - the layer's rect on the document: the art
-					// frame's canvas origin, the raster's size (the two invariants every corpus layer
-					// obeys: origin = the model image's canvas placement, size = the resource dims).
-					boundsOnImageDoc =
-						CRect().apply {
-							x = layerInput.canvasLeft
-							y = layerInput.canvasTop
-							width = raster.width
-							height = raster.height
-						}
-					layerIdentifier = identifierOf(layerInput)
-					// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer.
-					icon16 = Cmo3ImageChainBuilder.placeholderIcon(16, names.nextIconPath(), pngEntries)
-					icon64 = Cmo3ImageChainBuilder.placeholderIcon(64, names.nextIconPath(), pngEntries)
-					layerInfo = LinkedHashMap<String, Any?>()
-					this.group = folder
-				}
+				layerOver(
+					name = layerInput.name,
+					layerKey = layerInput.layerKey,
+					visible = layerInput.visible,
+					canvasLeft = layerInput.canvasLeft,
+					canvasTop = layerInput.canvasTop,
+					resource = resource,
+					layeredImage = layeredImage,
+					folder = folder,
+					names = names,
+					pngEntries = pngEntries,
+				)
 			childrenByPath.getValue(layerInput.groupPath).add(layer)
 			layerEntryList.add(layer)
-			// A model image is upright canvas-space art: a pure translation to the layer's origin, the
-			// invariant every corpus model image carries; the packer's work rides the entry.
-			val placement =
-				CAffine().apply {
-					m02 = layerInput.canvasLeft.toFloat()
-					m12 = layerInput.canvasTop.toFloat()
-				}
-			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, placement, group, names, pngEntries, nowMillis)
+			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
 			groupModelImages.add(modelImage)
 			val tilePlacement = layerInput.placement ?: continue
 			val atlas = atlases.getOrNull(tilePlacement.pageIndex) ?: continue
@@ -313,8 +250,201 @@ internal object Cmo3SourceLayerWeb {
 				bindings[drawableId] = Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, modelImage.guid as Guid, affineOf(entryHalf))
 			}
 		}
-		return Written(wrapper, group, bindings)
+		return Written(minted.wrapper, group, bindings)
 	}
+
+	/**
+	 * A freshly minted layered image with the lists a layer is added through.
+	 *
+	 * @property LayeredImageWrapper wrapper        The wrapper, for the texture manager's raw-image list.
+	 * @property CLayeredImage       image          The layered image.
+	 * @property CLayerGroup         rootGroup      Its root folder.
+	 * @property CArrayList          rootChildren   The root folder's child list.
+	 * @property CArrayList          layerEntryList The flat entry list every group and layer joins.
+	 */
+	internal class MintedLayeredImage(
+		val wrapper: LayeredImageWrapper,
+		val image: CLayeredImage,
+		val rootGroup: CLayerGroup,
+		val rootChildren: CArrayList<Any?>,
+		val layerEntryList: CArrayList<Any?>,
+	)
+
+	/**
+	 * Mints one artwork file's layered image: the document frame, the file reference, an empty root
+	 * folder, and the flat entry list, wrapped for the texture manager's raw-image list.  Shared by the
+	 * fresh web and the retained-graph mint, so a file added to a retained document takes the same
+	 * shape as one in a fresh export.
+	 *
+	 * @param String              name         The file's display name.
+	 * @param String?             path         The file's recorded path, or null when the record has none.
+	 * @param Long?               lastModified The file's modification time as last read, or null.
+	 * @param Int                 width        The frame the layers' canvas coordinates live in.
+	 * @param Int                 height       Its height.
+	 * @param Cmo3FreshChainNames names        The document's shared blend and options.
+	 * @param Long                nowMillis    The import timestamp, standing in for a time the record lacks.
+	 * @return MintedLayeredImage The image and its lists.
+	 */
+	internal fun mintLayeredImage(
+		name: String,
+		path: String?,
+		lastModified: Long?,
+		width: Int,
+		height: Int,
+		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		nowMillis: Long,
+	): MintedLayeredImage {
+		val layeredImage = CLayeredImage()
+		val rootChildren = CArrayList<Any?>()
+		val rootGroup = layerGroup("root", layeredImage, rootChildren, names)
+		val layerEntryList = CArrayList<Any?>(mutableListOf<Any?>(rootGroup))
+		layeredImage.apply {
+			this.name = name
+			memo = ""
+			// CMO3: CLayeredImage fields width / height - the source document's own frame; the
+			// inventory's canvas coordinates live in the document canvas, so that is the frame here.
+			this.width = width
+			this.height = height
+			// CMO3: CLayeredImage field psdFile - the external-reference <file> shape whose text is the
+			// source's path on the importing machine; the name stands in when the record has none.
+			psdFile = FileRef().apply { textPath = path ?: name }
+			description = ""
+			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
+			// CMO3: CLayeredImage field psdFileLastModified - the source's modification time as last read.
+			psdFileLastModified = lastModified ?: nowMillis
+			_rootLayer = rootGroup
+			layerSet =
+				LayerSet().apply {
+					_layeredImage = layeredImage
+					_layerEntryList = layerEntryList
+				}
+		}
+		val wrapper =
+			LayeredImageWrapper().apply {
+				image = layeredImage
+				importedTimeMSec = nowMillis
+				lastModifiedTimeMSec = lastModified ?: nowMillis
+			}
+		return MintedLayeredImage(wrapper, layeredImage, rootGroup, rootChildren, layerEntryList)
+	}
+
+	/**
+	 * A file's model-image group, linked to its layered image and empty of images.
+	 *
+	 * @param String        name         The file's display name, which the group takes.
+	 * @param CLayeredImage layeredImage The file's layered image.
+	 * @return CModelImageGroup The group.
+	 */
+	internal fun mintModelImageGroup(name: String, layeredImage: CLayeredImage): CModelImageGroup =
+		CModelImageGroup().apply {
+			// CMO3: CModelImageGroup fields groupName / _linkedRawImageGuids / _modelImages.
+			memo = ""
+			groupName = name
+			_linkedRawImageGuids = CArrayList<Any?>(mutableListOf(layeredImage.guid))
+			_modelImages = CArrayList<Any?>()
+		}
+
+	/**
+	 * A layer's own image resource: the raster's dimensions, type, and archive link.
+	 *
+	 * @param String      path    The archive path the layer PNG is stored under.
+	 * @param RasterImage raster  The layer's pixels.
+	 * @param Int         pngSize The encoded PNG's byte size.
+	 * @return CImageResource The resource.
+	 */
+	internal fun layerResource(path: String, raster: RasterImage, pngSize: Int): CImageResource =
+		CImageResource().apply {
+			// CMO3: CImageResource - the layer's own pixels, the document's raster for the tile.
+			width = raster.width
+			height = raster.height
+			type = "INT_ARGB"
+			imageFileBuf = FileRef().apply { archivePath = path }
+			imageFileBuf_size = pngSize
+		}
+
+	/**
+	 * A tile's layer on its file's document: the name, visibility, resource, rect, identifier, and
+	 * placeholder icons the official editor writes for a PSD layer.  Shared by the fresh web and the
+	 * retained-graph mint, so a layer minted into a retained file is field-for-field the fresh shape.
+	 *
+	 * @param String              name         The layer's name.
+	 * @param String              layerKey     The binding key; a "lyid:<n>" key writes Photoshop's layer id.
+	 * @param Boolean             visible      The layer's visibility.
+	 * @param Int                 canvasLeft   The art frame's canvas x.
+	 * @param Int                 canvasTop    The art frame's canvas y.
+	 * @param CImageResource      resource     The layer's own resource.
+	 * @param CLayeredImage       layeredImage The owning layered image.
+	 * @param CLayerGroup         folder       The folder the layer sits in.
+	 * @param Cmo3FreshChainNames names        The document's shared blend, options, and icon paths.
+	 * @param MutableList         pngEntries   The PNG entry collector, for the icons.
+	 * @return CLayer The layer, not yet added to any list.
+	 */
+	internal fun layerOver(
+		name: String,
+		layerKey: String,
+		visible: Boolean,
+		canvasLeft: Int,
+		canvasTop: Int,
+		resource: CImageResource,
+		layeredImage: CLayeredImage,
+		folder: CLayerGroup,
+		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
+		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
+	): CLayer =
+		CLayer().apply {
+			// CMO3: CLayer - the tile's layer on the file's document.
+			this.name = name
+			memo = ""
+			isVisible = visible
+			blend = names.sharedBlend
+			guid = Cmo3SkeletonBuilder.freshGuid("CLayerGuid")
+			opacity255 = 255
+			_optionOfIOption = names.sharedOptions
+			_layeredImage = layeredImage
+			imageResource = resource
+			// CMO3: CLayer field boundsOnImageDoc - the layer's rect on the document: the art frame's
+			// canvas origin, the raster's size (the two invariants every corpus layer obeys: origin =
+			// the model image's canvas placement, size = the resource dims).
+			boundsOnImageDoc = layerBounds(canvasLeft, canvasTop, resource.width, resource.height)
+			layerIdentifier = identifierOf(name, layerKey)
+			// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer.
+			icon16 = Cmo3ImageChainBuilder.placeholderIcon(16, names.nextIconPath(), pngEntries)
+			icon64 = Cmo3ImageChainBuilder.placeholderIcon(64, names.nextIconPath(), pngEntries)
+			layerInfo = LinkedHashMap<String, Any?>()
+			this.group = folder
+		}
+
+	/**
+	 * A layer's rect on its document.
+	 *
+	 * @param Int left   The origin x.
+	 * @param Int top    The origin y.
+	 * @param Int width  The width.
+	 * @param Int height The height.
+	 * @return CRect The rect.
+	 */
+	internal fun layerBounds(left: Int, top: Int, width: Int, height: Int): CRect =
+		CRect().apply {
+			x = left
+			y = top
+			this.width = width
+			this.height = height
+		}
+
+	/**
+	 * A model image's canvas placement for a layer: upright canvas-space art, a pure translation to
+	 * the layer's origin - the invariant every corpus model image carries; the packer's work rides the
+	 * entry.
+	 *
+	 * @param Int canvasLeft The layer's canvas x.
+	 * @param Int canvasTop  The layer's canvas y.
+	 * @return CAffine The placement, an independent instance.
+	 */
+	internal fun layerPlacement(canvasLeft: Int, canvasTop: Int): CAffine =
+		CAffine().apply {
+			m02 = canvasLeft.toFloat()
+			m12 = canvasTop.toFloat()
+		}
 
 	/**
 	 * A folder of the layered image: a group element over [children].
@@ -325,7 +455,7 @@ internal object Cmo3SourceLayerWeb {
 	 * @param Cmo3FreshChainNames names        The document's shared blend and options.
 	 * @return CLayerGroup The group.
 	 */
-	private fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames): CLayerGroup =
+	internal fun layerGroup(name: String, layeredImage: CLayeredImage, children: CArrayList<Any?>, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames): CLayerGroup =
 		CLayerGroup().apply {
 			// CMO3: CLayerGroup - a folder of the decomposed file; ACLayerGroup field _children.
 			this.name = name
@@ -342,13 +472,14 @@ internal object Cmo3SourceLayerWeb {
 	/**
 	 * The layer's identifier: its name, and Photoshop's layer id when the binding key carries one.
 	 *
-	 * @param SourceLayerInput input The layer.
+	 * @param String name     The layer's name.
+	 * @param String layerKey The binding key.
 	 * @return CLayerIdentifier The identifier.
 	 */
-	private fun identifierOf(input: SourceLayerInput): CLayerIdentifier =
+	internal fun identifierOf(name: String, layerKey: String): CLayerIdentifier =
 		CLayerIdentifier().apply {
-			layerName = input.name
-			val photoshopId = input.layerKey.takeIf { key -> key.startsWith("lyid:") }?.removePrefix("lyid:")?.toIntOrNull()
+			layerName = name
+			val photoshopId = layerKey.takeIf { key -> key.startsWith("lyid:") }?.removePrefix("lyid:")?.toIntOrNull()
 			if (photoshopId == null) {
 				// A CLIP or KRA uuid has no home in a CMO3, so a reopened export keys the layer by name.
 				layerIdValue_testImpl = -1

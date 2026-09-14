@@ -158,46 +158,91 @@ internal object Cmo3ImageChainBuilder {
 	)
 
 	/**
-	 * The per-document state a fresh image chain threads through every page, crop, and real layer it
-	 * writes: the archive-entry naming counters (the editor's imageFileBuf / image_N de-dupe sequences,
+	 * The per-document state an image chain threads through every page, crop, and real layer it
+	 * writes: the archive-entry path minters (the editor's imageFileBuf / image_N de-dupe sequences,
 	 * which must stay unique across the whole file), the filter web's shared definitions, and the
 	 * blend and option instances every layer shares.
+	 *
+	 * A fresh graph takes the defaults: counters from the skeleton's own first indices and fresh
+	 * filter definitions.  A retained graph hands in the archive's own minters and the definitions
+	 * recovered from a model image it already holds, so a layer minted into it continues the file's
+	 * sequences and shares its singletons rather than growing a second set.
+	 *
+	 * @param FilterCommons filters               The filter web's per-document singletons.
+	 * @param Function      mintImageFileBufPath  The next unique archive path for an image buffer.
+	 * @param Function      mintIconPath          The next unique archive path for an icon.
 	 */
-	internal class Cmo3FreshChainNames {
-		/** The filter web's per-document singletons. */
-		val filters: FilterCommons = FilterCommons()
-
+	internal class Cmo3FreshChainNames(
+		val filters: FilterCommons = FilterCommons.fresh(),
+		// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...); pages
+		// claim the first indices, then crops and real layers continue the sequence.
+		private val mintImageFileBufPath: () -> String = FreshPathSequence("imageFileBuf", firstSuffix = -1)::next,
+		// The skeleton's three model icons take image.png / image_0.png / image_1.png, so icon entries
+		// continue the editor's image_N naming from suffix 2.
+		private val mintIconPath: () -> String = FreshPathSequence("image", firstSuffix = 2)::next,
+	) {
 		/** The one blend node every synthesized layer and group references. */
 		val sharedBlend: CBlend_Normal = CBlend_Normal()
 
 		/** The one option map every synthesized layer and group references. */
 		val sharedOptions: CHashMap<String, Any?> = CHashMap()
 
-		// CMO3: the imageFileBuf de-dupe naming convention (imageFileBuf, imageFileBuf_0, ...); pages
-		// claim the first indices, then crops and real layers continue the sequence.
-		private var imageFileBufIndex = 0
-
-		// The skeleton's three model icons take image.png / image_0.png / image_1.png, so icon entries
-		// continue the editor's image_N naming from suffix 2.
-		private var iconSuffix = 2
-
 		/**
 		 * The next unique archive path for an image buffer.
 		 *
 		 * @return String The path.
 		 */
-		fun nextImageFileBufPath(): String {
-			val path = if (imageFileBufIndex == 0) "imageFileBuf.png" else "imageFileBuf_${imageFileBufIndex - 1}.png"
-			imageFileBufIndex += 1
-			return path
-		}
+		fun nextImageFileBufPath(): String = mintImageFileBufPath()
 
 		/**
 		 * The next unique archive path for an icon.
 		 *
 		 * @return String The path.
 		 */
-		fun nextIconPath(): String = "image_${iconSuffix++}.png"
+		fun nextIconPath(): String = mintIconPath()
+	}
+
+	/**
+	 * One of the editor's archive de-dupe sequences: `<stem>.png` for suffix -1, then `<stem>_<n>.png`.
+	 * A fresh archive starts at the skeleton's first free suffix; a retained archive continues from
+	 * the first path its own minter reports ([continuingFrom]) and counts locally from there, so a
+	 * batch of icons minted before their entries are embedded still takes distinct paths.
+	 *
+	 * @param String stem        The sequence's stem.
+	 * @param Int    firstSuffix The suffix the first minted path takes.
+	 */
+	internal class FreshPathSequence(private val stem: String, firstSuffix: Int) {
+		private var nextSuffix = firstSuffix
+
+		/**
+		 * Mints the next path.
+		 *
+		 * @return String The path.
+		 */
+		fun next(): String {
+			val suffix = nextSuffix
+			nextSuffix += 1
+			return if (suffix < 0) "$stem.png" else "${stem}_$suffix.png"
+		}
+
+		companion object {
+			/**
+			 * The sequence whose first path is [firstPath], as a retained archive's minter reports it.
+			 *
+			 * @param String stem      The sequence's stem.
+			 * @param String firstPath The next unused path in the archive, in the sequence's own form.
+			 * @return FreshPathSequence The sequence.
+			 */
+			fun continuingFrom(stem: String, firstPath: String): FreshPathSequence {
+				val firstSuffix =
+					if (firstPath == "$stem.png") {
+						-1
+					} else {
+						checkNotNull(firstPath.removePrefix("${stem}_").removeSuffix(".png").toIntOrNull()) { "'$firstPath' is not in the $stem sequence" }
+					}
+				return FreshPathSequence(stem, firstSuffix)
+			}
+		}
 	}
 
 	/**
@@ -236,47 +281,214 @@ internal object Cmo3ImageChainBuilder {
 	/** CMO3: FilterInstance filterDefGuid for "CLayerFilter" - fixed uuid in every corpus file. */
 	private const val LAYER_FILTER_DEF_UUID = "4083cd1f-40ba-4eda-8400-379019d55ed8"
 
-	/** The per-document singletons of the filter web, shared by every model image's ModelImageFilterSet. */
-	internal class FilterCommons {
-		fun valueId(idStr: String): Id = Id("FilterValueId").apply { idstr = idStr }
+	/**
+	 * The per-document singletons of the filter web, shared by every model image's ModelImageFilterSet:
+	 * the value ids the connectors are keyed by, the FilterValue definitions they name, and the two
+	 * filter-definition guids.  Minted fresh for a new graph, or recovered from a model image a
+	 * retained graph already holds so a minted image shares the file's own objects.
+	 *
+	 * @param Map  idByIdStr          Each value id by its idstr.
+	 * @param Map  valueByIdStr       Each FilterValue definition by its own id's idstr.
+	 * @param Guid selectorDefGuid    The CLayerSelector definition guid.
+	 * @param Guid layerFilterDefGuid The CLayerFilter definition guid.
+	 */
+	internal class FilterCommons private constructor(
+		private val idByIdStr: Map<String, Id>,
+		private val valueByIdStr: Map<String, FilterValue>,
+		val selectorDefGuid: Guid,
+		val layerFilterDefGuid: Guid,
+	) {
+		val inputLayerData: Id get() = idByIdStr.getValue(INPUT_LAYER_DATA)
+		val currentImageGuid: Id get() = idByIdStr.getValue(CURRENT_IMAGE_GUID)
+		val outputImage: Id get() = idByIdStr.getValue(OUTPUT_IMAGE)
+		val outputTransform: Id get() = idByIdStr.getValue(OUTPUT_TRANSFORM)
+		val selectorInputLayerData: Id get() = idByIdStr.getValue(SELECTOR_INPUT_LAYER_DATA)
+		val selectorCurrentImageGuid: Id get() = idByIdStr.getValue(SELECTOR_CURRENT_IMAGE_GUID)
+		val selectorOutputLayerData: Id get() = idByIdStr.getValue(SELECTOR_OUTPUT_LAYER_DATA)
+		val filterInputLayer: Id get() = idByIdStr.getValue(FILTER_INPUT_LAYER)
 
-		val inputLayerData: Id = valueId("mi_input_layerInputData")
-		val currentImageGuid: Id = valueId("mi_currentImageGuid")
-		val outputImage: Id = valueId("mi_output_image")
-		val outputTransform: Id = valueId("mi_output_transform")
-		val selectorInputLayerData: Id = valueId("ilf_inputLayerData")
-		val selectorCurrentImageGuid: Id = valueId("ilf_currentImageGuid")
-		val selectorOutputLayerData: Id = valueId("ilf_outputLayerData")
-		val filterInputLayer: Id = valueId("ilf_inputLayer")
+		val selectLayer: FilterValue get() = valueByIdStr.getValue(SELECTOR_OUTPUT_LAYER_DATA)
+		val importLayer: FilterValue get() = valueByIdStr.getValue(INPUT_LAYER_DATA)
+		val importLayerSelection: FilterValue get() = valueByIdStr.getValue(SELECTOR_INPUT_LAYER_DATA)
+		val currentGuid: FilterValue get() = valueByIdStr.getValue(CURRENT_IMAGE_GUID)
+		val selectedSourceGuid: FilterValue get() = valueByIdStr.getValue(SELECTOR_CURRENT_IMAGE_GUID)
+		val outputImageValue: FilterValue get() = valueByIdStr.getValue(OUTPUT_IMAGE)
+		val outputImageResource: FilterValue get() = valueByIdStr.getValue(SELECTOR_OUTPUT_IMAGE_RESOURCE)
+		val layerToCanvasEnv: FilterValue get() = valueByIdStr.getValue(OUTPUT_TRANSFORM)
+		val layerToCanvasFilter: FilterValue get() = valueByIdStr.getValue(SELECTOR_OUTPUT_TRANSFORM)
 
-		fun value(displayName: String, id: Id): FilterValue =
-			FilterValue().apply {
-				name = displayName
-				this.id = id
+		companion object {
+			// CMO3: the FilterValueId idstrs of the model-image filter web, transcribed from the corpus
+			// (MultiplyScreenColors.cmo3, identical across files).  "mi_" ids are the env side, "ilf_"
+			// ids the filter side.
+			private const val INPUT_LAYER_DATA = "mi_input_layerInputData"
+			private const val CURRENT_IMAGE_GUID = "mi_currentImageGuid"
+			private const val OUTPUT_IMAGE = "mi_output_image"
+			private const val OUTPUT_TRANSFORM = "mi_output_transform"
+			private const val SELECTOR_INPUT_LAYER_DATA = "ilf_inputLayerData"
+			private const val SELECTOR_CURRENT_IMAGE_GUID = "ilf_currentImageGuid"
+			private const val SELECTOR_OUTPUT_LAYER_DATA = "ilf_outputLayerData"
+			private const val FILTER_INPUT_LAYER = "ilf_inputLayer"
+			private const val SELECTOR_OUTPUT_IMAGE_RESOURCE = "ilf_outputImageRes"
+			private const val SELECTOR_OUTPUT_TRANSFORM = "ilf_outputTransform"
+
+			/** The ids the connectors are keyed by, every one of which a recovery must find. */
+			private val KEY_ID_STRS =
+				listOf(
+					INPUT_LAYER_DATA,
+					CURRENT_IMAGE_GUID,
+					OUTPUT_IMAGE,
+					OUTPUT_TRANSFORM,
+					SELECTOR_INPUT_LAYER_DATA,
+					SELECTOR_CURRENT_IMAGE_GUID,
+					SELECTOR_OUTPUT_LAYER_DATA,
+					FILTER_INPUT_LAYER,
+				)
+
+			/** The definitions' own ids, every one of which a recovery must find. */
+			private val VALUE_ID_STRS =
+				listOf(
+					SELECTOR_OUTPUT_LAYER_DATA,
+					INPUT_LAYER_DATA,
+					SELECTOR_INPUT_LAYER_DATA,
+					CURRENT_IMAGE_GUID,
+					SELECTOR_CURRENT_IMAGE_GUID,
+					OUTPUT_IMAGE,
+					SELECTOR_OUTPUT_IMAGE_RESOURCE,
+					OUTPUT_TRANSFORM,
+					SELECTOR_OUTPUT_TRANSFORM,
+				)
+
+			/**
+			 * Fresh singletons for a new graph.
+			 *
+			 * @return FilterCommons The definitions.
+			 */
+			fun fresh(): FilterCommons {
+				val idByIdStr = HashMap<String, Id>()
+
+				/**
+				 * The one Id per idstr.
+				 *
+				 * @param String idStr The idstr.
+				 * @return Id The id.
+				 */
+				fun valueId(idStr: String): Id = idByIdStr.getOrPut(idStr) { Id("FilterValueId").apply { idstr = idStr } }
+
+				/**
+				 * A FilterValue definition.
+				 *
+				 * @param String displayName The editor's display name for the value.
+				 * @param String idStr       The value's own id.
+				 * @return FilterValue The definition.
+				 */
+				fun value(displayName: String, idStr: String): FilterValue =
+					FilterValue().apply {
+						name = displayName
+						id = valueId(idStr)
+					}
+				// CMO3: the FilterValue definitions - names and value-id wiring transcribed from the
+				// corpus (MultiplyScreenColors.cmo3, identical across files).
+				val values =
+					listOf(
+						value("Select Layer", SELECTOR_OUTPUT_LAYER_DATA),
+						value("Import Layer", INPUT_LAYER_DATA),
+						value("Import Layer selection", SELECTOR_INPUT_LAYER_DATA),
+						value("Current GUID", CURRENT_IMAGE_GUID),
+						value("GUID of Selected Source Image", SELECTOR_CURRENT_IMAGE_GUID),
+						value("Output image", OUTPUT_IMAGE),
+						value("Output Image (Resource Format)", SELECTOR_OUTPUT_IMAGE_RESOURCE),
+						value("LayerToCanvas変換", OUTPUT_TRANSFORM),
+						value("LayerToCanvas変換", SELECTOR_OUTPUT_TRANSFORM),
+					)
+				for (idStr in KEY_ID_STRS) {
+					valueId(idStr)
+				}
+				return FilterCommons(
+					idByIdStr,
+					values.associateBy { value -> (value.id as Id).idstr },
+					Guid("StaticFilterDefGuid").apply {
+						uuid = LAYER_SELECTOR_DEF_UUID
+						note = "(no debug info)"
+					},
+					Guid("StaticFilterDefGuid").apply {
+						uuid = LAYER_FILTER_DEF_UUID
+						note = "(no debug info)"
+					},
+				)
 			}
 
-		// CMO3: the FilterValue definitions - names and value-id wiring transcribed from the
-		// corpus (MultiplyScreenColors.cmo3, identical across files).
-		val selectLayer: FilterValue = value("Select Layer", selectorOutputLayerData)
-		val importLayer: FilterValue = value("Import Layer", inputLayerData)
-		val importLayerSelection: FilterValue = value("Import Layer selection", selectorInputLayerData)
-		val currentGuid: FilterValue = value("Current GUID", currentImageGuid)
-		val selectedSourceGuid: FilterValue = value("GUID of Selected Source Image", selectorCurrentImageGuid)
-		val outputImageValue: FilterValue = value("Output image", outputImage)
-		val outputImageResource: FilterValue = value("Output Image (Resource Format)", valueId("ilf_outputImageRes"))
-		val layerToCanvasEnv: FilterValue = value("LayerToCanvas変換", outputTransform)
-		val layerToCanvasFilter: FilterValue = value("LayerToCanvas変換", valueId("ilf_outputTransform"))
+			/**
+			 * The singletons a retained graph's model image already wires, so an image minted beside it
+			 * shares the same objects; null when the set does not carry the full web (a graph another
+			 * writer produced), in which case the caller falls back to [fresh].
+			 *
+			 * @param ModelImageFilterSet filterSet A retained model image's inputFilter.
+			 * @return FilterCommons? The recovered definitions, or null.
+			 */
+			fun fromFilterSet(filterSet: ModelImageFilterSet): FilterCommons? {
+				val idByIdStr = HashMap<String, Id>()
+				val valueByIdStr = HashMap<String, FilterValue>()
+				var selectorDefGuid: Guid? = null
+				var layerFilterDefGuid: Guid? = null
 
-		val selectorDefGuid: Guid =
-			Guid("StaticFilterDefGuid").apply {
-				uuid = LAYER_SELECTOR_DEF_UUID
-				note = "(no debug info)"
+				/**
+				 * Records an id the web references.
+				 *
+				 * @param Any? candidate A key or a connector's id slot.
+				 */
+				fun noteId(candidate: Any?) {
+					val id = candidate as? Id ?: return
+					idByIdStr.putIfAbsent(id.idstr, id)
+				}
+
+				/**
+				 * Records a definition the web references, and its own id.
+				 *
+				 * @param Any? candidate A connector's definition slot.
+				 */
+				fun noteValue(candidate: Any?) {
+					val value = candidate as? FilterValue ?: return
+					val id = value.id as? Id ?: return
+					noteId(id)
+					valueByIdStr.putIfAbsent(id.idstr, value)
+				}
+				// CMO3: ModelImageFilterSet field filterMap -> FilterInstance fields filterName /
+				// filterDefGuid / inputConnectors / outputConnectors, the connectors keyed by value id.
+				for (instance in (filterSet.filterMap as? Map<*, *>)?.values.orEmpty().filterIsInstance<FilterInstance>()) {
+					when (instance.filterName) {
+						"CLayerSelector" -> selectorDefGuid = instance.filterDefGuid as? Guid
+						"CLayerFilter" -> layerFilterDefGuid = instance.filterDefGuid as? Guid
+					}
+					for ((key, connector) in (instance.inputConnectors as? Map<*, *>).orEmpty()) {
+						noteId(key)
+						noteId((connector as? EnvValueConnector)?.envValueId)
+					}
+					for ((key, connector) in (instance.outputConnectors as? Map<*, *>).orEmpty()) {
+						noteId(key)
+						val output = connector as? FilterOutputValueConnector ?: continue
+						noteId(output.id)
+						noteValue(output.valueDef)
+					}
+				}
+				// CMO3: ModelImageFilterSet fields _externalInputs / _externalOutputs -> EnvConnection
+				// fields _envValueDef / filterValueDef.
+				for (external in listOf(filterSet._externalInputs, filterSet._externalOutputs)) {
+					for ((key, connection) in (external as? Map<*, *>).orEmpty()) {
+						noteId(key)
+						val envConnection = connection as? EnvConnection ?: continue
+						noteValue(envConnection._envValueDef)
+						noteValue(envConnection.filterValueDef)
+					}
+				}
+				val selector = selectorDefGuid ?: return null
+				val layerFilter = layerFilterDefGuid ?: return null
+				if (KEY_ID_STRS.any { idStr -> idStr !in idByIdStr } || VALUE_ID_STRS.any { idStr -> idStr !in valueByIdStr }) {
+					return null
+				}
+				return FilterCommons(idByIdStr, valueByIdStr, selector, layerFilter)
 			}
-		val layerFilterDefGuid: Guid =
-			Guid("StaticFilterDefGuid").apply {
-				uuid = LAYER_FILTER_DEF_UUID
-				note = "(no debug info)"
-			}
+		}
 	}
 
 	/**

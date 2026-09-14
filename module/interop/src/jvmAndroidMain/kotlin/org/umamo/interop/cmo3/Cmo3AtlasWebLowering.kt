@@ -1,7 +1,9 @@
 package org.umamo.interop.cmo3
 
+import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
@@ -13,8 +15,11 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
+import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
@@ -42,6 +47,13 @@ import java.util.IdentityHashMap
  * bound drawable's region input, so a whole-model repack of a document with never-packed bound art
  * (Erica carries three such drawables) exports consistently too.
  *
+ * The art itself is the retained layer web's ([Cmo3RetainedLayerWeb]): a tile the graph has no
+ * model image for (a reload's added layer, an Add Artwork file) has its layer and model image minted
+ * before the pack-in mints its entry, and a reloaded tile has its lineage root's layer rewritten to
+ * the new pixels before the entry moves - so the layered image the official editor shows is the art
+ * the pages carry.  A created drawable over any tile with a model image and a placement is handed a
+ * texture binding ([Result.mintedBindings]), which the structural pass binds it through.
+ *
  * All or nothing: validation runs first and any gap declines the WHOLE reconcile - the honest
  * notices then flow from the property lowering unchanged.  Nothing here may half-write, because the
  * reconcile has no rollback.
@@ -51,18 +63,28 @@ internal class Cmo3AtlasWebLowering(
 	private val modelSource: CModelSource,
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
+	private val editor: Cmo3GraphEditor,
+	private val tileRasters: (AtlasTileId) -> RasterImage? = { null },
+	private val nowMillis: Long = 0L,
 ) {
 	/**
 	 * What the reconcile did.
 	 *
-	 * @property Boolean pagesRecomposed True when the full web reconcile ran; the stale-page notices
-	 *                                   key on it.
-	 * @property Boolean pruneNeeded     True when graph structure was dropped, so the export must run
-	 *                                   the shared-pool prune.
+	 * @property Boolean pagesRecomposed   True when the full web reconcile ran; the stale-page notices
+	 *                                     key on it.
+	 * @property Boolean pruneNeeded       True when graph structure was dropped, so the export must run
+	 *                                     the shared-pool prune.
+	 * @property Map     mintedBindings    A texture binding for every created drawable over a tile the
+	 *                                     web now holds, by drawable id; the structural pass binds
+	 *                                     such a drawable through it.
+	 * @property Set     reconciledTileIds The lineage roots whose layer web was minted or rewritten,
+	 *                                     so the tile lowering owes no metadata notice for them.
 	 */
 	class Result(
 		val pagesRecomposed: Boolean,
 		val pruneNeeded: Boolean,
+		val mintedBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
+		val reconciledTileIds: Set<String> = emptySet(),
 	) {
 		companion object {
 			/** The no-op outcome: nothing touched, notices stay. */
@@ -110,17 +132,21 @@ internal class Cmo3AtlasWebLowering(
 		}
 
 		// --- Gather the web. ---
+		// The model-image and canvas-placement maps are LOCAL copies: the layer web below extends them
+		// with what it mints and moves, and every composition after that reads the extended state.
 		val web = indexAtlasWeb(textureManager)
 		val siteByTileId = web.siteByTileId
 		val strayEntryAtlasIndices = web.strayEntryAtlasIndices
-		val canvasAffineByTileId = web.canvasAffineByTileId
-		val modelImageByTileId = web.modelImageByTileId
+		val canvasAffineByTileId = HashMap(web.canvasAffineByTileId)
+		val modelImageByTileId = HashMap<String, CModelImage>(web.modelImageByTileId)
+		val retainedWeb = Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis)
 
 		// --- Classify every edited tile; ANY gap declines whole. ---
 		// Every tile is keyed by its LINEAGE ROOT: a reloaded tile (`<guid>~<n>`, AtlasTile.replaces) is
 		// the model image its root imported from as far as the web knows, so its placement reads as that
-		// entry moving.  Its pixels reach the pages; the retained model image stays the import's until
-		// the per-tile source chain is written (Phase H), which the export report says.
+		// entry moving - and its layer is rewritten to the new art (a rewrite job) before the entry
+		// does.  A tile with no model image at all has its whole layer web minted (a mint job), which
+		// is what lets its pack-in mint an entry.
 		val baselinePlacementByTileId = baseline.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
 		val editedTileIds = HashSet<String>()
 		val changedPlacementByTileId = HashMap<String, Pair<AtlasPlacement?, AtlasPlacement>>()
@@ -128,11 +154,32 @@ internal class Cmo3AtlasWebLowering(
 		val moves = ArrayList<Pair<AtlasEntrySite, AtlasPlacement>>()
 		val packOuts = ArrayList<AtlasEntrySite>()
 		val packInPlacementByTileId = LinkedHashMap<String, AtlasPlacement>()
+		val rewriteJobs = ArrayList<Cmo3RetainedLayerWeb.RewriteJob>()
+		val mintJobs = ArrayList<Cmo3RetainedLayerWeb.MintJob>()
 		for (tile in edited.atlas.tiles) {
 			val tileId = tile.id.lineageRoot.raw
 			editedTileIds.add(tileId)
 			val newPlacement = tile.placement
 			val site = siteByTileId[tileId]
+			val modelImage = modelImageByTileId[tileId]
+			if (modelImage == null) {
+				// No model image: the tile's art is minted when the document holds it.  An unplaced
+				// tile with nothing to mint has nothing to reconcile either; a placed one must mint,
+				// or its pack-in has no image to hang the entry on.
+				val job = retainedWeb.mintJobFor(tile)
+				if (job != null) {
+					mintJobs.add(job)
+					canvasAffineByTileId[tileId] = job.canvasAffine
+				} else if (newPlacement != null) {
+					return Result.Declined
+				}
+			} else if (tile.replaces != null) {
+				// A reloaded tile: the root's layer takes the new art, and the canvas placement every
+				// composition below reads is the refreshed row's origin.
+				val job = retainedWeb.rewriteJobFor(tile, modelImage) ?: return Result.Declined
+				rewriteJobs.add(job)
+				canvasAffineByTileId[tileId] = job.canvasAffine
+			}
 			if (newPlacement == null) {
 				if (site != null) {
 					// A pack-out removes the entry; a drawable still sampling the page through it
@@ -146,9 +193,9 @@ internal class Cmo3AtlasWebLowering(
 			}
 			if (site == null) {
 				// Pack-in: a never-packed tile gaining a placement mints its entry and its bound
-				// drawables' region inputs below - possible only when the tile's model image and
-				// canvas placement resolve.
-				if (canvasAffineByTileId[tileId] == null || modelImageByTileId[tileId] == null) {
+				// drawables' region inputs below - possible only when the tile's canvas placement
+				// resolves (a minted tile's is the job's).
+				if (canvasAffineByTileId[tileId] == null) {
 					return Result.Declined
 				}
 				if (newPlacement.pageIndex !in 0 until newPageCount || inversePlacementAffine(newPlacement) == null) {
@@ -191,11 +238,13 @@ internal class Cmo3AtlasWebLowering(
 			Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources)
 				.filterIsInstance<CArtMeshSource>()
 		val editedDrawableIds = edited.drawables.mapTo(HashSet()) { drawable -> drawable.id.raw }
+		val fileDrawableIds = HashSet<String>()
 		val candidates = ArrayList<RetargetCandidate>()
 		val packInCandidates = ArrayList<PackInCandidate>()
 		val existingTextureByAtlasIndex = HashMap<Int, GTexture2D>()
 		for (mesh in artMeshes) {
 			val drawableId = Cmo3Import.idStrOf(mesh.id) ?: continue
+			fileDrawableIds.add(drawableId)
 			val texture = mesh.texture as? GTexture2D
 			if (texture != null) {
 				// The page's ONE shared texture, found by resource identity - the same rule the
@@ -244,10 +293,11 @@ internal class Cmo3AtlasWebLowering(
 			val input = region.inputImageLocalToCanvasTransform as? CAffine ?: return Result.Declined
 			candidates.add(RetargetCandidate(mesh, region, input, tileId))
 		}
-		// Every EDITED drawable over a packed-in tile must have been found file-side, or its
-		// re-derived page-frame coordinates would export with nothing retargeting its sampling.
+		// Every EDITED drawable the file holds over a packed-in tile must have been found file-side,
+		// or its re-derived page-frame coordinates would export with nothing retargeting its sampling.
+		// A created drawable (not in the file yet) takes the binding path instead.
 		for (tileId in packInPlacementByTileId.keys) {
-			val editedBound = edited.drawables.count { drawable -> drawable.atlasTileId?.lineageRoot?.raw == tileId }
+			val editedBound = edited.drawables.count { drawable -> drawable.atlasTileId?.lineageRoot?.raw == tileId && drawable.id.raw in fileDrawableIds }
 			val found = packInCandidates.count { candidate -> candidate.tileId == tileId }
 			if (editedBound != found) {
 				return Result.Declined
@@ -255,6 +305,11 @@ internal class Cmo3AtlasWebLowering(
 		}
 
 		// --- Mutation.  Validation is complete; anything impossible past here is a caller bug. ---
+		// 0. The layer web: rewrites and mints, so every model image the steps below hang an entry on
+		// or compose against exists and holds the edited art.
+		val applied = retainedWeb.apply(rewriteJobs, mintJobs)
+		modelImageByTileId.putAll(applied.modelImageByTileId)
+
 		// 1. Snapshots, so every rewrite reads pre-mutation values regardless of sharing.
 		val oldEntryHalfByTileId = HashMap<String, FloatArray>()
 		for (tileId in changedPlacementByTileId.keys) {
@@ -319,6 +374,17 @@ internal class Cmo3AtlasWebLowering(
 			mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
 		}
 
+		// The page's shared texture, for every drawable that samples the page from here on.
+		fun pageTextureFor(pageIndex: Int): GTexture2D {
+			mintedTextureByAtlasIndex[pageIndex]?.let { minted -> return minted }
+			return existingTextureByAtlasIndex.getOrPut(pageIndex) {
+				// No drawable ever sampled this retained page; give it the shared texture the fresh
+				// path would have built.
+				val atlas = atlasList[pageIndex] as CTextureAtlas
+				Cmo3ImageChainBuilder.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
+			}
+		}
+
 		// 6. Pack-ins: mint the entry the tile never had.  The transforms are written with the same
 		// shared math the property lowering uses, which then rewrites them identically for the
 		// placement diff - the mint exists so an entry is THERE to rewrite.
@@ -354,15 +420,6 @@ internal class Cmo3AtlasWebLowering(
 		}
 
 		// 8. Retarget every candidate from the snapshots.
-		fun pageTextureFor(pageIndex: Int): GTexture2D {
-			mintedTextureByAtlasIndex[pageIndex]?.let { minted -> return minted }
-			return existingTextureByAtlasIndex.getOrPut(pageIndex) {
-				// No drawable ever sampled this retained page; give it the shared texture the fresh
-				// path would have built.
-				val atlas = atlasList[pageIndex] as CTextureAtlas
-				Cmo3ImageChainBuilder.pageTexture(atlas.name, atlas.cachedAtlasImage as CImageResource)
-			}
-		}
 		for (candidate in candidates) {
 			val (oldPlacement, newPlacement) = changedPlacementByTileId.getValue(candidate.tileId)
 			val site = siteByTileId.getValue(candidate.tileId)
@@ -429,6 +486,29 @@ internal class Cmo3AtlasWebLowering(
 			}
 		}
 
-		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty())
+		// 10. Bindings for the created drawables: every drawable the file does not hold yet whose tile
+		// has a model image and a placement gets the page's shared texture, the page's atlas, the
+		// model image, and the entry's transform as its region input - the official relation, and
+		// the shape the fresh web hands the structural pass for the same drawable.
+		val editedPlacementByTileId = edited.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
+		val mintedBindings = HashMap<String, Cmo3DrawableTextureBinding>()
+		for (drawable in edited.drawables) {
+			if (drawable.id.raw in fileDrawableIds) {
+				continue
+			}
+			val tileId = drawable.atlasTileId?.lineageRoot?.raw ?: continue
+			val placement = editedPlacementByTileId[tileId] ?: continue
+			val modelImage = modelImageByTileId[tileId] ?: continue
+			val canvasAffine = canvasAffineByTileId[tileId] ?: continue
+			val entryHalf = atlasLocalToCanvasFor(canvasAffine, placement) ?: continue
+			val destination = atlasList.getOrNull(placement.pageIndex) as? CTextureAtlas ?: continue
+			mintedBindings[drawable.id.raw] =
+				Cmo3DrawableTextureBinding(pageTextureFor(placement.pageIndex), destination.guid as Guid, modelImage.guid as Guid, affineOf(entryHalf))
+		}
+		val reconciledTileIds = HashSet<String>()
+		rewriteJobs.mapTo(reconciledTileIds) { job -> job.tileId }
+		mintJobs.mapTo(reconciledTileIds) { job -> job.tileId }
+
+		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty(), mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
 	}
 }

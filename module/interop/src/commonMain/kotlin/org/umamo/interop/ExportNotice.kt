@@ -68,18 +68,6 @@ sealed interface ExportNotice {
 	data class MissingSourceArt(val pageCount: Int) : ExportNotice
 
 	/**
-	 * Tiles whose art was reloaded from their source layers since the CMO3 was imported: the written
-	 * atlas pages carry the new art, but the retained per-layer images (the model image each tile
-	 * imported from, and the layered-image tree behind it) still hold the pixels the editor decomposed
-	 * at import.  The official editor renders the new art in its texture-atlas display mode and the
-	 * old in its layered-art mode until the per-tile source chain is written from the document's own
-	 * rasters.
-	 *
-	 * @property List tileNames The reloaded tiles' display names, in document order.
-	 */
-	data class ReloadedTileImagesStale(val tileNames: List<String>) : ExportNotice
-
-	/**
 	 * Drawables that share one atlas slot with a twin at another canvas placement and could not be
 	 * given a slot of their own because their patch is too large for a page even on its own.  A CMO3
 	 * model image carries a single canvas placement, so the official editor shows such a drawable at
