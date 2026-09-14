@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import org.umamo.edit.TransformGestureParameters
 import org.umamo.runtime.model.DrawableId
 
 /**

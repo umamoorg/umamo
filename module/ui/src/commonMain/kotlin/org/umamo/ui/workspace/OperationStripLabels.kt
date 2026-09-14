@@ -6,14 +6,14 @@ import org.umamo.edit.MergeParameterKeys
 import org.umamo.edit.MergeTarget
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.TransformParameterKeys
+import org.umamo.edit.choiceKey
 import org.umamo.edit.parameterKey
 import org.umamo.ui.model.ImportParameterKeys
 import org.umamo.ui.model.MatchParameterKeys
 import org.umamo.ui.model.RepackParameterKeys
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.PlacementParameterKeys
-import org.umamo.ui.viewport.TransformParameterKeys
-import org.umamo.ui.viewport.choiceKey
 import org.umamo.ui.viewport.falloffLabel
 
 /**

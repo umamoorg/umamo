@@ -40,6 +40,7 @@ import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
+import org.umamo.edit.ProportionalRows
 import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.withMeshPositions
 import org.umamo.render.ViewportCamera

@@ -5,6 +5,10 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterUnit
+import org.umamo.edit.TRANSFORM_ANGLE_LIMIT
+import org.umamo.edit.TRANSFORM_SCALE_MAX
+import org.umamo.edit.TRANSFORM_SCALE_MIN
+import org.umamo.edit.TRANSFORM_SCALE_STEP
 import org.umamo.edit.floatValue
 import org.umamo.edit.intValue
 import org.umamo.edit.withAtlasPlacements
@@ -36,7 +40,7 @@ internal object PlacementParameterKeys {
 /**
  * The strip's rows for the gesture [status] describes: a Grab's move in whole page pixels (y down,
  * as the HUD reads it), a Rotate's page-space angle, a Scale's two factors.  The angle and scale
- * limits are the transform rows' (TransformAdjust.kt), so the two UV strips accept the same values.
+ * limits are the transform rows' (:edit's TransformAdjust.kt), so the two UV strips accept the same values.
  *
  * @param PlacementDragStatus status     The drag's readout at confirm.
  * @param Int                 pageWidth  The page width, bounding the horizontal move.

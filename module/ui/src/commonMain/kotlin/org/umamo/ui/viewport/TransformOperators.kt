@@ -7,6 +7,7 @@ import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ProportionalInfluence
 import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.TransformGestureParameters
 import org.umamo.edit.TransformPivotGroup
 import org.umamo.edit.TransformPivots
 import org.umamo.render.ViewportCamera
@@ -34,31 +35,6 @@ internal class TransformGestureFrame(
 	val camera: ViewportCamera,
 	val size: IntSize,
 )
-
-/**
- * The numbers one pointer frame resolves to, in the positions' units: what [applyOperator] transforms
- * by, and what the operation settings strip shows and edits after the gesture confirms.  Resolved
- * ONCE per pointer frame by [gestureParameters] and shared by every mesh in the capture; a rerun from
- * the strip builds one from its rows instead, so the same transform runs from a pointer or a typed value.
- *
- * @property Float deltaX          The Grab translation's x (identity 0 for the other operators).
- * @property Float deltaY          The Grab translation's y, in the positions' sense (y up for world space).
- * @property Float factorX         The Scale factor along x (identity 1 for the other operators).
- * @property Float factorY         The Scale factor along y.
- * @property Float rotationRadians The Rotate angle in the positions' sense (identity 0 for the others).
- */
-internal class TransformGestureParameters(
-	val deltaX: Float,
-	val deltaY: Float,
-	val factorX: Float,
-	val factorY: Float,
-	val rotationRadians: Float,
-) {
-	companion object {
-		/** The parameters that move nothing. */
-		val IDENTITY = TransformGestureParameters(0f, 0f, 1f, 1f, 0f)
-	}
-}
 
 /**
  * Resolves [frame] into the parameters [operator] applies: a Grab's translation, a Scale's factors,
