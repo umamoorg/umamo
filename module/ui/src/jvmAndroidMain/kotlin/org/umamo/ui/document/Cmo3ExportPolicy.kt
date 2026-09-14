@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
@@ -73,9 +74,9 @@ fun prepareCmo3Export(
 			PreparedCmo3Export(document.cmo3, report)
 		}
 		// An artwork-origin document has no retained graph either: the pages it packed at open, or the
-		// session's repack of them, are re-encoded and synthesized into a fresh graph the same way.  Its
-		// real source art still goes unwritten - the chain builder slices layers out of the pages -
-		// which the pipeline's Phase H replaces; the report's leading MissingSourceArt notice says so.
+		// session's repack of them, are re-encoded and synthesized into a fresh graph the same way,
+		// with the document's own rasters handed over so every tile writes its real layer rather than
+		// a slice of a page.
 		is ArtDocument -> {
 			val result =
 				Cmo3Conversion.freshCmo3(
@@ -85,6 +86,7 @@ fun prepareCmo3Export(
 					modelName = modelName,
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
+					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}

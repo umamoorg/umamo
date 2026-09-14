@@ -48,6 +48,11 @@ class Cmo3ImageChainBuilderTest {
 		val model = Cmo3.read(bytes)
 		val resources = model.imageResources()
 		assertEquals(2, resources.size, "one CImageResource per page")
+		// No crop region on either page: no stand-in document, no crop group, nothing counted.
+		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		assertTrue(Cmo3Import.elementsOf(textureManager._rawImages).isEmpty(), "no crop region, no stand-in document")
+		assertTrue(Cmo3Import.elementsOf(textureManager._modelImageGroups).isEmpty(), "and no crop group")
+		assertEquals(0, chain.cropDrawableCount)
 		// The reachability walk's order is unspecified; the by-name path attribute is the contract.
 		// pngEntries also carries the per-page icon placeholders (image_N.png), which have no
 		// CImageResource - only the page buffers do.
