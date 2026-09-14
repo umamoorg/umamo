@@ -1081,6 +1081,11 @@ private fun describeExportNotice(notice: ExportNotice): String =
 				notice.tileNames.take(8).joinToString() +
 				(if (notice.tileNames.size > 8) " (+${notice.tileNames.size - 8} more)" else "") +
 				"; the editor's layered view shows the art as imported"
+		is ExportNotice.SharedAtlasSlotKept ->
+			"twins sharing one atlas slot could not be given their own: " +
+				notice.drawableNames.take(8).joinToString() +
+				(if (notice.drawableNames.size > 8) " (+${notice.drawableNames.size - 8} more)" else "") +
+				"; the editor's layered view shows them at the first twin's placement"
 	}
 
 /**

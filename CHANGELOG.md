@@ -8,6 +8,7 @@ Umamo is early alpha.
 
 ### Added
 * Internationalization: Initial 한국어/Korean translation - Thank you to Nyaro for the translation.
+* Export: Rework Cmo3AtlasUndedup to use the shared packer when exporting a fresh CMO3.
 * Texture Authoring: The UV Editor now has object mode.  Click an UV island to select the drawable it belongs to, box select multiple, and Alt+Left=Click through overlapping islands, mirroring how object selection already works in the 2D viewport.
 * Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
