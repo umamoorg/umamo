@@ -42,7 +42,7 @@
 	<string name="space_uv">UV 编辑器</string>
 	<string name="space_outliner">大纲视图</string>
 	<string name="space_parameters">参数</string>
-	<string name="space_properties">检查器</string>
+	<string name="space_properties">属性</string>
 	<string name="space_tooldetails">工具设置</string>
 	<string name="space_history">历史记录</string>
 	<string name="space_logs">日志</string>
@@ -109,49 +109,49 @@
 	<string name="export_category_parameter_group">参数组</string>
 	<string name="export_category_part">部件</string>
 	<string name="export_category_deformer">变形器</string>
-	<string name="export_category_drawable">绘制对象</string>
+	<string name="export_category_drawable">图形网格</string>
 	<string name="export_category_glue">胶水</string>
 	<string name="export_category_document">文档</string>
 	<string name="export_category_keyform">键形式</string>
 	<!-- Export report reasons, one per ExportNoticeReason case.  The dialog header already names the
 	     format, so a reason never repeats it.  Shared by both export paths: -->
-	<string name="export_reason_drawable_has_no_mesh">无法导出没有网格的绘制对象。</string>
+	<string name="export_reason_drawable_has_no_mesh">图形网格缺少网格数据，无法导出。</string>
 	<!-- MOC3 lowering.  %1$s in the channel line is a channel_* label; %1$d/%2$d in the conversion line
 	     are the returned and expected coordinate counts; %1$s in the mask line is the mask drawable
 	     names; %1$d/%2$s in the id lines are the record width in bytes and the written id. -->
-	<string name="export_reason_channel_demoted_to_static">%1$s 仅在比对象的网格范围更窄的区间内设置了键，因此作为常量导出。MOC3 每个对象仅能保留一个网格。</string>
+	<string name="export_reason_channel_demoted_to_static">%1$s 仅在比对象的栅格范围更窄的区间内设置了键，因此作为常量导出。MOC3 每个对象仅能保留一个栅格。</string>
 	<string name="export_reason_sketch_part_not_runtime_content">参考图（底图）部件不是运行时内容，因此已排除。</string>
 	<string name="export_reason_hidden_part_omitted_by_option">由于设置了不导出隐藏部件，已排除该部件的内容。</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">由于设置了不导出隐藏图形网格，已排除该图形网格。</string>
-	<string name="export_reason_unkeyed_drawable_under_deformer">变形器下未设置键的绘制对象无法导出父级空间的形状，因此已排除。</string>
+	<string name="export_reason_unkeyed_drawable_under_deformer">变形器下未设置键的图形网格无法导出父级空间的形状，因此已排除。</string>
 	<string name="export_reason_rest_mesh_conversion_size_mismatch">从画布到父级空间的转换针对 %2$d 返回了 %1$d 个坐标，因此未转换原始网格即进行导出。</string>
-	<string name="export_reason_no_atlas_page_bound">此绘制对象未分配纹理集页面，因此以指向第 0 页的状态导出。</string>
+	<string name="export_reason_no_atlas_page_bound">此图形网格未分配纹理集页面，因此以指向第 0 页的状态导出。</string>
 	<string name="export_reason_clipping_mask_not_in_export">剪贴蒙版 %1$s 未包含在本次导出中，因此网格在没有该蒙版的情况下导出。</string>
-	<string name="export_reason_offscreen_mask_not_in_export">剪贴蒙版指向了未能导出的绘制对象，因此已从离屏绘制中排除。</string>
-	<string name="export_reason_warp_has_no_lattice">没有控制点网格的弯曲变形器没有可导出的格子。为了保持文件可读取状态导出了空格子，但与该变形器关联的所有内容都将塌陷至原点。</string>
-	<string name="export_reason_rotation_has_no_pivot">没有基准中心点网格的旋转变形器没有可导出的变换，因此导出了单位变换作为替代。</string>
-	<string name="export_reason_glue_names_unknown_drawable">排除了指向未包含在本次导出中的绘制对象的胶水。</string>
+	<string name="export_reason_offscreen_mask_not_in_export">剪贴蒙版指向了未能导出的图形网格，因此已从离屏绘制中排除。</string>
+	<string name="export_reason_warp_has_no_lattice">没有控制点栅格的弯曲变形器没有可导出的格子。为了保持文件可读取状态导出了空格子，但与该变形器关联的所有内容都将塌陷至原点。</string>
+	<string name="export_reason_rotation_has_no_pivot">没有基准中心点栅格的旋转变形器没有可导出的变换，因此导出了单位变换作为替代。</string>
+	<string name="export_reason_glue_names_unknown_drawable">排除了指向未包含在本次导出中的图形网格的胶水。</string>
 	<string name="export_reason_id_truncated">ID 超出了 moc 的 %1$d 字节 ID 记录容量，因此截断为“%2$s”导出。</string>
 	<string name="export_reason_id_truncated_disambiguated">ID 超出了 moc 的 %1$d 字节 ID 记录容量，且截断结果与其他对象的 ID 冲突，因此导出为“%2$s”。</string>
 	<!-- CMO3 reconcile: an edit with no counterpart in the retained graph. -->
 	<string name="export_reason_no_matching_source">由于 CMO3 端没有对应的元素，此更改未导出。</string>
 	<string name="export_reason_parameter_kind_change">参数类型更改（普通 / 融合变形）不会反映到导出中。</string>
 	<string name="export_reason_deformer_kind_change">变形器类型更改不会反映到导出中。</string>
-	<string name="export_reason_deformer_needs_warp_source">由于 CMO3 端不是弯曲变形器，弯曲特有的编辑（贝塞尔分割、格子、键形式）未导出。</string>
+	<string name="export_reason_deformer_needs_warp_source">由于 CMO3 端不是弯曲变形器，弯曲特有的编辑（双线性模式、格子、键形式）未导出。</string>
 	<string name="export_reason_deformer_needs_rotation_source">由于 CMO3 端不是旋转变形器，旋转特有的编辑（基准角度、键形式）未导出。</string>
 	<string name="export_reason_texture_rebinding_editor_only">更改纹理分配属于编辑器内部状态，不会导出到 CMO3 中。</string>
 	<string name="export_reason_base_geometry_vertex_mismatch">基础形状的顶点数与 CMO3 端不一致，因此未导出。</string>
-	<string name="export_reason_no_uvs_to_reconcile">此绘制对象没有可反映的 UV，因此未导出。</string>
+	<string name="export_reason_no_uvs_to_reconcile">此图形网格没有可反映的 UV，因此未导出。</string>
 	<string name="export_reason_deformer_no_part_to_move_to">由于 CMO3 中没有对应的目标部件，变形器的所属未发生更改。</string>
 	<string name="export_reason_static_draw_order_shadowed">由于固定绘制顺序被键形式轨道覆盖，CMO3 无法单独保留。</string>
 	<string name="export_reason_composite_statics_shadowed">由于合成的固定值被部件的键形式轨道覆盖，CMO3 无法单独保留。</string>
-	<string name="export_reason_part_masks_flatten">部件单位的合成蒙版在 CMO3 中会展开至其下级的绘制对象。</string>
+	<string name="export_reason_part_masks_flatten">部件单位的合成蒙版在 CMO3 中会展开至其下级的图形网格。</string>
 	<!-- CMO3 structural creation: a new entity with nowhere to be created. -->
 	<string name="export_reason_no_source_set_to_create_into">由于 CMO3 端没有相应类型的存储目标，未生成新元素。</string>
 	<string name="export_reason_created_entity_has_no_source">新创建的元素在 CMO3 端尚无实体，因此已从面板顺序中排除。</string>
 	<string name="export_reason_created_group_not_in_tree">创建的组不存在于正在编辑的参数树中，因此未生成。</string>
-	<string name="export_reason_created_drawable_no_texture_source">创建的绘制对象没有复制源纹理，因此未生成。</string>
-	<string name="export_reason_glued_drawable_has_no_source">由于胶水绑定的绘制对象在 CMO3 端无实体，未生成胶水。</string>
+	<string name="export_reason_created_drawable_no_texture_source">创建的图形网格没有复制源纹理，因此未生成。</string>
+	<string name="export_reason_glued_drawable_has_no_source">由于胶水绑定的图形网格在 CMO3 端无实体，未生成胶水。</string>
 	<!-- CMO3 mesh topology and glue re-binding.  %1$d/%2$d are the mesh's vertex count and the most
 	     the edge table can index. -->
 	<string name="export_reason_vertex_count_exceeds_edge_table">网格顶点数 %1$d 超出了编辑用网格边表可处理的上限 %2$d，因此未重建边表。</string>
@@ -159,17 +159,17 @@
 	<string name="export_reason_glue_pair_past_uid_table">由于胶水的顶点对超出了网格顶点 ID 表的范围，未重新连接。</string>
 	<!-- CMO3 keyforms.  %1$s in the bundle line is an export_bundle_* sentence; %1$s in the parameter
 	     lines is the parameter id, which is format-level data and stays verbatim. -->
-	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 每个对象仅能保留一个网格。</string>
-	<string name="export_reason_axis_parameter_no_source">由于网格轴参数 %1$s 在 CMO3 端无实体，键形式网格未导出。</string>
+	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 每个对象仅能保留一个栅格。</string>
+	<string name="export_reason_axis_parameter_no_source">由于栅格轴参数 %1$s 在 CMO3 端无实体，键形式栅格未导出。</string>
 	<string name="export_reason_blend_shape_parameter_no_source">由于融合变形参数 %1$s 在 CMO3 端无实体，融合变形未导出。</string>
 	<string name="export_reason_keyforms_without_base_mesh">没有基础网格的键形式无法整合至 CMO3。</string>
 	<string name="export_reason_fractional_draw_order">由于 CMO3 的绘制顺序为整数，小数数值未导出。</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">没有键形式的固定胶水强度在 CMO3 中没有保留位置。</string>
 	<!-- Why a keyform set would not bundle into one grid, nested into export_reason_keyform_cannot_bundle.
 	     %1$s in the channel line is a channel_* label. -->
-	<string name="export_bundle_keys_outside_geometry_span">由于在形状的键范围之外存在键，无法整合至单个网格中。</string>
-	<string name="export_bundle_channel_keys_without_geometry">不附带形状的通道键无法整合至单个网格中。</string>
-	<string name="export_bundle_keys_outside_channel_span">由于在 %1$s 轨道的键范围之外存在键，无法整合至单个网格中。</string>
+	<string name="export_bundle_keys_outside_geometry_span">由于在形状的键范围之外存在键，无法整合至单个栅格中。</string>
+	<string name="export_bundle_channel_keys_without_geometry">不附带形状的通道键无法整合至单个栅格中。</string>
+	<string name="export_bundle_keys_outside_channel_span">由于在 %1$s 轨道的键范围之外存在键，无法整合至单个栅格中。</string>
 	<!-- CMO3 document fields.  These notices carry no subject, so each sentence names its own field.
 	     %1$s/%2$s in the combined-pair line are the horizontal and vertical parameter ids. -->
 	<string name="export_reason_no_authored_world_origin">由于 CMO3 不保留世界原点，重新打开文件时将从画布中心推导。</string>
@@ -179,7 +179,7 @@
 	<string name="export_reason_combined_pair_reordered">为了使组合参数 %1$s 与 %2$s 相邻，调整了参数的排列顺序。</string>
 	<string name="export_reason_no_canvas_to_reconcile">由于模型中没有画布，画布尺寸未导出。</string>
 	<string name="export_reason_no_texture_manager">由于此文档中没有纹理管理器，无法导出原画显示模式。</string>
-	<string name="export_reason_no_texture_input_for_display">此绘制对象没有所选显示模式对应的纹理输入，因此保留了原有输入。</string>
+	<string name="export_reason_no_texture_input_for_display">此图形网格没有所选显示模式对应的纹理输入，因此保留了原有输入。</string>
 	<string name="export_reason_fractional_canvas_size">由于 CMO3 的画布尺寸为整数像素，小数数值未导出。</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -219,14 +219,14 @@
 	<string name="about_title">关于 Umamo</string>
 	<!-- %1$s is the application version. -->
 	<string name="about_version">版本 %1$s</string>
-	<string name="about_license">基于 GNU 通用公共许可证 v3.0 (GPLv3) 提供</string>
+	<string name="about_license">基于 GNU 通用公共许可证 v3.0（GPLv3）提供</string>
 	<string name="credits_title">鸣谢与第三方许可</string>
 	<string name="dialog_close">关闭</string>
 
 	<!-- View commands (action registry; shown in the palette / a future View menu). -->
 	<string name="cmd_view_fit">适应视图</string>
 	<string name="cmd_frame_all">显示全部</string>
-	<string name="cmd_view_actual_size">等倍 (100%)</string>
+	<string name="cmd_view_actual_size">实际大小（100%）</string>
 	<string name="cmd_view_zoom_in">放大</string>
 	<string name="cmd_view_zoom_out">缩小</string>
 	<string name="cmd_view_zoom_in_coarse">放大（大）</string>
@@ -265,7 +265,7 @@
 	<string name="uv_layer_picker_title">从原画中查找</string>
 	<string name="uv_layer_picker_row">%1$s · %2$d × %3$d · 网格 %4$d</string>
 	<string name="uv_layer_picker_no_matches">无匹配的原画</string>
-	<string name="uv_layer_picker_empty">此文档中没有源原画</string>
+	<string name="uv_layer_picker_empty">此文档中没有源原画。</string>
 	<string name="cmd_document_toggle_source_artwork">切换原画显示</string>
 	<string name="cmd_uv_page_next">下一纹理页</string>
 	<string name="cmd_uv_page_previous">上一纹理页</string>
@@ -309,7 +309,7 @@
 	<string name="history_deformer_rename">更改变形器名称</string>
 	<string name="history_deformer_selectable">切换变形器锁定/解锁</string>
 	<string name="history_deformer_move">移动变形器</string>
-	<string name="history_keyform_insert">追加键</string>
+	<string name="history_keyform_insert">插入键</string>
 	<string name="history_keyform_move">移动键</string>
 	<string name="history_keyform_remove">删除键</string>
 	<string name="history_keyform_select">选择键</string>
@@ -389,16 +389,16 @@
 	<string name="outliner_menu_delete_hierarchy">删除层级结构</string>
 
 	<!-- Inspector model summary (a basic read-only view until per-entity selection lands). -->
-	<string name="status_parts">部件: %1$d</string>
-	<string name="status_drawables">图形网格: %1$d</string>
-	<string name="status_parameters">参数: %1$d</string>
-	<string name="status_deformers">变形器: %1$d</string>
-	<string name="status_glues">胶水: %1$d</string>
+	<string name="status_parts">部件：%1$d</string>
+	<string name="status_drawables">图形网格：%1$d</string>
+	<string name="status_parameters">参数：%1$d</string>
+	<string name="status_deformers">变形器：%1$d</string>
+	<string name="status_glues">胶水：%1$d</string>
 
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
 	<string name="status_bind_palette">命令面板</string>
-	<string name="status_bind_confirm">鼠标左键 / Enter: 确定</string>
-	<string name="status_bind_cancel">鼠标右键 / Esc: 取消</string>
+	<string name="status_bind_confirm">鼠标左键 / Enter：确定</string>
+	<string name="status_bind_cancel">鼠标右键 / Esc：取消</string>
 	<string name="status_bind_edit_mode">编辑模式</string>
 	<string name="status_bind_visibility">显示/隐藏</string>
 	<string name="status_bind_grab">移动</string>
@@ -408,10 +408,10 @@
 	<string name="status_mesh_vertices">%1$d/%2$d 顶点</string>
 	<string name="status_mesh_edges">%1$d/%2$d 边</string>
 	<string name="status_mesh_faces">%1$d/%2$d 面</string>
-	<string name="status_verts">顶点: %1$d</string>
-	<string name="status_verts_selected">顶点: %1$d/%2$d</string>
-	<string name="status_tris">多边形: %1$d</string>
-	<string name="status_tris_selected">多边形: %1$d/%2$d</string>
+	<string name="status_verts">顶点：%1$d</string>
+	<string name="status_verts_selected">顶点：%1$d/%2$d</string>
+	<string name="status_tris">三角面：%1$d</string>
+	<string name="status_tris_selected">三角面：%1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
 	<string name="notice_transform_only_drawables">仅图形网格支持变换操作。暂不支持部件与变形器。</string>
@@ -519,17 +519,17 @@
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">所属部件</string>
 	<string name="properties_parent_deformer">所属变形器</string>
-	<string name="properties_mask_count">剪贴: %1$d</string>
-	<string name="properties_mesh">网格: 顶点 %1$d / 多边形 %2$d</string>
+	<string name="properties_mask_count">蒙版：%1$d</string>
+	<string name="properties_mesh">网格：顶点 %1$d / 三角面 %2$d</string>
 	<string name="properties_no_mesh">无网格</string>
-	<string name="properties_warp_grid">格子: %1$d × %2$d</string>
+	<string name="properties_warp_grid">格子：%1$d × %2$d</string>
 	<string name="status_multi_selected">已选择 %1$d 个项目</string>
 
 	<!--
 	  Properties panel (the Blender-style tabbed property editor): the empty states, the tab labels (left
 	  icon strip), the section headings, and the read-only sample fields not already covered by the	status bar strings.
 	-->
-	<string name="properties_no_matches">无匹配的属性</string>
+	<string name="properties_no_matches">无匹配的属性。</string>
 	<string name="properties_tab_document">文档</string>
 	<string name="properties_tab_object">物体</string>
 	<string name="properties_tab_data">数据</string>
@@ -548,7 +548,7 @@
 	<string name="properties_field_runtime_target">目标版本</string>
 	<string name="runtime_target_no_target">无限制（所有功能）</string>
 	<string name="runtime_target_ayagami">Ayagami（相当于 Cubism %1$s）</string>
-	<string name="properties_runtime_restricted">受限制的功能:</string>
+	<string name="properties_runtime_restricted">受限制的功能：</string>
 	<string name="properties_runtime_no_restrictions">所有功能均可用。</string>
 	<string name="properties_runtime_feature_in_use">%1$s — 当前文档正在使用</string>
 	<string name="runtime_feature_warp_quad_transform">新弯曲变形器方法</string>
@@ -563,7 +563,7 @@
 	<string name="runtime_feature_part_composite">部件合成（离屏绘制）</string>
 	<string name="runtime_feature_parameter_repeat">参数循环</string>
 	<string name="runtime_feature_art_path">图形路径</string>
-	<string name="properties_texture_source">纹理源: %1$s</string>
+	<string name="properties_texture_source">纹理源：%1$s</string>
 	<string name="properties_texture_own">自身纹理集绑定</string>
 
 	<!-- Editable Properties-panel controls: bare field labels, unit suffixes, and localized enum
@@ -577,9 +577,9 @@
 	<string name="properties_field_size_x">尺寸 X</string>
 	<string name="properties_field_size_z">尺寸 Z</string>
 	<string name="properties_transform_lock_aspect">保持宽高比</string>
-	<string name="properties_field_blend_mode">色彩混合</string>
+	<string name="properties_field_blend_mode">混色方式</string>
 	<string name="properties_field_alpha_mode">透明度混合</string>
-	<string name="properties_field_culling">剔除</string>
+	<string name="properties_field_culling">背面剔除</string>
 	<string name="properties_field_invert_mask">翻转蒙版</string>
 	<string name="properties_field_flip_x">水平翻转</string>
 	<string name="properties_field_flip_y">垂直翻转</string>
@@ -591,25 +591,25 @@
 	<string name="properties_field_opacity">不透明度</string>
 	<string name="properties_field_multiply_color">正片叠底色</string>
 	<string name="properties_field_screen_color">屏幕色</string>
-	<string name="properties_field_masked_by">剪贴</string>
+	<string name="properties_field_masked_by">蒙版</string>
 	<string name="properties_mask_add">添加蒙版…</string>
 	<string name="properties_mask_remove">删除蒙版</string>
 	<string name="properties_relation_clear">清除关联</string>
-	<string name="properties_relation_pick">从视图或大纲视图中拾取</string>
+	<string name="properties_relation_pick">从视图或大纲视图中拾取。</string>
 	<string name="unit_pixels">px</string>
 	<string name="unit_degrees">°</string>
 	<!-- Blend modes (Cubism color blend list). -->
-	<string name="blend_mode_normal">通常</string>
-	<string name="blend_mode_additive">加算</string>
+	<string name="blend_mode_normal">正常</string>
+	<string name="blend_mode_additive">相加</string>
 	<string name="blend_mode_multiply">正片叠底</string>
-	<string name="blend_mode_additive_premultiplied">加算（旧版）</string>
-	<string name="blend_mode_additive_glow">加算（发光）</string>
+	<string name="blend_mode_additive_premultiplied">相加（旧版）</string>
+	<string name="blend_mode_additive_glow">相加（发光）</string>
 	<string name="blend_mode_darken">变暗</string>
 	<string name="blend_mode_multiply_premultiplied">正片叠底（旧版）</string>
 	<string name="blend_mode_color_burn">颜色加深</string>
 	<string name="blend_mode_linear_burn">线性加深</string>
 	<string name="blend_mode_lighten">变亮</string>
-	<string name="blend_mode_screen">屏幕</string>
+	<string name="blend_mode_screen">滤色</string>
 	<string name="blend_mode_color_dodge">颜色减淡</string>
 	<string name="blend_mode_overlay">叠加</string>
 	<string name="blend_mode_soft_light">柔光</string>
@@ -683,8 +683,8 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">数位笔设置将在近期支持。</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
-	<string name="settings_viewport_zoom_step">缩放步长 (%)</string>
-	<string name="settings_viewport_zoom_step_coarse">粗略缩放步长 (%)</string>
+	<string name="settings_viewport_zoom_step">缩放步长（%）</string>
+	<string name="settings_viewport_zoom_step_coarse">粗略缩放步长（%）</string>
 	<string name="settings_viewport_grid_scale">栅格间距（默认）</string>
 	<string name="settings_viewport_grid_subdivisions">栅格细分数</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
@@ -703,19 +703,19 @@
 	<string name="settings_colors_role_active">活动</string>
 	<string name="settings_colors_role_offkey">无键</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
-	<string name="pick_hover_drawable">图形网格: %1$s</string>
-	<string name="pick_hover_part">部件: %1$s</string>
-	<string name="pick_hover_deformer">变形器: %1$s</string>
+	<string name="pick_hover_drawable">图形网格：%1$s</string>
+	<string name="pick_hover_part">部件：%1$s</string>
+	<string name="pick_hover_deformer">变形器：%1$s</string>
 	<string name="space_keyformsheet">键形式表</string>
-	<string name="keyform_choose_parameter_insert">向哪个参数追加键？</string>
+	<string name="keyform_choose_parameter_insert">向哪个参数插入键？</string>
 	<string name="keyform_choose_parameter_remove">从哪个参数删除键？</string>
 	<string name="keyform_sheet_select_owner">选择 %1$s</string>
 	<string name="keyform_sheet_all_filtered">所有轨道均已被过滤器隐藏。</string>
 	<string name="keyform_sheet_filter_geometry">变形轨道</string>
 	<string name="keyform_sheet_filter_channels">属性轨道</string>
 	<string name="keyform_sheet_filter_blend_shapes">融合变形轨道</string>
-	<string name="keyform_sheet_no_parameter">选择参数后将显示其轨道</string>
-	<string name="keyform_sheet_no_tracks">此参数尚未设置任何键</string>
+	<string name="keyform_sheet_no_parameter">选择参数后将显示其轨道。</string>
+	<string name="keyform_sheet_no_tracks">此参数尚未设置任何键。</string>
 	<string name="owner_kind_drawable">图形网格</string>
 	<string name="owner_kind_warp_deformer">弯曲变形器</string>
 	<string name="owner_kind_rotation_deformer">旋转变形器</string>
@@ -730,12 +730,12 @@
 	<string name="channel_flip_x">X 翻转</string>
 	<string name="channel_flip_y">Y 翻转</string>
 	<string name="channel_glue_intensity">胶水强度</string>
-	<string name="cmd_keyform_insert">追加键</string>
+	<string name="cmd_keyform_insert">插入键</string>
 	<string name="cmd_keyform_frame_all">显示所有键</string>
 	<string name="cmd_keyform_nudge_left">向左微调键</string>
 	<string name="cmd_keyform_nudge_right">向右微调键</string>
 	<string name="cmd_keyform_delete_keys">删除选中的键</string>
 	<string name="cmd_keyform_delete">删除键</string>
-	<string name="notice_keyform_no_target">请指向可设置键的属性</string>
-	<string name="notice_keyform_no_parameter">请选择要追加键的参数</string>
+	<string name="notice_keyform_no_target">请指向可设置键的属性以插入键。</string>
+	<string name="notice_keyform_no_parameter">请选择要插入键的参数。</string>
 </resources>
