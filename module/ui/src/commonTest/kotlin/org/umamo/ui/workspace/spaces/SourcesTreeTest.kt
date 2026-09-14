@@ -238,6 +238,45 @@ class SourcesTreeTest {
 		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/name:Stray"), review[0].children.map { node -> node.id }, "the emptied row reviews beside the stray")
 	}
 
+	/**
+	 * A lost row says how it was lost - the file no longer has the layer, or a replacement file lacks its
+	 * key - and an unbound layer the rigger ignored reads as ignored, under the Unbound filter and not the
+	 * review one; a bound layer reads bound whatever its mark says.
+	 */
+	@Test
+	fun replacedAndIgnoredRowsReadTheirOwnStatus() {
+		val base = model()
+		val puppet =
+			base.copy(
+				atlas = base.atlas.copy(tiles = base.atlas.tiles + AtlasTile(AtlasTileId("tA9"), "Old brow", 4, 4, source = SourceLayerRef(artA, "lyid:9", true))),
+				sources =
+					base.sources.map { source ->
+						if (source.id != artA) {
+							source
+						} else {
+							source.copy(
+								layers =
+									listOf(
+										source.layers[0].copy(ignored = true),
+										source.layers[1].copy(ignored = true),
+										ArtSourceLayer("lyid:9", "Brow (old)", "Head", 12, 22, 4, 4, true, present = false, replaced = true),
+									),
+							)
+						}
+					},
+			)
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art")
+		val fileA = tree[0]
+		assertEquals(listOf("layer:art-0/lyid:1", "layer:art-0/lyid:2", "layer:art-0/lyid:9", "layer:art-0/name:Stray"), fileA.children.map { node -> node.id })
+		assertEquals(SourcesStatus.Bound, fileA.children[0].status, "a bound row reads bound whatever its mark says")
+		assertEquals(SourcesStatus.Ignored, fileA.children[1].status)
+		assertEquals(SourcesStatus.SourceReplaced, fileA.children[2].status)
+		assertTrue(fileA.children[2].status.isReview)
+		assertTrue(!fileA.children[1].status.isReview, "ignored is settled, not under review")
+		assertEquals(listOf("layer:art-0/lyid:2"), filterSourcesTree(tree, "", setOf(SourcesFilter.Unbound))[0].children.map { node -> node.id }, "the ignored row shows under Unbound")
+		assertEquals(listOf("layer:art-0/lyid:9", "layer:art-0/name:Stray"), filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))[0].children.map { node -> node.id }, "the replaced row reviews beside the stray")
+	}
+
 	@Test
 	fun keyShapesSayWhatTheyAre() {
 		assertTrue(layerKeyLooksStable("lyid:12"))
@@ -257,6 +296,9 @@ class SourcesTreeTest {
 		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Tile(AtlasTileId("u")))))
 		assertEquals(null, relinkFor(SourcesDragPayload.Layer(ref), node(SourcesNodeKind.Source(artA))))
 		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.NeedsReview)), "a lost row is no target")
+		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.Emptied)), "nor an erased one")
+		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.SourceReplaced)), "nor one a replacement lost")
+		assertEquals(null, relinkFor(SourcesDragPayload.Tile(AtlasTileId("t")), node(SourcesNodeKind.Layer(ref), SourcesStatus.Ignored)), "nor an ignored one")
 	}
 
 	/**

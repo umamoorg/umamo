@@ -42,6 +42,7 @@ import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
+import org.umamo.ui.resources.settings_import_delete_art_ignores_layer
 import org.umamo.ui.resources.settings_import_parameter_template
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
 import org.umamo.ui.resources.settings_import_parameter_template_none
@@ -139,12 +140,16 @@ internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
 /** The settings key for what a document does when a watched artwork file changes; the values are WatchMode keys. */
 internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
 
+/** The settings key for whether Delete Art also marks the tile's layer ignored, so a reload does not mint the art back. */
+internal const val IMPORT_DELETE_ART_IGNORES_LAYER_KEY = "import.deleteArtIgnoresLayer"
+
 /**
- * The Import section: what an artwork import seeds a new model with, and what a document does when a
- * watched artwork file changes.  The parameter template is stored as the template's key so a later
- * template is one more option here and one more enum entry, nothing else; the import reads the key at
- * the moment it runs, so the change applies to the next import.  The watch mode is stored as the
- * mode's key and read live by the open document's watcher.
+ * The Import section: what an artwork import seeds a new model with, what a document does when a
+ * watched artwork file changes, and whether Delete Art keeps the deleted layer out of the rig.  The
+ * parameter template is stored as the template's key so a later template is one more option here and
+ * one more enum entry, nothing else; the import reads the key at the moment it runs, so the change
+ * applies to the next import.  The watch mode is stored as the mode's key and read live by the open
+ * document's watcher.  The Delete Art choice is read at each dispatch.
  */
 @Composable
 internal fun ImportSection() {
@@ -154,6 +159,8 @@ internal fun ImportSection() {
 			ParameterTemplate.Humanoid.key to stringResource(Res.string.settings_import_parameter_template_humanoid),
 			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
 		)
+
+	var deleteArtIgnoresLayer by rememberBooleanSetting(IMPORT_DELETE_ART_IGNORES_LAYER_KEY, false)
 
 	var watchModeKey by rememberStringSetting(IMPORT_WATCH_MODE_KEY, WatchMode.Default.key)
 	val watchModeLabels =
@@ -181,6 +188,13 @@ internal fun ImportSection() {
 				onSelect = { value -> watchModeKey = value },
 			)
 		}
+		// Off by default: a deleted drawable's layer comes back on the next reload unless the rigger asks
+		// otherwise here, or ignores the row by hand.
+		Checkbox(
+			checked = deleteArtIgnoresLayer,
+			onCheckedChange = { checked -> deleteArtIgnoresLayer = checked },
+			label = stringResource(Res.string.settings_import_delete_art_ignores_layer),
+		)
 	}
 }
 

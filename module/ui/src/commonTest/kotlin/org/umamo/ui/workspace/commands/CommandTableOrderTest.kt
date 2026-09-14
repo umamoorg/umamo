@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
@@ -17,6 +18,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -228,7 +230,7 @@ class CommandTableOrderTest {
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
 		assertEquals(
-			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt"),
+			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt", "sources.ignoreLayer"),
 			fileArtworkCommands(routing()) { null }.map { command -> command.id },
 		)
 	}
@@ -250,7 +252,8 @@ class CommandTableOrderTest {
 	 * The artwork commands hide themselves while no document can take artwork (the collaborator is
 	 * null), ask LIVE, and hand the handler the area its operation strip shows in - fired over the
 	 * Sources panel, that is the last work surface the pointer touched, never the panel.  Reload also
-	 * asks the collaborator whether any file can be read; relink carries its request through.
+	 * asks the collaborator whether any file can be read; relink, delete, and ignore carry their requests
+	 * through, and ignore is argument-only, so it has no title for the palette.
 	 */
 	@Test
 	fun artworkCommandsFollowTheCollaboratorAndTheStripArea() {
@@ -272,6 +275,7 @@ class CommandTableOrderTest {
 		var landedScope: ReloadScope? = null
 		var landedReplace: ReplaceRequest? = null
 		var deleted: DeleteArtRequest? = null
+		var ignored: IgnoreLayerRequest? = null
 		var matched = 0
 		var canReload = false
 		operations =
@@ -294,6 +298,7 @@ class CommandTableOrderTest {
 					landedArea = areaId
 				},
 				deleteArt = { request -> deleted = request },
+				ignoreLayer = { request -> ignored = request },
 				canReload = { canReload },
 			)
 		assertTrue(add.availability.isAvailable(), "the collaborator is queried per call")
@@ -325,6 +330,11 @@ class CommandTableOrderTest {
 		val deleteRequest = DeleteArtRequest(AtlasTileId("t9"))
 		commands.first { command -> command.id == "sources.deleteArt" }.handler.run(deleteRequest)
 		assertSame(deleteRequest, deleted, "the delete carries its tile")
+		val ignore = commands.first { command -> command.id == "sources.ignoreLayer" }
+		val ignoreRequest = IgnoreLayerRequest(SourceLayerRef(ArtSourceId("art-0"), "lyid:1", stableKey = true), ignored = true)
+		ignore.handler.run(ignoreRequest)
+		assertSame(ignoreRequest, ignored, "the ignore carries its layer")
+		assertNull(ignore.title, "argument-only, so not a palette entry")
 	}
 
 	/** The keyform-authoring table. */

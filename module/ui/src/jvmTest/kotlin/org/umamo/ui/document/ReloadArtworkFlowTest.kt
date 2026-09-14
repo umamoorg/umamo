@@ -231,6 +231,48 @@ class ReloadArtworkFlowTest {
 			follower.cancel()
 		}
 
+	/**
+	 * A layer's eye toggle in the file follows into the drawable over it while that drawable still shows
+	 * the state the file last had - a step of its own, with no tile replaced and nothing packed - and
+	 * follows back when the layer is shown again.
+	 */
+	@Test
+	fun aLayerEyeToggleFollowsIntoTheDrawableAndBack() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = null,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the reload must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val before = session.model.value
+			val tileB = AtlasTileId("art-0/lyid:2")
+			val drawableB = before.drawables.first { drawable -> drawable.atlasTileId == tileB }
+			assertTrue(drawableB.isVisible)
+
+			val layerBHidden = InMemoryLayer("lyid:2", "B", 1, LayerBounds(40, 40, 8, 8), solidRaster(8, 8, 2), visible = false)
+			val hide = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerA, layerBHidden)), contentHash = "hash-hidden")), options)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, hide, areaId = null), "an eye toggle alone is a step")
+			val hidden = session.model.value
+			assertFalse(hidden.drawables.first { drawable -> drawable.id == drawableB.id }.isVisible, "the untouched drawable followed the file")
+			assertEquals(before.atlas.tiles.map { tile -> tile.id }, hidden.atlas.tiles.map { tile -> tile.id }, "no tile changed")
+			assertEquals(false, hidden.sources.single().layers.first { layer -> layer.key == "lyid:2" }.visible, "the inventory records the new state")
+
+			val show = ReloadArtworkRequest(listOf(ReloadEntry(sourceId, InMemoryArt(listOf(layerA, layerB)), contentHash = "hash-shown")), options)
+			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, show, areaId = null))
+			assertTrue(session.model.value.drawables.first { drawable -> drawable.id == drawableB.id }.isVisible, "shown again in the file, it follows back")
+			session.undo()
+			session.undo()
+			assertSame(before, session.model.value, "two steps, both undone")
+		}
+
 	@Test
 	fun aReloadAfterAnUndoReusesTheReplacementIdAndTheStoreServesTheNewPixels() =
 		runBlocking {

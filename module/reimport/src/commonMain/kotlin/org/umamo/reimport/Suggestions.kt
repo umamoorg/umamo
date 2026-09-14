@@ -18,7 +18,9 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The inventory a refresh records: [fresh] as read, plus every [previous] row whose key the fresh art
  * lacks and a tile still binds, marked not present.  A previous row already not present stays so, and
- * a lost row nothing binds is dropped - there is no binding left to review.
+ * a lost row nothing binds is dropped - there is no binding left to review.  A row losing its presence
+ * in this refresh records why ([ArtSourceLayer.replaced]): the file was repointed at art that mints
+ * other keys when [lostByReplacement] says so, else the layer left the file.
  *
  * A plan that pulls art for some tiles and not others (a relink, an accepted match) names the bound
  * keys it left alone in [untouchedKeys]: their previous rows are kept over the fresh ones, so a change
@@ -30,10 +32,14 @@ import org.umamo.runtime.model.PuppetModel
  * reload that finds the art back (an undo in the art program) measures it against that frame rather
  * than against the collapse - which would carry every coordinate by the bogus difference.
  *
+ * The rigger's ignore mark ([ArtSourceLayer.ignored]) is the document's, not the file's, so a fresh
+ * row carries its previous row's mark; a layer new to the file starts unmarked.
+ *
  * @param List<ArtSourceLayer> previous      The inventory as the document held it.
  * @param List<ArtSourceLayer> fresh         The inventory of the art as just read.
  * @param Set<String>          boundKeys     The keys the tiles bound to this file carry after the plan.
  * @param Set<String>          untouchedKeys The bound keys whose tiles the plan did not update.
+ * @param Boolean              lostByReplacement Whether the rows lost in this refresh were lost to a Replace Artwork.
  * @return List<ArtSourceLayer> The rows to record, the fresh ones first in their order, then the kept lost ones in theirs.
  */
 fun inventoryWithMissing(
@@ -41,24 +47,26 @@ fun inventoryWithMissing(
 	fresh: List<ArtSourceLayer>,
 	boundKeys: Set<String>,
 	untouchedKeys: Set<String> = emptySet(),
+	lostByReplacement: Boolean = false,
 ): List<ArtSourceLayer> {
 	val previousByKey = previous.associateBy { row -> row.key }
 	val freshKeys = fresh.mapTo(HashSet()) { row -> row.key }
 	val refreshed =
 		fresh.map { row ->
 			val previousRow = previousByKey[row.key]
+			val carried = if (previousRow?.ignored == true) row.copy(ignored = true) else row
 			when {
 				row.key in untouchedKeys && previousRow != null && previousRow.present -> previousRow
 				// The previous row already holds the last frame with art when it was itself erased.
 				row.empty && previousRow != null ->
-					row.copy(left = previousRow.left, top = previousRow.top, width = previousRow.width, height = previousRow.height)
-				else -> row
+					carried.copy(left = previousRow.left, top = previousRow.top, width = previousRow.width, height = previousRow.height)
+				else -> carried
 			}
 		}
 	val lost =
 		previous
 			.filter { row -> row.key !in freshKeys && row.key in boundKeys }
-			.map { row -> if (row.present) row.copy(present = false) else row }
+			.map { row -> if (row.present) row.copy(present = false, replaced = lostByReplacement) else row }
 	return refreshed + lost
 }
 
@@ -77,8 +85,9 @@ private fun missingRowFor(row: ArtSourceLayer?, tile: AtlasTile): ArtSourceLayer
 /**
  * The best candidate for every binding to [sourceId] its inventory does not list as present - or lists
  * as erased to nothing - keyed by the lost layer's key.  The candidates are the file's present layers
- * with art that no tile is bound to - never a bound one, since on the model alone nothing tells a
- * re-created layer's fresh drawable from any other untouched drawable; the proposal that names a
+ * with art that no tile is bound to and the rigger has not ignored - never a bound one, since on the
+ * model alone nothing tells a re-created layer's fresh drawable from any other untouched drawable; the
+ * proposal that names a
  * bound layer comes only from a reload that scored the binding before it minted the layer.  Without
  * rasters the ranking rests on the inventory alone; with them the matcher compares pixels too.
  *
@@ -105,7 +114,7 @@ fun suggestionsFor(
 	}
 	val candidates =
 		source.layers
-			.filter { row -> row.present && !row.empty && row.key !in tileByKey && row.width > 0 && row.height > 0 }
+			.filter { row -> row.present && !row.empty && !row.ignored && row.key !in tileByKey && row.width > 0 && row.height > 0 }
 			.map { row -> MatchCandidate(row) { candidateRasterOf(row.key) } }
 	if (candidates.isEmpty()) {
 		return emptyMap()
