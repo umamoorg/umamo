@@ -363,6 +363,9 @@
 	<string name="history_document_tile_source">アートを再リンク</string>
 	<string name="history_document_tile_unbind">アートのリンクを解除</string>
 	<string name="history_document_delete_tile">アートを削除</string>
+	<string name="history_document_delete_tile_ignore">アートを削除してレイヤーを無視</string>
+	<string name="history_document_layer_ignore">レイヤーを無視</string>
+	<string name="history_document_layer_unignore">レイヤーの無視を解除</string>
 	<string name="history_document_add_artwork">アートワークを追加</string>
 	<string name="history_document_reload_artwork">アートワークを再読み込み</string>
 	<string name="history_document_relink_artwork">アートを再リンク</string>
@@ -381,6 +384,9 @@
 	<string name="sources_file_menu">ファイルの操作</string>
 	<string name="sources_file_menu_replace">アートワークを差し替え…</string>
 	<string name="sources_file_menu_reload">このファイルを再読み込み</string>
+	<string name="sources_layer_menu">レイヤーの操作</string>
+	<string name="sources_layer_menu_ignore">レイヤーを無視</string>
+	<string name="sources_layer_menu_unignore">無視を解除</string>
 	<string name="sources_suggestion_title">このリンクを確認</string>
 	<string name="sources_suggestion_accept">%1$s を採用（%2$d%）</string>
 	<string name="sources_suggestion_accept_merge">%1$s を採用（%2$d%）し、新しいドローアブルを削除</string>
@@ -399,6 +405,8 @@
 	<string name="sources_status_unplaced">未配置</string>
 	<string name="sources_status_needs_review">要確認：ファイルにこのレイヤーがありません</string>
 	<string name="sources_status_emptied">要確認：ファイル内でこのレイヤーは空です</string>
+	<string name="sources_status_replaced">要確認：差し替え後のファイルにこのキーのレイヤーがありません</string>
+	<string name="sources_status_ignored">無視中：再読み込みでこのレイヤーは追加されません</string>
 	<string name="sources_unbound_art">未リンクのアート</string>
 	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
 	<string name="sources_source_no_path">パス未記録</string>
@@ -762,6 +770,7 @@
 	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
+	<string name="settings_import_delete_art_ignores_layer">「アートを削除」でレイヤーも無視する</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->

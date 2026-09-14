@@ -38,7 +38,8 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * names it.  A drawable's mesh changes in only two ways: an untouched birth quad is re-born over the
  * new art, and an edited mesh keeps its vertices with its texture coordinates carried so each vertex
  * samples the canvas pixel it did before - Cubism's own re-import behavior, where the art moves under
- * a mesh that stays.
+ * a mesh that stays.  Its visibility follows the file's eye toggle only while it still shows the state
+ * the file last had: a toggle the rigger made in the outliner is rig work and stays.
  */
 
 /**
@@ -86,9 +87,12 @@ object ArtworkReloadPlanner {
 	 * the rig work follows the layer and no fresh drawable is minted beside it; below the bar the layer
 	 * is minted and the binding is left for review, the proposal kept in [ReloadPlan.leftovers] so the
 	 * row can still offer it (accepting then retires the fresh drawable).  The remaining raster layers
-	 * no tile is bound to are minted through the bridge under the same source.  The source record takes
-	 * the inventory as just read.  Null when the file is not one the model lists or when nothing at all
-	 * changed - not even the inventory - so a reload with nothing to do pushes no step.
+	 * no tile is bound to are minted through the bridge under the same source - except those the rigger
+	 * ignored ([ArtSourceLayer.ignored]), which stay out however many reloads find them.  A drawable whose
+	 * layer's eye toggle changed since the last read follows it while it still shows the old state
+	 * ([ArtworkReload.drawableVisibility]); one the rigger toggled since is left alone.  The source record
+	 * takes the inventory as just read.  Null when the file is not one the model lists or when nothing at
+	 * all changed - not even the inventory - so a reload with nothing to do pushes no step.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param ArtSourceId            sourceId    The listed file being re-read.
@@ -134,6 +138,9 @@ object ArtworkReloadPlanner {
 		// layer's tile follows it.
 		val suggestions = suggestionsAgainstRead(model, sourceId, inventory, oldRasterOf, { key -> layersByKey[key]?.raster }, matcher)
 		val accepted = confidentMatches(suggestions, matchThreshold)
+		// The rigger's ignore marks live on the record's rows: a marked layer is left out of the rig however
+		// many reloads find it unbound.
+		val ignoredKeys = source.layers.filter { row -> row.ignored }.mapTo(HashSet()) { row -> row.key }
 
 		fun reboundFor(binding: SourceLayerRef): ReconcileResult.Rebound? {
 			val candidateKey = accepted[binding.layerKey] ?: return null
@@ -146,7 +153,7 @@ object ArtworkReloadPlanner {
 						is ReconcileResult.Matched -> reboundFor(result.binding) ?: result
 						is ReconcileResult.NeedsReview ->
 							reboundFor(result.binding) ?: if (replacement != null) result.copy(reason = ReviewReason.SourceReplaced) else result
-						is ReconcileResult.Added -> result.takeIf { added -> added.layerKey !in accepted.values }
+						is ReconcileResult.Added -> result.takeIf { added -> added.layerKey !in accepted.values && added.layerKey !in ignoredKeys }
 						is ReconcileResult.Rebound -> result
 					}
 				},
@@ -159,6 +166,7 @@ object ArtworkReloadPlanner {
 		val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
 		val notices = ArrayList<SourceArtImportNotice>()
 		val emptied = ArrayList<ReconcileResult>()
+		val visibility = LinkedHashMap<DrawableId, Boolean>()
 		for (tile in boundTiles) {
 			val ref = tile.source ?: continue
 			val candidateKey = accepted[ref.layerKey]
@@ -166,6 +174,7 @@ object ArtworkReloadPlanner {
 				// The lost (or erased) layer's tile takes the re-created layer, the mesh over it carried the
 				// way a relink carries it.
 				val candidate = layersByKey[candidateKey] ?: continue
+				followVisibility(model, tile, oldInventoryByKey[ref.layerKey], candidate, visibility)
 				val candidateRef = SourceLayerRef(sourceId, candidateKey, stableKey = candidate.idIsStable)
 				val rebinding =
 					replaceTile(model, tile, candidate, candidateRef, oldInventoryByKey[ref.layerKey], options, oldRasterOf, taken, notices, force = true)
@@ -177,6 +186,7 @@ object ArtworkReloadPlanner {
 				continue
 			}
 			val layer = layersByKey[ref.layerKey] ?: continue
+			followVisibility(model, tile, oldInventoryByKey[ref.layerKey], layer, visibility)
 			if (layer.raster.isFullyTransparent()) {
 				// Erased to nothing rather than deleted: the tile keeps its art and the binding goes to
 				// review, since the artist may have meant either (deleted the layer another way, or left
@@ -208,7 +218,7 @@ object ArtworkReloadPlanner {
 		}
 		// The file's bindings after the plan: a rebound tile binds its candidate.
 		val boundKeys = boundTiles.mapNotNullTo(HashSet()) { tile -> tile.source?.let { ref -> accepted[ref.layerKey] ?: ref.layerKey } }
-		val layers = inventoryWithMissing(source.layers, inventory, boundKeys)
+		val layers = inventoryWithMissing(source.layers, inventory, boundKeys, lostByReplacement = replacement != null)
 		val refreshed =
 			if (replacement == null) {
 				source.copy(layers = layers, contentHash = contentHash ?: source.contentHash, lastModified = lastModified ?: source.lastModified)
@@ -228,7 +238,13 @@ object ArtworkReloadPlanner {
 			return null
 		}
 		val leftovers = suggestions.filterKeys { lostKey -> lostKey !in accepted }
-		return ReloadPlan(ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown), rasters, ReconcileReport(report.results + emptied), notices, leftovers)
+		return ReloadPlan(
+			ArtworkReload(refreshed, replaced, meshes, added?.additions, outgrown, drawableVisibility = visibility),
+			rasters,
+			ReconcileReport(report.results + emptied),
+			notices,
+			leftovers,
+		)
 	}
 
 	/**
@@ -358,6 +374,37 @@ object ArtworkReloadPlanner {
 	 */
 	private fun rasterLayersByKey(art: SourceArt): Map<String, SourceLayer> =
 		art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associateBy { layer -> layer.id.raw }
+
+	/**
+	 * Records, for the drawables over [tile], the visibility the file's eye toggle now asks for, when it
+	 * changed since the last read: a drawable still showing the OLD file state follows the new one; a
+	 * drawable the rigger toggled since (its flag already differs from the old state) is left alone, since
+	 * that toggle is rig work.  A document that never recorded the old state cannot tell the two apart and
+	 * records nothing.
+	 *
+	 * @param PuppetModel     model        The model the tile lives in.
+	 * @param AtlasTile       tile         The tile whose drawables are considered.
+	 * @param ArtSourceLayer? oldInventory The layer's inventory row at the last read, or null.
+	 * @param SourceLayer     layer        The layer as read now.
+	 * @param MutableMap      visibility   Appended with each drawable that follows, keyed by its id.
+	 */
+	private fun followVisibility(
+		model: PuppetModel,
+		tile: AtlasTile,
+		oldInventory: ArtSourceLayer?,
+		layer: SourceLayer,
+		visibility: MutableMap<DrawableId, Boolean>,
+	) {
+		val oldVisible = oldInventory?.visible ?: return
+		if (oldVisible == layer.visible) {
+			return
+		}
+		for (drawable in model.drawables) {
+			if (drawable.atlasTileId == tile.id && drawable.isVisible == oldVisible) {
+				visibility[drawable.id] = layer.visible
+			}
+		}
+	}
 
 	/**
 	 * Replaces one tile with [layer]'s art when the art differs from what the tile holds (or when

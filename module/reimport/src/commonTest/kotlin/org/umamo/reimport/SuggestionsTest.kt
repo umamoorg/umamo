@@ -64,6 +64,16 @@ class SuggestionsTest {
 		assertTrue(erased.empty && erased.contentHash == "blank", "while the erasure itself is recorded")
 		val stillErased = inventoryWithMissing(listOf(erased), erasedFresh, boundKeys = setOf("a")).single()
 		assertEquals(listOf(30, 40, 10, 10), listOf(stillErased.left, stillErased.top, stillErased.width, stillErased.height), "and keeps it across further saves")
+
+		// A row lost to Replace Artwork says so; one lost before the replace keeps the deletion reading.
+		val replaced = inventoryWithMissing(previous, fresh, boundKeys = setOf("a", "b", "c"), lostByReplacement = true)
+		assertEquals(listOf(false, false, true, false), replaced.map { layer -> layer.replaced }, "only the row lost in this refresh reads as replaced")
+		assertTrue(inventoryWithMissing(previous, fresh, boundKeys = setOf("a", "b", "c")).none { layer -> layer.replaced }, "a plain reload records a deletion")
+		// The rigger's ignore mark is the document's, not the file's: it rides the fresh row, and a new layer starts unmarked.
+		val marked = inventoryWithMissing(listOf(row("a", "A", 0, 0).copy(ignored = true)), fresh, boundKeys = emptySet())
+		assertEquals(listOf(true, false), marked.map { layer -> layer.ignored })
+		val markedErased = inventoryWithMissing(listOf(row("a", "A", 30, 40).copy(ignored = true)), erasedFresh, boundKeys = emptySet()).single()
+		assertTrue(markedErased.ignored && markedErased.left == 30, "the mark and the kept frame ride together")
 	}
 
 	@Test
@@ -116,6 +126,10 @@ class SuggestionsTest {
 		val proposedForNose = erased.getValue("lyid:3").key
 		assertTrue(proposedForNose == "lyid:4" || proposedForNose == "lyid:5", "the emptied Nose is proposed a layer with art, got $proposedForNose")
 		assertTrue(erased.values.none { match -> match.key == "lyid:8" }, "the blank namesake is never a candidate")
+		// An ignored layer is never a candidate either: the rigger keeps it out of the rig.
+		val ignoredModel =
+			model.copy(sources = listOf(model.sources.single().copy(layers = model.sources.single().layers.map { layer -> if (layer.key == "lyid:4") layer.copy(ignored = true) else layer })))
+		assertTrue(suggestionsFor(ignoredModel, source).values.none { match -> match.key == "lyid:4" }, "an ignored layer is no candidate")
 		assertTrue(suggestionsFor(model, ArtSourceId("art-9")).isEmpty(), "an unknown file proposes nothing")
 	}
 

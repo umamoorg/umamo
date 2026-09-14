@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ColorRgb
@@ -736,13 +737,29 @@ sealed interface DocumentChange : Change {
 	 * Removes one piece of source art from the atlas: a tile no drawable samples (its drawables were
 	 * deleted, or it never had any), so it stops taking a page slot and a Sources row.  Its pixels stay
 	 * in the document's raster store, so undo shows it again.  Document content, so it marks the
-	 * document dirty.
+	 * document dirty.  With [ignoredLayer] the layer the tile was bound to is marked ignored in the same
+	 * step, so a reload does not mint the art back (Settings > Import decides).
 	 *
-	 * @property AtlasTileId tileId The tile removed.
+	 * @property AtlasTileId tileId       The tile removed.
+	 * @property Boolean     ignoredLayer Whether the tile's layer was marked ignored with it.
 	 */
-	data class DeleteTile(val tileId: AtlasTileId) : DocumentChange {
+	data class DeleteTile(val tileId: AtlasTileId, val ignoredLayer: Boolean = false) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.document.deleteTile"
+		override val labelKey: String = if (ignoredLayer) "change.document.deleteTileIgnore" else "change.document.deleteTile"
+	}
+
+	/**
+	 * Marks or clears the ignore on one layer of a listed artwork file: while marked, a reload leaves the
+	 * layer out of the rig instead of minting a drawable for it.  Document content the native format
+	 * carries, so it marks the document dirty.
+	 *
+	 * @property ArtSourceId sourceId The file.
+	 * @property String      layerKey The layer's key within it.
+	 * @property Boolean     ignored  True when the layer was marked, false when the mark was cleared.
+	 */
+	data class SetLayerIgnored(val sourceId: ArtSourceId, val layerKey: String, val ignored: Boolean) : DocumentChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = if (ignored) "change.document.layerIgnore" else "change.document.layerUnignore"
 	}
 
 	/**
@@ -760,17 +777,26 @@ sealed interface DocumentChange : Change {
 
 	/**
 	 * Reloads the document's artwork files: every changed layer's tile replaced with its new art, a lost
-	 * layer's tile rebound to the layer that re-created it, the layers the files gained added, the
-	 * inventories refreshed, and the changed tiles packed beside the existing art - one step for however
-	 * many files were read.  Document content, so it marks the document dirty.
+	 * layer's tile rebound to the layer that re-created it, the layers the files gained added, the untouched
+	 * drawables following their layers' eye toggles, the inventories refreshed, and the changed tiles packed
+	 * beside the existing art - one step for however many files were read.  Document content, so it marks
+	 * the document dirty.
 	 *
-	 * @property Int fileCount     How many files were re-read.
-	 * @property Int replacedCount How many tiles took new art (the rebound ones among them).
-	 * @property Int addedCount    How many drawables the files' new layers added.
-	 * @property Int matchedCount  How many tiles the matcher rebound to a re-created layer.
-	 * @property Int missingCount  How many bound layers the files no longer have (left for review).
+	 * @property Int fileCount       How many files were re-read.
+	 * @property Int replacedCount   How many tiles took new art (the rebound ones among them).
+	 * @property Int addedCount      How many drawables the files' new layers added.
+	 * @property Int matchedCount    How many tiles the matcher rebound to a re-created layer.
+	 * @property Int missingCount    How many bound layers the files no longer have (left for review).
+	 * @property Int visibilityCount How many drawables followed their layer's eye toggle in the file.
 	 */
-	data class ReloadArtwork(val fileCount: Int, val replacedCount: Int, val addedCount: Int, val matchedCount: Int, val missingCount: Int) : DocumentChange {
+	data class ReloadArtwork(
+		val fileCount: Int,
+		val replacedCount: Int,
+		val addedCount: Int,
+		val matchedCount: Int,
+		val missingCount: Int,
+		val visibilityCount: Int = 0,
+	) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.reloadArtwork"
 	}

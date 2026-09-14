@@ -32,13 +32,13 @@ enum class SourcesFilter {
 	/** Layers some tile is bound to, by a stable key or by name. */
 	Bound,
 
-	/** Layers no tile is bound to, and tiles bound to no layer. */
+	/** Layers no tile is bound to (the ignored ones among them), and tiles bound to no layer. */
 	Unbound,
 
 	/** Artwork files that are no longer where the document read them, with everything under them. */
 	Missing,
 
-	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists, or has erased to nothing. */
+	/** Bindings a reload could not resolve: tiles bound to a layer their file no longer lists, has erased to nothing, or a replacement file lacks. */
 	NeedsReview,
 }
 
@@ -66,8 +66,19 @@ enum class SourcesStatus {
 	/** A binding to a layer the file still has but erased to nothing: the tile keeps its art until a person decides. */
 	Emptied,
 
+	/** A binding to a layer the replacement file has no key for (Replace Artwork repointed the record): the same wait, with its own reason. */
+	SourceReplaced,
+
+	/** A present layer no tile binds that the rigger keeps out of the rig: a reload never mints it. */
+	Ignored,
+
 	/** A row with no status of its own. */
 	None,
+	;
+
+	/** Whether the row stands for a binding waiting on a person: a layer lost, erased, or lost to a replacement. */
+	val isReview: Boolean
+		get() = this == NeedsReview || this == Emptied || this == SourceReplaced
 }
 
 /** What a row stands for, and the identity a click or a drop acts on. */
@@ -152,7 +163,8 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * Builds the Sources tree from a puppet: one node per artwork file in document order, each holding
  * its inventory layers in the file's order with the tiles bound to each - a layer the file lost but a
  * tile still binds reads as needing review, named and sized as the inventory last saw it, with the
- * proposed relink when there is one - then any tile bound to a key the inventory never listed, the
+ * proposed relink when there is one and its own status when a replacement lost it; an unbound layer
+ * the rigger ignored reads as ignored - then any tile bound to a key the inventory never listed, the
  * drawables over each tile, and last the unbound group when any tile has no binding.
  *
  * @param PuppetModel puppet            The rig to walk.
@@ -199,20 +211,32 @@ fun buildSourcesTree(
 		)
 	}
 
-	fun layerNode(source: ArtSource, key: String, label: String, detail: SourcesDetail, listed: Boolean = true, emptied: Boolean = false): SourcesNode {
+	fun layerNode(
+		source: ArtSource,
+		key: String,
+		label: String,
+		detail: SourcesDetail,
+		listed: Boolean = true,
+		emptied: Boolean = false,
+		replaced: Boolean = false,
+		ignored: Boolean = false,
+	): SourcesNode {
 		val sourceId = source.id
 		val bound = tilesByBinding[sourceId to key].orEmpty()
 		val stable = bound.any { tile -> tile.source?.stableKey == true }
 		val status =
 			when {
+				!listed && replaced -> SourcesStatus.SourceReplaced
 				!listed -> SourcesStatus.NeedsReview
+				// The ignore mark means nothing for a bound layer, so a bound row reads bound whatever it says.
+				bound.isEmpty() && ignored -> SourcesStatus.Ignored
 				bound.isEmpty() -> SourcesStatus.Unbound
 				emptied -> SourcesStatus.Emptied
 				stable -> SourcesStatus.Bound
 				else -> SourcesStatus.BoundByName
 			}
 		val suggestion =
-			if (status == SourcesStatus.NeedsReview || status == SourcesStatus.Emptied) {
+			if (status.isReview) {
 				suggestionsFor(sourceId, key).firstNotNullOfOrNull { match ->
 					val candidate = source.layers.firstOrNull { layer -> layer.key == match.key && layer.present && !layer.empty }
 					val boundToCandidate = tilesByBinding[sourceId to match.key].orEmpty()
@@ -251,7 +275,17 @@ fun buildSourcesTree(
 					if (!layer.present && !tilesByBinding.containsKey(source.id to layer.key)) {
 						return@mapNotNull null
 					}
-					val node = layerNode(source, layer.key, layer.name, SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top), listed = layer.present, emptied = layer.empty)
+					val node =
+						layerNode(
+							source,
+							layer.key,
+							layer.name,
+							SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top),
+							listed = layer.present,
+							emptied = layer.empty,
+							replaced = layer.replaced,
+							ignored = layer.ignored,
+						)
 					val ordinal = (rowCountByKey[layer.key] ?: 0) + 1
 					rowCountByKey[layer.key] = ordinal
 					if (ordinal == 1) node else node.copy(id = "${node.id}~$ordinal", status = SourcesStatus.Unbound, children = emptyList(), suggestion = null)
@@ -323,9 +357,9 @@ fun filterSourcesTree(nodes: List<SourcesNode>, query: String, filters: Set<Sour
 			filters.any { filter ->
 				when (filter) {
 					SourcesFilter.Bound -> node.status == SourcesStatus.Bound || node.status == SourcesStatus.BoundByName
-					SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.kind == SourcesNodeKind.UnboundGroup
+					SourcesFilter.Unbound -> node.status == SourcesStatus.Unbound || node.status == SourcesStatus.Ignored || node.kind == SourcesNodeKind.UnboundGroup
 					SourcesFilter.Missing -> node.kind is SourcesNodeKind.Source && node.status == SourcesStatus.Missing
-					SourcesFilter.NeedsReview -> node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied
+					SourcesFilter.NeedsReview -> node.status.isReview
 				}
 			}
 

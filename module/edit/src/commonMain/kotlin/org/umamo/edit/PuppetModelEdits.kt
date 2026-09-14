@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.AlphaBlendMode
+import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtworkAdditions
 import org.umamo.runtime.model.ArtworkReload
 import org.umamo.runtime.model.AtlasComposition
@@ -958,6 +959,37 @@ fun PuppetModel.withTileDeleted(tileId: AtlasTileId): PuppetModel {
 }
 
 /**
+ * This model with one inventory row's ignore mark set: a layer of a listed artwork file that a reload
+ * leaves out of the rig while [ignored] is true.  The mark means something only for a layer no tile
+ * binds - a bound layer is matched by key, never minted - so a key some tile binds is refused, as is an
+ * unlisted file or key; a mark already as asked returns [this].
+ *
+ * @param ArtSourceId sourceId The file.
+ * @param String      key      The layer's key within it.
+ * @param Boolean     ignored  True to keep the layer out of the rig, false to let a reload mint it again.
+ * @return PuppetModel The marked model, or [this] when refused or unchanged.
+ */
+fun PuppetModel.withLayerIgnored(sourceId: ArtSourceId, key: String, ignored: Boolean): PuppetModel {
+	val sourceIndex = sources.indexOfFirst { source -> source.id == sourceId }
+	if (sourceIndex < 0) {
+		return this
+	}
+	if (atlas.tiles.any { tile -> tile.source?.sourceId == sourceId && tile.source?.layerKey == key }) {
+		return this
+	}
+	val source = sources[sourceIndex]
+	val rowIndex = source.layers.indexOfFirst { row -> row.key == key }
+	if (rowIndex < 0 || source.layers[rowIndex].ignored == ignored) {
+		return this
+	}
+	val rows = source.layers.toMutableList()
+	rows[rowIndex] = rows[rowIndex].copy(ignored = ignored)
+	val updated = sources.toMutableList()
+	updated[sourceIndex] = source.copy(layers = rows)
+	return copy(sources = updated)
+}
+
+/**
  * The org tree after a delta's insertions: the parts and the root children.
  *
  * @property List<Part>     parts        The parts, the ones that took children rebuilt.
@@ -1026,8 +1058,9 @@ private fun List<OrgChild>.withInserted(child: OrgChild, slot: OrgSlot): List<Or
 /**
  * This model with one artwork file re-read into it: the file's record replaced by [reload]'s (the
  * inventory as just read), every superseded tile removed and its replacement appended unplaced, the
- * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, and
- * the layers the file gained appended under the same file (tiles, drawables, new parts, and each new
+ * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, the
+ * drawables the file's eye toggle reached given the visibility the plan decided, and the layers the
+ * file gained appended under the same file (tiles, drawables, new parts, and each new
  * child placed among the existing children where the file puts it, like [withArtworkAdded]).  The
  * render root is re-derived, so a layer added at the top of the file draws in front.  The pack that places the new tiles is a
  * separate step over the result, exactly as for an added file: an unplaced tile's coordinates address
@@ -1074,10 +1107,11 @@ fun PuppetModel.withArtworkReloaded(reload: ArtworkReload): PuppetModel {
 		drawables.map { drawable ->
 			val newTileId = drawable.atlasTileId?.let { tileId -> newTileByOldId[tileId] }
 			val mesh = reload.drawableMeshes[drawable.id]
-			if (newTileId == null && mesh == null) {
+			val visible = reload.drawableVisibility[drawable.id]
+			if (newTileId == null && mesh == null && visible == null) {
 				drawable
 			} else {
-				drawable.copy(atlasTileId = newTileId ?: drawable.atlasTileId, mesh = mesh ?: drawable.mesh)
+				drawable.copy(atlasTileId = newTileId ?: drawable.atlasTileId, mesh = mesh ?: drawable.mesh, isVisible = visible ?: drawable.isVisible)
 			}
 		}
 	val keptTiles = atlas.tiles.filter { tile -> tile.id !in replacedIds && tile.id !in retiredIds }

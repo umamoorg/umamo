@@ -230,6 +230,67 @@ class ArtworkEditsTest {
 		assertSame(withOrphan, withOrphan.withTileDeleted(AtlasTileId("nope")), "an unknown tile is a no-op")
 	}
 
+	/**
+	 * The ignore mark sits on an inventory row no tile binds: a bound key, an unlisted file or key, and a
+	 * mark already as asked are refused; the session toggles it as one step; Delete Art marks the deleted
+	 * tile's layer only when asked, and never a key another tile still binds.
+	 */
+	@Test
+	fun aLayerIsIgnoredOnlyWhileUnboundAndDeleteArtMarksItOnRequest() {
+		val base = model()
+		val fileId = ArtSourceId("art-0")
+		assertSame(base, base.withLayerIgnored(fileId, "lyid:1", ignored = true), "a bound key is refused")
+		assertSame(base, base.withLayerIgnored(ArtSourceId("art-9"), "lyid:1", ignored = true), "an unlisted file")
+		assertSame(base, base.withLayerIgnored(fileId, "lyid:9", ignored = true), "an unlisted key")
+		val unbound = base.withTileSource(AtlasTileId("art-0/lyid:1"), null)
+		val marked = unbound.withLayerIgnored(fileId, "lyid:1", ignored = true)
+		assertTrue(marked.sources.single().layers.single().ignored)
+		assertSame(marked, marked.withLayerIgnored(fileId, "lyid:1", ignored = true), "already as asked")
+		assertEquals(false, marked.withLayerIgnored(fileId, "lyid:1", ignored = false).sources.single().layers.single().ignored, "cleared again")
+
+		val session = EditorSession(unbound)
+		session.setLayerIgnored(SourceLayerRef(fileId, "lyid:1", stableKey = true), ignored = true)
+		assertTrue(session.model.value.sources.single().layers.single().ignored)
+		assertTrue(session.canUndo.value)
+		session.undo()
+		assertSame(unbound, session.model.value)
+		session.setLayerIgnored(SourceLayerRef(fileId, "lyid:1", stableKey = true), ignored = false)
+		assertEquals(false, session.canUndo.value, "a mark already as asked pushes nothing")
+
+		// Delete Art: the orphan tile leaves; under the setting its layer is marked in the same step.
+		val orphan = AtlasTile(AtlasTileId("art-0/lyid:2"), "L2", 4, 4, source = SourceLayerRef(fileId, "lyid:2", true))
+		val withOrphan =
+			base.copy(
+				atlas = base.atlas.copy(tiles = base.atlas.tiles + orphan),
+				sources = listOf(sourceA.copy(layers = sourceA.layers + ArtSourceLayer("lyid:2", "L2", "", 0, 0, 4, 4, true))),
+			)
+		val plain = EditorSession(withOrphan)
+		plain.deleteTile(orphan.id)
+		assertEquals(listOf(false, false), plain.model.value.sources.single().layers.map { layer -> layer.ignored }, "a plain Delete Art marks nothing")
+		val marking = EditorSession(withOrphan)
+		marking.deleteTile(orphan.id, ignoreLayer = true)
+		assertEquals(listOf(AtlasTileId("art-0/lyid:1")), marking.model.value.atlas.tiles.map { tile -> tile.id })
+		assertEquals(listOf(false, true), marking.model.value.sources.single().layers.map { layer -> layer.ignored }, "the deleted tile's layer is marked in the same step")
+		marking.undo()
+		assertSame(withOrphan, marking.model.value, "one undo brings the tile and the unmarked row back")
+		// A key another tile still binds is left unmarked: the reload matches it by key.
+		val twin = AtlasTile(AtlasTileId("art-0/lyid:2~1"), "L2", 4, 4, source = SourceLayerRef(fileId, "lyid:2", true))
+		val shared = EditorSession(withOrphan.copy(atlas = withOrphan.atlas.copy(tiles = withOrphan.atlas.tiles + twin)))
+		shared.deleteTile(orphan.id, ignoreLayer = true)
+		assertEquals(listOf(false, false), shared.model.value.sources.single().layers.map { layer -> layer.ignored })
+		assertEquals(2, shared.model.value.atlas.tiles.size, "the tile still left")
+	}
+
+	/** A reload's visibility map reaches the drawables it names and no other. */
+	@Test
+	fun aReloadAppliesTheVisibilityItDecided() {
+		val base = model()
+		val reloaded = base.withArtworkReloaded(ArtworkReload(sourceA, emptyList(), emptyMap(), null, emptyList(), drawableVisibility = mapOf(DrawableId("ArtMesh1") to false)))
+		assertEquals(false, reloaded.drawables.single().isVisible)
+		assertEquals(base.atlas, reloaded.atlas, "nothing else moved")
+		assertEquals(true, base.withArtworkReloaded(ArtworkReload(sourceA, emptyList(), emptyMap(), null, emptyList())).drawables.single().isVisible, "an empty map changes nothing")
+	}
+
 	@Test
 	fun aReloadThatCollidesOrNamesTheUnknownIsRefused() {
 		val base = model()

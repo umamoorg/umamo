@@ -371,12 +371,41 @@ fun EditorSession.setTileSources(tileIds: Collection<AtlasTileId>, source: Sourc
 
 /**
  * Removes the tile [tileId] from the atlas as one undo step, when no drawable samples it; a tile some
- * drawable still samples, or one the model lacks, pushes nothing.
+ * drawable still samples, or one the model lacks, pushes nothing.  With [ignoreLayer] the layer the tile
+ * was bound to is marked ignored in the same step (the import setting's choice), so the next reload
+ * does not mint the art back; an unbound tile has no layer to mark, and a layer another tile still binds
+ * is left unmarked, since the reload matches it by key.
  *
- * @param AtlasTileId tileId The tile to remove.
+ * @param AtlasTileId tileId      The tile to remove.
+ * @param Boolean     ignoreLayer Whether to keep the tile's layer out of the rig from now on.
  */
-fun EditorSession.deleteTile(tileId: AtlasTileId) {
-	mutate(DocumentChange.DeleteTile(tileId)) { model -> model.withTileDeleted(tileId) }
+fun EditorSession.deleteTile(tileId: AtlasTileId, ignoreLayer: Boolean = false) {
+	val current = model.value
+	val binding = current.atlas.tileById[tileId]?.source
+	val shared =
+		binding != null &&
+			current.atlas.tiles.any { other -> other.id != tileId && other.source?.sourceId == binding.sourceId && other.source?.layerKey == binding.layerKey }
+	val marks = ignoreLayer && binding != null && !shared
+	mutate(DocumentChange.DeleteTile(tileId, ignoredLayer = marks)) { before ->
+		val deleted = before.withTileDeleted(tileId)
+		if (marks && binding != null && deleted !== before) {
+			deleted.withLayerIgnored(binding.sourceId, binding.layerKey, ignored = true)
+		} else {
+			deleted
+		}
+	}
+}
+
+/**
+ * Marks or clears the ignore on one inventory row as one undo step - withLayerIgnored under the one
+ * history push the Sources row's toggle should be; a row the model refuses (unknown, or a key some tile
+ * binds) pushes nothing.
+ *
+ * @param SourceLayerRef ref     The file and layer key.
+ * @param Boolean        ignored True to keep the layer out of the rig, false to let a reload mint it again.
+ */
+fun EditorSession.setLayerIgnored(ref: SourceLayerRef, ignored: Boolean) {
+	mutate(DocumentChange.SetLayerIgnored(ref.sourceId, ref.layerKey, ignored)) { before -> before.withLayerIgnored(ref.sourceId, ref.layerKey, ignored) }
 }
 
 /**

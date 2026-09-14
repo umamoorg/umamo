@@ -22,6 +22,7 @@ internal class TestLayer(
 	override val groupPath: String = "",
 	override val kind: SourceLayerKind = SourceLayerKind.Raster,
 	override val idIsStable: Boolean = true,
+	override val visible: Boolean = true,
 ) : SourceLayer {
 	override val id: LayerId = LayerId(id)
 	override val opacity: Float = 1f

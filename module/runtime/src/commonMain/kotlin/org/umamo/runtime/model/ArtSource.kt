@@ -66,6 +66,13 @@ data class ArtSource(
  * @property Boolean empty     Whether the layer had no pixel with any alpha at the last read - erased to
  *   nothing rather than deleted.  A tile bound to such a layer keeps its art and reads as needing review,
  *   since the artist may have meant either; false where the art was never decoded.
+ * @property Boolean replaced  Meaningful only while [present] is false: the row was lost because Replace
+ *   Artwork repointed the file at art that mints other keys, not because the layer left the file - so the
+ *   row can say which.  A row lost before the replace keeps false.
+ * @property Boolean ignored   Whether a reload leaves this layer out of the rig: a present layer no tile
+ *   binds that the rigger keeps in the file but not in the model (a sketch, a reference), marked from its
+ *   Sources row or by Delete Art under the import setting, and carried across every refresh until the row
+ *   clears it.  Meaningless while a tile binds the key.
  */
 data class ArtSourceLayer(
 	val key: String,
@@ -79,6 +86,8 @@ data class ArtSourceLayer(
 	val present: Boolean = true,
 	val contentHash: String? = null,
 	val empty: Boolean = false,
+	val replaced: Boolean = false,
+	val ignored: Boolean = false,
 )
 
 /**
@@ -188,7 +197,8 @@ data class ReplacedTile(
  * tiles whose art changed (each superseded by a fresh, unplaced tile), the meshes the drawables over
  * them take (an untouched birth quad re-born over the new art, an edited mesh carried with its
  * coordinates remapped so every vertex samples the same canvas pixel as before), the layers the file
- * gained, and the drawables whose edited mesh the new opaque art now reaches past.
+ * gained, the drawables whose edited mesh the new opaque art now reaches past, and the drawables whose
+ * visibility follows the file's eye toggle.
  *
  * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
  * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
@@ -206,6 +216,9 @@ data class ReplacedTile(
  * @property List<AtlasTileId> retiredTiles    Tiles a rebinding made redundant: a lost layer's rig work took
  *   the layer a reload had minted a fresh, untouched drawable for, so that drawable and its tile go (the
  *   pixels stay in the raster store for undo).  Never a replaced tile; a part minted for the drawable stays.
+ * @property Map               drawableVisibility The visibility each drawable takes, keyed by drawable, where
+ *   the file's eye toggle changed since the last read and the drawable still showed the OLD state; a
+ *   drawable the rigger toggled since is absent, since that toggle is rig work.
  */
 data class ArtworkReload(
 	val source: ArtSource,
@@ -214,4 +227,5 @@ data class ArtworkReload(
 	val additions: ArtworkAdditions?,
 	val outgrown: List<DrawableId>,
 	val retiredTiles: List<AtlasTileId> = emptyList(),
+	val drawableVisibility: Map<DrawableId, Boolean> = emptyMap(),
 )

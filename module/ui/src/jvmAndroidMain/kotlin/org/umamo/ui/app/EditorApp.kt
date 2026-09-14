@@ -27,6 +27,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.deleteTile
 import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.edit.setLayerIgnored
 import org.umamo.edit.setTileSources
 import org.umamo.format.FileKind
 import org.umamo.format.art.SourceArt
@@ -123,6 +124,7 @@ import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.settings.HistorySettings
+import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
 import org.umamo.ui.settings.IMPORT_WATCH_MODE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
@@ -640,8 +642,10 @@ fun EditorApp(
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
 			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
-			// A plain session edit: the tile leaves the atlas, its pixels stay in the store for undo.
-			deleteArt = { request -> session?.deleteTile(request.tileId) },
+			// A plain session edit: the tile leaves the atlas, its pixels stay in the store for undo.  The
+			// import setting, read at dispatch, decides whether its layer is marked ignored with it.
+			deleteArt = { request -> session?.deleteTile(request.tileId, ignoreLayer = settings.getBoolean(IMPORT_DELETE_ART_IGNORES_LAYER_KEY) == true) },
+			ignoreLayer = { request -> session?.setLayerIgnored(request.ref, request.ignored) },
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 

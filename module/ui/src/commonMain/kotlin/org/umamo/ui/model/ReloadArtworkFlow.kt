@@ -193,9 +193,9 @@ private sealed interface ReloadOutcome {
 }
 
 /**
- * One thing the matcher did inside a reload, replace, match, or relink, as the log tells it: a lost
- * layer's tile rebound to the layer that re-created it, or a fresh drawable retired because a rigged
- * tile claimed its layer.
+ * One thing a reload, replace, match, or relink did beyond the art itself, as the log tells it: a lost
+ * layer's tile rebound to the layer that re-created it, a fresh drawable retired because a rigged tile
+ * claimed its layer, or a drawable whose visibility followed its layer's eye toggle in the file.
  */
 internal sealed interface Rebinding {
 	/**
@@ -214,6 +214,14 @@ internal sealed interface Rebinding {
 	 * @property String layerName    The layer it sat over.
 	 */
 	class Retired(val drawableName: String, val layerName: String) : Rebinding
+
+	/**
+	 * A drawable whose visibility followed its layer's eye toggle in the file.
+	 *
+	 * @property String  drawableName The drawable.
+	 * @property Boolean visible      The visibility it took.
+	 */
+	class VisibilityFollowed(val drawableName: String, val visible: Boolean) : Rebinding
 }
 
 /**
@@ -222,7 +230,7 @@ internal sealed interface Rebinding {
  * @param ReloadPlan  plan The plan.
  * @param PuppetModel base The model the plan applies to (the names before the step).
  * @param SourceArt   art  The file as read, for the layer names.
- * @return List<Rebinding> The rebound tiles, then the retired drawables.
+ * @return List<Rebinding> The rebound tiles, then the retired drawables, then the drawables that followed an eye toggle.
  */
 internal fun rebindingsOf(plan: ReloadPlan, base: PuppetModel, art: SourceArt): List<Rebinding> {
 	val layerNameByKey = art.layers.associate { layer -> layer.id.raw to layer.name }
@@ -238,7 +246,11 @@ internal fun rebindingsOf(plan: ReloadPlan, base: PuppetModel, art: SourceArt): 
 			val layerName = tile?.source?.layerKey?.let { key -> layerNameByKey[key] ?: key } ?: tileId.raw
 			base.drawables.filter { drawable -> drawable.atlasTileId == tileId }.map { drawable -> Rebinding.Retired(drawable.name, layerName) }
 		}
-	return rebound + retired
+	val followed =
+		plan.reload.drawableVisibility.map { (drawableId, visible) ->
+			Rebinding.VisibilityFollowed(base.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.name ?: drawableId.raw, visible)
+		}
+	return rebound + retired + followed
 }
 
 /**
@@ -252,6 +264,8 @@ internal fun reportRebindings(operation: String, rebindings: List<Rebinding>) {
 		when (rebinding) {
 			is Rebinding.Rebound -> UmamoLog.info("$operation: '${rebinding.tileName}' rebound to layer '${rebinding.layerName}' at ${percentOf(rebinding.score)}%")
 			is Rebinding.Retired -> UmamoLog.info("$operation: the new drawable '${rebinding.drawableName}' over layer '${rebinding.layerName}' was removed; a rebound tile took the layer")
+			is Rebinding.VisibilityFollowed ->
+				UmamoLog.info("$operation: '${rebinding.drawableName}' is now ${if (rebinding.visible) "shown" else "hidden"}, following its layer's eye toggle in the file")
 		}
 	}
 }
@@ -296,6 +310,7 @@ private fun reloadOutcome(
 	var added = 0
 	var matched = 0
 	var missing = 0
+	var visibility = 0
 	val oldRasterOf = oldRasterLookup(artRasters)
 	for (entry in request.entries) {
 		val plan =
@@ -318,11 +333,12 @@ private fun reloadOutcome(
 		added += plan.reload.additions?.drawables?.size ?: 0
 		matched += plan.report.results.count { result -> result is ReconcileResult.Rebound }
 		missing += plan.report.needsReview.size
+		visibility += plan.reload.drawableVisibility.size
 	}
 	if (model === base) {
 		return ReloadOutcome.NothingChanged
 	}
-	val change = DocumentChange.ReloadArtwork(request.entries.size, replaced, added, matched, missing)
+	val change = DocumentChange.ReloadArtwork(request.entries.size, replaced, added, matched, missing, visibility)
 	return packReloaded(model, rasters.mapValues { (_, raster) -> request.decodedFor(raster) }, notices, artRasters, premultipliedAlpha) { packedModel, textures, packedNotices, decodedByTile ->
 		ReloadOutcome.Reloaded(packedModel, textures, decodedByTile, packedNotices, outgrown, change, rebindings, suggestions)
 	}
@@ -417,7 +433,8 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 			else -> "notice.reload.done"
 		},
 		NoticePlacement.StatusBar,
-		listOf(change.replacedCount.toString(), change.addedCount.toString(), change.matchedCount.toString(), change.missingCount.toString()),
+		// "Updated" counts the tiles that took new art and the drawables that followed an eye toggle.
+		listOf((change.replacedCount + change.visibilityCount).toString(), change.addedCount.toString(), change.matchedCount.toString(), change.missingCount.toString()),
 	)
 	session.registerAdjustableOperation(committed, areaId, matchArtworkParameters(request.matchThreshold, request.options)) { record ->
 		host.scope.launch { adjustReloadArtwork(host, record, request, publish) }
@@ -497,7 +514,7 @@ private fun reportReload(outcome: ReloadOutcome.Reloaded, committed: PuppetModel
 	val change = outcome.change
 	UmamoLog.info(
 		"reload artwork: ${change.fileCount} file(s) -> ${change.replacedCount} tile(s) updated, ${change.addedCount} drawable(s) added," +
-			" ${change.matchedCount} rebound by match, ${change.missingCount} layer(s) missing, ${outcome.outgrown.size} outgrown;" +
+			" ${change.matchedCount} rebound by match, ${change.missingCount} layer(s) missing, ${change.visibilityCount} followed an eye toggle, ${outcome.outgrown.size} outgrown;" +
 			" now ${committed.atlas.pages.size} page(s); ${outcome.notices.size} note(s)",
 	)
 }

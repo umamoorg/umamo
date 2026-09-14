@@ -73,6 +73,14 @@ class SourcesSpaceTest {
 		assertSame(icons.unlinked, emptied.icon)
 		assertEquals(colors.signalCaution, emptied.tint)
 		assertSame(Res.string.sources_status_emptied, emptied.statusLabel, "the same wait, its own reason")
+		val replaced = sourcesRowVisual(node(layer, SourcesStatus.SourceReplaced), icons, colors)
+		assertSame(icons.unlinked, replaced.icon)
+		assertEquals(colors.signalCaution, replaced.tint)
+		assertSame(Res.string.sources_status_replaced, replaced.statusLabel, "lost to a replacement: the same wait again, its own reason")
+		val ignored = sourcesRowVisual(node(layer, SourcesStatus.Ignored), icons, colors)
+		assertSame(icons.unlinked, ignored.icon)
+		assertEquals(colors.textMuted, ignored.tint, "settled by the rigger, so no signal color")
+		assertSame(Res.string.sources_status_ignored, ignored.statusLabel)
 	}
 
 	/** A tile on no page reads caution; a placed tile and a drawable carry no status at all. */
@@ -127,12 +135,22 @@ class SourcesSpaceTest {
 		assertTrue(relinkGroups(sources, "nothing here").isEmpty())
 	}
 
-	/** A row the file lost is kept for review, never offered as a relink target. */
+	/** A row the file lost is kept for review, never offered as a relink target; nor is an erased or an ignored layer. */
 	@Test
 	fun lostRowsAreNeverRelinkTargets() {
-		val sources = listOf(ArtSource(artA, "a.psd", null, "psd", listOf(layer("lyid:1", "Hair"), layer("lyid:2", "Old hair").copy(present = false), layer("lyid:3", "Blank").copy(empty = true))))
-		assertEquals(listOf("Hair"), relinkGroups(sources, "").single().layers.map { layer -> layer.name }, "neither a lost row nor an erased one is a target")
+		val sources =
+			listOf(
+				ArtSource(
+					artA,
+					"a.psd",
+					null,
+					"psd",
+					listOf(layer("lyid:1", "Hair"), layer("lyid:2", "Old hair").copy(present = false), layer("lyid:3", "Blank").copy(empty = true), layer("lyid:4", "Sketch").copy(ignored = true)),
+				),
+			)
+		assertEquals(listOf("Hair"), relinkGroups(sources, "").single().layers.map { layer -> layer.name }, "neither a lost row, an erased one, nor an ignored one is a target")
 		assertTrue(relinkGroups(sources, "old").isEmpty())
+		assertTrue(relinkGroups(sources, "sketch").isEmpty())
 	}
 
 	/** The chip's confidence is a whole percentage, rounded, never past the ends. */

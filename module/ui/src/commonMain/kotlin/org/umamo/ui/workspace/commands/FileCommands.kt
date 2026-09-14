@@ -90,6 +90,18 @@ class ReplaceRequest(
 )
 
 /**
+ * A request to mark or clear the ignore on one layer of a listed artwork file, the payload of the
+ * sources.ignoreLayer command: while marked, a reload leaves the layer out of the rig.
+ *
+ * @property SourceLayerRef ref     The file and layer key.
+ * @property Boolean        ignored True to mark, false to clear.
+ */
+class IgnoreLayerRequest(
+	val ref: SourceLayerRef,
+	val ignored: Boolean,
+)
+
+/**
  * Which listed files a reload covers, the optional payload of the document.reloadArtwork command: the
  * watcher names the files that changed, so the rest are not re-read; a press of Reload passes none
  * and covers every present file.
@@ -111,7 +123,9 @@ class ReloadScope(
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
  * @property Function matchArtwork   Reads every file it can and rebinds the unresolved bindings the matcher is confident about.
  * @property Function replaceArtwork Picks a file and repoints the named record at it.
- * @property Function deleteArt      Removes a tile no drawable samples from the atlas.
+ * @property Function deleteArt      Removes a tile no drawable samples from the atlas (and, under the import
+ *   setting, marks its layer ignored with it).
+ * @property Function ignoreLayer    Marks or clears the ignore on one layer, so a reload leaves it out or mints it again.
  * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
@@ -121,6 +135,7 @@ class ArtworkOperations(
 	val matchArtwork: (areaId: String?) -> Unit,
 	val replaceArtwork: (request: ReplaceRequest, areaId: String?) -> Unit,
 	val deleteArt: (request: DeleteArtRequest) -> Unit,
+	val ignoreLayer: (request: IgnoreLayerRequest) -> Unit,
 	val canReload: () -> Boolean,
 )
 
@@ -128,8 +143,9 @@ class ArtworkOperations(
  * The artwork commands over the OPEN document: Add Artwork (a second file joins the document), Reload
  * (every present file is re-read and the changed layers land), the Sources space's relink (a tile
  * rebound, with the layer's art pulled in), Match Automatically (the bindings the files no longer
- * resolve rebound to their confident matches), and Replace Artwork (one record repointed at another
- * file).  Each is an undoable edit and lands on the operation settings strip.
+ * resolve rebound to their confident matches), Replace Artwork (one record repointed at another file),
+ * and the Sources row's Delete Art and ignore toggle.  Each is an undoable edit; the file-reading ones
+ * land on the operation settings strip.
  *
  * Unlike the other file commands these are registered by the SHELL, not the app, with the app's
  * file-reading closures injected as a collaborator: the strip's area (the hovered work surface, else
@@ -183,6 +199,16 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
 		) { argument ->
 			val request = argument as? DeleteArtRequest ?: return@Command
 			artwork()?.deleteArt?.invoke(request)
+		},
+		// No title, like the other argument-only commands: a row supplies the layer, and the palette has
+		// nothing to offer without one.
+		Command(
+			"sources.ignoreLayer",
+			title = null,
+			availability = CommandAvailability { artwork() != null },
+		) { argument ->
+			val request = argument as? IgnoreLayerRequest ?: return@Command
+			artwork()?.ignoreLayer?.invoke(request)
 		},
 	)
 

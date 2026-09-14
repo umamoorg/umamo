@@ -54,7 +54,8 @@
 	},
 	"import": {
 		"parameterTemplate": "humanoid",
-		"watchMode": "auto"
+		"watchMode": "auto",
+		"deleteArtIgnoresLayer": false
 	},
 	"app": {
 		"launchCount": 0

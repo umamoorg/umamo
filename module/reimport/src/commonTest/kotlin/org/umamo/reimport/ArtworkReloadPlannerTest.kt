@@ -130,6 +130,7 @@ class ArtworkReloadPlannerTest {
 		assertEquals(listOf("ArtMesh1"), additions.drawables.map { drawable -> drawable.id.raw }, "ids mint past the model's")
 		assertEquals(listOf("lyid:1", "lyid:3", "lyid:2"), plan.reload.source.layers.map { layer -> layer.key }, "the removed layer's row is kept after the fresh ones while a tile binds it")
 		assertEquals(listOf(true, true, false), plan.reload.source.layers.map { layer -> layer.present })
+		assertTrue(plan.reload.source.layers.none { layer -> layer.replaced }, "a layer that left the file is not a replacement's loss")
 		assertEquals(listOf(ReconcileResult.NeedsReview(ref2, ReviewReason.LayerMissing)), plan.report.needsReview)
 		assertTrue(plan.rasterByTile.containsKey(AtlasTileId("art-0/lyid:3")))
 	}
@@ -298,6 +299,7 @@ class ArtworkReloadPlannerTest {
 		val flagged = assertNotNull(ArtworkReloadPlanner.plan(model(), source, strangers, options, oldRasterOf, contentHash = "h", replacement = descriptor))
 		assertEquals(listOf("clip:y", "clip:z", "lyid:1", "lyid:2"), flagged.reload.source.layers.map { layer -> layer.key })
 		assertEquals(listOf(true, true, false, false), flagged.reload.source.layers.map { layer -> layer.present })
+		assertEquals(listOf(false, false, true, true), flagged.reload.source.layers.map { layer -> layer.replaced }, "the rows the replace lost say so")
 		assertTrue(flagged.reload.replacedTiles.isEmpty(), "no binding resolved by key or by match")
 		assertNull(flagged.reload.additions, "the new file's layers stay unbound as the candidates the review matches against")
 		assertEquals(
@@ -405,5 +407,50 @@ class ArtworkReloadPlannerTest {
 		val edited = afterMint.copy(drawables = afterMint.drawables.map { drawable -> if (drawable.id.raw == "d3") drawable.copy(mesh = editedFresh) else drawable })
 		val kept = assertNotNull(ArtworkReloadPlanner.planMatches(edited, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
 		assertTrue(kept.reload.retiredTiles.isEmpty(), "rig work over the layer is never removed, whatever the proposal named")
+	}
+
+	@Test
+	fun anIgnoredLayerIsNeverMintedUntilTheMarkIsCleared() {
+		// A third layer the rigger ignored (a sketch kept in the file): every reload finds it unbound and
+		// leaves it out, the mark rides the refreshed inventory, and the matcher never proposes it; clear
+		// the mark and the next reload mints it.
+		val third = TestLayer("lyid:3", "Sketch", 2, LayerBounds(50, 50, 2, 2), solidRaster(2, 2, 3))
+		val art = TestArt(listOf(layer1, layer2, third))
+		val base = model()
+		val listed = base.copy(sources = listOf(base.sources.single().copy(layers = SourceArtImport.inventoryOf(art).map { row -> if (row.key == "lyid:3") row.copy(ignored = true) else row })))
+		assertNull(ArtworkReloadPlanner.plan(listed, source, art, options, oldRasterOf), "nothing to do: the ignored layer is not an addition")
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), solidRaster(4, 4, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(listed, source, TestArt(listOf(repainted, layer2, third)), options, oldRasterOf))
+		assertNull(plan.reload.additions, "the ignored layer stays out while another layer reloads")
+		assertTrue(plan.report.results.none { result -> result is ReconcileResult.Added })
+		assertTrue(plan.reload.source.layers.first { layer -> layer.key == "lyid:3" }.ignored, "the mark rides the refreshed inventory")
+		assertTrue(suggestionsFor(listed, source).isEmpty(), "and the matcher never proposes it")
+		val cleared = listed.copy(sources = listOf(listed.sources.single().copy(layers = listed.sources.single().layers.map { row -> row.copy(ignored = false) })))
+		val minted = assertNotNull(ArtworkReloadPlanner.plan(cleared, source, art, options, oldRasterOf))
+		assertEquals(listOf(AtlasTileId("art-0/lyid:3")), assertNotNull(minted.reload.additions).tiles.map { tile -> tile.id }, "un-ignored, the next reload mints it")
+	}
+
+	@Test
+	fun aLayerEyeToggleFollowsIntoAnUntouchedDrawableAndLeavesAToggledOne() {
+		// Layer 1 hidden in the file: d1 still shows the state the file last had (shown), so it follows,
+		// with no tile replaced.  Hidden by the rigger first, d1 already differs from that state - its
+		// toggle is rig work - so the file's toggle changes nothing.
+		val hidden = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster, visible = false)
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(hidden, layer2)), options, oldRasterOf))
+		assertEquals(mapOf(DrawableId("d1") to false), plan.reload.drawableVisibility)
+		assertTrue(plan.reload.replacedTiles.isEmpty(), "an eye toggle replaces no tile")
+		assertEquals(false, plan.reload.source.layers.first { layer -> layer.key == "lyid:1" }.visible, "the inventory records the new state")
+
+		// d1 hidden while the inventory still says shown: the rigger's own toggle, so the file hiding the
+		// layer changes nothing; once the inventory records hidden too, the file showing it again is
+		// followed, since d1 then shows exactly the state the file last had.
+		val riggerHid = model().let { base -> base.copy(drawables = base.drawables.map { drawable -> if (drawable.id.raw == "d1") drawable.copy(isVisible = false) else drawable }) }
+		val untouched = assertNotNull(ArtworkReloadPlanner.plan(riggerHid, source, TestArt(listOf(hidden, layer2)), options, oldRasterOf))
+		assertTrue(untouched.reload.drawableVisibility.isEmpty(), "a drawable the rigger already hid is left alone")
+		assertEquals(false, untouched.reload.source.layers.first { layer -> layer.key == "lyid:1" }.visible, "while the inventory still records the file's state")
+		val recorded = riggerHid.copy(sources = listOf(untouched.reload.source))
+		assertNull(ArtworkReloadPlanner.plan(recorded, source, TestArt(listOf(hidden, layer2)), options, oldRasterOf), "recorded and unchanged: nothing to do")
+		val shownAgain = assertNotNull(ArtworkReloadPlanner.plan(recorded, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf))
+		assertEquals(mapOf(DrawableId("d1") to true), shownAgain.reload.drawableVisibility, "shown again in the file, a hidden drawable that matches the recorded state follows back")
 	}
 }

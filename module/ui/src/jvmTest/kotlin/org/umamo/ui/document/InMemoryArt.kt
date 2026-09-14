@@ -14,6 +14,7 @@ internal class InMemoryLayer(
 	override val order: Int,
 	override val bounds: LayerBounds,
 	override val raster: LayerRaster,
+	override val visible: Boolean = true,
 ) : SourceLayer {
 	override val id: LayerId = LayerId(id)
 	override val groupPath: String = ""

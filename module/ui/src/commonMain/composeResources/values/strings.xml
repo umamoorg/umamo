@@ -399,6 +399,9 @@
 	<string name="history_document_tile_source">Relink Art</string>
 	<string name="history_document_tile_unbind">Unbind Art</string>
 	<string name="history_document_delete_tile">Delete Art</string>
+	<string name="history_document_delete_tile_ignore">Delete Art, Ignore Layer</string>
+	<string name="history_document_layer_ignore">Ignore Layer</string>
+	<string name="history_document_layer_unignore">Stop Ignoring Layer</string>
 	<string name="history_document_add_artwork">Add Artwork</string>
 	<string name="history_document_reload_artwork">Reload Artwork</string>
 	<string name="history_document_relink_artwork">Relink Art</string>
@@ -419,11 +422,14 @@
 	<string name="sources_file_menu">File Actions</string>
 	<string name="sources_file_menu_replace">Replace Artwork…</string>
 	<string name="sources_file_menu_reload">Reload This File</string>
+	<string name="sources_layer_menu">Layer Actions</string>
+	<string name="sources_layer_menu_ignore">Ignore Layer</string>
+	<string name="sources_layer_menu_unignore">Stop Ignoring</string>
 	<string name="sources_suggestion_title">Review this binding</string>
 	<string name="sources_suggestion_accept">Accept %1$s (%2$d%)</string>
 	<string name="sources_suggestion_accept_merge">Accept %1$s (%2$d%) and remove its new drawable</string>
 	<string name="sources_suggestion_relink">Relink Manually…</string>
-	<string name="sources_suggestion_leave">Ignore</string>
+	<string name="sources_suggestion_leave">Leave for Now</string>
 	<string name="sources_filter_bound">Bound</string>
 	<string name="sources_filter_unbound">Unbound</string>
 	<string name="sources_filter_missing">Missing Files</string>
@@ -437,6 +443,8 @@
 	<string name="sources_status_unplaced">Unplaced</string>
 	<string name="sources_status_needs_review">Needs review: the file no longer has this layer</string>
 	<string name="sources_status_emptied">Needs review: the layer is empty in the file</string>
+	<string name="sources_status_replaced">Needs review: the replacement file has no layer under this key</string>
+	<string name="sources_status_ignored">Ignored: a reload never adds this layer</string>
 	<string name="sources_unbound_art">Unbound Art</string>
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
@@ -819,6 +827,7 @@
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
+	<string name="settings_import_delete_art_ignores_layer">Delete Art also ignores the layer</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->

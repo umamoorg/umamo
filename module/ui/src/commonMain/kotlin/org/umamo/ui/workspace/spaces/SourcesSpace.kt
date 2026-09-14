@@ -75,6 +75,7 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.UmamoIcons
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.commands.DeleteArtRequest
+import org.umamo.ui.workspace.commands.IgnoreLayerRequest
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.ReplaceRequest
@@ -89,9 +90,10 @@ import org.umamo.ui.workspace.rowdrag.rowDropHighlight
  * The Sources space: the linking table between the document's artwork files and its art.  File ->
  * layer -> tile -> drawables, each with a status; a layer row dragged onto a tile row (or the reverse)
  * rebinds the tile, a tile row's chip picks a layer or unbinds, a row that needs review carries the
- * matcher's proposal to accept or a relink by hand, and a file row's chip (or its context menu)
- * replaces or reloads that one file.  Drawable rows select, so the table is also a way into the rig
- * by the art it came from.
+ * matcher's proposal to accept or a relink by hand, an unbound layer row's chip (or its context menu)
+ * ignores the layer so a reload never mints it, and a file row's chip (or its context menu) replaces
+ * or reloads that one file.  Drawable rows select, so the table is also a way into the rig by the art
+ * it came from.
  */
 
 private val SOURCES_ROW_HEIGHT = 22.dp
@@ -231,8 +233,9 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 
 /**
  * The rebind a drop means: a layer onto a tile, or a tile onto a layer; anything else is no drop.  A
- * layer row the file lost is no target either - it stands for a review, not for art a tile could take,
- * and a binding to it would read as needing review the moment it landed.
+ * layer row under review (lost, erased, or lost to a replacement) is no target either - it stands for
+ * a review, not for art a tile could take, and a binding to it would read as needing review the moment
+ * it landed - and neither is an ignored row, which the rigger keeps out of the rig.
  *
  * @param SourcesDragPayload payload The dragged row.
  * @param SourcesNode        target  The row it was dropped on.
@@ -242,7 +245,7 @@ internal fun relinkFor(payload: SourcesDragPayload, target: SourcesNode): Pair<A
 	val kind = target.kind
 	return when {
 		payload is SourcesDragPayload.Layer && kind is SourcesNodeKind.Tile -> kind.tileId to payload.ref
-		payload is SourcesDragPayload.Tile && kind is SourcesNodeKind.Layer && target.status != SourcesStatus.NeedsReview -> payload.tileId to kind.ref
+		payload is SourcesDragPayload.Tile && kind is SourcesNodeKind.Layer && !target.status.isReview && target.status != SourcesStatus.Ignored -> payload.tileId to kind.ref
 		else -> null
 	}
 }
@@ -269,8 +272,8 @@ private fun selectionTargetsOf(node: SourcesNode, puppet: PuppetModel): List<Sel
 
 /**
  * One row: indent, chevron, icon, label, detail, status, and the trailing chip its kind carries - a
- * tile row's relink chip, a review row's proposal chip, a file row's actions chip (mirrored in the
- * file row's context menu).
+ * tile row's relink chip, a review row's proposal chip, an unbound layer row's ignore chip, a file
+ * row's actions chip (the last two mirrored in the row's context menu).
  *
  * @param SourcesRow  row            The row.
  * @param PuppetModel puppet         The rig, for the relink chip's candidates and the click's targets.
@@ -300,10 +303,11 @@ private fun SourcesRowView(
 	val hovered by interaction.collectIsHoveredAsState()
 	val boundsHolder = remember { RowCoordinatesHolder() }
 	val currentOnDrop by rememberUpdatedState(onDrop)
-	// A layer the file lost drags nowhere: its binding is what is under review, not a layer to offer.
+	// A layer under review drags nowhere: its binding is what is under review, not a layer to offer; an
+	// ignored layer stays out of the rig until its row says otherwise.
 	val payload: SourcesDragPayload? =
 		when (val kind = node.kind) {
-			is SourcesNodeKind.Layer -> if (node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied) null else SourcesDragPayload.Layer(kind.ref)
+			is SourcesNodeKind.Layer -> if (node.status.isReview || node.status == SourcesStatus.Ignored) null else SourcesDragPayload.Layer(kind.ref)
 			is SourcesNodeKind.Tile -> SourcesDragPayload.Tile(kind.tileId)
 			else -> null
 		}
@@ -325,6 +329,7 @@ private fun SourcesRowView(
 			else -> Color.Transparent
 		}
 	val sourceKind = node.kind as? SourcesNodeKind.Source
+	val layerKind = node.kind as? SourcesNodeKind.Layer
 	val commands = LocalCommands.current
 	val body: @Composable () -> Unit = {
 		SourcesRowBody(
@@ -344,12 +349,13 @@ private fun SourcesRowView(
 			onDropNow = { currentOnDrop() },
 		)
 	}
-	if (sourceKind == null) {
-		body()
-	} else {
-		// A secondary press falls through the row's clickable to the menu; the two items are the file
-		// chip's, so a mouse and a pen reach the same actions.
-		ContextMenuArea(items = sourceFileMenuItems(sourceKind.sourceId, commands), content = body)
+	// A secondary press falls through the row's clickable to the menu; the items are the row's own
+	// chip's, so a mouse and a pen reach the same actions.
+	when {
+		sourceKind != null -> ContextMenuArea(items = sourceFileMenuItems(sourceKind.sourceId, commands), content = body)
+		layerKind != null && ignorable(node.status) ->
+			ContextMenuArea(items = layerMenuItems(layerKind.ref, ignored = node.status == SourcesStatus.Ignored, commands = commands), content = body)
+		else -> body()
 	}
 }
 
@@ -366,6 +372,34 @@ private fun sourceFileMenuItems(sourceId: ArtSourceId, commands: org.umamo.ui.ac
 	listOf(
 		MenuItem.Action(stringResource(Res.string.sources_file_menu_replace), onSelect = { commands.invoke("sources.replaceArtwork", ReplaceRequest(sourceId)) }),
 		MenuItem.Action(stringResource(Res.string.sources_file_menu_reload), onSelect = { commands.invoke("document.reloadArtwork", ReloadScope(setOf(sourceId))) }),
+	)
+
+/**
+ * Whether a layer row carries the ignore toggle: an unbound present layer, or one already ignored.  A
+ * bound row is matched by key and needs no mark; a review row has a binding to settle first.
+ *
+ * @param SourcesStatus status The row's status.
+ * @return Boolean True when the row may be ignored or un-ignored.
+ */
+private fun ignorable(status: SourcesStatus): Boolean = status == SourcesStatus.Unbound || status == SourcesStatus.Ignored
+
+/**
+ * An unbound layer row's one action, as the chip and the context menu both list it: Ignore Layer
+ * (`sources.ignoreLayer`, so a reload never mints a drawable for it) while the row is plain unbound,
+ * Stop Ignoring once it is.
+ *
+ * @param SourceLayerRef                      ref      The layer.
+ * @param Boolean                             ignored  Whether the row is ignored now.
+ * @param org.umamo.ui.action.CommandRegistry commands The registry to dispatch through.
+ * @return List<MenuItem> The item.
+ */
+@Composable
+private fun layerMenuItems(ref: SourceLayerRef, ignored: Boolean, commands: org.umamo.ui.action.CommandRegistry): List<MenuItem> =
+	listOf(
+		MenuItem.Action(
+			stringResource(if (ignored) Res.string.sources_layer_menu_unignore else Res.string.sources_layer_menu_ignore),
+			onSelect = { commands.invoke("sources.ignoreLayer", IgnoreLayerRequest(ref, ignored = !ignored)) },
+		),
 	)
 
 /**
@@ -477,9 +511,12 @@ private fun SourcesRowBody(
 				)
 			}
 			is SourcesNodeKind.Layer ->
-				if (node.status == SourcesStatus.NeedsReview || node.status == SourcesStatus.Emptied) {
+				if (node.status.isReview) {
 					Spacer(modifier = Modifier.width(6.dp))
 					ReviewChip(node = node, ref = kind.ref, puppet = puppet, onRelink = onRelink)
+				} else if (ignorable(node.status)) {
+					Spacer(modifier = Modifier.width(6.dp))
+					LayerChip(ref = kind.ref, ignored = node.status == SourcesStatus.Ignored, commands = commands)
 				}
 			is SourcesNodeKind.Source -> {
 				Spacer(modifier = Modifier.width(6.dp))
@@ -506,6 +543,30 @@ private fun SourceFileChip(sourceId: ArtSourceId, commands: org.umamo.ui.action.
 		expanded = open,
 		onExpandRequest = { open = true },
 		contentDescription = stringResource(Res.string.sources_file_menu),
+		icon = icons.dots,
+		style = DropdownChipStyle.Compact,
+	) {
+		Menu(items = items, onDismissRequest = { open = false }, positionProvider = BelowAnchorPositionProvider)
+	}
+}
+
+/**
+ * An unbound layer row's actions chip: Ignore Layer, or Stop Ignoring once it is, the same item the
+ * row's context menu offers, drawn as the kit [Menu] so the chip and the menu are one menu in two places.
+ *
+ * @param SourceLayerRef                      ref      The layer.
+ * @param Boolean                             ignored  Whether the row is ignored now.
+ * @param org.umamo.ui.action.CommandRegistry commands The registry to dispatch through.
+ */
+@Composable
+private fun LayerChip(ref: SourceLayerRef, ignored: Boolean, commands: org.umamo.ui.action.CommandRegistry) {
+	val icons = LocalUmamoIcons
+	var open by remember { mutableStateOf(false) }
+	val items = layerMenuItems(ref, ignored, commands)
+	DropdownChip(
+		expanded = open,
+		onExpandRequest = { open = true },
+		contentDescription = stringResource(Res.string.sources_layer_menu),
 		icon = icons.dots,
 		style = DropdownChipStyle.Compact,
 	) {
@@ -616,7 +677,8 @@ internal class SourcesRowVisual(
  * The icon a row draws with, carrying the row's status the way a traffic light does: green for a
  * layer bound by a stable key, amber for one bound by name (a binding that holds only while the
  * layer keeps its name and place), a tile on no page, or a binding whose layer the file lost, red for
- * an unbound layer, a missing file, or the unbound-art group.  The glyph itself already says what the
+ * an unbound layer, a missing file, or the unbound-art group, and the muted text color for a layer the
+ * rigger ignored.  The glyph itself already says what the
  * row is - a file, a link, a tile, a mesh - and a missing file swaps to the missing-file glyph, so the
  * status word is a tooltip, never row text.  Pure, so the mapping is testable without a composition.
  *
@@ -641,6 +703,10 @@ internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: Umam
 				SourcesStatus.NeedsReview -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_needs_review)
 				// Bound to a layer the file still has but erased: the same wait, with a different reason on the tooltip.
 				SourcesStatus.Emptied -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_emptied)
+				// Bound to a key the replacement file does not mint: the same wait again, and the tooltip says so.
+				SourcesStatus.SourceReplaced -> SourcesRowVisual(icons.unlinked, colors.signalCaution, Res.string.sources_status_replaced)
+				// Kept out of the rig on purpose: no signal color, since the row is settled rather than waiting.
+				SourcesStatus.Ignored -> SourcesRowVisual(icons.unlinked, colors.textMuted, Res.string.sources_status_ignored)
 				else -> SourcesRowVisual(icons.linked, colors.signalGood, Res.string.sources_status_bound)
 			}
 		is SourcesNodeKind.Tile ->
@@ -696,8 +762,9 @@ internal class RelinkGroup(
 internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkGroup> {
 	val trimmed = query.trim()
 	return sources.mapNotNull { source ->
-		// A row the file lost is kept for the review, never offered as a target; a layer erased to nothing has no art to give.
-		val present = source.layers.filter { layer -> layer.present && !layer.empty }
+		// A row the file lost is kept for the review, never offered as a target; a layer erased to nothing
+		// has no art to give; an ignored layer is kept out of the rig until its row says otherwise.
+		val present = source.layers.filter { layer -> layer.present && !layer.empty && !layer.ignored }
 		val layers =
 			if (trimmed.isEmpty() || source.name.contains(trimmed, ignoreCase = true)) {
 				present
