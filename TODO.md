@@ -9,7 +9,7 @@
 
 ## WORK STEPS - 2026-09-14
 ~~1.) Leftovers - Art Sourcing Pipeline Verification~~
-2.) Operation Strip - Make sure all application operations are using it.
+~~2.) Operation Strip - Make sure all application operations are using it.~~
 3.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit
 4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening
 5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
@@ -48,10 +48,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
 	* This can have better wording if the buttons are configurable.
 * Enter does not work for the default action.
-
-## Operation Strip
-* Should disappear when changing workspaces.  Right now it gets shoved below all the spaces.
-* No viewports: Still appears outside of the spaces and just should not appear at all.
 
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.

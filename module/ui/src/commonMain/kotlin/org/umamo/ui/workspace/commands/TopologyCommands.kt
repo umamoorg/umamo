@@ -50,16 +50,19 @@ internal fun topologyCommands(
 		Command("mesh.merge", title = Res.string.cmd_mesh_merge, availability = availability.inEditMode) {
 			editorSession?.openPieMenu(PieMenuKind.MergeTarget)
 		},
+		// The merge is a model edit that needs no area to run; the area it takes is where its operation
+		// settings strip shows (the hovered work surface, else the last one touched), since the merge pie
+		// or the palette may have been opened over a panel.
 		Command("mesh.merge.atCenter", title = Res.string.cmd_mesh_merge_at_center, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter)
+			editorSession?.mergeSelectedVertices(MergeTarget.AtCenter, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
 		Command("mesh.merge.atFirst", title = Res.string.cmd_mesh_merge_at_first, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst)
+			editorSession?.mergeSelectedVertices(MergeTarget.AtFirst, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
 		Command("mesh.merge.atLast", title = Res.string.cmd_mesh_merge_at_last, availability = availability.inEditMode) {
-			editorSession?.mergeSelectedVertices(MergeTarget.AtLast)
+			editorSession?.mergeSelectedVertices(MergeTarget.AtLast, routing.operationStripArea())
 			editorSession?.closePieMenu()
 		},
 		Command(

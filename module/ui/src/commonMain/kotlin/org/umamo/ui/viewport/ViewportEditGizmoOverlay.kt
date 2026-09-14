@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.launch
 import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.DEFAULT_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
@@ -39,6 +40,7 @@ import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
+import org.umamo.edit.ProportionalRows
 import org.umamo.edit.buildModalTransformCapture
 import org.umamo.edit.withMeshPositions
 import org.umamo.render.ViewportCamera
@@ -148,6 +150,19 @@ private class SlideContext(
 	val drawableId: DrawableId,
 	val activeVertex: Int,
 	val neighborIndices: IntArray,
+)
+
+/**
+ * Where the Vertex Slide's most recent drive landed: the edge it picked and how far along it the vertex
+ * sits - what the confirm registers on the operation settings strip, whose Factor row re-slides the
+ * same frozen edge.
+ *
+ * @property Int neighborIndex The edge's far endpoint the drive picked.
+ * @property Float factor The landed factor in [0, 1].
+ */
+private class SlideLanding(
+	val neighborIndex: Int,
+	val factor: Float,
 )
 
 /**
@@ -422,13 +437,18 @@ fun ViewportEditGizmoOverlay(
 	// incident edge whose far endpoint sat nearest the pointer when the operator armed.
 	var slideContext by remember(areaId) { mutableStateOf<SlideContext?>(null) }
 
-	// Confirms the in-flight gesture: commit each moving mesh's new base positions as ONE undo step, then
-	// clear the operator (its cleanup re-syncs the renderer). A null preview means no movement, so nothing
-	// is committed.  The preview already holds base positions (the drive loop inverted them via worldToBase),
-	// so confirm commits them directly.
+	// The Vertex Slide's most recent landing (edge + factor), written by the drive loop and read by the
+	// confirm's strip registration; null until the first drive of a slide.
+	var slideLanding by remember(areaId) { mutableStateOf<SlideLanding?>(null) }
+
+	// Confirms the in-flight gesture: commit each moving mesh's new base positions as ONE undo step,
+	// register that step on the operation settings strip, then clear the operator (its cleanup re-syncs
+	// the renderer). A null preview means no movement, so nothing is committed.  The preview already
+	// holds base positions (the drive loop inverted them via worldToBase), so confirm commits them directly.
 	fun confirmGesture() {
 		val committed = gesture.preview
 		val gestureData = gesture.capture
+		val parameters = gesture.lastParameters
 		if (committed != null && gestureData != null) {
 			val transform = gestureData.transform
 			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
@@ -441,10 +461,38 @@ fun ViewportEditGizmoOverlay(
 				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
 			}
 			if (newPositionsByDrawable.isNotEmpty()) {
+				val modelBefore = session.model.value
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
 					newPositionsByDrawable,
 				)
+				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
+				// replays the same frozen geometry - registered before the operator clears, since the
+				// teardown drops the capture.  A commit that recorded nothing (the geometry landed where it
+				// started) has no step of its own to amend, so it registers nothing.
+				if (session.model.value !== modelBefore) {
+					val slide = slideContext
+					val landing = slideLanding
+					if (transform.operatorKind == MeshOperatorKind.VertexSlide) {
+						if (slide != null && landing != null) {
+							registerSlideAdjustment(session, areaId, transform, gestureData.geometryById, slide.drawableId, slide.activeVertex, landing.neighborIndex, landing.factor)
+						}
+					} else if (parameters != null) {
+						// A suppressed latch (the duplicate / rip auto-grab) took no weights, so it offers no
+						// proportional rows; every other transform does, on or off, so the halo can be
+						// added after the fact the way Blender's redo panel allows.
+						val proportional =
+							if (session.activeMeshOperatorSuppressesProportional) {
+								null
+							} else {
+								val state = session.proportionalEdit.value
+								ProportionalRows.of(state, state?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD)
+							}
+						registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters, proportional) { state ->
+							session.setProportionalEdit(state)
+						}
+					}
+				}
 			}
 		}
 		session.clearMeshOperator()
@@ -460,8 +508,12 @@ fun ViewportEditGizmoOverlay(
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		// One pointer frame for the whole capture; only geometry and pivots vary per mesh.
+		// One pointer frame for the whole capture; only geometry and pivots vary per mesh.  The frame
+		// resolves ONCE into the numbers every mesh applies (the Rotate branch advances the accumulator,
+		// and one advance per frame is what it expects); the confirm hands them to the settings strip.
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
+		gesture.lastParameters = parameters
 		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
@@ -487,7 +539,9 @@ fun ViewportEditGizmoOverlay(
 							}
 						}
 						if (bestNeighbor >= 0) {
-							slideVertexAlongEdge(original, slide.activeVertex, bestNeighbor, frame)
+							val factor = slideFactorAlongEdge(original, slide.activeVertex, bestNeighbor, frame)
+							slideLanding = SlideLanding(bestNeighbor, factor)
+							slideVertexByFactor(original, slide.activeVertex, bestNeighbor, factor)
 						} else {
 							original
 						}
@@ -495,14 +549,7 @@ fun ViewportEditGizmoOverlay(
 						entry.positions
 					}
 				} else {
-					applyOperator(
-						operator,
-						entry.positions,
-						entry.groups,
-						frame,
-						entry.influence,
-						transform.rotationTracker,
-					)
+					applyOperator(operator, entry.positions, entry.groups, parameters, entry.influence)
 				}
 			val newBase = geometry.worldToBase(transformedWorld, entry.movedIndices)
 			newPreview[entry.drawableId] = newBase
@@ -688,6 +735,7 @@ fun ViewportEditGizmoOverlay(
 				// CANDIDATES freeze here - the best edge is re-picked from the live pointer every move
 				// (Blender re-picks continuously, so the slide hops between connected edges mid-drag).
 				// Without candidates (no active vertex, or an isolated one) the operator drops.
+				slideLanding = null
 				slideContext =
 					if (operator.kind == MeshOperatorKind.VertexSlide) {
 						val active = meshSelection.activeElement

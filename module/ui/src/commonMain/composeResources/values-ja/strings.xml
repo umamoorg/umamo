@@ -680,6 +680,19 @@
 	<string name="placement_options_angle">角度</string>
 	<string name="placement_options_scale_x">拡大縮小 X</string>
 	<string name="placement_options_scale_y">拡大縮小 Y</string>
+	<!-- The mesh / object / UV transform rows of the operation settings strip. -->
+	<string name="transform_options_move_z">移動 Z</string>
+	<string name="transform_options_scale_z">拡大縮小 Z</string>
+	<string name="transform_options_proportional">プロポーショナル編集</string>
+	<string name="transform_options_falloff">減衰</string>
+	<string name="transform_options_proportional_size">プロポーショナルサイズ</string>
+	<string name="transform_options_connected">接続のみ</string>
+	<string name="transform_options_slide_factor">係数</string>
+	<!-- The Merge row of the operation settings strip and its choices. -->
+	<string name="merge_options_target">結合位置</string>
+	<string name="merge_target_center">中心</string>
+	<string name="merge_target_first">最初</string>
+	<string name="merge_target_last">最後</string>
 	<string name="import_options_alpha_threshold">アルファしきい値</string>
 	<string name="import_options_margin">初期メッシュの余白</string>
 	<string name="match_options_threshold">照合のしきい値</string>

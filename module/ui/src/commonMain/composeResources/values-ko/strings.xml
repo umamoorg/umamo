@@ -530,6 +530,19 @@
 	<string name="placement_options_angle">각도</string>
 	<string name="placement_options_scale_x">X 크기 조절</string>
 	<string name="placement_options_scale_y">Y 크기 조절</string>
+	<!-- The mesh / object / UV transform rows of the operation settings strip. -->
+	<string name="transform_options_move_z">Z 이동</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_scale_z">Z 크기 조절</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_proportional">비례 편집</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_falloff">감쇠</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_proportional_size">비례 편집 크기</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_connected">연결된 것만</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="transform_options_slide_factor">계수</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<!-- The Merge row of the operation settings strip and its choices. -->
+	<string name="merge_options_target">병합 위치</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="merge_target_center">중심</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="merge_target_first">처음</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
+	<string name="merge_target_last">마지막</string> <!-- NEEDS HUMAN REVIEW: LLM Translated-->
 	<string name="blend_mode_normal">표준</string>
 	<string name="blend_mode_additive">가산</string>
 	<string name="blend_mode_multiply">곱하기</string>

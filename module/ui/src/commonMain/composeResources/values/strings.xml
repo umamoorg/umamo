@@ -734,6 +734,20 @@
 	<string name="placement_options_angle">Angle</string>
 	<string name="placement_options_scale_x">Scale X</string>
 	<string name="placement_options_scale_y">Scale Y</string>
+	<!-- The mesh / object / UV transform rows of the operation settings strip; the shared Move / Angle / Scale
+	     labels are the placement rows' above, and the viewport's vertical axis reads as Z (Y+ forward, Z+ up). -->
+	<string name="transform_options_move_z">Move Z</string>
+	<string name="transform_options_scale_z">Scale Z</string>
+	<string name="transform_options_proportional">Proportional Editing</string>
+	<string name="transform_options_falloff">Falloff</string>
+	<string name="transform_options_proportional_size">Proportional Size</string>
+	<string name="transform_options_connected">Connected Only</string>
+	<string name="transform_options_slide_factor">Factor</string>
+	<!-- The Merge row of the operation settings strip and its choices. -->
+	<string name="merge_options_target">Merge At</string>
+	<string name="merge_target_center">Center</string>
+	<string name="merge_target_first">First</string>
+	<string name="merge_target_last">Last</string>
 	<string name="import_options_alpha_threshold">Alpha Threshold</string>
 	<string name="import_options_margin">Birth Mesh Margin</string>
 	<string name="match_options_threshold">Match Threshold</string>

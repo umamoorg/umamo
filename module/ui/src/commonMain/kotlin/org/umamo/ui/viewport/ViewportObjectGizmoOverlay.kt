@@ -249,14 +249,21 @@ fun ViewportObjectGizmoOverlay(
 	}
 
 	// Confirms the in-flight object transform: commit every drawable's new base positions as one undo step (a
-	// null / empty preview means no movement, so nothing commits), then clear the operator - its teardown
-	// re-syncs the renderer.
+	// null / empty preview means no movement, so nothing commits), register that step on the operation
+	// settings strip over the retained capture, then clear the operator - its teardown re-syncs the renderer.
 	fun confirmObjectGesture() {
 		val committed = gesture.preview
 		val gestureData = gesture.capture
+		val parameters = gesture.lastParameters
 		if (committed != null && gestureData != null && committed.isNotEmpty()) {
 			val transform = gestureData.transform
+			val modelBefore = session.model.value
 			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed)
+			// A commit that recorded nothing (the drawables landed where they started) has no step of its
+			// own to amend, so it registers nothing.
+			if (parameters != null && session.model.value !== modelBefore) {
+				registerObjectTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters)
+			}
 		}
 		session.clearObjectOperator()
 	}
@@ -269,23 +276,18 @@ fun ViewportObjectGizmoOverlay(
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.
+		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.  The frame
+		// resolves ONCE into the numbers every drawable applies; the confirm hands them to the settings strip.
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
+		gesture.lastParameters = parameters
 		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
 			val geometry = gestureData.geometryById.getValue(entry.drawableId)
-			val transformedWorld =
-				applyOperator(
-					operator,
-					entry.positions,
-					entry.groups,
-					frame,
-					// Proportional editing is an Edit-mode feature: object mode moves whole
-					// drawables, so there are no unselected vertices to weight.
-					emptyMap(),
-					transform.rotationTracker,
-				)
+			// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there
+			// are no unselected vertices to weight.
+			val transformedWorld = applyOperator(operator, entry.positions, entry.groups, parameters, emptyMap())
 			val newBase = geometry.worldToBase(transformedWorld, entry.coveredIndices)
 			newBaseByDrawable[entry.drawableId] = newBase
 			folded = folded.withMeshPositions(entry.drawableId, newBase)

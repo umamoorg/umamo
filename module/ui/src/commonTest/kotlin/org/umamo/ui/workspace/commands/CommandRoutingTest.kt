@@ -34,7 +34,7 @@ class CommandRoutingTest {
 	/**
 	 * The strip placement rule: a hovered work surface wins, a hovered panel yields to the last work
 	 * surface touched, an untouched shell yields to the workspace's first work surface, and with none of
-	 * those the strip has no area (the shell shows it).
+	 * those the strip has no area (it shows nowhere).
 	 */
 	@Test
 	fun theOperationStripGoesToAWorkSurfaceOrNowhere() {
@@ -52,7 +52,7 @@ class CommandRoutingTest {
 		assertEquals(viewportArea, untouched.operationStripArea(), "an untouched shell yields to the workspace's first work surface")
 		assertEquals(uvArea, CommandRouting({ null }, { lastWorkSurface }, { viewportArea }).operationStripArea(), "the last touched still outranks the workspace default")
 		assertEquals(uvArea, CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { null }, { viewportArea }).operationStripArea(), "and so does the hovered one")
-		assertNull(CommandRouting({ null }, { null }, { null }).operationStripArea(), "a workspace of panels alone leaves the shell's strip")
+		assertNull(CommandRouting({ null }, { null }, { null }).operationStripArea(), "a workspace of panels alone shows the strip nowhere")
 		var workspaceDefault: String? = null
 		val live = CommandRouting({ null }, { null }, { workspaceDefault })
 		assertNull(live.operationStripArea())

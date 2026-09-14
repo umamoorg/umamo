@@ -7,6 +7,7 @@ import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ProportionalInfluence
 import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.TransformGestureParameters
 import org.umamo.edit.TransformPivotGroup
 import org.umamo.edit.TransformPivots
 import org.umamo.render.ViewportCamera
@@ -36,11 +37,44 @@ internal class TransformGestureFrame(
 )
 
 /**
+ * Resolves [frame] into the parameters [operator] applies: a Grab's translation, a Scale's factors,
+ * or a Rotate's accumulated angle, the rest at identity.  Call it once per pointer frame, before the
+ * per-mesh loop - the Rotate branch advances [rotationTracker], and one advance per frame is what the
+ * accumulator expects.
+ *
+ * @param MeshOperatorKind operator The active operator.
+ * @param TransformGestureFrame frame The gesture's pointer frame.
+ * @param RotationAngleTracker rotationTracker The gesture's angle accumulator (Rotate only).
+ * @return TransformGestureParameters The resolved parameters.
+ */
+internal fun gestureParameters(
+	operator: MeshOperatorKind,
+	frame: TransformGestureFrame,
+	rotationTracker: RotationAngleTracker,
+): TransformGestureParameters =
+	when (operator) {
+		MeshOperatorKind.Grab -> {
+			val (deltaX, deltaY) = gestureTranslation(frame)
+			TransformGestureParameters(deltaX, deltaY, 1f, 1f, 0f)
+		}
+
+		MeshOperatorKind.Scale -> {
+			val (factorX, factorY) = gestureScaleFactors(frame)
+			TransformGestureParameters(0f, 0f, factorX, factorY, 0f)
+		}
+
+		MeshOperatorKind.Rotate -> TransformGestureParameters(0f, 0f, 1f, 1f, gestureRotationRadians(frame, rotationTracker))
+
+		// Vertex Slide has its own edge projection (slideFactorAlongEdge); it never applies these.
+		MeshOperatorKind.VertexSlide -> TransformGestureParameters.IDENTITY
+	}
+
+/**
  * The translation a Grab gesture applies, in the positions' units: the pointer's screen travel over
  * the zoom, with the axis lock zeroing the constrained-out component (AxisX keeps horizontal movement,
  * AxisZ keeps vertical - world y, the displayed Z axis per the Y+ forward, Z+ up convention).
  *
- * Shared by [applyOperator] and the placement gizmo so the two cannot drift on sign or axis.
+ * Shared by [gestureParameters] and the placement gizmo so the two cannot drift on sign or axis.
  *
  * @param TransformGestureFrame frame The gesture's pointer frame.
  * @return Pair<Float, Float> The (x, y) delta.
@@ -85,33 +119,52 @@ internal fun gestureRotationRadians(frame: TransformGestureFrame, rotationTracke
 }
 
 /**
- * Slides one vertex along the edge toward [neighborIndex]: the pointer projects onto the edge's screen
- * direction and the parameter clamps between the endpoints (Blender's Shift+V, without the unclamped
- * and even-slide variants).
+ * The slide factor a pointer frame means along the edge from [vertexIndex] toward [neighborIndex]: the
+ * pointer projects onto the edge's screen direction and the parameter clamps between the endpoints
+ * (Blender's Shift+V, without the unclamped and even-slide variants).  A degenerate on-screen edge
+ * (both endpoints under the same pixel) yields 0.
  *
  * @param FloatArray originalWorld The captured world positions.
  * @param Int vertexIndex The sliding vertex.
  * @param Int neighborIndex The edge's far endpoint.
  * @param TransformGestureFrame frame The gesture's pointer frame (the virtual pointer projects).
- * @return FloatArray A new positions array with the vertex slid.
+ * @return Float The factor in [0, 1]: 0 leaves the vertex in place, 1 lands it on the neighbor.
  */
-internal fun slideVertexAlongEdge(
+internal fun slideFactorAlongEdge(
 	originalWorld: FloatArray,
 	vertexIndex: Int,
 	neighborIndex: Int,
 	frame: TransformGestureFrame,
-): FloatArray {
+): Float {
 	val vertexScreen = worldToScreen(originalWorld[vertexIndex * 2], originalWorld[vertexIndex * 2 + 1], frame.camera, frame.size)
 	val neighborScreen = worldToScreen(originalWorld[neighborIndex * 2], originalWorld[neighborIndex * 2 + 1], frame.camera, frame.size)
 	val axisX = neighborScreen.x - vertexScreen.x
 	val axisY = neighborScreen.y - vertexScreen.y
 	val lengthSquared = axisX * axisX + axisY * axisY
-	val t =
-		if (lengthSquared > 1e-3f) {
-			(((frame.current.x - vertexScreen.x) * axisX + (frame.current.y - vertexScreen.y) * axisY) / lengthSquared).coerceIn(0f, 1f)
-		} else {
-			0f
-		}
+	if (lengthSquared <= 1e-3f) {
+		return 0f
+	}
+	return (((frame.current.x - vertexScreen.x) * axisX + (frame.current.y - vertexScreen.y) * axisY) / lengthSquared).coerceIn(0f, 1f)
+}
+
+/**
+ * Slides one vertex along the edge toward [neighborIndex] by [factor] of the edge's length - the
+ * application half of the Vertex Slide, shared by the drag (whose factor [slideFactorAlongEdge]
+ * projects from the pointer) and the operation settings strip's Factor row.
+ *
+ * @param FloatArray originalWorld The captured world positions.
+ * @param Int vertexIndex The sliding vertex.
+ * @param Int neighborIndex The edge's far endpoint.
+ * @param Float factor How far along the edge the vertex lands, clamped to [0, 1].
+ * @return FloatArray A new positions array with the vertex slid.
+ */
+internal fun slideVertexByFactor(
+	originalWorld: FloatArray,
+	vertexIndex: Int,
+	neighborIndex: Int,
+	factor: Float,
+): FloatArray {
+	val t = factor.coerceIn(0f, 1f)
 	return originalWorld.copyOf().also { positions ->
 		positions[vertexIndex * 2] = originalWorld[vertexIndex * 2] + (originalWorld[neighborIndex * 2] - originalWorld[vertexIndex * 2]) * t
 		positions[vertexIndex * 2 + 1] =
@@ -120,17 +173,11 @@ internal fun slideVertexAlongEdge(
 }
 
 /**
- * Applies the active modal operator to [originalWorld], producing a new world-posed array. The pointer
- * gesture (from [TransformGestureFrame.start] to [TransformGestureFrame.current], screen pixels) is
- * converted into the world-space delta / factor / angle: Grab translates by the screen delta divided by
- * zoom; Scale and Rotate work about the frame anchor (world space, mapped to its screen point). Screen Y
- * points down while world Y points up, so the grab's Y delta and the rotation's angle delta negate
- * crossing into world space.
- *
- * Rotate's angle ACCUMULATES through [rotationTracker] (per-move increments wrapped into (-pi, pi])
- * instead of subtracting two raw atan2 samples: a far pivot starts the gesture at the branch cut where
- * the raw difference jumps ~2*pi and the arc direction latches; the accumulator reverses through zero
- * and multi-turns freely.
+ * Applies the active modal operator to [originalWorld] by the resolved [parameters], producing a new
+ * world-posed array: Grab translates by the delta; Scale and Rotate work about each pivot group's
+ * pivot by the factors and the angle.  The parameters come from a pointer frame during the drag
+ * ([gestureParameters], which owns the screen-to-world conversion and the rotation accumulator) or from
+ * the operation settings strip's rows after it, so an adjustment runs the very same math.
  *
  * Proportional editing adds [proportionalInfluences]: after the selected vertices transform at full
  * strength through their pivot groups, each influenced unselected vertex takes the SAME gesture scaled
@@ -142,25 +189,23 @@ internal fun slideVertexAlongEdge(
  * @param MeshOperatorKind operator The active operator.
  * @param FloatArray originalWorld The world posed positions captured at gesture start.
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices.
- * @param TransformGestureFrame frame The gesture's pointer frame (anchor, start, current, axis lock,
- *   camera, size) - shared by every mesh in the capture.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply - shared by every
+ *   mesh in the capture.
  * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices
  *   (empty when proportional editing is off).
- * @param RotationAngleTracker rotationTracker The gesture's angle accumulator (Rotate only; one per
- *   capture - feeding the same pointer position twice, as the per-mesh loop does, adds zero).
  * @return FloatArray The transformed world positions.
  */
 internal fun applyOperator(
 	operator: MeshOperatorKind,
 	originalWorld: FloatArray,
 	groups: List<TransformPivotGroup>,
-	frame: TransformGestureFrame,
+	parameters: TransformGestureParameters,
 	proportionalInfluences: Map<Int, ProportionalInfluence>,
-	rotationTracker: RotationAngleTracker,
 ): FloatArray =
 	when (operator) {
 		MeshOperatorKind.Grab -> {
-			val (deltaX, deltaY) = gestureTranslation(frame)
+			val deltaX = parameters.deltaX
+			val deltaY = parameters.deltaY
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.translateVertices(positions, group.vertexIndices, deltaX, deltaY)
@@ -170,10 +215,10 @@ internal fun applyOperator(
 		}
 
 		MeshOperatorKind.Scale -> {
-			// The factor comes from the gesture anchor (Blender measures against the transform center even
-			// with Individual Origins); each group then scales about its own pivot, and each influenced
-			// vertex about its owning group's pivot.
-			val (factorX, factorY) = gestureScaleFactors(frame)
+			// The factor was measured against the gesture anchor; each group then scales about its own
+			// pivot, and each influenced vertex about its owning group's pivot.
+			val factorX = parameters.factorX
+			val factorY = parameters.factorY
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.scaleVerticesAxis(positions, group.vertexIndices, factorX, factorY, group.pivotX, group.pivotY)
@@ -185,10 +230,9 @@ internal fun applyOperator(
 		}
 
 		MeshOperatorKind.Rotate -> {
-			// The angle comes from the gesture anchor; each group then rotates about its own pivot, and
-			// each influenced vertex about its owning group's pivot.  Rotate has no axis to lock in 2D,
-			// so the constraint is ignored.
-			val rotation = gestureRotationRadians(frame, rotationTracker)
+			// The angle was measured against the gesture anchor; each group then rotates about its own
+			// pivot, and each influenced vertex about its owning group's pivot.
+			val rotation = parameters.rotationRadians
 			val moved =
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)

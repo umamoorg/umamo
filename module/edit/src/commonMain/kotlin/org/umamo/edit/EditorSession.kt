@@ -1631,6 +1631,17 @@ class EditorSession(
 	}
 
 	/**
+	 * Sets proportional editing outright - on with [state], or off with null - without a notice: the
+	 * operation settings strip writes an adjusted transform's proportional rows back through here, so
+	 * the next gesture starts from what the rigger last dialled in.
+	 *
+	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
+	 */
+	fun setProportionalEdit(state: ProportionalEditState?) {
+		latches.setProportionalEdit(state)
+	}
+
+	/**
 	 * Fires the geometry-dependent snap operations (Blender's Shift+S) for the active mode's overlay to
 	 * execute: the posed world projections and the deformer-chain inverse those snaps need live with the
 	 * overlays, not here (the same division as [meshConfirmRequests]).  The purely arithmetical snaps
@@ -1776,11 +1787,13 @@ class EditorSession(
 	 * @param String labelKey The operation's history label key (change.mesh.duplicate / merge / rip / connect).
 	 * @param DrawableId drawableId The edited mesh.
 	 * @param TopologyOpResult result The op builder's outcome.
+	 * @return Boolean True when a step was recorded; false for a no-op edit, after which a caller must
+	 *   not register the operation as adjustable (there is no step of its own to amend).
 	 */
-	fun commitMeshTopology(labelKey: String, drawableId: DrawableId, result: TopologyOpResult) {
+	fun commitMeshTopology(labelKey: String, drawableId: DrawableId, result: TopologyOpResult): Boolean {
 		val newModel = mutableModel.value.withMeshTopologyEdit(drawableId, result.edit)
 		if (newModel === mutableModel.value) {
-			return
+			return false
 		}
 		val current = mutableMeshSelection.value
 		val vertexResult =
@@ -1798,6 +1811,7 @@ class EditorSession(
 		mutableMeshSelection.value = newSelection
 		refreshFlags()
 		mutableChanges.tryEmit(change)
+		return true
 	}
 
 	/**
@@ -1853,12 +1867,17 @@ class EditorSession(
 
 	/**
 	 * Merges the ACTIVE session mesh's selected vertices (Blender's M) as one undo step, leaving the
-	 * survivor selected.  Vertex mode only - the first / last targets read the selection order, which
-	 * only vertex elements carry directly.  Refusals explain themselves with a near-cursor notice.
+	 * survivor selected, and registers the step on the operation settings strip with its one row, Merge
+	 * At - so a merge landed at the center can be re-landed at the first or last vertex without undoing.
+	 * The rerun re-merges the SAME vertices from the record's base; every target keeps the survivor at
+	 * the same index, so the survivor selection the step carries stays valid across an adjustment.
+	 * Vertex mode only - the first / last targets read the selection order, which only vertex elements
+	 * carry directly.  Refusals explain themselves with a near-cursor notice.
 	 *
 	 * @param MergeTarget target Where the survivor lands (center / first / last).
+	 * @param String? areaId The area the strip shows in (opaque here, like the operator latches), or null.
 	 */
-	fun mergeSelectedVertices(target: MergeTarget) {
+	fun mergeSelectedVertices(target: MergeTarget, areaId: String? = null) {
 		if (mutableMode.value != EditorMode.Edit) {
 			return
 		}
@@ -1882,7 +1901,17 @@ class EditorSession(
 		}
 		val mesh = mutableModel.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
 		val result = MeshTopologyOps.mergeVertices(mesh, orderedVertices, target) ?: return
-		commitMeshTopology("change.mesh.merge", drawableId, result)
+		if (!commitMeshTopology("change.mesh.merge", drawableId, result)) {
+			return
+		}
+		val mergedVertices = orderedVertices.toList()
+		registerAdjustableOperation(mutableModel.value, areaId, mergeParameters(target)) { record ->
+			val adjustedTarget = mergeTargetOf(record.parameters, target)
+			val baseModel = record.baseSnapshot.model
+			val baseMesh = baseModel.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@registerAdjustableOperation
+			val rerun = MeshTopologyOps.mergeVertices(baseMesh, mergedVertices, adjustedTarget) ?: return@registerAdjustableOperation
+			amendLastCommit(record, baseModel.withMeshTopologyEdit(drawableId, rerun.edit))
+		}
 	}
 
 	/**

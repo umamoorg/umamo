@@ -151,9 +151,9 @@ class ArtworkOperations(
  * file-reading closures injected as a collaborator: the strip's area (the hovered work surface, else
  * the last one the pointer touched - the Sources header is the usual origin, and a panel hosts no
  * strip) is a question only the shell's routing can answer.  An app-registered handler would have no
- * area to give and the strip would fall to the shell's bottom edge.  The collaborator is read at
- * dispatch, so the table survives a document swap without re-registration, and a null one (no puppet
- * document) hides the commands.
+ * area to give and the strip would show nowhere.  The collaborator is read at dispatch, so the table
+ * survives a document swap without re-registration, and a null one (no puppet document) hides the
+ * commands.
  *
  * @param CommandRouting routing The hovered-area resolver, read at dispatch.
  * @param Function       artwork Supplies the current orchestrations, or null when no document can take artwork.
