@@ -441,10 +441,10 @@
 	<string name="sources_status_bound_unstable">Bound by name</string>
 	<string name="sources_status_unbound">Unbound</string>
 	<string name="sources_status_unplaced">Unplaced</string>
-	<string name="sources_status_needs_review">Needs review: the file no longer has this layer</string>
-	<string name="sources_status_emptied">Needs review: the layer is empty in the file</string>
-	<string name="sources_status_replaced">Needs review: the replacement file has no layer under this key</string>
-	<string name="sources_status_ignored">Ignored: a reload never adds this layer</string>
+	<string name="sources_status_needs_review">Needs review: The file no longer has this layer</string>
+	<string name="sources_status_emptied">Needs review: The layer is empty in the file</string>
+	<string name="sources_status_replaced">Needs review: The replacement file has no layer under this key</string>
+	<string name="sources_status_ignored">Ignored: A reload never adds this layer</string>
 	<string name="sources_unbound_art">Unbound Art</string>
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
@@ -454,7 +454,7 @@
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_delete">Delete Art</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
-	<string name="sources_empty">No source artwork.  Add Artwork… brings a layered file into this document.</string>
+	<string name="sources_empty">No source artwork.  Add artwork to add insert layered art.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Restriction Toggles</string>
 	<string name="outliner_column_selectable">Selectable Column</string>

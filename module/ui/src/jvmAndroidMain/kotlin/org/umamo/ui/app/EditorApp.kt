@@ -402,7 +402,7 @@ fun EditorApp(
 				return null
 			}
 		val path = picked.absolutePath()
-		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path?.let(::fileModifiedAtMillis)))
+		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path.let(::fileModifiedAtMillis)))
 	}
 
 	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
