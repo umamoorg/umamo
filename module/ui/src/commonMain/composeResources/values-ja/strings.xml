@@ -770,7 +770,7 @@
 	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
-	<string name="settings_import_delete_art_ignores_layer">「アートを削除」でレイヤーも無視する</string>
+	<string name="settings_import_delete_art_ignores_layer">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークする</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->

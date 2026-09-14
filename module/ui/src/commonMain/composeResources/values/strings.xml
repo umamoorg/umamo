@@ -827,7 +827,7 @@
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
-	<string name="settings_import_delete_art_ignores_layer">Delete Art also marks its layer as ignored</string>
+	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
