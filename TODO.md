@@ -49,10 +49,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* This can have better wording if the buttons are configurable.
 * Enter does not work for the default action.
 
-## Operation Strip
-* Should disappear when changing workspaces.  Right now it gets shoved below all the spaces.
-* No viewports: Still appears outside of the spaces and just should not appear at all.
-
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.
 * UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.

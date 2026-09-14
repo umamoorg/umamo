@@ -27,7 +27,8 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * places the settings strip of a document-wide operation that already ran, and the strip exists only
  * in a work surface (2D viewport or UV editor), so a command fired over a panel shows it in the last
  * work surface touched - or, when the pointer has touched none since the shell opened, in the first
- * work surface of the active workspace - rather than nowhere.
+ * work surface of the active workspace.  A workspace with no work surface at all yields null, and the
+ * strip shows nowhere.
  *
  * Every answer is resolved at DISPATCH time, inside a handler body, never latched at registration - the
  * same contract HoveredSurfaceTracker carries.  The backing read is a non-reactive var, so a value
@@ -78,9 +79,9 @@ internal class CommandRouting(
 	private val defaultStripHost: () -> String? = { null },
 ) {
 	/**
-	 * A routing that remembers no work surface and knows no workspace: the strip placement falls back to
-	 * the shell's own strip.  The trailing-lambda form the tables' tests build with, kept as a constructor
-	 * so that lambda stays the hovered resolver rather than silently binding to the last parameter.
+	 * A routing that remembers no work surface and knows no workspace: the strip placement yields null,
+	 * and the strip shows nowhere.  The trailing-lambda form the tables' tests build with, kept as a
+	 * constructor so that lambda stays the hovered resolver rather than silently binding to the last parameter.
 	 *
 	 * @param Function hoveredSurface Resolves the last-touched editor surface.
 	 */
@@ -89,11 +90,11 @@ internal class CommandRouting(
 	/**
 	 * Where a document-wide operation's settings strip shows: the hovered area when it is a work surface
 	 * (2D viewport or UV editor), else the last work surface the pointer touched, else the workspace's
-	 * first work surface, else null - the shell's own strip above the status bar, which only a workspace
-	 * with no work surface at all reaches.  The strip exists only in those two spaces, so a command fired
-	 * from a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it
-	 * somewhere the rigger will find it, including on a freshly opened document whose viewports the
-	 * pointer has not crossed yet.
+	 * first work surface, else null - which only a workspace with no work surface at all reaches, and
+	 * then the strip shows nowhere.  The strip exists only in those two spaces, so a command fired from
+	 * a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it somewhere
+	 * the rigger will find it, including on a freshly opened document whose viewports the pointer has
+	 * not crossed yet.
 	 *
 	 * @return String? The area to show the strip in, or null.
 	 */

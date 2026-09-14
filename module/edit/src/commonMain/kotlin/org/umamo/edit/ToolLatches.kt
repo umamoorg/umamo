@@ -467,4 +467,23 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 		lastProportionalEdit = updated
 		mutableProportionalEdit.value = updated
 	}
+
+	/**
+	 * Sets proportional editing outright - on with [state] (its radius clamped), or off with null -
+	 * silently, and remembering the configuration a later toggle restores.  The operation settings
+	 * strip's write-back: the proportional rows of an adjusted transform become the state the next
+	 * gesture starts from, and the strip's rows are their own confirmation, so no notice fires.
+	 *
+	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
+	 */
+	fun setProportionalEdit(state: ProportionalEditState?) {
+		if (state == null) {
+			mutableProportionalEdit.value?.let { current -> lastProportionalEdit = current }
+			mutableProportionalEdit.value = null
+			return
+		}
+		val clamped = state.copy(radiusWorld = state.radiusWorld.coerceIn(MIN_PROPORTIONAL_RADIUS_WORLD, MAX_PROPORTIONAL_RADIUS_WORLD))
+		lastProportionalEdit = clamped
+		mutableProportionalEdit.value = clamped
+	}
 }

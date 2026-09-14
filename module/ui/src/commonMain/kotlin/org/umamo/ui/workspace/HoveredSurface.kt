@@ -40,8 +40,8 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * a work surface (hostsOperationStrip), so a document-wide operation fired over a panel needs the work
  * surface the pointer touched LAST, however long ago, to place its strip.  It places a panel for an
  * operation that already ran; no command routes an action through it.  It must never name an area
- * that no longer hosts a strip: the area's host would refuse the record and the shell's fallback would
- * defer to the area, and the strip would show nowhere.
+ * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the
+ * strip would show nowhere.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */

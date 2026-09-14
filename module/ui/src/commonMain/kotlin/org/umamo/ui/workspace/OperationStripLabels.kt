@@ -2,17 +2,25 @@ package org.umamo.ui.workspace
 
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.MergeParameterKeys
+import org.umamo.edit.MergeTarget
 import org.umamo.edit.ParameterUnit
+import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.parameterKey
 import org.umamo.ui.model.ImportParameterKeys
 import org.umamo.ui.model.MatchParameterKeys
 import org.umamo.ui.model.RepackParameterKeys
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.PlacementParameterKeys
+import org.umamo.ui.viewport.TransformParameterKeys
+import org.umamo.ui.viewport.choiceKey
+import org.umamo.ui.viewport.falloffLabel
 
 /**
  * Maps an [org.umamo.edit.OperatorParameter.labelKey] to its localized row label.  The keys are the
- * ones each adjustable operation's parameter list declares; an unmapped key renders verbatim so a
- * newly added parameter never renders blank.
+ * ones each adjustable operation's parameter list declares (a choice's entries carry prefixed keys,
+ * resolved by [choiceLabel]); an unmapped key renders verbatim so a newly added parameter never
+ * renders blank.
  *
  * @param String labelKey The parameter's stable label key.
  * @return String The localized label.
@@ -37,8 +45,47 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		ImportParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.import_options_alpha_threshold)
 		ImportParameterKeys.MARGIN -> stringResource(Res.string.import_options_margin)
 		MatchParameterKeys.THRESHOLD -> stringResource(Res.string.match_options_threshold)
-		else -> labelKey
+		// The transform rows share the placement rows' Move / Angle / Scale labels where the text is the
+		// same; the viewport's vertical axis is Z (Y+ forward, Z+ up), so it has labels of its own.
+		TransformParameterKeys.MOVE_X -> stringResource(Res.string.placement_options_move_x)
+		TransformParameterKeys.MOVE_Y -> stringResource(Res.string.placement_options_move_y)
+		TransformParameterKeys.MOVE_Z -> stringResource(Res.string.transform_options_move_z)
+		TransformParameterKeys.ANGLE -> stringResource(Res.string.placement_options_angle)
+		TransformParameterKeys.SCALE_X -> stringResource(Res.string.placement_options_scale_x)
+		TransformParameterKeys.SCALE_Y -> stringResource(Res.string.placement_options_scale_y)
+		TransformParameterKeys.SCALE_Z -> stringResource(Res.string.transform_options_scale_z)
+		TransformParameterKeys.PROPORTIONAL -> stringResource(Res.string.transform_options_proportional)
+		TransformParameterKeys.FALLOFF -> stringResource(Res.string.transform_options_falloff)
+		TransformParameterKeys.PROPORTIONAL_SIZE -> stringResource(Res.string.transform_options_proportional_size)
+		TransformParameterKeys.CONNECTED_ONLY -> stringResource(Res.string.transform_options_connected)
+		TransformParameterKeys.SLIDE_FACTOR -> stringResource(Res.string.transform_options_slide_factor)
+		MergeParameterKeys.TARGET -> stringResource(Res.string.merge_options_target)
+		else -> choiceLabel(labelKey) ?: labelKey
 	}
+
+/**
+ * The localized label of a choice entry's prefixed key: a falloff curve's, or a merge target's.
+ *
+ * @param String labelKey The entry's label key.
+ * @return String? The label, or null when the key carries neither prefix.
+ */
+@Composable
+private fun choiceLabel(labelKey: String): String? {
+	if (labelKey.startsWith(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)
+		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
+	}
+	if (labelKey.startsWith(MergeParameterKeys.TARGET_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(MergeParameterKeys.TARGET_CHOICE_PREFIX)
+		return when (MergeTarget.entries.firstOrNull { target -> target.parameterKey == key }) {
+			MergeTarget.AtCenter -> stringResource(Res.string.merge_target_center)
+			MergeTarget.AtFirst -> stringResource(Res.string.merge_target_first)
+			MergeTarget.AtLast -> stringResource(Res.string.merge_target_last)
+			null -> null
+		}
+	}
+	return null
+}
 
 /**
  * The suffix a numeric row shows after its value for [unit], or null for a unitless one.

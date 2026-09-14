@@ -176,7 +176,7 @@ fun List<OperatorParameter>.choiceValue(key: String, fallback: String): String =
  *
  * @property Change         change       The change the operation committed; its label titles the strip.
  * @property String?        areaId       The area the operation ran in, or null for one that ran nowhere in
- *   particular (the shell shows it above the status bar).
+ *   particular (the strip then shows nowhere; the record stays adjustable through the F9 command).
  * @property List           parameters   The current settings, in display order.
  * @property EditorSnapshot baseSnapshot The state the operation ran from.
  * @property Function       rerun        Runs the operation again from [baseSnapshot] under the record it is

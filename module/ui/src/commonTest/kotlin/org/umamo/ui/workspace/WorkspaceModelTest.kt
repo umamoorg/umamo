@@ -2,7 +2,6 @@ package org.umamo.ui.workspace
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
@@ -338,31 +337,6 @@ class WorkspaceModelTest {
 		val rest = assertIs<SplitNode>(root.second)
 		assertEquals(SpaceKind.UvEditor, assertIs<LeafArea>(rest.first).space)
 		assertEquals(SpaceKind.Viewport2D, assertIs<LeafArea>(rest.second).space)
-	}
-
-	/**
-	 * The live leaf lookup and the shell strip's gate over it: a record shows in its area while that
-	 * area hosts a strip, and falls to the shell once the area is switched to a panel or is gone.
-	 */
-	@Test
-	fun theShellStripTakesARecordWhoseAreaCanNoLongerShowIt() {
-		val root =
-			SplitNode(
-				SplitOrientation.Horizontal,
-				0.5f,
-				LeafArea("view", SpaceKind.Viewport2D),
-				SplitNode(SplitOrientation.Vertical, 0.5f, LeafArea("uv", SpaceKind.UvEditor), LeafArea("panel", SpaceKind.Outliner)),
-			)
-		assertEquals(SpaceKind.Viewport2D, root.spaceOf("view"))
-		assertEquals(SpaceKind.Outliner, root.spaceOf("panel"))
-		assertNull(root.spaceOf("gone"))
-
-		val spaceOf: (String) -> SpaceKind? = { areaId -> root.spaceOf(areaId) }
-		assertTrue(shellShowsStrip(null, spaceOf), "no area named: the shell's own strip")
-		assertFalse(shellShowsStrip("view", spaceOf), "a work surface shows its own record")
-		assertFalse(shellShowsStrip("uv", spaceOf))
-		assertTrue(shellShowsStrip("panel", spaceOf), "an area switched to a panel cannot, so the shell does")
-		assertTrue(shellShowsStrip("gone", spaceOf), "a closed area cannot either")
 	}
 
 	/**

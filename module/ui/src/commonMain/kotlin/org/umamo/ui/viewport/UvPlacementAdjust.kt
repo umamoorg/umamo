@@ -33,21 +33,10 @@ internal object PlacementParameterKeys {
 	const val SCALE_Y = "placement.scaleY"
 }
 
-/** The widest angle the Angle row accepts, in degrees either way. */
-private const val PLACEMENT_ANGLE_LIMIT = 360f
-
-/** The smallest factor a Scale row accepts - a placement with a zero scale would not invert. */
-private const val PLACEMENT_SCALE_MIN = 0.01f
-
-/** The largest factor a Scale row accepts. */
-private const val PLACEMENT_SCALE_MAX = 100f
-
-/** The Scale rows' scrub step. */
-private const val PLACEMENT_SCALE_STEP = 0.01f
-
 /**
  * The strip's rows for the gesture [status] describes: a Grab's move in whole page pixels (y down,
- * as the HUD reads it), a Rotate's page-space angle, a Scale's two factors.
+ * as the HUD reads it), a Rotate's page-space angle, a Scale's two factors.  The angle and scale
+ * limits are the transform rows' (TransformAdjust.kt), so the two UV strips accept the same values.
  *
  * @param PlacementDragStatus status     The drag's readout at confirm.
  * @param Int                 pageWidth  The page width, bounding the horizontal move.
@@ -68,16 +57,16 @@ internal fun placementParameters(status: PlacementDragStatus, pageWidth: Int, pa
 					PlacementParameterKeys.ANGLE,
 					PlacementParameterKeys.ANGLE,
 					status.angleDegrees,
-					-PLACEMENT_ANGLE_LIMIT,
-					PLACEMENT_ANGLE_LIMIT,
+					-TRANSFORM_ANGLE_LIMIT,
+					TRANSFORM_ANGLE_LIMIT,
 					unit = ParameterUnit.Degrees,
 				),
 			)
 
 		MeshOperatorKind.Scale ->
 			listOf(
-				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_X, PlacementParameterKeys.SCALE_X, status.factorX, PLACEMENT_SCALE_MIN, PLACEMENT_SCALE_MAX, PLACEMENT_SCALE_STEP),
-				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_Y, PlacementParameterKeys.SCALE_Y, status.factorY, PLACEMENT_SCALE_MIN, PLACEMENT_SCALE_MAX, PLACEMENT_SCALE_STEP),
+				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_X, PlacementParameterKeys.SCALE_X, status.factorX, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP),
+				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_Y, PlacementParameterKeys.SCALE_Y, status.factorY, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP),
 			)
 
 		MeshOperatorKind.VertexSlide -> emptyList()

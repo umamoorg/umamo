@@ -33,6 +33,13 @@ internal class ModalGestureState<TCapture> {
 	/** The pointer position the gesture started at (the transform's origin), or null when idle. */
 	var gestureStart by mutableStateOf<Offset?>(null)
 
+	/**
+	 * The parameters the most recent drive resolved from the pointer, or null before the first drive: what
+	 * the confirm hands the operation settings strip as the rows the rigger can then edit.  Plain state (no
+	 * reader observes it), written once per pointer frame.
+	 */
+	var lastParameters: TransformGestureParameters? = null
+
 	/** The area's top-left in absolute screen pixels, for converting a wrap target into screen space; null before first layout. */
 	var areaScreenOrigin by mutableStateOf<Offset?>(null)
 
@@ -53,6 +60,7 @@ internal class ModalGestureState<TCapture> {
 		capture = fresh
 		gestureStart = pointer
 		preview = null
+		lastParameters = null
 		cursorWrap.reset()
 	}
 
@@ -69,6 +77,7 @@ internal class ModalGestureState<TCapture> {
 		capture = null
 		preview = null
 		gestureStart = null
+		lastParameters = null
 		cursorWrap.reset()
 		return wasActive
 	}

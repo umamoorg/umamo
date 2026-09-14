@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.DEFAULT_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
@@ -187,11 +188,13 @@ internal fun UvEditGizmoOverlay(
 	}
 
 	// Confirms the in-flight gesture: convert each moving mesh's display preview back to normalized
-	// UV and commit as ONE undo step, then clear the operator (its teardown resyncs the renderer to
-	// the committed model the bridge republishes).  A null preview means no movement - nothing commits.
+	// UV and commit as ONE undo step, register that step on the operation settings strip, then clear the
+	// operator (its teardown resyncs the renderer to the committed model the bridge republishes).  A null
+	// preview means no movement - nothing commits.
 	fun confirmGesture() {
 		val committed = gesture.preview
 		val gestureData = gesture.capture
+		val parameters = gesture.lastParameters
 		if (committed != null && gestureData != null) {
 			val transform = gestureData.transform
 			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
@@ -213,7 +216,21 @@ internal fun UvEditGizmoOverlay(
 				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
 			}
 			if (newUvsByDrawable.isNotEmpty()) {
+				val modelBefore = session.model.value
 				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, transform.operatorKind), newUvsByDrawable)
+				// The strip's rows for the step just pushed, over the RETAINED capture and frame so an
+				// adjustment replays the same frozen coordinates - registered before the operator clears,
+				// since the teardown drops the capture.  A commit that recorded nothing has no step to amend.
+				// The proportional radius here is the editor's own texel radius, so the write-back keeps the
+				// session's world radius as it was and lands the row's value where this editor keeps it.
+				if (parameters != null && session.model.value !== modelBefore) {
+					val proportional = ProportionalRows.of(session.proportionalEdit.value, effectiveProportionalRadius())
+					registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional) { state, radiusDisplay ->
+						proportionalRadiusDisplay = radiusDisplay
+						val radiusWorld = session.proportionalEdit.value?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD
+						session.setProportionalEdit(state?.copy(radiusWorld = radiusWorld))
+					}
+				}
 			}
 		}
 		session.clearUvOperator()
@@ -227,19 +244,15 @@ internal fun UvEditGizmoOverlay(
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
+		// The frame resolves ONCE into the numbers every mesh applies; the confirm hands them to the
+		// settings strip.
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
+		gesture.lastParameters = parameters
 		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
-			val transformedDisplay =
-				applyOperator(
-					operator,
-					entry.positions,
-					entry.groups,
-					frame,
-					entry.influence,
-					transform.rotationTracker,
-				)
+			val transformedDisplay = applyOperator(operator, entry.positions, entry.groups, parameters, entry.influence)
 			newPreview[entry.drawableId] = transformedDisplay
 			// The preview converts whole arrays: it is transient and never committed, so the drift the
 			// commit above avoids is invisible here.
