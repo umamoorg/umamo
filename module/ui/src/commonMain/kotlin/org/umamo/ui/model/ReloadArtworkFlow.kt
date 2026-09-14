@@ -230,7 +230,7 @@ internal sealed interface Rebinding {
  * @param ReloadPlan  plan The plan.
  * @param PuppetModel base The model the plan applies to (the names before the step).
  * @param SourceArt   art  The file as read, for the layer names.
- * @return List<Rebinding> The rebound tiles, then the retired drawables, then the drawables that followed an eye toggle.
+ * @return List<Rebinding> The rebound tiles, then the retired drawables, then the drawables that had their visibility changed.
  */
 internal fun rebindingsOf(plan: ReloadPlan, base: PuppetModel, art: SourceArt): List<Rebinding> {
 	val layerNameByKey = art.layers.associate { layer -> layer.id.raw to layer.name }
@@ -433,7 +433,7 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 			else -> "notice.reload.done"
 		},
 		NoticePlacement.StatusBar,
-		// "Updated" counts the tiles that took new art and the drawables that followed an eye toggle.
+		// "Updated" counts the tiles that took new art and the drawables that had their visibility changed..
 		listOf((change.replacedCount + change.visibilityCount).toString(), change.addedCount.toString(), change.matchedCount.toString(), change.missingCount.toString()),
 	)
 	session.registerAdjustableOperation(committed, areaId, matchArtworkParameters(request.matchThreshold, request.options)) { record ->
@@ -514,7 +514,7 @@ private fun reportReload(outcome: ReloadOutcome.Reloaded, committed: PuppetModel
 	val change = outcome.change
 	UmamoLog.info(
 		"reload artwork: ${change.fileCount} file(s) -> ${change.replacedCount} tile(s) updated, ${change.addedCount} drawable(s) added," +
-			" ${change.matchedCount} rebound by match, ${change.missingCount} layer(s) missing, ${change.visibilityCount} followed an eye toggle, ${outcome.outgrown.size} outgrown;" +
+			" ${change.matchedCount} rebound by match, ${change.missingCount} layer(s) missing, ${change.visibilityCount} visibility change, ${outcome.outgrown.size} outgrown;" +
 			" now ${committed.atlas.pages.size} page(s); ${outcome.notices.size} note(s)",
 	)
 }
