@@ -5,7 +5,11 @@ import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
+import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.cmo3.model.gen.ACLayerGroup
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.CLayerGroup
 import org.umamo.format.cmo3.model.gen.CLayerSelectorMap
 import org.umamo.format.cmo3.model.gen.CLayeredImage
@@ -131,6 +135,27 @@ internal class Cmo3RetainedLayerWeb(
 		mutableGraphListOf(textureManager._rawImages) != null && mutableGraphListOf(textureManager._modelImageGroups) != null
 
 	/**
+	 * The names object every mint threads, built on first use: the archive's own path sequences, and
+	 * the filter definitions of a model image the graph already holds (fresh ones when it holds none,
+	 * or one another writer shaped differently).
+	 */
+	private val names: Cmo3ImageChainBuilder.Cmo3FreshChainNames by lazy { namesFor() }
+
+	/** The PNG entries the shared builders collected since the last [embedPending]. */
+	private val pendingEntries = ArrayList<Cmo3FreshFile.PngEntry>()
+
+	/**
+	 * Embeds every collected entry in the archive.  Called after each builder call, so the local path
+	 * sequences and the archive never disagree about what is taken.
+	 */
+	private fun embedPending() {
+		for (entry in pendingEntries) {
+			target.addPng(entry.path, entry.pngBytes)
+		}
+		pendingEntries.clear()
+	}
+
+	/**
 	 * The art a tile carries, when its binding names a listed file's row and the document holds its
 	 * pixels; null otherwise.
 	 *
@@ -213,8 +238,8 @@ internal class Cmo3RetainedLayerWeb(
 	}
 
 	/**
-	 * Runs the jobs: every rewrite, then every mint, sharing one set of file sites and one names
-	 * object so two jobs on one file mint its web once.  The pixel entries are embedded at the end.
+	 * Runs the jobs: every rewrite, then every mint, sharing one set of file sites so two jobs on one
+	 * file mint its web once.  Every pixel entry is embedded as its job completes.
 	 *
 	 * @param List rewrites The rewrite jobs.
 	 * @param List mints    The mint jobs.
@@ -224,20 +249,131 @@ internal class Cmo3RetainedLayerWeb(
 		if (rewrites.isEmpty() && mints.isEmpty()) {
 			return Applied(emptyMap())
 		}
-		val names = namesFor()
-		val pngEntries = ArrayList<Cmo3FreshFile.PngEntry>()
 		val siteBySourceId = HashMap<String, ImageSite>()
 		val modelImageByTileId = HashMap<String, CModelImage>()
 		for (job in rewrites) {
-			rewrite(job, names, pngEntries, siteBySourceId)
+			rewrite(job, siteBySourceId)
 		}
 		for (job in mints) {
-			modelImageByTileId[job.tileId] = mint(job, names, pngEntries, siteBySourceId)
-		}
-		for (entry in pngEntries) {
-			target.addPng(entry.path, entry.pngBytes)
+			modelImageByTileId[job.tileId] = mint(job, siteBySourceId)
 		}
 		return Applied(modelImageByTileId)
+	}
+
+	/**
+	 * A drawable's own icons over its texture patch, embedded now.
+	 *
+	 * @param RasterImage raster The art the drawable samples, in its own frame.
+	 * @param FloatArray? artUvs The drawable's texture coordinates in that frame, or null for the whole art.
+	 * @return Pair The 32px and 16px icons.
+	 */
+	fun drawableIcons(raster: RasterImage, artUvs: FloatArray?): Pair<CImageIcon, CImageIcon> {
+		val patch = Cmo3Icons.patchOf(raster, artUvs)
+		val icon32 = Cmo3Icons.iconOf(patch, 32, names.nextIconPath(), pendingEntries)
+		val icon16 = Cmo3Icons.iconOf(patch, 16, names.nextIconPath(), pendingEntries)
+		embedPending()
+		return icon32 to icon16
+	}
+
+	/**
+	 * Re-renders a file-side drawable's icons over its (changed) art, in place where the icons have
+	 * entries and minted with their slots recorded where the file carried none.
+	 *
+	 * @param CArtMeshSource mesh   The drawable source.
+	 * @param RasterImage    raster The art it samples, in its own frame.
+	 * @param FloatArray?    artUvs Its texture coordinates in that frame, or null for the whole art.
+	 */
+	fun replaceDrawableIcons(mesh: CArtMeshSource, raster: RasterImage, artUvs: FloatArray?) {
+		val patch = Cmo3Icons.patchOf(raster, artUvs)
+		// CMO3: ACDrawableSource fields icon32 / icon16, in that order after invertClippingMask.
+		refreshIcon(mesh.icon32, patch, 32) { icon ->
+			mesh.icon32 = icon
+			editor.ensureChildSlot(mesh, "ACDrawableSource", "icon32", "icon16")
+		}
+		refreshIcon(mesh.icon16, patch, 16) { icon ->
+			mesh.icon16 = icon
+			editor.ensureChildSlot(mesh, "ACDrawableSource", "icon16")
+		}
+	}
+
+	/**
+	 * Writes the model's three icons as fits of [thumbnail], in place where they have entries and
+	 * minted with their slots recorded where the file carried none.
+	 *
+	 * @param CModelSource modelSource The model root.
+	 * @param RasterImage  thumbnail   The model's rest-pose thumbnail.
+	 */
+	fun replaceModelIcons(modelSource: CModelSource, thumbnail: RasterImage) {
+		// CMO3: CModelSource fields _icon64 / _icon32 / _icon16, in that order before gameMotionSet.
+		refreshIcon(modelSource._icon64, thumbnail, 64) { icon ->
+			modelSource._icon64 = icon
+			editor.ensureChildSlot(modelSource, "CModelSource", "_icon64", "_icon32")
+		}
+		refreshIcon(modelSource._icon32, thumbnail, 32) { icon ->
+			modelSource._icon32 = icon
+			editor.ensureChildSlot(modelSource, "CModelSource", "_icon32", "_icon16")
+		}
+		refreshIcon(modelSource._icon16, thumbnail, 16) { icon ->
+			modelSource._icon16 = icon
+			editor.ensureChildSlot(modelSource, "CModelSource", "_icon16", "gameMotionSet")
+		}
+	}
+
+	/**
+	 * Re-renders one icon slot: the existing entry's bytes are replaced when the slot names one the
+	 * archive holds, else a fresh icon is minted and handed to [assign] to set and record its slot.
+	 *
+	 * @param Any?        current The slot's icon today.
+	 * @param RasterImage raster  The art to fit.
+	 * @param Int         size    The square's edge.
+	 * @param Function    assign  Sets a minted icon on its owner and records the slot.
+	 */
+	private fun refreshIcon(current: Any?, raster: RasterImage, size: Int, assign: (CImageIcon) -> Unit) {
+		val path = Cmo3Icons.archivePathOf(current)
+		if (path != null && target.archive.byPath(path) != null) {
+			target.replacePng(path, Cmo3Icons.iconPngOf(raster, size))
+			(current as CImageIcon).image.let { image ->
+				if (image is CWritableImage) {
+					image.width = size
+					image.height = size
+				}
+			}
+			return
+		}
+		assign(Cmo3Icons.iconOf(raster, size, names.nextIconPath(), pendingEntries))
+		embedPending()
+	}
+
+	/**
+	 * Re-renders a rewritten layer's icons over its new art.
+	 *
+	 * @param CLayer      layer  The layer.
+	 * @param RasterImage raster Its new pixels.
+	 */
+	private fun replaceLayerIcons(layer: CLayer, raster: RasterImage) {
+		// CMO3: CLayer fields icon16 / icon64, in that order before layerInfo.
+		refreshIcon(layer.icon16, raster, 16) { icon ->
+			layer.icon16 = icon
+			editor.ensureChildSlot(layer, "CLayer", "icon16", "icon64")
+		}
+		refreshIcon(layer.icon64, raster, 64) { icon ->
+			layer.icon64 = icon
+			editor.ensureChildSlot(layer, "CLayer", "icon64", "layerInfo")
+		}
+	}
+
+	/**
+	 * Re-renders a rewritten model image's icon over its new art.
+	 *
+	 * @param CModelImage modelImage The model image.
+	 * @param RasterImage raster     Its new pixels.
+	 */
+	private fun replaceModelImageIcon(modelImage: CModelImage, raster: RasterImage) {
+		// CMO3: CModelImage field icon16, before _materialLocalToCanvasTransform.
+		refreshIcon(modelImage.icon16, raster, 16) { icon ->
+			modelImage.icon16 = icon
+			editor.ensureChildSlot(modelImage, "CModelImage", "icon16", "_materialLocalToCanvasTransform")
+		}
 	}
 
 	/**
@@ -267,20 +403,13 @@ internal class Cmo3RetainedLayerWeb(
 	 * rect, name, and visibility; the image's placement, name, and cache follow.
 	 *
 	 * @param RewriteJob  job            The job.
-	 * @param Cmo3FreshChainNames names  The names object.
-	 * @param MutableList pngEntries     The entry collector, for a minted layer's pixels and icons.
 	 * @param MutableMap  siteBySourceId The file sites found or minted so far.
 	 */
-	private fun rewrite(
-		job: RewriteJob,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
-		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
-		siteBySourceId: MutableMap<String, ImageSite>,
-	) {
+	private fun rewrite(job: RewriteJob, siteBySourceId: MutableMap<String, ImageSite>) {
 		val modelImage = job.modelImage
 		val compositedLayer = job.sole.input.layer as CLayer
 		val sourceGuid = job.source.id.raw
-		val site = siteFor(job.source, names, siteBySourceId)
+		val site = siteFor(job.source, siteBySourceId)
 		// The layer the row names: the composited one when the tile was reloaded in place, which is
 		// the common case and touches no selector; otherwise the relink's target, repointed to below.
 		val sameFile = sourceGuid == job.sole.imageGuid
@@ -289,10 +418,11 @@ internal class Cmo3RetainedLayerWeb(
 			if (sameFile && compositedKey == job.row.key) {
 				compositedLayer
 			} else {
-				layerFor(site, job.row, job.raster, names, pngEntries)
+				layerFor(site, job.row, job.raster)
 			}
 		val pngBytes = PngCodec.write(job.raster)
 		writeLayer(layer, job.row, job.raster, pngBytes)
+		replaceLayerIcons(layer, job.raster)
 		// CMO3: CModelImage field _filteredImage - replaced in place when it is a resource of its own
 		// rather than the layer's (the fresh web shares one instance; an editor import may not).
 		val filtered = job.filtered
@@ -321,6 +451,8 @@ internal class Cmo3RetainedLayerWeb(
 			placement.setFromAffineArray(job.canvasAffine)
 		}
 		modelImage.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(filtered, job.raster.width, job.raster.height)
+		replaceModelImageIcon(modelImage, job.raster)
+		embedPending()
 	}
 
 	/**
@@ -387,19 +519,12 @@ internal class Cmo3RetainedLayerWeb(
 	 * it at the row's origin.
 	 *
 	 * @param MintJob     job            The job.
-	 * @param Cmo3FreshChainNames names  The names object.
-	 * @param MutableList pngEntries     The entry collector.
 	 * @param MutableMap  siteBySourceId The file sites found or minted so far.
 	 * @return CModelImage The minted model image.
 	 */
-	private fun mint(
-		job: MintJob,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
-		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
-		siteBySourceId: MutableMap<String, ImageSite>,
-	): CModelImage {
-		val site = siteFor(job.source, names, siteBySourceId)
-		val layer = layerFor(site, job.row, job.raster, names, pngEntries)
+	private fun mint(job: MintJob, siteBySourceId: MutableMap<String, ImageSite>): CModelImage {
+		val site = siteFor(job.source, siteBySourceId)
+		val layer = layerFor(site, job.row, job.raster)
 		// A second tile on one key (a double binding) shares the layer and writes its own pixels
 		// over it, as the fresh web's stable sort keeps the last one's; the model image is its own.
 		val resource = layer.imageResource as CImageResource
@@ -409,13 +534,15 @@ internal class Cmo3RetainedLayerWeb(
 				site.image,
 				layer,
 				resource,
+				job.raster,
 				Cmo3SourceLayerWeb.layerPlacement(job.row.left, job.row.top),
 				site.group,
 				names,
-				pngEntries,
+				pendingEntries,
 				nowMillis,
 			)
 		checkNotNull(mutableGraphListOf(site.group._modelImages)) { "a site's group has a model-image list" }.add(modelImage)
+		embedPending()
 		return modelImage
 	}
 
@@ -424,11 +551,10 @@ internal class Cmo3RetainedLayerWeb(
 	 * none), or a whole minted web for a file the graph never held.
 	 *
 	 * @param ArtSource   source         The file.
-	 * @param Cmo3FreshChainNames names  The names object.
 	 * @param MutableMap  siteBySourceId The sites so far.
 	 * @return ImageSite The site.
 	 */
-	private fun siteFor(source: ArtSource, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames, siteBySourceId: MutableMap<String, ImageSite>): ImageSite {
+	private fun siteFor(source: ArtSource, siteBySourceId: MutableMap<String, ImageSite>): ImageSite {
 		siteBySourceId[source.id.raw]?.let { existing -> return existing }
 		val rawImages = checkNotNull(mutableGraphListOf(textureManager._rawImages)) { "validated: the raw-image list exists" }
 		val groups = checkNotNull(mutableGraphListOf(textureManager._modelImageGroups)) { "validated: the group list exists" }
@@ -492,23 +618,15 @@ internal class Cmo3RetainedLayerWeb(
 	 * @param ImageSite      site       The file's site.
 	 * @param ArtSourceLayer row        The inventory row.
 	 * @param RasterImage    raster     The pixels a minted layer takes.
-	 * @param Cmo3FreshChainNames names The names object.
-	 * @param MutableList    pngEntries The entry collector.
 	 * @return CLayer The layer.
 	 */
-	private fun layerFor(
-		site: ImageSite,
-		row: ArtSourceLayer,
-		raster: RasterImage,
-		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
-		pngEntries: MutableList<Cmo3FreshFile.PngEntry>,
-	): CLayer {
+	private fun layerFor(site: ImageSite, row: ArtSourceLayer, raster: RasterImage): CLayer {
 		site.mintedLayerByKey[row.key]?.let { minted -> return minted }
 		walkLayeredImage(site.image).firstOrNull { walked -> walked.key == row.key }?.let { walked -> return walked.layer }
-		val folder = folderAt(site, row.groupPath, names)
+		val folder = folderAt(site, row.groupPath)
 		val pngBytes = PngCodec.write(raster)
 		val path = names.nextImageFileBufPath()
-		pngEntries.add(Cmo3FreshFile.PngEntry(path, pngBytes))
+		pendingEntries.add(Cmo3FreshFile.PngEntry(path, pngBytes))
 		val resource = Cmo3SourceLayerWeb.layerResource(path, raster, pngBytes.size)
 		val layer =
 			Cmo3SourceLayerWeb.layerOver(
@@ -518,14 +636,16 @@ internal class Cmo3RetainedLayerWeb(
 				canvasLeft = row.left,
 				canvasTop = row.top,
 				resource = resource,
+				raster = raster,
 				layeredImage = site.image,
 				folder = folder,
 				names = names,
-				pngEntries = pngEntries,
+				pngEntries = pendingEntries,
 			)
 		childrenOf(folder).add(layer)
 		site.layerEntryList.add(layer)
 		site.mintedLayerByKey[row.key] = layer
+		embedPending()
 		return layer
 	}
 
@@ -535,10 +655,9 @@ internal class Cmo3RetainedLayerWeb(
 	 *
 	 * @param ImageSite site  The file's site.
 	 * @param String    path  The folder path, "" for the root.
-	 * @param Cmo3FreshChainNames names The names object.
 	 * @return CLayerGroup The folder.
 	 */
-	private fun folderAt(site: ImageSite, path: String, names: Cmo3ImageChainBuilder.Cmo3FreshChainNames): CLayerGroup {
+	private fun folderAt(site: ImageSite, path: String): CLayerGroup {
 		site.folderByPath[path]?.let { known -> return known }
 		if (path.isEmpty()) {
 			// CMO3: CLayeredImage field _rootLayer - the tree's root group.
@@ -552,7 +671,7 @@ internal class Cmo3RetainedLayerWeb(
 			site.folderByPath[""] = root
 			return root
 		}
-		val parent = folderAt(site, path.substringBeforeLast('/', ""), names)
+		val parent = folderAt(site, path.substringBeforeLast('/', ""))
 		val name = path.substringAfterLast('/')
 		val siblings = childrenOf(parent)
 		// CMO3: ACLayerEntry field name - a folder is found by its own name under its parent.

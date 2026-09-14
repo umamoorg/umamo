@@ -1,6 +1,7 @@
 package org.umamo.ui.model
 
 import androidx.compose.ui.graphics.ImageBitmap
+import org.umamo.format.raster.RasterImage
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -171,7 +172,52 @@ class DrawableThumbnailer(
 	 * @param PartId id The part to preview.
 	 * @return ImageBitmap? The composited preview, or null when the part has no previewable art.
 	 */
-	override fun partThumbnailFor(id: PartId): ImageBitmap? = partThumbnailCache.getOrPut(id) { buildPartThumbnail(id) }
+	override fun partThumbnailFor(id: PartId): ImageBitmap? = partThumbnailCache.getOrPut(id) { partRasterFor(id)?.let { raster -> rawToImage(RawCrop(raster.rgba, raster.width, raster.height)) } }
+
+	/**
+	 * The combined part preview of [partThumbnailFor] as a neutral raster: every art mesh under [id]
+	 * placed by its rest-pose model bounds and composited back-to-front.  Not memoized; the bitmap
+	 * wrapper is.
+	 *
+	 * @param PartId id The part to preview.
+	 * @return RasterImage? The composite, straight alpha, or null when the part has no previewable art.
+	 */
+	fun partRasterFor(id: PartId): RasterImage? {
+		val subtree = partSubtree(id)
+		val members = ArrayList<Pair<RawCrop, ModelBounds>>()
+		for (drawable in currentDrawables) {
+			val owningPartId = currentDrawableOwner[drawable.id] ?: continue
+			if (owningPartId !in subtree) {
+				continue
+			}
+			val crop = croppedFor(drawable.id) ?: continue
+			val bounds = modelBoundsOf(drawable.id) ?: continue
+			members += crop to bounds
+		}
+		return compositeOf(members)?.let { composite -> RasterImage(composite.width, composite.height, composite.rgba) }
+	}
+
+	/**
+	 * The whole model's rest-pose preview: every VISIBLE drawable with a crop and bounds, root-level
+	 * ones included, composited back-to-front by the same rule as a part.  This is the thumbnail a
+	 * CMO3 export writes for the model, so the official editor shows the character the file holds
+	 * rather than a blank tile; hidden drawables (alternate expressions, guides) stay out of it the
+	 * way they stay out of the viewport.
+	 *
+	 * @return RasterImage? The composite, straight alpha, or null when no visible drawable has a crop.
+	 */
+	fun modelRasterFor(): RasterImage? {
+		val members = ArrayList<Pair<RawCrop, ModelBounds>>()
+		for (drawable in currentDrawables) {
+			if (!drawable.isVisible) {
+				continue
+			}
+			val crop = croppedFor(drawable.id) ?: continue
+			val bounds = modelBoundsOf(drawable.id) ?: continue
+			members += crop to bounds
+		}
+		return compositeOf(members)?.let { composite -> RasterImage(composite.width, composite.height, composite.rgba) }
+	}
 
 	/** The cached raw crop for a drawable, computed once. */
 	private fun croppedFor(id: DrawableId): RawCrop? = cropCache.getOrPut(id) { buildCrop(id) }
@@ -307,31 +353,21 @@ class DrawableThumbnailer(
 	}
 
 	/**
-	 * Builds the combined part preview for [partThumbnailFor]. Gathers the part subtree's drawables in the
-	 * model's back-to-front order (the [PuppetModel.drawables] base order), unions their model bounds, and
-	 * blits each cached crop into its mapped (Y-flipped) rectangle with straight-alpha over-compositing.
+	 * Composites [members], each a cached crop with its rest-pose model bounds in the model's
+	 * back-to-front order (the [PuppetModel.drawables] base order, so a later entry paints in front):
+	 * unions the bounds and blits each crop into its mapped rectangle with straight-alpha
+	 * over-compositing.  Only members with both a crop and bounds belong here, so untextured or
+	 * mesh-less layers neither inflate the union nor leave a gap.
 	 *
-	 * @param PartId partId The part to preview.
-	 * @return ImageBitmap? The composite, or null when no member drawable has a crop.
+	 * @param List members The crops to place, back to front.
+	 * @return RawCrop? The composite, or null when there are no members or their union is degenerate.
 	 */
-	private fun buildPartThumbnail(partId: PartId): ImageBitmap? {
-		val subtree = partSubtree(partId)
+	private fun compositeOf(members: List<Pair<RawCrop, ModelBounds>>): RawCrop? {
 		var unionMinX = Float.POSITIVE_INFINITY
 		var unionMaxX = Float.NEGATIVE_INFINITY
 		var unionMinY = Float.POSITIVE_INFINITY
 		var unionMaxY = Float.NEGATIVE_INFINITY
-		// Members in PuppetModel.drawables order, which is the parts-tree back-to-front paint order, so a
-		// later entry paints in front. Keep only those with both a crop and bounds (so untextured / mesh-less
-		// layers neither inflate the union nor leave a gap).
-		val members = ArrayList<Pair<RawCrop, ModelBounds>>()
-		for (drawable in currentDrawables) {
-			val owningPartId = currentDrawableOwner[drawable.id] ?: continue
-			if (owningPartId !in subtree) {
-				continue
-			}
-			val crop = croppedFor(drawable.id) ?: continue
-			val bounds = modelBoundsOf(drawable.id) ?: continue
-			members += crop to bounds
+		for ((_, bounds) in members) {
 			if (bounds.minX < unionMinX) {
 				unionMinX = bounds.minX
 			}
@@ -368,7 +404,7 @@ class DrawableThumbnailer(
 			val bottom = (bounds.maxY - unionMinY) / unionHeight * compositeHeight
 			blitOver(pixels, compositeWidth, compositeHeight, crop, left, top, right, bottom)
 		}
-		return rawToImage(RawCrop(pixels, compositeWidth, compositeHeight))
+		return RawCrop(pixels, compositeWidth, compositeHeight)
 	}
 
 	/**

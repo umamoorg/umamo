@@ -239,6 +239,7 @@ internal class Cmo3AtlasWebLowering(
 				.filterIsInstance<CArtMeshSource>()
 		val editedDrawableIds = edited.drawables.mapTo(HashSet()) { drawable -> drawable.id.raw }
 		val fileDrawableIds = HashSet<String>()
+		val meshByDrawableId = HashMap<String, CArtMeshSource>()
 		val candidates = ArrayList<RetargetCandidate>()
 		val packInCandidates = ArrayList<PackInCandidate>()
 		val existingTextureByAtlasIndex = HashMap<Int, GTexture2D>()
@@ -260,6 +261,7 @@ internal class Cmo3AtlasWebLowering(
 				// Pending deletion: the structural pass removes the source; nothing to retarget.
 				continue
 			}
+			meshByDrawableId[drawableId] = mesh
 			val extension =
 				Cmo3Import.elementsOf(mesh._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: continue
 			val tileId =
@@ -304,11 +306,25 @@ internal class Cmo3AtlasWebLowering(
 			}
 		}
 
+		val reconciledTileIds = HashSet<String>()
+		rewriteJobs.mapTo(reconciledTileIds) { job -> job.tileId }
+		mintJobs.mapTo(reconciledTileIds) { job -> job.tileId }
+
 		// --- Mutation.  Validation is complete; anything impossible past here is a caller bug. ---
 		// 0. The layer web: rewrites and mints, so every model image the steps below hang an entry on
-		// or compose against exists and holds the edited art.
+		// or compose against exists and holds the edited art.  A file-side drawable over reconciled
+		// art has its icons re-rendered, since they show the pixels that just changed.
 		val applied = retainedWeb.apply(rewriteJobs, mintJobs)
 		modelImageByTileId.putAll(applied.modelImageByTileId)
+		for (drawable in edited.drawables) {
+			val mesh = meshByDrawableId[drawable.id.raw] ?: continue
+			val editedTileId = drawable.atlasTileId ?: continue
+			if (editedTileId.lineageRoot.raw !in reconciledTileIds) {
+				continue
+			}
+			val raster = tileRasters(editedTileId) ?: continue
+			retainedWeb.replaceDrawableIcons(mesh, raster, Cmo3Icons.artUvsOf(edited, drawable))
+		}
 
 		// 1. Snapshots, so every rewrite reads pre-mutation values regardless of sharing.
 		val oldEntryHalfByTileId = HashMap<String, FloatArray>()
@@ -488,26 +504,33 @@ internal class Cmo3AtlasWebLowering(
 
 		// 10. Bindings for the created drawables: every drawable the file does not hold yet whose tile
 		// has a model image and a placement gets the page's shared texture, the page's atlas, the
-		// model image, and the entry's transform as its region input - the official relation, and
-		// the shape the fresh web hands the structural pass for the same drawable.
+		// model image, the entry's transform as its region input, and its own icons over its patch -
+		// the official relation, and the shape the fresh web hands the structural pass for the same
+		// drawable.
 		val editedPlacementByTileId = edited.atlas.tiles.associateBy({ tile -> tile.id.lineageRoot.raw }, { tile -> tile.placement })
 		val mintedBindings = HashMap<String, Cmo3DrawableTextureBinding>()
 		for (drawable in edited.drawables) {
 			if (drawable.id.raw in fileDrawableIds) {
 				continue
 			}
-			val tileId = drawable.atlasTileId?.lineageRoot?.raw ?: continue
+			val editedTileId = drawable.atlasTileId ?: continue
+			val tileId = editedTileId.lineageRoot.raw
 			val placement = editedPlacementByTileId[tileId] ?: continue
 			val modelImage = modelImageByTileId[tileId] ?: continue
 			val canvasAffine = canvasAffineByTileId[tileId] ?: continue
 			val entryHalf = atlasLocalToCanvasFor(canvasAffine, placement) ?: continue
 			val destination = atlasList.getOrNull(placement.pageIndex) as? CTextureAtlas ?: continue
+			val icons = tileRasters(editedTileId)?.let { raster -> retainedWeb.drawableIcons(raster, Cmo3Icons.artUvsOf(edited, drawable)) }
 			mintedBindings[drawable.id.raw] =
-				Cmo3DrawableTextureBinding(pageTextureFor(placement.pageIndex), destination.guid as Guid, modelImage.guid as Guid, affineOf(entryHalf))
+				Cmo3DrawableTextureBinding(
+					pageTextureFor(placement.pageIndex),
+					destination.guid as Guid,
+					modelImage.guid as Guid,
+					affineOf(entryHalf),
+					icon32 = icons?.first,
+					icon16 = icons?.second,
+				)
 		}
-		val reconciledTileIds = HashSet<String>()
-		rewriteJobs.mapTo(reconciledTileIds) { job -> job.tileId }
-		mintJobs.mapTo(reconciledTileIds) { job -> job.tileId }
 
 		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty(), mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
 	}

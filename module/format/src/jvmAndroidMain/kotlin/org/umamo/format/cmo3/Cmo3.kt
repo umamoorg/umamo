@@ -110,13 +110,27 @@ public class Cmo3Model internal constructor(
 	 */
 	public fun replaceLayerPng(resource: CImageResource, png: ByteArray) {
 		val path = resource.imageFileBuf?.archivePath ?: error("resource has no embedded imageFileBuf")
+		replacePng(path, png)
+		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
+	}
+
+	/**
+	 * Replaces the embedded PNG at [path] with [png], keeping the entry's place, tag, and options.
+	 *
+	 * The graph node that references the path is the caller's to keep consistent; an icon's
+	 * CWritableImage carries no size field, a layer's CImageResource does ([replaceLayerPng]).
+	 *
+	 * @param String    path The archive path of an existing entry.
+	 * @param ByteArray png  The new PNG bytes.
+	 */
+	public fun replacePng(path: String, png: ByteArray) {
+		require(archive.byPath(path) != null) { "archive holds no entry at '$path'" }
 		archive =
 			archive.withEntries(
 				archive.entries.map { entry ->
 					if (entry.path == path) CaffEntry(entry.path, entry.tag, png, entry.compression, entry.obfuscated) else entry
 				},
 			)
-		resource.imageFileBuf_size = png.size // keep main.xml's size attribute consistent
 	}
 
 	/**

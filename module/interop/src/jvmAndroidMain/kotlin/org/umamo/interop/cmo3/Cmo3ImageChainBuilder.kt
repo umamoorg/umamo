@@ -1,13 +1,11 @@
 package org.umamo.interop.cmo3
 
-import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.CSize
-import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.cmo3.model.custom.FilterInstance
 import org.umamo.format.cmo3.model.gen.Anisotropy
 import org.umamo.format.cmo3.model.gen.AutoLayoutLock
@@ -50,6 +48,7 @@ import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.cmo3.type.CHashMap
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.format.raster.cropped
 import org.umamo.runtime.model.AtlasPlacement
 
 /*
@@ -121,11 +120,11 @@ import org.umamo.runtime.model.AtlasPlacement
  * takes the foreign pixels for this drawable's artwork - they follow the patch when the atlas is
  * rearranged, and a repack stamps them back into the page.
  *
- * Remaining deliberate simplifications, validated by the official-editor gate: icon thumbnails
- * are transparent placeholders (the editor regenerates thumbnails on edit), and the cached
- * images are the raw resources themselves (SCALE_1, nothing prerendered; their
+ * Remaining deliberate simplification, validated by the official-editor gate: the cached images
+ * are the raw resources themselves (SCALE_1, nothing prerendered; their
  * transformRawImageToCachedImage records the 64-aligned padding fraction like every corpus
- * cache entry).
+ * cache entry).  The icons are real: each layer's, model image's, and drawable's is its art fitted
+ * into the square the way the editor writes it (Cmo3Icons).
  */
 internal object Cmo3ImageChainBuilder {
 	/**
@@ -705,27 +704,6 @@ internal object Cmo3ImageChainBuilder {
 		}
 
 	/**
-	 * A transparent square icon plus its PNG entry.
-	 *
-	 * @param Int    size The square pixel size.
-	 * @param String path The unique archive path for the PNG entry.
-	 * @param MutableList entries The PNG entry collector.
-	 * @return CImageIcon The fresh icon.
-	 */
-	internal fun placeholderIcon(size: Int, path: String, entries: MutableList<Cmo3FreshFile.PngEntry>): CImageIcon {
-		entries.add(Cmo3FreshFile.PngEntry(path, Cmo3SkeletonBuilder.blankPng(size)))
-		return CImageIcon().apply {
-			image =
-				CWritableImage().apply {
-					width = size
-					height = size
-					type = "INT_ARGB"
-					image = FileRef().apply { archivePath = path }
-				}
-		}
-	}
-
-	/**
 	 * A drawable's pixel-aligned texture-patch rect on its page, from its atlas-frame uv bounds.
 	 *
 	 * Mesh margins may reach slightly outside [0,1]; the rect is clamped to the page and forced to
@@ -1119,25 +1097,6 @@ internal object Cmo3ImageChainBuilder {
 	}
 
 	/**
-	 * Extracts [bounds] out of a raster, returning the raster itself when the bounds cover it.
-	 *
-	 * @param RasterImage source The raster to extract from.
-	 * @param LayerBounds bounds The raster-local rect to keep.
-	 * @return RasterImage The extracted pixels.
-	 */
-	private fun subRaster(source: RasterImage, bounds: LayerBounds): RasterImage {
-		if (bounds.left == 0 && bounds.top == 0 && bounds.width == source.width && bounds.height == source.height) {
-			return source
-		}
-		val rgba = ByteArray(bounds.width * bounds.height * 4)
-		for (rowIndex in 0 until bounds.height) {
-			val sourceOffset = ((bounds.top + rowIndex) * source.width + bounds.left) * 4
-			source.rgba.copyInto(rgba, rowIndex * bounds.width * 4, sourceOffset, sourceOffset + bounds.width * 4)
-		}
-		return RasterImage(bounds.width, bounds.height, rgba)
-	}
-
-	/**
 	 * The crop web's one model-image group and the two lists the pages append to, minted only once a
 	 * drawable actually takes the crop path.
 	 *
@@ -1240,14 +1199,15 @@ internal object Cmo3ImageChainBuilder {
 
 	/**
 	 * One model image over one layer: the editor's layer-filter web selecting [layer] at identity,
-	 * the layer's own resource as the filtered image, the padded cache manager over it, a placeholder
-	 * icon, and the canvas placement.  Shared by the crop web and the real-layer web, so a crop and a
-	 * real layer carry field-for-field the same shape around their pixels.
+	 * the layer's own resource as the filtered image, the padded cache manager over it, the icon of
+	 * its pixels, and the canvas placement.  Shared by the crop web and the real-layer web, so a crop
+	 * and a real layer carry field-for-field the same shape around their pixels.
 	 *
 	 * @param String           name         The model image's name (the drawable's, as the editor writes it).
 	 * @param CLayeredImage    layeredImage The layered image the layer belongs to.
 	 * @param CLayer           layer        The layer the image composites.
 	 * @param CImageResource   resource     The layer's own resource, which is also the filtered image.
+	 * @param RasterImage      raster       The resource's pixels, which the icon shows fitted.
 	 * @param CAffine          placement    The material-local-to-canvas placement, an independent instance.
 	 * @param CModelImageGroup group        The group the image belongs to.
 	 * @param Cmo3FreshChainNames names     The document's shared filter definitions and naming counters.
@@ -1260,6 +1220,7 @@ internal object Cmo3ImageChainBuilder {
 		layeredImage: CLayeredImage,
 		layer: CLayer,
 		resource: CImageResource,
+		raster: RasterImage,
 		placement: CAffine,
 		group: CModelImageGroup,
 		names: Cmo3FreshChainNames,
@@ -1312,8 +1273,8 @@ internal object Cmo3ImageChainBuilder {
 				}
 			_filteredImage = resource
 			// CMO3: CModelImage fields icon16 / cachedImageManager - present on every corpus model
-			// image; the icon is a placeholder the editor regenerates.
-			icon16 = placeholderIcon(16, names.nextIconPath(), pngEntries)
+			// image; the icon is the filtered image fitted into its square.
+			icon16 = Cmo3Icons.iconOf(raster, 16, names.nextIconPath(), pngEntries)
 			// CMO3: CModelImage field _materialLocalToCanvasTransform - the layer's canvas placement
 			// (official layers carry their canvas origin here), the same numbers the layer's
 			// boundsOnImageDoc origin carries.
@@ -1402,7 +1363,20 @@ internal object Cmo3ImageChainBuilder {
 		// twins get ONE material like official files; each twin's placement rides its own
 		// region input, and the shared image keeps the first drawable's placement).
 		val decodedPage = PngCodec.read(page.pngBytes)
-		val imageGuidByWebKey = HashMap<PatchWebKey, Guid>()
+		val patchWebByKey = HashMap<PatchWebKey, PatchWeb>()
+
+		/**
+		 * An icon entry of its own for one drawable, over PNG bytes twins share.
+		 *
+		 * @param ByteArray png  The encoded icon.
+		 * @param Int       size The square's edge.
+		 * @return CImageIcon The icon.
+		 */
+		fun iconEntry(png: ByteArray, size: Int): CImageIcon {
+			val path = names.nextIconPath()
+			pngEntries.add(Cmo3FreshFile.PngEntry(path, png))
+			return Cmo3Icons.iconReferencing(size, path)
+		}
 		for (region in regions) {
 			val pageFit = fitAtlasPageToCanvasTransform(region.uvs, region.positions, page.width, page.height)
 			val patch = patchRectOf(region.uvs, page.width, page.height)
@@ -1416,8 +1390,8 @@ internal object Cmo3ImageChainBuilder {
 			val cropWidth = patch[2] - patch[0]
 			val cropHeight = patch[3] - patch[1]
 			val webKey = PatchWebKey(patch, region.uvs, region.indices)
-			val imageGuid =
-				imageGuidByWebKey.getOrPut(webKey) {
+			val patchWeb =
+				patchWebByKey.getOrPut(webKey) {
 					val coverage =
 						coverageMaskOf(region.uvs, region.indices, page.width, page.height, patchX0, patchY0, cropWidth, cropHeight)
 					val maskedCrop = maskedCropOf(decodedPage, patchX0, patchY0, cropWidth, cropHeight, coverage)
@@ -1428,7 +1402,7 @@ internal object Cmo3ImageChainBuilder {
 					// crop (a mesh over empty page pixels) keeps the untrimmed rect.
 					val opaqueBounds =
 						analyzeAlpha(cropWidth, cropHeight, maskedCrop.rgba, contourEpsilon = 0f)?.opaqueBounds
-					val trimmedCrop = if (opaqueBounds == null) maskedCrop else subRaster(maskedCrop, opaqueBounds)
+					val trimmedCrop = if (opaqueBounds == null) maskedCrop else maskedCrop.cropped(opaqueBounds)
 					val trimmedX0 = patchX0 + (opaqueBounds?.left ?: 0)
 					val trimmedY0 = patchY0 + (opaqueBounds?.top ?: 0)
 					// Anchor the web on an INTEGER canvas placement, official-style: every
@@ -1487,16 +1461,17 @@ internal object Cmo3ImageChainBuilder {
 									layerName = region.drawableIdStr
 									layerIdValue_testImpl = -1
 								}
-							// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer.
-							icon16 = placeholderIcon(16, names.nextIconPath(), pngEntries)
-							icon64 = placeholderIcon(64, names.nextIconPath(), pngEntries)
+							// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer,
+							// the crop fitted into each square.
+							icon16 = Cmo3Icons.iconOf(trimmedCrop, 16, names.nextIconPath(), pngEntries)
+							icon64 = Cmo3Icons.iconOf(trimmedCrop, 64, names.nextIconPath(), pngEntries)
 							layerInfo = LinkedHashMap<String, Any?>()
 							this.group = rootLayerGroup
 						}
 					patchLayers.add(patchLayer)
 					layerEntryList.add(patchLayer)
 					val patchImage =
-						modelImageOver(region.drawableIdStr, layeredImage, patchLayer, cropResource, patchPlacement.copyAffine(), group.group, names, pngEntries, nowMillis)
+						modelImageOver(region.drawableIdStr, layeredImage, patchLayer, cropResource, trimmedCrop, patchPlacement.copyAffine(), group.group, names, pngEntries, nowMillis)
 					group.modelImages.add(patchImage)
 					atlasEntries.add(
 						// The declared packing origin is the fit-inverse of the snapped placement
@@ -1517,12 +1492,30 @@ internal object Cmo3ImageChainBuilder {
 								),
 						),
 					)
-					patchImage.guid as Guid
+					// The drawable icons show the crop, which IS the mesh's uv box; twins share the
+					// bytes and each takes an entry of its own, like the editor's one icon per drawable.
+					PatchWeb(patchImage.guid as Guid, Cmo3Icons.iconPngOf(trimmedCrop, 32), Cmo3Icons.iconPngOf(trimmedCrop, 16))
 				}
 			bindingByDrawableId[region.drawableIdStr] =
-				Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, imageGuid, pageFit.copyAffine())
+				Cmo3DrawableTextureBinding(
+					texture,
+					atlas.guid as Guid,
+					patchWeb.imageGuid,
+					pageFit.copyAffine(),
+					icon32 = iconEntry(patchWeb.icon32Png, 32),
+					icon16 = iconEntry(patchWeb.icon16Png, 16),
+				)
 		}
 		group.linkedRawImageGuids.add(layeredImage.guid)
 		return wrapper
 	}
+
+	/**
+	 * One minted patch web, shared by every drawable sampling the same crop with the same mesh.
+	 *
+	 * @property Guid      imageGuid The crop's model image guid.
+	 * @property ByteArray icon32Png The 32px drawable icon's bytes.
+	 * @property ByteArray icon16Png The 16px drawable icon's bytes.
+	 */
+	private class PatchWeb(val imageGuid: Guid, val icon32Png: ByteArray, val icon16Png: ByteArray)
 }
