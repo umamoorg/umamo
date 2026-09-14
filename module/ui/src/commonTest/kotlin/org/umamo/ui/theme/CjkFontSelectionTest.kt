@@ -3,6 +3,7 @@ package org.umamo.ui.theme
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 import org.umamo.ui.resources.noto_sans_cjk_kr_regular
+import org.umamo.ui.resources.noto_sans_cjk_sc_regular
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -17,13 +18,22 @@ import kotlin.test.assertEquals
  */
 class CjkFontSelectionTest {
 	/**
-	 * Korean takes the KR cut; every other UI language falls to JP.
+	 * Korean takes the KR cut; Japanese and English take JP.
 	 */
 	@Test
 	fun koreanTakesTheKoreanCut() {
 		assertEquals(Res.font.noto_sans_cjk_kr_regular, cjkFontFor("ko"), "ko")
 		assertEquals(Res.font.noto_sans_cjk_jp_regular, cjkFontFor("ja"), "ja")
 		assertEquals(Res.font.noto_sans_cjk_jp_regular, cjkFontFor("en"), "en")
+	}
+
+	/**
+	 * Simplified Chinese takes the SC cut, from the setting's regional tag and the bare language alike.
+	 */
+	@Test
+	fun simplifiedChineseTakesTheSimplifiedCut() {
+		assertEquals(Res.font.noto_sans_cjk_sc_regular, cjkFontFor("zh-CN"), "zh-CN")
+		assertEquals(Res.font.noto_sans_cjk_sc_regular, cjkFontFor("zh"), "zh")
 	}
 
 	/**
