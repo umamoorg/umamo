@@ -9,6 +9,7 @@ Umamo is early alpha.
 ### Added
 * Internationalization: Initial 한국어/Korean translation - Thank you to Nyaro for the translation.
 * Export: Rework Cmo3AtlasUndedup to use the shared packer when exporting a fresh CMO3.
+* Export: Generate layered art preview thumbnails for CMO3 export.
 * Texture Authoring: The UV Editor now has object mode.  Click an UV island to select the drawable it belongs to, box select multiple, and Alt+Left=Click through overlapping islands, mirroring how object selection already works in the 2D viewport.
 * Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
@@ -39,7 +40,7 @@ Umamo is early alpha.
 * Opening a document while another was already open could, for one frame, pair the new document with the previous document's editing session, so an export, the File menu, or the atlas page resolver could briefly act on stale data.
 * Texture Atlas: Repack Atlas could apply a stale pack if a mesh was edited while the repack was still computing; it now cancels instead.
 * Keyboard shortcuts could stop responding after using a dropdown chip, checkbox, number field, or section header that then disappeared from the screen while it still held focus; these now properly release focus back to the application.
-* CMO3 export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid — both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
+* CMO3 export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid, both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
 
 ## 0.2.1-dev - 2026-08-11
 

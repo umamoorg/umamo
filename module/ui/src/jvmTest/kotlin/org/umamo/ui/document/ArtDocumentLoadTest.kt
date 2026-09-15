@@ -4,15 +4,23 @@ import org.umamo.edit.seed.HumanoidParameters
 import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
+import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.cmo3AtlasIngest
+import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.ui.model.DrawableThumbnailer
 import java.io.File
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -87,6 +95,7 @@ class ArtDocumentLoadTest {
 		}
 
 		// The fresh-graph export re-imports to the same rig.
+		val modelThumbnail = assertNotNull(DrawableThumbnailer(puppet, document.textures).modelRasterFor(), "the outliner composite exists for the model icon")
 		val prepared =
 			prepareCmo3Export(
 				document = document,
@@ -95,9 +104,11 @@ class ArtDocumentLoadTest {
 				modelName = "gate",
 				nowMillis = 0L,
 				obfuscateKey = 0,
+				modelThumbnail = modelThumbnail,
 			)
-		assertTrue(prepared.report.notices.any { notice -> notice is ExportNotice.MissingSourceArt }, "the export says the source art is not written yet")
-		val reread = Cmo3.read(Cmo3.write(prepared.model))
+		assertTrue(prepared.report.notices.none { notice -> notice is ExportNotice.MissingSourceArt }, "the export writes the real source art: ${prepared.report.notices}")
+		val exportedBytes = Cmo3.write(prepared.model)
+		val reread = Cmo3.read(exportedBytes)
 		val rereadRoot = reread.root as CModelSource
 
 		// Every exported art mesh carries a keyform grid with its default cell.  The official editor
@@ -112,6 +123,29 @@ class ArtDocumentLoadTest {
 			assertTrue(graphElements(artMesh.keyforms).isNotEmpty(), "art mesh '${artMesh.localName}' has a default form")
 		}
 
+		// The model's own icon is the rest-pose composite: not blank, and shaped like the drawn model
+		// (the union of the visible drawables' rest bounds), which the layered-image frame is not.
+		val modelIconPath = assertNotNull((((rereadRoot._icon64 as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "the model has a 64px icon")
+		val modelIcon = PngCodec.read(assertNotNull(reread.archive.byPath(modelIconPath), "the model icon is embedded").content)
+		assertEquals(64 to 64, modelIcon.width to modelIcon.height)
+		var iconMinX = 64
+		var iconMaxX = -1
+		var iconMinY = 64
+		var iconMaxY = -1
+		for (y in 0 until 64) {
+			for (x in 0 until 64) {
+				if ((modelIcon.rgba[(y * 64 + x) * 4 + 3].toInt() and 0xFF) > 0) {
+					iconMinX = minOf(iconMinX, x)
+					iconMaxX = maxOf(iconMaxX, x)
+					iconMinY = minOf(iconMinY, y)
+					iconMaxY = maxOf(iconMaxY, y)
+				}
+			}
+		}
+		assertTrue(iconMaxX >= 0, "the model icon is not blank")
+		val iconAspect = (iconMaxX - iconMinX + 1).toFloat() / (iconMaxY - iconMinY + 1)
+		val thumbnailAspect = modelThumbnail.width.toFloat() / modelThumbnail.height
+		assertTrue(abs(iconAspect - thumbnailAspect) <= thumbnailAspect * 0.1f, "the icon is shaped like the rest-pose composite: $iconAspect vs $thumbnailAspect")
 		val reimported = Cmo3Import.fromModelSource(rereadRoot)
 		// Compared by id, not by list position: a CMO3's storage order is not the panel order (the org
 		// tree is), and the ids are what the export writes and the re-import reads back.
@@ -143,6 +177,40 @@ class ArtDocumentLoadTest {
 				assertEquals(expected.positions[componentIndex], actual.positions[componentIndex], 1e-2f, "${drawable.name} position component $componentIndex")
 			}
 		}
+		// The written web is the real art: the file's record, every layer under its key with its canvas
+		// rect, every tile's placement, and every layer's pixels.
+		val ingest = cmo3AtlasIngest(rereadRoot)
+		val source = puppet.sources.single()
+		val rereadSource = ingest.sources.single()
+		assertEquals(source.name, rereadSource.name, "the layered image is the file")
+		assertEquals(source.path, rereadSource.path, "with its path")
+		assertEquals(source.lastModified, rereadSource.lastModified, "and its modification time")
+		val rowsByKey = source.layers.associateBy { row -> row.key }
+		assertTrue(rereadSource.layers.isNotEmpty(), "the layers came back")
+		for (row in rereadSource.layers) {
+			val original = assertNotNull(rowsByKey[row.key], "layer '${row.name}' comes back under its key")
+			assertEquals(listOf(original.left, original.top, original.width, original.height), listOf(row.left, row.top, row.width, row.height), "'${row.name}' keeps its canvas rect")
+		}
+		val rereadTileByKey = ingest.atlas.tiles.associateBy { tile -> tile.source?.layerKey }
+		for (tile in puppet.atlas.tiles) {
+			val key = assertNotNull(tile.source?.layerKey)
+			val rereadTile = assertNotNull(rereadTileByKey[key], "tile '${tile.name}' comes back bound to its layer")
+			assertEquals(tile.placement, rereadTile.placement, "'${tile.name}' keeps its placement")
+			assertEquals(tile.width to tile.height, rereadTile.width to rereadTile.height, "'${tile.name}' keeps its size")
+		}
+		val rereadArt = assertNotNull(cmo3SourceArtOf(rereadRoot, rereadSource.id) { resource -> reread.extractLayerPng(resource) }, "the layers read back as source art")
+		for (tile in puppet.atlas.tiles) {
+			val layer = rereadArt.layers.first { layer -> layer.id.raw == tile.source?.layerKey }
+			val original = assertNotNull(document.artRasters.rasterFor(tile.id))
+			assertEquals(original.width to original.height, layer.raster.width to layer.raster.height, "'${tile.name}' pixels are the tile's")
+			assertTrue(original.rgba.contentEquals(layer.raster.rgba), "'${tile.name}' pixels round-trip byte for byte")
+		}
+
+		// The export reopens as a CMO3-origin document whose bindings are the stable keys the PSD
+		// reader mints, so a reload against the PSD lands by key - the reopen-then-refresh promise.
+		val reopened = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(loadDocument(exportedBytes, "gate.cmo3", "/art/gate.cmo3")).document)
+		assertEquals(puppet.atlas.tiles.size, reopened.puppet.atlas.tiles.size, "one tile per layer on reopen")
+		assertTrue(reopened.puppet.atlas.tiles.all { tile -> tile.source?.stableKey == true }, "every reopened binding is a stable key")
 		println("artwork gate: ${puppet.drawables.size} drawables, ${puppet.parts.size} parts, ${puppet.atlas.pages.size} page(s), ${document.importNotices.size} note(s)")
 	}
 

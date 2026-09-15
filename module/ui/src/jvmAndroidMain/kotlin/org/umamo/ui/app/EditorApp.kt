@@ -712,6 +712,9 @@ fun EditorApp(
 						" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
 						" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
 				)
+				// The model's own icons come from the outliner's rest-pose composite, over the same
+				// pages the export writes - pure CPU, so the Android shell writes them too.
+				val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
 				val prepared =
 					prepareCmo3Export(
 						document = puppetDocument,
@@ -720,6 +723,7 @@ fun EditorApp(
 						modelName = suggestedName,
 						nowMillis = System.currentTimeMillis(),
 						obfuscateKey = Random.nextInt(),
+						modelThumbnail = modelThumbnail,
 					)
 				destination.write(Cmo3.write(prepared.model))
 				// True export semantics: an export is not a save, so the dirty baseline stays put - the
@@ -1076,11 +1080,6 @@ private fun describeExportNotice(notice: ExportNotice): String =
 		is ExportNotice.MissingSourceArt ->
 			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
 				"so its layers are atlas slices rather than the original artwork"
-		is ExportNotice.ReloadedTileImagesStale ->
-			"reloaded art reaches the atlas pages but not the retained layer images of " +
-				notice.tileNames.take(8).joinToString() +
-				(if (notice.tileNames.size > 8) " (+${notice.tileNames.size - 8} more)" else "") +
-				"; the editor's layered view shows the art as imported"
 		is ExportNotice.SharedAtlasSlotKept ->
 			"twins sharing one atlas slot could not be given their own: " +
 				notice.drawableNames.take(8).joinToString() +

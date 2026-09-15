@@ -353,20 +353,22 @@ private fun photoshopLayerIdOf(identifier: Any?): Int? {
 }
 
 /**
- * The source-layer binding of a model image, when exactly one artwork layer composites into it -
- * which is every model image across the corpus - else null.
+ * The one layer input a model image composites, with the layered image it comes from.
  *
- * The binding is the one the inventory walk minted for that layer (looked up by the layer entry's
- * guid), so it names an inventory row by construction.  A layer the walk never listed - one outside
- * its image's root tree - falls back to an unstable name key rather than losing the binding.
- *
- * @param CModelImage modelImage             The model image to resolve.
- * @param Map         refByLayerGuidBySource Each listed layered image's per-layer bindings, keyed by
- *   the image guid; a map keyed by an unlisted image binds to nothing rather than to a source the
- *   document does not have.
- * @return SourceLayerRef? The binding, or null.
+ * @property String          imageGuid The layered image's guid (uuid text).
+ * @property CLayerInputData input     The layer input, whose `layer` is the composited entry.
  */
-private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource: Map<String, Map<String, SourceLayerRef>>): SourceLayerRef? {
+internal class SoleLayerInput(val imageGuid: String, val input: CLayerInputData)
+
+/**
+ * The one layer input of a model image's selector map, when exactly one artwork layer composites
+ * into it - which is every model image across the corpus - else null.  Shared by the ingest's binding
+ * walk and the export's retained-layer rewrite, so both agree on which layer a tile IS.
+ *
+ * @param CModelImage modelImage The model image to resolve.
+ * @return SoleLayerInput? The input, or null.
+ */
+internal fun soleLayerInputOf(modelImage: CModelImage): SoleLayerInput? {
 	// CMO3: CModelImage field inputFilterEnv -> ModelImageFilterEnv (a FilterEnv) field envValues, a map
 	// from filter-value ids to EnvValueSet; the set under mi_input_layerInputData holds the
 	// CLayerSelectorMap whose _imageToLayerInput maps each layered image's guid to the list of layer
@@ -390,13 +392,33 @@ private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource
 	if (inputCount != 1) {
 		return null
 	}
-	val sourceGuid = soleImageGuid ?: return null
-	val refByLayerGuid = refByLayerGuidBySource[sourceGuid] ?: return null
+	val imageGuid = soleImageGuid ?: return null
+	val input = soleInput ?: return null
+	return SoleLayerInput(imageGuid, input)
+}
+
+/**
+ * The source-layer binding of a model image, when exactly one artwork layer composites into it -
+ * which is every model image across the corpus - else null.
+ *
+ * The binding is the one the inventory walk minted for that layer (looked up by the layer entry's
+ * guid), so it names an inventory row by construction.  A layer the walk never listed - one outside
+ * its image's root tree - falls back to an unstable name key rather than losing the binding.
+ *
+ * @param CModelImage modelImage             The model image to resolve.
+ * @param Map         refByLayerGuidBySource Each listed layered image's per-layer bindings, keyed by
+ *   the image guid; a map keyed by an unlisted image binds to nothing rather than to a source the
+ *   document does not have.
+ * @return SourceLayerRef? The binding, or null.
+ */
+private fun soleSourceLayerRefOf(modelImage: CModelImage, refByLayerGuidBySource: Map<String, Map<String, SourceLayerRef>>): SourceLayerRef? {
+	val sole = soleLayerInputOf(modelImage) ?: return null
+	val refByLayerGuid = refByLayerGuidBySource[sole.imageGuid] ?: return null
 	// CMO3: CLayerInputData field layer -> ACLayerEntry fields guid / name.
-	val layer = soleInput?.layer as? ACLayerEntry ?: return null
+	val layer = sole.input.layer as? ACLayerEntry ?: return null
 	Cmo3Import.uuidOf(layer.guid)?.let { layerGuid -> refByLayerGuid[layerGuid] }?.let { ref -> return ref }
 	val layerName = layer.name?.takeIf { name -> name.isNotEmpty() } ?: return null
-	return SourceLayerRef(ArtSourceId(sourceGuid), layerKey = "name:$layerName", stableKey = false)
+	return SourceLayerRef(ArtSourceId(sole.imageGuid), layerKey = "name:$layerName", stableKey = false)
 }
 
 /**

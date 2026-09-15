@@ -28,8 +28,12 @@ jobs:
           java-version: "21"
 
       # Provides ANDROID_HOME + sdkmanager; needed for the :android app + android targets.
+      # `packages` is overridden because the action's default list includes the legacy `tools`
+      # package, which current cmdline-tools no longer resolve, and sdkmanager exits 1 on it.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"

@@ -261,4 +261,25 @@ class DrawableThumbnailerTest {
 
 		assertNull(DrawableThumbnailer(puppet, textures).partThumbnailFor(PartId("empty")))
 	}
+
+	@Test
+	fun modelRasterCompositesEveryVisibleDrawableRootLevelIncluded() {
+		// Two root-level drawables side by side in model space: the left one samples the red half of the
+		// atlas, the right one the green half, so the composite reads red on the left and green on the right.
+		val left = drawable("left", floatArrayOf(0f, 0f, 0.5f, 0f, 0.5f, 1f, 0f, 1f), floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f))
+		val right = drawable("right", floatArrayOf(0.5f, 0f, 1f, 0f, 1f, 1f, 0.5f, 1f), floatArrayOf(2f, 0f, 4f, 0f, 4f, 2f, 2f, 2f))
+		val textures = PuppetTextures(listOf(atlasLeftRedRightGreen()), mapOf("left" to 0, "right" to 0), premultipliedAlpha = false)
+		val composite = assertNotNull(DrawableThumbnailer(flatModel(listOf(left, right)), textures).modelRasterFor(), "a textured model composites")
+		assertEquals(128, composite.width, "the union's longer edge fills the composite box")
+		assertEquals(64, composite.height)
+
+		fun channel(x: Int, y: Int, channel: Int): Int = composite.rgba[(y * composite.width + x) * 4 + channel].toInt() and 0xFF
+		assertEquals(listOf(255, 0, 0, 255), (0 until 4).map { channel -> channel(8, 32, channel) }, "the left half is red")
+		assertEquals(listOf(0, 255, 0, 255), (0 until 4).map { channel -> channel(120, 32, channel) }, "the right half is green")
+
+		// A hidden drawable stays out of the model thumbnail, as it stays out of the viewport.
+		val withHiddenRight = DrawableThumbnailer(flatModel(listOf(left, right.copy(isVisible = false))), textures).modelRasterFor()
+		assertEquals(128 to 128, assertNotNull(withHiddenRight).let { raster -> raster.width to raster.height }, "only the left square remains")
+		assertNull(DrawableThumbnailer(flatModel(listOf(drawable("flat", floatArrayOf()))), textures).modelRasterFor(), "an untextured model has no thumbnail")
+	}
 }

@@ -95,6 +95,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
+	* Adding new artwork to an existing file should compare centers and place it based on that.  Right now it is based on the 0,0 top left origin.
 
 ## UV Editor
 * Bugs/Improvements
