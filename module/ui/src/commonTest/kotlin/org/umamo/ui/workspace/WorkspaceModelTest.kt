@@ -328,15 +328,25 @@ class WorkspaceModelTest {
 		assertTrue(texture.root is SplitNode, "the inactive workspace is untouched")
 	}
 
-	/** The Texture workspace seeds the Sources table on the left of the UV editor and the viewport. */
+	/**
+	 * The Texture workspace seeds two stacked UV editors on the left, the viewport in the middle, and a
+	 * right column of the Sources table over the Outliner over Properties.
+	 */
 	@Test
-	fun theDefaultTextureWorkspaceLeadsWithSources() {
+	fun theDefaultTextureWorkspaceLeadsWithUvEditors() {
 		val texture = defaultLayout().workspaces.first { workspace -> workspace.id == "texture" }
 		val root = assertIs<SplitNode>(texture.root)
-		assertEquals(SpaceKind.Sources, assertIs<LeafArea>(root.first).space, "the narrow left area is the Sources table")
+		val uvColumn = assertIs<SplitNode>(root.first)
+		assertEquals(SplitOrientation.Vertical, uvColumn.orientation, "the left column stacks its UV editors")
+		assertEquals(SpaceKind.UvEditor, assertIs<LeafArea>(uvColumn.first).space)
+		assertEquals(SpaceKind.UvEditor, assertIs<LeafArea>(uvColumn.second).space)
 		val rest = assertIs<SplitNode>(root.second)
-		assertEquals(SpaceKind.UvEditor, assertIs<LeafArea>(rest.first).space)
-		assertEquals(SpaceKind.Viewport2D, assertIs<LeafArea>(rest.second).space)
+		assertEquals(SpaceKind.Viewport2D, assertIs<LeafArea>(rest.first).space)
+		val sideColumn = assertIs<SplitNode>(rest.second)
+		val sourcesOverOutliner = assertIs<SplitNode>(sideColumn.first)
+		assertEquals(SpaceKind.Sources, assertIs<LeafArea>(sourcesOverOutliner.first).space)
+		assertEquals(SpaceKind.Outliner, assertIs<LeafArea>(sourcesOverOutliner.second).space)
+		assertEquals(SpaceKind.Properties, assertIs<LeafArea>(sideColumn.second).space)
 	}
 
 	/**
