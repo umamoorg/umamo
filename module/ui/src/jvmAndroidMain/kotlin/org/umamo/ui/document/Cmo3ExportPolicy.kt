@@ -1,7 +1,6 @@
 package org.umamo.ui.document
 
 import org.umamo.format.raster.RasterImage
-import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.render.PuppetTextures
@@ -34,8 +33,12 @@ import org.umamo.runtime.model.PuppetModel
  *                                    archive through it, and the document's own instance means
  *                                    the archive is left untouched.
  * @param String         modelName    The display name a synthesized skeleton records.
- * @param Long           nowMillis    The timestamp a synthesized image chain records.
+ * @param Long           nowMillis    The timestamp a synthesized image chain, or a layer minted into a
+ *                                    retained graph, records.
  * @param Int            obfuscateKey The container XOR key; the editor mints one per save.
+ * @param RasterImage?   modelThumbnail The model's rest-pose thumbnail the file's model icons take,
+ *                                    or null to leave them (blank on a fresh graph, the import's on a
+ *                                    retained one).
  * @return PreparedCmo3Export The model to serialize plus its report.
  */
 fun prepareCmo3Export(
@@ -45,6 +48,7 @@ fun prepareCmo3Export(
 	modelName: String,
 	nowMillis: Long,
 	obfuscateKey: Int,
+	modelThumbnail: RasterImage? = null,
 ): PreparedCmo3Export =
 	when (document) {
 		// A CMO3-origin document reconciles onto its retained graph.  The page patch is gated by
@@ -61,16 +65,17 @@ fun prepareCmo3Export(
 				} else {
 					emptyList()
 				}
-			val prepared = Cmo3Export.apply(edited, document.cmo3, recomposedPages = recomposedPages)
-			// A reloaded tile reaches the pages but not the retained per-layer images (Phase H writes
-			// that chain); the report says which tiles, so the layered view's staleness is no surprise.
-			val reloadedTileNames = edited.atlas.tiles.filter { tile -> tile.replaces != null }.map { tile -> tile.name }
+			// The document's own rasters ride along so a reloaded tile rewrites its retained layer and
+			// an added tile mints one; the reconcile reads them only for tiles the graph must change.
 			val report =
-				if (reloadedTileNames.isEmpty()) {
-					prepared
-				} else {
-					prepared.copy(notices = prepared.notices + ExportNotice.ReloadedTileImagesStale(reloadedTileNames))
-				}
+				Cmo3Export.apply(
+					edited,
+					document.cmo3,
+					recomposedPages = recomposedPages,
+					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
+					nowMillis = nowMillis,
+					modelThumbnail = modelThumbnail,
+				)
 			PreparedCmo3Export(document.cmo3, report)
 		}
 		// An artwork-origin document has no retained graph either: the pages it packed at open, or the
@@ -87,6 +92,7 @@ fun prepareCmo3Export(
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
 					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
+					modelThumbnail = modelThumbnail,
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
@@ -101,6 +107,7 @@ fun prepareCmo3Export(
 					modelName = modelName,
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
+					modelThumbnail = modelThumbnail,
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}

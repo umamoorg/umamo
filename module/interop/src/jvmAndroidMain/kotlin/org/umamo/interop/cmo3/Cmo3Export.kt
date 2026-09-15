@@ -3,6 +3,8 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.edit
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.raster.RasterImage
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
@@ -16,6 +18,7 @@ import org.umamo.interop.ParameterGroupField
 import org.umamo.interop.PartField
 import org.umamo.interop.PuppetDiff
 import org.umamo.interop.diffPuppetModels
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.Parameter
@@ -79,7 +82,9 @@ object Cmo3Export {
 	 * The fresh-graph synthesis path (MOC3-origin -> CMO3) constructs a blank target graph and
 	 * reuses this same reconcile: an empty baseline lowers everything as created, with
 	 * [drawableTextureBindings] supplying the texture web created drawables bind to when they have
-	 * no existing source to clone (a session duplicate) - the CMO3-origin export path passes none.
+	 * no existing source to clone (a session duplicate) - the CMO3-origin export path passes none,
+	 * and its created drawables over reconciled art bind through the bindings the atlas-web
+	 * reconcile mints instead.
 	 *
 	 * @param PuppetModel edited The session's current model (EditorSession.model.value - NOT the
 	 *                           document's original import, which edits never update).
@@ -89,6 +94,12 @@ object Cmo3Export {
 	 * @param List        recomposedPages The pages a repack composed for the edited model's packing,
 	 *                           in the edited model's page order; empty when the session did not
 	 *                           repack, which leaves the graph and archive untouched.
+	 * @param Function    tileRasters The document's own pixels for a tile, or null when it holds none;
+	 *                           a reloaded or added tile with a raster writes its real layer into the
+	 *                           retained graph, and one without declines the atlas-web reconcile.
+	 * @param Long        nowMillis The timestamp a layer minted into the retained graph records.
+	 * @param RasterImage modelThumbnail The model's rest-pose thumbnail the three model icons take on
+	 *                           an edited export, or null to leave the icons the graph has.
 	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(
@@ -96,6 +107,9 @@ object Cmo3Export {
 		target: Cmo3Model,
 		drawableTextureBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
 		recomposedPages: List<Cmo3Conversion.AtlasPage> = emptyList(),
+		tileRasters: (AtlasTileId) -> RasterImage? = { null },
+		nowMillis: Long = 0L,
+		modelThumbnail: RasterImage? = null,
 	): ExportReport {
 		val modelSource = target.root as? CModelSource ?: error("CMO3 model root is not a CModelSource")
 		val baseline = Cmo3Import.fromModelSource(modelSource)
@@ -108,8 +122,23 @@ object Cmo3Export {
 		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
 		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
 		// an unedited document passes no pages, and the graph and archive are then never touched.
-		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited).reconcile(recomposedPages)
+		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited, editor, tileRasters, nowMillis).reconcile(recomposedPages)
 		val pagesRecomposed = webResult.pagesRecomposed
+		// The model icons follow an edited export (the diff is non-empty here): the editor regenerates
+		// them on its own saves, and a thumbnail of the rest pose is what it shows for the file.
+		if (modelThumbnail != null) {
+			(modelSource.textureManager as? CTextureManager)?.let { textureManager ->
+				Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis).replaceModelIcons(modelSource, modelThumbnail)
+			}
+		}
+		// A created drawable over art the reconcile minted binds through the binding it handed back;
+		// a caller's own binding for the same drawable (the fresh-graph path) outranks it.
+		val bindings =
+			if (webResult.mintedBindings.isEmpty()) {
+				drawableTextureBindings
+			} else {
+				webResult.mintedBindings + drawableTextureBindings
+			}
 
 		// Structural pass - set membership: identity shells for creations, source removal for
 		// deletions.  Category order follows the reference web (parameters/groups first, then parts
@@ -123,7 +152,7 @@ object Cmo3Export {
 				editor,
 				edited,
 				notices,
-				drawableTextureBindings,
+				bindings,
 			)
 
 		/**
@@ -139,7 +168,7 @@ object Cmo3Export {
 				editor,
 				edited,
 				notices,
-				drawableTextureBindings,
+				bindings,
 			)
 		}
 
@@ -332,6 +361,7 @@ object Cmo3Export {
 				edited = edited,
 				notices = notices,
 				pagesRecomposed = pagesRecomposed,
+				reconciledTileIds = webResult.reconciledTileIds,
 			)
 		lowering.lowerParameters(upgradedDiff.parameters)
 		lowering.lowerParameterGroups(upgradedDiff.parameterGroups)

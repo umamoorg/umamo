@@ -5,6 +5,8 @@ import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.ACLayerEntry
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CLayerGroup
 import org.umamo.format.cmo3.model.gen.CLayerIdentifier
 import org.umamo.format.cmo3.model.gen.CLayeredImage
@@ -20,6 +22,7 @@ import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.ArtSource
@@ -41,6 +44,7 @@ import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -215,6 +219,19 @@ class Cmo3SourceLayerWebTest {
 		val eyeEntryBytes = assertNotNull(chain.pngEntries.firstOrNull { entry -> entry.path == eyeResource.imageFileBuf?.archivePath }, "the eye layer's PNG is an entry").pngBytes
 		assertContentEquals(gradient(1).rgba, PngCodec.read(eyeEntryBytes).rgba)
 
+		// The icons: the layer's and the model image's fit the whole raster; each drawable's fits the
+		// patch its mesh covers (the whole tile here), one entry per drawable.
+		fun iconPixels(icon: Any?): RasterImage {
+			val path = assertNotNull(Cmo3Icons.archivePathOf(icon), "the icon names an entry")
+			return PngCodec.read(assertNotNull(chain.pngEntries.firstOrNull { entry -> entry.path == path }, "icon entry '$path' was collected").pngBytes)
+		}
+		assertContentEquals(gradient(1).fittedInto(64).rgba, iconPixels(eye.icon64).rgba, "the eye's 64px icon is the fitted raster")
+		assertContentEquals(gradient(1).fittedInto(16).rgba, iconPixels(eye.icon16).rgba, "and its 16px icon")
+		assertContentEquals(gradient(1).fittedInto(16).rgba, iconPixels(imagesA[0].icon16).rgba, "the model image's icon too")
+		assertContentEquals(gradient(1).fittedInto(32).rgba, iconPixels(eyeL.icon32).rgba, "the drawable's icon shows its patch")
+		assertContentEquals(gradient(1).fittedInto(16).rgba, iconPixels(eyeL.icon16).rgba)
+		assertNotEquals(Cmo3Icons.archivePathOf(eyeL.icon32), Cmo3Icons.archivePathOf(eyeCopy.icon32), "the duplicate has an icon of its own")
+
 		// Through the codec, the reconcile, and back: the ingest reads the same web, the layered-art
 		// reader the same pixels, the import the same uvs.
 		val model =
@@ -248,6 +265,18 @@ class Cmo3SourceLayerWebTest {
 		val rereadArt = assertNotNull(cmo3SourceArtOf(rereadRoot, rereadA.id) { resource -> reread.extractLayerPng(resource) })
 		val rereadEye = assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == "lyid:1576" }, "the eye reads back as a source layer: ${rereadArt.layers.map { layer -> layer.id.raw }}")
 		assertContentEquals(gradient(1).rgba, rereadEye.raster.rgba, "the eye's pixels read back")
+		// Every written drawable carries its icons through the codec, at distinct entries.
+		val rereadMeshes = Cmo3Import.elementsOf((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
+		val rereadIconPaths = ArrayList<String>()
+		for (mesh in rereadMeshes) {
+			for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
+				val path = assertNotNull(Cmo3Icons.archivePathOf(icon), "${Cmo3Import.idStrOf(mesh.id)} has a ${size}px icon")
+				val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(path), "icon '$path' is embedded").content)
+				assertEquals(size to size, decoded.width to decoded.height)
+				rereadIconPaths.add(path)
+			}
+		}
+		assertEquals(rereadIconPaths.size, rereadIconPaths.toSet().size, "one icon entry per drawable and size")
 		val reimported = Cmo3Import.fromModelSource(rereadRoot)
 		for (drawable in puppet.drawables) {
 			if (drawable.id.raw == "Guide") {

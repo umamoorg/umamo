@@ -645,9 +645,6 @@ private fun exportReportMessage(report: ExportReport): String {
 			is ExportNotice.MissingSourceArt ->
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
 
-			is ExportNotice.ReloadedTileImagesStale ->
-				lines.add("• " + stringResource(Res.string.export_reloaded_tile_images_stale, abbreviatedSubjects(notice.tileNames)))
-
 			is ExportNotice.SharedAtlasSlotKept ->
 				lines.add("• " + stringResource(Res.string.export_shared_atlas_slot_kept, abbreviatedSubjects(notice.drawableNames)))
 

@@ -54,8 +54,8 @@ class Cmo3ImageChainBuilderTest {
 		assertTrue(Cmo3Import.elementsOf(textureManager._modelImageGroups).isEmpty(), "and no crop group")
 		assertEquals(0, chain.cropDrawableCount)
 		// The reachability walk's order is unspecified; the by-name path attribute is the contract.
-		// pngEntries also carries the per-page icon placeholders (image_N.png), which have no
-		// CImageResource - only the page buffers do.
+		// Only the page buffers (imageFileBuf*) have a CImageResource; a chain's icon entries
+		// (image_N.png) never do, and this chain has none.
 		val resourcePaths = resources.map { resource -> resource.imageFileBuf?.archivePath }.toSet()
 		val pagePaths = chain.pngEntries.map { entry -> entry.path }.filter { path -> path.startsWith("imageFileBuf") }.toSet()
 		assertEquals(pagePaths, resourcePaths, "one resource per page path")
