@@ -25,17 +25,18 @@ import kotlin.math.roundToInt
 private const val CROP_MAX_DIMENSION = 96
 
 /**
- * Longest edge (in pixels) of a combined part-folder preview. A touch larger than a single crop because it
- * packs several layers; the composite is built once per part and cached.
+ * Longest edge (in pixels) of a combined part-folder or whole-model preview. A touch larger than a single
+ * crop because it packs several layers; a part's composite is built once and cached.
  */
 private const val PART_COMPOSITE_MAX_DIMENSION = 128
 
 /**
  * Crops small art-mesh previews from the loaded model's atlas pages, the shared source for the viewport's
  * overlap picker and the Outliner's hover preview (per-drawable [thumbnailFor] and combined
- * [partThumbnailFor]). Pure CPU over the immutable decoded atlas bytes ([PuppetTextures.atlases]) and the
- * drawables' mesh data - no GL, no render-thread hand-off - so it is safe to call straight from the Compose
- * UI thread. Results are memoized; [updateModel] refreshes the model-derived inputs after every committed
+ * [partThumbnailFor]), and for the model icon a CMO3 export writes ([modelRasterFor]). Pure CPU over the
+ * immutable decoded atlas bytes ([PuppetTextures.atlases]) and the drawables' mesh data - no GL, no
+ * render-thread hand-off - so it is safe to call straight from the Compose UI thread. Results are memoized;
+ * [updateModel] refreshes the model-derived inputs after every committed
  * edit and evicts exactly the entries the edit staled, and [setTextures] swaps the page pixels when the
  * session repacks, evicting every pixel-derived entry wholesale.
  *

@@ -82,7 +82,7 @@ class Cmo3RetainedLayerWebTest {
 	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
 	/**
-	 * A retained graph: the H1 artwork fixture (one file, an eye in Head/Eyes and hair at the root,
+	 * A retained graph: an artwork-origin fixture (one file, an eye in Head/Eyes and hair at the root,
 	 * both placed) exported fresh and read back, with the baseline the reconcile will diff against.
 	 *
 	 * @return Pair The model and its import.

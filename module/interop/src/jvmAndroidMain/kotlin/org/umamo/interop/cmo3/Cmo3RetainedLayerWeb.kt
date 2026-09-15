@@ -525,8 +525,9 @@ internal class Cmo3RetainedLayerWeb(
 	private fun mint(job: MintJob, siteBySourceId: MutableMap<String, ImageSite>): CModelImage {
 		val site = siteFor(job.source, siteBySourceId)
 		val layer = layerFor(site, job.row, job.raster)
-		// A second tile on one key (a double binding) shares the layer and writes its own pixels
-		// over it, as the fresh web's stable sort keeps the last one's; the model image is its own.
+		// A second tile on one key (a double binding) shares the layer the first minted, pixels
+		// included, since a model image composites its layer's own resource; only the model image is
+		// its own.
 		val resource = layer.imageResource as CImageResource
 		val modelImage =
 			Cmo3ImageChainBuilder.modelImageOver(

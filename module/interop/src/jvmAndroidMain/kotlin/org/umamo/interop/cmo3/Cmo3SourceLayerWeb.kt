@@ -69,7 +69,7 @@ internal object Cmo3SourceLayerWeb {
 	)
 
 	/**
-	 * One artwork file with the tiles of its that have real art, in the file's layer order.
+	 * One artwork file with those of its tiles that have real art, in the file's layer order.
 	 *
 	 * @property String  name         The file's display name.
 	 * @property String? path         The file's recorded path, or null when the record has none.
@@ -173,7 +173,8 @@ internal object Cmo3SourceLayerWeb {
 	 * @param List<GTexture2D>    textures   The pages' shared textures, index-parallel to [atlases].
 	 * @param Cmo3FreshChainNames names      The document's shared definitions and naming counters.
 	 * @param MutableList         pngEntries The PNG entry collector.
-	 * @param Long                nowMillis  The import timestamp, standing in for a time the record lacks.
+	 * @param Long                nowMillis  The import timestamp the wrapper and env values record, standing in
+	 *   for a time the record lacks.
 	 * @return Written The wrapper, the group, and the bindings.
 	 */
 	internal fun write(
