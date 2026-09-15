@@ -35,7 +35,6 @@ import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
-import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalRows
 import org.umamo.edit.buildModalTransformCapture
@@ -52,27 +51,6 @@ import kotlin.math.pow
 
 /** The smallest useful proportional influence radius in display (texel) units. */
 private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
-
-/**
- * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
- * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
- * moved sets) together with the frame those coordinates were mapped in.  The texture-space sibling of the
- * Edit gesture, minus every deformer concern: UVs live in one flat display space, so there is no deformer
- * space mapping, no movement transfer, and no world/local split - the operator transforms the display
- * coordinates directly and the result converts back through the frame to the stored coordinates.
- *
- * The frame freezes here so the display-to-uv conversion at drive and commit always matches the space the
- * originals were mapped in (the shown surface can hop mid-gesture if the active drawable changes from
- * another area).
- *
- * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
- * @property UvEditFrame frame The space the gesture is authored in (its texel size and the conversion
- *   back to the stored coordinates).
- */
-private class UvGesture(
-	val transform: ModalTransformCapture,
-	val frame: UvEditFrame,
-)
 
 /**
  * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its texture
@@ -205,13 +183,7 @@ internal fun UvEditGizmoOverlay(
 				// Only the moved vertices are written; untouched ones keep their exact stored values (see
 				// storedUvsWithMoved).  Same discipline as the snap path, and the reason a gesture over a
 				// wide selection does not report every mesh it covered as edited.
-				val storedUvs = session.model.value.drawables.firstOrNull { drawable -> drawable.id == entry.drawableId }?.mesh?.uvs
-				newUvsByDrawable[entry.drawableId] =
-					if (storedUvs == null) {
-						gestureData.frame.storedUvs(transformed)
-					} else {
-						storedUvsWithMoved(storedUvs, entry.movedIndices, transformed, gestureData.frame)
-					}
+				newUvsByDrawable[entry.drawableId] = storedUvsForCommit(session.model.value, entry.drawableId, entry.movedIndices, transformed, gestureData.frame)
 				// The moved set, not just the covered set: proportional editing moves weighted
 				// unselected vertices too, and the change metadata must name every vertex touched.
 				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()

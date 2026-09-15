@@ -51,6 +51,7 @@ import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.UvObjectSurface
 import org.umamo.ui.viewport.UvPlacementSurface
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
@@ -268,16 +269,15 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// dismisses it.  Area-local, like the anchor it carries.
 	var overlap by remember(scope.areaId) { mutableStateOf<OverlapState?>(null) }
 
-	// The placement gesture's page: Object-mode G / S / R over the shown page's placements needs the
-	// page's texel size and the source art the pages recompose from.  Null over a source layer (a
-	// placement has no page to move on there) and while the document retains no art; the Object
-	// overlay then drops a latch with its own notice.
-	val placementSurface =
+	// What the Object overlay's G / S / R move: over a source layer the shown mappings (the art is the
+	// frame there); over a page the placements, which need the page's texel size and the source art the
+	// pages recompose from - absent that art the overlay drops the latch with its own notice.
+	val objectSurface =
 		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters, shownImage) {
-			if (layerView == null && pageIndex != null && artRasters != null) {
-				UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage)
-			} else {
-				null
+			when {
+				layerView != null -> UvObjectSurface.SourceLayer
+				pageIndex != null && artRasters != null -> UvObjectSurface.AtlasPage(UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage))
+				else -> UvObjectSurface.AtlasPage(placement = null)
 			}
 		}
 	// The drag's live readout, host-owned because two sibling overlays meet on it: the Object overlay
@@ -422,7 +422,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
-					placementSurface = placementSurface,
+					surface = objectSurface,
 					placementDragStatusState = placementDragStatus,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.

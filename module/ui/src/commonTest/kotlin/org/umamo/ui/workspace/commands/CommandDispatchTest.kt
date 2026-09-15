@@ -105,18 +105,36 @@ class CommandDispatchTest {
 	}
 
 	/**
-	 * G over a UV editor in Object mode latches NOTHING.  The UV operator refuses outside Edit mode and
-	 * the routing deliberately offers no viewport fallback, so the press is a no-op - grabbing the
-	 * pointer's last viewport instead would move geometry the user is not looking at.
+	 * G over a UV editor in Object mode latches the UV operator - what it moves (a page's placements
+	 * or a layer's mappings) is the overlay's call - and never a viewport operator: the routing
+	 * deliberately offers no viewport fallback, since grabbing the pointer's last viewport would move
+	 * geometry the user is not looking at.
 	 */
 	@Test
-	fun grabOverAUvEditorInObjectModeLatchesNothing() {
+	fun grabOverAUvEditorInObjectModeLatchesTheUvOperatorAlone() {
 		val session = session(EditorMode.Object)
 		val commands = transformCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
 
 		commands.run("mesh.grab")
 
-		assertNull(session.activeUvOperator.value, "the UV operator refuses outside Edit mode")
+		assertEquals(uvArea, session.activeUvOperator.value?.areaId, "the UV operator latches in the hovered editor")
+		assertNull(session.activeMeshOperator.value)
+		assertNull(session.activeObjectOperator.value, "and nothing falls back to the pointer's viewport")
+	}
+
+	/**
+	 * The same press with nothing transformable selected latches NOTHING: the UV operator refuses, and
+	 * the refusal must not become a viewport gesture either.
+	 */
+	@Test
+	fun grabOverAUvEditorWithNothingTransformableLatchesNothing() {
+		val session = session(EditorMode.Object)
+		session.setSelection(Selection())
+		val commands = transformCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
+
+		commands.run("mesh.grab")
+
+		assertNull(session.activeUvOperator.value, "the UV operator refuses an empty selection")
 		assertNull(session.activeMeshOperator.value)
 		assertNull(session.activeObjectOperator.value, "and it must not fall back to the pointer's viewport")
 	}

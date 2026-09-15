@@ -1311,21 +1311,22 @@ class EditorSession(
 
 	/**
 	 * Latches a modal UV operator so the UV editor's overlay begins the gesture - the UV-editor
-	 * counterpart to [beginMeshOperator].  What the gesture moves follows the mode: in Edit mode the
-	 * selected texture coordinates, in Object mode the selected drawables' atlas PLACEMENTS (the art
-	 * itself on its page, with the coordinates over it re-derived on commit).  Either way the bound
-	 * G / S / R commands stay mode-agnostic.  Vertex Slide is refused in both (it is rest-geometry math;
-	 * Blender's UV editor has no slide either).
+	 * counterpart to [beginMeshOperator].  What the gesture moves follows the mode and, in Object mode,
+	 * the surface the overlay shows: in Edit mode the selected texture coordinates; in Object mode over
+	 * an atlas page the selected drawables' atlas PLACEMENTS (the art itself on its page, with the
+	 * coordinates over it re-derived on commit), and over a source layer the selected drawables' whole
+	 * MAPPINGS (every vertex as one object over the fixed art).  Either way the bound G / S / R commands
+	 * stay mode-agnostic.  Vertex Slide is refused in both (it is rest-geometry math; Blender's UV editor
+	 * has no slide either).
 	 *
 	 * Edit mode is a silent no-op on an empty selection and BLOCKED with a near-cursor notice when no
 	 * covered mesh carries an editable UV array (imports may leave uvs empty), since latching would show
-	 * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the stored
-	 * coordinates address the art rather than the pages (a placement is meaningless there), when
-	 * nothing selected is bound to packed art, and when every placed tile under the selection is
-	 * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
-	 * showing a page at all rather than a source layer - is per-area state the session cannot see, so
-	 * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
-	 * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
+	 * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the
+	 * selection holds no drawable with a mesh - the one thing both surfaces need.  Everything else is
+	 * the surface's call, and which surface the overlay is showing is per-area state the session cannot
+	 * see: the overlay that owns the latch runs its own gate (placementGestureRefusal over a page, the
+	 * shown-island test over a layer) and drops the latch with its own notice.  Clears any other latched
+	 * tool / operator (mutual exclusion) before latching.
 	 *
 	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
 	 * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).
@@ -1337,19 +1338,10 @@ class EditorSession(
 		val model = mutableModel.value
 		when (mutableMode.value) {
 			EditorMode.Object -> {
-				if (!model.atlas.storedUvsAddressPages) {
-					emitNotice("notice.uv.placement.layerAddressed", NoticePlacement.NearCursor)
-					return
-				}
-				if (model.placementDragTileIds(mutableSelection.value).isEmpty()) {
-					// Placed art under the selection that still cannot move is pinned art.
-					val messageKey =
-						if (model.placementSelectedTileIds(mutableSelection.value).isEmpty()) {
-							"notice.uv.placement.noPlacedArt"
-						} else {
-							"notice.uv.placement.pinned"
-						}
-					emitNotice(messageKey, NoticePlacement.NearCursor)
+				// The viewport's Object-mode rule: parts and deformers in the selection are skipped, and only a
+				// selection with nothing transformable at all blocks.
+				if (eligibleTransformDrawables(mutableSelection.value, model) == null) {
+					emitNotice("notice.transform.onlyDrawables", NoticePlacement.NearCursor)
 					return
 				}
 			}
