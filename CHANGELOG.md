@@ -7,9 +7,19 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+
+### Changed
+
+### Fixed
+
+
+## 0.3.0-dev - 2026-09-15
+
+### Added
 * Internationalization: Initial 한국어/Korean translation - Thank you to Nyaro for the translation.
 * Export: Rework Cmo3AtlasUndedup to use the shared packer when exporting a fresh CMO3.
 * Export: Generate layered art preview thumbnails for CMO3 export.
+* Export: A document imported from source artwork(PSD, CLIP, or KRA) now writes its real layers and folders into the CMO3 instead of a synthesized stand-in, so the exported file reopens with every drawable's layer binding intact.
 * Texture Authoring: The UV Editor now has object mode.  Click an UV island to select the drawable it belongs to, box select multiple, and Alt+Left=Click through overlapping islands, mirroring how object selection already works in the 2D viewport.
 * Texture Authoring: A Texture Page selector in the UV Editor header lets you pin the view to a specific atlas page(with its dimensions and mesh count shown) instead of always following the current selection, plus new Next/Previous/Follow Selection commands for stepping through pages from anywhere.
 * Texture Authoring: The UV Editor can now show and edit a drawable's mapping directly over its original source layer artwork instead of only the packed atlas page, with a searchable "Find by Artwork" picker to jump straight to a layer's drawable.  The cursor, pivot mode, snaps, and proportional editing all carry over to this view exactly as they work on the atlas page.
@@ -40,7 +50,9 @@ Umamo is early alpha.
 * Opening a document while another was already open could, for one frame, pair the new document with the previous document's editing session, so an export, the File menu, or the atlas page resolver could briefly act on stale data.
 * Texture Atlas: Repack Atlas could apply a stale pack if a mesh was edited while the repack was still computing; it now cancels instead.
 * Keyboard shortcuts could stop responding after using a dropdown chip, checkbox, number field, or section header that then disappeared from the screen while it still held focus; these now properly release focus back to the application.
-* CMO3 export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid, both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
+* CMO3 Export: An artwork-imported document's parameters weren't placed in the export's parameter group hierarchy, and any part, drawable, or deformer with no authored keyforms at all exported with a missing keyform grid, both of which the official Cubism Editor refuses to open.  Both are now written the way the editor expects.
+* CMO3 Export: A CMO3-origin document's reloaded or newly added artwork kept the old pixels showing in the editor's layered-art view even after the texture atlas had already picked up the new art; it's now written into the document's own retained layer tree too, so both display modes match.
+
 
 ## 0.2.1-dev - 2026-08-11
 
@@ -67,6 +79,7 @@ Umamo is early alpha.
 * Windows OS: Workaround for AWT not sending a resize event when cancelling a window resize on Windows causing the Compose around to be stuck at the wrong size until resizing without cancelling.
 * Accessibility: Various semantics/contentDescription spots were fixed and visual tooltips added.
 
+
 ## 0.2.0-dev - 2026-08-03
 
 ### Added
@@ -87,6 +100,7 @@ Umamo is early alpha.
 
 * Dragging a panel splitter gutter no longer lags out and fails to work on slow systems.  This was due to an issue with how the movement input was accumulated.
 * Dragging a panel splitter gutter only writes up the layout settings after a debounce period.
+
 
 ## 0.1.0-dev - 2026-07-27
 
@@ -110,6 +124,7 @@ Umamo is early alpha.
 * The "Out" alpha blend mode cut a hole in the wrong layer(source instead of destination) inverting the intended silhouette effect.
 * Extended blend modes(Multiply, Screen, Overlay, etc.) mis-blended under Conjoint/Disjoint alpha blending because the blend mix weight ignored the selected alpha mode; unpremultiplied colors are now also clamped to avoid out of range artifacts.
 * MOC3-imported drawables' multiply/screen tint keyforms were silently dropped when rest mesh geometry was rebased to canvas space.
+
 
 ## 2026-07-14 – 2026-07-20
 
