@@ -16,7 +16,6 @@ import org.umamo.edit.transformParameters
 import org.umamo.edit.withMeshPositions
 import org.umamo.edit.withMeshUvs
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
 
 /*
@@ -188,33 +187,10 @@ internal fun registerUvTransformAdjustment(
 		val landed =
 			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
 				val display = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
-				model.withMeshUvs(entry.drawableId, storedUvsForRerun(model, entry.drawableId, entry.movedIndices, display, frame))
+				model.withMeshUvs(entry.drawableId, storedUvsForCommit(model, entry.drawableId, entry.movedIndices, display, frame))
 			}
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
 			onProportional(proportionalRows.asState(), proportionalRows.radius)
 		}
 	}
-}
-
-/**
- * The stored coordinates a rerun commits for one mesh: the base model's current values with only the
- * moved vertices overwritten - the commit's own discipline (see [storedUvsWithMoved]) - or, for a
- * drawable the base holds no coordinates for, the whole transformed array converted.
- *
- * @param PuppetModel model        The base model the rerun lands over.
- * @param DrawableId  drawableId   The mesh.
- * @param Set         movedIndices The vertices the rerun moved.
- * @param FloatArray  display      The transformed display coordinates.
- * @param UvEditFrame frame        The space the coordinates are in.
- * @return FloatArray The coordinates to commit.
- */
-private fun storedUvsForRerun(
-	model: PuppetModel,
-	drawableId: DrawableId,
-	movedIndices: Set<Int>,
-	display: FloatArray,
-	frame: UvEditFrame,
-): FloatArray {
-	val storedUvs = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh?.uvs
-	return if (storedUvs == null) frame.storedUvs(display) else storedUvsWithMoved(storedUvs, movedIndices, display, frame)
 }

@@ -35,12 +35,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.PlacementGestureRefusal
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.placementGestureRefusal
 import org.umamo.edit.selectableOf
 import org.umamo.edit.setAtlasPlacements
+import org.umamo.edit.withMeshUvs
 import org.umamo.format.art.AlphaContour
 import org.umamo.format.art.LayerBounds
 import org.umamo.render.ViewportCamera
@@ -49,6 +54,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.applyUvAffine
+import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
@@ -85,6 +91,58 @@ private class PlacementGhost(
 )
 
 /**
+ * What a UV editor's Object overlay is drawn over, which decides what its G / S / R move: the art on
+ * a page, or the mapping over a layer.  Handed in by the host rather than derived from the frame,
+ * because the frame of an unpacked layer is the page view's own identity frame and cannot tell the
+ * two apart.
+ */
+internal sealed interface UvObjectSurface {
+	/** A source layer: the art is the frame, so a gesture moves the shown islands' mappings over it. */
+	data object SourceLayer : UvObjectSurface
+
+	/**
+	 * An atlas page: a gesture moves placements, through the page and the source art the pages
+	 * recompose from.
+	 *
+	 * @property UvPlacementSurface? placement The shown page and the art store, or null when the
+	 *   document retains no source art - the gesture then refuses, since the pages could not be
+	 *   recomposed after a move.
+	 */
+	class AtlasPage(val placement: UvPlacementSurface?) : UvObjectSurface
+}
+
+/**
+ * The capture of an in-flight Object-mode gesture, one shape per surface.  The two share the pointer
+ * loop, the modal HUD, the wireframe preview, and the latch lifecycle; they differ in what a pointer
+ * frame evaluates and what the confirm commits, so each branch of the overlay dispatches on this.
+ *
+ * @property ModalTransformCapture transform The shared capture: the HUD pivot, the rotation tracker,
+ *   and the operator that latched.
+ */
+private sealed interface UvObjectGesture {
+	val transform: ModalTransformCapture
+
+	/**
+	 * Over an atlas page: the art and every island over it move together (UvPlacementGesture.kt).
+	 *
+	 * @property PlacementGesture placement The frozen placement gesture.
+	 */
+	class Placement(val placement: PlacementGesture) : UvObjectGesture {
+		override val transform: ModalTransformCapture get() = placement.transform
+	}
+
+	/**
+	 * Over a source layer: every selected island's whole mapping moves over the fixed art
+	 * (UvMappingGesture.kt).
+	 *
+	 * @property UvGesture gesture The frozen mapping gesture.
+	 */
+	class Mapping(val gesture: UvGesture) : UvObjectGesture {
+		override val transform: ModalTransformCapture get() = gesture.transform
+	}
+}
+
+/**
  * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay]
  * (each one self-gates on the session's mode, the viewport overlay pair's convention): every
  * visible island on the shown surface draws in the Blender object-overlay style - unselected islands
@@ -104,17 +162,27 @@ private class PlacementGhost(
  * pick.  The same overlay serves both surfaces: over a source layer it gates on that artwork's own
  * alpha and places the cursor through the layer's frame, which is the whole of the difference.
  *
- * Over an ATLAS PAGE the overlay also owns the placement gesture: a UV operator latched in this area
- * in Object mode (G / S / R) moves the selected drawables' ART on the page - each tile's pixels and
- * every drawable over it together, so the vertex-to-art mapping never changes.  The capture freezes
- * the movers (their placements, trims, mesh reserves, and crops), the page's bystanders, and the
- * moving islands' display positions; each pointer frame evaluates the placements through the shared
- * operator parameters (UvPlacementGesture.kt), previews the crops at their new spots and the islands
- * translated with them, and outlines any footprint that collides or spills off the page; confirm
- * commits ONE undo step through setAtlasPlacements and the session's page resolver recomposes the
- * pixels.  Nothing is pushed to the puppet renderer during the drag: a placement move is invisible in
- * the 2D viewport by construction.  Only primary-driven events are consumed while idle; pan / zoom and
- * the plain right-click (the context menu) fall through, and a modal gesture owns the pointer.
+ * The overlay also owns the Object-mode transform gesture - a UV operator latched in this area (G /
+ * S / R) - and what it moves is the SURFACE's call, since the two surfaces hold different things
+ * fixed.  Over an ATLAS PAGE it is the placement gesture: the selected drawables' ART moves on the
+ * page - each tile's pixels and every drawable over it together, so the vertex-to-art mapping never
+ * changes.  The capture freezes the movers (their placements, trims, mesh reserves, and crops), the
+ * page's bystanders, and the moving islands' display positions; each pointer frame evaluates the
+ * placements through the shared operator parameters (UvPlacementGesture.kt), previews the crops at
+ * their new spots and the islands translated with them, and outlines any footprint that collides or
+ * spills off the page; confirm commits ONE undo step through setAtlasPlacements and the session's page
+ * resolver recomposes the pixels.  Nothing is pushed to the puppet renderer during the drag: a
+ * placement move is invisible in the 2D viewport by construction.
+ *
+ * Over a SOURCE LAYER the art cannot move within its own frame, so the object that moves is the
+ * mesh: the mapping gesture takes every vertex of each selected island shown on the layer as one
+ * object (UvMappingGesture.kt) and slides it over the fixed art, exactly the 2D viewport's Object-mode
+ * transform read over texture coordinates.  Each pointer frame runs the shared operator math over the
+ * frozen display coordinates and streams the re-derived stored coordinates to the puppet renderer,
+ * since a mapping move IS visible in the 2D viewport; confirm converts back through the layer's
+ * frame and commits ONE TransformUvs step, registered on the operation settings strip like the Edit
+ * overlay's transform.  Only primary-driven events are consumed while idle; pan / zoom and the plain
+ * right-click (the context menu) fall through, and a modal gesture owns the pointer.
  *
  * Posed from the FRAME camera so it lags with the GL image during pan / zoom, and unclipped to the
  * image tile by design, so a mapping reaching past it stays visible - which is normal, since a mesh
@@ -129,8 +197,8 @@ private class PlacementGhost(
  * @param ViewportCamera? camera The displayed frame's camera; null hides the overlay (no frame yet).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
- * @param UvPlacementSurface? placementSurface The shown atlas page and the source-art store when the
- *   area shows a page, or null over a source layer (a latched placement operator is then dropped).
+ * @param UvObjectSurface surface What the area shows - an atlas page (with its source-art store) or a
+ *   source layer - which decides whether a latched operator moves placements or mappings.
  * @param MutableState<PlacementDragStatus?> placementDragStatusState The host-owned drag readout
  *   this overlay writes per pointer frame and the host's UvHudOverlay badge reads.
  * @param Function onOverlapRequest Opens the host's overlap picker for an Alt click with 2+ candidates.
@@ -146,7 +214,7 @@ internal fun UvObjectGizmoOverlay(
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
-	placementSurface: UvPlacementSurface?,
+	surface: UvObjectSurface,
 	placementDragStatusState: MutableState<PlacementDragStatus?>,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
@@ -164,6 +232,7 @@ internal fun UvObjectGizmoOverlay(
 	val tileByDrawableId = remember(committedModel) { committedModel.drawables.mapNotNull { drawable -> drawable.atlasTileId?.let { tileId -> drawable.id to tileId } }.toMap() }
 	val pinnedTileIds = remember(committedModel) { committedModel.atlas.tiles.filter { tile -> tile.pinned }.mapTo(HashSet()) { tile -> tile.id } }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
+	val renderSync = LocalPuppetRenderSync.current
 	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
 	val overlayStyle = selectionOverlayStyle(overlayColors)
@@ -175,11 +244,12 @@ internal fun UvObjectGizmoOverlay(
 	val liveGeometries = rememberUpdatedState(geometries)
 	val liveIslandPick = rememberUpdatedState(islandPick)
 	val liveFrame = rememberUpdatedState(frame)
-	val liveSurface = rememberUpdatedState(placementSurface)
+	val liveSurface = rememberUpdatedState(surface)
+	val liveRenderSync = rememberUpdatedState(renderSync)
 
-	// The per-area modal-gesture bookkeeping (the Edit overlay's shape); the capture is the placement
+	// The per-area modal-gesture bookkeeping (the Edit overlay's shape); the capture is the surface's
 	// gesture and the preview holds each moving island's display positions.
-	val gesture = remember(areaId) { ModalGestureState<PlacementGesture>() }
+	val gesture = remember(areaId) { ModalGestureState<UvObjectGesture>() }
 	var placementDragStatus by placementDragStatusState
 
 	// A committed move's crops linger at their new spots until the resolver's pages catch up with the
@@ -260,30 +330,62 @@ internal fun UvObjectGizmoOverlay(
 		}
 	}
 
-	// Confirms the in-flight placement gesture: commit every mover whose placement changed as ONE undo
-	// step under the operator's own label, publish the landing, register the gesture on the operation
-	// settings strip (an adjustment re-evaluates the same frozen gesture over that step), then clear
-	// the operator.  No preview was ever pushed to the renderer, so there is nothing to resync.
+	// Confirms an in-flight placement gesture: commit every mover whose placement changed as ONE undo
+	// step under the operator's own label, publish the landing, and register the gesture on the
+	// operation settings strip (an adjustment re-evaluates the same frozen gesture over that step).
+	// No preview was ever pushed to the renderer, so there is nothing to resync.
+	fun confirmPlacementGesture(gestureData: PlacementGesture) {
+		val result = gestureData.result ?: return
+		val changed = changedPlacements(gestureData.movers, result)
+		if (changed.isEmpty()) {
+			return
+		}
+		session.setAtlasPlacements(changed, gestureData.transform.operatorKind)
+		publishLanding(gestureData, result)
+		registerPlacementAdjustment(session, areaId, gestureData, result) { landed -> publishLanding(gestureData, landed) }
+	}
+
+	// Confirms an in-flight mapping gesture the Edit overlay's way: each moving island's display
+	// preview converts back through the frozen layer frame to the stored coordinates and commits as
+	// ONE undo step, then registers that step on the operation settings strip over the retained
+	// capture (no proportional rows - Object mode weights no halo).  A null preview means no movement.
+	fun confirmMappingGesture(gestureData: UvGesture) {
+		val committed = gesture.preview ?: return
+		val parameters = gesture.lastParameters ?: return
+		val transform = gestureData.transform
+		val modelBefore = session.model.value
+		val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+		val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(transform.entries.size)
+		for (entry in transform.entries) {
+			val transformed = committed[entry.drawableId] ?: continue
+			newUvsByDrawable[entry.drawableId] = storedUvsForCommit(modelBefore, entry.drawableId, entry.movedIndices, transformed, gestureData.frame)
+			vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
+		}
+		if (newUvsByDrawable.isEmpty()) {
+			return
+		}
+		session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, transform.operatorKind), newUvsByDrawable)
+		// A commit that recorded nothing (the islands landed where they started) has no step to amend.
+		if (session.model.value !== modelBefore) {
+			registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional = null) { _, _ -> }
+		}
+	}
+
+	// Confirms whichever gesture is in flight, then clears the operator (its teardown resyncs the
+	// renderer when a mapping preview was streamed).
 	fun confirmGesture() {
-		val gestureData = gesture.capture
-		val result = gestureData?.result
-		if (gestureData != null && result != null) {
-			val changed = changedPlacements(gestureData.movers, result)
-			if (changed.isNotEmpty()) {
-				session.setAtlasPlacements(changed, gestureData.transform.operatorKind)
-				publishLanding(gestureData, result)
-				registerPlacementAdjustment(session, areaId, gestureData, result) { landed -> publishLanding(gestureData, landed) }
-			}
+		when (val gestureData = gesture.capture) {
+			is UvObjectGesture.Placement -> confirmPlacementGesture(gestureData.placement)
+			is UvObjectGesture.Mapping -> confirmMappingGesture(gestureData.gesture)
+			null -> Unit
 		}
 		session.clearUvOperator()
 	}
 
-	// Drives one pointer frame: the shared operator parameters over the capture's anchor, evaluated
-	// into a placement per mover and a display affine per moving island.  False before the capture
-	// has landed (it builds off-thread).
-	fun drivePlacementPreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
+	// Drives one pointer frame of a placement gesture: the shared operator parameters over the
+	// capture's anchor, evaluated into a placement per mover and a display affine per moving island.
+	fun drivePlacementPreview(gestureData: PlacementGesture, operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
 		val start = gesture.gestureStart ?: return false
-		val gestureData = gesture.capture ?: return false
 		val constraint = session.axisConstraint.value
 		val pointerFrame = TransformGestureFrame(gestureData.transform.anchor, start, virtualPointer, constraint, activeCamera, size)
 		val parameters = placementGestureParameters(operator, pointerFrame, gestureData.transform.rotationTracker)
@@ -310,13 +412,56 @@ internal fun UvObjectGizmoOverlay(
 		return true
 	}
 
+	// Drives one pointer frame of a mapping gesture: the shared operator math over the frozen display
+	// coordinates (no halo), converted back through the layer frame and folded into an uncommitted
+	// model for the puppet renderer, which shows the art sliding under the mesh as it happens.
+	fun driveMappingPreview(gestureData: UvGesture, operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
+		val start = gesture.gestureStart ?: return false
+		val transform = gestureData.transform
+		val pointerFrame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val parameters = gestureParameters(operator, pointerFrame, transform.rotationTracker)
+		gesture.lastParameters = parameters
+		val preview = mappingPreview(transform, operator, parameters)
+		gesture.preview = preview
+		// The preview converts whole arrays: it is transient and never committed, so the drift the
+		// commit avoids (storedUvsWithMoved) is invisible here.
+		var folded = session.model.value
+		for ((drawableId, display) in preview) {
+			folded = folded.withMeshUvs(drawableId, gestureData.frame.storedUvs(display))
+		}
+		liveRenderSync.value?.previewModel(folded)
+		return true
+	}
+
+	// Drives whichever gesture is in flight.  False before the capture has landed (a placement
+	// capture builds off-thread).
+	fun driveGesturePreview(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean =
+		when (val gestureData = gesture.capture) {
+			is UvObjectGesture.Placement -> drivePlacementPreview(gestureData.placement, operator, virtualPointer, activeCamera, size)
+			is UvObjectGesture.Mapping -> driveMappingPreview(gestureData.gesture, operator, virtualPointer, activeCamera, size)
+			null -> false
+		}
+
+	// Ends the gesture, resyncing the renderer when a mapping preview was streamed to it.  The end()
+	// boolean is the bystander gate: a teardown that owned no gesture must not stomp another area's
+	// live preview.
+	fun endGesture() {
+		val ended = gesture.capture
+		if (gesture.end()) {
+			placementDragStatus = null
+			if (ended is UvObjectGesture.Mapping) {
+				liveRenderSync.value?.resync()
+			}
+		}
+	}
+
 	// The modal gesture's commit-side seam over the shared pointer-side controller.
 	val modalTarget =
 		object : ModalTransformTarget {
 			override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 				// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 				val operator = session.activeUvOperator.value?.takeIf { latched -> latched.areaId == areaId } ?: return false
-				return drivePlacementPreview(operator.kind, virtualPointer, camera, size)
+				return driveGesturePreview(operator.kind, virtualPointer, camera, size)
 			}
 
 			override fun confirm() {
@@ -350,31 +495,57 @@ internal fun UvObjectGizmoOverlay(
 		}
 	}
 
-	// Start the placement gesture as a UV operator latches IN THIS AREA; tear it down as it clears.
-	// The capture builds off-thread (it decodes rasters and wraps crops); a latch that clears while it
-	// builds (Escape, a mode switch) must not begin a stale gesture, so the latch is re-checked after.
+	// Start the surface's gesture as a UV operator latches IN THIS AREA; tear it down as it clears.
+	// The session admits any selection with a meshed drawable and leaves the rest to the surface, so
+	// every refusal below is this overlay's own, each with its notice.  A placement capture builds
+	// off-thread (it decodes rasters and wraps crops); a latch that clears while it builds (Escape, a
+	// mode switch) must not begin a stale gesture, so the latch is re-checked after.
 	LaunchedEffect(activeOperator) {
 		val operator = activeOperator?.takeIf { latched -> latched.areaId == areaId }
 		if (operator == null) {
-			gesture.end()
-			placementDragStatus = null
-			return@LaunchedEffect
-		}
-		val surface = liveSurface.value
-		if (surface == null) {
-			session.emitNotice("notice.uv.placement.pageViewOnly", NoticePlacement.NearCursor)
-			session.clearUvOperator()
+			endGesture()
 			return@LaunchedEffect
 		}
 		val model = session.model.value
 		val selection = session.selection.value
 		val shownGeometries = liveGeometries.value
 		val pivotMode = session.pivotMode.value
-		val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
 		val cursorDisplay = session.uvCursor.value?.let { cursor -> liveFrame.value.displayAt(cursor.u, cursor.v) }
+		val shownSurface = liveSurface.value
+		if (shownSurface is UvObjectSurface.SourceLayer) {
+			// The mapping move needs no decode: it freezes the islands already on screen.
+			val build = buildUvMappingGesture(shownGeometries, selection, pivotMode, cursorDisplay, liveFrame.value, operator.kind)
+			if (build == null) {
+				session.emitNotice("notice.uv.mapping.notOnLayer", NoticePlacement.NearCursor)
+				session.clearUvOperator()
+			} else {
+				gesture.begin(UvObjectGesture.Mapping(build), gesture.lastPointer)
+			}
+			return@LaunchedEffect
+		}
+		val pageSurface = (shownSurface as UvObjectSurface.AtlasPage).placement
+		if (pageSurface == null) {
+			// No source art to recompose the pages from: the same remedy as unpacked art.
+			session.emitNotice("notice.uv.placement.noPlacedArt", NoticePlacement.NearCursor)
+			session.clearUvOperator()
+			return@LaunchedEffect
+		}
+		val refusal = model.placementGestureRefusal(selection)
+		if (refusal != null) {
+			val messageKey =
+				when (refusal) {
+					PlacementGestureRefusal.LayerAddressed -> "notice.uv.placement.layerAddressed"
+					PlacementGestureRefusal.NoPlacedArt -> "notice.uv.placement.noPlacedArt"
+					PlacementGestureRefusal.Pinned -> "notice.uv.placement.pinned"
+				}
+			session.emitNotice(messageKey, NoticePlacement.NearCursor)
+			session.clearUvOperator()
+			return@LaunchedEffect
+		}
+		val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
 		val build =
 			withContext(Dispatchers.Default) {
-				buildPlacementGesture(model, surface, selection, shownGeometries, pivotMode, activeDrawableId, cursorDisplay, operator.kind)
+				buildPlacementGesture(model, pageSurface, selection, shownGeometries, pivotMode, activeDrawableId, cursorDisplay, operator.kind)
 			}
 		if (session.activeUvOperator.value != operator) {
 			return@LaunchedEffect
@@ -390,19 +561,19 @@ internal fun UvObjectGizmoOverlay(
 				session.clearUvOperator()
 			}
 
-			is PlacementGestureBuild.Ready -> gesture.begin(build.gesture, gesture.lastPointer)
+			is PlacementGestureBuild.Ready -> gesture.begin(UvObjectGesture.Placement(build.gesture), gesture.lastPointer)
 		}
 	}
 
-	// The unmount guard: area death (corner-join, space switch, workspace tab switch) mid-gesture must
-	// not strand the area-less viewportGestureActive flag true or leave the host's readout showing.
-	// The controller's boxing latch and the gesture's end() make both no-ops otherwise.
+	// The unmount guard: area death (corner-join, space switch, workspace tab switch) or a mode switch
+	// mid-gesture disposes this overlay, cancelling the latch effect above WITHOUT running its else
+	// branch - so this must not strand the area-less viewportGestureActive flag true, leave the host's
+	// readout showing, or leave the renderer on an un-committed mapping preview.  The controller's
+	// boxing latch and the gesture's end() make all of it a no-op otherwise.
 	DisposableEffect(areaId) {
 		onDispose {
 			objectPick.cancel()
-			if (gesture.end()) {
-				placementDragStatusState.value = null
-			}
+			endGesture()
 		}
 	}
 
@@ -444,7 +615,7 @@ internal fun UvObjectGizmoOverlay(
 							val activeCamera = liveCamera.value
 							val size = liveSize.value
 							if (latchedUvOperator != null) {
-								// MODAL: the placement gesture owns the pointer through the shared controller
+								// MODAL: the surface's gesture owns the pointer through the shared controller
 								// (stale discard, virtual pointer, cursor wrap, LMB-confirm / RMB-cancel).
 								objectPick.cancel()
 								gesture.lastPointer = gesture.modalController.handleEvent(event, change, modalTarget, activeCamera, size, gesture.areaScreenOrigin)
@@ -469,22 +640,25 @@ internal fun UvObjectGizmoOverlay(
 		) {
 			val areaSize = IntSize(widthPx, heightPx)
 			val capture = gesture.capture
-			val result = capture?.result
+			// The art-side chrome (crops, contours, collision tint) is the placement gesture's alone; a
+			// mapping gesture moves only the wireframes, which the island loop below reads from the preview.
+			val placementCapture = (capture as? UvObjectGesture.Placement)?.placement
+			val result = placementCapture?.result
 			val activePreview = gesture.preview.takeIf { capture != null }
 
 			// The drag preview under the islands: each mover's original spot dimmed (the art is leaving
 			// it), its crop drawn where the placement now puts it, then a committed move's ghosts while
 			// the resolver composes the real pixels.
-			if (capture != null && result != null) {
-				for (mover in capture.movers) {
-					drawTileQuad(mover.trim, mover.placement, capture.pageHeight, camera, areaSize) { quad ->
+			if (placementCapture != null && result != null) {
+				for (mover in placementCapture.movers) {
+					drawTileQuad(mover.trim, mover.placement, placementCapture.pageHeight, camera, areaSize) { quad ->
 						drawPath(quad, overlayColors.overlayScrim)
 					}
 				}
-				for (mover in capture.movers) {
+				for (mover in placementCapture.movers) {
 					val crop = mover.crop ?: continue
 					val placement = result.placementByTile[mover.tileId] ?: continue
-					drawTileCrop(crop, mover.trim, placement, capture.pageHeight, camera, areaSize)
+					drawTileCrop(crop, mover.trim, placement, placementCapture.pageHeight, camera, areaSize)
 				}
 			}
 			activeGhost?.let { pending ->
@@ -508,7 +682,7 @@ internal fun UvObjectGizmoOverlay(
 			// substitution: the idle palette IS the dim style; a selected island fills and outlines with
 			// the selected colors; the active island keeps the selected fill under the active-green
 			// outline (faceActive is deliberately never a fill - it would blank the art).  During a
-			// placement gesture a moving island draws from the live preview.
+			// gesture (placement or mapping) a moving island draws from the live preview.
 			val paintOrdered = geometries.sortedBy { geometry -> islandPick.frontRankById[geometry.drawableId] ?: 0f }
 			for (geometry in paintOrdered) {
 				val styled =
@@ -545,15 +719,15 @@ internal fun UvObjectGizmoOverlay(
 			// triangles outlines its opaque region with the art's own contour (never a box), and a
 			// spill outlines the trim that leaves the page.  A bystander painter has no contour without
 			// a decode; its tinted islands stand for it.
-			if (capture != null && result != null) {
+			if (placementCapture != null && result != null) {
 				val warningStroke = Stroke(width = 2f)
-				for (mover in capture.movers) {
+				for (mover in placementCapture.movers) {
 					val placement = result.placementByTile[mover.tileId] ?: continue
 					if (mover.tileId in result.paintingTileIds) {
-						drawContours(mover.contours, placement, capture.pageHeight, camera, areaSize, viewportOverlayColors.warning, warningStroke)
+						drawContours(mover.contours, placement, placementCapture.pageHeight, camera, areaSize, viewportOverlayColors.warning, warningStroke)
 					}
 					if (mover.tileId in result.offPageTileIds) {
-						drawTileQuad(mover.trim, placement, capture.pageHeight, camera, areaSize) { quad ->
+						drawTileQuad(mover.trim, placement, placementCapture.pageHeight, camera, areaSize) { quad ->
 							drawPath(quad, viewportOverlayColors.warning, style = warningStroke)
 						}
 					}

@@ -1,7 +1,9 @@
 package org.umamo.ui.viewport
 
 import org.umamo.edit.UvFrame
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.identityUvAffine
 import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.layerUvAffineOf
@@ -128,6 +130,30 @@ fun storedUvsWithMoved(
 		committed[componentIndex + 1] = v
 	}
 	return committed
+}
+
+/**
+ * The stored coordinates a texture-coordinate commit writes for one mesh: [model]'s current values with
+ * only the moved vertices overwritten - [storedUvsWithMoved]'s discipline - or, for a drawable the model
+ * holds no coordinates for, the whole transformed array converted.  One rule for the gesture commit
+ * (the Edit overlay, the Object overlay's mapping move) and the operation strip's rerun over the base.
+ *
+ * @param PuppetModel model        The model the commit lands over.
+ * @param DrawableId  drawableId   The mesh.
+ * @param Collection  movedIndices The vertices the operation moved.
+ * @param FloatArray  display      The transformed display coordinates, interleaved (x, y).
+ * @param UvEditFrame frame        The space the coordinates are in.
+ * @return FloatArray The coordinates to commit, a fresh array.
+ */
+internal fun storedUvsForCommit(
+	model: PuppetModel,
+	drawableId: DrawableId,
+	movedIndices: Collection<Int>,
+	display: FloatArray,
+	frame: UvEditFrame,
+): FloatArray {
+	val storedUvs = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh?.uvs
+	return if (storedUvs == null) frame.storedUvs(display) else storedUvsWithMoved(storedUvs, movedIndices, display, frame)
 }
 
 /**
