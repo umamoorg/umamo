@@ -39,8 +39,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * same scrim-plus-card modal family as the settings window (opened by the help.about command; the
  * shell owns the visible state and routes Escape, this composable only renders).
  *
- * バージョン情報ダイアログ。名称・バージョン・ライセンス・URL を設定ウィンドウと同系のモーダルで表示する。
- *
  * @param Function onDismiss Closes the dialog (Escape is routed here by the shell; also the scrim / close button).
  */
 @Composable

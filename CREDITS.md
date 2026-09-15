@@ -35,7 +35,7 @@ Umamo's CLIP file format reader is based on research by rasensuihei.
 https://github.com/rasensuihei/cliputils
 MIT License: https://github.com/rasensuihei/cliputils/blob/master/LICENSE
 
-## TwelveMonkeys ImageIO — PSD, TIFF, and WEBP readers (BSD 3-Clause)
+## TwelveMonkeys ImageIO - PSD, TIFF, and WEBP readers (BSD 3-Clause)
 
 - Upstream: TwelveMonkeys ImageIO, `imageio-psd` module - https://github.com/haraldk/TwelveMonkeys
 - Copyright (c) 2008-2020 Harald Kuhr
@@ -86,13 +86,13 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Baseline JPEG Decoder — Independent JPEG Group
+## Baseline JPEG Decoder - Independent JPEG Group
 
 - Upstream: Independent JPEG Group's reference JPEG library (libjpeg) - https://www.ijg.org/
 - Copyright (c) 1991-2020, Thomas G. Lane, Guido Vollbeding
 - License: IJG License (permissive, GPL-compatible)
 
-Umamo's JPEG decoder (`org.umamo.format.jpeg`) is an independent Kotlin implementation written from the public ITU-T T.81 specification; no IJG source was copied.  Several of its algorithms do, however, follow IJG's reference implementation and fixed-point constants — the accurate integer IDCT of `jidctint.c` (`jpeg_idct_islow`), the triangle chroma upsampling filters of `jdsample.c`, the scaled color-conversion tables of `jdcolor.c`, and the progressive successive-approximation scan decoders of `jdphuff.c`.  This is deliberate: in a lossy codec the fixed-point rounding IS the output, so matching those algorithms is what makes Umamo decode a JPEG to the same bytes as every mainstream reader.  Accordingly, and per the IJG license's terms for distributing derived work:
+Umamo's JPEG decoder (`org.umamo.format.jpeg`) is an independent Kotlin implementation written from the public ITU-T T.81 specification.  Accordingly, and per the IJG license's terms for distributing derived work:
 
 > This software is based in part on the work of the Independent JPEG Group.
 
