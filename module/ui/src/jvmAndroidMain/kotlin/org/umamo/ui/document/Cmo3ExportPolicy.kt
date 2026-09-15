@@ -36,6 +36,9 @@ import org.umamo.runtime.model.PuppetModel
  * @param Long           nowMillis    The timestamp a synthesized image chain, or a layer minted into a
  *                                    retained graph, records.
  * @param Int            obfuscateKey The container XOR key; the editor mints one per save.
+ * @param RasterImage?   modelThumbnail The model's rest-pose thumbnail the file's model icons take,
+ *                                    or null to leave them (blank on a fresh graph, the import's on a
+ *                                    retained one).
  * @return PreparedCmo3Export The model to serialize plus its report.
  */
 fun prepareCmo3Export(
@@ -45,6 +48,7 @@ fun prepareCmo3Export(
 	modelName: String,
 	nowMillis: Long,
 	obfuscateKey: Int,
+	modelThumbnail: RasterImage? = null,
 ): PreparedCmo3Export =
 	when (document) {
 		// A CMO3-origin document reconciles onto its retained graph.  The page patch is gated by
@@ -70,6 +74,7 @@ fun prepareCmo3Export(
 					recomposedPages = recomposedPages,
 					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
 					nowMillis = nowMillis,
+					modelThumbnail = modelThumbnail,
 				)
 			PreparedCmo3Export(document.cmo3, report)
 		}
@@ -87,6 +92,7 @@ fun prepareCmo3Export(
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
 					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
+					modelThumbnail = modelThumbnail,
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
@@ -101,6 +107,7 @@ fun prepareCmo3Export(
 					modelName = modelName,
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
+					modelThumbnail = modelThumbnail,
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}

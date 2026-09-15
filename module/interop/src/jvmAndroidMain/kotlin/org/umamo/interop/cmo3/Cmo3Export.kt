@@ -3,6 +3,7 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.edit
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.DeformerField
 import org.umamo.interop.DrawableField
@@ -81,7 +82,9 @@ object Cmo3Export {
 	 * The fresh-graph synthesis path (MOC3-origin -> CMO3) constructs a blank target graph and
 	 * reuses this same reconcile: an empty baseline lowers everything as created, with
 	 * [drawableTextureBindings] supplying the texture web created drawables bind to when they have
-	 * no existing source to clone (a session duplicate) - the CMO3-origin export path passes none.
+	 * no existing source to clone (a session duplicate) - the CMO3-origin export path passes none,
+	 * and its created drawables over reconciled art bind through the bindings the atlas-web
+	 * reconcile mints instead.
 	 *
 	 * @param PuppetModel edited The session's current model (EditorSession.model.value - NOT the
 	 *                           document's original import, which edits never update).
@@ -95,6 +98,8 @@ object Cmo3Export {
 	 *                           a reloaded or added tile with a raster writes its real layer into the
 	 *                           retained graph, and one without declines the atlas-web reconcile.
 	 * @param Long        nowMillis The timestamp a layer minted into the retained graph records.
+	 * @param RasterImage modelThumbnail The model's rest-pose thumbnail the three model icons take on
+	 *                           an edited export, or null to leave the icons the graph has.
 	 * @return ExportReport The notices for everything not (yet) lowered.
 	 */
 	fun apply(
@@ -104,6 +109,7 @@ object Cmo3Export {
 		recomposedPages: List<Cmo3Conversion.AtlasPage> = emptyList(),
 		tileRasters: (AtlasTileId) -> RasterImage? = { null },
 		nowMillis: Long = 0L,
+		modelThumbnail: RasterImage? = null,
 	): ExportReport {
 		val modelSource = target.root as? CModelSource ?: error("CMO3 model root is not a CModelSource")
 		val baseline = Cmo3Import.fromModelSource(modelSource)
@@ -118,6 +124,13 @@ object Cmo3Export {
 		// an unedited document passes no pages, and the graph and archive are then never touched.
 		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited, editor, tileRasters, nowMillis).reconcile(recomposedPages)
 		val pagesRecomposed = webResult.pagesRecomposed
+		// The model icons follow an edited export (the diff is non-empty here): the editor regenerates
+		// them on its own saves, and a thumbnail of the rest pose is what it shows for the file.
+		if (modelThumbnail != null) {
+			(modelSource.textureManager as? CTextureManager)?.let { textureManager ->
+				Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis).replaceModelIcons(modelSource, modelThumbnail)
+			}
+		}
 		// A created drawable over art the reconcile minted binds through the binding it handed back;
 		// a caller's own binding for the same drawable (the fresh-graph path) outranks it.
 		val bindings =

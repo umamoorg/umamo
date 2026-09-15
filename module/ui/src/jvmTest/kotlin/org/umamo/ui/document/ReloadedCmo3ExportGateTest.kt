@@ -7,7 +7,17 @@ import kotlinx.coroutines.yield
 import org.umamo.edit.EditorSession
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CLayer
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.custom.CWritableImage
+import org.umamo.format.cmo3.model.gen.ACLayerGroup
+import org.umamo.format.cmo3.model.gen.CImageIcon
+import org.umamo.format.cmo3.model.gen.CLayeredImage
+import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
+import org.umamo.format.cmo3.model.identity.Guid
+import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.art.SourceArtImportOptions
@@ -122,12 +132,66 @@ class ReloadedCmo3ExportGateTest {
 			val rereadLayer = assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == ref.layerKey }, "the reloaded layer is listed under its key")
 			assertEquals(tile.width to tile.height, rereadLayer.raster.width to rereadLayer.raster.height)
 			assertTrue(rereadLayer.raster.rgba.contentEquals(repainted.raster.rgba), "the layer's pixels are the repainted ones")
+			// So is the layer's icon: every opaque pixel of the 64px thumbnail is the repainted gray.
+			val rereadImage =
+				assertNotNull(
+					graphElements((reread.root as CModelSource).textureManager.let { manager -> (manager as CTextureManager)._rawImages })
+						.mapNotNull { wrapper -> (wrapper as? LayeredImageWrapper)?.image as? CLayeredImage }
+						.firstOrNull { image -> (image.guid as? Guid)?.uuid == ref.sourceId.raw },
+					"the file's layered image reads back",
+				)
+			val rereadCLayer = assertNotNull(layersOf(rereadImage).firstOrNull { layer -> layer.name == row.name }, "the reloaded layer is in the tree")
+			val iconPath = assertNotNull((((rereadCLayer.icon64 as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "the layer has a 64px icon")
+			val icon = PngCodec.read(assertNotNull(reread.archive.byPath(iconPath), "the icon is embedded").content)
+			var opaquePixels = 0
+			for (pixel in 0 until icon.width * icon.height) {
+				if ((icon.rgba[pixel * 4 + 3].toInt() and 0xFF) == 255) {
+					opaquePixels += 1
+					assertEquals(listOf(0x5A, 0x5A, 0x5A), (0 until 3).map { channel -> icon.rgba[pixel * 4 + channel].toInt() and 0xFF }, "icon pixel $pixel is the repainted gray")
+				}
+			}
+			assertTrue(opaquePixels > 0, "the icon shows the repainted art")
 			val exportedPages = cmo3AtlasPages(reread.root as CModelSource) { resource -> reread.extractLayerPng(resource) }.pageBytes
 			val expectedPages = effective.atlases.map { page -> encodeAtlasPng(page) }
 			assertEquals(expectedPages.size, exportedPages.size, "exported page count")
 			for ((pageIndex, bytes) in exportedPages.withIndex()) {
 				assertTrue(expectedPages.any { expected -> expected.contentEquals(bytes) }, "exported page $pageIndex is not one of the reload's pages")
 			}
+		}
+
+	/**
+	 * Every image layer under a layered image's root, depth first.
+	 *
+	 * @param CLayeredImage image The layered image.
+	 * @return List<CLayer> The layers.
+	 */
+	private fun layersOf(image: CLayeredImage): List<CLayer> {
+		val layers = ArrayList<CLayer>()
+
+		fun walk(group: ACLayerGroup) {
+			for (entry in graphElements(group._children)) {
+				when (entry) {
+					is ACLayerGroup -> walk(entry)
+					is CLayer -> layers.add(entry)
+				}
+			}
+		}
+		(image._rootLayer as? ACLayerGroup)?.let(::walk)
+		return layers
+	}
+
+	/**
+	 * A CMO3 collection field as its elements, whichever container shape the serializer used.
+	 *
+	 * @param Any? collection The raw field.
+	 * @return List The elements.
+	 */
+	private fun graphElements(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
 		}
 
 	/**

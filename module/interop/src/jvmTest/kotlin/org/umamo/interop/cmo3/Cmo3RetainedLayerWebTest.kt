@@ -8,6 +8,8 @@ import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.CWritableImage
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
@@ -21,6 +23,7 @@ import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.ArtSource
@@ -79,7 +82,7 @@ class Cmo3RetainedLayerWebTest {
 	private val page = Cmo3Conversion.AtlasPage(PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4) { 0x40 })), pageSize, pageSize)
 
 	/**
-	 * A retained graph: the H1 artwork fixture (one file, an eye in Head/Eyes and hair at the root,
+	 * A retained graph: an artwork-origin fixture (one file, an eye in Head/Eyes and hair at the root,
 	 * both placed) exported fresh and read back, with the baseline the reconcile will diff against.
 	 *
 	 * @return Pair The model and its import.
@@ -120,6 +123,12 @@ class Cmo3RetainedLayerWebTest {
 
 	private fun mainXmlOf(model: Cmo3Model): ByteArray = CaffCodec.read(Cmo3.write(model)).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 
+	private fun imagesOf(root: CModelSource): List<CLayeredImage> =
+		Cmo3Import.elementsOf((root.textureManager as CTextureManager)._rawImages).filterIsInstance<LayeredImageWrapper>().map { wrapper -> wrapper.image as CLayeredImage }
+
+	private fun meshesOf(root: CModelSource): List<CArtMeshSource> =
+		Cmo3Import.elementsOf((root.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
+
 	private fun iconPath(icon: Any?): String? = (((icon as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath
 
 	@Test
@@ -152,8 +161,17 @@ class Cmo3RetainedLayerWebTest {
 				sources = editedSources,
 			)
 		val rasters = mapOf(eyeReloaded.id to gradient(6, 11), browTile.id to gradient(4, 12), wingTile.id to gradient(4, 13))
+		val thumbnail = gradient(4, 21)
+		// The icon entries the reload must refresh IN PLACE: the eye layer's, EyeL's, and the model's.
+		val retainedRoot = retained.root as CModelSource
+		val retainedEyeLayer = walkLayeredImage(imagesOf(retainedRoot).single()).first { walked -> walked.key == "lyid:1576" }.layer
+		val eyeIcon64Path = assertNotNull(Cmo3Icons.archivePathOf(retainedEyeLayer.icon64))
+		val eyeLMesh = meshesOf(retainedRoot).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "EyeL" }
+		val eyeLIcon32Path = assertNotNull(Cmo3Icons.archivePathOf(eyeLMesh.icon32))
+		val eyeLIcon32Before = assertNotNull(retained.archive.byPath(eyeLIcon32Path)).content
+		val modelIcon64Path = assertNotNull(Cmo3Icons.archivePathOf(retainedRoot._icon64))
 
-		val report = Cmo3Export.apply(edited, retained, recomposedPages = listOf(page), tileRasters = { tileId -> rasters[tileId] }, nowMillis = now)
+		val report = Cmo3Export.apply(edited, retained, recomposedPages = listOf(page), tileRasters = { tileId -> rasters[tileId] }, nowMillis = now, modelThumbnail = thumbnail)
 		assertTrue(report.notices.isEmpty(), "the reconcile owes nothing: ${report.notices}")
 
 		val reread = Cmo3.read(Cmo3.write(retained))
@@ -223,6 +241,32 @@ class Cmo3RetainedLayerWebTest {
 		for (path in iconPaths) {
 			assertNotNull(reread.archive.byPath(path), "icon '$path' is embedded")
 		}
+		// The rewritten layer's icon shows the new art at its old entry; so does EyeL's, over the patch
+		// its mesh now covers; the minted layers' and drawables' icons exist; the model icons are the
+		// thumbnail, at their old entries.
+		val eyeLayerBack = walkLayeredImage(images[0]).first { walked -> walked.key == "lyid:1576" }.layer
+		assertEquals(eyeIcon64Path, Cmo3Icons.archivePathOf(eyeLayerBack.icon64), "the rewritten layer keeps its icon entry")
+		assertContentEquals(gradient(6, 11).fittedInto(64).rgba, PngCodec.read(assertNotNull(reread.archive.byPath(eyeIcon64Path)).content).rgba, "which now holds the new raster's fit")
+		val eyeLBack = meshesOf(rereadRoot).first { mesh -> Cmo3Import.idStrOf(mesh.id) == "EyeL" }
+		assertEquals(eyeLIcon32Path, Cmo3Icons.archivePathOf(eyeLBack.icon32), "EyeL keeps its icon entry")
+		val eyeLIcon32After = assertNotNull(reread.archive.byPath(eyeLIcon32Path)).content
+		assertTrue(!eyeLIcon32After.contentEquals(eyeLIcon32Before), "EyeL's icon was re-rendered")
+		val eyeLEdited = edited.drawables.first { drawable -> drawable.id.raw == "EyeL" }
+		assertContentEquals(
+			Cmo3Icons.patchOf(gradient(6, 11), Cmo3Icons.artUvsOf(edited, eyeLEdited)).fittedInto(32).rgba,
+			PngCodec.read(eyeLIcon32After).rgba,
+			"over the patch its mesh covers on the new art",
+		)
+		for (name in listOf("Brow", "Wing")) {
+			val mesh = meshesOf(rereadRoot).first { candidate -> Cmo3Import.idStrOf(candidate.id) == name }
+			for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
+				val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(assertNotNull(Cmo3Icons.archivePathOf(icon), "$name has a ${size}px icon"))).content)
+				assertEquals(size to size, decoded.width to decoded.height)
+			}
+		}
+		assertEquals(modelIcon64Path, Cmo3Icons.archivePathOf(rereadRoot._icon64), "the model icon keeps its entry")
+		assertContentEquals(thumbnail.fittedInto(64).rgba, PngCodec.read(assertNotNull(reread.archive.byPath(modelIcon64Path)).content).rgba, "and holds the thumbnail's fit")
+		assertContentEquals(thumbnail.fittedInto(16).rgba, PngCodec.read(assertNotNull(reread.archive.byPath(assertNotNull(Cmo3Icons.archivePathOf(rereadRoot._icon16)))).content).rgba)
 
 		// The drawables: the created ones bind to their tiles, and every drawable re-imports verbatim.
 		assertEquals(tileByKey.getValue("lyid:77").id, ingest.tileIdByDrawableId["Brow"], "the brow binds to its minted tile")
@@ -246,12 +290,18 @@ class Cmo3RetainedLayerWebTest {
 				atlas = baseline.atlas.copy(tiles = baseline.atlas.tiles.map { tile -> if (tile.id == eyeTile.id) eyeReloaded else tile }),
 			)
 		val entryCountBefore = retained.archive.entries.size
+		val entriesBefore = retained.archive.entries.map { entry -> entry.path to entry.content.copyOf() }
 
 		val report = Cmo3Export.apply(edited, retained, recomposedPages = listOf(page), tileRasters = { null }, nowMillis = now)
 		val reasons = report.notices.filterIsInstance<ExportNotice.UnsupportedChange>().map { notice -> notice.reason }
 		assertTrue(ExportNoticeReason.AtlasPageNotRecomposed in reasons, "the whole web declined, so the moved placement is reported: ${report.notices}")
 		assertTrue(ExportNoticeReason.AtlasTileMetadataNotReconcilable in reasons, "the size change is reported rather than half-written")
 		assertEquals(entryCountBefore, retained.archive.entries.size, "nothing was embedded")
+		for ((path, content) in entriesBefore) {
+			if (path.startsWith("image")) {
+				assertContentEquals(content, assertNotNull(retained.archive.byPath(path)).content, "icon '$path' is untouched")
+			}
+		}
 		val root = retained.root as CModelSource
 		val art = assertNotNull(cmo3SourceArtOf(root, baseline.sources.single().id) { resource -> retained.extractLayerPng(resource) })
 		assertContentEquals(gradient(4, 1).rgba, assertNotNull(art.layers.firstOrNull { layer -> layer.id.raw == "lyid:1576" }).raster.rgba, "the eye's layer still holds the imported pixels")
@@ -261,9 +311,11 @@ class Cmo3RetainedLayerWebTest {
 	fun anUneditedApplyLeavesTheGraphByteIdentical() {
 		val (retained, baseline) = retainedGraph()
 		val before = mainXmlOf(retained)
-		val report = Cmo3Export.apply(baseline, retained, tileRasters = { gradient(4, 99) }, nowMillis = now)
+		val modelIconBefore = assertNotNull(retained.archive.byPath(assertNotNull(Cmo3Icons.archivePathOf((retained.root as CModelSource)._icon64)))).content.copyOf()
+		val report = Cmo3Export.apply(baseline, retained, tileRasters = { gradient(4, 99) }, nowMillis = now, modelThumbnail = gradient(4, 23))
 		assertTrue(report.isEmpty, "no-change apply produced notices: ${report.notices}")
 		assertContentEquals(before, mainXmlOf(retained), "main.xml is unchanged")
 		assertNull(report.notices.firstOrNull(), "nothing reported")
+		assertContentEquals(modelIconBefore, assertNotNull(retained.archive.byPath(assertNotNull(Cmo3Icons.archivePathOf((retained.root as CModelSource)._icon64)))).content, "the model icon is untouched by an unedited export")
 	}
 }

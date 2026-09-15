@@ -10,6 +10,13 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.custom.CWritableImage
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CImageIcon
+import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.cmo3.model.type.FileRef
+import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.art.ArtSourceDescriptor
@@ -118,6 +125,17 @@ class AddedArtCmo3ExportGateTest {
 			val rereadArt = assertNotNull(cmo3SourceArtOf(rereadRoot, rereadAdded.id) { resource -> reread.extractLayerPng(resource) })
 			assertContentEquals(layerA.raster.rgba, assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == "lyid:9001" }).raster.rgba, "the first layer's pixels read back")
 			assertContentEquals(layerB.raster.rgba, assertNotNull(rereadArt.layers.firstOrNull { layer -> layer.id.raw == "lyid:9002" }).raster.rgba)
+			// The added drawables carry thumbnails of their art, one 32px and one 16px entry each.
+			val rereadMeshes = graphElements((rereadRoot.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+			for (drawable in addedDrawables) {
+				val mesh = assertNotNull(rereadMeshes.firstOrNull { candidate -> (candidate.id as? Id)?.idstr == drawable.id.raw }, "${drawable.name} is written")
+				for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
+					val path = assertNotNull((((icon as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "${drawable.name} has a ${size}px icon")
+					val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(path), "icon '$path' is embedded").content)
+					assertEquals(size to size, decoded.width to decoded.height)
+					assertTrue((0 until decoded.width * decoded.height).any { pixel -> (decoded.rgba[pixel * 4 + 3].toInt() and 0xFF) == 255 }, "${drawable.name}'s ${size}px icon shows its opaque art")
+				}
+			}
 			val reimported = Cmo3Import.fromModelSource(rereadRoot)
 			for (drawable in addedDrawables) {
 				val back = assertNotNull(reimported.drawables.firstOrNull { candidate -> candidate.id == drawable.id }, "${drawable.name} re-imports")
@@ -137,5 +155,19 @@ class AddedArtCmo3ExportGateTest {
 			val sourceMainXml = CaffCodec.read(exportedBytes).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 			val reemittedMainXml = CaffCodec.read(Cmo3.write(identity.model)).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 			assertContentEquals(sourceMainXml, reemittedMainXml, "main.xml survives the reopen byte-identical")
+		}
+
+	/**
+	 * A CMO3 collection field as its elements, whichever container shape the serializer used.
+	 *
+	 * @param Any? collection The raw field.
+	 * @return List The elements.
+	 */
+	private fun graphElements(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
 		}
 }

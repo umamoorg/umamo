@@ -73,6 +73,9 @@ public object Cmo3Conversion {
 	 *                              none; a tile with a raster and an inventory row writes its real
 	 *                              layer, every other drawable takes the crop stand-in.  A
 	 *                              MOC3-origin document has no tiles and passes nothing.
+	 * @param RasterImage modelThumbnail The model's rest-pose thumbnail the three model icons fit,
+	 *                              or null for the blank icons the editor writes for a model it
+	 *                              never rendered.
 	 * @return Result The fresh model plus the reconcile report.
 	 */
 	public fun freshCmo3(
@@ -83,6 +86,7 @@ public object Cmo3Conversion {
 		nowMillis: Long,
 		obfuscateKey: Int,
 		tileRasters: (AtlasTileId) -> RasterImage? = { null },
+		modelThumbnail: RasterImage? = null,
 	): Result {
 		// Real layers first: a drawable whose tile has a raster and an inventory row writes that
 		// raster as its own layer, and leaves the crop path - the un-dedup included, since a real
@@ -103,6 +107,7 @@ public object Cmo3Conversion {
 				canvasWidth = effectivePuppet.canvasWidth.roundToInt(),
 				canvasHeight = effectivePuppet.canvasHeight.roundToInt(),
 				targetVersionNo = effectivePuppet.runtimeTarget.cmo3TargetVersionNo(),
+				modelThumbnail = modelThumbnail,
 			)
 		// Each page's drawable regions feed the per-drawable patch webs (crop + placement fit).
 		// The puppet's mesh.positions MUST be canvas-frame here: the app's MOC3 document loader

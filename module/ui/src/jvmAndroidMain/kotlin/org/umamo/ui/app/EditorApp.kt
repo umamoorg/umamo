@@ -712,6 +712,9 @@ fun EditorApp(
 						" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
 						" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
 				)
+				// The model's own icons come from the outliner's rest-pose composite, over the same
+				// pages the export writes - pure CPU, so the Android shell writes them too.
+				val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
 				val prepared =
 					prepareCmo3Export(
 						document = puppetDocument,
@@ -720,6 +723,7 @@ fun EditorApp(
 						modelName = suggestedName,
 						nowMillis = System.currentTimeMillis(),
 						obfuscateKey = Random.nextInt(),
+						modelThumbnail = modelThumbnail,
 					)
 				destination.write(Cmo3.write(prepared.model))
 				// True export semantics: an export is not a save, so the dirty baseline stays put - the

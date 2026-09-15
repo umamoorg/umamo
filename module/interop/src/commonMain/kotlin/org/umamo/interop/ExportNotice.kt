@@ -52,7 +52,9 @@ sealed interface ExportNotice {
 	) : ExportNotice
 
 	/**
-	 * The document has no source artwork, so the CMO3 was built around a fabricated one.
+	 * Not every drawable's art came from a real source layer, so the CMO3 was built around a
+	 * fabricated source document - the whole file, for a MOC3-origin document, which has no source
+	 * artwork at all.
 	 *
 	 * A CMO3 is organised around the layered art it was imported from; a MOC3 carries only packed
 	 * atlas pages, so the export reconstructs a stand-in source document by slicing each drawable's

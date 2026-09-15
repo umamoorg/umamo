@@ -51,6 +51,8 @@ internal object Cmo3SourceLayerWeb {
 	 * @property RasterImage     raster      The tile's pixels, straight alpha.
 	 * @property AtlasPlacement? placement   Where the tile sits on its page, or null when unpacked.
 	 * @property List<String>    drawableIds The drawables sampling the tile, in document order.
+	 * @property Map             artUvsByDrawableId Each drawable's texture coordinates in the tile's
+	 *   own frame, for the patch its icon shows; a drawable absent here shows the whole layer.
 	 */
 	internal class SourceLayerInput(
 		val tileId: String,
@@ -63,10 +65,11 @@ internal object Cmo3SourceLayerWeb {
 		val raster: RasterImage,
 		val placement: AtlasPlacement?,
 		val drawableIds: List<String>,
+		val artUvsByDrawableId: Map<String, FloatArray> = emptyMap(),
 	)
 
 	/**
-	 * One artwork file with the tiles of its that have real art, in the file's layer order.
+	 * One artwork file with those of its tiles that have real art, in the file's layer order.
 	 *
 	 * @property String  name         The file's display name.
 	 * @property String? path         The file's recorded path, or null when the record has none.
@@ -112,9 +115,11 @@ internal object Cmo3SourceLayerWeb {
 	 */
 	internal fun inputsOf(puppet: PuppetModel, tileRasters: (AtlasTileId) -> RasterImage?): List<SourceImageInput> {
 		val drawableIdsByTile = HashMap<AtlasTileId, MutableList<String>>()
+		val artUvsByTile = HashMap<AtlasTileId, MutableMap<String, FloatArray>>()
 		for (drawable in puppet.drawables) {
 			val tileId = drawable.atlasTileId ?: continue
 			drawableIdsByTile.getOrPut(tileId) { ArrayList() }.add(drawable.id.raw)
+			Cmo3Icons.artUvsOf(puppet, drawable)?.let { artUvs -> artUvsByTile.getOrPut(tileId) { HashMap() }[drawable.id.raw] = artUvs }
 		}
 		val canvasWidth = puppet.canvasWidth.roundToInt()
 		val canvasHeight = puppet.canvasHeight.roundToInt()
@@ -146,6 +151,7 @@ internal object Cmo3SourceLayerWeb {
 							raster = raster,
 							placement = tile.placement,
 							drawableIds = drawableIdsByTile[tile.id].orEmpty(),
+							artUvsByDrawableId = artUvsByTile[tile.id].orEmpty(),
 						),
 				)
 			}
@@ -167,7 +173,8 @@ internal object Cmo3SourceLayerWeb {
 	 * @param List<GTexture2D>    textures   The pages' shared textures, index-parallel to [atlases].
 	 * @param Cmo3FreshChainNames names      The document's shared definitions and naming counters.
 	 * @param MutableList         pngEntries The PNG entry collector.
-	 * @param Long                nowMillis  The import timestamp, standing in for a time the record lacks.
+	 * @param Long                nowMillis  The import timestamp the wrapper and env values record, standing in
+	 *   for a time the record lacks.
 	 * @return Written The wrapper, the group, and the bindings.
 	 */
 	internal fun write(
@@ -220,6 +227,7 @@ internal object Cmo3SourceLayerWeb {
 					canvasLeft = layerInput.canvasLeft,
 					canvasTop = layerInput.canvasTop,
 					resource = resource,
+					raster = raster,
 					layeredImage = layeredImage,
 					folder = folder,
 					names = names,
@@ -227,7 +235,7 @@ internal object Cmo3SourceLayerWeb {
 				)
 			childrenByPath.getValue(layerInput.groupPath).add(layer)
 			layerEntryList.add(layer)
-			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
+			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
 			groupModelImages.add(modelImage)
 			val tilePlacement = layerInput.placement ?: continue
 			val atlas = atlases.getOrNull(tilePlacement.pageIndex) ?: continue
@@ -247,7 +255,18 @@ internal object Cmo3SourceLayerWeb {
 				),
 			)
 			for (drawableId in layerInput.drawableIds) {
-				bindings[drawableId] = Cmo3DrawableTextureBinding(texture, atlas.guid as Guid, modelImage.guid as Guid, affineOf(entryHalf))
+				// The drawable's icons show the patch its mesh covers on the layer, one icon per
+				// drawable like the editor's files.
+				val patch = Cmo3Icons.patchOf(raster, layerInput.artUvsByDrawableId[drawableId])
+				bindings[drawableId] =
+					Cmo3DrawableTextureBinding(
+						texture,
+						atlas.guid as Guid,
+						modelImage.guid as Guid,
+						affineOf(entryHalf),
+						icon32 = Cmo3Icons.iconOf(patch, 32, names.nextIconPath(), pngEntries),
+						icon16 = Cmo3Icons.iconOf(patch, 16, names.nextIconPath(), pngEntries),
+					)
 			}
 		}
 		return Written(minted.wrapper, group, bindings)
@@ -364,7 +383,7 @@ internal object Cmo3SourceLayerWeb {
 
 	/**
 	 * A tile's layer on its file's document: the name, visibility, resource, rect, identifier, and
-	 * placeholder icons the official editor writes for a PSD layer.  Shared by the fresh web and the
+	 * icons the official editor writes for a PSD layer.  Shared by the fresh web and the
 	 * retained-graph mint, so a layer minted into a retained file is field-for-field the fresh shape.
 	 *
 	 * @param String              name         The layer's name.
@@ -373,6 +392,7 @@ internal object Cmo3SourceLayerWeb {
 	 * @param Int                 canvasLeft   The art frame's canvas x.
 	 * @param Int                 canvasTop    The art frame's canvas y.
 	 * @param CImageResource      resource     The layer's own resource.
+	 * @param RasterImage         raster       The resource's pixels, which the icons show fitted.
 	 * @param CLayeredImage       layeredImage The owning layered image.
 	 * @param CLayerGroup         folder       The folder the layer sits in.
 	 * @param Cmo3FreshChainNames names        The document's shared blend, options, and icon paths.
@@ -386,6 +406,7 @@ internal object Cmo3SourceLayerWeb {
 		canvasLeft: Int,
 		canvasTop: Int,
 		resource: CImageResource,
+		raster: RasterImage,
 		layeredImage: CLayeredImage,
 		folder: CLayerGroup,
 		names: Cmo3ImageChainBuilder.Cmo3FreshChainNames,
@@ -407,9 +428,10 @@ internal object Cmo3SourceLayerWeb {
 			// the model image's canvas placement, size = the resource dims).
 			boundsOnImageDoc = layerBounds(canvasLeft, canvasTop, resource.width, resource.height)
 			layerIdentifier = identifierOf(name, layerKey)
-			// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer.
-			icon16 = Cmo3ImageChainBuilder.placeholderIcon(16, names.nextIconPath(), pngEntries)
-			icon64 = Cmo3ImageChainBuilder.placeholderIcon(64, names.nextIconPath(), pngEntries)
+			// CMO3: CLayer fields icon16 / icon64 - thumbnails on every corpus layer, the whole
+			// layer fitted into each square.
+			icon16 = Cmo3Icons.iconOf(raster, 16, names.nextIconPath(), pngEntries)
+			icon64 = Cmo3Icons.iconOf(raster, 64, names.nextIconPath(), pngEntries)
 			layerInfo = LinkedHashMap<String, Any?>()
 			this.group = folder
 		}
