@@ -16,7 +16,6 @@ import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.identity.Guid
-import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
@@ -141,7 +140,7 @@ class ReloadedCmo3ExportGateTest {
 					"the file's layered image reads back",
 				)
 			val rereadCLayer = assertNotNull(layersOf(rereadImage).firstOrNull { layer -> layer.name == row.name }, "the reloaded layer is in the tree")
-			val iconPath = assertNotNull((((rereadCLayer.icon64 as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "the layer has a 64px icon")
+			val iconPath = assertNotNull(((rereadCLayer.icon64 as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath, "the layer has a 64px icon")
 			val icon = PngCodec.read(assertNotNull(reread.archive.byPath(iconPath), "the icon is embedded").content)
 			var opaquePixels = 0
 			for (pixel in 0 until icon.width * icon.height) {
