@@ -16,12 +16,11 @@ import org.umamo.format.webp.WebPReader
  * The registry of binary container codecs Umamo can read/write, and the entry point for dispatching
  * an unknown file to the right one.
  *
- * EN: Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
- *     JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
- *     models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
- *     returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
- *     not registered here - they are `String`-shaped and live as helpers on [Moc3].
- * JA: バイナリ形式コーデックの一覧と判定窓口。Cmo3 が JVM 専用のためこのソースセットに置く。
+ * Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
+ * JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
+ * models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
+ * returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
+ * not registered here - they are `String`-shaped and live as helpers on [Moc3].
  */
 public object FormatRegistry {
 	/**
