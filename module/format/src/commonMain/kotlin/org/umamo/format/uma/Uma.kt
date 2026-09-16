@@ -115,7 +115,10 @@ public object Uma : FormatCodec<UmaModel> {
 				payloads += UmaPayload(zipEntry.name, UmaRawEntry(zipEntry, archive.rawPayload(zipEntry)))
 			}
 		}
-		return UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
+		val model = UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
+		// UMA §4.8: decoding the puppet entry here makes a malformed one fail the read, not a later access.
+		model.puppet
+		return model
 	}
 
 	/**

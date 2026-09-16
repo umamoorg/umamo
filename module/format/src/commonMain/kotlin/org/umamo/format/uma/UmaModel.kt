@@ -2,6 +2,8 @@ package org.umamo.format.uma
 
 import kotlinx.serialization.json.JsonObject
 import org.umamo.format.binary.ZipEntry
+import org.umamo.format.uma.puppet.UmaPuppet
+import org.umamo.format.uma.puppet.UmaPuppetEntry
 
 /**
  * The application that last wrote a UMA file, as its manifest's `writer` record says.
@@ -135,6 +137,33 @@ public class UmaModel internal constructor(
 		get() = readOnlyReasons.isNotEmpty()
 
 	/**
+	 * The puppet entry's content (docs/format/UMA.md §4), or null when the document has no live puppet entry.
+	 *
+	 * Decoded once per model; a model read from a file has already decoded it, so a malformed puppet entry
+	 * fails the read rather than a later access.
+	 */
+	public val puppet: UmaPuppet? by lazy {
+		val entry = entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Puppet } ?: return@lazy null
+		UmaPuppetEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path)
+	}
+
+	/**
+	 * This document with its puppet entry set to [puppet], laid over the entry's tree as read so every key
+	 * this writer does not own survives (D10), or added when the document has no puppet entry.
+	 *
+	 * @param UmaPuppet puppet The puppet.
+	 * @return UmaModel The updated document.
+	 * @throws UmaWriteException When the puppet holds a value the format cannot represent.
+	 * @throws IllegalStateException When the document's puppet entry is too new to interpret.
+	 */
+	public fun withPuppet(puppet: UmaPuppet): UmaModel {
+		val path = entries.firstOrNull { entry -> UmaEntryKind.ofWireName(entry.kind) == UmaEntryKind.Puppet }?.path ?: UmaEntryKind.Puppet.defaultPath
+		val encoded = UmaPuppetEntry.encode(puppet, path)
+		val merged = mergeRetainedTree(liveContent(UmaEntryKind.Puppet), encoded, UmaPuppet.serializer().descriptor, UmaPuppetEntry.identities)
+		return withLiveContent(UmaEntryKind.Puppet, merged as JsonObject)
+	}
+
+	/**
 	 * The live JSON tree of [kind], or null when the document has no live entry of that kind.
 	 *
 	 * @param UmaEntryKind kind The entry kind.
@@ -178,7 +207,7 @@ public class UmaModel internal constructor(
 	 * @param UmaWriterInfo writer The application writing the file.
 	 * @return UmaModel The updated document.
 	 */
-	internal fun withWriter(writer: UmaWriterInfo): UmaModel = copy(writer = writer)
+	public fun withWriter(writer: UmaWriterInfo): UmaModel = copy(writer = writer)
 
 	/**
 	 * A copy with the given fields replaced.
@@ -190,13 +219,13 @@ public class UmaModel internal constructor(
 	private fun copy(writer: UmaWriterInfo? = this.writer, entries: List<UmaEntry> = this.entries): UmaModel =
 		UmaModel(writer, entries, payloads, readOnlyReasons, manifestTree, archiveOrder)
 
-	internal companion object {
+	public companion object {
 		/**
 		 * An empty document with no entries, written by [writer].
 		 *
 		 * @param UmaWriterInfo writer The application creating the document.
 		 * @return UmaModel The document.
 		 */
-		fun create(writer: UmaWriterInfo): UmaModel = UmaModel(writer, emptyList(), emptyList(), emptyList(), null, emptyList())
+		public fun create(writer: UmaWriterInfo): UmaModel = UmaModel(writer, emptyList(), emptyList(), emptyList(), null, emptyList())
 	}
 }

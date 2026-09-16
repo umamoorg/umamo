@@ -77,3 +77,16 @@ public class UmaFormatException(
 	public val failure: UmaReadFailure,
 	cause: Throwable? = null,
 ) : RuntimeException(failure.description, cause)
+
+/**
+ * A document holds a value the UMA format cannot represent, so it cannot be saved.
+ *
+ * @param String     path   Where the value sits: an entry path, or a path within the entry.
+ * @param String     detail What is wrong with it.
+ * @param Throwable? cause  The underlying error, when there is one.
+ */
+public class UmaWriteException(
+	public val path: String,
+	public val detail: String,
+	cause: Throwable? = null,
+) : RuntimeException("cannot write $path: $detail", cause)

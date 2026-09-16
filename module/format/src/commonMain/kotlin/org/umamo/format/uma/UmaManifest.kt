@@ -26,6 +26,19 @@ internal val UmaJson: Json =
 		prettyPrintIndent = "\t"
 	}
 
+/**
+ * The JSON a domain entry's schema classes decode from and encode to, as trees.
+ *
+ * Unknown keys are ignored here because the retained tree keeps them (D10); nulls are omitted, so an
+ * absent optional key and a null are one thing; special floats are refused, since JSON cannot carry them.
+ */
+internal val UmaEntryJson: Json =
+	Json {
+		ignoreUnknownKeys = true
+		explicitNulls = false
+		encodeDefaults = false
+	}
+
 // UMA §3.1: the manifest's own keys.
 private const val FORMAT_KEY = "format"
 private const val CONTAINER_VERSION_KEY = "containerVersion"
