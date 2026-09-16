@@ -1,32 +1,69 @@
 package org.umamo.interop.uma
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import org.umamo.format.uma.UmaEntryKind
 import org.umamo.format.uma.UmaWriteException
+import org.umamo.format.uma.puppet.UmaAxis
+import org.umamo.format.uma.puppet.UmaBlendLimit
+import org.umamo.format.uma.puppet.UmaBlendLimitPoint
+import org.umamo.format.uma.puppet.UmaChannelCell
+import org.umamo.format.uma.puppet.UmaChannelGrid
 import org.umamo.format.uma.puppet.UmaDeformer
+import org.umamo.format.uma.puppet.UmaDeformerBlendShape
+import org.umamo.format.uma.puppet.UmaDeformerCell
+import org.umamo.format.uma.puppet.UmaDeformerForm
+import org.umamo.format.uma.puppet.UmaDeformerGrid
 import org.umamo.format.uma.puppet.UmaDeformerKind
 import org.umamo.format.uma.puppet.UmaDrawable
+import org.umamo.format.uma.puppet.UmaFormChannel
+import org.umamo.format.uma.puppet.UmaGlue
+import org.umamo.format.uma.puppet.UmaGluePairs
+import org.umamo.format.uma.puppet.UmaMesh
+import org.umamo.format.uma.puppet.UmaMeshBlendShape
+import org.umamo.format.uma.puppet.UmaMeshCell
+import org.umamo.format.uma.puppet.UmaMeshForm
+import org.umamo.format.uma.puppet.UmaMeshGrid
 import org.umamo.format.uma.puppet.UmaOrgRef
 import org.umamo.format.uma.puppet.UmaParameter
 import org.umamo.format.uma.puppet.UmaParameterLink
 import org.umamo.format.uma.puppet.UmaParameterNode
 import org.umamo.format.uma.puppet.UmaPart
+import org.umamo.format.uma.puppet.UmaPartBlendShape
 import org.umamo.format.uma.puppet.UmaPartComposite
+import org.umamo.format.uma.puppet.UmaPartForm
 import org.umamo.format.uma.puppet.UmaPuppet
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
+import org.umamo.runtime.model.BlendWeightLimit
+import org.umamo.runtime.model.ChannelGrids
+import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
+import org.umamo.runtime.model.KeyformAxis
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartComposite
+import org.umamo.runtime.model.PartForm
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RotationForm
+import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * Lowers a [PuppetModel] onto the puppet entry's schema (docs/format/UMA.md §4).
@@ -35,8 +72,9 @@ import org.umamo.runtime.model.RuntimeTarget
  * stay distinct; every float is checked to be finite first, because JSON cannot hold anything else and a
  * silently dropped value would be worse than a refused save.
  *
- * The puppet entry's structure: the document fields, parameters, the organizational tree, parts, deformers,
- * and drawables.  Meshes, keyform tracks, blend shapes, and glue are not lowered yet.
+ * Bulk arrays (meshes, position deltas, lattice points, glue pairs) are handed over as they are; they travel
+ * in the entry's buffer, which holds any float bit for bit.  Inline floats (axis keys, pivots, channel values,
+ * form scalars) must be finite.
  */
 object UmaPuppetExport {
 	/**
@@ -63,6 +101,7 @@ object UmaPuppetExport {
 			parts = model.parts.map(::partOf).ifEmpty { null },
 			deformers = model.deformers.map(::deformerOf).ifEmpty { null },
 			drawables = model.drawables.map(::drawableOf).ifEmpty { null },
+			glues = model.glues.map(::glueOf).ifEmpty { null },
 		)
 
 	/**
@@ -132,6 +171,8 @@ object UmaPuppetExport {
 			groupMode = part.groupMode.takeIf { mode -> mode != PartGroupMode.PassThrough }?.toUma(),
 			drawOrder = part.drawOrder.takeIf { order -> order != DEFAULT_DRAW_ORDER },
 			composite = compositeOf(part.composite, "$path.composite"),
+			channels = channelsOf(part.channelGrids, path),
+			blendShapes = part.blendShapes.mapIndexed { bindingIndex, binding -> partBlendShapeOf(binding, "$path.blendShapes[$bindingIndex]") }.ifEmpty { null },
 		)
 	}
 
@@ -182,6 +223,9 @@ object UmaPuppetExport {
 					rows = deformer.rows,
 					columns = deformer.columns,
 					isQuadTransform = deformer.isQuadTransform,
+					geometry = deformer.geometryGrid?.let { grid -> warpGridOf(grid, "$path.geometry") },
+					channels = channelsOf(deformer.channelGrids, path),
+					blendShapes = deformer.blendShapes.mapIndexed { bindingIndex, binding -> warpBlendShapeOf(binding, "$path.blendShapes[$bindingIndex]") }.ifEmpty { null },
 				)
 
 			is Deformer.Rotation ->
@@ -200,6 +244,9 @@ object UmaPuppetExport {
 					baseAngle = finite(deformer.baseAngle, "$path.baseAngle"),
 					flipX = optionalBoolean(deformer.flipX, false),
 					flipY = optionalBoolean(deformer.flipY, false),
+					geometry = deformer.geometryGrid?.let { grid -> rotationGridOf(grid, "$path.geometry") },
+					channels = channelsOf(deformer.channelGrids, path),
+					blendShapes = deformer.blendShapes.mapIndexed { bindingIndex, binding -> rotationBlendShapeOf(binding, "$path.blendShapes[$bindingIndex]") }.ifEmpty { null },
 				)
 		}
 	}
@@ -230,8 +277,275 @@ object UmaPuppetExport {
 			textureSource = drawable.textureSourceId?.raw,
 			texturePage = drawable.texturePage.takeIf { page -> page != -1 },
 			atlasTile = drawable.atlasTileId?.raw,
+			mesh = drawable.mesh?.let { mesh -> UmaMesh(mesh.positions, mesh.uvs, mesh.indices) },
+			geometry = drawable.geometryGrid?.let { grid -> meshGridOf(grid, "$path.geometry") },
+			channels = channelsOf(drawable.channelGrids, path),
+			blendShapes = drawable.blendShapes.mapIndexed { bindingIndex, binding -> meshBlendShapeOf(binding, "$path.blendShapes[$bindingIndex]") }.ifEmpty { null },
 		)
 	}
+
+	/**
+	 * UMA §4.14: one glue affecter.
+	 *
+	 * @param Glue glue The glue.
+	 * @return UmaGlue The record.
+	 */
+	private fun glueOf(glue: Glue): UmaGlue {
+		val path = "glues[${glue.meshA.raw},${glue.meshB.raw}]"
+		return UmaGlue(
+			meshA = glue.meshA.raw,
+			meshB = glue.meshB.raw,
+			pairs =
+				UmaGluePairs(
+					indicesA = IntArray(glue.pairs.size) { pairIndex -> glue.pairs[pairIndex].indexA },
+					indicesB = IntArray(glue.pairs.size) { pairIndex -> glue.pairs[pairIndex].indexB },
+					weightsA = FloatArray(glue.pairs.size) { pairIndex -> glue.pairs[pairIndex].weightA },
+					weightsB = FloatArray(glue.pairs.size) { pairIndex -> glue.pairs[pairIndex].weightB },
+				),
+			channels = channelsOf(glue.channelGrids, path),
+			intensity = optionalFloat(glue.intensity, 1f, "$path.intensity"),
+			id = glue.id,
+		)
+	}
+
+	/**
+	 * UMA §4.11: a grid's axes.
+	 *
+	 * @param List<KeyformAxis> axes The axes.
+	 * @param String            path The grid's position, for a failure.
+	 * @return List<UmaAxis> The records.
+	 */
+	private fun axesOf(axes: List<KeyformAxis>, path: String): List<UmaAxis> =
+		axes.mapIndexed { axisIndex, axis -> UmaAxis(axis.parameterId.raw, keysOf(axis.keys, "$path.axes[$axisIndex].keys")) }
+
+	/**
+	 * Inline key values, each checked to be finite.
+	 *
+	 * @param FloatArray keys The keys.
+	 * @param String     path Where they sit, for a failure.
+	 * @return List<Float> The keys.
+	 */
+	private fun keysOf(keys: FloatArray, path: String): List<Float> = keys.mapIndexed { keyIndex, key -> finite(key, "$path[$keyIndex]") }
+
+	/**
+	 * UMA §4.11: a drawable's geometry grid.
+	 *
+	 * @param KeyformGrid grid The grid.
+	 * @param String      path The grid's position, for a failure.
+	 * @return UmaMeshGrid The record.
+	 */
+	private fun meshGridOf(grid: KeyformGrid<MeshDeltaForm>, path: String): UmaMeshGrid =
+		UmaMeshGrid(axesOf(grid.axes, path), grid.cells.map { cell -> UmaMeshCell(cell.coordinate.toList(), cell.form.positionDeltas) })
+
+	/**
+	 * UMA §4.11: a warp's geometry grid.
+	 *
+	 * @param KeyformGrid grid The grid.
+	 * @param String      path The grid's position, for a failure.
+	 * @return UmaDeformerGrid The record.
+	 */
+	private fun warpGridOf(grid: KeyformGrid<WarpLatticeForm>, path: String): UmaDeformerGrid =
+		UmaDeformerGrid(axesOf(grid.axes, path), grid.cells.map { cell -> UmaDeformerCell(cell.coordinate.toList(), controlPoints = cell.form.controlPoints) })
+
+	/**
+	 * UMA §4.11: a rotation's geometry grid.
+	 *
+	 * @param KeyformGrid grid The grid.
+	 * @param String      path The grid's position, for a failure.
+	 * @return UmaDeformerGrid The record.
+	 */
+	private fun rotationGridOf(grid: KeyformGrid<RotationPivotForm>, path: String): UmaDeformerGrid =
+		UmaDeformerGrid(
+			axesOf(grid.axes, path),
+			grid.cells.mapIndexed { cellIndex, cell ->
+				val cellPath = "$path.cells[$cellIndex]"
+				UmaDeformerCell(
+					coordinate = cell.coordinate.toList(),
+					originX = finite(cell.form.originX, "$cellPath.originX"),
+					originY = finite(cell.form.originY, "$cellPath.originY"),
+					angle = finite(cell.form.angle, "$cellPath.angle"),
+					scale = finite(cell.form.scale, "$cellPath.scale"),
+				)
+			},
+		)
+
+	/**
+	 * UMA §4.12: an owner's channel tracks, in channel order, or null when it keys none.
+	 *
+	 * @param ChannelGrids channelGrids The tracks.
+	 * @param String       path         The owner's position, for a failure.
+	 * @return Map? The records.
+	 */
+	private fun channelsOf(channelGrids: ChannelGrids, path: String): Map<UmaFormChannel, UmaChannelGrid>? {
+		if (channelGrids.isEmpty) {
+			return null
+		}
+		val tracks = LinkedHashMap<UmaFormChannel, UmaChannelGrid>()
+		for (channel in FormChannel.entries) {
+			val grid = channelGrids[channel] ?: continue
+			val trackPath = "$path.channels.${channel.toUma().wireName()}"
+			tracks[channel.toUma()] =
+				UmaChannelGrid(
+					axesOf(grid.axes, trackPath),
+					grid.cells.mapIndexed { cellIndex, cell -> UmaChannelCell(cell.coordinate.toList(), channelValueOf(cell.form, "$trackPath.cells[$cellIndex].value")) },
+				)
+		}
+		return tracks
+	}
+
+	/**
+	 * UMA §4.12: one channel value as JSON - a number, a color, or a boolean.
+	 *
+	 * @param ChannelValue value The value.
+	 * @param String       path  Where it sits, for a failure.
+	 * @return JsonElement The JSON.
+	 */
+	private fun channelValueOf(value: ChannelValue, path: String): JsonElement =
+		when (value) {
+			is ChannelValue.Scalar -> JsonPrimitive(finite(value.value, path))
+			is ChannelValue.Color ->
+				JsonArray(
+					listOf(
+						JsonPrimitive(finite(value.color.red, "$path[0]")),
+						JsonPrimitive(finite(value.color.green, "$path[1]")),
+						JsonPrimitive(finite(value.color.blue, "$path[2]")),
+					),
+				)
+
+			is ChannelValue.Flag -> JsonPrimitive(value.flag)
+		}
+
+	/**
+	 * UMA §4.13: a binding's limits, or null when it has none.
+	 *
+	 * @param List<BlendWeightLimit> limits The limits.
+	 * @param String                 path   The binding's position, for a failure.
+	 * @return List<UmaBlendLimit>? The records.
+	 */
+	private fun limitsOf(limits: List<BlendWeightLimit>, path: String): List<UmaBlendLimit>? =
+		limits.mapIndexed { limitIndex, limit ->
+			UmaBlendLimit(
+				limit.parameterId.raw,
+				limit.points.mapIndexed { pointIndex, point ->
+					val pointPath = "$path.limits[$limitIndex].points[$pointIndex]"
+					UmaBlendLimitPoint(finite(point.value, "$pointPath.value"), finite(point.weight, "$pointPath.weight"))
+				},
+			)
+		}.ifEmpty { null }
+
+	/**
+	 * UMA §4.13: a drawable's blend-shape binding.
+	 *
+	 * @param BlendShapeBinding binding The binding.
+	 * @param String            path    Its position, for a failure.
+	 * @return UmaMeshBlendShape The record.
+	 */
+	private fun meshBlendShapeOf(binding: BlendShapeBinding<MeshForm>, path: String): UmaMeshBlendShape =
+		UmaMeshBlendShape(
+			parameter = binding.parameterId.raw,
+			keys = keysOf(binding.keys, "$path.keys"),
+			neutralIndex = binding.neutralIndex,
+			forms =
+				binding.forms.mapIndexed { formIndex, form ->
+					form?.let {
+						val formPath = "$path.forms[$formIndex]"
+						UmaMeshForm(
+							positionDeltas = form.positionDeltas,
+							drawOrder = optionalFloat(form.drawOrder, DEFAULT_DRAW_ORDER.toFloat(), "$formPath.drawOrder"),
+							opacity = optionalFloat(form.opacity, 1f, "$formPath.opacity"),
+							multiplyColor = optionalColor(form.multiplyColor, ColorRgb.MultiplyIdentity, "$formPath.multiplyColor"),
+							screenColor = optionalColor(form.screenColor, ColorRgb.ScreenIdentity, "$formPath.screenColor"),
+						)
+					}
+				},
+			limits = limitsOf(binding.limits, path),
+		)
+
+	/**
+	 * UMA §4.13: a warp's blend-shape binding.
+	 *
+	 * @param BlendShapeBinding binding The binding.
+	 * @param String            path    Its position, for a failure.
+	 * @return UmaDeformerBlendShape The record.
+	 */
+	private fun warpBlendShapeOf(binding: BlendShapeBinding<WarpForm>, path: String): UmaDeformerBlendShape =
+		UmaDeformerBlendShape(
+			parameter = binding.parameterId.raw,
+			keys = keysOf(binding.keys, "$path.keys"),
+			neutralIndex = binding.neutralIndex,
+			forms =
+				binding.forms.mapIndexed { formIndex, form ->
+					form?.let {
+						val formPath = "$path.forms[$formIndex]"
+						UmaDeformerForm(
+							controlPoints = form.controlPoints,
+							opacity = optionalFloat(form.opacity, 1f, "$formPath.opacity"),
+							multiplyColor = optionalColor(form.multiplyColor, ColorRgb.MultiplyIdentity, "$formPath.multiplyColor"),
+							screenColor = optionalColor(form.screenColor, ColorRgb.ScreenIdentity, "$formPath.screenColor"),
+						)
+					}
+				},
+			limits = limitsOf(binding.limits, path),
+		)
+
+	/**
+	 * UMA §4.13: a rotation's blend-shape binding.
+	 *
+	 * @param BlendShapeBinding binding The binding.
+	 * @param String            path    Its position, for a failure.
+	 * @return UmaDeformerBlendShape The record.
+	 */
+	private fun rotationBlendShapeOf(binding: BlendShapeBinding<RotationForm>, path: String): UmaDeformerBlendShape =
+		UmaDeformerBlendShape(
+			parameter = binding.parameterId.raw,
+			keys = keysOf(binding.keys, "$path.keys"),
+			neutralIndex = binding.neutralIndex,
+			forms =
+				binding.forms.mapIndexed { formIndex, form ->
+					form?.let {
+						val formPath = "$path.forms[$formIndex]"
+						UmaDeformerForm(
+							originX = finite(form.originX, "$formPath.originX"),
+							originY = finite(form.originY, "$formPath.originY"),
+							angle = finite(form.angle, "$formPath.angle"),
+							scale = finite(form.scale, "$formPath.scale"),
+							flipX = optionalBoolean(form.flipX, false),
+							flipY = optionalBoolean(form.flipY, false),
+							opacity = optionalFloat(form.opacity, 1f, "$formPath.opacity"),
+							multiplyColor = optionalColor(form.multiplyColor, ColorRgb.MultiplyIdentity, "$formPath.multiplyColor"),
+							screenColor = optionalColor(form.screenColor, ColorRgb.ScreenIdentity, "$formPath.screenColor"),
+						)
+					}
+				},
+			limits = limitsOf(binding.limits, path),
+		)
+
+	/**
+	 * UMA §4.13: a part's blend-shape binding.
+	 *
+	 * @param BlendShapeBinding binding The binding.
+	 * @param String            path    Its position, for a failure.
+	 * @return UmaPartBlendShape The record.
+	 */
+	private fun partBlendShapeOf(binding: BlendShapeBinding<PartForm>, path: String): UmaPartBlendShape =
+		UmaPartBlendShape(
+			parameter = binding.parameterId.raw,
+			keys = keysOf(binding.keys, "$path.keys"),
+			neutralIndex = binding.neutralIndex,
+			forms =
+				binding.forms.mapIndexed { formIndex, form ->
+					form?.let {
+						val formPath = "$path.forms[$formIndex]"
+						UmaPartForm(
+							drawOrder = finite(form.drawOrder, "$formPath.drawOrder"),
+							opacity = optionalFloat(form.opacity, 1f, "$formPath.opacity"),
+							multiplyColor = optionalColor(form.multiplyColor, ColorRgb.MultiplyIdentity, "$formPath.multiplyColor"),
+							screenColor = optionalColor(form.screenColor, ColorRgb.ScreenIdentity, "$formPath.screenColor"),
+						)
+					}
+				},
+			limits = limitsOf(binding.limits, path),
+		)
 
 	/**
 	 * [value], refusing a NaN or infinity.

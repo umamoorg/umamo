@@ -10,11 +10,12 @@ import kotlin.test.assertTrue
 
 /**
  * Guards the retained-tree merge against schema drift: every array of objects the puppet entry can hold must
- * have an identity rule, or the unknown keys its elements carry could not survive a save (D10).
+ * have a list rule - an identity, or replaced whole - or a save could not decide what its elements' unknown
+ * keys belong to (D10).
  */
 class UmaPuppetSchemaTest {
 	/**
-	 * Every array of objects reachable from the puppet entry's root has an identity rule.
+	 * Every array of objects reachable from the puppet entry's root, through maps included, has a list rule.
 	 */
 	@Test
 	fun everyArrayOfObjectsHasAnIdentity() {
@@ -22,7 +23,7 @@ class UmaPuppetSchemaTest {
 		val visited = HashSet<String>()
 
 		/**
-		 * Walks one descriptor, recording arrays of objects without an identity rule.
+		 * Walks one descriptor, recording arrays of objects without a list rule.
 		 *
 		 * @param SerialDescriptor descriptor The schema node.
 		 * @param String           path       Its position, for the report.
@@ -40,16 +41,18 @@ class UmaPuppetSchemaTest {
 
 				StructureKind.LIST -> {
 					val element = descriptor.getElementDescriptor(0)
-					if (element.kind == StructureKind.CLASS && UmaPuppetEntry.identities.ruleFor(element.serialName.removeSuffix("?")) == null) {
+					if (element.kind == StructureKind.CLASS && UmaPuppetEntry.identities.ruleFor(element.serialName) == null) {
 						missing += "$path (${element.serialName})"
 					}
 					walk(element, "$path[]")
 				}
 
+				StructureKind.MAP -> walk(descriptor.getElementDescriptor(1), "$path{}")
+
 				else -> {}
 			}
 		}
 		walk(UmaPuppet.serializer().descriptor, "puppet")
-		assertTrue(missing.isEmpty(), "arrays of objects without an identity rule: $missing")
+		assertTrue(missing.isEmpty(), "arrays of objects without a list rule: $missing")
 	}
 }

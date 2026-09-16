@@ -2,6 +2,8 @@ package org.umamo.format.uma
 
 import kotlinx.serialization.json.JsonObject
 import org.umamo.format.binary.ZipEntry
+import org.umamo.format.binary.ZipFormatException
+import org.umamo.format.binary.decodeZipPayload
 import org.umamo.format.uma.puppet.UmaPuppet
 import org.umamo.format.uma.puppet.UmaPuppetEntry
 
@@ -131,7 +133,29 @@ public class UmaModel internal constructor(
 	internal val manifestTree: JsonObject?,
 	/** Every non-bootstrap entry path in the order the archive held them; empty for a new document. */
 	internal val archiveOrder: List<String>,
+	/**
+	 * The buffers an entry owns that a save rebuilt, by path: the bytes to write in place of the payload read,
+	 * or null for an owned buffer nothing references any more, which is not written (UMA §4.9).
+	 */
+	internal val ownedBuffers: Map<String, ByteArray?> = emptyMap(),
 ) {
+	/**
+	 * Each payload's decompressed bytes by path, decompressed on first use to resolve accessors.  Held as lazy
+	 * values so a document read from several threads decompresses each payload once and safely.
+	 */
+	private val decodedPayloads: Map<String, Lazy<ByteArray>> by lazy {
+		payloads.associate { payload ->
+			payload.path to
+				lazy {
+					try {
+						decodeZipPayload(payload.raw.zipEntry, payload.raw.rawPayload, 0)
+					} catch (failure: ZipFormatException) {
+						throw UmaFormatException(UmaReadFailure.CorruptContainer(failure.message.orEmpty()), failure)
+					}
+				}
+		}
+	}
+
 	/** Whether the document holds a required entry this reader cannot interpret, which forbids saving it. */
 	public val isReadOnly: Boolean
 		get() = readOnlyReasons.isNotEmpty()
@@ -144,12 +168,15 @@ public class UmaModel internal constructor(
 	 */
 	public val puppet: UmaPuppet? by lazy {
 		val entry = entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Puppet } ?: return@lazy null
-		UmaPuppetEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path)
+		UmaPuppetEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path, ::bufferBytes)
 	}
 
 	/**
 	 * This document with its puppet entry set to [puppet], laid over the entry's tree as read so every key
 	 * this writer does not own survives (D10), or added when the document has no puppet entry.
+	 *
+	 * The puppet's buffer is rebuilt in the same step: every accessor in the merged tree - the new arrays and
+	 * any a newer writer left under keys this one does not know - is laid out afresh in document order.
 	 *
 	 * @param UmaPuppet puppet The puppet.
 	 * @return UmaModel The updated document.
@@ -157,10 +184,40 @@ public class UmaModel internal constructor(
 	 * @throws IllegalStateException When the document's puppet entry is too new to interpret.
 	 */
 	public fun withPuppet(puppet: UmaPuppet): UmaModel {
-		val path = entries.firstOrNull { entry -> UmaEntryKind.ofWireName(entry.kind) == UmaEntryKind.Puppet }?.path ?: UmaEntryKind.Puppet.defaultPath
-		val encoded = UmaPuppetEntry.encode(puppet, path)
-		val merged = mergeRetainedTree(liveContent(UmaEntryKind.Puppet), encoded, UmaPuppet.serializer().descriptor, UmaPuppetEntry.identities)
-		return withLiveContent(UmaEntryKind.Puppet, merged as JsonObject)
+		val kind = UmaEntryKind.Puppet
+		val path = entries.firstOrNull { entry -> UmaEntryKind.ofWireName(entry.kind) == kind }?.path ?: kind.defaultPath
+		val scratch = UmaScratchBuffer()
+		val encoded = UmaPuppetEntry.encode(puppet, path, scratch)
+		val merged = mergeRetainedTree(liveContent(kind), encoded, UmaPuppet.serializer().descriptor, UmaPuppetEntry.identities)
+		val ownedPath = checkNotNull(kind.bufferPath)
+		check(entries.none { entry -> entry.path == ownedPath }) { "'$ownedPath' is a manifest-listed entry, so the puppet cannot own it as its buffer" }
+		val scratchBytes = scratch.bytes()
+		val layout = layOutBuffer(merged, ownedPath) { source -> if (source == UmaAccessor.SCRATCH_BUFFER) scratchBytes else bufferBytes(source) }
+		val updated = withLiveContent(kind, layout.tree as JsonObject)
+		return UmaModel(
+			updated.writer,
+			updated.entries,
+			payloads,
+			readOnlyReasons,
+			manifestTree,
+			archiveOrder,
+			ownedBuffers + (ownedPath to layout.buffer.takeIf { layout.hasAccessors }),
+		)
+	}
+
+	/**
+	 * The bytes of the buffer at [path]: a buffer a save rebuilt, else an archive payload decompressed on first
+	 * use.
+	 *
+	 * @param String path The buffer's path.
+	 * @return ByteArray? The bytes, or null when the document holds no such buffer.
+	 * @throws UmaFormatException When the payload's bytes fail their size or CRC-32 check.
+	 */
+	internal fun bufferBytes(path: String): ByteArray? {
+		if (path in ownedBuffers) {
+			return ownedBuffers[path]
+		}
+		return decodedPayloads[path]?.value
 	}
 
 	/**
@@ -217,7 +274,7 @@ public class UmaModel internal constructor(
 	 * @return UmaModel The copy.
 	 */
 	private fun copy(writer: UmaWriterInfo? = this.writer, entries: List<UmaEntry> = this.entries): UmaModel =
-		UmaModel(writer, entries, payloads, readOnlyReasons, manifestTree, archiveOrder)
+		UmaModel(writer, entries, payloads, readOnlyReasons, manifestTree, archiveOrder, ownedBuffers)
 
 	public companion object {
 		/**

@@ -152,10 +152,21 @@ public object Uma : FormatCodec<UmaModel> {
 			if (!writtenPaths.add(path)) {
 				return
 			}
+			// UMA §4.9: a buffer a save rebuilt is written stored in place of the payload read, or not at all when
+			// nothing references it any more.
+			if (path in model.ownedBuffers) {
+				model.ownedBuffers[path]?.let { bytes -> writer.addStored(path, bytes) }
+				return
+			}
 			val entry = entryByPath[path]
 			if (entry != null) {
 				when (val content = entry.content) {
-					is UmaEntryContent.Live -> writer.addDeflated(path, encodeUmaJson(content.tree))
+					is UmaEntryContent.Live -> {
+						writer.addDeflated(path, encodeUmaJson(content.tree))
+						// A buffer new to this file follows the entry that owns it.
+						content.kind.bufferPath?.takeIf { buffer -> buffer in model.ownedBuffers && buffer !in model.archiveOrder }?.let(::writePath)
+					}
+
 					is UmaEntryContent.Preserved -> writer.addRaw(content.raw.zipEntry, content.raw.rawPayload)
 				}
 				return

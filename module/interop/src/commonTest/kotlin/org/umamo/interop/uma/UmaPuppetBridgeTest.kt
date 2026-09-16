@@ -37,6 +37,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -180,7 +181,7 @@ class UmaPuppetBridgeTest {
 			pixelsPerUnit = 1f,
 			runtimeTarget = runtimeTarget,
 			rendersFromSourceLayers = true,
-		)
+		).withDerivedRenderRoot()
 	}
 
 	/**
@@ -237,7 +238,7 @@ class UmaPuppetBridgeTest {
 				drawables = listOf(Drawable(DrawableId("D"), "D", null, BlendMode.Normal, emptyList(), null, null)),
 				rootChildren = emptyList(),
 				rootPartId = null,
-			)
+			).withDerivedRenderRoot()
 		val expected =
 			UmaPuppet(
 				parameters = listOf(UmaParameter("P", "P", 0f, 1f, 0f)),
