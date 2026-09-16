@@ -600,7 +600,7 @@ internal fun buildPlacementGesture(
  * @param FloatArray positions The interleaved (x, y) positions.
  * @return Set<Int> The indices 0 until the vertex count.
  */
-private fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
+internal fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
 
 /**
  * The trim's pixels of a decoded tile as a Compose bitmap, straight alpha preserved.

@@ -191,3 +191,44 @@ fun PuppetModel.placementSelectedTileIds(selection: Selection): Set<AtlasTileId>
  */
 fun PuppetModel.placementDragTileIds(selection: Selection): Set<AtlasTileId> =
 	placementSelectedTileIds(selection).filterTo(LinkedHashSet()) { tileId -> atlas.tileById[tileId]?.pinned != true }
+
+/**
+ * Why a placement gesture over a selection cannot start, before any page is consulted.  Each case
+ * is a distinct notice, because each asks the rigger for a different remedy.
+ */
+enum class PlacementGestureRefusal {
+	/** The stored coordinates address the art rather than the pages, so there is no placement to move. */
+	LayerAddressed,
+
+	/** Nothing selected is bound to art packed on a page. */
+	NoPlacedArt,
+
+	/** Everything placed under the selection is pinned, and a pin holds against a hand move. */
+	Pinned,
+}
+
+/**
+ * Whether a placement gesture over [selection] has anything to move, and if not, why.
+ *
+ * The gate the UV editor's Object overlay runs when it shows an atlas page: it lives here rather than
+ * in the session's latch because what an Object-mode gesture moves is the shown surface's call - a
+ * page's placements or a source layer's mappings - and the surface is per-area state the session
+ * cannot see.  Pure over the model, so the overlay and the tests read one rule.
+ *
+ * @param Selection selection The session's object selection.
+ * @return PlacementGestureRefusal? Why the gesture must not start, or null when it may.
+ */
+fun PuppetModel.placementGestureRefusal(selection: Selection): PlacementGestureRefusal? {
+	if (!atlas.storedUvsAddressPages) {
+		return PlacementGestureRefusal.LayerAddressed
+	}
+	if (placementDragTileIds(selection).isNotEmpty()) {
+		return null
+	}
+	// Placed art under the selection that still cannot move is pinned art.
+	return if (placementSelectedTileIds(selection).isEmpty()) {
+		PlacementGestureRefusal.NoPlacedArt
+	} else {
+		PlacementGestureRefusal.Pinned
+	}
+}

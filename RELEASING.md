@@ -30,7 +30,7 @@ Out of scope until alpha: code signing, notarization, native installers, auto-up
 1. Bump `VERSION` in `module/ui/src/commonMain/kotlin/org/umamo/ui/help/ProjectInfo.kt`.  The workflow **verifies** the tag against it and never injects a version so a mismatch will fail with an annotation telling you what to fix.
 2. Update the `CHANGELOG.md` with new changes under a `## [X.Y.Z] - YYYY-MM-DD` heading.
 3. Run the pre-flight checks below.
-4. Merge to `master`, then tag and push:
+4. Merge to `master`, then tag and push.  Don't forget `-dev`, `-alpha`, and so on if needed.
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```

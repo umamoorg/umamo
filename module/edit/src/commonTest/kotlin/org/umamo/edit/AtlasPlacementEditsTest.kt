@@ -30,8 +30,9 @@ import kotlin.test.assertTrue
  * re-maps in one pass (drawables sharing a tile move together), untouched drawables pass their arrays
  * through by reference, one fault anywhere in the map refuses the whole edit, the session commit is
  * ONE undo step, the step's label names the operator that ran, a pin lands only on a placed tile and
- * leaves with its placement, and the Object-mode UV latch admits exactly the selections that have
- * packed art to move.
+ * leaves with its placement, the Object-mode UV latch admits any selection with a meshed drawable
+ * (which surface the gesture runs over is the overlay's call), and the page-side refusal names
+ * exactly the selections that have no placement to move.
  */
 class AtlasPlacementEditsTest {
 	private val tileAId = AtlasTileId("tileA")
@@ -255,7 +256,7 @@ class AtlasPlacementEditsTest {
 	}
 
 	@Test
-	fun objectModeLatchesAUvOperatorOverPackedArt() {
+	fun objectModeLatchesAUvOperatorOverAnyMeshedSelection() {
 		val session = EditorSession(baseModel())
 		assertEquals(EditorMode.Object, session.mode.value)
 		session.setSelection(Selection(setOf(target("dA1")), target("dA1")))
@@ -273,53 +274,60 @@ class AtlasPlacementEditsTest {
 
 		session.clearUvOperator()
 		session.beginUvOperator(MeshOperatorKind.VertexSlide, "uv-area")
-		assertNull(session.activeUvOperator.value, "vertex slide is not a placement operation")
+		assertNull(session.activeUvOperator.value, "vertex slide is neither a placement nor a mapping operation")
+
+		// Which surface the gesture runs over is the overlay's call, so unpacked and unbound art still
+		// latches here: over a source layer its mapping moves, and over a page the overlay refuses.
+		session.setSelection(Selection(setOf(target("dUnpacked"), target("dLoose")), target("dUnpacked")))
+		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
+		assertEquals(MeshOperatorKind.Grab, session.activeUvOperator.value?.kind, "the session does not know the surface")
+		assertNull(session.notice.value)
 	}
 
 	@Test
-	fun objectModeRefusesWithANoticeWhenNothingSelectedIsPacked() {
+	fun objectModeRefusesWithANoticeWhenNothingSelectedHasAMesh() {
 		val session = EditorSession(baseModel())
 
 		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
-		assertNull(session.activeUvOperator.value, "an empty selection has nothing to place")
-		assertEquals("notice.uv.placement.noPlacedArt", session.notice.value?.messageKey)
+		assertNull(session.activeUvOperator.value, "an empty selection has nothing to move on any surface")
+		assertEquals("notice.transform.onlyDrawables", session.notice.value?.messageKey)
 		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
 
-		session.setSelection(Selection(setOf(target("dUnpacked"), target("dLoose")), target("dUnpacked")))
+		session.setSelection(Selection(setOf(SelectionTarget.Deformer(DeformerId("w"))), SelectionTarget.Deformer(DeformerId("w"))))
 		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
-		assertNull(session.activeUvOperator.value, "unpacked and unbound art has nothing on a page to move")
-		assertEquals("notice.uv.placement.noPlacedArt", session.notice.value?.messageKey)
+		assertNull(session.activeUvOperator.value, "a deformer has no mapping and no placement")
+		assertEquals("notice.transform.onlyDrawables", session.notice.value?.messageKey)
+	}
+
+	@Test
+	fun thePageSideRefusalNamesWhyNothingCanMove() {
+		val model = baseModel()
+		assertNull(model.placementGestureRefusal(Selection(setOf(target("dA1")), target("dA1"))), "a placed selection moves")
+		assertEquals(PlacementGestureRefusal.NoPlacedArt, model.placementGestureRefusal(Selection()), "an empty selection has nothing to place")
+		assertEquals(
+			PlacementGestureRefusal.NoPlacedArt,
+			model.placementGestureRefusal(Selection(setOf(target("dUnpacked"), target("dLoose")), target("dUnpacked"))),
+			"unpacked and unbound art has nothing on a page to move",
+		)
+		assertEquals(
+			PlacementGestureRefusal.LayerAddressed,
+			model.copy(atlas = model.atlas.copy(storedUvsAddressPages = false)).placementGestureRefusal(Selection(setOf(target("dA1")), target("dA1"))),
+			"coordinates that address the art have no page placement to move",
+		)
 	}
 
 	@Test
 	fun aPinHoldsAgainstTheGesture() {
-		val session = EditorSession(baseModel().withAtlasPins(listOf(tileAId), pinned = true))
+		val model = baseModel().withAtlasPins(listOf(tileAId), pinned = true)
 		val pinnedOnly = Selection(setOf(target("dA1"), target("dA2")), target("dA1"))
 		val mixed = Selection(setOf(target("dA1"), target("dB")), target("dB"))
 
-		assertEquals(emptySet(), session.model.value.placementDragTileIds(pinnedOnly), "a pinned tile is not a mover")
-		assertEquals(setOf(tileAId), session.model.value.placementSelectedTileIds(pinnedOnly), "but it is still the selection's placed tile - Unpin needs it")
-		assertEquals(setOf(tileBId), session.model.value.placementDragTileIds(mixed), "a mixed selection moves the unpinned tile alone")
+		assertEquals(emptySet(), model.placementDragTileIds(pinnedOnly), "a pinned tile is not a mover")
+		assertEquals(setOf(tileAId), model.placementSelectedTileIds(pinnedOnly), "but it is still the selection's placed tile - Unpin needs it")
+		assertEquals(setOf(tileBId), model.placementDragTileIds(mixed), "a mixed selection moves the unpinned tile alone")
 
-		session.setSelection(pinnedOnly)
-		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
-		assertNull(session.activeUvOperator.value, "an all-pinned selection has nothing to move")
-		assertEquals("notice.uv.placement.pinned", session.notice.value?.messageKey, "and says why")
-
-		session.setSelection(mixed)
-		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
-		assertEquals(MeshOperatorKind.Grab, session.activeUvOperator.value?.kind, "a mixed selection latches over its unpinned tile")
-	}
-
-	@Test
-	fun objectModeRefusesALayerAddressedDocument() {
-		val base = baseModel()
-		val session = EditorSession(base.copy(atlas = base.atlas.copy(storedUvsAddressPages = false)))
-		session.setSelection(Selection(setOf(target("dA1")), target("dA1")))
-
-		session.beginUvOperator(MeshOperatorKind.Grab, "uv-area")
-		assertNull(session.activeUvOperator.value, "coordinates that address the art have no page placement to move")
-		assertEquals("notice.uv.placement.layerAddressed", session.notice.value?.messageKey)
+		assertEquals(PlacementGestureRefusal.Pinned, model.placementGestureRefusal(pinnedOnly), "an all-pinned selection has nothing to move, and says why")
+		assertNull(model.placementGestureRefusal(mixed), "a mixed selection moves over its unpinned tile")
 	}
 
 	@Test
