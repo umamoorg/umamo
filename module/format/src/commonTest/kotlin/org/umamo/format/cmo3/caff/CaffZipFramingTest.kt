@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.caff
 
+import org.umamo.format.binary.ZipRecords
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -91,14 +92,14 @@ class CaffZipFramingTest {
 		// decodes to 2022-06-06 17:03:30. Feeding that date back through the encoder must reproduce
 		// those exact halves — so this pins the bit packing against real editor output rather than
 		// against my own reading of the spec.
-		val stamp = CaffZip.dosDateTimeOf(2022, 6, 6, 17, 3, 30)
+		val stamp = ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 30)
 		assertEquals(0x54C6, (stamp ushr 16) and 0xFFFF, "date: year-1980 in bits 15..9, month 8..5, day 4..0")
 		assertEquals(0x886F, stamp and 0xFFFF, "time: hour 15..11, minute 10..5, seconds HALVED into 4..0")
 	}
 
 	@Test
 	fun theStampLandsInTheLocalHeaderLittleEndian() {
-		val stamp = CaffZip.dosDateTimeOf(2022, 6, 6, 17, 3, 30)
+		val stamp = ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 30)
 		val framed = CaffZip.zipSingle(contents, 1, stamp)
 		assertEquals(0x886F, readU16(framed, 10), "local header @ +0x0A is the DOS time")
 		assertEquals(0x54C6, readU16(framed, 12), "local header @ +0x0C is the DOS date")
@@ -108,16 +109,16 @@ class CaffZipFramingTest {
 	fun oddSecondsAndTheEpochBoundaryEncodeWithoutWrapping() {
 		// Two-second resolution: 31 and 30 are indistinguishable once halved.
 		assertEquals(
-			CaffZip.dosDateTimeOf(2022, 6, 6, 17, 3, 30),
-			CaffZip.dosDateTimeOf(2022, 6, 6, 17, 3, 31),
+			ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 30),
+			ZipRecords.dosDateTimeOf(2022, 6, 6, 17, 3, 31),
 			"an odd second truncates to the same stamp rather than rounding into the next minute",
 		)
 		// A year outside 1980..2107 has no 7-bit representation. It must clamp, not wrap into a
 		// wrong-but-plausible year — a silently mangled date is worse than an obviously epochal one.
 		val epoch = (0x0021 shl 16)
-		assertEquals(epoch, CaffZip.dosDateTimeOf(1979, 12, 31, 23, 59, 58), "a pre-epoch year clamps to 1980-01-01")
-		assertEquals(epoch, CaffZip.dosDateTimeOf(2108, 1, 1, 0, 0, 0), "a past-ceiling year clamps to 1980-01-01")
-		assertEquals(0x0021, (CaffZip.dosDateTimeOf(1980, 1, 1, 0, 0, 0) ushr 16) and 0xFFFF, "the epoch itself encodes exactly")
+		assertEquals(epoch, ZipRecords.dosDateTimeOf(1979, 12, 31, 23, 59, 58), "a pre-epoch year clamps to 1980-01-01")
+		assertEquals(epoch, ZipRecords.dosDateTimeOf(2108, 1, 1, 0, 0, 0), "a past-ceiling year clamps to 1980-01-01")
+		assertEquals(0x0021, (ZipRecords.dosDateTimeOf(1980, 1, 1, 0, 0, 0) ushr 16) and 0xFFFF, "the epoch itself encodes exactly")
 	}
 
 	@Test
