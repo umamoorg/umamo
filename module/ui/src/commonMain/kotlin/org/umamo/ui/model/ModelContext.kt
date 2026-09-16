@@ -45,6 +45,12 @@ val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
  * but every other read-only surface derives from [LocalPuppet] and would otherwise sit on the committed
  * model until the gesture confirmed - a second UV area showing the atlas page must move with the mesh
  * the viewport beside it is moving.
+ *
+ * A preview differs from the committed model ONLY in drawables' mesh uv arrays (the UV overlays fold
+ * their gesture through withMeshUvs and nothing else).  Surfaces following the preview lean on that to
+ * stay cheap per pointer frame - the UV editor keys its front rank on the committed model and rebuilds
+ * only the islands whose uv array changed identity (UvIslandCache) - so a preview that ever touched
+ * geometry, order, or membership would have to widen that contract with them.
  */
 interface PuppetRenderSync {
 	/**

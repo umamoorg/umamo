@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.umamo.edit.EditorMode
+import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
@@ -239,16 +240,32 @@ internal fun shownSurfaceUvs(
 	layerView: UvEditorLayer?,
 ): Map<DrawableId, FloatArray> =
 	shownDrawables
-		.mapNotNull { drawable ->
-			val mesh = drawable.mesh ?: return@mapNotNull null
-			if (layerView == null) {
-				return@mapNotNull drawable.id to mesh.uvs
-			}
-			val binding = model.atlasBindingFor(drawable) ?: return@mapNotNull null
-			val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height) ?: return@mapNotNull null
-			drawable.id to layerUvs
-		}
+		.mapNotNull { drawable -> surfaceUvsOf(drawable, model, layerView)?.let { uvs -> drawable.id to uvs } }
 		.toMap()
+
+/**
+ * One drawable's mapping in the shown surface's frame - the per-island rule [shownSurfaceUvs] maps
+ * over, exposed so the incremental derivation (UvIslandCache.kt) runs the same rule on only the
+ * islands that changed.
+ *
+ * @param Drawable drawable The drawable drawn over the shown surface.
+ * @param PuppetModel model The puppet, for the atlas the layer mapping derives from.
+ * @param UvEditorLayer? layerView The shown layer, or null when a page is shown.
+ * @return FloatArray? The mapping in the shown surface's frame (the stored array itself over a page),
+ *   or null when the drawable has no mesh or its recovery onto the layer is degenerate.
+ */
+internal fun surfaceUvsOf(
+	drawable: Drawable,
+	model: PuppetModel,
+	layerView: UvEditorLayer?,
+): FloatArray? {
+	val mesh = drawable.mesh ?: return null
+	if (layerView == null) {
+		return mesh.uvs
+	}
+	val binding = model.atlasBindingFor(drawable) ?: return null
+	return layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height)
+}
 
 /**
  * The texture-selection transition for one page-switch request: cycling pins the page adjacent to
@@ -371,7 +388,30 @@ internal fun uvGizmoGeometries(
 	displayHeight: Int,
 ): List<GizmoMeshGeometry> =
 	shownDrawables.mapNotNull { drawable ->
-		val mesh = drawable.mesh ?: return@mapNotNull null
 		val uvs = uvsById[drawable.id] ?: return@mapNotNull null
-		GizmoMeshGeometry(drawable.id, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(uvs, displayWidth, displayHeight))
+		gizmoGeometryOf(drawable, uvs, displayWidth, displayHeight, edges = null)
 	}
+
+/**
+ * One drawable's display-space gizmo geometry - the per-island rule [uvGizmoGeometries] maps over,
+ * exposed so the incremental derivation (UvIslandCache.kt) runs it on only the islands that changed
+ * and hands it the edges it already derived when the indices did not change.
+ *
+ * @param Drawable drawable The drawable drawn over the shown surface.
+ * @param FloatArray uvs The drawable's mapping in the shown surface's frame.
+ * @param Int displayWidth The shown surface's width in texels.
+ * @param Int displayHeight The shown surface's height in texels.
+ * @param List<MeshElement.Edge>? edges The mesh's unique edges when the caller already holds them for
+ *   these indices, else null to derive them.
+ * @return GizmoMeshGeometry? The geometry, or null when the drawable has no mesh.
+ */
+internal fun gizmoGeometryOf(
+	drawable: Drawable,
+	uvs: FloatArray,
+	displayWidth: Int,
+	displayHeight: Int,
+	edges: List<MeshElement.Edge>?,
+): GizmoMeshGeometry? {
+	val mesh = drawable.mesh ?: return null
+	return GizmoMeshGeometry(drawable.id, mesh.indices, edges ?: MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(uvs, displayWidth, displayHeight))
+}

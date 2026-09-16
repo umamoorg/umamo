@@ -173,16 +173,23 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			}
 		}
 	// Each shown mapping in the SHOWN surface's own frame - stored coordinates over a page, recovered
-	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
-	// so the wireframe and the hit test can never disagree about where a mesh is.
-	val shownUvs =
-		remember(shownDrawables, model, layerView) {
-			shownSurfaceUvs(shownDrawables, model, layerView)
+	// ones over a layer - and its display-space gizmo geometry.  One derivation feeds both the display
+	// projection and the pick's alpha gate, so the wireframe and the hit test can never disagree about
+	// where a mesh is.
+	//
+	// Derived INCREMENTALLY, because `model` is a fresh preview instance on every pointer frame of a
+	// modal gesture and differs from the committed model in nothing but the moved drawables' uv
+	// arrays: the cache compares each island's inputs by identity and rebuilds only the islands that
+	// changed, so a page showing every visible island costs the moved island per frame, not the page.
+	// Remembered per area across frames and commits, never across documents (the slot dies with the
+	// placeholder branch above).
+	val islandCache = remember(scope.areaId) { UvIslandCache() }
+	val shownIslands =
+		remember(shownDrawables, model, layerView, displayWidth, displayHeight) {
+			islandCache.update(shownDrawables, model, layerView, displayWidth, displayHeight)
 		}
-	val geometries =
-		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
-			uvGizmoGeometries(shownDrawables, shownUvs, displayWidth, displayHeight)
-		}
+	val shownUvs = shownIslands.uvsById
+	val geometries = shownIslands.geometries
 	val liveGeometries = rememberUpdatedState(geometries)
 
 	// The space an edit here is authored in.  Over a page the display texels ARE the stored frame; over
@@ -213,7 +220,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// over the shown islands and the shown image's decoded pixels (UvIslandPick.kt).  The image is the
 	// atlas page or the source layer's artwork, and the alpha gate follows it - a click through
 	// transparent overhang falls to whatever is behind it on the surface actually being looked at.
-	val frontRank = remember(model) { restFrontRank(model) }
+	// The rank keys on the COMMITTED model: a preview never reorders anything (it carries only uv
+	// arrays - see PuppetRenderSync), so re-walking the render tree per pointer frame would buy nothing.
+	val rankModel = committedModel ?: model
+	val frontRank = remember(rankModel) { restFrontRank(rankModel) }
 	val shownImage =
 		if (layerView != null) {
 			artRasters?.rasterFor(AtlasTileId(layerView.layerKey))
