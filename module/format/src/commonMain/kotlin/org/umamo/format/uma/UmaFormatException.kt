@@ -48,12 +48,13 @@ public sealed interface UmaReadFailure {
 	}
 
 	/**
-	 * The manifest lists an entry the archive does not hold.
+	 * The file names an entry the archive does not hold: a path the manifest lists, or a pixel entry an index
+	 * record names.
 	 *
-	 * @property String path The listed path.
+	 * @property String path The named path.
 	 */
 	public data class MissingEntry(val path: String) : UmaReadFailure {
-		override val description: String get() = "the manifest lists '$path', which the archive does not hold"
+		override val description: String get() = "the file names '$path', which the archive does not hold"
 	}
 
 	/**

@@ -379,6 +379,82 @@ internal fun puppetStructureDifferences(expected: PuppetModel, actual: PuppetMod
 }
 
 /**
+ * Every difference between two models' atlases: page sizes, the page addressing and composition, and every tile
+ * with its placement compared by bits, its binding, pin, and lineage.
+ *
+ * @param PuppetModel expected The model before the round trip.
+ * @param PuppetModel actual   The model after it.
+ * @return List<String> One line per difference; empty when the atlases are identical.
+ */
+internal fun atlasDifferences(expected: PuppetModel, actual: PuppetModel): List<String> {
+	val collector = DifferenceCollector()
+	with(collector) {
+		val left = expected.atlas
+		val right = actual.atlas
+		same("atlas.pages", left.pages, right.pages)
+		same("atlas.storedUvsAddressPages", left.storedUvsAddressPages, right.storedUvsAddressPages)
+		same("atlas.composition", left.composition, right.composition)
+		each("atlas.tiles", left.tiles, right.tiles) { path, leftTile, rightTile ->
+			same("$path.id", leftTile.id, rightTile.id)
+			same("$path.name", leftTile.name, rightTile.name)
+			same("$path.width", leftTile.width, rightTile.width)
+			same("$path.height", leftTile.height, rightTile.height)
+			same("$path.source", leftTile.source, rightTile.source)
+			same("$path.pinned", leftTile.pinned, rightTile.pinned)
+			same("$path.replaces", leftTile.replaces, rightTile.replaces)
+			val leftPlacement = leftTile.placement
+			val rightPlacement = rightTile.placement
+			if (leftPlacement == null || rightPlacement == null) {
+				same("$path.placement present", leftPlacement != null, rightPlacement != null)
+			} else {
+				same("$path.placement.pageIndex", leftPlacement.pageIndex, rightPlacement.pageIndex)
+				bits("$path.placement.positionX", leftPlacement.positionX, rightPlacement.positionX)
+				bits("$path.placement.positionY", leftPlacement.positionY, rightPlacement.positionY)
+				bits("$path.placement.scaleX", leftPlacement.scaleX, rightPlacement.scaleX)
+				bits("$path.placement.scaleY", leftPlacement.scaleY, rightPlacement.scaleY)
+				bits("$path.placement.rotationDegrees", leftPlacement.rotationDegrees, rightPlacement.rotationDegrees)
+			}
+		}
+	}
+	return collector.differences
+}
+
+/**
+ * Every difference between two models' linked source art: each source's record and every inventory row with every
+ * flag and hash.
+ *
+ * @param PuppetModel expected The model before the round trip.
+ * @param PuppetModel actual   The model after it.
+ * @return List<String> One line per difference; empty when the sources are identical.
+ */
+internal fun sourcesDifferences(expected: PuppetModel, actual: PuppetModel): List<String> {
+	val collector = DifferenceCollector()
+	with(collector) {
+		each("sources", expected.sources, actual.sources) { path, left, right ->
+			same("$path.id", left.id, right.id)
+			same("$path.name", left.name, right.name)
+			same("$path.path", left.path, right.path)
+			same("$path.format", left.format, right.format)
+			same("$path.contentHash", left.contentHash, right.contentHash)
+			same("$path.lastModified", left.lastModified, right.lastModified)
+			each("$path.layers", left.layers, right.layers) { layerPath, leftLayer, rightLayer -> same(layerPath, leftLayer, rightLayer) }
+		}
+	}
+	return collector.differences
+}
+
+/**
+ * Every difference between two models across everything a UMA document carries: the puppet entry's structure and
+ * geometry, the atlas, and the linked source art.
+ *
+ * @param PuppetModel expected The model before the round trip.
+ * @param PuppetModel actual   The model after it.
+ * @return List<String> One line per difference; empty when the documents are identical.
+ */
+internal fun documentDifferences(expected: PuppetModel, actual: PuppetModel): List<String> =
+	puppetStructureDifferences(expected, actual) + atlasDifferences(expected, actual) + sourcesDifferences(expected, actual)
+
+/**
  * Compares two drawable blend forms.
  *
  * @param String   path     Where the forms sit.

@@ -555,13 +555,7 @@ object UmaPuppetExport {
 	 * @return Float The value.
 	 * @throws UmaWriteException When the value is not finite.
 	 */
-	private fun finite(value: Float, path: String): Float {
-		if (!value.isFinite()) {
-			// UMA §4.1: JSON has no NaN or infinity.
-			throw UmaWriteException("${UmaEntryKind.Puppet.defaultPath}: $path", "$value cannot be written as JSON")
-		}
-		return value
-	}
+	private fun finite(value: Float, path: String): Float = finiteInline(value, UmaEntryKind.Puppet.defaultPath, path)
 
 	/**
 	 * [value], or null when it is bit-for-bit [default].

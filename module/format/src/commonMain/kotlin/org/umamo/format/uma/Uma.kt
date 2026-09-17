@@ -116,8 +116,11 @@ public object Uma : FormatCodec<UmaModel> {
 			}
 		}
 		val model = UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
-		// UMA §4.8: decoding the puppet entry here makes a malformed one fail the read, not a later access.
+		// UMA §4.8, §5.8, §6.6: decoding the domain entries here makes a malformed one fail the read, not a later
+		// access.
 		model.puppet
+		model.textures
+		model.sources
 		return model
 	}
 
@@ -140,6 +143,7 @@ public object Uma : FormatCodec<UmaModel> {
 		writer.addDeflated(UmaContainer.MANIFEST_PATH, emitUmaManifest(model))
 
 		val entryByPath = model.entries.associateBy { entry -> entry.path }
+		val archivePaths = model.archiveOrder.toHashSet()
 		val payloadByPath = model.payloads.associateBy { payload -> payload.path }
 		val writtenPaths = HashSet<String>()
 
@@ -152,10 +156,11 @@ public object Uma : FormatCodec<UmaModel> {
 			if (!writtenPaths.add(path)) {
 				return
 			}
-			// UMA §4.9: a buffer a save rebuilt is written stored in place of the payload read, or not at all when
-			// nothing references it any more.
-			if (path in model.ownedBuffers) {
-				model.ownedBuffers[path]?.let { bytes -> writer.addStored(path, bytes) }
+			// UMA §3.5: a payload an entry owns that a save rebuilt (a buffer, a pixel entry) is written stored in place
+			// of the payload read, or not at all when the entry no longer names it.
+			val owned = model.ownedPayloads[path]
+			if (owned != null) {
+				owned.bytes?.let { bytes -> writer.addStored(path, bytes) }
 				return
 			}
 			val entry = entryByPath[path]
@@ -163,8 +168,12 @@ public object Uma : FormatCodec<UmaModel> {
 				when (val content = entry.content) {
 					is UmaEntryContent.Live -> {
 						writer.addDeflated(path, encodeUmaJson(content.tree))
-						// A buffer new to this file follows the entry that owns it.
-						content.kind.bufferPath?.takeIf { buffer -> buffer in model.ownedBuffers && buffer !in model.archiveOrder }?.let(::writePath)
+						// UMA §3.5: a payload new to this file follows the entry that owns it, in the order the save laid it out.
+						for ((ownedPath, ownedPayload) in model.ownedPayloads) {
+							if (ownedPayload.owner == content.kind && ownedPath !in archivePaths) {
+								writePath(ownedPath)
+							}
+						}
 					}
 
 					is UmaEntryContent.Preserved -> writer.addRaw(content.raw.zipEntry, content.raw.rawPayload)
