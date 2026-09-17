@@ -144,9 +144,11 @@ private fun mergeObject(retained: JsonObject?, updated: JsonElement, descriptor:
 			continue
 		}
 		// UMA §4.7: an object omitted because everything it knows is at its default (a part's composite) still
-		// carries the keys this reader did not know, so it keeps an object holding just those.
+		// carries the keys this reader did not know, so it keeps an object holding just those.  An object with a
+		// required key (a tile's placement, a drawable's mesh) is omitted because it is gone, and its unknown keys
+		// leave with it, as a deleted array element's do; keeping them would write an object no reader accepts.
 		val retainedChild = retained?.get(key) as? JsonObject
-		if (retainedChild != null && elementDescriptor.kind == StructureKind.CLASS) {
+		if (retainedChild != null && elementDescriptor.kind == StructureKind.CLASS && everyElementIsOptional(elementDescriptor)) {
 			val unknownOnly = mergeObject(retainedChild, JsonObject(emptyMap()), elementDescriptor, identities) as JsonObject
 			if (unknownOnly.isNotEmpty()) {
 				merged[key] = unknownOnly
@@ -162,6 +164,15 @@ private fun mergeObject(retained: JsonObject?, updated: JsonElement, descriptor:
 	}
 	return JsonObject(merged)
 }
+
+/**
+ * Whether every key of the class [descriptor] describes may be absent, so an object holding none of them is
+ * still one a reader accepts.
+ *
+ * @param SerialDescriptor descriptor The class's schema.
+ * @return Boolean True when no key is required.
+ */
+private fun everyElementIsOptional(descriptor: SerialDescriptor): Boolean = (0 until descriptor.elementsCount).all { elementIndex -> descriptor.isElementOptional(elementIndex) }
 
 /**
  * The array merge; see [mergeRetainedTree].
