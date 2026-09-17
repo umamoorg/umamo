@@ -14,6 +14,7 @@ Umamo is early alpha.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
+* UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 
 
 ## 0.3.0-dev - 2026-09-15

@@ -354,11 +354,18 @@ fun EditorApp(
 		}
 	}
 
+	// Both gates below read the session through this holder rather than closing over the parameter.  The file
+	// commands register once against the stable registry (Ctrl+O and the palette dispatch through it), and the
+	// exit guard installs once, so a handler that captured the session directly would keep asking about
+	// whichever document was open when it was registered - none at all on a normal launch, which is a silent
+	// skip of the whole prompt.  The holder always reads the session of the composition that is live now.
+	val currentSession by rememberUpdatedState(session)
+
 	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
-		if (session?.dirty?.value == true) {
+		if (currentSession?.dirty?.value == true) {
 			commandRegistry.invoke("document.confirmReplace", proceed)
 		} else {
 			proceed()
@@ -369,7 +376,7 @@ fun EditorApp(
 	// (document.confirmExit).  File > Exit calls this directly; the host's window close, OS quit, and back
 	// gesture reach it through the exitGuard installed below.
 	fun confirmExit(exit: () -> Unit) {
-		if (session?.dirty?.value == true) {
+		if (currentSession?.dirty?.value == true) {
 			commandRegistry.invoke("document.confirmExit", exit)
 		} else {
 			exit()
@@ -868,11 +875,10 @@ fun EditorApp(
 		}
 	}
 
-	// The host's exits pass through the same guard as File > Exit.  The guard reads the latest confirmExit, so
-	// it asks about the session composed now rather than the one the effect first saw.
-	val currentConfirmExit by rememberUpdatedState<(() -> Unit) -> Unit> { exit -> confirmExit(exit) }
+	// The host's exits pass through the same guard as File > Exit.  Installed once per guard: the gate reads
+	// the live session, so the closure's own age does not matter.
 	DisposableEffect(exitGuard) {
-		val cleanup = exitGuard.install { exit -> currentConfirmExit(exit) }
+		val cleanup = exitGuard.install { exit -> confirmExit(exit) }
 		onDispose { cleanup() }
 	}
 
