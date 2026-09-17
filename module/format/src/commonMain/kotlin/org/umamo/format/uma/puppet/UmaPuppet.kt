@@ -30,6 +30,7 @@ import kotlinx.serialization.Serializable
  * @property List<UmaPart>?          parts                   UMA §4.4: the parts.
  * @property List<UmaDeformer>?      deformers               UMA §4.5: the deformers.
  * @property List<UmaDrawable>?      drawables               UMA §4.6: the drawables.
+ * @property List<UmaGlue>?          glues                   UMA §4.14: the glue affecters.
  */
 @Serializable
 public data class UmaPuppet(
@@ -48,6 +49,7 @@ public data class UmaPuppet(
 	val parts: List<UmaPart>? = null,
 	val deformers: List<UmaDeformer>? = null,
 	val drawables: List<UmaDrawable>? = null,
+	val glues: List<UmaGlue>? = null,
 )
 
 /**
@@ -128,6 +130,8 @@ public data class UmaOrgRef(
  * @property UmaGroupMode?      groupMode    Absent for pass-through.
  * @property Int?               drawOrder    Absent at the neutral 500.
  * @property UmaPartComposite?  composite    Absent when every composite setting is at its default.
+ * @property Map?               channels     UMA §4.12: the keyed channels, absent when none.
+ * @property List?              blendShapes  UMA §4.13: the blend-shape bindings, absent when none.
  */
 @Serializable
 public data class UmaPart(
@@ -140,6 +144,8 @@ public data class UmaPart(
 	val groupMode: UmaGroupMode? = null,
 	val drawOrder: Int? = null,
 	val composite: UmaPartComposite? = null,
+	val channels: Map<UmaFormChannel, UmaChannelGrid>? = null,
+	val blendShapes: List<UmaPartBlendShape>? = null,
 )
 
 /**
@@ -188,6 +194,9 @@ public data class UmaPartComposite(
  * @property Float?           baseAngle       A rotation's reference angle.
  * @property Boolean?         flipX           A rotation's static horizontal reflection, absent when false.
  * @property Boolean?         flipY           A rotation's static vertical reflection, absent when false.
+ * @property UmaDeformerGrid? geometry        UMA §4.11: the geometry keyform grid, absent when unkeyed.
+ * @property Map?             channels        UMA §4.12: the keyed channels, absent when none.
+ * @property List?            blendShapes     UMA §4.13: the blend-shape bindings, absent when none.
  */
 @Serializable
 public data class UmaDeformer(
@@ -208,11 +217,14 @@ public data class UmaDeformer(
 	val baseAngle: Float? = null,
 	val flipX: Boolean? = null,
 	val flipY: Boolean? = null,
+	val geometry: UmaDeformerGrid? = null,
+	val channels: Map<UmaFormChannel, UmaChannelGrid>? = null,
+	val blendShapes: List<UmaDeformerBlendShape>? = null,
 )
 
 /**
- * UMA §4.6: one drawable's structure.  Its mesh, keyforms, and blend shapes are the geometry half of the
- * schema.
+ * UMA §4.6: one drawable.  Its mesh, keyforms, and blend shapes are the geometry half of the schema
+ * (§4.10-§4.13).
  *
  * @property String             id             The drawable id.
  * @property String             name           The display name.
@@ -231,6 +243,10 @@ public data class UmaDeformer(
  * @property String?            textureSource  The drawable whose texture binding this one shares, absent when its own.
  * @property Int?               texturePage    The page a MOC3-origin drawable samples, absent when none.
  * @property String?            atlasTile      The atlas tile its art is, a reference into the textures entry.
+ * @property UmaMesh?           mesh           UMA §4.10: the rest-pose mesh, absent when none.
+ * @property UmaMeshGrid?       geometry       UMA §4.11: the geometry keyform grid, absent when unkeyed.
+ * @property Map?               channels       UMA §4.12: the keyed channels, absent when none.
+ * @property List?              blendShapes    UMA §4.13: the blend-shape bindings, absent when none.
  */
 @Serializable
 public data class UmaDrawable(
@@ -251,4 +267,8 @@ public data class UmaDrawable(
 	val textureSource: String? = null,
 	val texturePage: Int? = null,
 	val atlasTile: String? = null,
+	val mesh: UmaMesh? = null,
+	val geometry: UmaMeshGrid? = null,
+	val channels: Map<UmaFormChannel, UmaChannelGrid>? = null,
+	val blendShapes: List<UmaMeshBlendShape>? = null,
 )

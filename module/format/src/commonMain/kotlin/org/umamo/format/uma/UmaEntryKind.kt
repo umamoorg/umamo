@@ -17,6 +17,8 @@ package org.umamo.format.uma
  *   may treat the entry as.
  * @property Boolean required    Whether understanding the entry is necessary to interpret or edit the
  *   document at all.
+ * @property String? bufferPath  The buffer entry this kind owns for its bulk arrays, or null when it has none
+ *   (D19: an entry's accessors name only buffers it owns, and no two entries share one).
  */
 public enum class UmaEntryKind(
 	public val wireName: String,
@@ -24,9 +26,10 @@ public enum class UmaEntryKind(
 	public val version: Int,
 	public val minVersion: Int,
 	public val required: Boolean,
+	public val bufferPath: String? = null,
 ) {
 	// UMA §3.2: the base puppet graph.
-	Puppet("puppet", "model/puppet.json", 1, 1, true),
+	Puppet("puppet", "model/puppet.json", 1, 1, true, "model/buffers.bin"),
 
 	// UMA §3.2: the atlas and the pixel entries it names.
 	Textures("textures", "textures/index.json", 1, 1, true),

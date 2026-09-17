@@ -82,41 +82,7 @@ internal class ZipArchive private constructor(
 	 * @throws ZipFormatException When the entry is encrypted, uses a method other than stored or DEFLATE,
 	 *   or its bytes do not match its declared size or CRC-32.
 	 */
-	fun contents(entry: ZipEntry): ByteArray {
-		if (entry.isEncrypted) {
-			throw ZipFormatException("entry '${entry.name}' is encrypted")
-		}
-		val uncompressed =
-			when (entry.method) {
-				ZipRecords.METHOD_STORED -> {
-					if (entry.compressedSize != entry.uncompressedSize) {
-						throw ZipFormatException(
-							"stored entry '${entry.name}' declares ${entry.compressedSize} bytes on disk but ${entry.uncompressedSize} uncompressed",
-						)
-					}
-					bytes.copyOfRange(entry.payloadOffset, entry.payloadOffset + entry.compressedSize)
-				}
-
-				ZipRecords.METHOD_DEFLATED -> {
-					// One byte of headroom is how an entry that inflates past its declared size is caught
-					// without inflating the rest of it.
-					inflateRawDeflate(bytes, entry.payloadOffset, entry.compressedSize, entry.uncompressedSize + 1)
-				}
-
-				else -> throw ZipFormatException("entry '${entry.name}' uses unsupported compression method ${entry.method}")
-			}
-		if (uncompressed.size != entry.uncompressedSize) {
-			throw ZipFormatException(
-				"entry '${entry.name}' inflates to ${if (uncompressed.size > entry.uncompressedSize) "more than" else "only"} " +
-					"${minOf(uncompressed.size, entry.uncompressedSize)} bytes, but declares ${entry.uncompressedSize}",
-			)
-		}
-		val checksum = Crc32().also { crc -> crc.update(uncompressed) }.value
-		if (checksum != entry.crc32) {
-			throw ZipFormatException("entry '${entry.name}' fails its CRC-32 check")
-		}
-		return uncompressed
-	}
+	fun contents(entry: ZipEntry): ByteArray = decodeZipPayload(entry, bytes, entry.payloadOffset)
 
 	/**
 	 * The entry's payload exactly as stored - compressed, and encrypted if it is - for copying into another
@@ -518,4 +484,57 @@ private fun ByteArray.rangeEquals(offset: Int, other: ByteArray, otherOffset: In
 		}
 	}
 	return true
+}
+
+/**
+ * An entry's uncompressed bytes from its payload wherever the payload is held - inside the archive it came
+ * from, or copied out of it - verified against the sizes and CRC-32 the entry declares.
+ *
+ * The inflate is bounded one byte past the declared size, so a payload that would inflate further stops there
+ * and fails rather than allocating what it claims not to hold.
+ *
+ * @param ZipEntry  entry         The entry as its archive declared it.
+ * @param ByteArray source        The bytes holding the payload.
+ * @param Int       payloadOffset Where the payload starts in [source].
+ * @return ByteArray The uncompressed bytes.
+ * @throws ZipFormatException When the entry is encrypted, uses a method other than stored or DEFLATE, its
+ *   payload does not fit [source], or its bytes do not match its declared size or CRC-32.
+ */
+internal fun decodeZipPayload(entry: ZipEntry, source: ByteArray, payloadOffset: Int): ByteArray {
+	if (entry.isEncrypted) {
+		throw ZipFormatException("entry '${entry.name}' is encrypted")
+	}
+	if (payloadOffset < 0 || payloadOffset.toLong() + entry.compressedSize > source.size) {
+		throw ZipFormatException("entry '${entry.name}' has a payload that does not fit its bytes")
+	}
+	val uncompressed =
+		when (entry.method) {
+			ZipRecords.METHOD_STORED -> {
+				if (entry.compressedSize != entry.uncompressedSize) {
+					throw ZipFormatException(
+						"stored entry '${entry.name}' declares ${entry.compressedSize} bytes on disk but ${entry.uncompressedSize} uncompressed",
+					)
+				}
+				source.copyOfRange(payloadOffset, payloadOffset + entry.compressedSize)
+			}
+
+			ZipRecords.METHOD_DEFLATED -> {
+				// One byte of headroom is how an entry that inflates past its declared size is caught
+				// without inflating the rest of it.
+				inflateRawDeflate(source, payloadOffset, entry.compressedSize, entry.uncompressedSize + 1)
+			}
+
+			else -> throw ZipFormatException("entry '${entry.name}' uses unsupported compression method ${entry.method}")
+		}
+	if (uncompressed.size != entry.uncompressedSize) {
+		throw ZipFormatException(
+			"entry '${entry.name}' inflates to ${if (uncompressed.size > entry.uncompressedSize) "more than" else "only"} " +
+				"${minOf(uncompressed.size, entry.uncompressedSize)} bytes, but declares ${entry.uncompressedSize}",
+		)
+	}
+	val checksum = Crc32().also { crc -> crc.update(uncompressed) }.value
+	if (checksum != entry.crc32) {
+		throw ZipFormatException("entry '${entry.name}' fails its CRC-32 check")
+	}
+	return uncompressed
 }

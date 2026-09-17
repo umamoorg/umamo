@@ -2,11 +2,13 @@ package org.umamo.interop.uma
 
 import org.umamo.format.uma.puppet.UmaAlphaBlendMode
 import org.umamo.format.uma.puppet.UmaBlendMode
+import org.umamo.format.uma.puppet.UmaFormChannel
 import org.umamo.format.uma.puppet.UmaGroupMode
 import org.umamo.format.uma.puppet.UmaParameterKind
 import org.umamo.format.uma.puppet.UmaRuntimeTarget
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.RuntimeTarget
@@ -178,3 +180,42 @@ internal fun UmaRuntimeTarget.toRuntime(): RuntimeTarget =
 		UmaRuntimeTarget.Cubism50 -> RuntimeTarget.Cubism50
 		UmaRuntimeTarget.Cubism53 -> RuntimeTarget.Cubism53
 	}
+
+/**
+ * The file-side spelling of a keyform channel.
+ *
+ * @return UmaFormChannel The file's value.
+ */
+internal fun FormChannel.toUma(): UmaFormChannel =
+	when (this) {
+		FormChannel.DRAW_ORDER -> UmaFormChannel.DrawOrder
+		FormChannel.OPACITY -> UmaFormChannel.Opacity
+		FormChannel.MULTIPLY_COLOR -> UmaFormChannel.MultiplyColor
+		FormChannel.SCREEN_COLOR -> UmaFormChannel.ScreenColor
+		FormChannel.FLIP_X -> UmaFormChannel.FlipX
+		FormChannel.FLIP_Y -> UmaFormChannel.FlipY
+		FormChannel.GLUE_INTENSITY -> UmaFormChannel.GlueIntensity
+	}
+
+/**
+ * The runtime keyform channel a file value names.
+ *
+ * @return FormChannel The runtime value.
+ */
+internal fun UmaFormChannel.toRuntime(): FormChannel =
+	when (this) {
+		UmaFormChannel.DrawOrder -> FormChannel.DRAW_ORDER
+		UmaFormChannel.Opacity -> FormChannel.OPACITY
+		UmaFormChannel.MultiplyColor -> FormChannel.MULTIPLY_COLOR
+		UmaFormChannel.ScreenColor -> FormChannel.SCREEN_COLOR
+		UmaFormChannel.FlipX -> FormChannel.FLIP_X
+		UmaFormChannel.FlipY -> FormChannel.FLIP_Y
+		UmaFormChannel.GlueIntensity -> FormChannel.GLUE_INTENSITY
+	}
+
+/**
+ * The key a channel's track is written under, which failure paths name.
+ *
+ * @return String The key.
+ */
+internal fun UmaFormChannel.wireName(): String = UmaFormChannel.serializer().descriptor.getElementName(ordinal)
