@@ -40,6 +40,34 @@ internal fun matchesPngSignature(bytes: ByteArray): Boolean {
 }
 
 /**
+ * The width and height a PNG's header declares, read from the fixed offsets of its IHDR chunk without
+ * decoding anything else, or null when [bytes] do not open with the signature and an IHDR.
+ *
+ * PNG spec §11.2.2: IHDR is always the first chunk, 13 bytes of data, width then height as unsigned
+ * big-endian 32-bit integers.  A dimension past what an Int holds reads as null too: no image this
+ * codec decodes can be that large.
+ *
+ * @param ByteArray bytes The complete `.png` file, or at least its first 24 bytes.
+ * @return Pair<Int, Int>? The width and height, or null.
+ */
+internal fun pngDimensionsOf(bytes: ByteArray): Pair<Int, Int>? {
+	val headerEnd = PNG_SIGNATURE.size + 16
+	if (bytes.size < headerEnd || !matchesPngSignature(bytes)) {
+		return null
+	}
+	val chunkStart = PNG_SIGNATURE.size
+	if (readU32BE(bytes, chunkStart) != 13L || bytes.copyOfRange(chunkStart + 4, chunkStart + 8).decodeToString() != "IHDR") {
+		return null
+	}
+	val width = readU32BE(bytes, chunkStart + 8)
+	val height = readU32BE(bytes, chunkStart + 12)
+	if (width > Int.MAX_VALUE || height > Int.MAX_VALUE) {
+		return null
+	}
+	return width.toInt() to height.toInt()
+}
+
+/**
  * Reads an unsigned big-endian 32-bit integer as a Long (PNG stores lengths and CRCs this way).
  *
  * @param ByteArray bytes The buffer.

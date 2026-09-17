@@ -1,0 +1,168 @@
+package org.umamo.format.uma.puppet
+
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import org.umamo.format.uma.UmaFormatException
+import org.umamo.format.uma.UmaIdentityTable
+import org.umamo.format.uma.UmaListRule
+import org.umamo.format.uma.UmaReadFailure
+import org.umamo.format.uma.UmaScratchBuffer
+import org.umamo.format.uma.UmaWriteException
+import org.umamo.format.uma.firstAccessorProblem
+import org.umamo.format.uma.firstIdentityProblem
+import org.umamo.format.uma.umaEntryJsonWithBuffers
+
+/**
+ * The puppet entry's codec over its JSON tree: decoding with every rule UMA §4 sets, encoding for a save,
+ * and the element identities its arrays merge by.
+ */
+internal object UmaPuppetEntry {
+	// Separates the two ids of a composite identity: the NUL character, which no id contains.  Built with Char(0)
+	// rather than written as a character literal, so the source stays plain text.
+	private val IDENTITY_SEPARATOR: Char = Char(0)
+
+	/**
+	 * UMA §4.7: how each array of objects in the puppet entry matches elements across a save.  A parameter,
+	 * part, deformer, or drawable is its id; a link is its pair; a parameter-tree node and an org ref are
+	 * their id qualified by which kind of id it is, so a part and a drawable that share a raw id stay apart.
+	 * A grid axis, a blend shape, and a limit are their parameter; a cell is its coordinate; a glue is its
+	 * ordered mesh pair (D11).  Blend forms and limit points are values, replaced whole (D10).
+	 */
+	val identities: UmaIdentityTable =
+		UmaIdentityTable(
+			mapOf(
+				UmaParameter.serializer().descriptor.serialName to byKey("id"),
+				UmaPart.serializer().descriptor.serialName to byKey("id"),
+				UmaDeformer.serializer().descriptor.serialName to byKey("id"),
+				UmaDrawable.serializer().descriptor.serialName to byKey("id"),
+				UmaParameterLink.serializer().descriptor.serialName to byKeyPair("horizontal", "vertical"),
+				UmaParameterNode.serializer().descriptor.serialName to
+					UmaListRule.ByIdentity { element -> oneOfIdentity("parameter", stringOf(element["parameter"]), "group", stringOf(element["group"])) },
+				UmaOrgRef.serializer().descriptor.serialName to
+					UmaListRule.ByIdentity { element -> oneOfIdentity("part", stringOf(element["part"]), "drawable", stringOf(element["drawable"])) },
+				UmaAxis.serializer().descriptor.serialName to byKey("parameter"),
+				UmaMeshCell.serializer().descriptor.serialName to byCoordinate(),
+				UmaDeformerCell.serializer().descriptor.serialName to byCoordinate(),
+				UmaChannelCell.serializer().descriptor.serialName to byCoordinate(),
+				UmaMeshBlendShape.serializer().descriptor.serialName to byKey("parameter"),
+				UmaDeformerBlendShape.serializer().descriptor.serialName to byKey("parameter"),
+				UmaPartBlendShape.serializer().descriptor.serialName to byKey("parameter"),
+				UmaBlendLimit.serializer().descriptor.serialName to byKey("parameter"),
+				UmaGlue.serializer().descriptor.serialName to byKeyPair("meshA", "meshB"),
+				UmaMeshForm.serializer().descriptor.serialName to UmaListRule.Whole,
+				UmaDeformerForm.serializer().descriptor.serialName to UmaListRule.Whole,
+				UmaPartForm.serializer().descriptor.serialName to UmaListRule.Whole,
+				UmaBlendLimitPoint.serializer().descriptor.serialName to UmaListRule.Whole,
+			),
+		)
+
+	/**
+	 * Decodes a puppet entry's tree, failing loudly on anything the schema does not allow.
+	 *
+	 * @param JsonObject tree    The entry's JSON.
+	 * @param String     path    The entry's path, for the failure.
+	 * @param Function   buffers Resolves a buffer path to its bytes, or null when there is no such buffer.
+	 * @return UmaPuppet The puppet.
+	 * @throws UmaFormatException When the tree breaks the schema, names bytes a buffer does not hold, or
+	 *   repeats an identity.
+	 */
+	fun decode(tree: JsonObject, path: String, buffers: (String) -> ByteArray?): UmaPuppet {
+		// UMA §4.9: every accessor is checked, including those under keys this reader does not know, since a
+		// save copies their bytes too.
+		firstAccessorProblem(tree, buffers)?.let { problem ->
+			throw UmaFormatException(UmaReadFailure.MalformedEntry(path, problem))
+		}
+		val puppet =
+			try {
+				umaEntryJsonWithBuffers(buffers, null).decodeFromJsonElement(UmaPuppet.serializer(), tree)
+			} catch (failure: SerializationException) {
+				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
+			} catch (failure: IllegalArgumentException) {
+				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
+			}
+		firstIdentityProblem(tree, UmaPuppet.serializer().descriptor, identities, "")?.let { problem ->
+			throw UmaFormatException(UmaReadFailure.MalformedEntry(path, problem))
+		}
+		return puppet
+	}
+
+	/**
+	 * Encodes a puppet for a save, its bulk arrays appended to [scratch] and named by accessors into it.
+	 *
+	 * @param UmaPuppet        puppet  The puppet.
+	 * @param String           path    The entry's path, for the failure.
+	 * @param UmaScratchBuffer scratch The buffer new arrays append to.
+	 * @return JsonObject The entry's JSON, before any merge or buffer layout.
+	 * @throws UmaWriteException When a value cannot be written, such as a non-finite inline float.
+	 */
+	fun encode(puppet: UmaPuppet, path: String, scratch: UmaScratchBuffer): JsonObject =
+		try {
+			umaEntryJsonWithBuffers({ null }, scratch).encodeToJsonElement(UmaPuppet.serializer(), puppet) as JsonObject
+		} catch (failure: SerializationException) {
+			// UMA §4.1: JSON has no NaN or infinity, so a non-finite value refuses the save.
+			throw UmaWriteException(path, failure.message.orEmpty(), failure)
+		}
+
+	/**
+	 * The rule matching elements by the string at [key].
+	 *
+	 * @param String key The identifying key.
+	 * @return UmaListRule The rule.
+	 */
+	private fun byKey(key: String): UmaListRule = UmaListRule.ByIdentity { element -> stringOf(element[key]) }
+
+	/**
+	 * The rule matching elements by the ordered pair of strings at [firstKey] and [secondKey].
+	 *
+	 * @param String firstKey  The first identifying key.
+	 * @param String secondKey The second identifying key.
+	 * @return UmaListRule The rule.
+	 */
+	private fun byKeyPair(firstKey: String, secondKey: String): UmaListRule =
+		UmaListRule.ByIdentity { element ->
+			val first = stringOf(element[firstKey])
+			val second = stringOf(element[secondKey])
+			if (first == null || second == null) null else "$first$IDENTITY_SEPARATOR$second"
+		}
+
+	/**
+	 * The rule matching grid cells by their coordinate.
+	 *
+	 * @return UmaListRule The rule.
+	 */
+	private fun byCoordinate(): UmaListRule =
+		UmaListRule.ByIdentity { element ->
+			val coordinate = element["coordinate"] as? JsonArray ?: return@ByIdentity null
+			val indices = coordinate.map { component -> (component as? JsonPrimitive)?.takeIf { primitive -> !primitive.isString }?.intOrNull ?: return@ByIdentity null }
+			indices.joinToString(",")
+		}
+
+	/**
+	 * [element] as a JSON string's content, or null when it is not a string.
+	 *
+	 * @param JsonElement? element The value.
+	 * @return String? The string.
+	 */
+	private fun stringOf(element: JsonElement?): String? = (element as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content
+
+	/**
+	 * The identity of an element that must hold exactly one of two kinds of id, or null when it holds
+	 * neither or both.
+	 *
+	 * @param String  firstKind   The first kind's name.
+	 * @param String? firstId     The first kind's id, if present.
+	 * @param String  secondKind  The second kind's name.
+	 * @param String? secondId    The second kind's id, if present.
+	 * @return String? The kind-qualified identity.
+	 */
+	private fun oneOfIdentity(firstKind: String, firstId: String?, secondKind: String, secondId: String?): String? =
+		when {
+			firstId != null && secondId == null -> "$firstKind:$firstId"
+			secondId != null && firstId == null -> "$secondKind:$secondId"
+			else -> null
+		}
+}
