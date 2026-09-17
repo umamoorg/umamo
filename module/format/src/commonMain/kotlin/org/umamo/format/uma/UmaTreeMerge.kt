@@ -22,9 +22,11 @@ internal sealed interface UmaListRule {
 	/**
 	 * Elements are matched by an identity read from their JSON, so each keeps its unknown keys.
 	 *
-	 * @property Function identityOf Reads an element's identity, or null when it carries none.
+	 * @property Function identityIn Given the object holding the array, the reader of an element's identity, which
+	 *   yields null for an element that carries none.  The holder is resolved once per array, so an identity that
+	 *   depends on it (a grid cell's key values, read through its grid's axes) costs nothing per element.
 	 */
-	class ByIdentity(val identityOf: (JsonObject) -> String?) : UmaListRule
+	class ByIdentity(val identityIn: (JsonObject) -> (JsonObject) -> String?) : UmaListRule
 
 	/** The array is a value: the new array replaces the old one whole, unknown keys inside it included. */
 	data object Whole : UmaListRule
@@ -44,6 +46,18 @@ internal class UmaIdentityTable(private val rules: Map<String, UmaListRule>) {
 	 */
 	fun ruleFor(serialName: String): UmaListRule? = rules[serialName.removeSuffix("?")]
 }
+
+/** The holder an array with no enclosing object resolves its identities in. */
+private val NO_HOLDER: JsonObject = JsonObject(emptyMap())
+
+/**
+ * The rule matching elements by the JSON string at [key], the identity most arrays of objects carry (an `id`, a
+ * `parameter`, a layer `key`).
+ *
+ * @param String key The identifying key.
+ * @return UmaListRule The rule; an element whose value at [key] is absent or not a string has no identity.
+ */
+internal fun identityByStringKey(key: String): UmaListRule = UmaListRule.ByIdentity { _ -> { element -> jsonStringOrNull(element[key]) } }
 
 /**
  * [updated] laid over [retained]: known keys from [updated] in schema order, each merged with the retained
@@ -66,7 +80,7 @@ internal class UmaIdentityTable(private val rules: Map<String, UmaListRule>) {
 internal fun mergeRetainedTree(retained: JsonElement?, updated: JsonElement, descriptor: SerialDescriptor, identities: UmaIdentityTable): JsonElement =
 	when (descriptor.kind) {
 		StructureKind.CLASS -> mergeObject(retained as? JsonObject, updated, descriptor, identities)
-		StructureKind.LIST -> mergeArray(retained as? JsonArray, updated, descriptor.getElementDescriptor(0), identities)
+		StructureKind.LIST -> mergeArray(retained as? JsonArray, updated, descriptor.getElementDescriptor(0), identities, NO_HOLDER, NO_HOLDER)
 		StructureKind.MAP -> mergeMap(retained as? JsonObject, updated, descriptor.getElementDescriptor(1), identities)
 		else -> updated
 	}
@@ -79,27 +93,28 @@ internal fun mergeRetainedTree(retained: JsonElement?, updated: JsonElement, des
  * @param SerialDescriptor descriptor The schema of [tree].
  * @param UmaIdentityTable identities The element identities.
  * @param String           path       The tree's position, for the report.
+ * @param JsonObject       holder     The object holding [tree], which an array's identities resolve in.
  * @return String? A description of the first problem, or null when there is none.
  */
-internal fun firstIdentityProblem(tree: JsonElement, descriptor: SerialDescriptor, identities: UmaIdentityTable, path: String): String? {
+internal fun firstIdentityProblem(tree: JsonElement, descriptor: SerialDescriptor, identities: UmaIdentityTable, path: String, holder: JsonObject = NO_HOLDER): String? {
 	when (descriptor.kind) {
 		StructureKind.CLASS -> {
 			val treeObject = tree as? JsonObject ?: return null
 			for (elementIndex in 0 until descriptor.elementsCount) {
 				val child = treeObject[descriptor.getElementName(elementIndex)] ?: continue
 				val childPath = if (path.isEmpty()) descriptor.getElementName(elementIndex) else "$path.${descriptor.getElementName(elementIndex)}"
-				firstIdentityProblem(child, descriptor.getElementDescriptor(elementIndex), identities, childPath)?.let { problem -> return problem }
+				firstIdentityProblem(child, descriptor.getElementDescriptor(elementIndex), identities, childPath, treeObject)?.let { problem -> return problem }
 			}
 		}
 
 		StructureKind.LIST -> {
 			val treeArray = tree as? JsonArray ?: return null
 			val elementDescriptor = descriptor.getElementDescriptor(0)
-			val rule = identities.ruleFor(elementDescriptor.serialName) as? UmaListRule.ByIdentity
+			val identityOf = (identities.ruleFor(elementDescriptor.serialName) as? UmaListRule.ByIdentity)?.identityIn?.invoke(holder)
 			val seen = HashSet<String>()
 			for ((elementIndex, element) in treeArray.withIndex()) {
-				if (rule != null && element is JsonObject) {
-					val identity = rule.identityOf(element) ?: return "$path[$elementIndex] has no identity"
+				if (identityOf != null && element is JsonObject) {
+					val identity = identityOf(element) ?: return "$path[$elementIndex] has no identity"
 					if (!seen.add(identity)) {
 						return "$path[$elementIndex] repeats the identity '${identity.replace(Char(0), ',')}'"
 					}
@@ -140,7 +155,14 @@ private fun mergeObject(retained: JsonObject?, updated: JsonElement, descriptor:
 		val elementDescriptor = descriptor.getElementDescriptor(elementIndex)
 		val value = updatedObject[key]
 		if (value != null) {
-			merged[key] = mergeRetainedTree(retained?.get(key), value, elementDescriptor, identities)
+			// UMA §4.7: an array's identities resolve in the object holding it - the retained elements in the object as
+			// read, the new ones in the object as written - so a grid's cells read their key values through their own axes.
+			merged[key] =
+				if (elementDescriptor.kind == StructureKind.LIST) {
+					mergeArray(retained?.get(key) as? JsonArray, value, elementDescriptor.getElementDescriptor(0), identities, retained ?: NO_HOLDER, updatedObject)
+				} else {
+					mergeRetainedTree(retained?.get(key), value, elementDescriptor, identities)
+				}
 			continue
 		}
 		// UMA §4.7: an object omitted because everything it knows is at its default (a part's composite) still
@@ -181,9 +203,18 @@ private fun everyElementIsOptional(descriptor: SerialDescriptor): Boolean = (0 u
  * @param JsonElement      updated           The freshly encoded array.
  * @param SerialDescriptor elementDescriptor The elements' schema.
  * @param UmaIdentityTable identities        The element identities.
+ * @param JsonObject       retainedHolder    The object holding [retained], as read.
+ * @param JsonObject       updatedHolder     The object holding [updated], as written.
  * @return JsonElement The merged array.
  */
-private fun mergeArray(retained: JsonArray?, updated: JsonElement, elementDescriptor: SerialDescriptor, identities: UmaIdentityTable): JsonElement {
+private fun mergeArray(
+	retained: JsonArray?,
+	updated: JsonElement,
+	elementDescriptor: SerialDescriptor,
+	identities: UmaIdentityTable,
+	retainedHolder: JsonObject,
+	updatedHolder: JsonObject,
+): JsonElement {
 	val updatedArray = updated as? JsonArray ?: return updated
 	if (elementDescriptor.kind != StructureKind.CLASS) {
 		return updatedArray
@@ -196,12 +227,14 @@ private fun mergeArray(retained: JsonArray?, updated: JsonElement, elementDescri
 				}
 		) {
 			UmaListRule.Whole -> return updatedArray
-			is UmaListRule.ByIdentity -> listRule.identityOf
+			is UmaListRule.ByIdentity -> listRule
 		}
+	val retainedIdentityOf = rule.identityIn(retainedHolder)
+	val updatedIdentityOf = rule.identityIn(updatedHolder)
 	val retainedByIdentity = HashMap<String, JsonObject>()
 	retained?.forEach { element ->
 		val retainedElement = element as? JsonObject ?: return@forEach
-		val identity = rule(retainedElement) ?: return@forEach
+		val identity = retainedIdentityOf(retainedElement) ?: return@forEach
 		// Identities are unique in any tree that was read (firstIdentityProblem); the first wins regardless.
 		if (identity !in retainedByIdentity) {
 			retainedByIdentity[identity] = retainedElement
@@ -209,7 +242,7 @@ private fun mergeArray(retained: JsonArray?, updated: JsonElement, elementDescri
 	}
 	return JsonArray(
 		updatedArray.map { element ->
-			val twin = (element as? JsonObject)?.let(rule)?.let(retainedByIdentity::get)
+			val twin = (element as? JsonObject)?.let(updatedIdentityOf)?.let(retainedByIdentity::get)
 			mergeRetainedTree(twin, element, elementDescriptor, identities)
 		},
 	)

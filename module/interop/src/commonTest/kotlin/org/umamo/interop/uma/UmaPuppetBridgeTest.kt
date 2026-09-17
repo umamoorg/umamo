@@ -1,17 +1,13 @@
 package org.umamo.interop.uma
 
 import org.umamo.format.uma.Uma
-import org.umamo.format.uma.UmaFormatException
 import org.umamo.format.uma.UmaModel
-import org.umamo.format.uma.UmaReadFailure
 import org.umamo.format.uma.UmaWriteException
 import org.umamo.format.uma.UmaWriterInfo
 import org.umamo.format.uma.puppet.UmaDeformer
 import org.umamo.format.uma.puppet.UmaDeformerKind
 import org.umamo.format.uma.puppet.UmaDrawable
-import org.umamo.format.uma.puppet.UmaOrgRef
 import org.umamo.format.uma.puppet.UmaParameter
-import org.umamo.format.uma.puppet.UmaParameterNode
 import org.umamo.format.uma.puppet.UmaPart
 import org.umamo.format.uma.puppet.UmaPuppet
 import org.umamo.runtime.model.AlphaBlendMode
@@ -41,13 +37,12 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
  * Pins the puppet entry's bridge in both directions (docs/format/UMA.md §4) on synthetic models: every
- * structure field away from its default and every enum value survives a save exactly, defaults stay out of
- * the file, and the shapes the flat schema cannot enforce fail as malformed.
+ * structure field away from its default and every enum value survives a save exactly, and defaults stay out of
+ * the file.  The shapes the flat schema cannot enforce are the format layer's (UmaPuppetShapeTest).
  */
 class UmaPuppetBridgeTest {
 	private val writer = UmaWriterInfo("Umamo", "test")
@@ -262,32 +257,5 @@ class UmaPuppetBridgeTest {
 		val model = fullModel(RuntimeTarget.NoTarget).let { base -> base.copy(drawables = base.drawables.map { drawable -> if (drawable.id == DrawableId("D3")) drawable.copy(opacity = Float.NaN) else drawable }) }
 		val failure = assertFailsWith<UmaWriteException> { UmaPuppetExport.puppetOf(model) }
 		assertTrue(failure.message.orEmpty().contains("drawables[D3].opacity"), "the failure names the value: ${failure.message}")
-	}
-
-	/**
-	 * Each shape the flat schema allows but the model does not fails as a malformed entry.
-	 */
-	@Test
-	fun impossibleShapesAreMalformed() {
-		/**
-		 * Asserts that bridging [puppet] fails as a malformed entry.
-		 *
-		 * @param UmaPuppet puppet The entry.
-		 * @param String    label  What is wrong with it.
-		 */
-		fun assertMalformed(puppet: UmaPuppet, label: String) {
-			val failure = assertFailsWith<UmaFormatException>(label) { UmaPuppetImport.modelOf(puppet) }.failure
-			assertIs<UmaReadFailure.MalformedEntry>(failure, label)
-		}
-		assertMalformed(UmaPuppet(rootChildren = listOf(UmaOrgRef())), "an org reference naming nothing")
-		assertMalformed(UmaPuppet(rootChildren = listOf(UmaOrgRef(part = "P", drawable = "D"))), "an org reference naming both")
-		assertMalformed(UmaPuppet(parameterTree = listOf(UmaParameterNode(parameter = "P", group = "G"))), "a tree node that is both")
-		assertMalformed(UmaPuppet(parameterTree = listOf(UmaParameterNode(group = "G"))), "a group without a name")
-		assertMalformed(UmaPuppet(parameterTree = listOf(UmaParameterNode(parameter = "P", name = "P"))), "a leaf with a group's name")
-		assertMalformed(UmaPuppet(deformers = listOf(UmaDeformer("W", UmaDeformerKind.Warp, "W", columns = 2, isQuadTransform = true))), "a warp without rows")
-		assertMalformed(UmaPuppet(deformers = listOf(UmaDeformer("W", UmaDeformerKind.Warp, "W", rows = 2, columns = 2, isQuadTransform = true, baseAngle = 1f))), "a warp with a rotation field")
-		assertMalformed(UmaPuppet(deformers = listOf(UmaDeformer("R", UmaDeformerKind.Rotation, "R"))), "a rotation without baseAngle")
-		assertMalformed(UmaPuppet(deformers = listOf(UmaDeformer("R", UmaDeformerKind.Rotation, "R", baseAngle = 0f, rows = 2))), "a rotation with a warp field")
-		assertMalformed(UmaPuppet(drawables = listOf(UmaDrawable("D", "D", multiplyColor = listOf(1f, 1f)))), "a color with two channels")
 	}
 }

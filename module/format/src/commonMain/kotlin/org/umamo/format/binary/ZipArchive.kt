@@ -28,6 +28,7 @@ internal class ZipFormatException(message: String) : RuntimeException(message)
  * @property Int    uncompressedSize The entry's size once inflated.
  * @property Int    dosDateTime      The MS-DOS modification stamp: date in the high 16 bits, time in the low 16.
  * @property Int    payloadOffset    Where the payload starts in the archive's bytes.
+ * @property Int    versionNeeded    The "version needed to extract" (APPNOTE.TXT 4.4.3).
  */
 internal class ZipEntry(
 	val name: String,
@@ -38,6 +39,7 @@ internal class ZipEntry(
 	val uncompressedSize: Int,
 	val dosDateTime: Int,
 	val payloadOffset: Int,
+	val versionNeeded: Int,
 ) {
 	/** True for a directory entry, which ZIP marks with a trailing slash (APPNOTE.TXT 4.4.17.1). */
 	val isDirectory: Boolean
@@ -58,7 +60,8 @@ internal class ZipEntry(
  * @property List<ZipEntry> entries Every entry, in central-directory order.
  */
 internal class ZipArchive private constructor(
-	private val bytes: ByteArray,
+	/** The whole archive, which every entry's payload offset indexes into. */
+	val bytes: ByteArray,
 	val entries: List<ZipEntry>,
 ) {
 	private val entryByName: Map<String, ZipEntry> = entries.associateBy { entry -> entry.name }
@@ -147,7 +150,9 @@ internal class ZipArchive private constructor(
 		 * candidate counts only when its comment ends exactly at the end of the file and the directory it
 		 * describes is really there.  A comment can hold bytes that look like an end record, and one at the
 		 * very end even satisfies the comment rule, so the EARLIEST valid candidate wins: the genuine record
-		 * precedes any look-alike its own comment contains.
+		 * precedes any look-alike its own comment contains.  The scan runs upward and stops at the first
+		 * candidate that describes a directory, so a look-alike after the genuine record is never examined and
+		 * cannot fail the read.
 		 *
 		 * @param ByteReader reader The archive, little-endian.
 		 * @return CentralDirectory The directory's extent and entry count.
@@ -158,18 +163,15 @@ internal class ZipArchive private constructor(
 				throw ZipFormatException("$size bytes is too short to be a ZIP archive")
 			}
 			val lowestCandidate = maxOf(0, size - ZipRecords.END_SIZE - ZipRecords.MAXIMUM_COMMENT_LENGTH)
-			var earliestDirectory: CentralDirectory? = null
-			var candidate = size - ZipRecords.END_SIZE
-			while (candidate >= lowestCandidate) {
+			for (candidate in lowestCandidate..size - ZipRecords.END_SIZE) {
 				if (reader.u32(candidate) == ZipRecords.END_SIGNATURE.toLong() &&
 					// ZIP: end record @ +0x14 comment length (APPNOTE.TXT 4.3.16).
 					candidate + ZipRecords.END_SIZE + reader.u16(candidate + 20) == size
 				) {
-					centralDirectoryFromEnd(reader, candidate)?.let { directory -> earliestDirectory = directory }
+					centralDirectoryFromEnd(reader, candidate)?.let { directory -> return directory }
 				}
-				candidate--
 			}
-			return earliestDirectory ?: throw ZipFormatException("no end of central directory record: the archive is truncated or not a ZIP")
+			throw ZipFormatException("no end of central directory record: the archive is truncated or not a ZIP")
 		}
 
 		/**
@@ -291,10 +293,11 @@ internal class ZipArchive private constructor(
 			if (position + ZipRecords.CENTRAL_HEADER_SIZE > directoryEnd || reader.u32(position) != ZipRecords.CENTRAL_HEADER_SIGNATURE.toLong()) {
 				throw ZipFormatException("central directory entry $entryIndex is truncated or missing its signature")
 			}
-			// ZIP: central directory file header (APPNOTE.TXT 4.3.12) - @ +0x08 flags, @ +0x0A method,
+			// ZIP: central directory file header (APPNOTE.TXT 4.3.12) - @ +0x06 version needed, @ +0x08 flags, @ +0x0A method,
 			// @ +0x0C time, @ +0x0E date, @ +0x10 crc-32, @ +0x14 compressed size, @ +0x18 uncompressed size,
 			// @ +0x1C name length, @ +0x1E extra length, @ +0x20 comment length, @ +0x22 disk number start,
 			// @ +0x2A local header offset, @ +0x2E the name.
+			val versionNeeded = reader.u16(position + 6)
 			val flags = reader.u16(position + 8)
 			val method = reader.u16(position + 10)
 			val time = reader.u16(position + 12)
@@ -380,6 +383,7 @@ internal class ZipArchive private constructor(
 					uncompressedSize = uncompressedSize.toInt(),
 					dosDateTime = (date shl 16) or time,
 					payloadOffset = payloadOffset,
+					versionNeeded = versionNeeded,
 				)
 			return entry to nextPosition
 		}
@@ -477,7 +481,7 @@ internal class ZipArchive private constructor(
  * @param Int       length      How many bytes to compare.
  * @return Boolean True when every byte matches.
  */
-private fun ByteArray.rangeEquals(offset: Int, other: ByteArray, otherOffset: Int, length: Int): Boolean {
+internal fun ByteArray.rangeEquals(offset: Int, other: ByteArray, otherOffset: Int, length: Int): Boolean {
 	for (byteIndex in 0 until length) {
 		if (this[offset + byteIndex] != other[otherOffset + byteIndex]) {
 			return false

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.umamo.format.binary.ZipArchive
 import org.umamo.format.binary.ZipRecords
 import org.umamo.format.binary.ZipWriter
+import org.umamo.format.uma.sources.UmaSources
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -154,8 +155,13 @@ class UmaCompatibilityTest {
 		val tooNewOptional = Uma.read(tooNewOptionalSource)
 		assertFalse(tooNewOptional.isReadOnly, "an optional entry this reader would misread does not block editing")
 		assertNull(tooNewOptional.liveContent(UmaEntryKind.Sources), "and is not read")
-		assertFailsWith<IllegalStateException>("the too-new entry occupies its kind") {
+		assertTrue(tooNewOptional.holdsTooNewEntry(UmaEntryKind.Sources), "the document reports the kind it cannot set")
+		assertFalse(tooNewOptional.holdsTooNewEntry(UmaEntryKind.Puppet), "and only that kind")
+		assertFailsWith<UmaWriteException>("the too-new entry occupies its kind") {
 			tooNewOptional.withLiveContent(UmaEntryKind.Sources, sampleTree("mine"))
+		}
+		assertFailsWith<UmaWriteException>("a typed save over it is refused the same way") {
+			tooNewOptional.withSources(UmaSources())
 		}
 		assertContentEquals(
 			rawPayloadsOf(tooNewOptionalSource)["source/index.json"],

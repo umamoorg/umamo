@@ -1,31 +1,29 @@
 package org.umamo.format.uma.sources
 
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import org.umamo.format.uma.UmaEntryJson
 import org.umamo.format.uma.UmaFormatException
 import org.umamo.format.uma.UmaIdentityTable
-import org.umamo.format.uma.UmaListRule
 import org.umamo.format.uma.UmaReadFailure
 import org.umamo.format.uma.UmaWriteException
+import org.umamo.format.uma.decodeUmaEntry
 import org.umamo.format.uma.firstIdentityProblem
+import org.umamo.format.uma.identityByStringKey
 
 /**
  * The sources entry's codec over its JSON tree: decoding with every rule UMA §6 sets, encoding for a save,
  * and the identities its arrays merge by.
  */
 internal object UmaSourcesEntry {
-	// UMA §6.4 (D16): the one hash algorithm this reader knows, and its digest's length in hex digits.
-	private const val HASH_PREFIX = "sha256:"
+	// UMA §6.4 (D16): a SHA-256 digest's length in hex digits.
 	private const val HASH_DIGITS = 64
 
 	/** UMA §6.5: sources match by id, and a source's layers by key. */
 	val identities: UmaIdentityTable =
 		UmaIdentityTable(
 			mapOf(
-				UmaSource.serializer().descriptor.serialName to byKey("id"),
-				UmaSourceLayer.serializer().descriptor.serialName to byKey("key"),
+				UmaSource.serializer().descriptor.serialName to identityByStringKey("id"),
+				UmaSourceLayer.serializer().descriptor.serialName to identityByStringKey("key"),
 			),
 		)
 
@@ -39,14 +37,7 @@ internal object UmaSourcesEntry {
 	 *   reader does not know.
 	 */
 	fun decode(tree: JsonObject, path: String): UmaSources {
-		val sources =
-			try {
-				UmaEntryJson.decodeFromJsonElement(UmaSources.serializer(), tree)
-			} catch (failure: SerializationException) {
-				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
-			} catch (failure: IllegalArgumentException) {
-				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
-			}
+		val sources = decodeUmaEntry(UmaEntryJson, UmaSources.serializer(), tree, path)
 		val problem = firstIdentityProblem(tree, UmaSources.serializer().descriptor, identities, "") ?: firstProblem(sources)
 		if (problem != null) {
 			throw UmaFormatException(UmaReadFailure.MalformedEntry(path, problem))
@@ -60,11 +51,15 @@ internal object UmaSourcesEntry {
 	 * @param UmaSources sources The sources.
 	 * @param String     path    The entry's path, for the failure.
 	 * @return JsonObject The entry's JSON, before the merge.
-	 * @throws UmaWriteException When a hash is not in the form the entry holds, or a size is negative.
+	 * @throws UmaWriteException When a hash is not in the form the entry holds, a size is negative, or a source id or
+	 *   a layer key within a source repeats.
 	 */
 	fun encode(sources: UmaSources, path: String): JsonObject {
 		firstProblem(sources)?.let { problem -> throw UmaWriteException(path, problem) }
-		return UmaEntryJson.encodeToJsonElement(UmaSources.serializer(), sources) as JsonObject
+		val tree = UmaEntryJson.encodeToJsonElement(UmaSources.serializer(), sources) as JsonObject
+		// UMA §6.6: a reader refuses a repeated identity, so a save that wrote one could never be reopened.
+		firstIdentityProblem(tree, UmaSources.serializer().descriptor, identities, "")?.let { problem -> throw UmaWriteException(path, problem) }
+		return tree
 	}
 
 	/**
@@ -103,21 +98,13 @@ internal object UmaSourcesEntry {
 		}
 		// UMA §6.4: a hash under another algorithm is unknown to this reader, like an unknown enum value; a writer
 		// that changes the algorithm raises the entry's minVersion.
-		if (!hash.startsWith(HASH_PREFIX)) {
+		if (!hash.startsWith(UMA_SHA256_PREFIX)) {
 			return "$path is '$hash', which is not a sha256 hash"
 		}
-		val digest = hash.substring(HASH_PREFIX.length)
+		val digest = hash.substring(UMA_SHA256_PREFIX.length)
 		if (digest.length != HASH_DIGITS || digest.any { character -> character !in '0'..'9' && character !in 'a'..'f' }) {
 			return "$path is not 64 lowercase hexadecimal digits"
 		}
 		return null
 	}
-
-	/**
-	 * The rule matching elements by the string at [key].
-	 *
-	 * @param String key The identifying key.
-	 * @return UmaListRule The rule.
-	 */
-	private fun byKey(key: String): UmaListRule = UmaListRule.ByIdentity { element -> (element[key] as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content }
 }

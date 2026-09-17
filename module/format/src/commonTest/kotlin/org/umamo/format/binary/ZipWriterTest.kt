@@ -136,6 +136,76 @@ class ZipWriterTest {
 	}
 
 	/**
+	 * A raw copy of an encrypted entry whose source used a data descriptor keeps the flag, its source's timestamp, and
+	 * the descriptor, which traditional decryption checks against; an unencrypted one is written like any other entry.
+	 */
+	@Test
+	fun rawCopyKeepsWhatDecryptionChecks() {
+		val bytes = archiveOf(Triple("secret", ByteArray(300) { byteIndex -> (byteIndex % 7).toByte() }, true), Triple("plain", ByteArray(40) { 5 }, false))
+		for (entryIndex in 0..1) {
+			val header = centralHeaderOffset(bytes, entryIndex)
+			val extraFlags = if (entryIndex == 0) ZipRecords.FLAG_ENCRYPTED or ZipRecords.FLAG_DATA_DESCRIPTOR else ZipRecords.FLAG_DATA_DESCRIPTOR
+			writeU16Le(bytes, header + 8, readU16Le(bytes, header + 8) or extraFlags)
+		}
+		val source = ZipArchive.read(bytes)
+		val copier = ZipWriter(ZipRecords.DOS_EPOCH_DATE_TIME)
+		for (entry in source.entries) {
+			copier.addRaw(entry, source.rawPayload(entry))
+		}
+		val copied = copier.finish()
+		val archive = ZipArchive.read(copied)
+		val secret = archive.entry("secret")!!
+		val plain = archive.entry("plain")!!
+		assertEquals(ZipRecords.FLAG_ENCRYPTED or ZipRecords.FLAG_DATA_DESCRIPTOR, secret.flags and (ZipRecords.FLAG_ENCRYPTED or ZipRecords.FLAG_DATA_DESCRIPTOR), "the encrypted entry keeps its descriptor flag")
+		assertEquals(TEST_DOS_DATE_TIME, secret.dosDateTime, "and its source's timestamp")
+		assertEquals(0, plain.flags and ZipRecords.FLAG_DATA_DESCRIPTOR, "an unencrypted entry drops the flag")
+		assertEquals(ZipRecords.DOS_EPOCH_DATE_TIME, plain.dosDateTime, "and takes this writer's timestamp")
+
+		val local = localHeaderOffset(copied, 0)
+		assertEquals(0L, readU32Le(copied, local + 14), "the local header leaves the CRC-32 to the descriptor")
+		assertEquals(0L, readU32Le(copied, local + 18), "and the compressed size")
+		val descriptor = secret.payloadOffset + secret.compressedSize
+		assertEquals(ZipRecords.DATA_DESCRIPTOR_SIGNATURE.toLong(), readU32Le(copied, descriptor), "a descriptor follows the payload")
+		assertEquals(secret.crc32, readU32Le(copied, descriptor + 4))
+		assertEquals(secret.compressedSize.toLong(), readU32Le(copied, descriptor + 8))
+		assertEquals(secret.uncompressedSize.toLong(), readU32Le(copied, descriptor + 12))
+		assertContentEquals(source.rawPayload(source.entry("secret")!!), archive.rawPayload(secret), "and the payload is unchanged")
+	}
+
+	/**
+	 * A raw copy keeps a version needed higher than its method's, as an entry this writer never produces declares.
+	 */
+	@Test
+	fun rawCopyKeepsTheVersionNeeded() {
+		val bytes = archiveOf(Triple("aes", ByteArray(50) { 9 }, false))
+		// ZIP: method 99 is AES encryption, which needs version 5.1 (APPNOTE.TXT 4.4.3, 4.4.5); patched into both headers.
+		writeU16Le(bytes, centralHeaderOffset(bytes, 0) + 10, 99)
+		writeU16Le(bytes, localHeaderOffset(bytes, 0) + 8, 99)
+		writeU16Le(bytes, centralHeaderOffset(bytes, 0) + 6, 51)
+		val source = ZipArchive.read(bytes)
+		val copier = ZipWriter(TEST_DOS_DATE_TIME)
+		copier.addRaw(source.entries.single(), source.rawPayload(source.entries.single()))
+		val copied = copier.finish()
+		assertEquals(51, ZipArchive.read(copied).entries.single().versionNeeded, "the central header keeps it")
+		assertEquals(51, readU16Le(copied, localHeaderOffset(copied, 0) + 4), "and so does the local header")
+	}
+
+	/**
+	 * An entry the writer refuses leaves nothing behind: its name is still free, so the refusal a retry meets is the
+	 * one it earned.
+	 */
+	@Test
+	fun aRefusedEntryLeavesTheNameFree() {
+		val writer = ZipWriter(TEST_DOS_DATE_TIME)
+		val tooLong = "n".repeat(70_000)
+		assertFailsWith<IllegalArgumentException> { writer.addStored(tooLong, ByteArray(1)) }
+		val retry = assertFailsWith<IllegalArgumentException> { writer.addStored(tooLong, ByteArray(1)) }
+		assertTrue(retry.message.orEmpty().contains("longer than a ZIP header can hold"), "the retry meets the length rule again: ${retry.message}")
+		writer.addStored("entry", ByteArray(1))
+		assertEquals(listOf("entry"), ZipArchive.read(writer.finish()).entries.map { entry -> entry.name }, "and the archive holds only what was accepted")
+	}
+
+	/**
 	 * The writer refuses what would make an ambiguous or broken archive: a repeated or empty name, a DEFLATE
 	 * level out of range, and anything added after finishing.
 	 */

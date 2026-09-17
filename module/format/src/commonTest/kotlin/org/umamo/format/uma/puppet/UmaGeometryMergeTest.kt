@@ -1,6 +1,7 @@
 package org.umamo.format.uma.puppet
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.umamo.format.uma.TEST_WRITER
@@ -16,8 +17,8 @@ import kotlin.test.assertNull
 /**
  * Pins the retained-tree merge on the puppet entry's geometry half (docs/format/UMA.md §4.7, D10): keys a
  * newer writer puts in a mesh, a grid axis, a cell, a channel track, a blend shape, a limit, or a glue survive
- * a rename, a mesh edit, and deletions that shift what follows; blend forms are values and are replaced whole;
- * channel tracks merge by channel.
+ * a rename, a mesh edit, and deletions that shift what follows; a cell keeps its keys at its key values; blend forms
+ * are values and are replaced whole; channel tracks merge by channel.
  */
 class UmaGeometryMergeTest {
 	private val axis = UmaAxis("P0", listOf(-1f, 0f, 1f))
@@ -147,5 +148,97 @@ class UmaGeometryMergeTest {
 		val glue = (tree["glues"] as JsonArray).single() as JsonObject
 		assertEquals(JsonPrimitive("B"), glue["meshA"], "the surviving glue shifted to the front")
 		assertEquals(plantedValue("B,A"), glue["futureGlue"], "and keeps its own key")
+	}
+
+	/**
+	 * A puppet with one drawable whose opacity track is [track] and whose mesh grid is [geometry].
+	 *
+	 * @param UmaChannelGrid track    The opacity track.
+	 * @param UmaMeshGrid?   geometry The mesh grid, if any.
+	 * @return UmaPuppet The puppet.
+	 */
+	private fun trackPuppet(track: UmaChannelGrid, geometry: UmaMeshGrid? = null): UmaPuppet =
+		UmaPuppet(
+			parameters = listOf(UmaParameter("P0", "P0", -2f, 1f, 0f), UmaParameter("P1", "P1", 0f, 1f, 0f)),
+			drawables = listOf(UmaDrawable("A", "A", mesh = geometry?.let { triangle() }, geometry = geometry, channels = mapOf(UmaFormChannel.Opacity to track))),
+		)
+
+	/**
+	 * [document] with a planted key on each cell of drawable A's opacity track, and on each cell of its mesh grid when
+	 * it has one, marked by what [markerOf] names the cell.
+	 *
+	 * @param UmaModel document The saved document.
+	 * @param Function markerOf Names a cell by its index.
+	 * @return UmaModel The planted document, as an older writer reads it.
+	 */
+	private fun plantedCells(document: UmaModel, markerOf: (Int) -> String): UmaModel {
+		val tree =
+			withArray(document.liveContent(UmaEntryKind.Puppet)!!, "drawables") { _, drawable ->
+				val channels = drawable["channels"] as JsonObject
+				var planted = withKey(drawable, "channels", withKey(channels, "opacity", withArray(channels["opacity"] as JsonObject, "cells") { cellIndex, cell -> withKey(cell, "futureCell", plantedValue(markerOf(cellIndex))) }))
+				(planted["geometry"] as? JsonObject)?.let { geometry ->
+					planted = withKey(planted, "geometry", withArray(geometry, "cells") { cellIndex, cell -> withKey(cell, "futureCell", plantedValue(markerOf(cellIndex))) })
+				}
+				planted
+			}
+		return Uma.read(Uma.write(document.withLiveContent(UmaEntryKind.Puppet, tree)))
+	}
+
+	/**
+	 * The planted marker of each cell under [key] of drawable A in [document], by coordinate.
+	 *
+	 * @param UmaModel document The document.
+	 * @param String   key      `opacity` for the track, `geometry` for the mesh grid.
+	 * @return Map Each cell's coordinate as text, mapped to its planted value or null.
+	 */
+	private fun markersOf(document: UmaModel, key: String): Map<String, JsonElement?> {
+		val drawable = assertNotNull(elementOf(document.liveContent(UmaEntryKind.Puppet)!!, "drawables", "id", "A"))
+		val grid = if (key == "geometry") drawable["geometry"] as JsonObject else (drawable["channels"] as JsonObject)[key] as JsonObject
+		return (grid["cells"] as JsonArray).associate { cell -> (cell as JsonObject)["coordinate"].toString() to cell["futureCell"] }
+	}
+
+	/**
+	 * A key a newer writer put in a grid cell stays with the cell for the same key values: through a key added before
+	 * it, through a reordering of the axes, and through a repeated key; an axis the grid loses takes its cells' keys
+	 * with it.
+	 */
+	@Test
+	fun cellKeysFollowTheirKeyValues() {
+		val oneAxis = UmaAxis("P0", listOf(-1f, 0f, 1f))
+		val saved = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(trackPuppet(UmaChannelGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaMeshCell(listOf(keyIndex), FloatArray(6)) })))))
+		val planted = plantedCells(saved) { cellIndex -> "at ${oneAxis.keys[cellIndex]}" }
+
+		// A key added below every other: each old cell's coordinate moves up by one.
+		val widened = UmaAxis("P0", listOf(-2f, -1f, 0f, 1f))
+		val inserted = trackPuppet(UmaChannelGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaMeshCell(listOf(keyIndex), FloatArray(6)) }))
+		val afterInsert = Uma.read(Uma.write(planted.withPuppet(inserted)))
+		val expected = mapOf("[0]" to null, "[1]" to plantedValue("at -1.0"), "[2]" to plantedValue("at 0.0"), "[3]" to plantedValue("at 1.0"))
+		assertEquals(expected, markersOf(afterInsert, "opacity"), "a channel cell keeps its key at its key value")
+		assertEquals(expected, markersOf(afterInsert, "geometry"), "and so does a mesh cell")
+
+		// Two axes, then the same cells with the axes swapped.
+		val first = UmaAxis("P0", listOf(0f, 1f))
+		val second = UmaAxis("P1", listOf(0f, 1f))
+		val coordinates = listOf(listOf(0, 0), listOf(1, 0), listOf(0, 1), listOf(1, 1))
+		val twoAxes = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(trackPuppet(UmaChannelGrid(listOf(first, second), coordinates.map { coordinate -> UmaChannelCell(coordinate, JsonPrimitive(0)) })))))
+		val plantedTwoAxes = plantedCells(twoAxes) { cellIndex -> "P0=${coordinates[cellIndex][0]} P1=${coordinates[cellIndex][1]}" }
+		val swapped = trackPuppet(UmaChannelGrid(listOf(second, first), coordinates.map { coordinate -> UmaChannelCell(coordinate.reversed(), JsonPrimitive(0)) }))
+		assertEquals(
+			mapOf("[0,0]" to plantedValue("P0=0 P1=0"), "[0,1]" to plantedValue("P0=1 P1=0"), "[1,0]" to plantedValue("P0=0 P1=1"), "[1,1]" to plantedValue("P0=1 P1=1")),
+			markersOf(Uma.read(Uma.write(plantedTwoAxes.withPuppet(swapped))), "opacity"),
+			"a cell keeps its key when the axes swap",
+		)
+
+		// An axis the grid loses: its cells are different forms, so their keys leave.
+		val collapsed = trackPuppet(UmaChannelGrid(listOf(first), listOf(UmaChannelCell(listOf(0), JsonPrimitive(0)), UmaChannelCell(listOf(1), JsonPrimitive(0)))))
+		assertEquals(mapOf("[0]" to null, "[1]" to null), markersOf(Uma.read(Uma.write(plantedTwoAxes.withPuppet(collapsed))), "opacity"), "a lost axis takes its cells' keys")
+
+		// A repeated key: the second of two equal keys stays the second through a key added before both.
+		val repeated = UmaAxis("P0", listOf(0f, 0f, 1f))
+		val withRepeat = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(trackPuppet(UmaChannelGrid(listOf(repeated), (0 until 3).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) })))))
+		val plantedRepeat = plantedCells(withRepeat) { cellIndex -> "cell $cellIndex" }
+		val repeatedWidened = UmaAxis("P0", listOf(-1f, 0f, 0f, 1f))
+		val afterRepeat = Uma.read(Uma.write(plantedRepeat.withPuppet(trackPuppet(UmaChannelGrid(listOf(repeatedWidened), (0 until 4).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) })))))
+		assertEquals(mapOf("[0]" to null, "[1]" to plantedValue("cell 0"), "[2]" to plantedValue("cell 1"), "[3]" to plantedValue("cell 2")), markersOf(afterRepeat, "opacity"))
 	}
 }

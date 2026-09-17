@@ -6,6 +6,8 @@ import org.umamo.format.uma.UmaModel
 import org.umamo.format.uma.UmaReadFailure
 import org.umamo.format.uma.UmaWriteException
 import org.umamo.format.uma.textures.UmaPixelSource
+import org.umamo.format.uma.textures.UmaRenderPagePixels
+import org.umamo.format.uma.textures.UmaTextures
 import org.umamo.interop.AtlasPageSet
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -32,34 +34,42 @@ object UmaDocumentBridge {
 	 * [base] with its puppet, textures, and sources entries set from [model], each laid over the entry as read so
 	 * every key this writer does not own survives.
 	 *
+	 * An entry too new for this reader occupies its kind and is carried byte for byte (UMA §3.3).  Only an optional
+	 * one leaves the document editable, so a save skips its kind while [model] has nothing to write there - no linked
+	 * source art for the sources entry; no atlas and no stored render pages for the textures entry, whose thumbnail
+	 * goes unwritten with it - and fails once it does.
+	 *
 	 * @param UmaModel       base   The document to save over: the one the model was opened from, or a new one.
 	 * @param PuppetModel    model  The model.
 	 * @param UmaPixelSource pixels The pixels the save writes: the tiles' PNGs, what the drawables sample, and the
 	 *   thumbnail.
 	 * @return UmaModel The updated document.
-	 * @throws UmaWriteException When the model holds a value the format cannot represent or a pixel entry is
-	 *   missing.
+	 * @throws UmaWriteException When the model holds a value the format cannot represent, a pixel entry is missing,
+	 *   or the model has content for a kind whose entry is too new to replace.
 	 */
-	fun documentOf(base: UmaModel, model: PuppetModel, pixels: UmaPixelSource): UmaModel =
-		base
-			.withPuppet(UmaPuppetExport.puppetOf(model))
-			.withTextures(UmaTexturesBridge.texturesOf(model), pixels)
-			.withSources(UmaSourcesBridge.sourcesOf(model))
+	fun documentOf(base: UmaModel, model: PuppetModel, pixels: UmaPixelSource): UmaModel {
+		var document = base.withPuppet(UmaPuppetExport.puppetOf(model))
+		val textures = UmaTexturesBridge.texturesOf(model)
+		val texturesHaveContent = textures != UmaTextures() || pixels.renderPages is UmaRenderPagePixels.Stored
+		if (!base.holdsTooNewEntry(UmaEntryKind.Textures) || texturesHaveContent) {
+			document = document.withTextures(textures, pixels)
+		}
+		if (!base.holdsTooNewEntry(UmaEntryKind.Sources) || model.sources.isNotEmpty()) {
+			document = document.withSources(UmaSourcesBridge.sourcesOf(model))
+		}
+		return document
+	}
 
 	/**
 	 * The model [document] describes: the puppet with its atlas and linked source art.
 	 *
 	 * @param UmaModel document The document.
 	 * @return PuppetModel The model.
-	 * @throws UmaFormatException When the document has no puppet entry, or an entry holds a shape the schema
-	 *   does not allow.
+	 * @throws UmaFormatException When the document has no puppet entry this reader can read.
 	 */
 	fun modelOf(document: UmaModel): PuppetModel {
-		val puppetEntry =
-			document.entries.firstOrNull { entry -> entry.liveKind == UmaEntryKind.Puppet }
-				?: throw UmaFormatException(UmaReadFailure.MissingEntry(UmaEntryKind.Puppet.defaultPath))
-		val puppet = UmaPuppetImport.modelOf(checkNotNull(document.puppet), puppetEntry.path)
-		return puppet.copy(atlas = UmaTexturesBridge.atlasOf(document.textures), sources = UmaSourcesBridge.sourcesOf(document.sources))
+		val puppet = document.puppet ?: throw UmaFormatException(UmaReadFailure.MissingEntry(UmaEntryKind.Puppet.defaultPath))
+		return UmaPuppetImport.modelOf(puppet).copy(atlas = UmaTexturesBridge.atlasOf(document.textures), sources = UmaSourcesBridge.sourcesOf(document.sources))
 	}
 
 	/**

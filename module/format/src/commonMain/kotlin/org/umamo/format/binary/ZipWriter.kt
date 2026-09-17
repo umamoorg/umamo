@@ -18,13 +18,14 @@ internal class ZipWriter(private val dosDateTime: Int) {
 	/**
 	 * What the central directory needs to repeat about one written entry.
 	 *
-	 * @property ByteArray nameBytes        The UTF-8 name.
-	 * @property Int       versionNeeded    The "version needed to extract".
-	 * @property Int       flags            The general purpose bit flags.
-	 * @property Int       method           The compression method.
-	 * @property Long      crc32            The CRC-32 of the uncompressed bytes.
-	 * @property Int       compressedSize   The payload's size.
-	 * @property Int       uncompressedSize The uncompressed size.
+	 * @property ByteArray nameBytes         The UTF-8 name.
+	 * @property Int       versionNeeded     The "version needed to extract".
+	 * @property Int       flags             The general purpose bit flags.
+	 * @property Int       method            The compression method.
+	 * @property Long      crc32             The CRC-32 of the uncompressed bytes.
+	 * @property Int       compressedSize    The payload's size.
+	 * @property Int       uncompressedSize  The uncompressed size.
+	 * @property Int       dosDateTime       The MS-DOS modification stamp the entry carries.
 	 * @property Long      localHeaderOffset Where the entry's local header starts.
 	 */
 	private class WrittenEntry(
@@ -35,6 +36,7 @@ internal class ZipWriter(private val dosDateTime: Int) {
 		val crc32: Long,
 		val compressedSize: Int,
 		val uncompressedSize: Int,
+		val dosDateTime: Int,
 		val localHeaderOffset: Long,
 	)
 
@@ -81,8 +83,13 @@ internal class ZipWriter(private val dosDateTime: Int) {
 
 	/**
 	 * Adds an entry copied from another archive without inflating or recompressing it: the method, CRC-32,
-	 * sizes, encryption flag, and payload bytes carry over verbatim.  The name and timestamp are this
-	 * writer's, like every other entry.
+	 * sizes, encryption flag, version needed, and payload bytes carry over verbatim.  The name and timestamp are
+	 * this writer's, like every other entry, except where a decryption check depends on them (see below).
+	 *
+	 * An encrypted entry whose source used a data descriptor keeps it, and keeps its source's timestamp: traditional
+	 * PKWARE decryption checks the last byte of the encryption header against the timestamp's high byte when flag
+	 * bit 3 is set, and against the CRC-32's high byte otherwise (APPNOTE.TXT 6.1.6), so changing either would make
+	 * the entry undecryptable.
 	 *
 	 * @param ZipEntry  entry      The source entry, as its archive declares it.
 	 * @param ByteArray rawPayload The source entry's payload exactly as stored (ZipArchive.rawPayload).
@@ -91,16 +98,37 @@ internal class ZipWriter(private val dosDateTime: Int) {
 		require(rawPayload.size == entry.compressedSize) {
 			"entry '${entry.name}' declares ${entry.compressedSize} payload bytes but ${rawPayload.size} were given"
 		}
-		// A copied entry's sizes now sit in its local header, so a data descriptor flag from its source would
-		// send a reader looking for a record that is not there.
-		val flags = (entry.flags and ZipRecords.FLAG_DATA_DESCRIPTOR.inv()) or ZipRecords.FLAG_UTF8_NAME
+		addRaw(entry, rawPayload, 0)
+	}
+
+	/**
+	 * Adds an entry copied from another archive, its payload read in place from [source] at [payloadOffset] rather
+	 * than from a copy; see the overload taking the payload alone.
+	 *
+	 * @param ZipEntry  entry         The source entry, as its archive declares it.
+	 * @param ByteArray source        The bytes holding the payload: the source archive, or a copy of the payload.
+	 * @param Int       payloadOffset Where the payload starts in [source].
+	 */
+	fun addRaw(entry: ZipEntry, source: ByteArray, payloadOffset: Int) {
+		require(payloadOffset >= 0 && payloadOffset.toLong() + entry.compressedSize <= source.size) {
+			"entry '${entry.name}' declares ${entry.compressedSize} payload bytes, which its source does not hold at $payloadOffset"
+		}
+		val keepsDescriptor = entry.isEncrypted && (entry.flags and ZipRecords.FLAG_DATA_DESCRIPTOR) != 0
+		// Every other copied entry's sizes sit in its local header, so a data descriptor flag from its source would send
+		// a reader looking for a record that is not there.
+		val flags = if (keepsDescriptor) entry.flags or ZipRecords.FLAG_UTF8_NAME else (entry.flags and ZipRecords.FLAG_DATA_DESCRIPTOR.inv()) or ZipRecords.FLAG_UTF8_NAME
 		writeEntry(
 			name = entry.name,
 			method = entry.method,
 			flags = flags,
 			crc32 = entry.crc32,
 			uncompressedSize = entry.uncompressedSize,
-			payload = rawPayload,
+			payload = source,
+			payloadOffset = payloadOffset,
+			payloadSize = entry.compressedSize,
+			sourceVersionNeeded = entry.versionNeeded,
+			entryDosDateTime = if (keepsDescriptor) entry.dosDateTime else dosDateTime,
+			writesDescriptor = keepsDescriptor,
 		)
 	}
 
@@ -158,31 +186,57 @@ internal class ZipWriter(private val dosDateTime: Int) {
 	}
 
 	/**
-	 * Writes one entry's local header and payload, and records what its central header will repeat.
+	 * Writes one entry's local header and payload, and records what its central header will repeat.  Every check runs
+	 * before anything is written or the name is taken, so a refused entry leaves the writer as it was.
 	 *
-	 * @param String    name             The entry name.
-	 * @param Int       method           The compression method.
-	 * @param Int       flags            The general purpose bit flags.
-	 * @param Long      crc32            The CRC-32 of the uncompressed bytes.
-	 * @param Int       uncompressedSize The uncompressed size.
-	 * @param ByteArray payload          The bytes to store.
+	 * @param String    name                The entry name.
+	 * @param Int       method              The compression method.
+	 * @param Int       flags               The general purpose bit flags.
+	 * @param Long      crc32               The CRC-32 of the uncompressed bytes.
+	 * @param Int       uncompressedSize    The uncompressed size.
+	 * @param ByteArray payload             The bytes holding the payload.
+	 * @param Int       payloadOffset       Where the payload starts in [payload].
+	 * @param Int       payloadSize         The payload's length.
+	 * @param Int       sourceVersionNeeded The version needed a copied entry's source declared, or 0.
+	 * @param Int       entryDosDateTime    The MS-DOS stamp the entry carries.
+	 * @param Boolean   writesDescriptor    Whether the local header leaves the CRC-32 and sizes zero for a data
+	 *   descriptor after the payload (flag bit 3).
 	 */
-	private fun writeEntry(name: String, method: Int, flags: Int, crc32: Long, uncompressedSize: Int, payload: ByteArray) {
+	private fun writeEntry(
+		name: String,
+		method: Int,
+		flags: Int,
+		crc32: Long,
+		uncompressedSize: Int,
+		payload: ByteArray,
+		payloadOffset: Int = 0,
+		payloadSize: Int = payload.size,
+		sourceVersionNeeded: Int = 0,
+		entryDosDateTime: Int = dosDateTime,
+		writesDescriptor: Boolean = false,
+	) {
 		check(!finished) { "the archive has already been finished" }
 		require(name.isNotEmpty()) { "an entry name cannot be empty" }
-		require(writtenNames.add(name)) { "the archive already holds an entry named '$name'" }
+		require(name !in writtenNames) { "the archive already holds an entry named '$name'" }
 		val nameBytes = name.encodeToByteArray()
 		require(nameBytes.size <= 0xFFFF) { "entry name '$name' is longer than a ZIP header can hold" }
-		val versionNeeded = if (method == ZipRecords.METHOD_STORED) ZipRecords.VERSION_STORED else ZipRecords.VERSION_DEFLATED
+		val descriptorSize = if (writesDescriptor) ZipRecords.DATA_DESCRIPTOR_SIZE else 0
+		val projectedSize = output.size + ZipRecords.LOCAL_HEADER_SIZE + nameBytes.size + payloadSize + descriptorSize
+		check(projectedSize <= MAXIMUM_ARCHIVE_SIZE) { "the archive would exceed what a byte array can hold: $projectedSize bytes" }
+		writtenNames += name
+		// ZIP: version needed to extract (APPNOTE.TXT 4.4.3) - what this entry's method needs, or what a copied entry's
+		// source declared when that is more (an AES or other entry this writer never produces itself).
+		val methodVersion = if (method == ZipRecords.METHOD_STORED) ZipRecords.VERSION_STORED else ZipRecords.VERSION_DEFLATED
 		val entry =
 			WrittenEntry(
 				nameBytes = nameBytes,
-				versionNeeded = versionNeeded,
+				versionNeeded = maxOf(methodVersion, sourceVersionNeeded),
 				flags = flags,
 				method = method,
 				crc32 = crc32,
-				compressedSize = payload.size,
+				compressedSize = payloadSize,
 				uncompressedSize = uncompressedSize,
+				dosDateTime = entryDosDateTime,
 				localHeaderOffset = output.size,
 			)
 		// ZIP: local file header (APPNOTE.TXT 4.3.7).
@@ -191,16 +245,24 @@ internal class ZipWriter(private val dosDateTime: Int) {
 		output.writeShortLe(entry.flags)
 		output.writeShortLe(entry.method)
 		// ZIP: @ +0x0A time, @ +0x0C date.
-		output.writeShortLe(dosDateTime and 0xFFFF)
-		output.writeShortLe((dosDateTime ushr 16) and 0xFFFF)
-		output.writeIntLe(entry.crc32.toInt())
-		output.writeIntLe(entry.compressedSize)
-		output.writeIntLe(entry.uncompressedSize)
+		output.writeShortLe(entry.dosDateTime and 0xFFFF)
+		output.writeShortLe((entry.dosDateTime ushr 16) and 0xFFFF)
+		// ZIP: @ +0x0E crc-32, @ +0x12 compressed size, @ +0x16 uncompressed size - zero when a data descriptor carries
+		// them (APPNOTE.TXT 4.4.4).
+		output.writeIntLe(if (writesDescriptor) 0 else entry.crc32.toInt())
+		output.writeIntLe(if (writesDescriptor) 0 else entry.compressedSize)
+		output.writeIntLe(if (writesDescriptor) 0 else entry.uncompressedSize)
 		output.writeShortLe(nameBytes.size)
 		output.writeShortLe(0)
 		output.write(nameBytes)
-		output.write(payload)
-		check(output.size <= MAXIMUM_ARCHIVE_SIZE) { "the archive exceeds what a byte array can hold: ${output.size} bytes" }
+		output.write(payload, payloadOffset, payloadSize)
+		if (writesDescriptor) {
+			// ZIP: data descriptor (APPNOTE.TXT 4.3.9), with its optional signature.
+			output.writeIntLe(ZipRecords.DATA_DESCRIPTOR_SIGNATURE)
+			output.writeIntLe(entry.crc32.toInt())
+			output.writeIntLe(entry.compressedSize)
+			output.writeIntLe(entry.uncompressedSize)
+		}
 		writtenEntries += entry
 	}
 
@@ -217,8 +279,8 @@ internal class ZipWriter(private val dosDateTime: Int) {
 		output.writeShortLe(entry.versionNeeded)
 		output.writeShortLe(entry.flags)
 		output.writeShortLe(entry.method)
-		output.writeShortLe(dosDateTime and 0xFFFF)
-		output.writeShortLe((dosDateTime ushr 16) and 0xFFFF)
+		output.writeShortLe(entry.dosDateTime and 0xFFFF)
+		output.writeShortLe((entry.dosDateTime ushr 16) and 0xFFFF)
 		output.writeIntLe(entry.crc32.toInt())
 		output.writeIntLe(entry.compressedSize)
 		output.writeIntLe(entry.uncompressedSize)

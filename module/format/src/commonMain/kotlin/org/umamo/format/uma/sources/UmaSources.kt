@@ -7,6 +7,9 @@ import kotlinx.serialization.Serializable
  * with the layer inventory it had at its last read.  The source bytes themselves are never stored (D6).
  */
 
+/** UMA §6.4 (D16): the algorithm prefix every recorded hash carries in front of its lowercase hex digest. */
+public const val UMA_SHA256_PREFIX: String = "sha256:"
+
 /**
  * UMA §6.1: the sources entry's root.
  *
