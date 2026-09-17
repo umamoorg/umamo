@@ -2,10 +2,13 @@ package org.umamo.format.uma
 
 import org.umamo.format.binary.ZipRecords
 import org.umamo.format.binary.ZipWriter
+import org.umamo.format.uma.puppet.UmaParameterNode
+import org.umamo.format.uma.puppet.UmaPuppet
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 /**
  * Pins that every file that cannot open as UMA fails with its typed reason (docs/format/UMA.md §3.4),
@@ -112,5 +115,32 @@ class UmaReadFailureTest {
 		// The mimetype's first content byte, at offset 38: changing it breaks the recorded CRC-32.
 		bytes[38] = 'A'.code.toByte()
 		assertIs<UmaReadFailure.CorruptContainer>(failureOf(bytes))
+	}
+
+	/**
+	 * An entry nested past the limit fails as malformed instead of overflowing the stack of the walks over it, one at
+	 * the limit reads, and a save that would nest past it is refused.
+	 */
+	@Test
+	fun nestingPastTheLimitIsRefused() {
+		/**
+		 * A file whose puppet entry holds arrays under an unknown key, nested to [depth] levels with the root as one.
+		 *
+		 * @param Int depth The deepest level.
+		 * @return ByteArray The file.
+		 */
+		fun puppetNestedTo(depth: Int): ByteArray {
+			val arrays = depth - 1
+			val json = """{ "futureKey": ${"[".repeat(arrays)}${"]".repeat(arrays)} }"""
+			return umaArchiveOf(manifestJson(listOf(puppetRecord)), listOf(TestEntry("model/puppet.json", json.encodeToByteArray())))
+		}
+		Uma.read(puppetNestedTo(UMA_MAXIMUM_JSON_DEPTH))
+		assertIs<UmaReadFailure.MalformedEntry>(failureOf(puppetNestedTo(UMA_MAXIMUM_JSON_DEPTH + 1)), "one level past the limit")
+		val deep = assertIs<UmaReadFailure.MalformedEntry>(failureOf(puppetNestedTo(10_000)), "far past it")
+		assertTrue(deep.detail.contains("nested deeper"), deep.detail)
+
+		var node = UmaParameterNode(parameter = "P")
+		repeat(200) { level -> node = UmaParameterNode(group = "G$level", name = "G", children = listOf(node)) }
+		assertFailsWith<UmaWriteException>("a parameter tree nested past the limit") { UmaModel.create(TEST_WRITER).withPuppet(UmaPuppet(parameterTree = listOf(node))) }
 	}
 }

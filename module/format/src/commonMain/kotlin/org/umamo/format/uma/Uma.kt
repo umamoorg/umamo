@@ -8,6 +8,7 @@ import org.umamo.format.binary.ZipEntry
 import org.umamo.format.binary.ZipFormatException
 import org.umamo.format.binary.ZipRecords
 import org.umamo.format.binary.ZipWriter
+import org.umamo.format.binary.rangeEquals
 
 /**
  * Umamo's native project format at the container level: identification, the manifest, the per-entry
@@ -46,8 +47,8 @@ public object Uma : FormatCodec<UmaModel> {
 			reader.u32(22) == mimetype.size.toLong() &&
 			reader.u16(26) == MIMETYPE_NAME_BYTES.size &&
 			reader.u16(28) == 0 &&
-			regionEquals(candidateBytes, ZipRecords.LOCAL_HEADER_SIZE, MIMETYPE_NAME_BYTES) &&
-			regionEquals(candidateBytes, PROBE_OFFSET, mimetype)
+			candidateBytes.rangeEquals(ZipRecords.LOCAL_HEADER_SIZE, MIMETYPE_NAME_BYTES, 0, MIMETYPE_NAME_BYTES.size) &&
+			candidateBytes.rangeEquals(PROBE_OFFSET, mimetype, 0, mimetype.size)
 	}
 
 	/**
@@ -97,12 +98,13 @@ public object Uma : FormatCodec<UmaModel> {
 							}
 						readOnlyReasons += UmaReadOnlyReason(record.path, record.kind, cause)
 					}
-					UmaEntryContent.Preserved(UmaRawEntry(zipEntry, archive.rawPayload(zipEntry)))
+					UmaEntryContent.Preserved(UmaRawEntry(zipEntry, archive.bytes))
 				}
 			entries += UmaEntry(record.path, record.kind, record.version, record.minVersion, record.required, record.record, content)
 		}
 
-		// UMA §3.3: every other entry is a payload, kept exactly; nothing is garbage-collected.
+		// UMA §3.3: every other entry is a payload, kept exactly; nothing is garbage-collected.  Each stays a slice of the
+		// file's bytes, which the document holds anyway, rather than a second copy.
 		val listedPaths = manifest.records.mapTo(HashSet()) { record -> record.path }
 		val archiveOrder = ArrayList<String>(archive.entries.size)
 		val payloads = ArrayList<UmaPayload>()
@@ -112,7 +114,7 @@ public object Uma : FormatCodec<UmaModel> {
 			}
 			archiveOrder += zipEntry.name
 			if (zipEntry.name !in listedPaths) {
-				payloads += UmaPayload(zipEntry.name, UmaRawEntry(zipEntry, archive.rawPayload(zipEntry)))
+				payloads += UmaPayload(zipEntry.name, UmaRawEntry(zipEntry, archive.bytes))
 			}
 		}
 		val model = UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
@@ -176,11 +178,11 @@ public object Uma : FormatCodec<UmaModel> {
 						}
 					}
 
-					is UmaEntryContent.Preserved -> writer.addRaw(content.raw.zipEntry, content.raw.rawPayload)
+					is UmaEntryContent.Preserved -> writer.addRaw(content.raw.zipEntry, content.raw.archive, content.raw.zipEntry.payloadOffset)
 				}
 				return
 			}
-			payloadByPath[path]?.let { payload -> writer.addRaw(payload.raw.zipEntry, payload.raw.rawPayload) }
+			payloadByPath[path]?.let { payload -> writer.addRaw(payload.raw.zipEntry, payload.raw.archive, payload.raw.zipEntry.payloadOffset) }
 		}
 
 		// UMA §3.5: the archive's own order first, then entries new to this document in manifest order, then
@@ -210,24 +212,4 @@ public object Uma : FormatCodec<UmaModel> {
 		} catch (failure: ZipFormatException) {
 			throw UmaFormatException(UmaReadFailure.CorruptContainer(failure.message.orEmpty()), failure)
 		}
-
-	/**
-	 * Whether [expected] occurs in [bytes] at [offset].
-	 *
-	 * @param ByteArray bytes    The buffer.
-	 * @param Int       offset   Where the region starts.
-	 * @param ByteArray expected The bytes to find there.
-	 * @return Boolean True when every byte matches.
-	 */
-	private fun regionEquals(bytes: ByteArray, offset: Int, expected: ByteArray): Boolean {
-		if (offset + expected.size > bytes.size) {
-			return false
-		}
-		for (byteIndex in expected.indices) {
-			if (bytes[offset + byteIndex] != expected[byteIndex]) {
-				return false
-			}
-		}
-		return true
-	}
 }

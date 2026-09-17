@@ -223,6 +223,66 @@ class UmaTexturesEntryTest {
 	}
 
 	/**
+	 * A thumbnail rewrites the entry the file's thumbnail already has, and a new one never lands on a `thumbnail.png`
+	 * something else holds.
+	 */
+	@Test
+	fun theThumbnailNeverTakesAnotherEntry() {
+		val foreign = png(2, 2, 77)
+		val file =
+			umaArchiveOf(
+				manifestJson(listOf(recordJson(indexPath, "textures", required = true))),
+				listOf(TestEntry(indexPath, "{}".encodeToByteArray()), TestEntry("thumbnail.png", foreign, deflated = false)),
+			)
+		val saved = Uma.read(Uma.write(Uma.read(file).withTextures(UmaTextures(), pixelsOf(emptyMap(), UmaRenderPagePixels.Derived, png(8, 8, 1)))))
+		assertEquals(UmaThumbnail(8, 8, "thumbnail-0.png"), saved.textures!!.thumbnail, "the new thumbnail takes a free path")
+		assertContentEquals(foreign, saved.payloadBytes("thumbnail.png"), "the payload already there is untouched")
+
+		val newThumbnail = png(4, 4, 2)
+		val resaved = Uma.read(Uma.write(saved.withTextures(UmaTextures(), pixelsOf(emptyMap(), UmaRenderPagePixels.Derived, newThumbnail))))
+		assertEquals(UmaThumbnail(4, 4, "thumbnail-0.png"), resaved.textures!!.thumbnail, "a later thumbnail rewrites its own entry")
+		assertContentEquals(newThumbnail, resaved.payloadBytes("thumbnail-0.png"))
+		assertContentEquals(foreign, resaved.payloadBytes("thumbnail.png"))
+	}
+
+	/**
+	 * Stored render pages whose images the file already holds name those entries, so saving the same pages again writes
+	 * the same file; a changed image takes a new entry and the one it replaced leaves.
+	 */
+	@Test
+	fun storedRenderPagesReuseTheirEntries() {
+		val pagePngs = listOf(png(16, 16, 40), png(8, 8, 41))
+		val stored = UmaRenderPagePixels.Stored(pagePngs, mapOf("D" to 0, "E" to 1))
+		val first = Uma.write(UmaModel.create(TEST_WRITER).withTextures(UmaTextures(), pixelsOf(emptyMap(), stored)))
+		val reopened = Uma.read(first)
+		assertContentEquals(first, Uma.write(reopened.withTextures(UmaTextures(), pixelsOf(emptyMap(), stored))), "the same pages write the same file")
+
+		val swapped = UmaRenderPagePixels.Stored(pagePngs.reversed(), mapOf("D" to 1, "E" to 0))
+		val swappedPages = Uma.read(Uma.write(reopened.withTextures(UmaTextures(), pixelsOf(emptyMap(), swapped)))).textures!!.renderPages!!
+		assertEquals(listOf("textures/page-1.png", "textures/page-0.png"), swappedPages.pages.map { page -> page.path }, "reordered images keep their entries")
+
+		val changedPng = png(8, 8, 42)
+		val changed = Uma.read(Uma.write(reopened.withTextures(UmaTextures(), pixelsOf(emptyMap(), UmaRenderPagePixels.Stored(listOf(pagePngs[0], changedPng), mapOf("D" to 0, "E" to 1))))))
+		assertEquals(listOf("textures/page-0.png", "textures/page-2.png"), changed.textures!!.renderPages!!.pages.map { page -> page.path })
+		assertContentEquals(changedPng, changed.payloadBytes("textures/page-2.png"))
+		assertNull(changed.payloadBytes("textures/page-1.png"), "the replaced image's entry left the file")
+	}
+
+	/**
+	 * A document saved twice before it is written lays its new pixel entries out in index order - tiles, render pages,
+	 * thumbnail - exactly as one save of the second index does, not in the order the saves wrote them.
+	 */
+	@Test
+	fun chainedSavesKeepIndexOrder() {
+		val first = sampleTextures().copy(tiles = sampleTextures().tiles!!.take(2))
+		val thumbnailPng = png(8, 6, 50)
+		val once = UmaModel.create(TEST_WRITER).withTextures(first, pixelsOf(samplePngs, UmaRenderPagePixels.Derived, thumbnailPng))
+		val twice = once.withTextures(sampleTextures(), pixelsOf(samplePngs, UmaRenderPagePixels.Derived, thumbnailPng))
+		val names = ZipArchive.read(Uma.write(twice)).entries.map { entry -> entry.name }
+		assertEquals(listOf("mimetype", "manifest.json", indexPath, "textures/tile-0.png", "textures/tile-1.png", "textures/tile-2.png", "thumbnail.png"), names)
+	}
+
+	/**
 	 * A key a newer writer put in a tile stays with that tile through a rename and through the deletion of the tile
 	 * before it.
 	 */
@@ -238,6 +298,32 @@ class UmaTexturesEntryTest {
 		assertEquals(JsonPrimitive("Mouth renamed"), savedTiles[0]["name"])
 		assertEquals(plantedValue("tile 1"), savedTiles[0]["futureTile"], "the renamed tile keeps its own key after the shift")
 		assertEquals(plantedValue("tile 2"), savedTiles[1]["futureTile"])
+	}
+
+	/**
+	 * A pixel entry another writer deflated reads by its header alone at open, and its whole PNG comes back verified; a
+	 * deflated one whose header disagrees with its record still fails the open.
+	 */
+	@Test
+	fun deflatedPixelEntriesRead() {
+		val tilePng = png(4, 3, 1)
+		val index = """{ "tiles": [ { "id": "A", "name": "A", "width": 4, "height": 3, "path": "textures/tile-0.png" } ] }"""
+
+		/**
+		 * A file whose one tile's PNG is [png], deflated.
+		 *
+		 * @param ByteArray png The PNG.
+		 * @return ByteArray The file.
+		 */
+		fun fileWith(png: ByteArray): ByteArray =
+			umaArchiveOf(
+				manifestJson(listOf(recordJson(indexPath, "textures", required = true))),
+				listOf(TestEntry(indexPath, index.encodeToByteArray()), TestEntry("textures/tile-0.png", png, deflated = true)),
+			)
+		val document = Uma.read(fileWith(tilePng))
+		assertEquals(4, document.textures!!.tiles!!.single().width)
+		assertContentEquals(tilePng, document.payloadBytes("textures/tile-0.png"))
+		assertIs<UmaReadFailure.MalformedEntry>(assertFailsWith<UmaFormatException> { Uma.read(fileWith(png(3, 4, 1))) }.failure)
 	}
 
 	/**
@@ -299,8 +385,8 @@ class UmaTexturesEntryTest {
 	}
 
 	/**
-	 * A save refuses a new tile it has no pixels for or whose PNG is another size, a thumbnail that is not a PNG, and a
-	 * render page that is not one.
+	 * A save refuses a new tile it has no pixels for or whose PNG is another size, a thumbnail that is not a PNG, a
+	 * render page that is not one, and a repeated tile id.
 	 */
 	@Test
 	fun unwritableIndexesAreRefused() {
@@ -315,6 +401,9 @@ class UmaTexturesEntryTest {
 		}
 		assertFailsWith<UmaWriteException>("a render page that is not a PNG") {
 			UmaModel.create(TEST_WRITER).withTextures(UmaTextures(), pixelsOf(emptyMap(), UmaRenderPagePixels.Stored(listOf(ByteArray(10)), emptyMap())))
+		}
+		assertFailsWith<UmaWriteException>("a repeated tile id") {
+			UmaModel.create(TEST_WRITER).withTextures(UmaTextures(tiles = listOf(UmaTile("A", "A", 4, 3), UmaTile("A", "Again", 4, 3))), pixelsOf(mapOf("A" to png(4, 3, 1)), UmaRenderPagePixels.Derived))
 		}
 	}
 }

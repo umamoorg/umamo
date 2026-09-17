@@ -220,6 +220,25 @@ class UmaBufferTest {
 	}
 
 	/**
+	 * An accessor of a component type this reader does not know is laid out on a multiple of 8, so a newer reader that
+	 * knows the type finds it aligned however odd the run before it.
+	 */
+	@Test
+	fun unknownComponentTypesAlignToEight() {
+		val oddRun = byteArrayOf(1, 2, 3)
+		val doubleBytes = byteArrayOf(10, 11, 12, 13, 14, 15, 16, 17)
+		val puppetJson =
+			"""{ "drawables": [ { "id": "D", "name": "D", "futureBytes": ${accessor(bufferPath, 0, 3, "uint8", byteLength = 3)}, "futureDouble": ${accessor(bufferPath, 3, 1, "float64", byteLength = 8)} } ] }"""
+		val document = Uma.read(fileWith(puppetJson, oddRun + doubleBytes))
+		val saved = Uma.read(Uma.write(document.withPuppet(document.puppet!!)))
+		val drawable = ((saved.liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)
+		val doubleAccessor = assertNotNull(UmaAccessor.of(drawable["futureDouble"]!!))
+		assertEquals(0, doubleAccessor.byteOffset % 8, "the run starts on a multiple of 8: ${doubleAccessor.byteOffset}")
+		val buffer = saved.bufferBytes(bufferPath)!!
+		assertContentEquals(doubleBytes, buffer.copyOfRange(doubleAccessor.byteOffset, doubleAccessor.byteOffset + doubleAccessor.byteLength), "with its own bytes")
+	}
+
+	/**
 	 * An owned buffer nothing references any more is not written.
 	 */
 	@Test

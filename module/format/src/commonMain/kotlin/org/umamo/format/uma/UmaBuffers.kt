@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.modules.SerializersModule
 import okio.Buffer
+import org.umamo.format.binary.ByteReader
 
 /*
  * Bulk arrays in buffer entries (docs/format/UMA.md §4.9, D9, D10, D19).  A domain entry's per-vertex arrays
@@ -29,6 +30,9 @@ import okio.Buffer
  * out afresh from them in document order.  That is what lets an accessor a newer writer put under a key this
  * reader does not know keep its bytes, instead of pointing at an offset the rewritten buffer moved.
  */
+
+/** UMA §4.9: the alignment of an accessor whose component type this reader does not know, the largest a type may need. */
+private const val UNKNOWN_COMPONENT_ALIGNMENT = 8
 
 /** UMA §4.9: the component types this reader interprets, each four bytes little-endian. */
 internal object UmaComponentType {
@@ -104,21 +108,13 @@ internal class UmaAccessor(
 				return null
 			}
 			return UmaAccessor(
-				buffer = stringOf(candidate[BUFFER_KEY]) ?: return null,
+				buffer = jsonStringOrNull(candidate[BUFFER_KEY]) ?: return null,
 				byteOffset = sizeOf(candidate[BYTE_OFFSET_KEY]) ?: return null,
 				byteLength = sizeOf(candidate[BYTE_LENGTH_KEY]) ?: return null,
 				count = sizeOf(candidate[COUNT_KEY]) ?: return null,
-				componentType = stringOf(candidate[COMPONENT_TYPE_KEY]) ?: return null,
+				componentType = jsonStringOrNull(candidate[COMPONENT_TYPE_KEY]) ?: return null,
 			)
 		}
-
-		/**
-		 * [element] as a string's content, or null.
-		 *
-		 * @param JsonElement? element The value.
-		 * @return String? The string.
-		 */
-		private fun stringOf(element: JsonElement?): String? = (element as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content
 
 		/**
 		 * [element] as a non-negative integer within a byte array's range, or null.
@@ -232,7 +228,7 @@ internal class UmaBufferLayout(
 
 /**
  * Lays every accessor in [tree] out into one buffer at [ownedPath], in document order: each accessor's bytes
- * are copied from the buffer it names, aligned to its component size (one byte for a type this reader does
+ * are copied from the buffer it names, aligned to its component size (eight bytes for a type this reader does
  * not know), and the accessor is rewritten to point into the new buffer.
  *
  * @param JsonElement tree      The entry's JSON.
@@ -257,8 +253,9 @@ internal fun layOutBuffer(tree: JsonElement, ownedPath: String, sources: (String
 		if (accessor != null) {
 			val source = checkNotNull(sources(accessor.buffer)) { "an accessor names the buffer '${accessor.buffer}', which is not available" }
 			check(accessor.byteOffset.toLong() + accessor.byteLength <= source.size) { "an accessor reaches past the end of '${accessor.buffer}'" }
-			// UMA §4.9: each array starts on a multiple of its component size.
-			val alignment = UmaComponentType.sizeOf(accessor.componentType) ?: 1
+			// UMA §4.9: each array starts on a multiple of its component size.  A type this reader does not know aligns to
+			// 8, a multiple of every component size a newer reader may check it against.
+			val alignment = UmaComponentType.sizeOf(accessor.componentType) ?: UNKNOWN_COMPONENT_ALIGNMENT
 			while (output.size % alignment != 0L) {
 				output.writeByte(0)
 			}
@@ -309,7 +306,8 @@ private class Float32AccessorSerializer(
 	 */
 	override fun deserialize(decoder: Decoder): FloatArray {
 		val (accessor, bytes) = resolveAccessor(decoder, UmaComponentType.FLOAT32, buffers)
-		return FloatArray(accessor.count) { componentIndex -> Float.fromBits(readIntLe(bytes, accessor.byteOffset + componentIndex * 4)) }
+		val reader = ByteReader(bytes, littleEndian = true)
+		return FloatArray(accessor.count) { componentIndex -> Float.fromBits(reader.u32AsInt(accessor.byteOffset + componentIndex * 4)) }
 	}
 }
 
@@ -344,7 +342,8 @@ private class Int32AccessorSerializer(
 	 */
 	override fun deserialize(decoder: Decoder): IntArray {
 		val (accessor, bytes) = resolveAccessor(decoder, UmaComponentType.INT32, buffers)
-		return IntArray(accessor.count) { componentIndex -> readIntLe(bytes, accessor.byteOffset + componentIndex * 4) }
+		val reader = ByteReader(bytes, littleEndian = true)
+		return IntArray(accessor.count) { componentIndex -> reader.u32AsInt(accessor.byteOffset + componentIndex * 4) }
 	}
 }
 
@@ -370,19 +369,6 @@ private fun resolveAccessor(decoder: Decoder, componentType: String, buffers: (S
 	}
 	return accessor to bytes
 }
-
-/**
- * A little-endian 32-bit value.
- *
- * @param ByteArray bytes The buffer.
- * @param Int       at    Offset of the low byte.
- * @return Int The value.
- */
-private fun readIntLe(bytes: ByteArray, at: Int): Int =
-	(bytes[at].toInt() and 0xFF) or
-		((bytes[at + 1].toInt() and 0xFF) shl 8) or
-		((bytes[at + 2].toInt() and 0xFF) shl 16) or
-		((bytes[at + 3].toInt() and 0xFF) shl 24)
 
 /**
  * The entry JSON with its bulk array fields bound to buffers: decoding slices them out of [buffers], and

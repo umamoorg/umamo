@@ -5,6 +5,7 @@ import org.umamo.format.binary.ZipEntry
 import org.umamo.format.binary.ZipFormatException
 import org.umamo.format.binary.ZipRecords
 import org.umamo.format.binary.decodeZipPayload
+import org.umamo.format.binary.inflateRawDeflate
 import org.umamo.format.uma.puppet.UmaPuppet
 import org.umamo.format.uma.puppet.UmaPuppetEntry
 import org.umamo.format.uma.sources.UmaSources
@@ -53,15 +54,24 @@ public data class UmaReadOnlyReason(
 
 /**
  * An archive entry kept exactly as it was read: its ZIP metadata and its payload as stored, for writing
- * back without inflating or recompressing it.
+ * back without inflating or recompressing it.  The payload stays where it is in the file's bytes rather than
+ * being copied out, so a document holds its file once.
  *
- * @property ZipEntry  zipEntry   The entry as the archive declared it.
- * @property ByteArray rawPayload The payload exactly as stored.
+ * @property ZipEntry  zipEntry The entry as the archive declared it; its payload offset locates the payload.
+ * @property ByteArray archive  The whole file's bytes, which hold the payload.
  */
 internal class UmaRawEntry(
 	val zipEntry: ZipEntry,
-	val rawPayload: ByteArray,
-)
+	val archive: ByteArray,
+) {
+	/**
+	 * The first [length] bytes of the payload as stored, or all of them when it is shorter.
+	 *
+	 * @param Int length The most bytes to take.
+	 * @return ByteArray The bytes.
+	 */
+	fun storedPrefix(length: Int): ByteArray = archive.copyOfRange(zipEntry.payloadOffset, zipEntry.payloadOffset + minOf(zipEntry.compressedSize, length))
+}
 
 /** What a manifest-listed entry holds in memory. */
 internal sealed interface UmaEntryContent {
@@ -137,6 +147,9 @@ public class UmaPayload internal constructor(
  * exactly as read, and an entry this reader cannot interpret that the file marks required makes the
  * document read-only instead of editable.
  *
+ * A document read from a file keeps that file's bytes for its life: its preserved entries and payloads are slices of
+ * them, never copies, so the file is held once rather than twice.
+ *
  * @property UmaWriterInfo?          writer          The application that last wrote the file, or null.
  * @property List<UmaEntry>          entries         The manifest-listed entries, in manifest order.
  * @property List<UmaPayload>        payloads        Every other archive entry, in archive order.
@@ -156,6 +169,12 @@ public class UmaModel internal constructor(
 	 * stored in place of the payload read, or left out of the file when its bytes are null.
 	 */
 	internal val ownedPayloads: Map<String, UmaOwnedPayload> = emptyMap(),
+	/** The puppet decode of the document this one derives from, when it is finished and still describes this one. */
+	inheritedPuppet: Lazy<UmaPuppet?>? = null,
+	/** The textures decode of the document this one derives from, when it is finished and still describes this one. */
+	inheritedTextures: Lazy<UmaTextures?>? = null,
+	/** The sources decode of the document this one derives from, when it is finished and still describes this one. */
+	inheritedSources: Lazy<UmaSources?>? = null,
 ) {
 	/**
 	 * Each buffer payload's decompressed bytes by path, decompressed on first use to resolve accessors.  Held as
@@ -170,41 +189,71 @@ public class UmaModel internal constructor(
 		}
 	}
 
+	/** Each payload by path, so a lookup per tile at open and at save stays constant-time however many payloads there are. */
+	private val payloadByPath: Map<String, UmaPayload> by lazy { payloads.associateBy { payload -> payload.path } }
+
+	/** The puppet entry's decode, run once per document; a document derived from this one reuses it while it holds. */
+	private val puppetDecode: Lazy<UmaPuppet?> =
+		inheritedPuppet ?: lazy {
+			entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Puppet }?.let { entry ->
+				UmaPuppetEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path, ::bufferBytes)
+			}
+		}
+
+	/** The textures entry's decode, run once per document; a document derived from this one reuses it while it holds. */
+	private val texturesDecode: Lazy<UmaTextures?> =
+		inheritedTextures ?: lazy {
+			entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Textures }?.let { entry ->
+				UmaTexturesEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path, ::payloadHeader)
+			}
+		}
+
+	/** The sources entry's decode, run once per document; a document derived from this one reuses it while it holds. */
+	private val sourcesDecode: Lazy<UmaSources?> =
+		inheritedSources ?: lazy {
+			entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Sources }?.let { entry ->
+				UmaSourcesEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path)
+			}
+		}
+
 	/** Whether the document holds a required entry this reader cannot interpret, which forbids saving it. */
 	public val isReadOnly: Boolean
 		get() = readOnlyReasons.isNotEmpty()
 
 	/**
+	 * Whether the document's entry of [kind] is one this reader cannot interpret (UMA §3.3).  Such an entry occupies
+	 * its kind: a save carries it byte for byte and cannot set that kind's content, so an editor can hold back the
+	 * edits that would need to.
+	 *
+	 * @param UmaEntryKind kind The entry kind.
+	 * @return Boolean True when the kind's entry is carried rather than read.
+	 */
+	public fun holdsTooNewEntry(kind: UmaEntryKind): Boolean = entries.any { entry -> entry.liveKind == null && UmaEntryKind.ofWireName(entry.kind) == kind }
+
+	/**
 	 * The puppet entry's content (docs/format/UMA.md §4), or null when the document has no live puppet entry.
 	 *
-	 * Decoded once per model; a model read from a file has already decoded it, so a malformed puppet entry
-	 * fails the read rather than a later access.
+	 * Decoded once per model, and reused by a model derived from this one that keeps the entry; a model read from a file
+	 * has already decoded it, so a malformed puppet entry fails the read rather than a later access.
 	 */
-	public val puppet: UmaPuppet? by lazy {
-		val entry = entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Puppet } ?: return@lazy null
-		UmaPuppetEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path, ::bufferBytes)
-	}
+	public val puppet: UmaPuppet? by puppetDecode
 
 	/**
 	 * The textures entry's content (docs/format/UMA.md §5), or null when the document has no live textures entry.
 	 *
-	 * Decoded once per model; a model read from a file has already decoded it, so a malformed index, or one that
-	 * names a pixel entry the archive does not hold, fails the read.
+	 * Decoded once per model, and reused by a model derived from this one that keeps the entry; a model read from a file
+	 * has already decoded it, so a malformed index, or one that names a pixel entry the archive does not hold, fails the
+	 * read.
 	 */
-	public val textures: UmaTextures? by lazy {
-		val entry = entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Textures } ?: return@lazy null
-		UmaTexturesEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path, ::payloadHeader)
-	}
+	public val textures: UmaTextures? by texturesDecode
 
 	/**
 	 * The sources entry's content (docs/format/UMA.md §6), or null when the document has no live sources entry.
 	 *
-	 * Decoded once per model; a model read from a file has already decoded it.
+	 * Decoded once per model, and reused by a model derived from this one that keeps the entry; a model read from a file
+	 * has already decoded it.
 	 */
-	public val sources: UmaSources? by lazy {
-		val entry = entries.firstOrNull { candidate -> candidate.liveKind == UmaEntryKind.Sources } ?: return@lazy null
-		UmaSourcesEntry.decode((entry.content as UmaEntryContent.Live).tree, entry.path)
-	}
+	public val sources: UmaSources? by sourcesDecode
 
 	/**
 	 * This document with its puppet entry set to [puppet], laid over the entry's tree as read so every key
@@ -215,8 +264,8 @@ public class UmaModel internal constructor(
 	 *
 	 * @param UmaPuppet puppet The puppet.
 	 * @return UmaModel The updated document.
-	 * @throws UmaWriteException When the puppet holds a value the format cannot represent.
-	 * @throws IllegalStateException When the document's puppet entry is too new to interpret.
+	 * @throws UmaWriteException When the puppet holds a value the format cannot represent, or the document's puppet
+	 *   entry is too new to replace.
 	 */
 	public fun withPuppet(puppet: UmaPuppet): UmaModel {
 		val kind = UmaEntryKind.Puppet
@@ -228,7 +277,7 @@ public class UmaModel internal constructor(
 		check(entries.none { entry -> entry.path == ownedPath }) { "'$ownedPath' is a manifest-listed entry, so the puppet cannot own it as its buffer" }
 		val scratchBytes = scratch.bytes()
 		val layout = layOutBuffer(merged, ownedPath) { source -> if (source == UmaAccessor.SCRATCH_BUFFER) scratchBytes else bufferBytes(source) }
-		return withLiveContent(kind, layout.tree as JsonObject).withOwnedPayloads(mapOf(ownedPath to UmaOwnedPayload(kind, layout.buffer.takeIf { layout.hasAccessors })))
+		return withLiveContent(kind, layout.tree as JsonObject).withOwnedPayloads(kind, mapOf(ownedPath to UmaOwnedPayload(kind, layout.buffer.takeIf { layout.hasAccessors })))
 	}
 
 	/**
@@ -243,9 +292,8 @@ public class UmaModel internal constructor(
 	 * @param UmaTextures    textures The index.
 	 * @param UmaPixelSource pixels   The pixels the save writes.
 	 * @return UmaModel The updated document.
-	 * @throws UmaWriteException When a new tile has no pixels, kept render pages are missing, or the index breaks a
-	 *   rule a reader would refuse.
-	 * @throws IllegalStateException When the document's textures entry is too new to interpret.
+	 * @throws UmaWriteException When a new tile has no pixels, kept render pages are missing, the index breaks a rule
+	 *   a reader would refuse, or the document's textures entry is too new to replace.
 	 */
 	public fun withTextures(textures: UmaTextures, pixels: UmaPixelSource): UmaModel {
 		val kind = UmaEntryKind.Textures
@@ -253,9 +301,22 @@ public class UmaModel internal constructor(
 		val pathsInUse = HashSet<String>(archiveOrder)
 		entries.mapTo(pathsInUse) { entry -> entry.path }
 		pathsInUse += ownedPayloads.keys
-		val layout = UmaTexturesEntry.layOut(textures, this.textures, pixels, path, pathsInUse, ::payloadHeader)
-		val merged = mergeRetainedTree(liveContent(kind), UmaTexturesEntry.encode(layout.textures), UmaTextures.serializer().descriptor, UmaTexturesEntry.identities)
-		return withLiveContent(kind, merged as JsonObject).withOwnedPayloads(layout.payloads.mapValues { (_, bytes) -> UmaOwnedPayload(kind, bytes) })
+		val layout = UmaTexturesEntry.layOut(textures, this.textures, pixels, path, pathsInUse, ::payloadHeader, ::payloadBytes)
+		val merged = mergeRetainedTree(liveContent(kind), UmaTexturesEntry.encode(layout.textures, path), UmaTextures.serializer().descriptor, UmaTexturesEntry.identities)
+		// UMA §5.7: pixel entries new to the file follow the index in index order - tiles, render pages, thumbnail -
+		// whichever save wrote them, so a document saved twice before it is written orders them as one save does.
+		val owned = LinkedHashMap<String, UmaOwnedPayload>()
+		for (namedPath in UmaTexturesEntry.namedPaths(layout.textures)) {
+			val bytes = layout.payloads[namedPath]
+			val payload = if (bytes != null) UmaOwnedPayload(kind, bytes) else ownedPayloads[namedPath]?.takeIf { earlier -> earlier.owner == kind }
+			payload?.let { laidOut -> owned[namedPath] = laidOut }
+		}
+		for ((droppedPath, bytes) in layout.payloads) {
+			if (bytes == null) {
+				owned[droppedPath] = UmaOwnedPayload(kind, null)
+			}
+		}
+		return withLiveContent(kind, merged as JsonObject).withOwnedPayloads(kind, owned)
 	}
 
 	/**
@@ -264,8 +325,8 @@ public class UmaModel internal constructor(
 	 *
 	 * @param UmaSources sources The sources.
 	 * @return UmaModel The updated document.
-	 * @throws UmaWriteException When the sources hold a value a reader would refuse.
-	 * @throws IllegalStateException When the document's sources entry is too new to interpret.
+	 * @throws UmaWriteException When the sources hold a value a reader would refuse, or the document's sources entry
+	 *   is too new to replace.
 	 */
 	public fun withSources(sources: UmaSources): UmaModel {
 		val kind = UmaEntryKind.Sources
@@ -284,27 +345,31 @@ public class UmaModel internal constructor(
 	 */
 	public fun payloadBytes(path: String): ByteArray? {
 		ownedPayloads[path]?.let { owned -> return owned.bytes }
-		val payload = payloads.firstOrNull { candidate -> candidate.path == path } ?: return null
+		val payload = payloadByPath[path] ?: return null
 		return decodeVerified(payload)
 	}
 
 	/**
-	 * The first bytes of the payload at [path], enough to read a PNG header, without decompressing a stored
-	 * payload or keeping anything: a check of a pixel entry's size needs no more, and its bytes are verified
-	 * whenever they are read.
+	 * The first bytes of the payload at [path], enough to read a PNG header, without decompressing more of it than
+	 * that or keeping anything: a check of a pixel entry's size needs no more, and its bytes are verified whenever
+	 * they are read.
 	 *
 	 * @param String path The payload's path.
 	 * @return ByteArray? At most [PAYLOAD_HEADER_BYTES] bytes, or null when the document holds no such payload.
-	 * @throws UmaFormatException When a compressed payload's bytes fail their size or CRC-32 check.
+	 * @throws UmaFormatException When the payload is encrypted or compressed with a method this reader cannot inflate.
 	 */
 	internal fun payloadHeader(path: String): ByteArray? {
 		ownedPayloads[path]?.let { owned -> return owned.bytes?.let { bytes -> bytes.copyOf(minOf(bytes.size, PAYLOAD_HEADER_BYTES)) } }
-		val payload = payloads.firstOrNull { candidate -> candidate.path == path } ?: return null
-		val zipEntry = payload.raw.zipEntry
-		if (zipEntry.method == ZipRecords.METHOD_STORED && !zipEntry.isEncrypted) {
-			val raw = payload.raw.rawPayload
-			return raw.copyOf(minOf(raw.size, PAYLOAD_HEADER_BYTES))
+		val payload = payloadByPath[path] ?: return null
+		val raw = payload.raw
+		val zipEntry = raw.zipEntry
+		if (!zipEntry.isEncrypted && zipEntry.method == ZipRecords.METHOD_STORED) {
+			return raw.storedPrefix(PAYLOAD_HEADER_BYTES)
 		}
+		if (!zipEntry.isEncrypted && zipEntry.method == ZipRecords.METHOD_DEFLATED) {
+			return inflateRawDeflate(raw.archive, zipEntry.payloadOffset, zipEntry.compressedSize, PAYLOAD_HEADER_BYTES)
+		}
+		// An entry this reader cannot inflate at all fails as reading its bytes does.
 		val bytes = decodeVerified(payload)
 		return bytes.copyOf(minOf(bytes.size, PAYLOAD_HEADER_BYTES))
 	}
@@ -331,7 +396,7 @@ public class UmaModel internal constructor(
 	 */
 	private fun decodeVerified(payload: UmaPayload): ByteArray =
 		try {
-			decodeZipPayload(payload.raw.zipEntry, payload.raw.rawPayload, 0)
+			decodeZipPayload(payload.raw.zipEntry, payload.raw.archive, payload.raw.zipEntry.payloadOffset)
 		} catch (failure: ZipFormatException) {
 			throw UmaFormatException(UmaReadFailure.CorruptContainer(failure.message.orEmpty()), failure)
 		}
@@ -345,14 +410,15 @@ public class UmaModel internal constructor(
 	private fun entryPathOf(kind: UmaEntryKind): String = entries.firstOrNull { entry -> UmaEntryKind.ofWireName(entry.kind) == kind }?.path ?: kind.defaultPath
 
 	/**
-	 * This document with [owned] laid over the payloads a save already owns; a path already owned keeps its place
-	 * in the write order.
+	 * This document with [owned] laid over the payloads a save already owns, in [owned]'s order: the latest layout
+	 * decides where a payload new to the file is written.
 	 *
-	 * @param Map owned The payloads, by path.
+	 * @param UmaEntryKind kind  The kind whose save laid the payloads out.
+	 * @param Map          owned The payloads, by path, in write order.
 	 * @return UmaModel The updated document.
 	 */
-	private fun withOwnedPayloads(owned: Map<String, UmaOwnedPayload>): UmaModel =
-		UmaModel(writer, entries, payloads, readOnlyReasons, manifestTree, archiveOrder, ownedPayloads + owned)
+	private fun withOwnedPayloads(kind: UmaEntryKind, owned: Map<String, UmaOwnedPayload>): UmaModel =
+		derived(writer, entries, ownedPayloads.filterKeys { path -> path !in owned } + owned, kind)
 
 	/**
 	 * The live JSON tree of [kind], or null when the document has no live entry of that kind.
@@ -370,26 +436,30 @@ public class UmaModel internal constructor(
 	 * @param UmaEntryKind kind The entry kind.
 	 * @param JsonObject   tree The entry's new JSON.
 	 * @return UmaModel The updated document.
-	 * @throws IllegalStateException When the kind is occupied by an entry too new to interpret, or its
-	 *   default path is taken by another entry.
+	 * @throws UmaWriteException When the kind is occupied by an entry too new to interpret, its default path is taken by
+	 *   another entry, or the tree nests deeper than a reader accepts.
 	 */
 	internal fun withLiveContent(kind: UmaEntryKind, tree: JsonObject): UmaModel {
+		// UMA §3.5: a reader refuses a tree nested past the limit, so a save that wrote one could never be reopened.
+		if (jsonNestsTooDeep(tree)) {
+			throw UmaWriteException(entryPathOf(kind), "the entry nests deeper than $UMA_MAXIMUM_JSON_DEPTH levels")
+		}
 		val existingIndex = entries.indexOfFirst { entry -> UmaEntryKind.ofWireName(entry.kind) == kind }
 		if (existingIndex >= 0) {
 			val existing = entries[existingIndex]
 			// UMA §3.3: an entry too new to interpret occupies its kind; writing a second one beside it would
-			// leave the file with two entries of one kind.
-			check(existing.content is UmaEntryContent.Live) {
-				"'${existing.path}' holds a ${kind.wireName} entry this reader cannot interpret, so it cannot be replaced"
+			// leave the file with two entries of one kind, and replacing it would lose what a newer writer put there.
+			if (existing.content !is UmaEntryContent.Live) {
+				throw UmaWriteException(existing.path, "the file's ${kind.wireName} entry is too new for this reader to replace")
 			}
 			val replaced = UmaEntry(existing.path, existing.kind, existing.version, existing.minVersion, existing.required, existing.record, UmaEntryContent.Live(kind, tree))
-			return copy(entries = entries.toMutableList().also { list -> list[existingIndex] = replaced })
+			return derived(writer, entries.toMutableList().also { list -> list[existingIndex] = replaced }, ownedPayloads, kind)
 		}
-		check(entries.none { entry -> entry.path == kind.defaultPath } && payloads.none { payload -> payload.path == kind.defaultPath }) {
-			"'${kind.defaultPath}' is already taken, so a new ${kind.wireName} entry has nowhere to go"
+		if (entries.any { entry -> entry.path == kind.defaultPath } || payloads.any { payload -> payload.path == kind.defaultPath }) {
+			throw UmaWriteException(kind.defaultPath, "the path is already taken, so a new ${kind.wireName} entry has nowhere to go")
 		}
 		val added = UmaEntry(kind.defaultPath, kind.wireName, kind.version, kind.minVersion, kind.required, null, UmaEntryContent.Live(kind, tree))
-		return copy(entries = entries + added)
+		return derived(writer, entries + added, ownedPayloads, kind)
 	}
 
 	/**
@@ -398,17 +468,32 @@ public class UmaModel internal constructor(
 	 * @param UmaWriterInfo writer The application writing the file.
 	 * @return UmaModel The updated document.
 	 */
-	public fun withWriter(writer: UmaWriterInfo): UmaModel = copy(writer = writer)
+	public fun withWriter(writer: UmaWriterInfo): UmaModel = derived(writer, entries, ownedPayloads, null)
 
 	/**
-	 * A copy with the given fields replaced.
+	 * A document over the given fields and this one's payloads, handed every finished decode of this one except the
+	 * kind a save set afresh: an entry's decode depends only on its own tree and the payloads its kind owns, so every
+	 * other kind's still describes the new document.
 	 *
-	 * @param UmaWriterInfo?  writer   The writer record.
-	 * @param List<UmaEntry>  entries  The manifest-listed entries.
-	 * @return UmaModel The copy.
+	 * @param UmaWriterInfo? writer        The writer record.
+	 * @param List<UmaEntry> entries       The manifest-listed entries.
+	 * @param Map            ownedPayloads The payloads a save owns.
+	 * @param UmaEntryKind?  replaced      The kind whose entry or payloads the new document sets, or null.
+	 * @return UmaModel The document.
 	 */
-	private fun copy(writer: UmaWriterInfo? = this.writer, entries: List<UmaEntry> = this.entries): UmaModel =
-		UmaModel(writer, entries, payloads, readOnlyReasons, manifestTree, archiveOrder, ownedPayloads)
+	private fun derived(writer: UmaWriterInfo?, entries: List<UmaEntry>, ownedPayloads: Map<String, UmaOwnedPayload>, replaced: UmaEntryKind?): UmaModel =
+		UmaModel(
+			writer,
+			entries,
+			payloads,
+			readOnlyReasons,
+			manifestTree,
+			archiveOrder,
+			ownedPayloads,
+			inheritedPuppet = puppetDecode.takeIf { decode -> replaced != UmaEntryKind.Puppet && decode.isInitialized() },
+			inheritedTextures = texturesDecode.takeIf { decode -> replaced != UmaEntryKind.Textures && decode.isInitialized() },
+			inheritedSources = sourcesDecode.takeIf { decode -> replaced != UmaEntryKind.Sources && decode.isInitialized() },
+		)
 
 	public companion object {
 		/** How many leading bytes [payloadHeader] returns: a PNG signature and its IHDR chunk's header fields. */

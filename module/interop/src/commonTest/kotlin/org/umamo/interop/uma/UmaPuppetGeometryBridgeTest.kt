@@ -1,31 +1,9 @@
 package org.umamo.interop.uma
 
-import kotlinx.serialization.json.JsonPrimitive
 import org.umamo.format.uma.Uma
-import org.umamo.format.uma.UmaFormatException
 import org.umamo.format.uma.UmaModel
-import org.umamo.format.uma.UmaReadFailure
 import org.umamo.format.uma.UmaWriteException
 import org.umamo.format.uma.UmaWriterInfo
-import org.umamo.format.uma.puppet.UmaAxis
-import org.umamo.format.uma.puppet.UmaBlendLimit
-import org.umamo.format.uma.puppet.UmaBlendLimitPoint
-import org.umamo.format.uma.puppet.UmaChannelCell
-import org.umamo.format.uma.puppet.UmaChannelGrid
-import org.umamo.format.uma.puppet.UmaDeformer
-import org.umamo.format.uma.puppet.UmaDeformerCell
-import org.umamo.format.uma.puppet.UmaDeformerGrid
-import org.umamo.format.uma.puppet.UmaDeformerKind
-import org.umamo.format.uma.puppet.UmaDrawable
-import org.umamo.format.uma.puppet.UmaFormChannel
-import org.umamo.format.uma.puppet.UmaGlue
-import org.umamo.format.uma.puppet.UmaGluePairs
-import org.umamo.format.uma.puppet.UmaMesh
-import org.umamo.format.uma.puppet.UmaMeshBlendShape
-import org.umamo.format.uma.puppet.UmaMeshCell
-import org.umamo.format.uma.puppet.UmaMeshForm
-import org.umamo.format.uma.puppet.UmaMeshGrid
-import org.umamo.format.uma.puppet.UmaPuppet
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.BlendWeightLimit
@@ -62,14 +40,13 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
  * Pins the puppet entry's geometry half in both directions (docs/format/UMA.md §4.9-§4.14) on synthetic
  * models: meshes, every grid kind (a sparse one included), every channel, every blend form, and glue survive a
- * save bit for bit; the buffer carries even a NaN payload while inline JSON refuses one; and each geometry
- * invariant the renderer relies on fails as a malformed entry.
+ * save bit for bit, and the buffer carries even a NaN payload while inline JSON refuses one.  The geometry
+ * invariants the renderer relies on are the format layer's (UmaPuppetShapeTest).
  */
 class UmaPuppetGeometryBridgeTest {
 	private val writer = UmaWriterInfo("Umamo", "test")
@@ -243,68 +220,5 @@ class UmaPuppetGeometryBridgeTest {
 		val inlineNaN = base.copy(parameters = base.parameters, parts = base.parts, deformers = base.deformers.map { deformer -> if (deformer is Deformer.Rotation) deformer.copy(geometryGrid = KeyformGrid(deformer.geometryGrid!!.axes, listOf(KeyformCell(intArrayOf(0), RotationPivotForm(Float.NaN, 0f, 0f, 1f))))) else deformer })
 		val failure = assertFailsWith<UmaWriteException> { UmaPuppetExport.puppetOf(inlineNaN) }
 		assertTrue(failure.message.orEmpty().contains("deformers[R1].geometry.cells[0].originX"), "the failure names the value: ${failure.message}")
-	}
-
-	/**
-	 * Each geometry invariant the renderer relies on fails as a malformed entry.
-	 */
-	@Test
-	fun brokenGeometryIsMalformed() {
-		/**
-		 * Asserts that bridging [puppet] fails as a malformed entry whose detail names [where].
-		 *
-		 * @param UmaPuppet puppet The entry.
-		 * @param String    where  A fragment of the path the failure must name.
-		 */
-		fun assertMalformed(puppet: UmaPuppet, where: String) {
-			val failure = assertFailsWith<UmaFormatException>(where) { UmaPuppetImport.modelOf(puppet) }.failure
-			val detail = assertIs<UmaReadFailure.MalformedEntry>(failure, where).detail
-			assertTrue(detail.contains(where), "'$detail' names $where")
-		}
-		val positions = floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f)
-		val mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1, 2))
-		val axis = UmaAxis("P0", listOf(0f, 1f))
-
-		/**
-		 * A puppet holding one drawable.
-		 *
-		 * @param UmaDrawable drawable The drawable.
-		 * @return UmaPuppet The puppet.
-		 */
-		fun withDrawable(drawable: UmaDrawable): UmaPuppet = UmaPuppet(drawables = listOf(drawable))
-
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(floatArrayOf(0f, 0f, 1f), floatArrayOf(0f, 0f, 1f), intArrayOf()))), "drawables[D].mesh.positions")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, floatArrayOf(0f, 0f), intArrayOf(0, 1, 2)))), "drawables[D].mesh.uvs")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1)))), "drawables[D].mesh.indices")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1, 3)))), "drawables[D].mesh.indices[2]")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0), FloatArray(4)))))), "drawables[D].geometry.cells[0].positionDeltas")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(2), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate[0]")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0, 0), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate")
-		assertMalformed(
-			withDrawable(UmaDrawable("D", "D", channels = mapOf(UmaFormChannel.Opacity to UmaChannelGrid(listOf(axis), listOf(UmaChannelCell(listOf(0), JsonPrimitive(true))))))),
-			"drawables[D].channels.opacity.cells[0].value",
-		)
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 0, listOf(null))))), "drawables[D].blendShapes[0]")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 2, listOf(null, UmaMeshForm(FloatArray(6))))))), "drawables[D].blendShapes[0].neutralIndex")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(UmaAxis("P0", listOf(1f, 0f))), listOf(UmaMeshCell(listOf(0), FloatArray(6)))))), "drawables[D].geometry.axes[0].keys[1]")
-		assertMalformed(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(1f, 0f), 0, listOf(null, UmaMeshForm(FloatArray(6))))))), "drawables[D].blendShapes[0].keys[1]")
-		val descendingLimit = UmaBlendLimit("P0", listOf(UmaBlendLimitPoint(1f, 1f), UmaBlendLimitPoint(0f, 0f)))
-		assertMalformed(
-			withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 0, listOf(null, UmaMeshForm(FloatArray(6))), listOf(descendingLimit))))),
-			"drawables[D].blendShapes[0].limits[0].points[1]",
-		)
-
-		val warp = UmaDeformer("W", UmaDeformerKind.Warp, "W", rows = 1, columns = 1, isQuadTransform = true)
-		assertMalformed(UmaPuppet(deformers = listOf(warp.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), controlPoints = FloatArray(6))))))), "deformers[W].geometry.cells[0].controlPoints")
-		assertMalformed(UmaPuppet(deformers = listOf(warp.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), controlPoints = FloatArray(8), angle = 1f)))))), "deformers[W].geometry.cells[0]")
-		// 65536 x 65536 x 2 floats wraps to zero in 32 bits, which an empty lattice would then match.
-		val hugeWarp = warp.copy(rows = 65535, columns = 65535, geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), controlPoints = FloatArray(0)))))
-		assertMalformed(UmaPuppet(deformers = listOf(hugeWarp)), "deformers[W] has a 65535 x 65535 lattice")
-		val rotation = UmaDeformer("R", UmaDeformerKind.Rotation, "R", baseAngle = 0f)
-		assertMalformed(UmaPuppet(deformers = listOf(rotation.copy(geometry = UmaDeformerGrid(listOf(axis), listOf(UmaDeformerCell(listOf(0), originX = 0f, originY = 0f, angle = 0f)))))), "deformers[R].geometry.cells[0]")
-
-		val glueMeshes = listOf(UmaDrawable("A", "A", mesh = mesh), UmaDrawable("B", "B", mesh = mesh))
-		assertMalformed(UmaPuppet(drawables = glueMeshes, glues = listOf(UmaGlue("A", "B", UmaGluePairs(intArrayOf(0, 1), intArrayOf(0), FloatArray(2), FloatArray(2))))), "glues[A,B].pairs")
-		assertMalformed(UmaPuppet(drawables = glueMeshes, glues = listOf(UmaGlue("A", "B", UmaGluePairs(intArrayOf(0), intArrayOf(5), FloatArray(1), FloatArray(1))))), "glues[A,B].pairs.indicesB[0]")
 	}
 }

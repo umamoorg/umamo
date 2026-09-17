@@ -128,5 +128,12 @@ class UmaSourcesEntryTest {
 		assertFailsWith<UmaWriteException>("a save with a foreign hash") {
 			UmaModel.create(TEST_WRITER).withSources(UmaSources(listOf(UmaSource("a", "a", "psd", contentHash = "md5:$digest"))))
 		}
+		assertFailsWith<UmaWriteException>("a save repeating a source id") {
+			UmaModel.create(TEST_WRITER).withSources(UmaSources(listOf(UmaSource("a", "a", "psd"), UmaSource("a", "b", "psd"))))
+		}
+		val plainLayer = UmaSourceLayer("k", "n", "", 0, 0, 1, 1, visible = true)
+		assertFailsWith<UmaWriteException>("a save repeating a layer key within a source") {
+			UmaModel.create(TEST_WRITER).withSources(UmaSources(listOf(UmaSource("a", "a", "psd", layers = listOf(plainLayer, plainLayer)))))
+		}
 	}
 }

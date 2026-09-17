@@ -1,5 +1,6 @@
 package org.umamo.format.uma
 
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -38,6 +39,94 @@ internal val UmaEntryJson: Json =
 		explicitNulls = false
 		encodeDefaults = false
 	}
+
+/**
+ * A domain entry's tree decoded into its schema class, a tree the schema does not allow reported as the entry being
+ * malformed (UMA §3.4).
+ *
+ * @param Json                    json       The JSON to decode with: [UmaEntryJson], or one with buffers bound.
+ * @param DeserializationStrategy serializer The schema class's deserializer.
+ * @param JsonObject              tree       The entry's JSON.
+ * @param String                  path       The entry's path, for the failure.
+ * @return T The decoded content.
+ * @throws UmaFormatException When the tree breaks the schema.
+ */
+internal fun <T> decodeUmaEntry(json: Json, serializer: DeserializationStrategy<T>, tree: JsonObject, path: String): T =
+	try {
+		json.decodeFromJsonElement(serializer, tree)
+	} catch (failure: SerializationException) {
+		throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
+	} catch (failure: IllegalArgumentException) {
+		throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
+	}
+
+// UMA §3.3: the deepest the manifest or a live entry may nest, the root counting as one level.  The JSON parser and
+// every walk over a tree - the accessor check, the identity check, the merge, the buffer layout - recurse, so the bound
+// keeps each one shallow on any thread whatever the file holds.
+internal const val UMA_MAXIMUM_JSON_DEPTH = 256
+
+/**
+ * Whether the JSON [text] nests deeper than [UMA_MAXIMUM_JSON_DEPTH] levels, read off its brackets before it is parsed:
+ * the parser itself recurses once per nested array, so a tree too deep to walk is too deep to parse.  Brackets inside
+ * strings are not counted.
+ *
+ * @param String text The JSON text.
+ * @return Boolean True when an object or array opens deeper than the limit.
+ */
+internal fun jsonTextNestsTooDeep(text: String): Boolean {
+	var depth = 0
+	var inString = false
+	var escaped = false
+	for (character in text) {
+		if (inString) {
+			when {
+				escaped -> escaped = false
+				character == '\\' -> escaped = true
+				character == '"' -> inString = false
+			}
+			continue
+		}
+		when (character) {
+			'"' -> inString = true
+			'{', '[' -> {
+				depth++
+				if (depth > UMA_MAXIMUM_JSON_DEPTH) {
+					return true
+				}
+			}
+
+			'}', ']' -> depth--
+		}
+	}
+	return false
+}
+
+/**
+ * Whether [tree] nests deeper than [UMA_MAXIMUM_JSON_DEPTH] levels, for a tree a save built rather than parsed.  The
+ * walk stops as soon as it passes the limit, so its own recursion never goes deeper than the limit however deep the
+ * tree.
+ *
+ * @param JsonElement tree  The tree.
+ * @param Int         depth The level [tree] sits at, the root being 1.
+ * @return Boolean True when an object or array sits deeper than the limit.
+ */
+internal fun jsonNestsTooDeep(tree: JsonElement, depth: Int = 1): Boolean {
+	val children =
+		when (tree) {
+			is JsonObject -> tree.values
+			is JsonArray -> tree
+			else -> return false
+		}
+	if (depth > UMA_MAXIMUM_JSON_DEPTH) {
+		return true
+	}
+	for (child in children) {
+		if (child !is JsonPrimitive && jsonNestsTooDeep(child, depth + 1)) {
+			return true
+		}
+	}
+	return false
+}
 
 // UMA §3.1: the manifest's own keys.
 private const val FORMAT_KEY = "format"
@@ -214,6 +303,9 @@ internal fun parseJsonObject(bytes: ByteArray, failureOf: (String) -> UmaReadFai
 		} catch (failure: CharacterCodingException) {
 			throw UmaFormatException(failureOf("not valid UTF-8"), failure)
 		}
+	if (jsonTextNestsTooDeep(text)) {
+		throw UmaFormatException(failureOf("nested deeper than $UMA_MAXIMUM_JSON_DEPTH levels"))
+	}
 	val element =
 		try {
 			UmaJson.parseToJsonElement(text)
@@ -245,7 +337,7 @@ private fun malformedManifest(detail: String): Nothing = throw UmaFormatExceptio
  * @param JsonElement? element The value.
  * @return String? The string.
  */
-private fun jsonStringOrNull(element: JsonElement?): String? = (element as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content
+internal fun jsonStringOrNull(element: JsonElement?): String? = (element as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content
 
 /**
  * [element] as a JSON integer, or null when it is not a number with an integer literal.

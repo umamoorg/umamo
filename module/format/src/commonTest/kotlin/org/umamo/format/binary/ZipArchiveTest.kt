@@ -239,6 +239,31 @@ class ZipArchiveTest {
 	}
 
 	/**
+	 * A look-alike after the genuine end record that would fail the read if it were examined - one declaring another
+	 * disk, one declaring Zip64 over a locator look-alike - is never reached, so the archive reads.
+	 */
+	@Test
+	fun failingLookAlikeInCommentIsNeverExamined() {
+		val original = archiveOf(Triple("first", compressible, true), Triple("second", "two".encodeToByteArray(), false))
+		val genuineEnd = endRecordOffset(original)
+
+		val multiDisk = original.copyOfRange(genuineEnd, original.size)
+		writeU16Le(multiDisk, 4, 1)
+		val withMultiDisk = original + multiDisk
+		writeU16Le(withMultiDisk, genuineEnd + 20, multiDisk.size)
+		assertEquals(listOf("first", "second"), ZipArchive.read(withMultiDisk).entries.map { entry -> entry.name }, "a multi-disk look-alike")
+
+		val locator = ByteArray(ZipRecords.ZIP64_LOCATOR_SIZE)
+		writeU32Le(locator, 0, ZipRecords.ZIP64_LOCATOR_SIGNATURE.toLong())
+		val zip64 = original.copyOfRange(genuineEnd, original.size)
+		writeU16Le(zip64, 8, ZipRecords.UINT16_SENTINEL)
+		writeU16Le(zip64, 10, ZipRecords.UINT16_SENTINEL)
+		val withZip64 = original + locator + zip64
+		writeU16Le(withZip64, genuineEnd + 20, locator.size + zip64.size)
+		assertEquals(listOf("first", "second"), ZipArchive.read(withZip64).entries.map { entry -> entry.name }, "a Zip64 look-alike over a locator look-alike")
+	}
+
+	/**
 	 * A split archive is refused rather than read as if its first disk were the whole of it.
 	 */
 	@Test

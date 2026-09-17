@@ -1,8 +1,6 @@
 package org.umamo.format.uma.textures
 
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import org.umamo.format.png.pngDimensionsOf
 import org.umamo.format.uma.UmaEntryJson
 import org.umamo.format.uma.UmaFormatException
@@ -10,7 +8,9 @@ import org.umamo.format.uma.UmaIdentityTable
 import org.umamo.format.uma.UmaListRule
 import org.umamo.format.uma.UmaReadFailure
 import org.umamo.format.uma.UmaWriteException
+import org.umamo.format.uma.decodeUmaEntry
 import org.umamo.format.uma.firstIdentityProblem
+import org.umamo.format.uma.identityByStringKey
 
 /**
  * What laying the textures entry out for a save produced: the index with every path assigned, and the
@@ -35,6 +35,7 @@ internal object UmaTexturesEntry {
 	private const val PAGE_PATH_PREFIX = "textures/page-"
 	private const val PNG_SUFFIX = ".png"
 	private const val THUMBNAIL_PATH = "thumbnail.png"
+	private const val THUMBNAIL_PATH_PREFIX = "thumbnail-"
 
 	/**
 	 * UMA §5.8: tiles match by id across a save; atlas pages have no identity (D12) and render pages are one
@@ -43,8 +44,7 @@ internal object UmaTexturesEntry {
 	val identities: UmaIdentityTable =
 		UmaIdentityTable(
 			mapOf(
-				UmaTile.serializer().descriptor.serialName to
-					UmaListRule.ByIdentity { element -> (element["id"] as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content },
+				UmaTile.serializer().descriptor.serialName to identityByStringKey("id"),
 				UmaPage.serializer().descriptor.serialName to UmaListRule.Whole,
 				UmaRenderPage.serializer().descriptor.serialName to UmaListRule.Whole,
 			),
@@ -62,14 +62,7 @@ internal object UmaTexturesEntry {
 	 *   archive does not hold, or names one whose PNG header disagrees with its record.
 	 */
 	fun decode(tree: JsonObject, path: String, payloadHeader: (String) -> ByteArray?): UmaTextures {
-		val textures =
-			try {
-				UmaEntryJson.decodeFromJsonElement(UmaTextures.serializer(), tree)
-			} catch (failure: SerializationException) {
-				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
-			} catch (failure: IllegalArgumentException) {
-				throw UmaFormatException(UmaReadFailure.MalformedEntry(path, failure.message.orEmpty()), failure)
-			}
+		val textures = decodeUmaEntry(UmaEntryJson, UmaTextures.serializer(), tree, path)
 		firstIdentityProblem(tree, UmaTextures.serializer().descriptor, identities, "")?.let { problem ->
 			throw UmaFormatException(UmaReadFailure.MalformedEntry(path, problem))
 		}
@@ -81,15 +74,22 @@ internal object UmaTexturesEntry {
 	 * Encodes a laid-out index for a save.
 	 *
 	 * @param UmaTextures textures The index, every record naming its pixel entry.
+	 * @param String      path     The entry's path, for the failure.
 	 * @return JsonObject The entry's JSON, before the merge.
+	 * @throws UmaWriteException When a tile id repeats.
 	 */
-	fun encode(textures: UmaTextures): JsonObject = UmaEntryJson.encodeToJsonElement(UmaTextures.serializer(), textures) as JsonObject
+	fun encode(textures: UmaTextures, path: String): JsonObject {
+		val tree = UmaEntryJson.encodeToJsonElement(UmaTextures.serializer(), textures) as JsonObject
+		// UMA §5.9: a reader refuses a repeated tile id, so a save that wrote one could never be reopened.
+		firstIdentityProblem(tree, UmaTextures.serializer().descriptor, identities, "")?.let { problem -> throw UmaWriteException(path, problem) }
+		return tree
+	}
 
 	/**
 	 * Assigns every record its pixel entry for a save (UMA §5.7): a tile the file already holds keeps its path and
 	 * its bytes, a new tile takes a minted path and its PNG from [pixels], the render pages follow [pixels]'s mode,
-	 * and the thumbnail is recorded from its PNG's own header.  Paths and render pages the caller set on the index
-	 * are ignored; the layout owns them.
+	 * and the thumbnail is recorded from its PNG's own header at the path the file's thumbnail already has, or at one
+	 * nothing else holds.  Paths and render pages the caller set on the index are ignored; the layout owns them.
 	 *
 	 * @param UmaTextures    updated       The index to save.
 	 * @param UmaTextures?   retained      The index as read from the file, or null for a document without one.
@@ -98,6 +98,7 @@ internal object UmaTexturesEntry {
 	 * @param Set<String>    pathsInUse    Every path the archive holds or a save already owns, so a minted path
 	 *   never collides with one, whoever named it.
 	 * @param Function       payloadHeader Resolves an archive path to its payload's first bytes, or null.
+	 * @param Function       payloadBytes  Resolves an archive path to its payload's bytes, or null.
 	 * @return UmaTexturesLayout The laid-out index and the pixel entries to write or drop.
 	 * @throws UmaWriteException When a new tile has no pixels, kept render pages are missing, a PNG is not one, or
 	 *   the laid-out index breaks a rule a reader would refuse.
@@ -109,15 +110,21 @@ internal object UmaTexturesEntry {
 		entryPath: String,
 		pathsInUse: Set<String>,
 		payloadHeader: (String) -> ByteArray?,
+		payloadBytes: (String) -> ByteArray?,
 	): UmaTexturesLayout {
 		val written = LinkedHashMap<String, ByteArray?>()
 		val tiles = layOutTiles(updated.tiles.orEmpty(), retained?.tiles.orEmpty(), pixels.tile, entryPath, pathsInUse, written)
-		val renderPages = layOutRenderPages(retained?.renderPages, pixels.renderPages, entryPath, pathsInUse, written)
+		val renderPages = layOutRenderPages(retained?.renderPages, pixels.renderPages, entryPath, pathsInUse, written, payloadBytes)
 		val thumbnail =
 			pixels.thumbnail?.let { bytes ->
 				val (width, height) = pngDimensionsOf(bytes) ?: throw UmaWriteException("$entryPath: thumbnail", "the thumbnail is not a PNG")
-				written[THUMBNAIL_PATH] = bytes
-				UmaThumbnail(width, height, THUMBNAIL_PATH)
+				// UMA §5.7: the thumbnail rewrites its own entry, and a new one never lands on a path something else holds.
+				val path =
+					retained?.thumbnail?.path
+						?: THUMBNAIL_PATH.takeIf { candidate -> candidate !in pathsInUse }
+						?: "$THUMBNAIL_PATH_PREFIX${nextNumberFor(THUMBNAIL_PATH_PREFIX, pathsInUse)}$PNG_SUFFIX"
+				written[path] = bytes
+				UmaThumbnail(width, height, path)
 			}
 		val laidOut =
 			updated.copy(
@@ -140,14 +147,16 @@ internal object UmaTexturesEntry {
 	}
 
 	/**
-	 * The render pages [mode] records.  A stored image whose bytes equal a PNG this save already writes (a tile a
-	 * drawable samples directly) names that entry rather than a copy of it.
+	 * The render pages [mode] records.  A stored image names an entry that already holds its bytes rather than a copy
+	 * of it: a PNG this save writes (a tile a drawable samples directly), or a render page the file holds, so saving
+	 * the same pages again writes the same file.
 	 *
-	 * @param UmaRenderPages?     retained   The render pages as read.
-	 * @param UmaRenderPagePixels mode       What the drawables sample.
-	 * @param String              entryPath  The entry's path, for a failure.
-	 * @param Set<String>         pathsInUse Every path in use.
-	 * @param MutableMap          written    The pixel entries this save writes so far; receives the new ones.
+	 * @param UmaRenderPages?     retained     The render pages as read.
+	 * @param UmaRenderPagePixels mode         What the drawables sample.
+	 * @param String              entryPath    The entry's path, for a failure.
+	 * @param Set<String>         pathsInUse   Every path in use.
+	 * @param MutableMap          written      The pixel entries this save writes so far; receives the new ones.
+	 * @param Function            payloadBytes Resolves an archive path to its payload's bytes, or null.
 	 * @return UmaRenderPages? The laid-out render pages, or null when the pages derive.
 	 * @throws UmaWriteException When kept render pages are missing, or a stored image is not a PNG.
 	 */
@@ -157,6 +166,7 @@ internal object UmaTexturesEntry {
 		entryPath: String,
 		pathsInUse: Set<String>,
 		written: MutableMap<String, ByteArray?>,
+		payloadBytes: (String) -> ByteArray?,
 	): UmaRenderPages? =
 		when (mode) {
 			UmaRenderPagePixels.Derived -> null
@@ -170,11 +180,32 @@ internal object UmaTexturesEntry {
 						pathByContent.getOrPut(bytes.contentHashCode()) { ArrayList() } += path
 					}
 				}
+				val retainedPages = retained?.pages.orEmpty()
+				val retainedBytesByPath = HashMap<String, ByteArray?>()
+
+				/**
+				 * The path of a render page the file holds whose image is [bytes], the one at [pageIndex] tried first
+				 * since an unchanged set keeps its order, or null.  Only pages of the same size are read.
+				 *
+				 * @param ByteArray bytes     The image.
+				 * @param Int       width     Its width.
+				 * @param Int       height    Its height.
+				 * @param Int       pageIndex Its index in the new set.
+				 * @return String? The retained page's path.
+				 */
+				fun retainedPathOf(bytes: ByteArray, width: Int, height: Int, pageIndex: Int): String? {
+					val candidates = listOfNotNull(retainedPages.getOrNull(pageIndex)) + retainedPages
+					return candidates.firstOrNull { page ->
+						page.width == width &&
+							page.height == height &&
+							retainedBytesByPath.getOrPut(page.path) { payloadBytes(page.path) }?.contentEquals(bytes) == true
+					}?.path
+				}
 				var nextNumber = nextNumberFor(PAGE_PATH_PREFIX, pathsInUse)
 				val pages =
 					mode.pages.mapIndexed { pageIndex, bytes ->
 						val (width, height) = pngDimensionsOf(bytes) ?: throw UmaWriteException("$entryPath: renderPages.pages[$pageIndex]", "the image is not a PNG")
-						val shared = pathByContent[bytes.contentHashCode()]?.firstOrNull { path -> written[path]?.contentEquals(bytes) == true }
+						val shared = pathByContent[bytes.contentHashCode()]?.firstOrNull { path -> written[path]?.contentEquals(bytes) == true } ?: retainedPathOf(bytes, width, height, pageIndex)
 						val path =
 							shared ?: "$PAGE_PATH_PREFIX$nextNumber$PNG_SUFFIX".also { minted ->
 								nextNumber++

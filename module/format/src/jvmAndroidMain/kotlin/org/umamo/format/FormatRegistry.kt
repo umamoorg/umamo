@@ -24,8 +24,8 @@ import org.umamo.format.webp.WebPReader
  */
 public object FormatRegistry {
 	/**
-	 * Every registered codec, in priority order (first magic match wins in [detect]): the model codecs
-	 * (CMO3, MOC3), the native UMA container, the layered art readers (CLIP, KRA, PSD), and the flat raster
+	 * Every registered codec, in priority order (first magic match wins in [detect]): the native UMA
+	 * container, the model codecs (CMO3, MOC3), the layered art readers (CLIP, KRA, PSD), and the flat raster
 	 * codecs (PNG, BMP, JPEG, WebP, TIFF).  The registry sits in jvmAndroidMain because the CMO3 codec does.
 	 * The magics do not collide: UMA and KRA are both ZIPs announcing themselves through a mimetype entry,
 	 * but each probe matches only its own mimetype string.  The raster codecs sit last, so BMP's short
