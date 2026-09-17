@@ -1,6 +1,7 @@
 package org.umamo.editor.desktop
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
 import org.umamo.ui.app.rememberEditorSessionFor
+import org.umamo.ui.app.rememberExitGuard
 import org.umamo.ui.defaultSettingsJson
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
@@ -33,6 +35,7 @@ import org.umamo.ui.resources.app_icon
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
+import java.awt.Desktop
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -129,8 +132,28 @@ fun main(args: Array<String>) {
 			settings.saveWindowState(windowState)
 			exitApplication()
 		}
+		// Every way out passes through the shell's unsaved-changes guard: the window's close button here, File >
+		// Exit inside the shell, and the macOS Quit below.
+		val exitGuard = rememberExitGuard()
+		// macOS routes Cmd+Q and the Dock's Quit through the application's quit handler, not the window's
+		// close request.  Cancelling the OS's quit and asking the guard keeps one path; the handler is
+		// unsupported, and nothing is installed, on Windows and Linux.
+		DisposableEffect(exitGuard) {
+			val quitHandlerSupported = Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_QUIT_HANDLER)
+			if (quitHandlerSupported) {
+				Desktop.getDesktop().setQuitHandler { _, response ->
+					response.cancelQuit()
+					exitGuard.request { closeApp() }
+				}
+			}
+			onDispose {
+				if (quitHandlerSupported) {
+					Desktop.getDesktop().setQuitHandler(null)
+				}
+			}
+		}
 		Window(
-			onCloseRequest = { closeApp() },
+			onCloseRequest = { exitGuard.request { closeApp() } },
 			state = windowState,
 			// Window + taskbar/dock icon.  painterResource decodes the bundled app_icon PNG (the same
 			// mascot the packaged installer icons derive from); regenerate via docs/design/appicon/generate.sh.
@@ -169,6 +192,7 @@ fun main(args: Array<String>) {
 							session = session,
 							onOpen = { document = it },
 							onExit = { closeApp() },
+							exitGuard = exitGuard,
 							viewportServiceFactory = { puppet, textures, liveParams ->
 								OffscreenPuppetService(puppet, textures, liveParams).also { it.start() }
 							},

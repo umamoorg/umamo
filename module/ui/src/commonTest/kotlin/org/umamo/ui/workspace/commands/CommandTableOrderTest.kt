@@ -80,6 +80,7 @@ class CommandTableOrderTest {
 				"workspace.appendWorkspace",
 				"document.openFailed",
 				"document.confirmReplace",
+				"document.confirmExit",
 				"document.exportReport",
 				"document.repackReport",
 				"document.exportOptionsMoc3",

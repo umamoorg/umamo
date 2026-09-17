@@ -37,17 +37,18 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 		val isEscapeDown = stroke.isDown && stroke.key == Key.Escape
 		val isEnterDown = stroke.isDown && (stroke.key == Key.Enter || stroke.key == Key.NumPadEnter)
 		when {
-			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Escape cancels
-			// it (like its Cancel button); every other key is swallowed so no shortcut fires behind
-			// it - notably Space, which would otherwise open the palette over the dialog now that the
-			// dialog reclaims root focus.
+			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Enter confirms (like its
+			// confirm button, the dialog's default) and Escape cancels (like its cancel button); every other key
+			// is swallowed so no shortcut fires behind it - notably Space, which would otherwise open the palette
+			// over the dialog now that the dialog reclaims root focus.  It outranks the self-focused overlays
+			// below, so a confirm raised over Preferences takes its own Enter and Escape without closing them.
 			overlays.pendingConfirm != null -> {
-				if (isEscapeDown) {
-					overlays.pendingConfirm = null
-					true
-				} else {
-					true
+				if (isEnterDown) {
+					overlays.confirmPending()
+				} else if (isEscapeDown) {
+					overlays.cancelPending()
 				}
+				true
 			}
 			// The file-open alert is modal like the confirm dialog: Escape or Enter dismisses it
 			// (like its OK button); every other key is swallowed so no shortcut fires behind it.

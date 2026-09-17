@@ -10,6 +10,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
@@ -123,6 +124,7 @@ import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
+import org.umamo.ui.resources.dialog_overwrite
 import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
@@ -243,7 +245,9 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
  *   undo/redo, the Edit-menu enabled state, and the saved marker.
  * @param Function onOpen Called with a newly-opened document.
- * @param Function onExit Closes the application.
+ * @param Function onExit Closes the application; File > Exit runs it through the unsaved-changes guard.
+ * @param ExitGuard exitGuard The host's route into the same guard, for the exits the host owns (the window's
+ *   close button, the OS's quit, Android's back gesture); the shell installs its guard here while composed.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or
  *   null on a platform without a puppet renderer yet (viewport areas render placeholders).
  */
@@ -253,6 +257,7 @@ fun EditorApp(
 	session: EditorSession?,
 	onOpen: (Document) -> Unit,
 	onExit: () -> Unit,
+	exitGuard: ExitGuard,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 ) {
 	val settings = LocalSettings.current
@@ -357,6 +362,17 @@ fun EditorApp(
 			commandRegistry.invoke("document.confirmReplace", proceed)
 		} else {
 			proceed()
+		}
+	}
+
+	// Quitting discards the session the same way, so a dirty document asks first here too
+	// (document.confirmExit).  File > Exit calls this directly; the host's window close, OS quit, and back
+	// gesture reach it through the exitGuard installed below.
+	fun confirmExit(exit: () -> Unit) {
+		if (session?.dirty?.value == true) {
+			commandRegistry.invoke("document.confirmExit", exit)
+		} else {
+			exit()
 		}
 	}
 
@@ -784,6 +800,7 @@ fun EditorApp(
 										// File names are document data, listed in full - the dialog wraps, and a
 										// name the warning omitted is a file the rigger did not agree to lose.
 										arguments = listOf(existing.size, existing.joinToString()),
+										confirmLabel = Res.string.dialog_overwrite,
 										onConfirm = ::writeAndReport,
 									),
 								)
@@ -851,6 +868,14 @@ fun EditorApp(
 		}
 	}
 
+	// The host's exits pass through the same guard as File > Exit.  The guard reads the latest confirmExit, so
+	// it asks about the session composed now rather than the one the effect first saw.
+	val currentConfirmExit by rememberUpdatedState<(() -> Unit) -> Unit> { exit -> confirmExit(exit) }
+	DisposableEffect(exitGuard) {
+		val cleanup = exitGuard.install { exit -> currentConfirmExit(exit) }
+		onDispose { cleanup() }
+	}
+
 	// Register the file and log operations as real commands so the keymap and the palette drive them
 	// (Ctrl+O dispatches through the shell's registry).  The tables themselves live with every other
 	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
@@ -899,7 +924,7 @@ fun EditorApp(
 				::importMoc3ViaPicker,
 				::exportCmo3,
 				::exportMoc3,
-				onExit,
+				{ confirmExit(onExit) },
 				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
 				// binding, and the palette share the one path; the rows are gated by canUndo / canRedo above.
 				{ commandRegistry.invoke("edit.undo") },
@@ -995,7 +1020,7 @@ private class DocumentWatch(
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
  *                            reconciles; MOC3-origin synthesizes a fresh graph).
  * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
- * @param Function onExit Closes the application.
+ * @param Function onExit Closes the application, asking first over unsaved changes.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).
  * @param Function onOpenPreferences Opens the settings window (dispatches edit.preferences).
