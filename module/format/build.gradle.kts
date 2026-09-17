@@ -67,7 +67,10 @@ kotlin {
 		val androidMain = getByName("androidMain")
 
 		commonMain.dependencies {
-			implementation(libs.kotlinxSerializationJson)
+			// `api`, not `implementation`: the UMA entry schemas (`uma/puppet/`) are public @Serializable
+			// classes whose generated companions return KSerializer, so the library is part of this
+			// module's public surface.
+			api(libs.kotlinxSerializationJson)
 			// okio: DEFLATE (its zlibMain source set reaches every target we build, iosArm64 included)
 			// and Buffer, the growable byte sink the codecs assemble output into. `implementation`,
 			// not `api`: no okio type appears in :format's public surface.

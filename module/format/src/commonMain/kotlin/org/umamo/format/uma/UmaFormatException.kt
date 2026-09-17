@@ -48,12 +48,13 @@ public sealed interface UmaReadFailure {
 	}
 
 	/**
-	 * The manifest lists an entry the archive does not hold.
+	 * The file names an entry the archive does not hold: a path the manifest lists, or a pixel entry an index
+	 * record names.
 	 *
-	 * @property String path The listed path.
+	 * @property String path The named path.
 	 */
 	public data class MissingEntry(val path: String) : UmaReadFailure {
-		override val description: String get() = "the manifest lists '$path', which the archive does not hold"
+		override val description: String get() = "the file names '$path', which the archive does not hold"
 	}
 
 	/**
@@ -77,3 +78,16 @@ public class UmaFormatException(
 	public val failure: UmaReadFailure,
 	cause: Throwable? = null,
 ) : RuntimeException(failure.description, cause)
+
+/**
+ * A document holds a value the UMA format cannot represent, so it cannot be saved.
+ *
+ * @param String     path   Where the value sits: an entry path, or a path within the entry.
+ * @param String     detail What is wrong with it.
+ * @param Throwable? cause  The underlying error, when there is one.
+ */
+public class UmaWriteException(
+	public val path: String,
+	public val detail: String,
+	cause: Throwable? = null,
+) : RuntimeException("cannot write $path: $detail", cause)

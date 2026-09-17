@@ -115,7 +115,13 @@ public object Uma : FormatCodec<UmaModel> {
 				payloads += UmaPayload(zipEntry.name, UmaRawEntry(zipEntry, archive.rawPayload(zipEntry)))
 			}
 		}
-		return UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
+		val model = UmaModel(manifest.writer, entries, payloads, readOnlyReasons, manifest.tree, archiveOrder)
+		// UMA §4.8, §5.8, §6.6: decoding the domain entries here makes a malformed one fail the read, not a later
+		// access.
+		model.puppet
+		model.textures
+		model.sources
+		return model
 	}
 
 	/**
@@ -137,6 +143,7 @@ public object Uma : FormatCodec<UmaModel> {
 		writer.addDeflated(UmaContainer.MANIFEST_PATH, emitUmaManifest(model))
 
 		val entryByPath = model.entries.associateBy { entry -> entry.path }
+		val archivePaths = model.archiveOrder.toHashSet()
 		val payloadByPath = model.payloads.associateBy { payload -> payload.path }
 		val writtenPaths = HashSet<String>()
 
@@ -149,10 +156,26 @@ public object Uma : FormatCodec<UmaModel> {
 			if (!writtenPaths.add(path)) {
 				return
 			}
+			// UMA §3.5: a payload an entry owns that a save rebuilt (a buffer, a pixel entry) is written stored in place
+			// of the payload read, or not at all when the entry no longer names it.
+			val owned = model.ownedPayloads[path]
+			if (owned != null) {
+				owned.bytes?.let { bytes -> writer.addStored(path, bytes) }
+				return
+			}
 			val entry = entryByPath[path]
 			if (entry != null) {
 				when (val content = entry.content) {
-					is UmaEntryContent.Live -> writer.addDeflated(path, encodeUmaJson(content.tree))
+					is UmaEntryContent.Live -> {
+						writer.addDeflated(path, encodeUmaJson(content.tree))
+						// UMA §3.5: a payload new to this file follows the entry that owns it, in the order the save laid it out.
+						for ((ownedPath, ownedPayload) in model.ownedPayloads) {
+							if (ownedPayload.owner == content.kind && ownedPath !in archivePaths) {
+								writePath(ownedPath)
+							}
+						}
+					}
+
 					is UmaEntryContent.Preserved -> writer.addRaw(content.raw.zipEntry, content.raw.rawPayload)
 				}
 				return
