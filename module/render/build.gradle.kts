@@ -117,6 +117,7 @@ kotlin {
 // anything; a developer machine leaves it unset and gets the skip.  It is a flag, not a path, so it goes
 // through `flag` and skips the file-existence check.
 umamoTestCorpus {
+	maxHeap("4g")
 	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples", "relive.dumpModel", "relive.coreLib")
 	flag("umamo.requireGl")
 }

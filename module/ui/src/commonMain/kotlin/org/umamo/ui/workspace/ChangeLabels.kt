@@ -106,7 +106,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.document.deleteTileIgnore" -> stringResource(Res.string.history_document_delete_tile_ignore)
 		"change.document.layerIgnore" -> stringResource(Res.string.history_document_layer_ignore)
 		"change.document.layerUnignore" -> stringResource(Res.string.history_document_layer_unignore)
-		"change.document.addArtwork" -> stringResource(Res.string.history_document_add_artwork)
+		"change.document.importArtwork" -> stringResource(Res.string.history_document_import_artwork)
 		"change.document.reloadArtwork" -> stringResource(Res.string.history_document_reload_artwork)
 		"change.document.relinkArtwork" -> stringResource(Res.string.history_document_relink_artwork)
 		"change.document.matchArtwork" -> stringResource(Res.string.history_document_match_artwork)

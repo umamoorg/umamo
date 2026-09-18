@@ -273,4 +273,25 @@ class UmaCompatibilityTest {
 		assertTrue(Uma.matches(saved), "the save restores the identifying layout")
 		assertIs<UmaEntryContent.Live>(Uma.read(saved).entries.single().content, "and the content survives")
 	}
+
+	/**
+	 * A manifest that lists the puppet's own buffer path as an entry - a foreign writer's doing - opens, but a
+	 * puppet cannot be written over it, and the refusal is the write contract's exception: the app's save flow
+	 * catches that one to report a document it cannot save, where a bare state error would crash it.
+	 */
+	@Test
+	fun aManifestListedBufferPathRefusesThePuppetWrite() {
+		val document =
+			Uma.read(
+				umaArchiveOf(
+					manifestJson(listOf(puppetRecord, recordJson("model/buffers.bin", "mystery"))),
+					listOf(puppetEntry, TestEntry("model/buffers.bin", byteArrayOf(1, 2, 3, 4), deflated = false)),
+				),
+			)
+		assertFalse(document.isReadOnly, "an optional unknown entry does not block editing")
+
+		val failure = assertFailsWith<UmaWriteException> { document.withPuppet(assertNotNull(document.puppet)) }
+
+		assertEquals("model/buffers.bin", failure.path, "the refusal names the entry in the way")
+	}
 }

@@ -17,6 +17,7 @@ import org.umamo.ui.app.EditorApp
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.app.rememberExitGuard
 import org.umamo.ui.document.Document
+import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 
@@ -45,7 +46,8 @@ class MainActivity : ComponentActivity() {
 			ProvideSettings(storage) {
 				ProvideAppThemeFromSettings {
 					UmamoTheme {
-						var document by remember { mutableStateOf<Document?>(null) }
+						// The editor always has a document: it starts in a new, empty one.
+						var document by remember { mutableStateOf<Document?>(newBlankDocument()) }
 						val session = rememberEditorSessionFor(document)
 						val exitGuard = rememberExitGuard()
 						// Back leaves the app (on Android 8 to 11 it destroys the root activity, edits and all), so

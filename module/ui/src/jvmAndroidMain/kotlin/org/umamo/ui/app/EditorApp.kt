@@ -74,6 +74,7 @@ import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.loadDocument
+import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.readArtwork
@@ -337,7 +338,9 @@ fun EditorApp(
 	fun applyDocumentLoad(load: DocumentLoad) {
 		when (load) {
 			is DocumentLoad.Loaded -> {
-				settings.addRecentFile(load.document.path)
+				// Only a document that came from a file is recordable; a loaded one always did, but the read
+				// is null-safe because the type it arrives as covers the new, unsaved document too.
+				load.document.path?.let { path -> settings.addRecentFile(path) }
 				// What the document says about its artwork files, before anything probes them: the recorded
 				// path is what a reload, the watcher, and the Sources space will all go by.
 				for (source in (load.document as? PuppetDocument)?.puppet?.sources.orEmpty()) {
@@ -428,15 +431,23 @@ fun EditorApp(
 		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path.let(::fileModifiedAtMillis)))
 	}
 
-	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
-	// dirty confirm, unlike the import.  The area is the one the command fired over, resolved by the
-	// shell before the picker opens; it is where the operation strip shows once the add lands.
-	fun addArtworkViaPicker(areaId: String?) {
+	// The artwork import: a file's layers are ADDED to the open document as one undoable edit - no
+	// document swap and no dirty confirm, the way importing an object into a Blender scene adds to it.
+	// Every layered and flat-raster format the registry reads comes in through this one path, from the
+	// File menu's Import row and the Sources space alike.  The area is the one the command fired over,
+	// resolved by the shell before the picker opens; it is where the operation strip shows once the
+	// import lands.  The options carry the parameter template, which seeds only when the document has no
+	// parameters of its own - a rig's first artwork.
+	fun importArtworkViaPicker(areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
 			val picked = pickArtwork() ?: return@launch
-			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(picked.read.art, picked.descriptor, artworkImportOptions()), areaId)
+			runAddArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				AddArtworkRequest(picked.read.art, picked.descriptor, configuredArtworkImportOptions()),
+				areaId,
+			)
 		}
 	}
 
@@ -660,7 +671,7 @@ fun EditorApp(
 	// the disk, since the palette asks on every listing; a missing file is found out by the reload.
 	val artworkOperations =
 		ArtworkOperations(
-			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
+			importArtwork = { areaId -> importArtworkViaPicker(areaId) },
 			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
@@ -670,16 +681,10 @@ fun EditorApp(
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 
-	fun importArtworkViaPicker() {
-		// Every layered and flat-raster format the registry reads comes in through this one row - the
-		// artwork import is the headline entry, so it does not split by format the way CMO3 / MOC3 do.
-		confirmIfDirty {
-			scope.launch {
-				filePicker.openFile(artworkImportExtensions)?.let { picked ->
-					applyDocumentLoad(loadDocument(picked, configuredArtworkImportOptions()))
-				}
-			}
-		}
+	// File > New: an empty document, which replaces the open one like any other document swap - so a
+	// dirty document asks first.
+	fun newDocument() {
+		confirmIfDirty { onOpen(newBlankDocument()) }
 	}
 
 	fun importCmo3ViaPicker() {
@@ -889,7 +894,7 @@ fun EditorApp(
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
-				fileCommands({ importArtworkViaPicker() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
+				fileCommands({ newDocument() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
 			)
 		onDispose { cleanup() }
 	}
@@ -925,7 +930,10 @@ fun EditorApp(
 				canUndo,
 				canRedo,
 				::openStoredPath,
-				::importArtworkViaPicker,
+				{ commandRegistry.invoke("file.new") },
+				// The artwork import is the shell's command (it needs the hovered area for its operation
+				// strip), so the menu row dispatches it rather than calling the picker directly.
+				{ commandRegistry.invoke("file.importArtwork") },
 				::importCmo3ViaPicker,
 				::importMoc3ViaPicker,
 				::exportCmo3,
@@ -1020,7 +1028,8 @@ private class DocumentWatch(
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
- * @param Function importArtwork Opens the artwork import picker.
+ * @param Function newDocument Starts a new, empty document (dispatches file.new).
+ * @param Function importArtwork Adds an artwork file to the open document (dispatches file.importArtwork).
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
@@ -1048,6 +1057,7 @@ private fun buildAppMenu(
 	canUndo: Boolean,
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
+	newDocument: () -> Unit,
 	importArtwork: () -> Unit,
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
@@ -1071,6 +1081,7 @@ private fun buildAppMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
 			canExport = document is PuppetDocument,
+			onNew = newDocument,
 			onImportArtwork = importArtwork,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,

@@ -163,10 +163,17 @@ private fun addArtworkOutcome(
 		UmamoLog.error("add artwork: the additions for '${request.descriptor.name}' collide with the document's ids; nothing was applied")
 		return AddArtworkOutcome.NothingToAdd
 	}
+	// A rig with no art of its own takes its frame from the file that arrives - the new document starts
+	// on a placeholder canvas, and the first artwork is what says how big the rig really is.  A rig that
+	// already has art keeps its canvas: a second file is placed within that frame, not around it.
+	val framed = if (base.drawables.isEmpty() && base.atlas.tiles.isEmpty()) SourceArtImport.withFirstArtworkState(withArt, request.art) else withArt
+	// The parameter template seeds a rig that has none, which is what makes importing art into a new
+	// document behave like opening that art did.  Authored axes are never replaced.
+	val seeded = if (framed.parameters.isEmpty()) SourceArtImport.withSeedParameters(framed, options.parameters) else framed
 	val decodedByTile = added.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }
 	artRasters.addDecoded(decodedByTile)
 	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
-	return when (val packed = packNewTilesAround(withArt, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
+	return when (val packed = packNewTilesAround(seeded, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
 		is PackAroundOutcome.Refused -> AddArtworkOutcome.Refused(packed.refusals)
 		is PackAroundOutcome.Packed -> AddArtworkOutcome.Added(added, packed.model, packed.textures, packed.notices)
 	}

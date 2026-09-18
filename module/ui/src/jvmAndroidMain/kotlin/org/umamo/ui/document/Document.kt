@@ -22,12 +22,26 @@ import org.umamo.ui.viewport.LiveParams
  * API shared by the desktop-JVM and Android targets.
  */
 sealed interface Document {
-	/** The stored path or URI string (the recent-files key + window title source). */
-	val path: String
+	/**
+	 * The stored path or URI string this document was read from (the recent-files key + window title
+	 * source), or null for a document that was never on disk - a new, unsaved one.
+	 *
+	 * Nullable rather than a placeholder string: a stand-in path would be recorded in recent files and
+	 * offered as a save target, both of which name a file that does not exist.
+	 */
+	val path: String?
 
-	/** File name for titles/menus. */
-	val displayName: String get() = fileDisplayName(path)
+	/**
+	 * File name for titles/menus, falling back to [UNTITLED_DOCUMENT_NAME] for a document with no file.
+	 *
+	 * Deliberately not localized - this also reaches the log and an export's suggested file name, which
+	 * are stable-text surfaces.  The window title localizes the unsaved case itself.
+	 */
+	val displayName: String get() = path?.let(::fileDisplayName) ?: UNTITLED_DOCUMENT_NAME
 }
+
+/** What a document with no file is called wherever a plain string is needed (the log, an export's name). */
+const val UNTITLED_DOCUMENT_NAME = "Untitled"
 
 /**
  * A document the editor shell runs a full puppet session over - the shared face of every format that
@@ -50,11 +64,14 @@ sealed interface PuppetDocument : Document {
 	 * drawable's link to its source tile lives in the model now (`PuppetModel.atlas`), not here - this
 	 * is only the lazy byte supplier.
 	 *
-	 * Empty by default because only a format that retains its source art can surface any: a CMO3 keeps
-	 * every layer's pixels in its graph, while a MOC3 is the packed endpoint of that pipeline and has
-	 * none.  A surface that shows source art therefore checks for emptiness rather than assuming.
+	 * A document that retains no source art still supplies a store of its own, empty to begin with: a
+	 * CMO3 keeps every layer's pixels in its graph, a MOC3 is the packed endpoint of that pipeline and
+	 * has none, and artwork brought into either afterwards decodes into whichever store it was handed.
+	 * That is why there is no shared empty instance to fall back on - one document's added art would
+	 * read back out of the next document's store.  A surface that shows source art therefore checks for
+	 * emptiness rather than assuming.
 	 */
-	val artRasters: SourceArtRasters get() = SourceArtRasters.EMPTY
+	val artRasters: SourceArtRasters
 
 	/** The live parameter values driving the preview pose. */
 	val liveParams: LiveParams

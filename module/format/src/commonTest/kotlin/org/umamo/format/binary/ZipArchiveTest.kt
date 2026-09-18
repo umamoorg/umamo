@@ -284,4 +284,112 @@ class ZipArchiveTest {
 		writeU16Le(bytes, endOffset + 10, 1)
 		assertFailsWith<ZipFormatException> { ZipArchive.read(bytes) }
 	}
+
+	/**
+	 * An end record whose fields say "look in the Zip64 records" with no Zip64 locator before it fails by
+	 * naming those records, not as "not a ZIP": the archive is a damaged Zip64 one, which is what a bug report
+	 * needs to say.
+	 */
+	@Test
+	fun zip64SentinelsWithoutALocatorNameTheMissingRecords() {
+		val bytes = archiveOf(Triple("a", byteArrayOf(1, 2, 3), false))
+		val endRecord = endRecordOffset(bytes)
+		// ZIP: end record @ +0x08 and +0x0A entry counts, @ +0x0C directory size, @ +0x10 directory offset
+		// (APPNOTE.TXT 4.3.16), each at its "see the Zip64 record" sentinel.
+		writeU16Le(bytes, endRecord + 8, ZipRecords.UINT16_SENTINEL)
+		writeU16Le(bytes, endRecord + 10, ZipRecords.UINT16_SENTINEL)
+		writeU32Le(bytes, endRecord + 12, ZipRecords.UINT32_SENTINEL)
+		writeU32Le(bytes, endRecord + 16, ZipRecords.UINT32_SENTINEL)
+
+		val failure = assertFailsWith<ZipFormatException> { ZipArchive.read(bytes) }
+
+		assertTrue(failure.message.orEmpty().contains("Zip64"), "the failure names the missing records: ${failure.message}")
+	}
+
+	/**
+	 * The per-entry Zip64 extra field carries only the values whose classic fields hold the sentinel, in
+	 * APPNOTE order, and a field it is too short for fails loudly.  The writer never emits one, so each shape
+	 * is patched into a classic archive by hand.
+	 */
+	@Test
+	fun zip64ExtraFieldsResolveTheSentinelledFields() {
+		val contents = byteArrayOf(9, 8, 7, 6, 5)
+		val original = archiveOf(Triple("a", contents, false))
+		val localOffset = localHeaderOffset(original, 0).toLong()
+
+		val allThree = ZipArchive.read(withZip64Extra(original, sentinelSizes = true, sentinelOffset = true, values = u64sLe(contents.size.toLong(), contents.size.toLong(), localOffset)))
+		val entry = assertNotNull(allThree.entry("a"), "the entry lists")
+		assertEquals(contents.size, entry.compressedSize, "the compressed size comes from the extra")
+		assertEquals(contents.size, entry.uncompressedSize, "the uncompressed size comes from the extra")
+		assertContentEquals(contents, allThree.contents(entry), "and the offset from the extra reaches the payload")
+
+		val offsetOnly = ZipArchive.read(withZip64Extra(original, sentinelSizes = false, sentinelOffset = true, values = u64sLe(localOffset)))
+		val offsetEntry = assertNotNull(offsetOnly.entry("a"))
+		assertEquals(contents.size, offsetEntry.uncompressedSize, "an unflagged size stays classic")
+		assertContentEquals(contents, offsetOnly.contents(offsetEntry), "and only the flagged offset is read from the extra")
+
+		val tooShort = withZip64Extra(original, sentinelSizes = false, sentinelOffset = true, values = ByteArray(4))
+		val shortFailure = assertFailsWith<ZipFormatException> { ZipArchive.read(tooShort) }
+		assertTrue(shortFailure.message.orEmpty().contains("too short"), shortFailure.message)
+
+		val otherDisk = withZip64Extra(original, sentinelSizes = false, sentinelOffset = false, values = byteArrayOf(1, 0, 0, 0), sentinelDisk = true)
+		val diskFailure = assertFailsWith<ZipFormatException> { ZipArchive.read(otherDisk) }
+		assertTrue(diskFailure.message.orEmpty().contains("disk"), diskFailure.message)
+	}
+
+	/**
+	 * [archive] (one entry, no comment) with a Zip64 extended-information extra field of [values] appended to
+	 * its central entry, the flagged classic fields set to their sentinels, and the directory size grown to
+	 * match.
+	 *
+	 * @param ByteArray archive        The archive to patch.
+	 * @param Boolean   sentinelSizes  Whether both size fields take the sentinel.
+	 * @param Boolean   sentinelOffset Whether the local header offset takes the sentinel.
+	 * @param ByteArray values         The extra field's data, as the parser should find it.
+	 * @param Boolean   sentinelDisk   Whether the disk-number field takes the sentinel.
+	 * @return ByteArray The patched archive.
+	 */
+	private fun withZip64Extra(archive: ByteArray, sentinelSizes: Boolean, sentinelOffset: Boolean, values: ByteArray, sentinelDisk: Boolean = false): ByteArray {
+		val headerStart = centralHeaderOffset(archive, 0)
+		// ZIP: central header @ +0x14 compressed size, @ +0x18 uncompressed size, @ +0x1C name length,
+		// @ +0x1E extra length, @ +0x22 disk number start, @ +0x2A local header offset (APPNOTE.TXT 4.3.12).
+		val nameLength = readU16Le(archive, headerStart + 28)
+		val extraLength = readU16Le(archive, headerStart + 30)
+		val insertAt = headerStart + ZipRecords.CENTRAL_HEADER_SIZE + nameLength + extraLength
+		// ZIP: extra field header - u16 id, u16 data size (APPNOTE.TXT 4.5.2).
+		val extra = ByteArray(4) + values
+		writeU16Le(extra, 0, ZipRecords.ZIP64_EXTRA_ID)
+		writeU16Le(extra, 2, values.size)
+		val patched = archive.copyOfRange(0, insertAt) + extra + archive.copyOfRange(insertAt, archive.size)
+		if (sentinelSizes) {
+			writeU32Le(patched, headerStart + 20, ZipRecords.UINT32_SENTINEL)
+			writeU32Le(patched, headerStart + 24, ZipRecords.UINT32_SENTINEL)
+		}
+		if (sentinelOffset) {
+			writeU32Le(patched, headerStart + 42, ZipRecords.UINT32_SENTINEL)
+		}
+		if (sentinelDisk) {
+			writeU16Le(patched, headerStart + 34, ZipRecords.UINT16_SENTINEL)
+		}
+		writeU16Le(patched, headerStart + 30, extraLength + extra.size)
+		val endRecord = endRecordOffset(patched)
+		writeU32Le(patched, endRecord + 12, readU32Le(patched, endRecord + 12) + extra.size)
+		return patched
+	}
+
+	/**
+	 * [values] as consecutive little-endian 64-bit fields, the Zip64 extra field's layout.
+	 *
+	 * @param LongArray values The values, in field order.
+	 * @return ByteArray The encoded fields.
+	 */
+	private fun u64sLe(vararg values: Long): ByteArray {
+		val bytes = ByteArray(values.size * 8)
+		for ((valueIndex, value) in values.withIndex()) {
+			for (byteIndex in 0 until 8) {
+				bytes[valueIndex * 8 + byteIndex] = (value ushr (8 * byteIndex)).toByte()
+			}
+		}
+		return bytes
+	}
 }

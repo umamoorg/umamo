@@ -3,13 +3,17 @@ package org.umamo.format.uma.textures
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.umamo.format.binary.Crc32
 import org.umamo.format.binary.ZipArchive
+import org.umamo.format.binary.ZipEntry
 import org.umamo.format.binary.ZipRecords
+import org.umamo.format.binary.ZipWriter
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.uma.TEST_WRITER
 import org.umamo.format.uma.TestEntry
 import org.umamo.format.uma.Uma
+import org.umamo.format.uma.UmaContainer
 import org.umamo.format.uma.UmaEntryKind
 import org.umamo.format.uma.UmaFormatException
 import org.umamo.format.uma.UmaModel
@@ -324,6 +328,48 @@ class UmaTexturesEntryTest {
 		assertEquals(4, document.textures!!.tiles!!.single().width)
 		assertContentEquals(tilePng, document.payloadBytes("textures/tile-0.png"))
 		assertIs<UmaReadFailure.MalformedEntry>(assertFailsWith<UmaFormatException> { Uma.read(fileWith(png(3, 4, 1))) }.failure)
+	}
+
+	/**
+	 * A deflated pixel entry is probed from its first bytes alone, so a page-sized PNG is not copied through
+	 * the heap to read its header - and a stream too sparse for that probe still opens, through the full
+	 * inflate the probe falls back to.
+	 */
+	@Test
+	fun aSparseDeflatedPixelEntryStillReads() {
+		val tilePng = png(4, 3, 1)
+		val index = """{ "tiles": [ { "id": "A", "name": "A", "width": 4, "height": 3, "path": "textures/tile-0.png" } ] }"""
+		// A raw deflate stream (RFC 1951 §3.2.4): a thousand empty stored blocks of five bytes each - well past
+		// any bound a header probe hands the inflater - then one final stored block holding the PNG.  Legal,
+		// and nothing the stream's first bytes can yield.
+		val emptyBlock = byteArrayOf(0x00, 0x00, 0x00, 0xFF.toByte(), 0xFF.toByte())
+		val length = tilePng.size
+		val lengthComplement = length xor 0xFFFF
+		val finalHeader = byteArrayOf(0x01, (length and 0xFF).toByte(), (length ushr 8).toByte(), (lengthComplement and 0xFF).toByte(), (lengthComplement ushr 8).toByte())
+		val stream = ByteArray(1000 * emptyBlock.size) { byteIndex -> emptyBlock[byteIndex % emptyBlock.size] } + finalHeader + tilePng
+		val writer = ZipWriter(ZipRecords.DOS_EPOCH_DATE_TIME)
+		writer.addStored(UmaContainer.MIMETYPE_PATH, UmaContainer.MIMETYPE.encodeToByteArray())
+		writer.addDeflated(UmaContainer.MANIFEST_PATH, manifestJson(listOf(recordJson(indexPath, "textures", required = true))).encodeToByteArray())
+		writer.addDeflated(indexPath, index.encodeToByteArray())
+		writer.addRaw(
+			ZipEntry(
+				name = "textures/tile-0.png",
+				method = ZipRecords.METHOD_DEFLATED,
+				flags = 0,
+				crc32 = Crc32().also { checksum -> checksum.update(tilePng) }.value,
+				compressedSize = stream.size,
+				uncompressedSize = tilePng.size,
+				dosDateTime = ZipRecords.DOS_EPOCH_DATE_TIME,
+				payloadOffset = 0,
+				versionNeeded = ZipRecords.VERSION_DEFLATED,
+			),
+			stream,
+		)
+
+		val document = Uma.read(writer.finish())
+
+		assertEquals(4, document.textures!!.tiles!!.single().width, "the probe fell back to the full inflate and read the header")
+		assertContentEquals(tilePng, document.payloadBytes("textures/tile-0.png"))
 	}
 
 	/**
