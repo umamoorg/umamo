@@ -59,7 +59,10 @@ private val CORNER_HANDLE_SIZE_WIDTH = 15.dp
 @Composable
 fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifier = Modifier) {
 	val registry = LocalSpaceRegistry.current
-	val scope = remember(area.id) { AreaScope(area.id) }
+	// The open document's holder owns the scope, so a workspace tab switch - which disposes this leaf - does not
+	// cost the space its state; with no document (previews, tests) the leaf keeps one of its own.
+	val areaViewStates = LocalAreaViewStates.current
+	val scope = remember(area.id, areaViewStates) { areaViewStates?.scopeFor(area.id) ?: AreaScope(area.id) }
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -56,6 +57,11 @@ fun PersistentEditorShell(
 	val initialLayout = remember { loadLayout(settings) }
 	var latestLayout by remember { mutableStateOf(initialLayout) }
 	val savePacer = remember(settings) { LayoutSavePacer(initialLayout) { layout -> saveLayout(settings, layout) } }
+	// The open document's view states key onto this layout's area ids, so they follow it live (UMA D31).
+	val areaViewStates = LocalAreaViewStates.current
+	SideEffect {
+		areaViewStates?.layoutAreaIds = latestLayout.workspaces.flatMap { workspace -> workspace.root.leafAreaIds() }
+	}
 
 	// The active locale follows the localization.locale setting and updates live when it changes.
 	val locale by produceState(initialValue = settings.getString("localization.locale") ?: "en", settings) {
