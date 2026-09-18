@@ -19,7 +19,7 @@ fun fileDisplayName(path: String): String = path.substringAfterLast('/').substri
  * from, which is narrower than "everything readable" - the art sources are readable too and must never
  * suggest a name here.
  */
-private val SOURCE_EXTENSIONS = listOf(FileKind.Cmo3, FileKind.Moc3, FileKind.Uma).map { kind -> ".${kind.extension}" }
+private val SOURCE_EXTENSIONS = listOf(FileKind.Uma, FileKind.Cmo3, FileKind.Moc3).map { kind -> ".${kind.extension}" }
 
 /**
  * The base name to seed an export's save dialog with: [displayName] minus its source extension.
