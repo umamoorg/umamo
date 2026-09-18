@@ -97,6 +97,29 @@ fun prepareCmo3Export(
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
+		// A UMA document has no retained graph either: a fresh graph is synthesized as for an artwork
+		// document, with the file's stored render pages as the image chain while the atlas is at the
+		// document's baseline (the same identity gate as the CMO3 branch), and a re-encode of the effective
+		// pages otherwise.  The document's own rasters ride along so every tile writes its real layer.
+		is UmaDocument -> {
+			val stored = document.storedPages?.takeIf { pageSet -> effectiveTextures === document.textures && pageSet.pageBytes.size == effectiveTextures.atlases.size }
+			val pages =
+				effectiveTextures.atlases.mapIndexed { pageIndex, page ->
+					Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height)
+				}
+			val result =
+				Cmo3Conversion.freshCmo3(
+					puppet = edited,
+					pages = pages,
+					pageIndexByDrawableId = effectiveTextures.atlasIndexByDrawableId,
+					modelName = modelName,
+					nowMillis = nowMillis,
+					obfuscateKey = obfuscateKey,
+					tileRasters = { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> RasterImage(decoded.width, decoded.height, decoded.rgba) } },
+					modelThumbnail = modelThumbnail,
+				)
+			PreparedCmo3Export(result.model, result.report)
+		}
 		// A MOC3-origin document has no retained graph: synthesize a fresh one from the blank skeleton
 		// + the retained atlas pages, then reconcile onto it.
 		is Moc3Document -> {
@@ -115,21 +138,14 @@ fun prepareCmo3Export(
 	}
 
 /**
- * The atlas pages a fresh-graph synthesis builds its image chain from.
- *
- * Walks the DECODED set, because that is what the drawables' page indices were resolved against - the
- * retained source bytes are only the preferred payload for each of those pages, not the page list
- * itself.  A page the document has no source bytes for is re-encoded rather than skipped: dropping one
- * would renumber every later page out from under the drawables that reference it.
+ * The atlas pages a fresh-graph synthesis builds its image chain from: the document's page PNGs
+ * ([Moc3Document.pagePngs], which says why the decoded set is the list) with each decoded page's size.
  *
  * @param Moc3Document document The MOC3-origin document being converted.
  * @return List The pages, in decoded page order.
  */
 private fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.AtlasPage> =
-	document.textures.atlases.mapIndexed { pageIndex, decoded ->
-		Cmo3Conversion.AtlasPage(
-			pngBytes = document.atlasPages.getOrNull(pageIndex) ?: encodeAtlasPng(decoded),
-			width = decoded.width,
-			height = decoded.height,
-		)
+	document.pagePngs().mapIndexed { pageIndex, pngBytes ->
+		val decoded = document.textures.atlases[pageIndex]
+		Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
 	}

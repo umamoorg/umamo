@@ -15,11 +15,11 @@ fun fileDisplayName(path: String): String = path.substringAfterLast('/').substri
 /**
  * The source extensions an export strips before suggesting a name.
  *
- * Named members rather than a filter over [FileKind]: this is the set a puppet document can currently
- * be OPEN from, which is narrower than "everything readable" - the art sources are readable too and
- * must never suggest a name here.  UMA joins the list when its codec lands.
+ * Named members rather than a filter over [FileKind]: this is the set a puppet document can be OPEN
+ * from, which is narrower than "everything readable" - the art sources are readable too and must never
+ * suggest a name here.
  */
-private val SOURCE_EXTENSIONS = listOf(FileKind.Cmo3, FileKind.Moc3).map { kind -> ".${kind.extension}" }
+private val SOURCE_EXTENSIONS = listOf(FileKind.Cmo3, FileKind.Moc3, FileKind.Uma).map { kind -> ".${kind.extension}" }
 
 /**
  * The base name to seed an export's save dialog with: [displayName] minus its source extension.
@@ -36,3 +36,27 @@ fun exportSuggestedName(displayName: String): String =
 	SOURCE_EXTENSIONS.firstOrNull { extension -> displayName.endsWith(extension, ignoreCase = true) }
 		?.let { extension -> displayName.dropLast(extension.length) }
 		?: displayName
+
+/**
+ * The base name to seed a Save As dialog with: [displayName] minus whatever file extension it carries.
+ *
+ * Broader than [exportSuggestedName] on purpose.  A document can start from an artwork file (a rig built
+ * by importing `hero.psd` into a new document is still named after it), and its first save should suggest
+ * `hero`, never `hero.psd.uma`.  Only a trailing extension of a few letters is stripped, so a name with a
+ * dot in it (`v1.2 sketch`) is left alone.  FileKit re-appends `.uma` itself.
+ *
+ * @param String displayName The document's file name.
+ * @return String The name without its extension.
+ */
+fun saveSuggestedName(displayName: String): String {
+	val dot = displayName.lastIndexOf('.')
+	val extension = if (dot > 0) displayName.substring(dot + 1) else ""
+	return if (extension.length in 1..MAXIMUM_EXTENSION_LENGTH && extension.all { character -> character.isLetterOrDigit() }) {
+		displayName.substring(0, dot)
+	} else {
+		displayName
+	}
+}
+
+/** The longest extension a source file plausibly carries (`.webp`, `.jpeg`, `.tiff`, `.clip`). */
+private const val MAXIMUM_EXTENSION_LENGTH = 5

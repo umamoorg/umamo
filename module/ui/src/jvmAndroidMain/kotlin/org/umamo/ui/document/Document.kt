@@ -165,6 +165,10 @@ fun loadDocument(
 			// type that kind's codec is known to produce.
 			return@runCatching buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
 		}
+		// The native document: read whole, never imported.
+		if (codec.kind == FileKind.Uma) {
+			return@runCatching buildUmaDocument(bytes, name, path)
+		}
 		val artwork = artworkOf(codec, bytes, name)
 		if (artwork == null) {
 			UmamoLog.warn("$path is a .${codec.kind.extension} file, which the editor shell can't open")

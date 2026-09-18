@@ -23,6 +23,19 @@ internal data class ConfirmAlternative(
 )
 
 /**
+ * A modal message with nothing to decide - a document that opened read-only, a save that failed - shown
+ * until acknowledged.
+ *
+ * @property StringResource message   The message resource.
+ * @property List           arguments The format arguments, in placeholder order: document data (file
+ *   names, entry paths), never translated.
+ */
+internal data class AlertRequest(
+	val message: StringResource,
+	val arguments: List<Any> = emptyList(),
+)
+
+/**
  * A pending confirmation: the localized prompt to show, the buttons it names, and the action to run if the
  * user confirms.  The shell holds at most one of these (like its palette-visible flag) and renders a
  * ConfirmDialog for it, so a destructive command (reset, import-overwrite, export-overwrite) sets one instead
@@ -141,6 +154,12 @@ internal class ShellOverlayState {
 		pendingConfirm = null
 		alternative.onSelect()
 	}
+
+	/**
+	 * A message the app layer asks the shell to show modally - set by the document.alert command, cleared
+	 * by its OK button, the scrim, Escape, or Enter.  Null while none shows.
+	 */
+	var pendingAlert: AlertRequest? by mutableStateOf(null)
 
 	/**
 	 * The file-open failure alert's payload - set by the document.openFailed command (dispatched by

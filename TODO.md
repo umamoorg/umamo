@@ -36,18 +36,15 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
+## 2D Viewport
+* Should open to the rendered checkerboard background with axises instead of the blank placeholder.
+
 ## Read/Write Filing Handling
 * Clean up the boolean logic mess in AppMenu->fileMenu().
 	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
 * Document State - One document per window instance.
 	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
-* Dirty state handling: Not all instances of dirty are handled.  For example, I can close the application without it asking to save a dirty document.
-
-## UI - Dialogs
-* The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
-	* This can have better wording if the buttons are configurable.
-* Enter does not work for the default action.
 
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.

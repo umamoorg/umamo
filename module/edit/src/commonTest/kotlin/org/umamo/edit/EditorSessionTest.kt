@@ -219,6 +219,28 @@ class EditorSessionTest {
 	}
 
 	/**
+	 * A save snapshots the model and writes it off-thread, so the baseline moves to THAT instance: an edit
+	 * landed meanwhile keeps the document dirty, undoing back to the saved instance clears it, and the
+	 * history panel's saved marker sits on the row that was written rather than on the live one.
+	 */
+	@Test
+	fun markSavedOfASnapshotLeavesALaterEditDirty() {
+		val session = EditorSession(model())
+		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		val snapshot = session.model.value
+		session.mutate(PartChange.Rename(PartId("b"), "B2")) { it.withPartName(PartId("b"), "B2") }
+
+		session.markSaved(snapshot)
+
+		assertTrue(session.dirty.value, "the edit after the snapshot is not on disk")
+		assertEquals(listOf(false, true, false), session.historyView.value.steps.map { step -> step.saved }, "the marker sits on the snapshot's row")
+		session.undo()
+		assertFalse(session.dirty.value, "undoing back to the saved instance is clean")
+		session.redo()
+		assertTrue(session.dirty.value)
+	}
+
+	/**
 	 * The history view projects the stack (seed plus each step's label key) with the live cursor, and
 	 * jumpTo leaps directly to any step — restoring its model and selection — without walking one level at
 	 * a time. The saved flag marks exactly the saved row.

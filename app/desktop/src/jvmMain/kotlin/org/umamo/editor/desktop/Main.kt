@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.github.vinceglb.filekit.FileKit
@@ -23,6 +24,7 @@ import org.umamo.storage.desktopAppStorage
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
+import org.umamo.ui.app.rememberDocumentFileFor
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.app.rememberExitGuard
 import org.umamo.ui.defaultSettingsJson
@@ -30,11 +32,13 @@ import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
+import org.umamo.ui.resources.title_read_only
 import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
@@ -86,20 +90,26 @@ private fun loadInitialDocument(initialPath: String?): Document? {
 }
 
 /**
- * The window title: the app name, the open document's name, and the unsaved marker.
+ * The window title: the app name, the open document's name, the unsaved marker, and the read-only marker.
  *
- * A document with no file is named here rather than by [Document.displayName], which is the plain-text
- * name the log and an export's suggested file name need; the title is chrome, so it localizes.
+ * The name follows the `.uma` the document saves to once it has one, so a `Erica.cmo3` saved as `Erica.uma`
+ * reads as the latter.  A document with no file is named here rather than by [Document.displayName], which
+ * is the plain-text name the log and an export's suggested file name need; the title is chrome, so it
+ * localizes.  A read-only document says so, since Save is greyed for as long as it is open.
  *
- * @param Document? document The open document.
- * @param Boolean   dirty    Whether the session has unsaved edits.
+ * @param Document? document  The open document.
+ * @param String?   savedPath The `.uma` the document saves to, or null before its first save.
+ * @param Boolean   readOnly  Whether the document opened read-only.
+ * @param Boolean   dirty     Whether the session has unsaved edits.
  * @return String The title.
  */
 @Composable
-private fun windowTitleFor(document: Document?, dirty: Boolean): String {
+private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Boolean, dirty: Boolean): String {
 	val untitled = stringResource(Res.string.title_untitled_document)
-	val name = document?.let { open -> if (open.path == null) untitled else open.displayName }
-	return "Umamo" + (name?.let { " - $it${if (dirty) " *" else ""}" }.orEmpty())
+	val readOnlyMarker = stringResource(Res.string.title_read_only)
+	val name = savedPath?.let(::fileDisplayName) ?: document?.let { open -> if (open.path == null) untitled else open.displayName }
+	val markers = (if (dirty) " *" else "") + (if (readOnly) " $readOnlyMarker" else "")
+	return "Umamo" + (name?.let { " - $it$markers" }.orEmpty())
 }
 
 /**
@@ -122,7 +132,8 @@ fun main(args: Array<String>) {
 		args.firstOrNull { arg ->
 			// Pick the first .cmo3 or .moc3 argument; loadDocument then does the real magic-byte
 			// detection once the file is actually read (a .moc3 routes to the sidecar-discovering loader).
-			arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true) ||
+			arg.endsWith(".${FileKind.Uma.extension}", ignoreCase = true) ||
+				arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true) ||
 				arg.endsWith(".${FileKind.Moc3.extension}", ignoreCase = true)
 		}
 			?: System.getProperty("umamo.testCmo3")
@@ -146,6 +157,10 @@ fun main(args: Array<String>) {
 		// The title's unsaved marker, mirrored from the session's dirty flag by the window content below,
 		// which is where the session lives.
 		var dirty by remember { mutableStateOf(false) }
+		// The title's file name and read-only marker, mirrored the same way from the document's save target,
+		// which is also derived inside the window content.
+		var savedPath by remember { mutableStateOf<String?>(null) }
+		var readOnly by remember { mutableStateOf(false) }
 		val windowState = remember { settings.savedWindowState() }
 		// A file opened from the command line is a real "open" - record it in recent files too.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
@@ -182,7 +197,7 @@ fun main(args: Array<String>) {
 			icon = painterResource(Res.drawable.app_icon),
 			// A document that has never been saved has no file name to show, so the title localizes its own
 			// name for it rather than showing the plain-text one the log and export names use.
-			title = windowTitleFor(document, dirty),
+			title = windowTitleFor(document, savedPath, readOnly, dirty),
 		) {
 			// The session is derived HERE, in the composition that reads the document, and not in the
 			// application scope above.  Window content is its own composition: it reads the document
@@ -192,6 +207,11 @@ fun main(args: Array<String>) {
 			// command, the File menu, and the page resolver registered in that frame keep the stale
 			// pair.  Deriving both in one place keeps them consistent in every frame.
 			val session = rememberEditorSessionFor(document)
+			val documentFile = rememberDocumentFileFor(document)
+			LaunchedEffect(documentFile) {
+				readOnly = documentFile?.readOnly == true
+				snapshotFlow { documentFile?.umaPath }.collect { path -> savedPath = path }
+			}
 			LaunchedEffect(session) {
 				val activeSession = session
 				if (activeSession == null) {
@@ -214,6 +234,7 @@ fun main(args: Array<String>) {
 						EditorApp(
 							document = document,
 							session = session,
+							documentFile = documentFile,
 							onOpen = { document = it },
 							onExit = { closeApp() },
 							exitGuard = exitGuard,

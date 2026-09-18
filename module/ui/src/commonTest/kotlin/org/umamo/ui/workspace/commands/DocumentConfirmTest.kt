@@ -3,13 +3,19 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_quit_unsaved
+import org.umamo.ui.resources.confirm_save_before_quit
+import org.umamo.ui.resources.confirm_save_before_replace
 import org.umamo.ui.resources.dialog_discard
+import org.umamo.ui.resources.dialog_dont_save
 import org.umamo.ui.resources.dialog_quit_without_saving
+import org.umamo.ui.resources.dialog_save
+import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.ConfirmAlternative
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ShellOverlayState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -38,11 +44,12 @@ class DocumentConfirmTest {
 		val overlays = ShellOverlayState()
 		var exitCount = 0
 
-		assertTrue(registry(overlays).invoke("document.confirmExit", { exitCount++ }))
+		assertTrue(registry(overlays).invoke("document.confirmExit", DirtyDocumentPrompt(discard = { exitCount++ }, save = null)))
 
 		val request = overlays.pendingConfirm
 		assertEquals(Res.string.confirm_quit_unsaved, request?.message)
-		assertEquals(Res.string.dialog_quit_without_saving, request?.confirmLabel, "the button names what quitting costs")
+		assertEquals(Res.string.dialog_quit_without_saving, request?.confirmLabel, "with no save possible, the button names what quitting costs")
+		assertNull(request?.alternative, "and there is no third choice")
 		assertEquals(0, exitCount, "raising the prompt must not quit")
 
 		overlays.confirmPending()
@@ -55,7 +62,7 @@ class DocumentConfirmTest {
 	fun cancellingTheExitPromptLeavesTheAppRunning() {
 		val overlays = ShellOverlayState()
 		var exitCount = 0
-		registry(overlays).invoke("document.confirmExit", { exitCount++ })
+		registry(overlays).invoke("document.confirmExit", DirtyDocumentPrompt(discard = { exitCount++ }, save = null))
 
 		overlays.cancelPending()
 
@@ -67,13 +74,50 @@ class DocumentConfirmTest {
 	fun confirmReplaceNamesTheDiscard() {
 		val overlays = ShellOverlayState()
 		var proceedCount = 0
-		registry(overlays).invoke("document.confirmReplace", { proceedCount++ })
+		registry(overlays).invoke("document.confirmReplace", DirtyDocumentPrompt(discard = { proceedCount++ }, save = null))
 
 		assertEquals(Res.string.dialog_discard, overlays.pendingConfirm?.confirmLabel)
 
 		overlays.confirmPending()
 
 		assertEquals(1, proceedCount)
+	}
+
+	/**
+	 * When the document can be saved, both prompts lead with Save: Enter and the primary button save and go on,
+	 * the third choice goes on without saving, and Cancel stays put.  The wording says which act follows.
+	 */
+	@Test
+	fun aSaveablePromptLeadsWithSaveAndOffersDontSave() {
+		val overlays = ShellOverlayState()
+		var saveCount = 0
+		var discardCount = 0
+		val prompt = DirtyDocumentPrompt(discard = { discardCount++ }, save = { saveCount++ })
+
+		registry(overlays).invoke("document.confirmExit", prompt)
+		val quitRequest = assertNotNull(overlays.pendingConfirm)
+		assertEquals(Res.string.confirm_save_before_quit, quitRequest.message)
+		assertEquals(Res.string.dialog_save, quitRequest.confirmLabel, "Save is the default")
+		assertEquals(Res.string.dialog_dont_save, quitRequest.alternative?.label, "Don't Save is the third choice")
+		overlays.confirmPending()
+		assertEquals(1, saveCount, "confirming saves")
+		assertEquals(0, discardCount)
+
+		registry(overlays).invoke("document.confirmReplace", prompt)
+		assertEquals(Res.string.confirm_save_before_replace, overlays.pendingConfirm?.message, "the replace prompt is worded for a replace")
+		overlays.choosePendingAlternative()
+		assertEquals(1, discardCount, "the third choice goes on without saving")
+		assertEquals(1, saveCount)
+	}
+
+	@Test
+	fun anAlertRoutesIntoTheAlertSlot() {
+		val overlays = ShellOverlayState()
+		val alert = AlertRequest(Res.string.confirm_quit_unsaved)
+
+		registry(overlays).invoke("document.alert", alert)
+
+		assertSame(alert, overlays.pendingAlert)
 	}
 
 	@Test

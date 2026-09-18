@@ -19,26 +19,42 @@ import org.umamo.ui.resources.*
  * shell registers it (with the app's closures injected) because its operation strip needs the hovered
  * area at dispatch.
  *
- * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
- * Open / Save is reserved for the native UMA format.
+ * Open / Save mean the native UMA document and nothing else; CMO3 and MOC3 are interop boundaries, so they
+ * come and go through Import / Export.
  */
 
 /**
- * The commands that make or replace the whole document: New, and one import per interop format.
+ * The commands that make, open, save, or replace the whole document: New, Open, Save, Save As, and one
+ * import per interop format.
  *
- * Split from [fileExportCommands] because the two register on different triggers: these handlers depend
- * on nothing that changes while the app runs, while export closes over the open document.  The artwork
+ * Split from [fileExportCommands] because the two register on different triggers: these handlers read
+ * the document live through the app's holders, while export closes over the open document.  The artwork
  * import is NOT here - it adds to the open document rather than replacing it, so it registers with the
  * other artwork operations ([fileArtworkCommands]).
  *
  * @param Function onNew Starts a new, empty document (dirty-confirm first).
+ * @param Function onOpen Opens a `.uma` (picker, dirty-confirm, load).
+ * @param Function onSave Saves to the document's `.uma`, asking where on the first save.
+ * @param Function onSaveAs Asks where to save.
+ * @param Function canSave Whether the open document can be saved, queried live (gates Save and Save As).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
  * @return List<Command> The commands to register.
  */
-internal fun fileCommands(onNew: () -> Unit, onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): List<Command> =
+internal fun fileCommands(
+	onNew: () -> Unit,
+	onOpen: () -> Unit,
+	onSave: () -> Unit,
+	onSaveAs: () -> Unit,
+	canSave: () -> Boolean,
+	onImportCmo3: () -> Unit,
+	onImportMoc3: () -> Unit,
+): List<Command> =
 	listOf(
 		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
+		Command("file.open", title = Res.string.cmd_file_open) { onOpen() },
+		Command("file.save", title = Res.string.cmd_file_save, availability = CommandAvailability { canSave() }) { onSave() },
+		Command("file.saveAs", title = Res.string.cmd_file_save_as, availability = CommandAvailability { canSave() }) { onSaveAs() },
 		Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.

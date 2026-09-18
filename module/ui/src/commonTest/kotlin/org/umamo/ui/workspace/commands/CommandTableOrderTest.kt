@@ -85,6 +85,7 @@ class CommandTableOrderTest {
 				"document.repackReport",
 				"document.exportOptionsMoc3",
 				"document.confirm",
+				"document.alert",
 			),
 			commands.map { command -> command.id },
 		)
@@ -224,8 +225,8 @@ class CommandTableOrderTest {
 	 */
 	@Test
 	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}) + logCommands {}
-		assertEquals(listOf("file.new", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}) + logCommands {}
+		assertEquals(listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },

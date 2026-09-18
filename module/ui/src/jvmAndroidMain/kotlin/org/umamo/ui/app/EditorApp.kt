@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.deleteTile
@@ -34,6 +35,7 @@ import org.umamo.format.FileKind
 import org.umamo.format.art.SourceArt
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.uma.UmaModel
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
 import org.umamo.interop.art.ArtSourceDescriptor
@@ -60,6 +62,7 @@ import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.ArtDocument
 import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
+import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
@@ -67,11 +70,14 @@ import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.ReadArtwork
+import org.umamo.ui.document.UmaDocument
+import org.umamo.ui.document.UmaWriteOutcome
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.newBlankDocument
@@ -80,7 +86,9 @@ import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.readArtwork
 import org.umamo.ui.document.readArtworkAt
 import org.umamo.ui.document.recentFiles
+import org.umamo.ui.document.umamoWriterInfo
 import org.umamo.ui.document.writeMoc3Bundle
+import org.umamo.ui.document.writeUmaDocument
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.menu.editMenu
@@ -124,8 +132,11 @@ import org.umamo.ui.model.runReplaceArtwork
 import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.alert_document_read_only
+import org.umamo.ui.resources.alert_save_failed
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.resources.dialog_overwrite
+import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
@@ -134,11 +145,13 @@ import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
+import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
+import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.ReplaceRequest
@@ -231,6 +244,16 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
 	remember(document) { (document as? PuppetDocument)?.let { EditorSession(it.puppet, it.liveParams.values) } }
 
 /**
+ * Where the open document saves - one [DocumentFile] per document, keyed on the same identity as the session
+ * and owned at the host level for the same reason: the desktop title shows the `.uma` name the holder carries.
+ *
+ * @param Document? document The open document, or null.
+ * @return DocumentFile? The document's save target, or null with no document.
+ */
+@Composable
+fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(document) { document?.let { DocumentFile(it) } }
+
+/**
  * The shared editor shell: a custom in-window menu bar (File / Edit / Workspace / Help, drawn with the
  * kit menu system) over the document viewport. The Import/Export dialogs come from FileKit; [document] is
  * owned by the caller (so host chrome like the window title tracks it); [onOpen] swaps it; [onExit]
@@ -245,6 +268,8 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
  *   undo/redo, the Edit-menu enabled state, and the saved marker.
+ * @param DocumentFile? documentFile Where the document saves (the `.uma` path and the model the next save lays
+ *   over), remembered by the host beside the session; null with no document.
  * @param Function onOpen Called with a newly-opened document.
  * @param Function onExit Closes the application; File > Exit runs it through the unsaved-changes guard.
  * @param ExitGuard exitGuard The host's route into the same guard, for the exits the host owns (the window's
@@ -256,6 +281,7 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
 fun EditorApp(
 	document: Document?,
 	session: EditorSession?,
+	documentFile: DocumentFile?,
 	onOpen: (Document) -> Unit,
 	onExit: () -> Unit,
 	exitGuard: ExitGuard,
@@ -352,6 +378,13 @@ fun EditorApp(
 					}
 				}
 				onOpen(load.document)
+				// A file that opened read-only says so once, up front: Save is greyed for the document's life, and a
+				// rigger who edits it for an hour before finding that out has been misled.
+				val opened = load.document
+				if (opened is UmaDocument && opened.isReadOnly) {
+					val entries = opened.readOnlyReasons.joinToString { reason -> "${reason.path} (${reason.kind})" }
+					commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_document_read_only, listOf(opened.displayName, entries)))
+				}
 			}
 			is DocumentLoad.Failed -> commandRegistry.invoke("document.openFailed", load.failure)
 		}
@@ -363,13 +396,89 @@ fun EditorApp(
 	// whichever document was open when it was registered - none at all on a normal launch, which is a silent
 	// skip of the whole prompt.  The holder always reads the session of the composition that is live now.
 	val currentSession by rememberUpdatedState(session)
+	val currentDocument by rememberUpdatedState(document)
+	val currentDocumentFile by rememberUpdatedState(documentFile)
+	val currentAtlasPages by rememberUpdatedState(sessionAtlasPages)
+	val currentUntitledName by rememberUpdatedState(stringResource(Res.string.title_untitled_document))
+
+	// Whether Save can write now: a puppet document that did not open read-only.  Read live, for the same
+	// reason the session is - the file commands register once.
+	fun canSaveNow(): Boolean = currentDocument is PuppetDocument && currentDocumentFile?.canSave == true
+
+	// Save and Save As.  The first save of a document that did not come from a .uma is a Save As suggesting
+	// the origin's name (D24); after that a plain Save writes the same file without asking.  The model and
+	// the atlas pages are snapshotted here, on the UI thread, and the writer runs off it, so the editor
+	// stays usable while a large document encodes; the session is marked saved with that same snapshot, so
+	// an edit made meanwhile keeps the document dirty.
+	fun saveDocument(saveAs: Boolean, onSaved: () -> Unit = {}) {
+		val puppetDocument = currentDocument as? PuppetDocument ?: return
+		val file = currentDocumentFile ?: return
+		val activeSession = currentSession ?: return
+		if (!file.canSave) {
+			return
+		}
+		if (file.saving) {
+			activeSession.emitNotice("notice.document.saveBusy", NoticePlacement.StatusBar)
+			return
+		}
+		scope.launch {
+			val knownPath = file.umaPath
+			val destination =
+				if (!saveAs && knownPath != null) {
+					platformFileFromSavedPath(knownPath)
+				} else {
+					// The native save dialog owns the overwrite prompt: a .uma is one file, unlike the MOC3 family.
+					filePicker.saveFile(file.suggestedBaseName ?: currentUntitledName, FileKind.Uma.extension) ?: return@launch
+				}
+			val snapshot = activeSession.model.value
+			val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
+			val base = file.base ?: UmaModel.create(umamoWriterInfo())
+			file.saving = true
+			activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
+			val outcome = writeUmaDocument(puppetDocument, base, snapshot, binding, destination)
+			file.saving = false
+			when (outcome) {
+				is UmaWriteOutcome.Written -> {
+					activeSession.markSaved(snapshot)
+					val path = destination.absolutePath()
+					file.umaPath = path
+					file.base = outcome.uma
+					settings.addRecentFile(path)
+					UmamoLog.info("saved $path")
+					activeSession.emitNotice("notice.document.saved", NoticePlacement.StatusBar, listOf(fileDisplayName(path)))
+					// Once per document, what a .uma of this origin does not carry (pinned with R3): shown after
+					// the saved notice, so it is the one left on screen.
+					if (!file.lossNoticeShown) {
+						file.lossNoticeShown = true
+						when (puppetDocument) {
+							is Cmo3Document -> activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
+							is Moc3Document -> activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
+							else -> Unit
+						}
+					}
+					onSaved()
+				}
+				is UmaWriteOutcome.Failed -> {
+					commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_save_failed, listOf(destination.name, outcome.reason)))
+				}
+			}
+		}
+	}
+
+	// The choices a dirty document's prompt offers: go on without saving, or save first and go on once
+	// the save has landed - the latter only when the document can be saved at all.
+	fun dirtyDocumentPrompt(proceed: () -> Unit): DirtyDocumentPrompt =
+		DirtyDocumentPrompt(
+			discard = proceed,
+			save = if (canSaveNow()) ({ saveDocument(saveAs = false, onSaved = proceed) }) else null,
+		)
 
 	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
 		if (currentSession?.dirty?.value == true) {
-			commandRegistry.invoke("document.confirmReplace", proceed)
+			commandRegistry.invoke("document.confirmReplace", dirtyDocumentPrompt(proceed))
 		} else {
 			proceed()
 		}
@@ -380,7 +489,7 @@ fun EditorApp(
 	// gesture reach it through the exitGuard installed below.
 	fun confirmExit(exit: () -> Unit) {
 		if (currentSession?.dirty?.value == true) {
-			commandRegistry.invoke("document.confirmExit", exit)
+			commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exit))
 		} else {
 			exit()
 		}
@@ -687,6 +796,18 @@ fun EditorApp(
 		confirmIfDirty { onOpen(newBlankDocument()) }
 	}
 
+	// File > Open: the native document, read whole - the one thing Open means.  A dirty document asks first,
+	// with Save on offer, like every other document replace.
+	fun openViaPicker() {
+		confirmIfDirty {
+			scope.launch {
+				filePicker.openFile(listOf(FileKind.Uma.extension))?.let { picked ->
+					applyDocumentLoad(loadDocument(picked))
+				}
+			}
+		}
+	}
+
 	fun importCmo3ViaPicker() {
 		// FileKit's native dialog supplies its own (OS-localized) title, so none is passed here.
 		// The filter is CMO3-only: layered-art formats have no import path since :reimport is what
@@ -754,8 +875,8 @@ fun EditorApp(
 						modelThumbnail = modelThumbnail,
 					)
 				destination.write(Cmo3.write(prepared.model))
-				// True export semantics: an export is not a save, so the dirty baseline stays put - the
-				// modified marker clears only once UMA Save exists and owns markSaved.
+				// True export semantics: an export is not a save, so the dirty baseline stays put - only
+				// saveDocument marks the session saved, and only for the .uma it wrote.
 				reportExport(prepared.report)
 				UmamoLog.info("exported ${destination.absolutePath()}")
 			}
@@ -894,7 +1015,15 @@ fun EditorApp(
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
-				fileCommands({ newDocument() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
+				fileCommands(
+					onNew = { newDocument() },
+					onOpen = { openViaPicker() },
+					onSave = { saveDocument(saveAs = false) },
+					onSaveAs = { saveDocument(saveAs = true) },
+					canSave = { canSaveNow() },
+					onImportCmo3 = { importCmo3ViaPicker() },
+					onImportMoc3 = { importMoc3ViaPicker() },
+				) + logCommands { exportLog() },
 			)
 		onDispose { cleanup() }
 	}
@@ -931,6 +1060,10 @@ fun EditorApp(
 				canRedo,
 				::openStoredPath,
 				{ commandRegistry.invoke("file.new") },
+				{ commandRegistry.invoke("file.open") },
+				{ commandRegistry.invoke("file.save") },
+				{ commandRegistry.invoke("file.saveAs") },
+				canSaveNow(),
 				// The artwork import is the shell's command (it needs the hovered area for its operation
 				// strip), so the menu row dispatches it rather than calling the picker directly.
 				{ commandRegistry.invoke("file.importArtwork") },
@@ -1029,6 +1162,10 @@ private class DocumentWatch(
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
  * @param Function newDocument Starts a new, empty document (dispatches file.new).
+ * @param Function openDocument Opens a `.uma` through the picker (dispatches file.open).
+ * @param Function saveDocument Saves to the document's `.uma`, or asks where on the first save (dispatches file.save).
+ * @param Function saveDocumentAs Asks where to save (dispatches file.saveAs).
+ * @param Boolean canSave Whether the open document can be saved (gates both Save rows).
  * @param Function importArtwork Adds an artwork file to the open document (dispatches file.importArtwork).
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
@@ -1058,6 +1195,10 @@ private fun buildAppMenu(
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
 	newDocument: () -> Unit,
+	openDocument: () -> Unit,
+	saveDocument: () -> Unit,
+	saveDocumentAs: () -> Unit,
+	canSave: Boolean,
 	importArtwork: () -> Unit,
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
@@ -1081,7 +1222,11 @@ private fun buildAppMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
 			canExport = document is PuppetDocument,
+			canSave = canSave,
 			onNew = newDocument,
+			onOpen = openDocument,
+			onSave = saveDocument,
+			onSaveAs = saveDocumentAs,
 			onImportArtwork = importArtwork,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,

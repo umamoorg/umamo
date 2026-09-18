@@ -14,6 +14,7 @@ import io.github.vinceglb.filekit.dialogs.init
 import org.umamo.storage.androidAppStorage
 import org.umamo.ui.ProvideSettings
 import org.umamo.ui.app.EditorApp
+import org.umamo.ui.app.rememberDocumentFileFor
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.app.rememberExitGuard
 import org.umamo.ui.document.Document
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
 						// The editor always has a document: it starts in a new, empty one.
 						var document by remember { mutableStateOf<Document?>(newBlankDocument()) }
 						val session = rememberEditorSessionFor(document)
+						val documentFile = rememberDocumentFileFor(document)
 						val exitGuard = rememberExitGuard()
 						// Back leaves the app (on Android 8 to 11 it destroys the root activity, edits and all), so
 						// while the document is dirty it asks through the same guard as File > Exit.  A clean
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
 						EditorApp(
 							document = document,
 							session = session,
+							documentFile = documentFile,
 							onOpen = { document = it },
 							onExit = { finish() },
 							exitGuard = exitGuard,

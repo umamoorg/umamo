@@ -2063,12 +2063,22 @@ class EditorSession(
 	}
 
 	/**
-	 * Marks the current model as the saved baseline, clearing the dirty marker. Called after a successful
-	 * Save. (The PuppetModel -> CMO3 lowering that actually persists edits is a later phase; this only
-	 * moves the dirty baseline.)
+	 * Marks the live model as the saved baseline, clearing the dirty marker - the form for a save that
+	 * wrote the model that is current now.
 	 */
 	fun markSaved() {
-		history.markSaved(mutableModel.value)
+		markSaved(mutableModel.value)
+	}
+
+	/**
+	 * Marks [model] as the saved baseline: the instance a save snapshotted and wrote, which is the live
+	 * model unless an edit landed while the file was being written.  In that case the document stays
+	 * dirty, since what is on screen is not what is on disk, and undoing back to [model] clears it.
+	 *
+	 * @param PuppetModel model The model instance just persisted.
+	 */
+	fun markSaved(model: PuppetModel) {
+		history.markSaved(model)
 		refreshFlags()
 	}
 
