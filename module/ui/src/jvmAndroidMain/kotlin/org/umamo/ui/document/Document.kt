@@ -160,14 +160,14 @@ fun loadDocument(
 			UmamoLog.warn("$path is not a format Umamo recognizes")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 		}
+		// The native document: read whole, never imported.
+		if (codec.kind == FileKind.Uma) {
+			return@runCatching buildUmaDocument(bytes, name, path)
+		}
 		if (codec.kind == FileKind.Cmo3) {
 			// detect returns a star-projected FormatCodec<*>; each kind's read result is cast to the model
 			// type that kind's codec is known to produce.
 			return@runCatching buildCmo3Document(codec.read(bytes) as Cmo3Model, name, path)
-		}
-		// The native document: read whole, never imported.
-		if (codec.kind == FileKind.Uma) {
-			return@runCatching buildUmaDocument(bytes, name, path)
 		}
 		val artwork = artworkOf(codec, bytes, name)
 		if (artwork == null) {
