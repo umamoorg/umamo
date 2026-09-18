@@ -127,6 +127,25 @@ class UmaDocumentLoadTest {
 		assertEquals("rig.uma", failure.displayName)
 	}
 
+	/**
+	 * A puppet entry this version cannot read is a file from a newer Umamo too: there is no rig to show, and
+	 * the message must not call a healthy file damaged.
+	 */
+	@Test
+	fun aNewerPuppetEntryReportsANewerFormat() {
+		val bytes =
+			rewritten(emptyDocumentBytes()) { manifest ->
+				// The puppet's record is the first entry: raise its version and the floor a reader must meet.
+				val patched = manifest.replaceFirst(Regex("\"version\":\\s*1"), "\"version\": 2").replaceFirst(Regex("\"minVersion\":\\s*1"), "\"minVersion\": 2")
+				check(patched != manifest) { "the puppet record was not found: $manifest" }
+				patched
+			}
+
+		val failure = assertIs<DocumentLoad.Failed>(loadDocument(bytes, "rig.uma", "/rigs/rig.uma")).failure
+
+		assertEquals(DocumentOpenError.NewerFormat, failure.error)
+	}
+
 	@Test
 	fun aDamagedUmaReportsAParseFailure() {
 		val bytes = emptyDocumentBytes()

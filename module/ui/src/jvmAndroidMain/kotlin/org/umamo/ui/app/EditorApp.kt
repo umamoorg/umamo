@@ -450,9 +450,17 @@ fun EditorApp(
 					// the saved notice, so it is the one left on screen.
 					if (!file.lossNoticeShown) {
 						file.lossNoticeShown = true
+						// Logged as well as shown: a status notice is gone in seconds, and this is the one place the
+						// rigger is told what the new file leaves behind.
 						when (puppetDocument) {
-							is Cmo3Document -> activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
-							is Moc3Document -> activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
+							is Cmo3Document -> {
+								UmamoLog.info("saved $path from a CMO3: the CMO3 structure Umamo does not model is not in the .uma; exports from this session still reconcile onto the original")
+								activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
+							}
+							is Moc3Document -> {
+								UmamoLog.info("saved $path from a MOC3: physics, motions, expressions, user data, and pose are not in the .uma")
+								activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
+							}
 							else -> Unit
 						}
 					}

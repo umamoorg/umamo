@@ -1,6 +1,7 @@
 package org.umamo.ui.document
 
 import org.umamo.format.uma.Uma
+import org.umamo.format.uma.UmaEntryKind
 import org.umamo.format.uma.UmaFormatException
 import org.umamo.format.uma.UmaModel
 import org.umamo.format.uma.UmaReadFailure
@@ -65,9 +66,10 @@ fun umamoWriterInfo(): UmaWriterInfo = UmaWriterInfo("Umamo", ProjectInfo.VERSIO
  * puppet with its atlas and sources, and the pages come from the file when it stores them or derive
  * from the tiles when it does not.
  *
- * Failures map to the open errors the shell shows: a file that is not a UMA at all, a container newer
- * than this reader, and a damaged or malformed file each get their own.  A required entry this version
- * cannot interpret is not a failure - the codec opens it read-only and the document says so.
+ * Failures map to the open errors the shell shows: a file that is not a UMA at all, a container or a
+ * puppet entry newer than this reader, and a damaged or malformed file each get their own.  Any OTHER
+ * required entry this version cannot interpret is not a failure - the codec opens the file read-only and
+ * the document says so; only the puppet is needed to have a rig to show at all.
  *
  * @param ByteArray bytes The file's contents.
  * @param String    name  The file name, for the failure alert.
@@ -82,6 +84,13 @@ internal fun buildUmaDocument(bytes: ByteArray, name: String, path: String): Doc
 			UmamoLog.error("failed to open $path: ${failure.message}", failure)
 			return DocumentLoad.Failed(DocumentOpenFailure(openErrorOf(failure.failure), name))
 		}
+	// A puppet entry newer than this version reads is a file from a newer Umamo, not a damaged one: the
+	// codec keeps it byte for byte and reads nothing from it, so there is no rig to open, and saying "the
+	// file may be damaged" about a healthy file sends the rigger looking for the wrong problem.
+	if (uma.holdsTooNewEntry(UmaEntryKind.Puppet)) {
+		UmamoLog.warn("cannot open $path: its puppet entry needs a newer version of Umamo")
+		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NewerFormat, name))
+	}
 	// A puppet entry the file lacks fails here as a parse failure, through the caller's catch.
 	val puppet = UmaDocumentBridge.modelOf(uma)
 	val pages = UmaDocumentBridge.pagesOf(uma)
