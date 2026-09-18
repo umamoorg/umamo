@@ -38,6 +38,7 @@ import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
+import org.umamo.ui.resources.app_name
 import org.umamo.ui.resources.title_read_only
 import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
@@ -109,7 +110,7 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
 	val readOnlyMarker = stringResource(Res.string.title_read_only)
 	val name = savedPath?.let(::fileDisplayName) ?: document?.let { open -> if (open.path == null) untitled else open.displayName }
 	val markers = (if (dirty) " *" else "") + (if (readOnly) " $readOnlyMarker" else "")
-	return "Umamo" + (name?.let { " - $it$markers" }.orEmpty())
+	return stringResource(Res.string.app_name) + (name?.let { " - $it$markers" }.orEmpty())
 }
 
 /**
