@@ -69,6 +69,20 @@ class KeymapTest {
 	}
 
 	/**
+	 * Every preset reaches the document commands a rigger starts from, under the accelerators every other
+	 * application uses for them: New makes an empty document, and the artwork import - which ADDS to the
+	 * open document - keeps the chord it has always had, so a rebind saved against that id still resolves.
+	 */
+	@Test
+	fun everyPresetBindsNewAndTheArtworkImport() {
+		for (presetId in listOf("default", "cubism", "blender")) {
+			val specs = keymapPresetSpecs(presetId)
+			assertEquals("file.new", specs["primary+KeyN"], "$presetId: Ctrl+N starts a new document")
+			assertEquals("file.importArtwork", specs["primary+shift+KeyO"], "$presetId: Ctrl+Shift+O imports artwork")
+		}
+	}
+
+	/**
 	 * A malformed spec is dropped from the keymap rather than shadowing valid bindings.
 	 */
 	@Test

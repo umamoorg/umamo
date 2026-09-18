@@ -1,5 +1,6 @@
 package org.umamo.editor.desktop
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -12,6 +13,7 @@ import androidx.compose.ui.window.application
 import io.github.vinceglb.filekit.FileKit
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.editor.desktop.viewport.OffscreenPuppetService
 import org.umamo.format.FileKind
 import org.umamo.runtime.model.ParameterId
@@ -29,9 +31,11 @@ import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.loadDocument
+import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
+import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
@@ -82,6 +86,23 @@ private fun loadInitialDocument(initialPath: String?): Document? {
 }
 
 /**
+ * The window title: the app name, the open document's name, and the unsaved marker.
+ *
+ * A document with no file is named here rather than by [Document.displayName], which is the plain-text
+ * name the log and an export's suggested file name need; the title is chrome, so it localizes.
+ *
+ * @param Document? document The open document.
+ * @param Boolean   dirty    Whether the session has unsaved edits.
+ * @return String The title.
+ */
+@Composable
+private fun windowTitleFor(document: Document?, dirty: Boolean): String {
+	val untitled = stringResource(Res.string.title_untitled_document)
+	val name = document?.let { open -> if (open.path == null) untitled else open.displayName }
+	return "Umamo" + (name?.let { " - $it${if (dirty) " *" else ""}" }.orEmpty())
+}
+
+/**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
  * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
  * native `:storage` dialogs. An initial document may come from a `.cmo3`/`.moc3` argument or
@@ -110,7 +131,8 @@ fun main(args: Array<String>) {
 	// the application closure lives for the whole run, so a direct capture would keep the first
 	// document reachable after the user opens something else.  remember empties the holder on first
 	// composition; only the path string stays behind for the recent-files record.
-	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath))
+	// A failed or absent argv load still opens a document - the new, empty one the editor starts in.
+	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath) ?: newBlankDocument())
 	val initialDocumentPath = initialDocumentHolder.get()?.path
 	val storage = desktopAppStorage("umamo")
 	val settings = runBlocking { Settings.load(storage, defaultSettingsJson()) }
@@ -158,7 +180,9 @@ fun main(args: Array<String>) {
 			// Window + taskbar/dock icon.  painterResource decodes the bundled app_icon PNG (the same
 			// mascot the packaged installer icons derive from); regenerate via docs/design/appicon/generate.sh.
 			icon = painterResource(Res.drawable.app_icon),
-			title = "Umamo" + (document?.let { " - ${it.displayName}${if (dirty) " *" else ""}" }.orEmpty()),
+			// A document that has never been saved has no file name to show, so the title localizes its own
+			// name for it rather than showing the plain-text one the log and export names use.
+			title = windowTitleFor(document, dirty),
 		) {
 			// The session is derived HERE, in the composition that reads the document, and not in the
 			// application scope above.  Window content is its own composition: it reads the document

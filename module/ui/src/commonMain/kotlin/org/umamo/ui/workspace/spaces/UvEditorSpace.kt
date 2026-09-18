@@ -155,7 +155,6 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val displayWidth = layerView?.width ?: resolvedPage?.pageWidth
 	val displayHeight = layerView?.height ?: resolvedPage?.pageHeight
 	if (displayWidth == null || displayHeight == null) {
-		PlaceholderSpace(stringResource(Res.string.space_uv))
 		return
 	}
 

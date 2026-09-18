@@ -81,8 +81,9 @@ fun prepareCmo3Export(
 		// An artwork-origin document has no retained graph either: the pages it packed at open, or the
 		// session's repack of them, are re-encoded and synthesized into a fresh graph the same way,
 		// with the document's own rasters handed over so every tile writes its real layer rather than
-		// a slice of a page.
-		is ArtDocument -> {
+		// a slice of a page.  A new document that was never saved is the same case - whatever artwork
+		// was brought into it is in its own store, and an untouched one synthesizes an empty rig.
+		is ArtDocument, is BlankDocument -> {
 			val result =
 				Cmo3Conversion.freshCmo3(
 					puppet = edited,

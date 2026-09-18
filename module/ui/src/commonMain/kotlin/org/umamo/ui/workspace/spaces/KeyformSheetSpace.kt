@@ -198,7 +198,6 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				modifier = Modifier.padding(end = SCROLLBAR_THICKNESS),
 			)
 			if (puppet == null || targetedParameters.isEmpty()) {
-				EmptySheetNotice(stringResource(Res.string.keyform_sheet_no_parameter))
 				return@Box
 			}
 			// The filter is a projection INPUT, not a draw-time skip: a filtered-out track has to be absent

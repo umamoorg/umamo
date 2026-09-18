@@ -4,7 +4,6 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.render.SourceArtRasters
 import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.model.SessionAtlasPages
 import java.io.File
@@ -86,11 +85,8 @@ class DocumentSwapRetentionTest {
 				"DrawableThumbnailer" to WeakReference<Any>(thumbnails),
 				"SessionAtlasPages" to WeakReference<Any>(sessionAtlasPages),
 			)
-		// The shared EMPTY store is a permanent singleton, so it only counts when this document built
-		// its own.
-		if (document.artRasters !== SourceArtRasters.EMPTY) {
-			references.add("SourceArtRasters" to WeakReference<Any>(document.artRasters))
-		}
+		// Every document builds its own raster store, so this one is always the document's to release.
+		references.add("SourceArtRasters" to WeakReference<Any>(document.artRasters))
 		return references
 	}
 

@@ -157,6 +157,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+PageDown" to "workspace.next",
 		// Ctrl+O drives CMO3 import while it is the only way in; it moves to UMA Open when that
 		// lands.  Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
+		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.importCmo3",
 		"primary+shift+KeyO" to "file.importArtwork",
 		"primary+KeyZ" to "edit.undo",
@@ -223,6 +224,7 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		"primary+PageDown" to "workspace.next",
 		// Ctrl+O drives CMO3 import while it is the only way in (the format Cubism migrants bring);
 		// Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
+		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.importCmo3",
 		"primary+shift+KeyO" to "file.importArtwork",
 		// Undo / redo: Ctrl+Z plus both redo conventions Cubism migrants carry (Ctrl+Shift+Z and Ctrl+Y).
@@ -257,6 +259,7 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"primary+PageDown" to "workspace.next",
 		// Ctrl+O drives CMO3 import while it is the only way in; it moves to UMA Open when that
 		// lands.  Ctrl+S stays unbound - reserved for UMA Save (an export is not a save).
+		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.importCmo3",
 		"primary+shift+KeyO" to "file.importArtwork",
 		"primary+KeyZ" to "edit.undo",
