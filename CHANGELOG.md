@@ -7,10 +7,13 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* Format: New native UMA file format!
+* UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.
 
 ### Changed
+* UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
 * UI: Add Artwork and Import Artwork have been standardized to just import and add artwork to the open document.
 * UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
 
@@ -18,6 +21,7 @@ Umamo is early alpha.
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
 * UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
+* Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 
 
 ## 0.3.0-dev - 2026-09-15

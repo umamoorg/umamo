@@ -17,6 +17,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
+import org.umamo.render.encodeAtlasPng
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
@@ -63,6 +64,19 @@ class Moc3Document(
 	 * rather than a shared empty instance, whose contents would follow the next document.
 	 */
 	override val artRasters: SourceArtRasters = SourceArtRasters { null }
+
+	/**
+	 * The page PNGs in DECODED page order: the retained bytes where the family had them, a re-encode of the
+	 * decoded page where it did not.
+	 *
+	 * The decoded set is the list, because that is what the drawables' page indices were resolved against;
+	 * the retained bytes are only the preferred payload for each of those pages.  Re-encoding rather than
+	 * skipping a page the family lacks keeps every later page's number under the drawables that reference it.
+	 * Both the CMO3 export's image chain and a UMA save's stored render pages read this.
+	 *
+	 * @return List<ByteArray> One PNG per decoded page.
+	 */
+	fun pagePngs(): List<ByteArray> = textures.atlases.mapIndexed { pageIndex, decoded -> atlasPages.getOrNull(pageIndex) ?: encodeAtlasPng(decoded) }
 }
 
 /**

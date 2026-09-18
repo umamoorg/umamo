@@ -558,6 +558,13 @@ fun EditorShell(
 							onDismiss = { overlays.openFailure = null },
 						)
 					}
+					// A message the app layer raised (document.alert), in the same modal family.
+					overlays.pendingAlert?.let { alert ->
+						MessageDialog(
+							message = stringResource(alert.message, *alert.arguments.toTypedArray()),
+							onDismiss = { overlays.pendingAlert = null },
+						)
+					}
 					// The export report, in the same modal family: advisory only - the export has already
 					// been written when it shows.
 					overlays.exportReport?.let { report ->
@@ -733,4 +740,5 @@ private fun openFailureMessage(error: DocumentOpenError): StringResource =
 		DocumentOpenError.MissingManifest -> Res.string.open_failed_missing_manifest
 		DocumentOpenError.MissingTexture -> Res.string.open_failed_missing_texture
 		DocumentOpenError.NoArtLayers -> Res.string.open_failed_no_art_layers
+		DocumentOpenError.NewerFormat -> Res.string.open_failed_newer_format
 	}

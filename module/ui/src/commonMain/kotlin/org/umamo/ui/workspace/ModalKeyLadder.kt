@@ -67,6 +67,13 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				}
 				true
 			}
+			// A message from the app layer (a read-only open, a failed save) dismisses the same way.
+			overlays.pendingAlert != null -> {
+				if (isEscapeDown || isEnterDown) {
+					overlays.pendingAlert = null
+				}
+				true
+			}
 			// The export-report alert is modal the same way: Escape or Enter dismisses it (the export
 			// itself already happened; this only acknowledges the notices).
 			overlays.exportReport != null -> {

@@ -310,6 +310,21 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
+	fun anAppAlertTakesEscapeOrEnterAndSwallowsEverythingElse() {
+		val overlays = ShellOverlayState().apply { pendingAlert = AlertRequest(Res.string.cmd_mesh_grab) }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(press(Key.Spacebar, state))
+		assertNotNull(overlays.pendingAlert, "every other key is swallowed")
+		assertTrue(enter(state))
+		assertNull(overlays.pendingAlert, "Enter acknowledges it")
+
+		overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab)
+		assertTrue(escape(state))
+		assertNull(overlays.pendingAlert, "and so does Escape")
+	}
+
+	@Test
 	fun theOpenFailureAlertTakesEscapeOrEnter() {
 		val overlays =
 			ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }
