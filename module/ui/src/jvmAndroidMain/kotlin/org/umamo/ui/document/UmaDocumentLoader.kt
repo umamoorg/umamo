@@ -54,6 +54,7 @@ class UmaDocument(
 /**
  * The writer record this application stamps into every `.uma` it saves: the manifest's `writer` names
  * the app and the version, which is what a later reader shows for "made by a newer Umamo".
+ * Do NOT attempt to localize the "Umamo" application name or pull in the app_name string.
  *
  * @return UmaWriterInfo The record.
  */
