@@ -1,6 +1,8 @@
 package org.umamo.editor.desktop.viewport
 
+import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -108,5 +110,38 @@ class ViewportAreaRegistryTest {
 		val slot = registry.areas.getValue("uv")
 		assertEquals(RenderScene.UvScene, slot.scene, "the surviving hold keeps the area a UV scene")
 		assertEquals(UvSceneContent.AtlasPage(1), slot.uvContent, "with the content the rebuilt leaf registered")
+	}
+
+	/**
+	 * A camera seeded before an area registers is the one the area opens on, in place of a fit - how a saved
+	 * document reopens each area on the view it was left with (docs/format/UMA.md § 7.3).
+	 */
+	@Test
+	fun aSeededCameraIsWhatTheAreaOpensOn() {
+		val registry = ViewportAreaRegistry()
+		val saved = ViewportCamera(120f, -340f, 2.5f)
+		registry.seedCameras(mapOf("viewport" to saved, "never-shown" to ViewportCamera(1f, 1f, 1f)))
+		registry.register("viewport")
+		registry.register("fresh")
+		val fitBounds = ContentBounds(0f, -100f, 100f, 100f)
+
+		val restored = registry.establishCamera(registry.areas.getValue("viewport"), "viewport", 800, 600) { error("a seeded area must not fit") }
+		val fitted = registry.establishCamera(registry.areas.getValue("fresh"), "fresh", 800, 600) { fitBounds }
+
+		assertEquals(saved, restored)
+		assertEquals(ViewportCamera.fit(fitBounds, 800, 600), fitted, "an area with nothing saved fits its content, as before")
+		assertEquals(setOf("viewport", "never-shown", "fresh"), registry.cameras().keys, "every remembered camera is readable for the next save")
+	}
+
+	/** Seeding never moves an area that already has a camera: it is for the moment the engine is built. */
+	@Test
+	fun seedingLeavesAnEstablishedCameraAlone() {
+		val registry = ViewportAreaRegistry()
+		registry.register("viewport")
+		val established = registry.establishCamera(registry.areas.getValue("viewport"), "viewport", 800, 600) { ContentBounds(0f, -100f, 100f, 100f) }
+
+		registry.seedCameras(mapOf("viewport" to ViewportCamera(9f, 9f, 9f)))
+
+		assertEquals(established, registry.cameras()["viewport"])
 	}
 }

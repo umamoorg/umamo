@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import kotlinx.serialization.json.JsonObject
 import org.umamo.format.uma.Uma
 import org.umamo.format.uma.UmaEntryKind
 import org.umamo.format.uma.UmaFormatException
@@ -19,6 +20,8 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
+import org.umamo.ui.workspace.EDITOR_STATE_SESSION
+import org.umamo.ui.workspace.savedPoseOf
 
 /**
  * A rig opened from Umamo's own `.uma` file - the one format the editor opens and saves rather than
@@ -107,7 +110,9 @@ internal fun buildUmaDocument(bytes: ByteArray, name: String, path: String): Doc
 	if (uma.isReadOnly) {
 		UmamoLog.warn("opened $path read-only: " + uma.readOnlyReasons.joinToString { reason -> "'${reason.path}' (${reason.kind}): ${reason.cause}" })
 	}
-	return DocumentLoad.Loaded(UmaDocument(path, uma, puppet, textures, artRasters, initialLiveParams(puppet), stored))
+	// The pose the document was saved with is editor state, read tolerantly and never an input to the model (UMA §7.4).
+	val savedPose = savedPoseOf(uma.editorState?.get(EDITOR_STATE_SESSION) as? JsonObject)
+	return DocumentLoad.Loaded(UmaDocument(path, uma, puppet, textures, artRasters, initialLiveParams(puppet, savedPose), stored))
 }
 
 /**

@@ -20,6 +20,9 @@ import kotlinx.serialization.json.intOrNull
 /** The root member holding each area's block, keyed by area id (UMA §7.2). */
 const val EDITOR_STATE_AREAS: String = "areas"
 
+/** An area block's camera member: `[centerX, centerY, zoom]` (UMA §7.3). */
+internal const val AREA_CAMERA_MEMBER: String = "camera"
+
 /** An area block's members in the order a writer lays them down (UMA §7.3, §7.5). */
 internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("camera", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
 

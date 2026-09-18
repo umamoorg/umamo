@@ -60,6 +60,9 @@ data class ProportionalEditState(
 	val connectedOnly: Boolean = false,
 )
 
+/** The proportional configuration a session starts with: the smooth falloff at the default radius. */
+val DEFAULT_PROPORTIONAL_EDIT_STATE: ProportionalEditState = ProportionalEditState(ProportionalFalloff.Smooth, DEFAULT_PROPORTIONAL_RADIUS_WORLD)
+
 /**
  * The falloff weight at a normalized distance: 1 at the selection (distance 0), 0 at and beyond the
  * radius edge (distance >= 1), shaped in between by the curve.  The formulas match Blender's

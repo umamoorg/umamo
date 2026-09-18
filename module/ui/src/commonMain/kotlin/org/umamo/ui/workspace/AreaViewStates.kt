@@ -1,9 +1,12 @@
 package org.umamo.ui.workspace
 
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import org.umamo.render.ViewportCamera
 
 /**
  * Every area's view state for ONE open document: the scope each area parks its space state on, seeded from what
@@ -28,6 +31,31 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 	 * debounced: a save right after a split would otherwise miss the new area.
 	 */
 	var layoutAreaIds: List<String> = emptyList()
+
+	/**
+	 * Reads every area's camera from the platform's render service, parked here by whoever builds that service
+	 * and cleared when it goes; null where there is none (Android today).  The holder is the rendezvous because
+	 * both sides already meet at it by area id - the save path never has to reach into the viewport.
+	 */
+	var cameraReader: (() -> Map<String, ViewportCamera>)? = null
+
+	/**
+	 * The cameras the document was saved with, by area id (UMA §7.3): `[centerX, centerY, zoom]` with a zoom above
+	 * zero.  Anything else is skipped, and that area fits its content as a fresh one does.
+	 *
+	 * @return Map The saved cameras.
+	 */
+	fun restoredCameras(): Map<String, ViewportCamera> {
+		val cameras = HashMap<String, ViewportCamera>()
+		for ((areaId, block) in restoredAreas.orEmpty()) {
+			val components = (block as? JsonObject)?.let { areaBlock -> floatListOf(areaBlock, AREA_CAMERA_MEMBER, 3) } ?: continue
+			val (centerX, centerY, zoom) = components
+			if (zoom > 0f) {
+				cameras[areaId] = ViewportCamera(centerX, centerY, zoom)
+			}
+		}
+		return cameras
+	}
 
 	/**
 	 * The scope for [areaId], created on first use over the block the document saved for that id.
@@ -58,8 +86,22 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 					put(staleAreaId, JsonNull)
 				}
 			}
+			val cameras = cameraReader?.invoke().orEmpty()
 			for (areaId in layoutAreaIds) {
-				scopesByAreaId[areaId]?.let { scope -> put(areaId, scope.gather()) }
+				val spaces = scopesByAreaId[areaId]?.gather()
+				val camera = cameras[areaId]?.takeIf { view -> view.centerX.isFinite() && view.centerY.isFinite() && view.zoom.isFinite() }
+				if (spaces == null && camera == null) {
+					continue
+				}
+				put(
+					areaId,
+					buildJsonObject {
+						// UMA §7.3: `camera` leads the block.  It is named only when the engine holds one for the area; an
+						// area showing another space today keeps the view it was saved with for the day it shows a viewport again.
+						camera?.let { view -> put(AREA_CAMERA_MEMBER, JsonArray(listOf(JsonPrimitive(view.centerX), JsonPrimitive(view.centerY), JsonPrimitive(view.zoom)))) }
+						spaces?.forEach { (memberName, member) -> put(memberName, member) }
+					},
+				)
 			}
 		}
 	}

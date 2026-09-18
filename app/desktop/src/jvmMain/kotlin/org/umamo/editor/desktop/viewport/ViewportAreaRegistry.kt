@@ -114,6 +114,26 @@ internal class ViewportAreaRegistry {
 	// areas ever shown (a few floats each) and is not evicted (session-bounded, negligible cost).
 	private val rememberedCameras = ConcurrentHashMap<String, ViewportCamera>()
 
+	/**
+	 * Every remembered camera, by area id - the areas shown now and the ones a workspace switch put away.
+	 *
+	 * @return Map A copy of the remembered cameras.
+	 */
+	fun cameras(): Map<String, ViewportCamera> = HashMap(rememberedCameras)
+
+	/**
+	 * Remembers [cameras] as though each area had been shown with it, so an area registering for the first time
+	 * opens on its saved view rather than a fit.  Meant for the moment the engine is built, before any area
+	 * registers; an area that already has a camera keeps it.
+	 *
+	 * @param Map cameras The saved cameras, by area id.
+	 */
+	fun seedCameras(cameras: Map<String, ViewportCamera>) {
+		for ((areaId, camera) in cameras) {
+			rememberedCameras.putIfAbsent(areaId, camera)
+		}
+	}
+
 	// Zoom increments in percentage points, fed from settings (viewport.zoomStep*Percent): the fine step is
 	// one wheel notch / keyboard press, the coarse step is the Shift-held variant. Defaults mirror
 	// defaultSettings.json. UI thread only.
