@@ -19,6 +19,7 @@ import io.github.vinceglb.filekit.readString
 import io.github.vinceglb.filekit.write
 import io.github.vinceglb.filekit.writeString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -421,56 +422,83 @@ fun EditorApp(
 			activeSession.emitNotice("notice.document.saveBusy", NoticePlacement.StatusBar)
 			return
 		}
-		scope.launch {
-			val knownPath = file.umaPath
-			val destination =
-				if (!saveAs && knownPath != null) {
-					platformFileFromSavedPath(knownPath)
-				} else {
-					// The native save dialog owns the overwrite prompt: a .uma is one file, unlike the MOC3 family.
-					filePicker.saveFile(file.suggestedBaseName ?: currentUntitledName, FileKind.Uma.extension) ?: return@launch
-				}
-			val snapshot = activeSession.model.value
-			val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
-			val base = file.base ?: UmaModel.create(umamoWriterInfo())
-			file.saving = true
-			activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
-			val outcome = writeUmaDocument(puppetDocument, base, snapshot, binding, destination)
-			file.saving = false
-			when (outcome) {
-				is UmaWriteOutcome.Written -> {
-					activeSession.markSaved(snapshot)
-					val path = destination.absolutePath()
-					file.umaPath = path
-					file.base = outcome.uma
-					settings.addRecentFile(path)
-					UmamoLog.info("saved $path")
-					activeSession.emitNotice("notice.document.saved", NoticePlacement.StatusBar, listOf(fileDisplayName(path)))
-					// Once per document, what a .uma of this origin does not carry (pinned with R3): shown after
-					// the saved notice, so it is the one left on screen.
-					if (!file.lossNoticeShown) {
-						file.lossNoticeShown = true
-						// Logged as well as shown: a status notice is gone in seconds, and this is the one place the
-						// rigger is told what the new file leaves behind.
-						when (puppetDocument) {
-							is Cmo3Document -> {
-								UmamoLog.info("saved $path from a CMO3: the CMO3 structure Umamo does not model is not in the .uma; exports from this session still reconcile onto the original")
-								activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
-							}
-							is Moc3Document -> {
-								UmamoLog.info("saved $path from a MOC3: physics, motions, expressions, user data, and pose are not in the .uma")
-								activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
-							}
-							else -> Unit
-						}
+		// Kept on the holder as the save in flight, so a quit or a document replace asked for meanwhile waits
+		// for it instead of racing it (afterPendingSave below); it completes true only when the file landed.
+		file.saveJob =
+			scope.async {
+				val knownPath = file.umaPath
+				val destination =
+					if (!saveAs && knownPath != null) {
+						platformFileFromSavedPath(knownPath)
+					} else {
+						// The native save dialog owns the overwrite prompt: a .uma is one file, unlike the MOC3 family.
+						filePicker.saveFile(file.suggestedBaseName ?: currentUntitledName, FileKind.Uma.extension) ?: return@async false
 					}
-					onSaved()
-				}
-				is UmaWriteOutcome.Failed -> {
-					commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_save_failed, listOf(destination.name, outcome.reason)))
+				val snapshot = activeSession.model.value
+				val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
+				val base = file.base ?: UmaModel.create(umamoWriterInfo())
+				file.saving = true
+				activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
+				val outcome =
+					try {
+						writeUmaDocument(puppetDocument, base, snapshot, binding, destination)
+					} finally {
+						file.saving = false
+					}
+				when (outcome) {
+					is UmaWriteOutcome.Written -> {
+						activeSession.markSaved(snapshot)
+						val path = destination.absolutePath()
+						file.umaPath = path
+						file.base = outcome.uma
+						settings.addRecentFile(path)
+						UmamoLog.info("saved $path")
+						activeSession.emitNotice("notice.document.saved", NoticePlacement.StatusBar, listOf(fileDisplayName(path)))
+						// Once per document, what a .uma of this origin does not carry (pinned with R3): shown after
+						// the saved notice, so it is the one left on screen.
+						if (!file.lossNoticeShown) {
+							file.lossNoticeShown = true
+							// Logged as well as shown: a status notice is gone in seconds, and this is the one place the
+							// rigger is told what the new file leaves behind.
+							when (puppetDocument) {
+								is Cmo3Document -> {
+									UmamoLog.info("saved $path from a CMO3: the CMO3 structure Umamo does not model is not in the .uma; exports from this session still reconcile onto the original")
+									activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
+								}
+								is Moc3Document -> {
+									UmamoLog.info("saved $path from a MOC3: physics, motions, expressions, user data, and pose are not in the .uma")
+									activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
+								}
+								else -> Unit
+							}
+						}
+						onSaved()
+						true
+					}
+					is UmaWriteOutcome.Failed -> {
+						commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_save_failed, listOf(destination.name, outcome.reason)))
+						false
+					}
 				}
 			}
+	}
+
+	// A save still being written settles before anything that would end the process or replace the
+	// document.  The write runs on a thread the process does not wait for, so a quit that went ahead mid-save
+	// killed it - and a clean document (an import never edited) has nothing unsaved to stop the quit with.
+	// Waiting also keeps the unsaved-changes prompt from appearing over a save that is already running, where
+	// its Save button could only answer "a save is already in progress".
+	fun afterPendingSave(action: () -> Unit) {
+		val file = currentDocumentFile
+		if (file == null) {
+			action()
+			return
 		}
+		file.afterPendingSave(
+			scope,
+			onWaiting = { currentSession?.emitNotice("notice.document.waitingForSave", NoticePlacement.StatusBar) },
+			action = action,
+		)
 	}
 
 	// The choices a dirty document's prompt offers: go on without saving, or save first and go on once
@@ -485,10 +513,12 @@ fun EditorApp(
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
-		if (currentSession?.dirty?.value == true) {
-			commandRegistry.invoke("document.confirmReplace", dirtyDocumentPrompt(proceed))
-		} else {
-			proceed()
+		afterPendingSave {
+			if (currentSession?.dirty?.value == true) {
+				commandRegistry.invoke("document.confirmReplace", dirtyDocumentPrompt(proceed))
+			} else {
+				proceed()
+			}
 		}
 	}
 
@@ -496,10 +526,12 @@ fun EditorApp(
 	// (document.confirmExit).  File > Exit calls this directly; the host's window close, OS quit, and back
 	// gesture reach it through the exitGuard installed below.
 	fun confirmExit(exit: () -> Unit) {
-		if (currentSession?.dirty?.value == true) {
-			commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exit))
-		} else {
-			exit()
+		afterPendingSave {
+			if (currentSession?.dirty?.value == true) {
+				commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exit))
+			} else {
+				exit()
+			}
 		}
 	}
 

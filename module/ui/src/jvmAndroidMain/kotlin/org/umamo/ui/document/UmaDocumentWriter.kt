@@ -3,6 +3,7 @@ package org.umamo.ui.document
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.name
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import okio.IOException
 import org.umamo.format.png.PngCodec
@@ -75,7 +76,10 @@ suspend fun writeUmaDocument(
 		return outcome
 	}
 	return try {
-		destination.writeReplacing(bytes)
+		// Not cancellable: a composition torn down mid-save (Android's back, a closing window) cancels the
+		// scope this runs in, and a write interrupted there leaves a partial file - in place on Android,
+		// where there is no temporary to discard.  Once the bytes exist, they land.
+		withContext(NonCancellable) { destination.writeReplacing(bytes) }
 		outcome
 	} catch (failure: IOException) {
 		UmamoLog.error("save: could not write ${destination.name}", failure)

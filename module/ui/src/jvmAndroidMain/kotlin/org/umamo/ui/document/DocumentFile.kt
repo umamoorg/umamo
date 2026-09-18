@@ -3,6 +3,9 @@ package org.umamo.ui.document
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.launch
 import org.umamo.format.uma.UmaModel
 
 /**
@@ -37,6 +40,41 @@ class DocumentFile(origin: Document) {
 
 	/** True while a save is running; a second save asked meanwhile is refused with a notice. */
 	var saving: Boolean by mutableStateOf(false)
+
+	/**
+	 * The save in flight, completing true when the file landed and false when it did not (a cancelled
+	 * dialog, a refused or failed write); null before the first save.  Kept so that whatever would end the
+	 * process or replace the document can wait for it ([afterPendingSave]).
+	 */
+	var saveJob: Deferred<Boolean>? = null
+
+	/**
+	 * Runs [action] once no save is being written: at once when none is in flight, else when the one in
+	 * flight lands - and not at all when it fails.
+	 *
+	 * Quitting is what makes this necessary.  The write runs on a background thread the process does not
+	 * wait for, so an exit that went ahead mid-save killed it, leaving a partial temporary on disk and no
+	 * file - for a document that reads as clean, since an import that was never edited has nothing unsaved
+	 * to ask about.  A failed save abandons the action because the rigger asked for a file and did not get
+	 * one; the failure alert says why, and quitting is theirs to ask for again.
+	 *
+	 * @param CoroutineScope scope     The scope the wait runs in.
+	 * @param Function       onWaiting Called when there is a save to wait for, before the wait.
+	 * @param Function       action    What to do once nothing is being written.
+	 */
+	fun afterPendingSave(scope: CoroutineScope, onWaiting: () -> Unit = {}, action: () -> Unit) {
+		val pending = saveJob
+		if (pending == null || pending.isCompleted) {
+			action()
+			return
+		}
+		onWaiting()
+		scope.launch {
+			if (pending.await()) {
+				action()
+			}
+		}
+	}
 
 	/** Whether the once-per-document loss notice of a CMO3- or MOC3-origin document has been posted. */
 	var lossNoticeShown: Boolean = false

@@ -538,6 +538,7 @@
 	<string name="notice_document_saving">保存中…</string>
 	<string name="notice_document_saved">%1$s を保存しました。</string>
 	<string name="notice_document_save_busy">保存を実行中です。</string>
+	<string name="notice_document_waiting_for_save">先に保存を完了しています…</string>
 	<string name="notice_document_cmo3_loss">UMA として保存しました。Umamo が扱わない CMO3 の構造はこのファイルには含まれません。このセッションのエクスポートは引き続き元の CMO3 に照合されます。</string>
 	<string name="notice_document_moc3_loss">UMA として保存しました。MOC3 ファミリーの物理演算、モーション、表情、ユーザーデータ、ポーズはこのファイルには含まれません。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>

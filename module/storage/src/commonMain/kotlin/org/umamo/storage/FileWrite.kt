@@ -14,6 +14,11 @@ import kotlin.random.Random
  * still whatever it was.  A sibling rather than a system temp directory because a rename is atomic only
  * within one file system.
  *
+ * A process killed mid-write (a crash, a power cut, a forced quit) cannot run that cleanup, and a
+ * document-sized temporary is left beside the target.  The next save of the same file sweeps any such
+ * leftover before writing its own, so it costs one save at most; the prefix is this function's own, so
+ * nothing else is ever touched.
+ *
  * The file system is a parameter so the rule tests against okio's in-memory file system; the platform
  * seam hands it the real one.
  *
@@ -24,7 +29,17 @@ import kotlin.random.Random
  */
 internal fun writeReplacing(fileSystem: FileSystem, target: Path, bytes: ByteArray) {
 	val directory = target.parent ?: throw IOException("$target has no directory to write a temporary in")
-	val temporary = directory / ".${target.name}.tmp-${Random.nextLong().toULong().toString(16)}"
+	val temporaryPrefix = ".${target.name}.tmp-"
+	for (sibling in fileSystem.listOrNull(directory).orEmpty()) {
+		if (sibling.name.startsWith(temporaryPrefix)) {
+			try {
+				fileSystem.delete(sibling, mustExist = false)
+			} catch (_: IOException) {
+				// A leftover that will not delete is not a reason to fail the save that found it.
+			}
+		}
+	}
+	val temporary = directory / "$temporaryPrefix${Random.nextLong().toULong().toString(16)}"
 	try {
 		fileSystem.write(temporary) { write(bytes) }
 		fileSystem.atomicMove(temporary, target)

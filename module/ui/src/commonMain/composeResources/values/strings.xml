@@ -585,6 +585,7 @@
 	<string name="notice_document_saving">Saving…</string>
 	<string name="notice_document_saved">Saved %1$s.</string>
 	<string name="notice_document_save_busy">A save is already in progress.</string>
+	<string name="notice_document_waiting_for_save">Waiting on save to finish…</string>
 	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3 structure Umamo does not model is not carried in this file; exports from this session still reconcile onto the original.</string>
 	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>

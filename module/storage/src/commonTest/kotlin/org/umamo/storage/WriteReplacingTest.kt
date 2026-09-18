@@ -51,6 +51,27 @@ class WriteReplacingTest {
 		assertEquals(listOf(target), fileSystem.list(directory))
 	}
 
+	/**
+	 * A process killed mid-save leaves its temporary behind; the next save of that file sweeps it, and
+	 * touches nothing that is not its own.
+	 */
+	@Test
+	fun aLeftoverTemporaryIsSweptByTheNextSaveOfThatFile() {
+		val fileSystem = fileSystem()
+		val target = directory / "rig.uma"
+		val leftover = directory / ".rig.uma.tmp-deadbeef"
+		val anothersTemporary = directory / ".other.uma.tmp-cafe"
+		val lookAlike = directory / "rig.uma.tmp-notes"
+		for (path in listOf(leftover, anothersTemporary, lookAlike)) {
+			fileSystem.write(path) { write(byteArrayOf(0)) }
+		}
+
+		writeReplacing(fileSystem, target, byteArrayOf(5, 5))
+
+		assertEquals(listOf(anothersTemporary, target, lookAlike).sortedBy { path -> path.name }, fileSystem.list(directory).sortedBy { path -> path.name }, "only this file's own leftover went")
+		assertContentEquals(byteArrayOf(5, 5), fileSystem.read(target) { readByteArray() })
+	}
+
 	@Test
 	fun aFailedWriteLeavesTheOldFileAndNoTemporary() {
 		val disk = fileSystem()
