@@ -42,7 +42,6 @@ import org.umamo.ui.model.OverlapPickerPopup
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
-import org.umamo.ui.resources.space_uv
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PlacementDragStatus

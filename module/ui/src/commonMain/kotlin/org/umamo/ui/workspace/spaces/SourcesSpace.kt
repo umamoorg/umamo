@@ -196,7 +196,7 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	}
 
 	if (tree.isEmpty()) {
-		Box(modifier = modifier.fillMaxSize().zebraFill(listState, SOURCES_ROW_HEIGHT, colors.rowStripe));
+		Box(modifier = modifier.fillMaxSize().zebraFill(listState, SOURCES_ROW_HEIGHT, colors.rowStripe))
 		return
 	}
 	LazyColumn(

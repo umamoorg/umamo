@@ -33,7 +33,7 @@ class ExitGuardTest {
 
 		assertEquals(0, exitCount, "the guard holds the exit while it asks")
 		assertNotNull(held, "and keeps it to run later")
-		held?.invoke()
+		held.invoke()
 		assertEquals(1, exitCount)
 	}
 

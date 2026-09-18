@@ -163,26 +163,55 @@ internal class ZipArchive private constructor(
 				throw ZipFormatException("$size bytes is too short to be a ZIP archive")
 			}
 			val lowestCandidate = maxOf(0, size - ZipRecords.END_SIZE - ZipRecords.MAXIMUM_COMMENT_LENGTH)
+			// A candidate that declares Zip64 records the archive lacks is remembered rather than thrown: a
+			// look-alike may still be followed by the genuine record, but if nothing qualifies, its reason
+			// names the actual damage instead of the generic one.
+			var zip64Failure: String? = null
 			for (candidate in lowestCandidate..size - ZipRecords.END_SIZE) {
 				if (reader.u32(candidate) == ZipRecords.END_SIGNATURE.toLong() &&
 					// ZIP: end record @ +0x14 comment length (APPNOTE.TXT 4.3.16).
 					candidate + ZipRecords.END_SIZE + reader.u16(candidate + 20) == size
 				) {
-					centralDirectoryFromEnd(reader, candidate)?.let { directory -> return directory }
+					when (val match = centralDirectoryFromEnd(reader, candidate)) {
+						is EndRecordMatch.Found -> return match.directory
+						is EndRecordMatch.Zip64Missing -> zip64Failure = match.reason
+						EndRecordMatch.LookAlike -> Unit
+					}
 				}
 			}
-			throw ZipFormatException("no end of central directory record: the archive is truncated or not a ZIP")
+			throw ZipFormatException(zip64Failure ?: "no end of central directory record: the archive is truncated or not a ZIP")
+		}
+
+		/** What examining one end record candidate found. */
+		private sealed interface EndRecordMatch {
+			/**
+			 * The candidate is the genuine record and describes [directory].
+			 *
+			 * @property CentralDirectory directory The directory it describes.
+			 */
+			class Found(val directory: CentralDirectory) : EndRecordMatch
+
+			/**
+			 * The candidate carries Zip64 sentinels but no Zip64 locator precedes it, so it describes nothing
+			 * this archive holds; [reason] is what to report if no other candidate qualifies.
+			 *
+			 * @property String reason The failure to report.
+			 */
+			class Zip64Missing(val reason: String) : EndRecordMatch
+
+			/** The candidate describes no directory this archive holds: bytes inside a comment. */
+			object LookAlike : EndRecordMatch
 		}
 
 		/**
-		 * The central directory an end record describes, or null when the record does not describe a
-		 * directory this archive actually holds (a look-alike inside a comment).
+		 * The central directory an end record describes, or why the candidate describes none: a look-alike
+		 * inside a comment, or a Zip64 record whose locator is missing.
 		 *
 		 * @param ByteReader reader   The archive, little-endian.
 		 * @param Int        endOffset The candidate end record's offset.
-		 * @return CentralDirectory? The directory, or null for a false candidate.
+		 * @return EndRecordMatch The directory, or the kind of false candidate this is.
 		 */
-		private fun centralDirectoryFromEnd(reader: ByteReader, endOffset: Int): CentralDirectory? {
+		private fun centralDirectoryFromEnd(reader: ByteReader, endOffset: Int): EndRecordMatch {
 			// ZIP: end of central directory record (APPNOTE.TXT 4.3.16) - @ +0x04 this disk, @ +0x06 the
 			// directory's disk, @ +0x08 entries on this disk, @ +0x0A total entries, @ +0x0C directory
 			// size, @ +0x10 directory offset.
@@ -202,7 +231,13 @@ internal class ZipArchive private constructor(
 			val hasLocator = locatorOffset >= 0 && reader.u32(locatorOffset) == ZipRecords.ZIP64_LOCATOR_SIGNATURE.toLong()
 
 			if (usesZip64 && hasLocator) {
-				return zip64CentralDirectory(reader, locatorOffset)
+				return EndRecordMatch.Found(zip64CentralDirectory(reader, locatorOffset))
+			}
+			// A sentinel offset or size points at nothing, so the classic checks below cannot pass; what the
+			// record says is that Zip64 records should precede it and do not.  The caller decides whether
+			// that is the archive's fault or a look-alike's.
+			if (directorySize == ZipRecords.UINT32_SENTINEL || directoryOffset == ZipRecords.UINT32_SENTINEL) {
+				return EndRecordMatch.Zip64Missing("the end record declares Zip64 records, but no Zip64 locator precedes it")
 			}
 			// A classic count of exactly 0xFFFF with no Zip64 records is a legal classic archive, read as is.
 			if (diskNumber != 0 || directoryDisk != 0 || entriesOnDisk != totalEntries) {
@@ -210,13 +245,13 @@ internal class ZipArchive private constructor(
 				return if (plausibleDirectory(reader, directoryOffset, directorySize, totalEntries.toLong(), endOffset)) {
 					throw ZipFormatException("multi-disk (split) archives are not supported")
 				} else {
-					null
+					EndRecordMatch.LookAlike
 				}
 			}
 			if (!plausibleDirectory(reader, directoryOffset, directorySize, totalEntries.toLong(), endOffset)) {
-				return null
+				return EndRecordMatch.LookAlike
 			}
-			return CentralDirectory(directoryOffset.toInt(), directorySize.toInt(), totalEntries)
+			return EndRecordMatch.Found(CentralDirectory(directoryOffset.toInt(), directorySize.toInt(), totalEntries))
 		}
 
 		/**

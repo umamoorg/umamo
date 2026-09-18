@@ -234,6 +234,9 @@ class ModalKeyLadderTest {
 			assertTrue(press(confirmKey, state))
 			assertNull(overlays.pendingConfirm, "$confirmKey dismisses the dialog")
 			assertEquals(before + 1, confirmCount, "$confirmKey runs the confirm exactly once")
+			// Released like a real key: a request raised while a confirming Enter is still down waits for
+			// the release, so the next press would otherwise count as that Enter's repeat.
+			press(confirmKey, state, isDown = false)
 		}
 	}
 
@@ -247,6 +250,63 @@ class ModalKeyLadderTest {
 		assertTrue(enter(state))
 
 		assertEquals(followUp, overlays.pendingConfirm, "the slot clears before the action runs, so the follow-up survives")
+	}
+
+	/**
+	 * The palette runs its command on Enter's key-down, so a confirm that command raises lands under a
+	 * still-held Enter.  The OS repeats a held key; without this rule the repeat would confirm a destructive
+	 * action before the dialog is seen.  Compose's key-down has no repeat flag, so the ladder tracks the
+	 * key itself: the confirm stays unarmed until that Enter is released, and only a fresh press confirms.
+	 */
+	@Test
+	fun aConfirmRaisedUnderAHeldEnterWaitsForItsRelease() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		// The ladder previews the key-down first; the command then raises the confirm under the held key.
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.Enter, state), "the auto-repeat of the same Enter is swallowed")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing")
+		assertTrue(press(Key.Enter, state, isDown = false), "the release is swallowed too")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing either")
+		assertEquals(0, confirmCount)
+
+		assertTrue(enter(state))
+		assertNull(overlays.pendingConfirm, "a fresh press confirms")
+		assertEquals(1, confirmCount, "exactly once")
+	}
+
+	@Test
+	fun aHeldNumPadEnterIsHeldEnterToo() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.NumPadEnter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNotNull(overlays.pendingConfirm, "the repeated NumPadEnter confirms nothing")
+		press(Key.NumPadEnter, state, isDown = false)
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNull(overlays.pendingConfirm, "and a fresh press confirms")
+		assertEquals(1, confirmCount)
+	}
+
+	@Test
+	fun escapeCancelsAConfirmThatEnterCannotYetConfirm() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(escape(state))
+
+		assertNull(overlays.pendingConfirm, "the arming gates Enter alone; Escape cancels as always")
+		assertEquals(0, confirmCount)
 	}
 
 	@Test

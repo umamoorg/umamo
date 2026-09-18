@@ -274,7 +274,11 @@ public class UmaModel internal constructor(
 		val encoded = UmaPuppetEntry.encode(puppet, path, scratch)
 		val merged = mergeRetainedTree(liveContent(kind), encoded, UmaPuppet.serializer().descriptor, UmaPuppetEntry.identities)
 		val ownedPath = checkNotNull(kind.bufferPath)
-		check(entries.none { entry -> entry.path == ownedPath }) { "'$ownedPath' is a manifest-listed entry, so the puppet cannot own it as its buffer" }
+		// The contract's exception, not check(): the caller's save flow catches UmaWriteException to report
+		// a document it cannot save, and a foreign writer's manifest can list this path.
+		if (entries.any { entry -> entry.path == ownedPath }) {
+			throw UmaWriteException(ownedPath, "is listed in the manifest as an entry, so the puppet cannot own it as its buffer")
+		}
 		val scratchBytes = scratch.bytes()
 		val layout = layOutBuffer(merged, ownedPath) { source -> if (source == UmaAccessor.SCRATCH_BUFFER) scratchBytes else bufferBytes(source) }
 		return withLiveContent(kind, layout.tree as JsonObject).withOwnedPayloads(kind, mapOf(ownedPath to UmaOwnedPayload(kind, layout.buffer.takeIf { layout.hasAccessors })))
@@ -367,7 +371,14 @@ public class UmaModel internal constructor(
 			return raw.storedPrefix(PAYLOAD_HEADER_BYTES)
 		}
 		if (!zipEntry.isEncrypted && zipEntry.method == ZipRecords.METHOD_DEFLATED) {
-			return inflateRawDeflate(raw.archive, zipEntry.payloadOffset, zipEntry.compressedSize, PAYLOAD_HEADER_BYTES)
+			// Only the stream's first bytes are inflated: a deflate block's Huffman tables and 64 bytes of
+			// output fit well inside the bound, and the inflater copies whatever it is handed before it starts,
+			// so handing it the whole payload would copy a page-sized PNG to read its header.  A stream too
+			// sparse for the bound (a run of empty blocks) inflates short and takes the full path instead.
+			val bounded = inflateRawDeflate(raw.archive, zipEntry.payloadOffset, minOf(zipEntry.compressedSize, PAYLOAD_HEADER_SOURCE_BYTES), PAYLOAD_HEADER_BYTES)
+			if (bounded.size >= minOf(PAYLOAD_HEADER_BYTES, zipEntry.uncompressedSize)) {
+				return bounded
+			}
 		}
 		// An entry this reader cannot inflate at all fails as reading its bytes does.
 		val bytes = decodeVerified(payload)
@@ -498,6 +509,12 @@ public class UmaModel internal constructor(
 	public companion object {
 		/** How many leading bytes [payloadHeader] returns: a PNG signature and its IHDR chunk's header fields. */
 		private const val PAYLOAD_HEADER_BYTES = 64
+
+		/**
+		 * How much of a deflated payload the header probe hands the inflater: enough for a block's
+		 * Huffman tables plus [PAYLOAD_HEADER_BYTES] of literals many times over, and nothing like a page.
+		 */
+		private const val PAYLOAD_HEADER_SOURCE_BYTES = 4096
 
 		/**
 		 * An empty document with no entries, written by [writer].
