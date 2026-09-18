@@ -50,6 +50,7 @@ import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.help.AboutDialog
 import org.umamo.ui.help.CreditsDialog
 import org.umamo.ui.kit.ConfirmDialog
+import org.umamo.ui.kit.DialogChoice
 import org.umamo.ui.kit.InlineEditController
 import org.umamo.ui.kit.LocalInlineEditController
 import org.umamo.ui.kit.LocalMenuBarController
@@ -585,11 +586,14 @@ fun EditorShell(
 								} else {
 									stringResource(request.message, *request.arguments.toTypedArray())
 								},
-							onConfirm = {
-								request.onConfirm()
-								overlays.pendingConfirm = null
-							},
-							onCancel = { overlays.pendingConfirm = null },
+							onConfirm = { overlays.confirmPending() },
+							onCancel = { overlays.cancelPending() },
+							confirmLabel = stringResource(request.confirmLabel),
+							cancelLabel = stringResource(request.cancelLabel),
+							alternative =
+								request.alternative?.let { alternative ->
+									DialogChoice(stringResource(alternative.label)) { overlays.choosePendingAlternative() }
+								},
 						)
 					}
 				}

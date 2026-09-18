@@ -7,22 +7,42 @@ import org.jetbrains.compose.resources.StringResource
 import org.umamo.interop.ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.AtlasRepackReport
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.dialog_cancel
+import org.umamo.ui.resources.dialog_confirm
 
 /**
- * A pending confirmation: the localized prompt to show and the action to run if the user confirms.  The
- * shell holds at most one of these (like its palette-visible flag) and renders a ConfirmDialog for it,
- * so a destructive command (reset, import-overwrite, export-overwrite) sets one instead of acting
- * immediately.
+ * A confirmation's third choice beside Cancel and Confirm - "Don't Save" beside "Save".
  *
- * @property StringResource message   The localized prompt shown in the dialog.
- * @property List           arguments The prompt's format arguments, in placeholder order; empty for
- *                                    an argument-free prompt.  Plain values (counts, file names) -
- *                                    document data is never translated.
- * @property Function       onConfirm The action to run when confirmed.
+ * @property StringResource label    The button's label.
+ * @property Function       onSelect The action to run when picked.
+ */
+internal data class ConfirmAlternative(
+	val label: StringResource,
+	val onSelect: () -> Unit,
+)
+
+/**
+ * A pending confirmation: the localized prompt to show, the buttons it names, and the action to run if the
+ * user confirms.  The shell holds at most one of these (like its palette-visible flag) and renders a
+ * ConfirmDialog for it, so a destructive command (reset, import-overwrite, export-overwrite) sets one instead
+ * of acting immediately.
+ *
+ * @property StringResource      message      The localized prompt shown in the dialog.
+ * @property List                arguments    The prompt's format arguments, in placeholder order; empty for
+ *                                            an argument-free prompt.  Plain values (counts, file names) -
+ *                                            document data is never translated.
+ * @property StringResource      confirmLabel The confirm button's label, naming the action it takes.
+ * @property StringResource      cancelLabel  The cancel button's label.
+ * @property ConfirmAlternative? alternative  A third choice, or null for a two-button dialog.
+ * @property Function            onConfirm    The action to run when confirmed.
  */
 internal data class ConfirmRequest(
 	val message: StringResource,
 	val arguments: List<Any> = emptyList(),
+	val confirmLabel: StringResource = Res.string.dialog_confirm,
+	val cancelLabel: StringResource = Res.string.dialog_cancel,
+	val alternative: ConfirmAlternative? = null,
 	val onConfirm: () -> Unit,
 )
 
@@ -51,6 +71,36 @@ internal class ShellOverlayState {
 	 * ConfirmDialog runs the action on confirm.  At most one is pending at a time.
 	 */
 	var pendingConfirm: ConfirmRequest? by mutableStateOf(null)
+
+	/**
+	 * Runs the pending confirmation's action - what its confirm button and Enter both do.
+	 *
+	 * The slot clears before the action runs, so an action that raises a confirmation of its own leaves that one
+	 * pending instead of having it cleared out from under it.  The key ladder and the rendered dialog both come
+	 * through here, so the two cannot disagree about what confirming means.
+	 */
+	fun confirmPending() {
+		val request = pendingConfirm ?: return
+		pendingConfirm = null
+		request.onConfirm()
+	}
+
+	/**
+	 * Dismisses the pending confirmation without acting - what its cancel button, the scrim, and Escape do.
+	 */
+	fun cancelPending() {
+		pendingConfirm = null
+	}
+
+	/**
+	 * Runs the pending confirmation's third choice, when it has one, clearing the slot first as [confirmPending]
+	 * does.
+	 */
+	fun choosePendingAlternative() {
+		val alternative = pendingConfirm?.alternative ?: return
+		pendingConfirm = null
+		alternative.onSelect()
+	}
 
 	/**
 	 * The file-open failure alert's payload - set by the document.openFailed command (dispatched by

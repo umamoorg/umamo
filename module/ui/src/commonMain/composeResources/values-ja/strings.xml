@@ -79,9 +79,16 @@
 
 	<string name="dialog_confirm">確定</string>
 	<string name="dialog_cancel">キャンセル</string>
+	<!-- 確認ボタンが汎用の「確定」の代わりに示す操作名。 -->
+	<string name="dialog_discard">破棄</string>
+	<string name="dialog_reset">リセット</string>
+	<string name="dialog_replace">置き換え</string>
+	<string name="dialog_overwrite">上書き</string>
+	<string name="dialog_quit_without_saving">保存せずに終了</string>
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
 	<string name="confirm_discard_unsaved">現在のドキュメントには保存していない変更があります。破棄しますか？</string>
+	<string name="confirm_quit_unsaved">現在のドキュメントには保存していない変更があります。保存せずに終了しますか？</string>
 	<!-- 書き出し結果の通知（document.exportReport コマンド。見出しは書き出した形式ごと。%1$s は対象メッシュ名）。 -->
 	<string name="export_report_message_cmo3">ファイルは書き出されましたが、以下は CMO3 に引き継げませんでした:</string>
 	<string name="export_report_message_moc3">ファイルは書き出されましたが、以下は MOC3 に引き継げませんでした:</string>

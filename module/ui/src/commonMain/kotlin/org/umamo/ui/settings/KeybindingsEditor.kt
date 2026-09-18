@@ -55,7 +55,6 @@ import org.umamo.ui.action.keyName
 import org.umamo.ui.action.rebindCommand
 import org.umamo.ui.action.resetKeymapOverrides
 import org.umamo.ui.action.unbindCommand
-import org.umamo.ui.kit.ConfirmDialog
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
@@ -76,8 +75,9 @@ import org.umamo.ui.resources.settings_keymap_preset_default
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.workspace.ConfirmRequest
 
-/** A captured chord that collides with another command, pending the user's reassign / cancel choice. */
+/** A captured chord that collides with another command, held until its reassign prompt is raised in the shell. */
 private data class KeybindingConflict(val commandId: String, val chord: KeyChord, val existingCommandId: String)
 
 /** Stable chip width so the chord column lines up; the "press a shortcut" prompt is the widest label. */
@@ -171,17 +171,22 @@ internal fun KeybindingsEditor() {
 			val existingTitle =
 				commands[conflict.existingCommandId]?.title?.let { titleResource -> stringResource(titleResource) }
 					?: conflict.existingCommandId
-			// Reuse the kit's ConfirmDialog (scrim + card + Cancel/Confirm) rather than a bespoke modal; only
-			// the confirm label is specialized to "Reassign".
-			ConfirmDialog(
-				message = stringResource(Res.string.settings_keybindings_conflict, formatAccelerator(conflict.chord), existingTitle),
-				onConfirm = {
-					rebindCommand(settings, conflict.commandId, conflict.chord)
-					pendingConflict = null
-				},
-				onCancel = { pendingConflict = null },
-				confirmLabel = stringResource(Res.string.settings_keybindings_reassign),
-			)
+			val chordLabel = formatAccelerator(conflict.chord)
+			// The prompt goes through the shell's one confirm slot rather than a dialog of its own, so Enter
+			// reassigns and Escape cancels it: a dialog drawn here sits outside the shell's key ladder, where
+			// Escape falls to the Preferences overlay and closes it behind the prompt.  The strings resolve
+			// here, where composition can read them, and the conflict clears once handed over.
+			LaunchedEffect(conflict) {
+				commands.invoke(
+					"document.confirm",
+					ConfirmRequest(
+						message = Res.string.settings_keybindings_conflict,
+						arguments = listOf(chordLabel, existingTitle),
+						confirmLabel = Res.string.settings_keybindings_reassign,
+					) { rebindCommand(settings, conflict.commandId, conflict.chord) },
+				)
+				pendingConflict = null
+			}
 		}
 	}
 }

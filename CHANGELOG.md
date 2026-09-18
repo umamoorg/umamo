@@ -7,10 +7,14 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* UI: Added save confirmation for dirty files when closing the application.
 
 ### Changed
+* UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
 
 ### Fixed
+* UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
+* UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 
 
 ## 0.3.0-dev - 2026-09-15

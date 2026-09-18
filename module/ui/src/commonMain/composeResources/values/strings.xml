@@ -98,9 +98,16 @@
 	<!-- Dialogs (the reusable confirm dialog: actions + destructive-operation prompts). -->
 	<string name="dialog_confirm">Confirm</string>
 	<string name="dialog_cancel">Cancel</string>
+	<!-- The verbs a confirm button names instead of the generic Confirm. -->
+	<string name="dialog_discard">Discard</string>
+	<string name="dialog_reset">Reset</string>
+	<string name="dialog_replace">Replace</string>
+	<string name="dialog_overwrite">Overwrite</string>
+	<string name="dialog_quit_without_saving">Quit Without Saving</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
 	<string name="confirm_discard_unsaved">The document has unsaved changes.  Discard them?</string>
+	<string name="confirm_quit_unsaved">The document has unsaved changes.  Quit without saving?</string>
 	<!-- Export report alert (the document.exportReport command).  One header per export format,
 	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
 	     %1$s in the weld line is the affected drawable names. -->
