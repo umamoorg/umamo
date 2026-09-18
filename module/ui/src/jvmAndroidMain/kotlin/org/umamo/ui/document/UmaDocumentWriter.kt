@@ -5,11 +5,13 @@ import io.github.vinceglb.filekit.name
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
 import okio.IOException
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
 import org.umamo.format.uma.Uma
+import org.umamo.format.uma.UmaEntryKind
 import org.umamo.format.uma.UmaModel
 import org.umamo.format.uma.UmaWriteException
 import org.umamo.format.uma.textures.UmaPixelSource
@@ -29,7 +31,7 @@ private const val THUMBNAIL_SIZE = 256
  * Writes [model] as a `.uma` at [destination], laid over [base].
  *
  * Pure given its inputs, which is what lets a gate test drive the real save with no picker: the caller
- * snapshots the session's model and the atlas page binding on the UI thread and hands them in, and this
+ * snapshots the session's model, the atlas page binding, and the editor state on the UI thread and hands them in, and this
  * runs the rest off it - the pixel gathering and the encode on the default dispatcher, the write on the
  * platform's own file-system route.  Nothing here marks the session saved; the caller does that with the
  * same snapshot once the file is on disk.
@@ -42,10 +44,14 @@ private const val THUMBNAIL_SIZE = 256
  *    baseline - the same identity gate the CMO3 export uses - and derive from the tiles after any repack (D20).
  *  - The thumbnail is the rest pose fitted into [THUMBNAIL_SIZE] pixels (D22).
  *
+ * Editor state rides on the save as a merge patch over what the base holds (docs/format/UMA.md § 7.5) and is never
+ * a reason to refuse one: an editor entry too new for this version to merge into is carried as it is.
+ *
  * @param PuppetDocument   document    The open document, for the pixels only it can supply.
  * @param UmaModel         base        The document the save lays over.
  * @param PuppetModel      model       The session's model as snapshotted.
  * @param AtlasPageBinding binding     The session's atlas pages as snapshotted.
+ * @param JsonObject       editorState The editor entry's merge patch as gathered; empty when there is none to write.
  * @param PlatformFile     destination Where to write.
  * @return UmaWriteOutcome The written document, or why nothing complete was written.
  */
@@ -54,12 +60,15 @@ suspend fun writeUmaDocument(
 	base: UmaModel,
 	model: PuppetModel,
 	binding: AtlasPageBinding,
+	editorState: JsonObject,
 	destination: PlatformFile,
 ): UmaWriteOutcome {
 	val encoded =
 		withContext(Dispatchers.Default) {
 			try {
-				val written = UmaDocumentBridge.documentOf(base, model, pixelSourceFor(document, base, model, binding))
+				val modelDocument = UmaDocumentBridge.documentOf(base, model, pixelSourceFor(document, base, model, binding))
+				// UMA §7.5: the patch is laid over the entry the base holds, unless that entry is one this version cannot read.
+				val written = if (modelDocument.holdsTooNewEntry(UmaEntryKind.Editor)) modelDocument else modelDocument.withEditorState(editorState)
 				UmaWriteOutcome.Written(written) to Uma.write(written)
 			} catch (failure: UmaWriteException) {
 				UmamoLog.error("save: ${destination.name} refused", failure)

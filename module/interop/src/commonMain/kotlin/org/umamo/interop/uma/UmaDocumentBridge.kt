@@ -63,6 +63,9 @@ object UmaDocumentBridge {
 	/**
 	 * The model [document] describes: the puppet with its atlas and linked source art.
 	 *
+	 * The editor entry is not read here, and that is the whole of Goal 6: a file with `editor/` stripped loads the
+	 * same model because nothing in the model ever came from it (docs/format/UMA.md § 7, D29).
+	 *
 	 * @param UmaModel document The document.
 	 * @return PuppetModel The model.
 	 * @throws UmaFormatException When the document has no puppet entry this reader can read.

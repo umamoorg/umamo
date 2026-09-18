@@ -256,6 +256,16 @@ public class UmaModel internal constructor(
 	public val sources: UmaSources? by sourcesDecode
 
 	/**
+	 * The editor entry's tree (docs/format/UMA.md §7), or null when the document has no live editor entry.
+	 *
+	 * A dynamic tree rather than a typed decode: the entry is open-ended and read tolerantly by whoever owns each
+	 * member, so there is no schema here to decode against and nothing in it can fail a read.  It is never an input
+	 * to the puppet, the atlas, or the sources (D29).
+	 */
+	public val editorState: JsonObject?
+		get() = liveContent(UmaEntryKind.Editor)
+
+	/**
 	 * This document with its puppet entry set to [puppet], laid over the entry's tree as read so every key
 	 * this writer does not own survives (D10), or added when the document has no puppet entry.
 	 *
@@ -337,6 +347,29 @@ public class UmaModel internal constructor(
 		val encoded = UmaSourcesEntry.encode(sources, entryPathOf(kind))
 		val merged = mergeRetainedTree(liveContent(kind), encoded, UmaSources.serializer().descriptor, UmaSourcesEntry.identities)
 		return withLiveContent(kind, merged as JsonObject)
+	}
+
+	/**
+	 * This document with [patch] laid over its editor entry as a JSON Merge Patch (UMA §7.5): a member the patch
+	 * names is set, one it names null is removed, and every other member of the tree as read survives.
+	 *
+	 * A document with no editor entry gains one only when the merge leaves something to write, and a merge that
+	 * changes nothing returns this document, so a save of untouched editor state writes the same bytes.
+	 *
+	 * @param JsonObject patch The members to set, and the ones to remove as nulls.
+	 * @return UmaModel The updated document.
+	 * @throws UmaWriteException When the document's editor entry is too new to replace (check [holdsTooNewEntry]
+	 *   first: editor state is never worth refusing a save over), or the merged tree nests deeper than a reader accepts.
+	 */
+	public fun withEditorState(patch: JsonObject): UmaModel {
+		val kind = UmaEntryKind.Editor
+		val retained = liveContent(kind)
+		val merged = applyMergePatch(retained ?: JsonObject(emptyMap()), patch)
+		// UMA §7.5: no entry is added that would be empty, and an unchanged tree is not a new document.
+		if (merged == retained || (retained == null && merged.isEmpty())) {
+			return this
+		}
+		return withLiveContent(kind, merged)
 	}
 
 	/**

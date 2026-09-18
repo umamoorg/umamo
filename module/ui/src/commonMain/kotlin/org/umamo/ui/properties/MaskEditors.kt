@@ -29,6 +29,9 @@ import org.umamo.ui.workspace.pickingFor
  * the value captured in composition (an armed eyedropper resolves long after it was armed).
  */
 
+/** The "Masked By" relation list's name in the editor entry's `listHeights` (UMA §7.3); a part's and a drawable's share it. */
+private const val MASKED_BY_LIST_NAME = "maskedBy"
+
 /**
  * The drawables eligible to be added as clip masks for a composite: every drawable not already applied.
  * Any drawable is a valid mask target (the model has no is-mask flag), so the candidate set is simply the
@@ -146,6 +149,7 @@ internal fun PartMaskEditor(part: Part, composite: PartComposite, context: Prope
 		}
 	}
 
+	val viewState = LocalPropertiesViewState.current
 	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
 		RelationListField(
 			entries = entries,
@@ -161,6 +165,8 @@ internal fun PartMaskEditor(part: Part, composite: PartComposite, context: Prope
 				}
 			},
 			modifier = Modifier.fillMaxWidth(),
+			height = viewState?.listHeights?.get(MASKED_BY_LIST_NAME),
+			onHeightChange = { dragged -> viewState?.listHeights?.set(MASKED_BY_LIST_NAME, dragged) },
 			onPick = {
 				relationPick.arm(setOf(PickKind.Drawable, PickKind.Part), owner) { target ->
 					when (target) {
@@ -202,6 +208,7 @@ internal fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
 		}
 	}
 
+	val viewState = LocalPropertiesViewState.current
 	RelationListBlock(stringResource(Res.string.properties_field_masked_by)) {
 		RelationListField(
 			entries = entries,
@@ -212,6 +219,8 @@ internal fun DrawableMaskEditor(drawable: Drawable, context: PropertyContext) {
 			onAdd = { masker -> addMask(masker.id) },
 			onRemove = { masker -> session?.setDrawableMaskedBy(drawable.id, drawable.maskedBy - masker.id) },
 			modifier = Modifier.fillMaxWidth(),
+			height = viewState?.listHeights?.get(MASKED_BY_LIST_NAME),
+			onHeightChange = { dragged -> viewState?.listHeights?.set(MASKED_BY_LIST_NAME, dragged) },
 			onPick = {
 				relationPick.arm(setOf(PickKind.Drawable), owner) { target ->
 					(target as? SelectionTarget.Drawable)?.let { picked ->

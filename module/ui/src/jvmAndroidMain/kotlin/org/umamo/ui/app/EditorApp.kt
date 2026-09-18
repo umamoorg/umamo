@@ -23,6 +23,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
@@ -147,9 +149,12 @@ import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
 import org.umamo.ui.workspace.AlertRequest
+import org.umamo.ui.workspace.AreaViewStates
 import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.EDITOR_STATE_AREAS
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
+import org.umamo.ui.workspace.LocalAreaViewStates
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
@@ -400,6 +405,10 @@ fun EditorApp(
 	val currentDocument by rememberUpdatedState(document)
 	val currentDocumentFile by rememberUpdatedState(documentFile)
 	val currentAtlasPages by rememberUpdatedState(sessionAtlasPages)
+	// Every area's view state for this document, seeded from the editor state the file was saved with (UMA §7.3).
+	// Remembered here, beside the document read, so it is never paired with another document's areas.
+	val areaViewStates = remember(document) { AreaViewStates((document as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_AREAS) as? JsonObject) }
+	val currentAreaViewStates by rememberUpdatedState(areaViewStates)
 	val currentUntitledName by rememberUpdatedState(stringResource(Res.string.title_untitled_document))
 
 	// Whether Save can write now: a puppet document that did not open read-only.  Read live, for the same
@@ -436,12 +445,15 @@ fun EditorApp(
 					}
 				val snapshot = activeSession.model.value
 				val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
+				// Editor state is gathered with the model, on this thread, and rides the save without ever counting as a
+				// change to the document (UMA D7).
+				val editorState = buildJsonObject { put(EDITOR_STATE_AREAS, currentAreaViewStates.gather()) }
 				val base = file.base ?: UmaModel.create(umamoWriterInfo())
 				file.saving = true
 				activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
 				val outcome =
 					try {
-						writeUmaDocument(puppetDocument, base, snapshot, binding, destination)
+						writeUmaDocument(puppetDocument, base, snapshot, binding, editorState, destination)
 					} finally {
 						file.saving = false
 					}
@@ -1133,17 +1145,19 @@ fun EditorApp(
 				{ commandRegistry.invoke("help.about") },
 			)
 		}
-	DocumentViewport(
-		document = document,
-		session = session,
-		sessionAtlasPages = sessionAtlasPages,
-		commandRegistry = commandRegistry,
-		appMenu = appMenu,
-		viewportServiceFactory = viewportServiceFactory,
-		artwork = artworkOperations,
-		sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
-		sourceSuggestions = SourceSuggestionState(sourceSuggestions),
-	)
+	CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
+		DocumentViewport(
+			document = document,
+			session = session,
+			sessionAtlasPages = sessionAtlasPages,
+			commandRegistry = commandRegistry,
+			appMenu = appMenu,
+			viewportServiceFactory = viewportServiceFactory,
+			artwork = artworkOperations,
+			sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
+			sourceSuggestions = SourceSuggestionState(sourceSuggestions),
+		)
+	}
 }
 
 /**
