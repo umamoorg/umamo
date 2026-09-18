@@ -1,5 +1,6 @@
 package org.umamo.format
 
+import kotlinx.serialization.json.JsonObject
 import org.umamo.format.bmp.BmpCodec
 import org.umamo.format.clip.ClipReader
 import org.umamo.format.cmo3.Cmo3
@@ -9,9 +10,14 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.format.psd.PsdReader
 import org.umamo.format.tiff.TiffReader
+import org.umamo.format.uma.Uma
+import org.umamo.format.uma.UmaEntryKind
+import org.umamo.format.uma.UmaModel
+import org.umamo.format.uma.UmaWriterInfo
 import org.umamo.format.webp.WebPReader
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 
@@ -109,5 +115,20 @@ class FormatRegistryTest {
 		assertSame(JpegReader, FormatRegistry.forKind(FileKind.Jpeg), "JpegReader codec for FileKind.Jpeg")
 		assertSame(WebPReader, FormatRegistry.forKind(FileKind.WebP), "WebPReader codec for FileKind.WebP")
 		assertSame(TiffReader, FormatRegistry.forKind(FileKind.Tiff), "TiffReader codec for FileKind.Tiff")
+		assertSame(Uma, FormatRegistry.forKind(FileKind.Uma), "Uma codec for FileKind.Uma")
+	}
+
+	/**
+	 * A written UMA file detects as UMA by its mimetype probe and by its extension, and the two ZIP formats
+	 * announcing themselves through a mimetype entry never detect as each other.
+	 */
+	@Test
+	fun umaAndKraDetectApart() {
+		val umaBytes = Uma.write(UmaModel.create(UmaWriterInfo("Umamo", "test")).withLiveContent(UmaEntryKind.Puppet, JsonObject(emptyMap())))
+		assertEquals(FileKind.Uma, FormatRegistry.detect(umaBytes)?.kind, "UMA mimetype probe -> Uma")
+		assertEquals(FileKind.Uma, FormatRegistry.detect(byteArrayOf(0, 1, 2, 3), "rig.uma")?.kind, "unknown magic + .uma -> Uma")
+		assertFalse(KraReader.matches(umaBytes), "UMA bytes never match the KRA probe")
+		assertFalse(Uma.matches(kraHeaderBytes()), "KRA bytes never match the UMA probe")
+		assertEquals(FileKind.Kra, FormatRegistry.detect(kraHeaderBytes())?.kind, "the KRA header still detects as Kra")
 	}
 }

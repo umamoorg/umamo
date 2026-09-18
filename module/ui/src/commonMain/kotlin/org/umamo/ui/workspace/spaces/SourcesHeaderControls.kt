@@ -20,7 +20,7 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.workspace.AreaScope
 
 /**
- * The Sources space's area-header controls: Add Artwork… (the file.addArtwork command, so the palette
+ * The Sources space's area-header controls: Import Artwork… (the file.importArtwork command, so the palette
  * and the button share one path), the name search centered in the flexible middle, Match
  * Automatically (sources.matchAutomatically), Reload (which also re-probes whether each file is still
  * on disk), and the filter chip.  Reads and writes the area's shared SourcesViewState; renders nothing
@@ -35,8 +35,8 @@ internal fun OverflowRowScope.sourcesHeaderControls(scope: AreaScope) {
 			val commands = LocalCommands.current
 			IconButton(
 				icon = LocalUmamoIcons.addFile,
-				onClick = { commands.invoke("file.addArtwork") },
-				contentDescription = stringResource(Res.string.sources_add_artwork),
+				onClick = { commands.invoke("file.importArtwork") },
+				contentDescription = stringResource(Res.string.cmd_import_artwork),
 				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
 			)
 		}

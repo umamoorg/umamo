@@ -14,6 +14,7 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.interop.moc3.import.moc3AtlasPages
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
 import org.umamo.render.restMeshesToCanvasSpace
@@ -55,7 +56,14 @@ class Moc3Document(
 	 * into the motion catch-all - written beside the moc, but no longer wired into the manifest.
 	 */
 	val sidecars: List<Moc3Sidecars.PassThroughSidecar>,
-) : PuppetDocument
+) : PuppetDocument {
+	/**
+	 * Its own store, empty at open: a baked model retains no source art, but artwork added afterwards
+	 * decodes into whatever store the document hands the add - so this document needs one of its own
+	 * rather than a shared empty instance, whose contents would follow the next document.
+	 */
+	override val artRasters: SourceArtRasters = SourceArtRasters { null }
+}
 
 /**
  * Loads a picked `.moc3` plus its sidecars into a [Moc3Document].  A baked model is a file family,

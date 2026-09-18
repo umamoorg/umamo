@@ -18,6 +18,7 @@ import org.umamo.ui.resources.menu_export
 import org.umamo.ui.resources.menu_export_cmo3
 import org.umamo.ui.resources.menu_export_moc3
 import org.umamo.ui.resources.menu_file
+import org.umamo.ui.resources.menu_file_new
 import org.umamo.ui.resources.menu_help
 import org.umamo.ui.resources.menu_import
 import org.umamo.ui.resources.menu_import_artwork
@@ -51,7 +52,8 @@ import org.umamo.ui.resources.workspace_new
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
  * @param Boolean canExport Whether an exportable puppet document is open (gates both Export rows).
- * @param Function onImportArtwork Opens the artwork import picker (routes through file.importArtwork).
+ * @param Function onNew Starts a new, empty document (routes through file.new).
+ * @param Function onImportArtwork Adds an artwork file to the open document (routes through file.importArtwork).
  * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
@@ -65,6 +67,7 @@ fun fileMenu(
 	keymap: Keymap,
 	recentFiles: List<String>,
 	canExport: Boolean,
+	onNew: () -> Unit,
 	onImportArtwork: () -> Unit,
 	onImportCmo3: () -> Unit,
 	onOpenRecent: (String) -> Unit,
@@ -77,6 +80,11 @@ fun fileMenu(
 		label = stringResource(Res.string.menu_file),
 		items =
 			listOf(
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_file_new),
+					onSelect = onNew,
+					shortcut = keymap.chordFor("file.new")?.let { chord -> formatAccelerator(chord) },
+				),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_open_recent),
 					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { onOpenRecent(recent) }) },

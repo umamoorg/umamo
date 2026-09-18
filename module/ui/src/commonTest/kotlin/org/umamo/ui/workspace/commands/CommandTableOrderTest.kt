@@ -80,6 +80,7 @@ class CommandTableOrderTest {
 				"workspace.appendWorkspace",
 				"document.openFailed",
 				"document.confirmReplace",
+				"document.confirmExit",
 				"document.exportReport",
 				"document.repackReport",
 				"document.exportOptionsMoc3",
@@ -224,13 +225,13 @@ class CommandTableOrderTest {
 	@Test
 	fun fileAndLogTablesAreComplete() {
 		val commands = fileCommands({}, {}, {}) + logCommands {}
-		assertEquals(listOf("file.importArtwork", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+		assertEquals(listOf("file.new", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
 		)
 		assertEquals(
-			listOf("file.addArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt", "sources.ignoreLayer"),
+			listOf("file.importArtwork", "document.reloadArtwork", "sources.relink", "sources.matchAutomatically", "sources.replaceArtwork", "sources.deleteArt", "sources.ignoreLayer"),
 			fileArtworkCommands(routing()) { null }.map { command -> command.id },
 		)
 	}
@@ -260,12 +261,12 @@ class CommandTableOrderTest {
 		var operations: ArtworkOperations? = null
 		val routing = CommandRouting({ HoveredSurface("sources-1", SpaceKind.Sources) }, { HoveredSurface("area-7", SpaceKind.UvEditor) })
 		val commands = fileArtworkCommands(routing) { operations }
-		val add = commands.first { command -> command.id == "file.addArtwork" }
+		val add = commands.first { command -> command.id == "file.importArtwork" }
 		val reload = commands.first { command -> command.id == "document.reloadArtwork" }
 		val relink = commands.first { command -> command.id == "sources.relink" }
 		val match = commands.first { command -> command.id == "sources.matchAutomatically" }
 		val replace = commands.first { command -> command.id == "sources.replaceArtwork" }
-		assertFalse(add.availability.isAvailable(), "nothing to add with no document open")
+		assertFalse(add.availability.isAvailable(), "no document to import artwork into")
 		assertFalse(reload.availability.isAvailable())
 		assertFalse(relink.availability.isAvailable())
 		assertFalse(match.availability.isAvailable())
@@ -280,7 +281,7 @@ class CommandTableOrderTest {
 		var canReload = false
 		operations =
 			ArtworkOperations(
-				addArtwork = { areaId -> landedArea = areaId },
+				importArtwork = { areaId -> landedArea = areaId },
 				reloadArtwork = { areaId, reloadScope ->
 					landedArea = areaId
 					landedScope = reloadScope

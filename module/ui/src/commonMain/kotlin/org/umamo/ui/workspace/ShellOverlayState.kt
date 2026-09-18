@@ -7,22 +7,42 @@ import org.jetbrains.compose.resources.StringResource
 import org.umamo.interop.ExportReport
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.AtlasRepackReport
+import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.dialog_cancel
+import org.umamo.ui.resources.dialog_confirm
 
 /**
- * A pending confirmation: the localized prompt to show and the action to run if the user confirms.  The
- * shell holds at most one of these (like its palette-visible flag) and renders a ConfirmDialog for it,
- * so a destructive command (reset, import-overwrite, export-overwrite) sets one instead of acting
- * immediately.
+ * A confirmation's third choice beside Cancel and Confirm - "Don't Save" beside "Save".
  *
- * @property StringResource message   The localized prompt shown in the dialog.
- * @property List           arguments The prompt's format arguments, in placeholder order; empty for
- *                                    an argument-free prompt.  Plain values (counts, file names) -
- *                                    document data is never translated.
- * @property Function       onConfirm The action to run when confirmed.
+ * @property StringResource label    The button's label.
+ * @property Function       onSelect The action to run when picked.
+ */
+internal data class ConfirmAlternative(
+	val label: StringResource,
+	val onSelect: () -> Unit,
+)
+
+/**
+ * A pending confirmation: the localized prompt to show, the buttons it names, and the action to run if the
+ * user confirms.  The shell holds at most one of these (like its palette-visible flag) and renders a
+ * ConfirmDialog for it, so a destructive command (reset, import-overwrite, export-overwrite) sets one instead
+ * of acting immediately.
+ *
+ * @property StringResource      message      The localized prompt shown in the dialog.
+ * @property List                arguments    The prompt's format arguments, in placeholder order; empty for
+ *                                            an argument-free prompt.  Plain values (counts, file names) -
+ *                                            document data is never translated.
+ * @property StringResource      confirmLabel The confirm button's label, naming the action it takes.
+ * @property StringResource      cancelLabel  The cancel button's label.
+ * @property ConfirmAlternative? alternative  A third choice, or null for a two-button dialog.
+ * @property Function            onConfirm    The action to run when confirmed.
  */
 internal data class ConfirmRequest(
 	val message: StringResource,
 	val arguments: List<Any> = emptyList(),
+	val confirmLabel: StringResource = Res.string.dialog_confirm,
+	val cancelLabel: StringResource = Res.string.dialog_cancel,
+	val alternative: ConfirmAlternative? = null,
 	val onConfirm: () -> Unit,
 )
 
@@ -46,11 +66,81 @@ internal class ShellOverlayState {
 	/** The Credits dialog's visible flag - toggled by the help.credits command. */
 	var creditsVisible: Boolean by mutableStateOf(false)
 
+	private val pendingConfirmState = mutableStateOf<ConfirmRequest?>(null)
+
 	/**
 	 * A destructive command (reset, import-overwrite) sets this instead of acting; the rendered
 	 * ConfirmDialog runs the action on confirm.  At most one is pending at a time.
+	 *
+	 * Raising a request also decides whether Enter may confirm it yet - see [confirmArmedForEnter].
 	 */
-	var pendingConfirm: ConfirmRequest? by mutableStateOf(null)
+	var pendingConfirm: ConfirmRequest?
+		get() = pendingConfirmState.value
+		set(value) {
+			if (value != null) {
+				confirmArmedForEnter = !enterHeld
+			}
+			pendingConfirmState.value = value
+		}
+
+	/**
+	 * Whether Enter is physically down, as the key ladder last saw it.  Compose's key-down carries no
+	 * repeat flag, so this is the one honest signal for "the Enter that raised a dialog is still held".
+	 */
+	private var enterHeld: Boolean = false
+
+	/**
+	 * Whether Enter may confirm the pending request.
+	 *
+	 * False while the Enter that raised the request is still held: the palette runs its command on Enter's
+	 * key-down, so the request lands under a held key whose OS auto-repeat would otherwise reach the confirm
+	 * arm and run a destructive action before the dialog is even seen.  The release arms it.  A request
+	 * raised with Enter up - a menu row, a button - is armed at once, and the first Enter confirms it.
+	 */
+	var confirmArmedForEnter: Boolean = true
+		private set
+
+	/**
+	 * Records an Enter stroke the ladder saw, so a request raised under a held Enter waits for its release.
+	 *
+	 * @param Boolean isDown True for the key-down, false for the release.
+	 */
+	fun noteEnterStroke(isDown: Boolean) {
+		enterHeld = isDown
+		if (!isDown && pendingConfirm != null) {
+			confirmArmedForEnter = true
+		}
+	}
+
+	/**
+	 * Runs the pending confirmation's action - what its confirm button and Enter both do.
+	 *
+	 * The slot clears before the action runs, so an action that raises a confirmation of its own leaves that one
+	 * pending instead of having it cleared out from under it.  The key ladder and the rendered dialog both come
+	 * through here, so the two cannot disagree about what confirming means.
+	 */
+	fun confirmPending() {
+		val request = pendingConfirm ?: return
+		pendingConfirm = null
+		request.onConfirm()
+	}
+
+	/**
+	 * Dismisses the pending confirmation without acting - what its cancel button, the scrim, and Escape do.
+	 */
+	fun cancelPending() {
+		pendingConfirm = null
+	}
+
+	/**
+	 * Runs the pending confirmation's third choice, when it has one, clearing the slot first as [confirmPending]
+	 * does.
+	 */
+	fun choosePendingAlternative() {
+		val alternative = pendingConfirm?.alternative ?: return
+		pendingConfirm = null
+		alternative.onSelect()
+	}
 
 	/**
 	 * The file-open failure alert's payload - set by the document.openFailed command (dispatched by

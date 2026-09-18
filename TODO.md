@@ -259,6 +259,10 @@ Sketch:
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.
 
+## Color Space and Management
+Right now the goal is to support sRGB from ingest to output with full correctness.  Eventually we want to be able to add linear color space, HDR, and so on.  While vtubers typically are 100% sRGB(art, edit, broadcast) some game developers may opt for different color spaces and require that flexibility.  I'm tentatively planning this work for Q1 2027.
+
+
 # Claude Notes
 
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)

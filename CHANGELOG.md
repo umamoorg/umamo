@@ -7,10 +7,17 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* UI: Added save confirmation for dirty files when closing the application.
+* UI: Opens to a new document by default with New and Open file menu operations available.
 
 ### Changed
+* UI: Add Artwork and Import Artwork have been standardized to just import and add artwork to the open document.
+* UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
 
 ### Fixed
+* UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
+* UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
+* Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 
 
 ## 0.3.0-dev - 2026-09-15

@@ -215,15 +215,98 @@ class ModalKeyLadderTest {
 	// ---------------------------------------------------------------------------------------------
 
 	@Test
-	fun aConfirmDialogTakesEscapeAndSwallowsEverythingElse() {
-		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {} }
+	fun aConfirmDialogTakesEnterOrEscapeAndSwallowsEverythingElse() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ } }
 		val state = ShellModalState(overlays = overlays)
 
 		assertTrue(press(Key.Spacebar, state), "every key is swallowed so no shortcut fires behind the dialog")
-		assertNotNull(overlays.pendingConfirm, "but only Escape dismisses it")
+		assertNotNull(overlays.pendingConfirm, "but only Enter or Escape dismisses it")
 
 		assertTrue(escape(state))
 		assertNull(overlays.pendingConfirm)
+		assertEquals(0, confirmCount, "Escape cancels without running the confirm")
+
+		for (confirmKey in listOf(Key.Enter, Key.NumPadEnter)) {
+			val before = confirmCount
+			overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+			assertTrue(press(confirmKey, state))
+			assertNull(overlays.pendingConfirm, "$confirmKey dismisses the dialog")
+			assertEquals(before + 1, confirmCount, "$confirmKey runs the confirm exactly once")
+			// Released like a real key: a request raised while a confirming Enter is still down waits for
+			// the release, so the next press would otherwise count as that Enter's repeat.
+			press(confirmKey, state, isDown = false)
+		}
+	}
+
+	@Test
+	fun aConfirmThatRaisesAnotherConfirmLeavesTheSecondPending() {
+		val overlays = ShellOverlayState()
+		val followUp = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { overlays.pendingConfirm = followUp }
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(enter(state))
+
+		assertEquals(followUp, overlays.pendingConfirm, "the slot clears before the action runs, so the follow-up survives")
+	}
+
+	/**
+	 * The palette runs its command on Enter's key-down, so a confirm that command raises lands under a
+	 * still-held Enter.  The OS repeats a held key; without this rule the repeat would confirm a destructive
+	 * action before the dialog is seen.  Compose's key-down has no repeat flag, so the ladder tracks the
+	 * key itself: the confirm stays unarmed until that Enter is released, and only a fresh press confirms.
+	 */
+	@Test
+	fun aConfirmRaisedUnderAHeldEnterWaitsForItsRelease() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		// The ladder previews the key-down first; the command then raises the confirm under the held key.
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.Enter, state), "the auto-repeat of the same Enter is swallowed")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing")
+		assertTrue(press(Key.Enter, state, isDown = false), "the release is swallowed too")
+		assertNotNull(overlays.pendingConfirm, "and confirms nothing either")
+		assertEquals(0, confirmCount)
+
+		assertTrue(enter(state))
+		assertNull(overlays.pendingConfirm, "a fresh press confirms")
+		assertEquals(1, confirmCount, "exactly once")
+	}
+
+	@Test
+	fun aHeldNumPadEnterIsHeldEnterToo() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.NumPadEnter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNotNull(overlays.pendingConfirm, "the repeated NumPadEnter confirms nothing")
+		press(Key.NumPadEnter, state, isDown = false)
+
+		assertTrue(press(Key.NumPadEnter, state))
+		assertNull(overlays.pendingConfirm, "and a fresh press confirms")
+		assertEquals(1, confirmCount)
+	}
+
+	@Test
+	fun escapeCancelsAConfirmThatEnterCannotYetConfirm() {
+		var confirmCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+		press(Key.Enter, state)
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { confirmCount++ }
+
+		assertTrue(escape(state))
+
+		assertNull(overlays.pendingConfirm, "the arming gates Enter alone; Escape cancels as always")
+		assertEquals(0, confirmCount)
 	}
 
 	@Test
@@ -362,6 +445,30 @@ class ModalKeyLadderTest {
 		assertTrue(escape(state))
 		assertNull(overlays.pendingConfirm, "the confirm took it")
 		assertNotNull(overlays.pendingExportOptions, "and the export dialog beneath it stays up")
+	}
+
+	@Test
+	fun aConfirmOverPreferencesTakesEnterAndEscapeWhilePreferencesStaysOpen() {
+		// The keybinding conflict prompt raises its confirm from inside Preferences; the confirm arm sits
+		// above the self-focused arm, so its keys never reach Preferences' Escape-to-close.
+		var reassignCount = 0
+		val overlays =
+			ShellOverlayState().apply {
+				settingsVisible = true
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { reassignCount++ }
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "Escape cancels the prompt")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+		assertEquals(0, reassignCount)
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) { reassignCount++ }
+		assertTrue(enter(state))
+		assertNull(overlays.pendingConfirm, "Enter confirms the prompt")
+		assertTrue(overlays.settingsVisible, "and Preferences still stays open")
+		assertEquals(1, reassignCount)
 	}
 
 	@Test
@@ -728,6 +835,12 @@ class ModalKeyLadderTest {
 		assertFalse(menu.closed, "and nothing below it ran")
 		assertNotNull(session.activeMeshOperator.value)
 		assertFalse(selection.selection.isEmpty)
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		assertTrue(enter(ShellModalState(overlays = overlays, menuBarController = menu.controller, editorSession = session, selection = selection)))
+
+		assertNull(overlays.pendingConfirm, "Enter goes to the dialog too")
+		assertNotNull(session.activeMeshOperator.value, "rather than confirming the operator beneath it")
 	}
 
 	@Test

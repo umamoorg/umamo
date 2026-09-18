@@ -30,7 +30,15 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
 		Command("document.confirmReplace", title = null) { argument ->
 			(argument as? Function0<*>)?.let { proceed ->
-				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unsaved) { proceed.invoke() }
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unsaved, confirmLabel = Res.string.dialog_discard) { proceed.invoke() }
+			}
+		},
+		// The app asks before quitting over a dirty document - from File > Exit, the window's close button, the
+		// OS's quit, or Android's back gesture - and the argument is the exit itself.  Until UMA Save lands the
+		// only way on is to quit without saving; G5 makes Save the default and this the "Don't Save" choice.
+		Command("document.confirmExit", title = null) { argument ->
+			(argument as? Function0<*>)?.let { exit ->
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_quit_unsaved, confirmLabel = Res.string.dialog_quit_without_saving) { exit.invoke() }
 			}
 		},
 		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a modal alert.

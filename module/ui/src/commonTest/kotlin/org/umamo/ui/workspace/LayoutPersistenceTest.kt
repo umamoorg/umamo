@@ -7,6 +7,7 @@ import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -26,6 +27,19 @@ class LayoutPersistenceTest {
 		fileSystem.createDirectories(configDir)
 		return OkioAppStorage(fileSystem, configDir, "/data".toPath())
 	}
+
+	/**
+	 * The first leaf of a tree, reached down the leading children, so an edit can target a real area
+	 * whatever shape the seeded workspace takes.
+	 *
+	 * @param AreaNode node The tree to descend.
+	 * @return LeafArea The first leaf.
+	 */
+	private fun firstLeaf(node: AreaNode): LeafArea =
+		when (node) {
+			is LeafArea -> node
+			is SplitNode -> firstLeaf(node.first)
+		}
 
 	/**
 	 * loadLayout over an empty layout seeds the default workspaces and writes them back, so a fresh
@@ -51,7 +65,8 @@ class LayoutPersistenceTest {
 		val seeded = loadLayout(settings)
 
 		val modellingRoot = seeded.workspaces.first { workspace -> workspace.id == "modelling" }.root
-		val splitRoot = reduce(modellingRoot, AreaCommand.SplitArea((modellingRoot as LeafArea).id, SplitOrientation.Vertical))
+		val splitRoot = reduce(modellingRoot, AreaCommand.SplitArea(firstLeaf(modellingRoot).id, SplitOrientation.Vertical))
+		assertNotEquals(modellingRoot, splitRoot, "the split must change the tree")
 		val edited =
 			seeded
 				.copy(activeWorkspaceId = "texture")

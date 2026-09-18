@@ -29,14 +29,15 @@ class Moc3ExportSessionOptions {
 	 * API contract.  After a confirm, returns the confirmed toggles, with the scale re-seeded from
 	 * [puppet] whenever [documentPath] is not the document the confirm happened on.
 	 *
-	 * @param String      documentPath The current document's identity.
+	 * @param String?     documentPath The current document's identity, or null for one with no file, which
+	 *   has no identity to be the same document twice - its scale re-seeds from the model every time.
 	 * @param PuppetModel puppet       The model the scale seeds from on a document change.
 	 * @return Moc3ExportOptions The options to open the dialog with.
 	 */
-	fun dialogOptionsFor(documentPath: String, puppet: PuppetModel): Moc3ExportOptions {
+	fun dialogOptionsFor(documentPath: String?, puppet: PuppetModel): Moc3ExportOptions {
 		val remembered = confirmed ?: moc3ExportDialogDefaults()
 		val seededScale =
-			if (confirmedDocumentPath == documentPath) {
+			if (documentPath != null && confirmedDocumentPath == documentPath) {
 				remembered.pixelsPerUnitOverride ?: Moc3Export.mocPixelsPerUnitFor(puppet)
 			} else {
 				Moc3Export.mocPixelsPerUnitFor(puppet)
@@ -50,10 +51,10 @@ class Moc3ExportSessionOptions {
 	 * Called on dialog confirm rather than after the write, so the choices survive a cancelled file
 	 * picker: deciding the options and choosing a destination are separate steps.
 	 *
-	 * @param String documentPath The document the confirm happened on.
+	 * @param String? documentPath The document the confirm happened on, or null for one with no file.
 	 * @param Moc3ExportOptions options The confirmed options.
 	 */
-	fun recordConfirmed(documentPath: String, options: Moc3ExportOptions) {
+	fun recordConfirmed(documentPath: String?, options: Moc3ExportOptions) {
 		confirmed = options
 		confirmedDocumentPath = documentPath
 	}

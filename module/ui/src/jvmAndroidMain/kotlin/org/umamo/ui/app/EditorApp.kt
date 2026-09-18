@@ -10,6 +10,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
@@ -73,6 +74,7 @@ import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.loadDocument
+import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.readArtwork
@@ -123,6 +125,7 @@ import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.confirm_export_overwrite
+import org.umamo.ui.resources.dialog_overwrite
 import org.umamo.ui.settings.HistorySettings
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
@@ -243,7 +246,9 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives
  *   undo/redo, the Edit-menu enabled state, and the saved marker.
  * @param Function onOpen Called with a newly-opened document.
- * @param Function onExit Closes the application.
+ * @param Function onExit Closes the application; File > Exit runs it through the unsaved-changes guard.
+ * @param ExitGuard exitGuard The host's route into the same guard, for the exits the host owns (the window's
+ *   close button, the OS's quit, Android's back gesture); the shell installs its guard here while composed.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or
  *   null on a platform without a puppet renderer yet (viewport areas render placeholders).
  */
@@ -253,6 +258,7 @@ fun EditorApp(
 	session: EditorSession?,
 	onOpen: (Document) -> Unit,
 	onExit: () -> Unit,
+	exitGuard: ExitGuard,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 ) {
 	val settings = LocalSettings.current
@@ -332,7 +338,9 @@ fun EditorApp(
 	fun applyDocumentLoad(load: DocumentLoad) {
 		when (load) {
 			is DocumentLoad.Loaded -> {
-				settings.addRecentFile(load.document.path)
+				// Only a document that came from a file is recordable; a loaded one always did, but the read
+				// is null-safe because the type it arrives as covers the new, unsaved document too.
+				load.document.path?.let { path -> settings.addRecentFile(path) }
 				// What the document says about its artwork files, before anything probes them: the recorded
 				// path is what a reload, the watcher, and the Sources space will all go by.
 				for (source in (load.document as? PuppetDocument)?.puppet?.sources.orEmpty()) {
@@ -349,14 +357,32 @@ fun EditorApp(
 		}
 	}
 
+	// Both gates below read the session through this holder rather than closing over the parameter.  The file
+	// commands register once against the stable registry (Ctrl+O and the palette dispatch through it), and the
+	// exit guard installs once, so a handler that captured the session directly would keep asking about
+	// whichever document was open when it was registered - none at all on a normal launch, which is a silent
+	// skip of the whole prompt.  The holder always reads the session of the composition that is live now.
+	val currentSession by rememberUpdatedState(session)
+
 	// Replacing the document discards its session - the undo history and any unsaved edits go with
 	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
 	// keeping its Escape/Enter routing with every other overlay.
 	fun confirmIfDirty(proceed: () -> Unit) {
-		if (session?.dirty?.value == true) {
+		if (currentSession?.dirty?.value == true) {
 			commandRegistry.invoke("document.confirmReplace", proceed)
 		} else {
 			proceed()
+		}
+	}
+
+	// Quitting discards the session the same way, so a dirty document asks first here too
+	// (document.confirmExit).  File > Exit calls this directly; the host's window close, OS quit, and back
+	// gesture reach it through the exitGuard installed below.
+	fun confirmExit(exit: () -> Unit) {
+		if (currentSession?.dirty?.value == true) {
+			commandRegistry.invoke("document.confirmExit", exit)
+		} else {
+			exit()
 		}
 	}
 
@@ -405,15 +431,23 @@ fun EditorApp(
 		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path.let(::fileModifiedAtMillis)))
 	}
 
-	// Adds a second artwork file to the OPEN document as one undoable edit - no document swap and no
-	// dirty confirm, unlike the import.  The area is the one the command fired over, resolved by the
-	// shell before the picker opens; it is where the operation strip shows once the add lands.
-	fun addArtworkViaPicker(areaId: String?) {
+	// The artwork import: a file's layers are ADDED to the open document as one undoable edit - no
+	// document swap and no dirty confirm, the way importing an object into a Blender scene adds to it.
+	// Every layered and flat-raster format the registry reads comes in through this one path, from the
+	// File menu's Import row and the Sources space alike.  The area is the one the command fired over,
+	// resolved by the shell before the picker opens; it is where the operation strip shows once the
+	// import lands.  The options carry the parameter template, which seeds only when the document has no
+	// parameters of its own - a rig's first artwork.
+	fun importArtworkViaPicker(areaId: String?) {
 		val puppetDocument = document as? PuppetDocument ?: return
 		val activeSession = session ?: return
 		scope.launch {
 			val picked = pickArtwork() ?: return@launch
-			runAddArtwork(artworkHostFor(puppetDocument, activeSession), AddArtworkRequest(picked.read.art, picked.descriptor, artworkImportOptions()), areaId)
+			runAddArtwork(
+				artworkHostFor(puppetDocument, activeSession),
+				AddArtworkRequest(picked.read.art, picked.descriptor, configuredArtworkImportOptions()),
+				areaId,
+			)
 		}
 	}
 
@@ -637,7 +671,7 @@ fun EditorApp(
 	// the disk, since the palette asks on every listing; a missing file is found out by the reload.
 	val artworkOperations =
 		ArtworkOperations(
-			addArtwork = { areaId -> addArtworkViaPicker(areaId) },
+			importArtwork = { areaId -> importArtworkViaPicker(areaId) },
 			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
@@ -647,16 +681,10 @@ fun EditorApp(
 			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
 		)
 
-	fun importArtworkViaPicker() {
-		// Every layered and flat-raster format the registry reads comes in through this one row - the
-		// artwork import is the headline entry, so it does not split by format the way CMO3 / MOC3 do.
-		confirmIfDirty {
-			scope.launch {
-				filePicker.openFile(artworkImportExtensions)?.let { picked ->
-					applyDocumentLoad(loadDocument(picked, configuredArtworkImportOptions()))
-				}
-			}
-		}
+	// File > New: an empty document, which replaces the open one like any other document swap - so a
+	// dirty document asks first.
+	fun newDocument() {
+		confirmIfDirty { onOpen(newBlankDocument()) }
 	}
 
 	fun importCmo3ViaPicker() {
@@ -784,6 +812,7 @@ fun EditorApp(
 										// File names are document data, listed in full - the dialog wraps, and a
 										// name the warning omitted is a file the rigger did not agree to lose.
 										arguments = listOf(existing.size, existing.joinToString()),
+										confirmLabel = Res.string.dialog_overwrite,
 										onConfirm = ::writeAndReport,
 									),
 								)
@@ -851,6 +880,13 @@ fun EditorApp(
 		}
 	}
 
+	// The host's exits pass through the same guard as File > Exit.  Installed once per guard: the gate reads
+	// the live session, so the closure's own age does not matter.
+	DisposableEffect(exitGuard) {
+		val cleanup = exitGuard.install { exit -> confirmExit(exit) }
+		onDispose { cleanup() }
+	}
+
 	// Register the file and log operations as real commands so the keymap and the palette drive them
 	// (Ctrl+O dispatches through the shell's registry).  The tables themselves live with every other
 	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
@@ -858,7 +894,7 @@ fun EditorApp(
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
-				fileCommands({ importArtworkViaPicker() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
+				fileCommands({ newDocument() }, { importCmo3ViaPicker() }, { importMoc3ViaPicker() }) + logCommands { exportLog() },
 			)
 		onDispose { cleanup() }
 	}
@@ -894,12 +930,15 @@ fun EditorApp(
 				canUndo,
 				canRedo,
 				::openStoredPath,
-				::importArtworkViaPicker,
+				{ commandRegistry.invoke("file.new") },
+				// The artwork import is the shell's command (it needs the hovered area for its operation
+				// strip), so the menu row dispatches it rather than calling the picker directly.
+				{ commandRegistry.invoke("file.importArtwork") },
 				::importCmo3ViaPicker,
 				::importMoc3ViaPicker,
 				::exportCmo3,
 				::exportMoc3,
-				onExit,
+				{ confirmExit(onExit) },
 				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
 				// binding, and the palette share the one path; the rows are gated by canUndo / canRedo above.
 				{ commandRegistry.invoke("edit.undo") },
@@ -989,13 +1028,14 @@ private class DocumentWatch(
  * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
  * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
  * @param Function openRecent Opens a recent file by its stored path.
- * @param Function importArtwork Opens the artwork import picker.
+ * @param Function newDocument Starts a new, empty document (dispatches file.new).
+ * @param Function importArtwork Adds an artwork file to the open document (dispatches file.importArtwork).
  * @param Function importCmo3 Opens the CMO3 import picker.
  * @param Function importMoc3 Opens the MOC3 import picker.
  * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
  *                            reconciles; MOC3-origin synthesizes a fresh graph).
  * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
- * @param Function onExit Closes the application.
+ * @param Function onExit Closes the application, asking first over unsaved changes.
  * @param Function onUndo Undoes one step (dispatches edit.undo).
  * @param Function onRedo Redoes one step (dispatches edit.redo).
  * @param Function onOpenPreferences Opens the settings window (dispatches edit.preferences).
@@ -1017,6 +1057,7 @@ private fun buildAppMenu(
 	canUndo: Boolean,
 	canRedo: Boolean,
 	openRecent: (String) -> Unit,
+	newDocument: () -> Unit,
 	importArtwork: () -> Unit,
 	importCmo3: () -> Unit,
 	importMoc3: () -> Unit,
@@ -1040,6 +1081,7 @@ private fun buildAppMenu(
 			keymap = keymap,
 			recentFiles = recentFiles,
 			canExport = document is PuppetDocument,
+			onNew = newDocument,
 			onImportArtwork = importArtwork,
 			onImportCmo3 = importCmo3,
 			onOpenRecent = openRecent,

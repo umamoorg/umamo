@@ -28,11 +28,11 @@ internal fun workspaceCommands(
 	listOf(
 		Command("workspace.new", title = Res.string.workspace_new) { workspaces.create(newWorkspaceBaseName) },
 		Command("workspace.reset", title = Res.string.cmd_workspace_reset) {
-			overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_reset_workspace) { workspaces.resetActive() }
+			overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_reset_workspace, confirmLabel = Res.string.dialog_reset) { workspaces.resetActive() }
 		},
 		Command("workspace.applyLayout", title = null) { argument ->
 			(argument as? InterfaceLayout)?.let { imported ->
-				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_import_replace) { workspaces.applyImported(imported) }
+				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_import_replace, confirmLabel = Res.string.dialog_replace) { workspaces.applyImported(imported) }
 			}
 		},
 		Command("workspace.appendWorkspace", title = null) { argument ->
