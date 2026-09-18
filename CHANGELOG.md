@@ -21,6 +21,7 @@ Umamo is early alpha.
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
 * UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
+* Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 
 
 ## 0.3.0-dev - 2026-09-15

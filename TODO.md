@@ -36,15 +36,15 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
-## 2D Viewport
-* Should open to the rendered checkerboard background with axises instead of the blank placeholder.
-
 ## Read/Write Filing Handling
 * Clean up the boolean logic mess in AppMenu->fileMenu().
 	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
 * Document State - One document per window instance.
 * Drag and drop file opening.
 * Save should be muted/disabled in the menu if the document is not dirty.
+
+## UI Dialog
+* Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
 
 ## Refactor SOON
 * module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
