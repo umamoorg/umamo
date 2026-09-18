@@ -388,7 +388,8 @@ fun EditorSession.deleteTile(tileId: AtlasTileId, ignoreLayer: Boolean = false) 
 	val marks = ignoreLayer && binding != null && !shared
 	mutate(DocumentChange.DeleteTile(tileId, ignoredLayer = marks)) { before ->
 		val deleted = before.withTileDeleted(tileId)
-		if (marks && binding != null && deleted !== before) {
+		// marks already carries binding != null, and the compiler smart-casts through it.
+		if (marks && deleted !== before) {
 			deleted.withLayerIgnored(binding.sourceId, binding.layerKey, ignored = true)
 		} else {
 			deleted
