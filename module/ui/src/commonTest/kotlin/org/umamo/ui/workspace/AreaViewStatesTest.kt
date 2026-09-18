@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import org.umamo.render.ViewportCamera
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
@@ -113,6 +114,34 @@ class AreaViewStatesTest {
 		holder.scopeFor("area-1").spaceState("outliner") { ListState() }.values = emptyList()
 
 		assertEquals(JsonNull, holder.gather()["area-1"]!!.jsonObject["outliner"]!!.jsonObject["values"])
+	}
+
+	/**
+	 * Each area's camera goes out to seed the render service and comes back from it at a save, leading its block;
+	 * an area with a camera and no space state is still written, and a camera of the wrong shape is skipped.
+	 */
+	@Test
+	fun camerasAreRestoredAndGatheredByArea() {
+		val saved =
+			buildJsonObject {
+				put("area-view", buildJsonObject { put("camera", JsonArray(listOf(JsonPrimitive(10f), JsonPrimitive(-20f), JsonPrimitive(1.5f)))) })
+				put("area-flat", buildJsonObject { put("camera", JsonArray(listOf(JsonPrimitive(0f), JsonPrimitive(0f), JsonPrimitive(0f)))) })
+				put("area-junk", buildJsonObject { put("camera", JsonPrimitive("wide")) })
+			}
+		val holder = AreaViewStates(saved)
+		assertEquals(mapOf("area-view" to ViewportCamera(10f, -20f, 1.5f)), holder.restoredCameras(), "a zoom of zero and a non-array are skipped")
+
+		holder.layoutAreaIds = listOf("area-view", "area-both", "area-panel")
+		holder.scopeFor("area-both").spaceState("outliner") { ListState() }.values = listOf("part:1")
+		holder.scopeFor("area-panel").spaceState("outliner") { ListState() }
+		holder.cameraReader = { mapOf("area-view" to ViewportCamera(1f, 2f, 3f), "area-both" to ViewportCamera(4f, 5f, 6f), "area-closed" to ViewportCamera(7f, 8f, 9f)) }
+
+		val gathered = holder.gather()
+
+		assertEquals(JsonArray(listOf(JsonPrimitive(1f), JsonPrimitive(2f), JsonPrimitive(3f))), gathered["area-view"]!!.jsonObject["camera"])
+		assertEquals(listOf("camera", "outliner"), gathered["area-both"]!!.jsonObject.keys.toList(), "the camera leads the block")
+		assertEquals(listOf("outliner"), gathered["area-panel"]!!.jsonObject.keys.toList(), "an area with no camera names none, so a saved one survives")
+		assertEquals(null, gathered["area-closed"], "a camera for an area the layout lacks is not written")
 	}
 
 	/** An area block's members come out in the spec's order whatever order the spaces were shown in. */

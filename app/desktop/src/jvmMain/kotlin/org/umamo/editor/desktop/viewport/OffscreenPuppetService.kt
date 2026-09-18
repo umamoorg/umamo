@@ -106,6 +106,10 @@ class OffscreenPuppetService(
 
 	override fun cameraFlow(areaId: String): StateFlow<ViewportCamera?> = registry.cameraFlow(areaId)
 
+	override fun cameras(): Map<String, ViewportCamera> = registry.cameras()
+
+	override fun seedCameras(cameras: Map<String, ViewportCamera>) = registry.seedCameras(cameras)
+
 	override fun resize(areaId: String, width: Int, height: Int) = registry.resize(areaId, width, height)
 
 	override fun pan(areaId: String, deltaXpx: Float, deltaYpx: Float) = registry.pan(areaId, deltaXpx, deltaYpx)

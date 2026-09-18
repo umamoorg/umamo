@@ -162,6 +162,22 @@ interface PuppetViewportService {
 	fun cameraFlow(areaId: String): StateFlow<ViewportCamera?>
 
 	/**
+	 * Every area's camera as the engine remembers it, by area id: the areas shown now and the ones a workspace tab
+	 * switch has put away.  What a save writes as each area's view (docs/format/UMA.md § 7.3).
+	 *
+	 * @return Map The cameras.
+	 */
+	fun cameras(): Map<String, ViewportCamera>
+
+	/**
+	 * Gives the engine the cameras a document was saved with, before any area registers: an area that has one opens
+	 * on it instead of fitting its content.  An id no area ever takes costs nothing.
+	 *
+	 * @param Map cameras The saved cameras, by area id.
+	 */
+	fun seedCameras(cameras: Map<String, ViewportCamera>)
+
+	/**
 	 * Reports [areaId]'s current size in pixels; the engine re-renders at the new size.
 	 *
 	 * @param String areaId The resized area.
