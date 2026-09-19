@@ -14,7 +14,7 @@
 ~~4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening~~
 5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
 6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format (Phase G - Art Sourcing Pipeline)
+7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
