@@ -23,6 +23,7 @@ Umamo is early alpha.
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
 * UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 * UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
+* UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 * Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
