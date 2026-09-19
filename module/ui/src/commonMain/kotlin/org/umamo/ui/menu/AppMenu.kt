@@ -18,6 +18,10 @@ import org.umamo.ui.resources.menu_export
 import org.umamo.ui.resources.menu_export_cmo3
 import org.umamo.ui.resources.menu_export_moc3
 import org.umamo.ui.resources.menu_file
+import org.umamo.ui.resources.menu_file_new
+import org.umamo.ui.resources.menu_file_open
+import org.umamo.ui.resources.menu_file_save
+import org.umamo.ui.resources.menu_file_save_as
 import org.umamo.ui.resources.menu_help
 import org.umamo.ui.resources.menu_import
 import org.umamo.ui.resources.menu_import_artwork
@@ -37,21 +41,25 @@ import org.umamo.ui.resources.menu_workspace_reset
 import org.umamo.ui.resources.workspace_new
 
 /**
- * Builds the File menu shared by every platform's menu bar.  Artwork, CMO3, and MOC3 all come in
- * through the Import submenu (artwork first: it is the headline workflow's entry), and CMO3 / MOC3
- * are interop boundaries that leave through Export - the Open… / Save As… rows are reserved for the
- * native UMA format and return when it lands.  Every row reaches its operation through the caller's
- * handlers (which route through the file.importArtwork / file.importCmo3 / file.importMoc3 /
- * file.exportCmo3 / file.exportMoc3 commands and the shared FileKit picker), so the menu, the
- * keyboard, and the palette share one path.  Both Export rows are gated on [canExport] (a puppet document is
- * open; the CMO3 export reconciles onto a CMO3-origin document's retained graph and synthesizes a
- * fresh one for a MOC3-origin document); Open Recent labels each stored path via fileDisplayName,
- * disables itself when the list is empty, and routes through the import path.
+ * Builds the File menu shared by every platform's menu bar.  Open, Save, and Save As mean the native
+ * `.uma` document; artwork, CMO3, and MOC3 come in through the Import submenu (artwork first: it is the
+ * headline workflow's entry), and CMO3 / MOC3 are interop boundaries that leave through Export.  Every
+ * row reaches its operation through the caller's handlers (which route through the file.* commands and
+ * the shared FileKit picker), so the menu, the keyboard, and the palette share one path.  Both Save rows
+ * are gated on [canSave] (a puppet document that did not open read-only) and both Export rows on
+ * [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin document's
+ * retained graph and synthesizes a fresh one otherwise); Open Recent labels each stored path via
+ * fileDisplayName, disables itself when the list is empty, and opens or imports by what the file is.
  *
  * @param Keymap keymap The keymap the accelerator hints are resolved against.
  * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
  * @param Boolean canExport Whether an exportable puppet document is open (gates both Export rows).
- * @param Function onImportArtwork Opens the artwork import picker (routes through file.importArtwork).
+ * @param Boolean canSave Whether the open document can be saved (gates both Save rows).
+ * @param Function onNew Starts a new, empty document (routes through file.new).
+ * @param Function onOpen Opens a `.uma` through the picker (routes through file.open).
+ * @param Function onSave Saves the document (routes through file.save).
+ * @param Function onSaveAs Asks where to save (routes through file.saveAs).
+ * @param Function onImportArtwork Adds an artwork file to the open document (routes through file.importArtwork).
  * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
  * @param Function onOpenRecent Opens a recent file by its stored path.
  * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
@@ -65,6 +73,11 @@ fun fileMenu(
 	keymap: Keymap,
 	recentFiles: List<String>,
 	canExport: Boolean,
+	canSave: Boolean,
+	onNew: () -> Unit,
+	onOpen: () -> Unit,
+	onSave: () -> Unit,
+	onSaveAs: () -> Unit,
 	onImportArtwork: () -> Unit,
 	onImportCmo3: () -> Unit,
 	onOpenRecent: (String) -> Unit,
@@ -77,10 +90,32 @@ fun fileMenu(
 		label = stringResource(Res.string.menu_file),
 		items =
 			listOf(
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_file_new),
+					onSelect = onNew,
+					shortcut = keymap.chordFor("file.new")?.let { chord -> formatAccelerator(chord) },
+				),
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_file_open),
+					onSelect = onOpen,
+					shortcut = keymap.chordFor("file.open")?.let { chord -> formatAccelerator(chord) },
+				),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_open_recent),
 					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { onOpenRecent(recent) }) },
 					enabled = recentFiles.isNotEmpty(),
+				),
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_file_save),
+					onSelect = onSave,
+					shortcut = keymap.chordFor("file.save")?.let { chord -> formatAccelerator(chord) },
+					enabled = canSave,
+				),
+				MenuItem.Action(
+					label = stringResource(Res.string.menu_file_save_as),
+					onSelect = onSaveAs,
+					shortcut = keymap.chordFor("file.saveAs")?.let { chord -> formatAccelerator(chord) },
+					enabled = canSave,
 				),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_import),

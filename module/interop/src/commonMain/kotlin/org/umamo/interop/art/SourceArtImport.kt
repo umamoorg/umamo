@@ -209,35 +209,75 @@ object SourceArtImport {
 		val added = additionsFor(art, source, options, blank)
 		val additions = added.additions
 
-		// Rest positions are canvas pixels with y down, the convention every import shares, and the
-		// world origin is the canvas center, negated into world space like every vertex.
-		val canvasWidth = art.widthPx.toFloat()
-		val canvasHeight = art.heightPx.toFloat()
-		// The tree is materialized flat (one leaf per parameter at the root) rather than left empty: the
-		// CMO3 export places parameters in the editor's group hierarchy from the tree alone, and the
-		// official editor logs a recovery for every parameter it finds outside it.  Same shape the
-		// editor's own parameter-create materializes.
-		val parameters = options.parameters
-		val model =
+		val assembled =
 			PuppetModel(
-				parameters = parameters,
-				parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+				parameters = emptyList(),
 				parts = additions.parts,
 				deformers = emptyList(),
 				drawables = additions.drawables,
 				rootChildren = additions.rootChildren,
 				rootPartId = null,
-				canvasWidth = canvasWidth,
-				canvasHeight = canvasHeight,
-				worldOriginX = canvasWidth / 2f,
-				worldOriginY = -(canvasHeight / 2f),
-				// The official editor's own fresh-import state: the rigger sees the layers as drawn, and
-				// the pack that follows is what makes the document shippable.
-				rendersFromSourceLayers = true,
 				atlas = PuppetAtlas(pages = emptyList(), tiles = additions.tiles, storedUvsAddressPages = true),
 				sources = listOf(additions.source),
 			)
+		// The same two seeds a rig gets when this file is its first artwork, applied through the same
+		// helpers the add path uses, so a document built by importing art and a new document that then
+		// imports the same art come out identical.
+		val model = withSeedParameters(withFirstArtworkState(assembled, art), options.parameters)
 		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices)
+	}
+
+	/**
+	 * [model] with the frame its FIRST artwork gives it: the file's canvas, the world origin at that
+	 * canvas's center, and the fresh-import display state.
+	 *
+	 * Rest positions are canvas pixels with y down, the convention every import shares, so the world
+	 * origin is the canvas center negated into world space like every vertex.  Source-layer display is
+	 * the official editor's own state after an import - the rigger sees the layers as drawn, and the
+	 * pack that follows is what makes the document shippable.
+	 *
+	 * For the first artwork only: a document that already has art keeps the canvas it was authored
+	 * against, since a second file is placed within that frame rather than redefining it.
+	 *
+	 * @param PuppetModel model The model to seed.
+	 * @param SourceArt   art   The artwork the frame comes from.
+	 * @return PuppetModel The seeded model.
+	 */
+	fun withFirstArtworkState(model: PuppetModel, art: SourceArt): PuppetModel {
+		val canvasWidth = art.widthPx.toFloat()
+		val canvasHeight = art.heightPx.toFloat()
+		return model.copy(
+			canvasWidth = canvasWidth,
+			canvasHeight = canvasHeight,
+			worldOriginX = canvasWidth / 2f,
+			worldOriginY = -(canvasHeight / 2f),
+			rendersFromSourceLayers = true,
+		)
+	}
+
+	/**
+	 * [model] with [parameters] as its axes, materialized flat in the parameter tree.
+	 *
+	 * The tree is materialized (one leaf per parameter at the root) rather than left empty: the CMO3
+	 * export places parameters in the editor's group hierarchy from the tree alone, and the official
+	 * editor logs a recovery for every parameter it finds outside it.  Same shape the editor's own
+	 * parameter-create materializes.
+	 *
+	 * For a rig with no axes yet: seeding over authored parameters would replace them, so the caller
+	 * seeds only a model whose parameter list is empty.
+	 *
+	 * @param PuppetModel model      The model to seed.
+	 * @param List        parameters The template's parameters; an empty list leaves the model alone.
+	 * @return PuppetModel The seeded model.
+	 */
+	fun withSeedParameters(model: PuppetModel, parameters: List<Parameter>): PuppetModel {
+		if (parameters.isEmpty()) {
+			return model
+		}
+		return model.copy(
+			parameters = parameters,
+			parameterTree = parameters.map { parameter -> ParameterNode.Param(parameter.id) },
+		)
 	}
 
 	/**

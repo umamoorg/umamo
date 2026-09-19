@@ -12,13 +12,46 @@
 		android:supportsRtl="true"
 		android:theme="@android:style/Theme.Material.NoActionBar">
 
+		<!-- singleTask: a document opened from another app while the editor runs is delivered to THIS activity
+		     (onNewIntent), where the shell asks about unsaved changes, rather than stacking a second editor. -->
 		<activity
 			android:name=".MainActivity"
 			android:configChanges="orientation|screenSize|keyboardHidden"
-			android:exported="true">
+			android:exported="true"
+			android:launchMode="singleTask">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+
+			<!-- Umamo documents (docs/format/UMA.md § 2), from a provider that knows the type. -->
+			<intent-filter android:label="Umamo">
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="content" />
+				<data android:scheme="file" />
+				<data android:mimeType="application/vnd.umamo.uma+zip" />
+			</intent-filter>
+
+			<!-- Most file managers do not know the type and report a generic one, so those are matched by NAME:
+			     pathSuffix where the platform has it (API 31), and the pathPattern ladder below it - a pattern's
+			     ".*" stops at the first dot, so each extra dot in a path needs a pattern of its own.  A file that
+			     matches by name and is not a UMA is refused by the loader's own check of the content. -->
+			<intent-filter android:label="Umamo">
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="content" />
+				<data android:scheme="file" />
+				<data android:host="*" />
+				<data android:mimeType="application/octet-stream" />
+				<data android:mimeType="application/zip" />
+				<data android:pathSuffix=".uma" />
+				<data android:pathPattern=".*\\.uma" />
+				<data android:pathPattern=".*\\..*\\.uma" />
+				<data android:pathPattern=".*\\..*\\..*\\.uma" />
+				<data android:pathPattern=".*\\..*\\..*\\..*\\.uma" />
 			</intent-filter>
 		</activity>
 	</application>

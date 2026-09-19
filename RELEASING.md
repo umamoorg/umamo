@@ -25,6 +25,21 @@ Every leg builds on its own OS and architecture.  Unlike the uber jar, an applic
 
 Out of scope until alpha: code signing, notarization, native installers, auto-update, and any Android artifact.  See `TODO.md` § Build and Distribute.
 
+## File associations
+
+The `.uma` document type (`application/vnd.umamo.uma+zip`, `docs/format/UMA.md` § 2) is declared once per OS in `app/desktop/build.gradle.kts` (`fileAssociation`) and in the Android manifest.  What that does depends on the artifact, because on Windows and Linux jpackage applies `--file-associations` to **installers only**:
+
+| Platform | Today's artifacts                                                                                                                                  | With an installer            |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Linux    | Not registered.  The app image ships `lib/app/resources/umamo-uma.xml` and `umamo.desktop`; the README gives the two per-user `xdg-*` commands.    | deb / rpm register the type. |
+| Windows  | Not registered.  *Open with* only.                                                                                                                 | msi / exe register the type. |
+| macOS    | The app image's own `Info.plist` carries `CFBundleDocumentTypes`, so an unpacked `umamo.app` is the handler with no installer - but see below.     | Same.                        |
+| Android  | The manifest's VIEW intent filters; no artifact ships yet.                                                                                         | n/a                          |
+
+The macOS legs publish the uber jar only until JDK 27 (the `appImage: false` note in `release.yml`), and a jar has no bundle to associate.  Setting `appImage` back to `true` is therefore also what switches the macOS association on; the open-file handler in `Main.kt` is already in place for it and has not been exercised on a real bundle.
+
+`OsAssociationFilesTest` (`:desktop`) holds the build script, the manifest, and both freedesktop files to the codec's `Uma.MIME_TYPE`, and evaluates the freedesktop magic against a file the writer really produces.  Those files are declared as inputs of `:desktop`'s test task - they are not on its classpath, so without that an edit to one leaves the test up to date and unrun.
+
 ## Cutting a release
 
 1. Bump `VERSION` in `module/ui/src/commonMain/kotlin/org/umamo/ui/help/ProjectInfo.kt`.  The workflow **verifies** the tag against it and never injects a version so a mismatch will fail with an annotation telling you what to fix.

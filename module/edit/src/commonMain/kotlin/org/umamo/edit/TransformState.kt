@@ -22,11 +22,8 @@ const val DEFAULT_GRID_SUBDIVISIONS = 10
 /**
  * The viewport grid's geometry: the major line spacing in world units and how many minor
  * (subdivision) lines divide each major cell.  Drives both the drawn backdrop grid and the grid snap.
- * Held per-document (transient session state today, persisted per-file once the UMA format lands);
- * seeded from the global-default settings for formats - like CMO3 - that do not store grid info.
- *
- * ビューポートグリッドの間隔設定。主線間隔（ワールド単位）と 1 セルあたりの副線分割数。背景グリッドと
- * グリッドスナップの両方を駆動する。ドキュメント単位（現状は一時状態、UMA 実装後はファイルに永続化）。
+ * Held per document: seeded from the global-default settings, or from the document's own value when a `.uma`
+ * saved one (docs/format/UMA.md § 7.4); CMO3 and MOC3 store no grid and keep the default.
  *
  * @property Float scale The major grid line spacing, in world units.
  * @property Int subdivisions The minor lines per major cell (must be at least 1).

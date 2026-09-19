@@ -84,3 +84,15 @@ fun AreaNode.firstLeafOrNull(predicate: (LeafArea) -> Boolean): LeafArea? =
 		is LeafArea -> if (predicate(this)) this else null
 		is SplitNode -> first.firstLeafOrNull(predicate) ?: second.firstLeafOrNull(predicate)
 	}
+
+/**
+ * Every leaf's id under this node, in tree order (a split's first child before its second) - the order a saved
+ * document lists a layout's areas in (docs/format/UMA.md §7.5).
+ *
+ * @return List<String> The leaf ids.
+ */
+fun AreaNode.leafAreaIds(): List<String> =
+	when (this) {
+		is LeafArea -> listOf(id)
+		is SplitNode -> first.leafAreaIds() + second.leafAreaIds()
+	}

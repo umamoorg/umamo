@@ -109,8 +109,7 @@ data class PuppetModel(
 	 * read - the baseline a re-import diffs against - or empty for a document with no linked source art.
 	 *
 	 * Document content, like the atlas: a re-import rebinds tiles through it, so it undoes and persists
-	 * with the rest of the model.  No container format encodes it (the native format will), and the
-	 * diff and every export ignore it.
+	 * with the rest of the model.  The UMA sources entry encodes it; the diff and every export ignore it.
 	 */
 	val sources: List<ArtSource> = emptyList(),
 ) {

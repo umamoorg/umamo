@@ -35,25 +35,42 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 		val closeOpenMenu = menuBarController.closeOpenMenu
 		val cancelInlineEdit = inlineEditController.cancel
 		val isEscapeDown = stroke.isDown && stroke.key == Key.Escape
-		val isEnterDown = stroke.isDown && (stroke.key == Key.Enter || stroke.key == Key.NumPadEnter)
+		val isEnter = stroke.key == Key.Enter || stroke.key == Key.NumPadEnter
+		val isEnterDown = stroke.isDown && isEnter
+		// Every Enter stroke is noted before any arm runs, up or down.  This preview handler sees the key-down
+		// before the palette's own handler dispatches the command on it, so a confirm that command raises
+		// lands with the key already known to be held - and stays unarmed until the release.
+		if (isEnter) {
+			overlays.noteEnterStroke(stroke.isDown)
+		}
 		when {
-			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Escape cancels
-			// it (like its Cancel button); every other key is swallowed so no shortcut fires behind
-			// it - notably Space, which would otherwise open the palette over the dialog now that the
-			// dialog reclaims root focus.
+			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Enter confirms (like its
+			// confirm button, the dialog's default) and Escape cancels (like its cancel button); every other key
+			// is swallowed so no shortcut fires behind it - notably Space, which would otherwise open the palette
+			// over the dialog now that the dialog reclaims root focus.  It outranks the self-focused overlays
+			// below, so a confirm raised over Preferences takes its own Enter and Escape without closing them.
+			// An Enter still held from raising the dialog does not count: its OS auto-repeat would confirm a
+			// destructive action before the dialog is seen, so the arm waits for a fresh press.
 			overlays.pendingConfirm != null -> {
-				if (isEscapeDown) {
-					overlays.pendingConfirm = null
-					true
-				} else {
-					true
+				if (isEnterDown && overlays.confirmArmedForEnter) {
+					overlays.confirmPending()
+				} else if (isEscapeDown) {
+					overlays.cancelPending()
 				}
+				true
 			}
 			// The file-open alert is modal like the confirm dialog: Escape or Enter dismisses it
 			// (like its OK button); every other key is swallowed so no shortcut fires behind it.
 			overlays.openFailure != null -> {
 				if (isEscapeDown || isEnterDown) {
 					overlays.openFailure = null
+				}
+				true
+			}
+			// A message from the app layer (a read-only open, a failed save) dismisses the same way.
+			overlays.pendingAlert != null -> {
+				if (isEscapeDown || isEnterDown) {
+					overlays.pendingAlert = null
 				}
 				true
 			}
@@ -85,6 +102,12 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 					false
 				}
 			}
+			// A control capturing the next key press (the keybindings editor's chord chip) owns the WHOLE keyboard:
+			// any key may be the one being bound, and Escape cancels the capture - not the Preferences overlay the
+			// control sits in, which the arm below would close.  The ladder previews every key before the control
+			// sees it, so it stands aside here and the control's own handler decides.  Below the confirm and the
+			// alerts, which paint over everything and can arrive unasked while a capture is live.
+			keyCapture.active -> false
 			// The overlays that hold their own focus - preferences, the two Help dialogs, the palette -
 			// are one family: Escape closes the topmost (instead of falling through to area.dragCancel)
 			// and every other key yields to that overlay's own content, exactly as an open inline editor

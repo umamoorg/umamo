@@ -12,6 +12,7 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
+import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
@@ -105,6 +106,10 @@ class OffscreenPuppetService(
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 
 	override fun cameraFlow(areaId: String): StateFlow<ViewportCamera?> = registry.cameraFlow(areaId)
+
+	override fun cameras(): Map<AreaCameraKey, ViewportCamera> = registry.cameras()
+
+	override fun seedCameras(cameras: Map<AreaCameraKey, ViewportCamera>) = registry.seedCameras(cameras)
 
 	override fun resize(areaId: String, width: Int, height: Int) = registry.resize(areaId, width, height)
 

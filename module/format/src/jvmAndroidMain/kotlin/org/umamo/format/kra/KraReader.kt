@@ -12,10 +12,10 @@ import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
+import org.umamo.format.binary.ZipArchive
 import org.xml.sax.InputSource
 import java.io.ByteArrayInputStream
 import java.io.StringReader
-import java.util.zip.ZipInputStream
 import kotlin.math.max
 import kotlin.math.min
 
@@ -30,8 +30,7 @@ import kotlin.math.min
  * Scope: read-only; paint layers only (groups are traversed for hierarchy, all other node types
  * skipped); RGBA and GRAYA color in 8/16/32-bit (see resolveKraPixelFormat).
  *
- * Krita .kra 読み込み（デスクトップ JVM と Android）。ZIP と maindoc.xml とタイル化レイヤーを中立モデルへ。
- * java.util.zip と JDOM のみで Android でも動作する。ペイントレイヤーのみ対応。
+ * JDOM alone keeps this reader in jvmAndroidMain: the archive goes through the commonMain ZipArchive.
  */
 object KraReader : ArtReader {
 	override val kind: FileKind = FileKind.Kra
@@ -428,25 +427,18 @@ private fun parseMainDocument(xmlBytes: ByteArray): Element {
 /**
  * Decompresses every non-directory ZIP entry into memory, keyed by entry name.
  *
- * ZipInputStream is sequential-only, so we read each entry fully up front; a .kra's working set
- * fits comfortably in memory (the PSD reader likewise takes the whole file as bytes).
+ * Every entry is read up front; a .kra's working set fits comfortably in memory (the PSD reader likewise
+ * takes the whole file as bytes).  The shared ZIP reader verifies each entry's size and CRC-32, so a
+ * damaged archive fails here rather than decoding garbage layers.
  *
  * @param ByteArray bytes The complete ZIP archive.
  * @return Map every entry's bytes by name.
  */
 private fun unzipEntries(bytes: ByteArray): Map<String, ByteArray> {
-	val entries = HashMap<String, ByteArray>()
-	ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
-		var entry = zip.nextEntry
-		while (entry != null) {
-			if (!entry.isDirectory) {
-				entries[entry.name] = zip.readBytes()
-			}
-			zip.closeEntry()
-			entry = zip.nextEntry
-		}
-	}
-	return entries
+	val archive = ZipArchive.read(bytes)
+	return archive.entries
+		.filterNot { entry -> entry.isDirectory }
+		.associate { entry -> entry.name to archive.contents(entry) }
 }
 
 /** Concrete SourceLayer backing a parsed KRA paint layer. */

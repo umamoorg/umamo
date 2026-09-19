@@ -21,6 +21,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.deriveRenderRoot
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -171,7 +172,7 @@ class ArtworkEditsTest {
 		assertEquals(listOf("ArtMesh1", "ArtMesh2"), reloaded.drawables.map { drawable -> drawable.id.raw })
 		assertEquals(listOf(OrgChild.Part(PartId("Part1")), OrgChild.Drawable(added.id)), reloaded.rootChildren)
 		assertEquals(refreshed, reloaded.sources.single(), "the file's record takes the new inventory")
-		assertTrue(reloaded.renderRoot != null, "the render root is re-derived")
+		assertEquals(reloaded.deriveRenderRoot(), reloaded.renderRoot, "the render root is re-derived")
 	}
 
 	/**
@@ -205,7 +206,7 @@ class ArtworkEditsTest {
 		assertEquals(listOf(OrgChild.Drawable(added.id), OrgChild.Drawable(second.id), kept), reloaded.parts.single().children, "before the kept child, then after the one just placed")
 		assertEquals(listOf(OrgChild.Drawable(top.id), OrgChild.Part(PartId("Part1"))), reloaded.rootChildren, "a top-of-file layer lands first at the root")
 		assertEquals(listOf("ArtMesh1", "ArtMesh2", "ArtMesh3", "ArtMesh4"), reloaded.drawables.map { drawable -> drawable.id.raw })
-		assertEquals(RenderDrawable(DrawableId("ArtMesh4")), reloaded.renderRoot?.children?.last(), "and draws last of all, so in front (the render root runs back to front)")
+		assertEquals(RenderDrawable(DrawableId("ArtMesh4")), reloaded.renderRoot.children.last(), "and draws last of all, so in front (the render root runs back to front)")
 
 		val fallbacks = additions.copy(insertions = listOf(OrgInsertion(PartId("Part1"), OrgChild.Drawable(added.id), OrgSlot.After(OrgChild.Drawable(DrawableId("gone")))), OrgInsertion(null, OrgChild.Drawable(top.id), OrgSlot.End)))
 		val fallen = base.withArtworkReloaded(reload.copy(additions = fallbacks))
@@ -326,7 +327,7 @@ class ArtworkEditsTest {
 		assertEquals(listOf(AtlasTileId("art-0/lyid:1")), retired.atlas.tiles.map { tile -> tile.id }, "with its tile")
 		assertEquals(listOf(OrgChild.Drawable(DrawableId("ArtMesh1"))), retired.parts.single().children, "and its place in the part")
 		assertTrue(retired.drawables.single().maskedBy.isEmpty(), "and the mask that named it")
-		assertTrue(retired.renderRoot != null, "the render root is re-derived")
+		assertEquals(retired.deriveRenderRoot(), retired.renderRoot, "the render root is re-derived")
 		assertSame(withFresh, withFresh.withArtworkReloaded(reload.copy(retiredTiles = listOf(AtlasTileId("nope")))), "an unknown retired tile refuses")
 		val alsoReplaced = ArtworkReload(sourceA, listOf(ReplacedTile(freshTile.id, AtlasTile(AtlasTileId("art-0/lyid:3~1"), "L3", 4, 4))), emptyMap(), null, emptyList(), retiredTiles = listOf(freshTile.id))
 		assertSame(withFresh, withFresh.withArtworkReloaded(alsoReplaced), "a tile both superseded and retired refuses")

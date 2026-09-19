@@ -5,9 +5,50 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.AlertRequest
+import org.umamo.ui.workspace.ConfirmAlternative
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.ShellOverlayState
+
+/**
+ * What a dirty document's replace and quit prompts can do: discard the unsaved edits and go on, or save
+ * them and go on once the save has landed.
+ *
+ * @property Function  discard Goes on without saving.
+ * @property Function? save    Saves, then goes on when the save succeeds; null when the document cannot be
+ *   saved (it opened read-only), which leaves the prompt with the discard alone.
+ */
+class DirtyDocumentPrompt(
+	val discard: () -> Unit,
+	val save: (() -> Unit)?,
+)
+
+/**
+ * The confirm a dirty document's prompt raises: Save (the default) / Don't Save / Cancel when a save is
+ * possible, else the plain discard-or-cancel pair, worded for a replace or for quitting.
+ *
+ * @param DirtyDocumentPrompt prompt   The actions.
+ * @param Boolean             quitting True for the quit guard's wording, false for a document replace.
+ * @return ConfirmRequest The request.
+ */
+private fun dirtyDocumentRequest(prompt: DirtyDocumentPrompt, quitting: Boolean): ConfirmRequest {
+	val save = prompt.save
+	return if (save != null) {
+		ConfirmRequest(
+			message = if (quitting) Res.string.confirm_save_before_quit else Res.string.confirm_save_before_replace,
+			confirmLabel = Res.string.dialog_save,
+			alternative = ConfirmAlternative(Res.string.dialog_dont_save) { prompt.discard() },
+			onConfirm = save,
+		)
+	} else {
+		ConfirmRequest(
+			message = if (quitting) Res.string.confirm_quit_unsaved else Res.string.confirm_discard_unsaved,
+			confirmLabel = if (quitting) Res.string.dialog_quit_without_saving else Res.string.dialog_discard,
+			onConfirm = prompt.discard,
+		)
+	}
+}
 
 /**
  * The document-report commands the app's document layer dispatches into.
@@ -26,12 +67,16 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		Command("document.openFailed", title = null) { argument ->
 			(argument as? DocumentOpenFailure)?.let { failure -> overlays.openFailure = failure }
 		},
-		// The document layer asks before replacing a dirty document (an import discards its unsaved
-		// edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
+		// The document layer asks before replacing a dirty document (an open or an import discards its
+		// unsaved edits); the shell owns the confirm dialog so Escape/Enter route like every other overlay.
+		// Save is the default when the document can be saved, with Don't Save as the third choice.
 		Command("document.confirmReplace", title = null) { argument ->
-			(argument as? Function0<*>)?.let { proceed ->
-				overlays.pendingConfirm = ConfirmRequest(Res.string.confirm_discard_unsaved) { proceed.invoke() }
-			}
+			(argument as? DirtyDocumentPrompt)?.let { prompt -> overlays.pendingConfirm = dirtyDocumentRequest(prompt, quitting = false) }
+		},
+		// The app asks before quitting over a dirty document - from File > Exit, the window's close button, the
+		// OS's quit, or Android's back gesture - with the same Save / Don't Save / Cancel shape.
+		Command("document.confirmExit", title = null) { argument ->
+			(argument as? DirtyDocumentPrompt)?.let { prompt -> overlays.pendingConfirm = dirtyDocumentRequest(prompt, quitting = true) }
 		},
 		// A CMO3 or MOC3 export finished with advisory notices; the shell shows them in a modal alert.
 		Command("document.exportReport", title = null) { argument ->
@@ -52,5 +97,9 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		// arguments - the command only routes it into the shell's one pending-confirm slot.
 		Command("document.confirm", title = null) { argument ->
 			(argument as? ConfirmRequest)?.let { request -> overlays.pendingConfirm = request }
+		},
+		// A ready-built message from the app layer with nothing to decide - a read-only open, a failed save.
+		Command("document.alert", title = null) { argument ->
+			(argument as? AlertRequest)?.let { request -> overlays.pendingAlert = request }
 		},
 	)

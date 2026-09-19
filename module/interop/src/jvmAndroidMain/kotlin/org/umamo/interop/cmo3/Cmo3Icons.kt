@@ -80,7 +80,7 @@ internal object Cmo3Icons {
 	 * @param Any? icon A CImageIcon slot.
 	 * @return String? The path.
 	 */
-	fun archivePathOf(icon: Any?): String? = (((icon as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath
+	fun archivePathOf(icon: Any?): String? = ((icon as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath
 
 	/**
 	 * The patch a drawable's icon shows: the mesh's uv bounding box on its art, or the whole art when

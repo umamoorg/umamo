@@ -4,7 +4,9 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import okio.Buffer
+import org.umamo.format.binary.ByteReader
 import org.umamo.format.binary.Crc32
+import org.umamo.format.binary.ZipRecords
 import org.umamo.format.binary.deflateRawDeflate
 import org.umamo.format.binary.inflateRawDeflate
 import kotlin.time.Clock
@@ -24,37 +26,11 @@ internal object CaffZip {
 	// CMO3: the compressed blob is a single-entry zip stream; the entry is always named "contents".
 	private val ENTRY_NAME = "contents".encodeToByteArray()
 
-	// ZIP: the record signatures this framing uses (APPNOTE.TXT 4.3.7 / 4.3.9), little-endian on disk.
-	private const val LOCAL_HEADER_SIGNATURE = 0x04034B50
-	private const val DATA_DESCRIPTOR_SIGNATURE = 0x08074B50
-
-	// ZIP: the local header is 30 bytes before name+extra.
-	private const val LOCAL_HEADER_SIZE = 30
-
-	// ZIP: the data descriptor closing the blob is 16 bytes — signature, crc32, csize, usize.
-	private const val DATA_DESCRIPTOR_SIZE = 16
-
-	// ZIP: version 2.0 — the minimum that understands DEFLATE, and what Java writes.
-	private const val VERSION = 20
-
 	// ZIP: general-purpose flags. Bit 3 (0x08) says the CRC and sizes follow in a data descriptor
 	// rather than the local header; bit 11 (0x0800) declares the name UTF-8. The editor sets both
 	// (measured: 0x0808), so a real .cmo3 carries zeroed sizes up front — a reader that trusts them
 	// reads nothing.
-	private const val FLAGS = 0x0808
-
-	// ZIP: compression method 8 = DEFLATE.
-	private const val METHOD_DEFLATE = 8
-
-	// MS-DOS timestamp bounds. The date packs year-1980 into 7 bits, so the epoch is 1980 and the
-	// ceiling is 2107; a clock outside that range is clamped rather than allowed to wrap into a
-	// different year.
-	private const val DOS_EPOCH_YEAR = 1980
-	private const val DOS_MAXIMUM_YEAR = 2107
-
-	// MS-DOS 1980-01-01 00:00 — the clamp floor, and what an out-of-range clock falls back to.
-	private const val DOS_EPOCH_DATE = 0x0021
-	private const val DOS_EPOCH_TIME = 0x0000
+	private const val FLAGS = ZipRecords.FLAG_DATA_DESCRIPTOR or ZipRecords.FLAG_UTF8_NAME
 
 	/**
 	 * Inflates a single-entry CAFF zip stream back to the raw payload.
@@ -68,14 +44,15 @@ internal object CaffZip {
 	 * @return ByteArray The decompressed "contents" payload.
 	 */
 	fun unzipSingle(zipStream: ByteArray): ByteArray {
-		require(zipStream.size >= LOCAL_HEADER_SIZE) { "Empty CAFF zip stream" }
-		require(readU32(zipStream, 0) == LOCAL_HEADER_SIGNATURE.toLong()) { "CAFF blob is not a zip local file header" }
+		require(zipStream.size >= ZipRecords.LOCAL_HEADER_SIZE) { "Empty CAFF zip stream" }
+		val reader = ByteReader(zipStream, littleEndian = true)
+		require(reader.u32(0) == ZipRecords.LOCAL_HEADER_SIGNATURE.toLong()) { "CAFF blob is not a zip local file header" }
 		// ZIP: local header @ +0x1A name length, @ +0x1C extra length; the payload follows both.
-		val nameLength = readU16(zipStream, 26)
-		val extraLength = readU16(zipStream, 28)
-		val payloadStart = LOCAL_HEADER_SIZE + nameLength + extraLength
+		val nameLength = reader.u16(26)
+		val extraLength = reader.u16(28)
+		val payloadStart = ZipRecords.LOCAL_HEADER_SIZE + nameLength + extraLength
 		require(payloadStart <= zipStream.size) { "Truncated CAFF zip local header" }
-		return inflateRawDeflate(zipStream, payloadStart, zipStream.size - payloadStart, declaredSize(zipStream))
+		return inflateRawDeflate(zipStream, payloadStart, zipStream.size - payloadStart, declaredSize(reader))
 	}
 
 	/**
@@ -91,21 +68,22 @@ internal object CaffZip {
 	 * Treated as a cap, never a promise: a descriptor that lies truncates only its own entry, and
 	 * anything unrecognizable falls back to unbounded rather than corrupting an otherwise valid read.
 	 *
-	 * @param ByteArray zipStream The full blob.
+	 * @param ByteReader reader The full blob, little-endian.
 	 * @return Int The declared uncompressed size, or Int.MAX_VALUE when no usable descriptor is found.
 	 */
-	private fun declaredSize(zipStream: ByteArray): Int {
-		if (zipStream.size < LOCAL_HEADER_SIZE + DATA_DESCRIPTOR_SIZE) {
+	private fun declaredSize(reader: ByteReader): Int {
+		val blobSize = reader.bytes.size
+		if (blobSize < ZipRecords.LOCAL_HEADER_SIZE + ZipRecords.DATA_DESCRIPTOR_SIZE) {
 			return Int.MAX_VALUE
 		}
-		val descriptorStart = zipStream.size - DATA_DESCRIPTOR_SIZE
-		if (readU32(zipStream, descriptorStart) != DATA_DESCRIPTOR_SIGNATURE.toLong()) {
+		val descriptorStart = blobSize - ZipRecords.DATA_DESCRIPTOR_SIZE
+		if (reader.u32(descriptorStart) != ZipRecords.DATA_DESCRIPTOR_SIGNATURE.toLong()) {
 			return Int.MAX_VALUE
 		}
 		// ZIP: data descriptor @ +0x0C uncompressed size. Zero is what the LOCAL header carries, so a
 		// zero here reads as "not really a descriptor"; past Int range needs zip64 and cannot be a
 		// ByteArray length anyway. Both fall back rather than truncate.
-		val declared = readU32(zipStream, descriptorStart + 12)
+		val declared = reader.u32(descriptorStart + 12)
 		return if (declared in 1..Int.MAX_VALUE.toLong()) declared.toInt() else Int.MAX_VALUE
 	}
 
@@ -126,10 +104,11 @@ internal object CaffZip {
 
 		// ZIP: local file header (APPNOTE.TXT 4.3.7).
 		// https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
-		out.writeIntLe(LOCAL_HEADER_SIGNATURE)
-		out.writeShortLe(VERSION)
+		out.writeIntLe(ZipRecords.LOCAL_HEADER_SIGNATURE)
+		// ZIP: version 2.0 — the minimum that understands DEFLATE, and what Java writes.
+		out.writeShortLe(ZipRecords.VERSION_DEFLATED)
 		out.writeShortLe(FLAGS)
-		out.writeShortLe(METHOD_DEFLATE)
+		out.writeShortLe(ZipRecords.METHOD_DEFLATED)
 		// ZIP: local header @ +0x0A time, @ +0x0C date. Both little-endian 16-bit, in LOCAL time.
 		out.writeShortLe(dosDateTime and 0xFFFF)
 		out.writeShortLe((dosDateTime ushr 16) and 0xFFFF)
@@ -144,7 +123,7 @@ internal object CaffZip {
 		out.write(deflated)
 
 		// ZIP: data descriptor (APPNOTE.TXT 4.3.9) — the real CRC and sizes.
-		out.writeIntLe(DATA_DESCRIPTOR_SIGNATURE)
+		out.writeIntLe(ZipRecords.DATA_DESCRIPTOR_SIGNATURE)
 		out.writeIntLe(checksum)
 		out.writeIntLe(deflated.size)
 		out.writeIntLe(contents.size)
@@ -168,54 +147,6 @@ internal object CaffZip {
 	 */
 	private fun currentDosDateTime(): Int {
 		val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-		return dosDateTimeOf(now.year, now.month.number, now.day, now.hour, now.minute, now.second)
+		return ZipRecords.dosDateTimeOf(now.year, now.month.number, now.day, now.hour, now.minute, now.second)
 	}
-
-	/**
-	 * Packs a local date and time into the MS-DOS format ZIP local headers use.
-	 *
-	 * Date: year-1980 in bits 15..9, month in 8..5, day in 4..0.  Time: hour in 15..11, minute in
-	 * 10..5, and seconds HALVED into 4..0 — which is why a DOS stamp has two-second resolution.
-	 *
-	 * A year outside 1980..2107 cannot be expressed in the 7 bits available, so it clamps to the epoch
-	 * rather than wrapping into a wrong-but-plausible year.
-	 *
-	 * @param Int year   Local year.
-	 * @param Int month  Local month, 1..12.
-	 * @param Int day    Local day of month, 1..31.
-	 * @param Int hour   Local hour, 0..23.
-	 * @param Int minute Local minute, 0..59.
-	 * @param Int second Local second, 0..59.
-	 * @return Int The stamp: date in the high 16 bits, time in the low 16.
-	 */
-	internal fun dosDateTimeOf(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Int {
-		if (year < DOS_EPOCH_YEAR || year > DOS_MAXIMUM_YEAR) {
-			return (DOS_EPOCH_DATE shl 16) or DOS_EPOCH_TIME
-		}
-		val date = ((year - DOS_EPOCH_YEAR) shl 9) or (month shl 5) or day
-		val time = (hour shl 11) or (minute shl 5) or (second / 2)
-		return (date shl 16) or time
-	}
-
-	/**
-	 * Reads a little-endian unsigned 16-bit value.
-	 *
-	 * @param ByteArray bytes The buffer.
-	 * @param Int at          Offset of the low byte.
-	 * @return Int The value in 0..65535.
-	 */
-	private fun readU16(bytes: ByteArray, at: Int): Int = (bytes[at].toInt() and 0xFF) or ((bytes[at + 1].toInt() and 0xFF) shl 8)
-
-	/**
-	 * Reads a little-endian unsigned 32-bit value as a Long (so signatures compare unsigned).
-	 *
-	 * @param ByteArray bytes The buffer.
-	 * @param Int at          Offset of the low byte.
-	 * @return Long The value in 0..4294967295.
-	 */
-	private fun readU32(bytes: ByteArray, at: Int): Long =
-		(bytes[at].toLong() and 0xFF) or
-			((bytes[at + 1].toLong() and 0xFF) shl 8) or
-			((bytes[at + 2].toLong() and 0xFF) shl 16) or
-			((bytes[at + 3].toLong() and 0xFF) shl 24)
 }

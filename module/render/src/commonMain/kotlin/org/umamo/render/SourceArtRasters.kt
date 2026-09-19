@@ -97,9 +97,6 @@ class SourceArtRasters(
 	fun decodeRaster(tileId: AtlasTileId): DecodedImage? = added[tileId] ?: decode(tileId)
 
 	companion object {
-		/** The store a document with no source art surfaces. */
-		val EMPTY: SourceArtRasters = SourceArtRasters { null }
-
 		/**
 		 * A store over encoded PNG bytes - the CMO3 case, where every tile's pixels sit in the retained
 		 * graph as an embedded PNG and decoding is deferred to first request.

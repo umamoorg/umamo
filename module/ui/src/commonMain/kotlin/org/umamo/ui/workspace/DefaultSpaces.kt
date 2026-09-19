@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,9 +13,9 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.viewport.ViewportSpaceCamera
-import org.umamo.ui.workspace.spaces.EmptyViewportBackdrop
 import org.umamo.ui.workspace.spaces.HistorySpace
 import org.umamo.ui.workspace.spaces.KeyformSheetSpace
 import org.umamo.ui.workspace.spaces.LogsSpace
@@ -120,10 +121,15 @@ fun defaultSpaceRegistry(): SpaceRegistry {
 }
 
 /**
- * The 2D viewport body: delegates to the injected [LocalViewportHost] when one is available, else
- * shows the themed grid backdrop - with the floating chrome (the left tool toolbar and the
- * right sidebar drawer) overlaid either way, so the work surface reads the same before a document
- * opens (the toolbar renders disabled without a session).
+ * The 2D viewport body: the injected [LocalViewportHost]'s rendered surface, with the floating chrome (the
+ * left tool toolbar and the right sidebar drawer) overlaid.
+ *
+ * The grid, the axes, and the canvas are the renderer's, drawn through its camera, for an empty document
+ * as for a full one - the editor always has a document, so there is no state in which this would stand
+ * in for them with a drawing of its own.  The one case with no host is a platform that has no puppet
+ * renderer yet (Android until its GLES service lands); there the area is the plain viewport backdrop
+ * color and nothing else, because a painted grid that cannot pan or zoom would promise a work surface
+ * that is not there.
  *
  * @param AreaScope scope The hosting area context (its id keys the host's GL surface).
  */
@@ -150,7 +156,7 @@ private fun Viewport2DBody(scope: AreaScope) {
 		if (host != null) {
 			host.Viewport2D(scope.areaId, Modifier.fillMaxSize())
 		} else {
-			EmptyViewportBackdrop()
+			Box(modifier = Modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
 		}
 		if (chrome.showToolbar) {
 			ViewportToolbarOverlay(

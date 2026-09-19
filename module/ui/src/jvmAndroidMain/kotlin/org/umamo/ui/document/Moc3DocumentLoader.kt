@@ -14,8 +14,10 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.interop.moc3.import.moc3AtlasPages
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
+import org.umamo.render.encodeAtlasPng
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
@@ -55,7 +57,27 @@ class Moc3Document(
 	 * into the motion catch-all - written beside the moc, but no longer wired into the manifest.
 	 */
 	val sidecars: List<Moc3Sidecars.PassThroughSidecar>,
-) : PuppetDocument
+) : PuppetDocument {
+	/**
+	 * Its own store, empty at open: a baked model retains no source art, but artwork added afterwards
+	 * decodes into whatever store the document hands the add - so this document needs one of its own
+	 * rather than a shared empty instance, whose contents would follow the next document.
+	 */
+	override val artRasters: SourceArtRasters = SourceArtRasters { null }
+
+	/**
+	 * The page PNGs in DECODED page order: the retained bytes where the family had them, a re-encode of the
+	 * decoded page where it did not.
+	 *
+	 * The decoded set is the list, because that is what the drawables' page indices were resolved against;
+	 * the retained bytes are only the preferred payload for each of those pages.  Re-encoding rather than
+	 * skipping a page the family lacks keeps every later page's number under the drawables that reference it.
+	 * Both the CMO3 export's image chain and a UMA save's stored render pages read this.
+	 *
+	 * @return List<ByteArray> One PNG per decoded page.
+	 */
+	fun pagePngs(): List<ByteArray> = textures.atlases.mapIndexed { pageIndex, decoded -> atlasPages.getOrNull(pageIndex) ?: encodeAtlasPng(decoded) }
+}
 
 /**
  * Loads a picked `.moc3` plus its sidecars into a [Moc3Document].  A baked model is a file family,
