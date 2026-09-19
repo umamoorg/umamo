@@ -47,6 +47,17 @@ Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`. 
 - **Windows:** SmartScreen shows "Windows protected your PC".  Choose *More info* -> *Run anyway*.
 - **Linux:** Just run the application: `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.  Linux doesn't restrict you from running any application that you wish to run on your computer.
 
+### Opening .uma files from the file manager
+
+Since the builds are plain archives without installers the `.uma` mimetype won't be registered automatically by the operating system.  Linux has a manual mimetype registration option while Windows and MacOS will wait for their respective installers in the future.
+
+- **Linux:** The archives come with freedesktop.org files to register the mimetype manually.  Put `umamo/bin/umamo` on your `PATH`(or edit the `Exec=` line in `umamo.desktop` to its full path), then register them for your user:
+```bash
+xdg-mime install --novendor umamo/lib/app/resources/umamo-uma.xml
+xdg-desktop-menu install --novendor umamo/lib/app/resources/umamo.desktop
+```
+`xdg-mime uninstall` and `xdg-desktop-menu uninstall` with the same files to undo it.
+
 ## Building & Development
 
 Umamo is a Kotlin Multiplatform project (Gradle, Kotlin DSL) targeting desktop and Android from one shared codebase.
