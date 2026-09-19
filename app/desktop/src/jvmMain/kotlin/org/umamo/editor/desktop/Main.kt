@@ -24,6 +24,7 @@ import org.umamo.storage.desktopAppStorage
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
+import org.umamo.ui.app.HostOpenRequests
 import org.umamo.ui.app.rememberDocumentFileFor
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.app.rememberExitGuard
@@ -114,6 +115,17 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
 }
 
 /**
+ * Whether [path] names a document the editor opens by itself - its own `.uma`, or a `.cmo3` / `.moc3` it imports.
+ * One test for the command line and the macOS open-file event, so a file the OS hands over is accepted the same
+ * way however it arrives.  The extension only says the path is worth reading; the loader identifies the content.
+ *
+ * @param String path A path from the command line or the operating system.
+ * @return Boolean True when the path has a document extension.
+ */
+internal fun isOpenableDocumentPath(path: String): Boolean =
+	listOf(FileKind.Uma, FileKind.Cmo3, FileKind.Moc3).any { kind -> path.endsWith(".${kind.extension}", ignoreCase = true) }
+
+/**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
  * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
  * native `:storage` dialogs. An initial document may come from a `.cmo3`/`.moc3` argument or
@@ -124,20 +136,24 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
  * so the window state is ready before the window opens and the window is unconditional - `application {}`
  * exits if it ever has zero windows, which an async settings gate would briefly cause.
  *
- * @param Array<String> args Optional: a `.cmo3` or `.moc3` path.
+ * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path.
  */
 fun main(args: Array<String>) {
 	// FileKit's native dialogs need a one-time init; `appId` names the per-OS data/cache dirs it uses.
 	FileKit.init(appId = "umamo")
-	val initialPath =
-		args.firstOrNull { arg ->
-			// Pick the first .cmo3 or .moc3 argument; loadDocument then does the real magic-byte
-			// detection once the file is actually read (a .moc3 routes to the sidecar-discovering loader).
-			arg.endsWith(".${FileKind.Uma.extension}", ignoreCase = true) ||
-				arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true) ||
-				arg.endsWith(".${FileKind.Moc3.extension}", ignoreCase = true)
+	// Pick the first document argument; loadDocument then does the real magic-byte detection once the file
+	// is actually read (a .moc3 routes to the sidecar-discovering loader).  This is how Windows and Linux hand
+	// over a double-clicked file.
+	val initialPath = args.firstOrNull(::isOpenableDocumentPath) ?: System.getProperty("umamo.testCmo3")
+	// macOS hands a double-clicked file over as an open-file event instead, at launch and for as long as the
+	// app runs.  Installed before the window exists: a cold launch's event can arrive before the first
+	// composition, and the requests wait in their buffer until the shell collects them.
+	val openRequests = HostOpenRequests()
+	if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_OPEN_FILE)) {
+		Desktop.getDesktop().setOpenFileHandler { event ->
+			event.files.map { file -> file.absolutePath }.firstOrNull(::isOpenableDocumentPath)?.let(openRequests::request)
 		}
-			?: System.getProperty("umamo.testCmo3")
+	}
 	// Synchronous load, like the settings below: the window opens with the document already in hand.
 	// The document reaches the first composition through a one-shot holder rather than a plain local:
 	// the application closure lives for the whole run, so a direct capture would keep the first
@@ -242,6 +258,7 @@ fun main(args: Array<String>) {
 							viewportServiceFactory = { puppet, textures, liveParams ->
 								OffscreenPuppetService(puppet, textures, liveParams).also { it.start() }
 							},
+							openRequests = openRequests,
 						)
 					}
 				}

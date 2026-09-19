@@ -294,6 +294,8 @@ fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(docum
  *   close button, the OS's quit, Android's back gesture); the shell installs its guard here while composed.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or
  *   null on a platform without a puppet renderer yet (viewport areas render placeholders).
+ * @param HostOpenRequests? openRequests Files the operating system asks the running editor to open, or null for
+ *   a host that receives none.
  */
 @Composable
 fun EditorApp(
@@ -304,6 +306,7 @@ fun EditorApp(
 	onExit: () -> Unit,
 	exitGuard: ExitGuard,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
+	openRequests: HostOpenRequests? = null,
 ) {
 	val settings = LocalSettings.current
 	val scope = rememberCoroutineScope()
@@ -574,6 +577,14 @@ fun EditorApp(
 				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), configuredArtworkImportOptions()))
 			}
 		}
+	}
+
+	// A file the operating system hands the running editor - a double-clicked document on macOS, a VIEW intent
+	// on Android - opens the way a recent file does, unsaved-changes check included.  The collector starts once
+	// and reads the live document through the holders above, so it never asks about a stale one.
+	val openFromHost by rememberUpdatedState(::openStoredPath)
+	LaunchedEffect(openRequests) {
+		openRequests?.requests?.collect { requestedPath -> openFromHost(requestedPath) }
 	}
 
 	// The host every artwork operation over the open document lands through: the same one the repack

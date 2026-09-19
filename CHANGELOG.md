@@ -10,6 +10,7 @@ Umamo is early alpha.
 * Format: New native UMA file format!
 * Format: A UMA document remembers each panel's open branches, filters, tab, and the UV Editor's texture choice, per area.
 * Format: A UMA document reopens to the pose, selection, mode, cursors, pivot and proportional editing settings, and each viewport's pan and zoom it was saved with.
+* Format: The `.uma` file type is now declared for desktop packages and Android along with freedesktop files in the Linux build to register it per user.
 * UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.

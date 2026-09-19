@@ -19,6 +19,13 @@ import org.umamo.format.binary.rangeEquals
  * @see <a href="https://docs.umamo.org/format/UMA.md">UMA.md §2 Identification, §3 Manifest</a>
  */
 public object Uma : FormatCodec<UmaModel> {
+	/**
+	 * The media type a UMA file announces itself with - the content of its `mimetype` entry (UMA §2) - and the one
+	 * name every operating-system registration has to agree on: the freedesktop entry, the Android intent filter,
+	 * and the desktop package's file association.
+	 */
+	public const val MIME_TYPE: String = UmaContainer.MIMETYPE
+
 	// UMA §2: a stored first entry named "mimetype" puts its content right after the 30-byte local header
 	// and the 8-byte name.
 	private const val PROBE_OFFSET = ZipRecords.LOCAL_HEADER_SIZE + 8

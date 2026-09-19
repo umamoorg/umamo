@@ -44,6 +44,16 @@ class UmaIdentificationTest {
 	}
 
 	/**
+	 * The public media type is the string the writer stores at the probe offset, so an operating-system
+	 * registration built from it (a freedesktop magic rule, an Android intent filter) describes real files.
+	 */
+	@Test
+	fun thePublicMediaTypeIsWhatTheWriterStores() {
+		val stored = written.copyOfRange(38, 38 + Uma.MIME_TYPE.length).decodeToString()
+		assertEquals(Uma.MIME_TYPE, stored, "UMA §2: the mimetype entry's content sits at offset 38")
+	}
+
+	/**
 	 * The probe rejects every near miss: another ZIP format's mimetype, a compressed or displaced mimetype,
 	 * an extra field that moves the content, a wrong or longer string, and bytes that are not a ZIP.
 	 */

@@ -22,6 +22,12 @@ apply(from = rootProject.file("gradle/project-version.gradle.kts"))
 val umamoVersion = extra["umamoVersion"] as String
 val umamoVersionNumeric = extra["umamoVersionNumeric"] as String
 
+// The .uma document type every OS registration names.  OsAssociationFilesTest holds this script, the Android
+// manifest, and the freedesktop files to the codec's own Uma.MIME_TYPE, so the four cannot drift apart.
+val umaMimeType = "application/vnd.umamo.uma+zip"
+val umaExtension = "uma"
+val umaDescription = "Umamo Document"
+
 kotlin {
 	jvmToolchain(21)
 
@@ -129,11 +135,23 @@ compose.desktop {
 			// its own host's file, so all three are committed and each is consumed when packaging on
 			// that OS.  These feed createDistributable / the native installers (not the uber jar,
 			// which carries no icon).  Regenerate from the mascot with docs/design/appicon/generate.sh.
+			//
+			// The .uma document type (docs/format/UMA.md § 2), declared per OS because that is where the plugin
+			// puts it.  What it does depends on what is being built:
+			//   * macOS: the plugin writes CFBundleDocumentTypes into the app image's own Info.plist, so an
+			//     unpacked Umamo.app is already the handler for .uma - no installer needed.
+			//   * Windows and Linux: the plugin hands it to jpackage as --file-associations, which jpackage
+			//     accepts for INSTALLERS only.  It is inert for createDistributable, the only thing a release
+			//     ships today, and takes effect the day an msi / deb is built.  Until then Linux registers the
+			//     type per user from the two files under resources/linux (see appResourcesRootDir below).
+			// The document reuses the application icon until it has one of its own.
 			windows {
 				iconFile.set(project.file("icons/umamo.ico"))
+				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.ico"))
 			}
 			macOS {
 				iconFile.set(project.file("icons/umamo.icns"))
+				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.icns"))
 				// CFBundleIdentifier. Matches :android's applicationId so one reverse-DNS identity
 				// covers the project on both platforms. Not required for an unsigned app image (the
 				// plugin only validates it when signing), but jpackage would otherwise derive one
@@ -143,9 +161,30 @@ compose.desktop {
 			}
 			linux {
 				iconFile.set(project.file("icons/umamo.png"))
+				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.png"))
 			}
+
+			// Files copied into the app image beside the jars (lib/app/resources on Linux).  resources/linux
+			// holds the freedesktop shared-mime-info entry and the desktop entry a rigger installs per user to
+			// make the file manager open .uma with an unpacked Umamo.
+			appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
 		}
 	}
+}
+
+// OsAssociationFilesTest reads the OS registration files straight from disk - this script, the Android manifest,
+// and the two freedesktop files - and holds them to the codec's Uma.MIME_TYPE.  None of them is on the test
+// classpath, so Gradle does not know the test depends on them: left undeclared, an edit to any one leaves
+// jvmTest UP-TO-DATE and the check silently never runs against the change it exists to catch.
+val osAssociationFiles =
+	files(
+		"resources/linux/umamo-uma.xml",
+		"resources/linux/umamo.desktop",
+		"build.gradle.kts",
+		rootProject.file("app/android/src/main/AndroidManifest.xml"),
+	)
+tasks.withType<Test>().configureEach {
+	inputs.files(osAssociationFiles).withPropertyName("osAssociationFiles").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // `umamo.testCmo3` opens the corpus CMO3 (gitignored; the puppet preview) on launch. It is a
