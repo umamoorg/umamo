@@ -15,7 +15,6 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
@@ -130,7 +129,7 @@ class AddedArtCmo3ExportGateTest {
 			for (drawable in addedDrawables) {
 				val mesh = assertNotNull(rereadMeshes.firstOrNull { candidate -> (candidate.id as? Id)?.idstr == drawable.id.raw }, "${drawable.name} is written")
 				for ((icon, size) in listOf(mesh.icon32 to 32, mesh.icon16 to 16)) {
-					val path = assertNotNull((((icon as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "${drawable.name} has a ${size}px icon")
+					val path = assertNotNull(((icon as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath, "${drawable.name} has a ${size}px icon")
 					val decoded = PngCodec.read(assertNotNull(reread.archive.byPath(path), "icon '$path' is embedded").content)
 					assertEquals(size to size, decoded.width to decoded.height)
 					assertTrue((0 until decoded.width * decoded.height).any { pixel -> (decoded.rgba[pixel * 4 + 3].toInt() and 0xFF) == 255 }, "${drawable.name}'s ${size}px icon shows its opaque art")

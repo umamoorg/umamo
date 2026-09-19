@@ -82,6 +82,27 @@ class AtlasPageBinding(
 )
 
 /**
+ * Which surface a camera frames.  The puppet's world space and a texture's pixel space share nothing, so a view of
+ * one means nothing over the other: an area switched from the UV editor to the 2D viewport must not inherit the
+ * page's pan and zoom, and each keeps its own for the day the area switches back.
+ */
+enum class CameraSurface {
+	/** The posed puppet, in world units (the 2D viewport). */
+	Viewport,
+
+	/** A flat texture surface - an atlas page or a source layer - in its own pixels (the UV editor). */
+	Uv,
+}
+
+/**
+ * What a remembered camera belongs to: one area, showing one kind of surface.
+ *
+ * @property String        areaId  The hosting leaf's area id.
+ * @property CameraSurface surface The surface the camera frames.
+ */
+data class AreaCameraKey(val areaId: String, val surface: CameraSurface)
+
+/**
  * The platform seam between the common viewport UI and a puppet render engine. The engine owns a GPU
  * context on its own thread, renders the posed puppet per registered area, and publishes each frame as
  * a Compose ImageBitmap; the common `Viewport2D` composable, the navigation/pick pointer loop, and the
@@ -160,6 +181,22 @@ interface PuppetViewportService {
 	 * @return StateFlow The camera flow.
 	 */
 	fun cameraFlow(areaId: String): StateFlow<ViewportCamera?>
+
+	/**
+	 * Every camera the engine remembers, by area and surface: the areas shown now and the ones a workspace tab
+	 * switch has put away.  What a save writes as each area's views (docs/format/UMA.md § 7.3).
+	 *
+	 * @return Map The cameras.
+	 */
+	fun cameras(): Map<AreaCameraKey, ViewportCamera>
+
+	/**
+	 * Gives the engine the cameras a document was saved with, before any area registers: an area that has one for
+	 * the surface it shows opens on it instead of fitting its content.  A key no area ever takes costs nothing.
+	 *
+	 * @param Map cameras The saved cameras, by area and surface.
+	 */
+	fun seedCameras(cameras: Map<AreaCameraKey, ViewportCamera>)
 
 	/**
 	 * Reports [areaId]'s current size in pixels; the engine re-renders at the new size.

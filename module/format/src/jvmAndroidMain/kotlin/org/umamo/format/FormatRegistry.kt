@@ -9,29 +9,30 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.format.psd.PsdReader
 import org.umamo.format.tiff.TiffReader
+import org.umamo.format.uma.Uma
 import org.umamo.format.webp.WebPReader
 
 /**
  * The registry of binary container codecs Umamo can read/write, and the entry point for dispatching
  * an unknown file to the right one.
  *
- * EN: Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
- *     JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
- *     models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
- *     returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
- *     not registered here - they are `String`-shaped and live as helpers on [Moc3].
- * JA: バイナリ形式コーデックの一覧と判定窓口。Cmo3 が JVM 専用のためこのソースセットに置く。
+ * Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
+ * JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
+ * models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
+ * returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
+ * not registered here - they are `String`-shaped and live as helpers on [Moc3].
  */
 public object FormatRegistry {
 	/**
-	 * Every registered codec, in priority order (first magic match wins in [detect]). All of them work
-	 * on every target: the model codecs (CMO3/MOC3), the layered art readers (CLIP, KRA, PSD), and the
-	 * flat raster codecs (PNG, BMP, plus the JPEG/WebP/TIFF read placeholders) all live in
-	 * jvmAndroidMain and need only java.nio / java.util.zip / JDOM.  The magics do not collide, so the
-	 * raster codecs sit last; BMP's short 2-byte "BM" magic is checked after the longer signatures.
+	 * Every registered codec, in priority order (first magic match wins in [detect]): the native UMA
+	 * container, the model codecs (CMO3, MOC3), the layered art readers (CLIP, KRA, PSD), and the flat raster
+	 * codecs (PNG, BMP, JPEG, WebP, TIFF).  The registry sits in jvmAndroidMain because the CMO3 codec does.
+	 * The magics do not collide: UMA and KRA are both ZIPs announcing themselves through a mimetype entry,
+	 * but each probe matches only its own mimetype string.  The raster codecs sit last, so BMP's short
+	 * 2-byte "BM" magic is checked after the longer signatures.
 	 */
 	private val codecs: List<FormatCodec<*>> =
-		listOf(Cmo3, Moc3, ClipReader, KraReader, PsdReader, PngCodec, BmpCodec, JpegReader, WebPReader, TiffReader)
+		listOf(Uma, Cmo3, Moc3, ClipReader, KraReader, PsdReader, PngCodec, BmpCodec, JpegReader, WebPReader, TiffReader)
 
 	/**
 	 * Identifies the codec for [bytes], preferring a reliable magic-byte match and falling back to the

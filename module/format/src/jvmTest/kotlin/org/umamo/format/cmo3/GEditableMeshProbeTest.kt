@@ -59,9 +59,9 @@ class GEditableMeshProbeTest {
 					failures.add("${file.name}: edge is ${edge::class.simpleName}")
 					continue
 				}
-				val pointArray = point as? FloatArray
-				val uidArray = pointUid as? IntArray
-				val edgeArray = edge as? ShortArray
+				val pointArray: FloatArray? = point
+				val uidArray: IntArray? = pointUid
+				val edgeArray: ShortArray? = edge
 				if (pointArray != null && positions != null) {
 					if (pointArray === positions) {
 						sharedPointArrayCount++

@@ -7,6 +7,9 @@
 -->
 <resources>
 	<string name="app_name">Umamo</string>
+	<!-- What the window title calls a document that has never been saved. -->
+	<string name="title_untitled_document">Untitled</string>
+	<string name="title_read_only">(read-only)</string>
 
 	<!--
 	  Generic control labels, deliberately domain-free: the disclosure chevron names the state it would
@@ -57,10 +60,14 @@
 	<string name="area_close">Close Area</string>
 	<string name="area_change_editor">Change Editor Type</string>
 
-	<!-- File menu.  Open/Save is reserved for the native UMA format; CMO3 and MOC3 are interop
-	     boundaries reached through the Import/Export submenus.  The cmd_* variants carry the full
-	     operation name for the command palette, where the submenu context is absent. -->
+	<!-- File menu.  Open/Save mean the native UMA document; CMO3 and MOC3 are interop boundaries
+	     reached through the Import/Export submenus.  The cmd_* variants carry the full operation
+	     name for the command palette, where the submenu context is absent. -->
 	<string name="menu_file">File</string>
+	<string name="menu_file_new">New</string>
+	<string name="menu_file_open">Open…</string>
+	<string name="menu_file_save">Save</string>
+	<string name="menu_file_save_as">Save As…</string>
 	<string name="menu_open_recent">Open Recent</string>
 	<string name="menu_import">Import</string>
 	<string name="menu_export">Export</string>
@@ -69,10 +76,13 @@
 	<string name="menu_import_artwork">Artwork…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
+	<string name="cmd_file_new">New Document</string>
+	<string name="cmd_file_open">Open Document…</string>
+	<string name="cmd_file_save">Save Document</string>
+	<string name="cmd_file_save_as">Save Document As…</string>
 	<string name="cmd_import_cmo3">Import CMO3…</string>
 	<string name="cmd_import_moc3">Import MOC3…</string>
 	<string name="cmd_import_artwork">Import Artwork…</string>
-	<string name="cmd_file_add_artwork">Add Artwork…</string>
 	<string name="cmd_document_reload_artwork">Reload Artwork</string>
 	<string name="cmd_sources_relink">Relink Art</string>
 	<string name="cmd_sources_match_automatically">Match Artwork Automatically</string>
@@ -98,9 +108,20 @@
 	<!-- Dialogs (the reusable confirm dialog: actions + destructive-operation prompts). -->
 	<string name="dialog_confirm">Confirm</string>
 	<string name="dialog_cancel">Cancel</string>
+	<!-- The verbs a confirm button names instead of the generic Confirm. -->
+	<string name="dialog_discard">Discard</string>
+	<string name="dialog_reset">Reset</string>
+	<string name="dialog_replace">Replace</string>
+	<string name="dialog_overwrite">Overwrite</string>
+	<string name="dialog_quit_without_saving">Quit Without Saving</string>
+	<string name="dialog_save">Save</string>
+	<string name="dialog_dont_save">Don’t Save</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
 	<string name="confirm_discard_unsaved">The document has unsaved changes.  Discard them?</string>
+	<string name="confirm_quit_unsaved">The document has unsaved changes.  Quit without saving?</string>
+	<string name="confirm_save_before_replace">The document has unsaved changes.  Save them first?</string>
+	<string name="confirm_save_before_quit">The document has unsaved changes.  Save them before quitting?</string>
 	<!-- Export report alert (the document.exportReport command).  One header per export format,
 	     chosen by the report's own format; the body lines carry the per-item diagnostics, and
 	     %1$s in the weld line is the affected drawable names. -->
@@ -227,6 +248,10 @@
 	<string name="open_failed_missing_manifest">Could not import %1$s.  Its model3.json manifest was not found next to the file.</string>
 	<string name="open_failed_missing_texture">Could not import %1$s.  A texture referenced by its model3.json is missing or unreadable.</string>
 	<string name="open_failed_no_art_layers">%1$s has no layers with pixels to import.</string>
+	<string name="open_failed_newer_format">%1$s was made by a newer version of Umamo and cannot be opened by this one.</string>
+	<!-- Modal messages the app layer raises through document.alert; %2$s lists entry paths, document data. -->
+	<string name="alert_document_read_only">%1$s opened read-only.  It holds entries this version of Umamo cannot interpret, so Save is unavailable: %2$s</string>
+	<string name="alert_save_failed">Could not save %1$s.  %2$s</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
@@ -402,7 +427,7 @@
 	<string name="history_document_delete_tile_ignore">Delete Art, Ignore Layer</string>
 	<string name="history_document_layer_ignore">Ignore Layer</string>
 	<string name="history_document_layer_unignore">Stop Ignoring Layer</string>
-	<string name="history_document_add_artwork">Add Artwork</string>
+	<string name="history_document_import_artwork">Import Artwork</string>
 	<string name="history_document_reload_artwork">Reload Artwork</string>
 	<string name="history_document_relink_artwork">Relink Art</string>
 	<string name="history_document_match_artwork">Match Artwork</string>
@@ -415,7 +440,6 @@
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parts</string>
 	<string name="outliner_filter_deformers">Deformers</string>
-	<string name="sources_add_artwork">Add Artwork…</string>
 	<string name="sources_reload">Reload Artwork Files</string>
 	<string name="sources_reload_pending">Artwork files changed on disk.  Reload to take the changes.</string>
 	<string name="sources_match_automatically">Match Automatically: Rebind the art whose layers the files no longer have to their best matches.</string>
@@ -454,7 +478,6 @@
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_delete">Delete Art</string>
 	<string name="sources_relink_no_matches">No layer matches.</string>
-	<string name="sources_empty">No source artwork.  Add artwork to add insert layered art.</string>
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Restriction Toggles</string>
 	<string name="outliner_column_selectable">Selectable Column</string>
@@ -559,6 +582,12 @@
 	<string name="notice_atlas_repacked">Atlas repacked.</string>
 	<string name="notice_import_artwork_notes">Artwork imported with notes.  See the log.</string>
 	<string name="notice_import_artwork_added">Artwork added.</string>
+	<string name="notice_document_saving">Saving…</string>
+	<string name="notice_document_saved">Saved %1$s.</string>
+	<string name="notice_document_save_busy">A save is already in progress.</string>
+	<string name="notice_document_waiting_for_save">Waiting on save to finish…</string>
+	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3 structure Umamo does not model is not carried in this file; exports from this session still reconcile onto the original.</string>
+	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
 	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added, %3$d matched.</string>
@@ -878,7 +907,6 @@
 	<string name="keyform_sheet_filter_geometry">Deformation Tracks</string>
 	<string name="keyform_sheet_filter_channels">Property Tracks</string>
 	<string name="keyform_sheet_filter_blend_shapes">Blend Shape Tracks</string>
-	<string name="keyform_sheet_no_parameter">Select a parameter to see its tracks.</string>
 	<string name="keyform_sheet_no_tracks">Nothing is keyed on this parameter yet.</string>
 	<string name="owner_kind_drawable">Drawable</string>
 	<string name="owner_kind_warp_deformer">Warp Deformer</string>

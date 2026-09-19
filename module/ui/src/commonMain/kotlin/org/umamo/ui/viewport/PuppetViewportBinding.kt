@@ -41,6 +41,7 @@ import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.SourceArtRasters
+import org.umamo.render.ViewportCamera
 import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -167,6 +168,8 @@ private class SourceArtworkGaps {
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
  * @param PuppetViewportServiceFactory serviceFactory Creates (and starts) the platform render service.
+ * @param Map initialCameras The cameras the document was saved with, by area and surface (docs/format/UMA.md § 7.3);
+ *   read once, as the service is built.
  * @return PuppetViewportBinding The host, the render service, and the preview seams the shell and app wire up.
  */
 @Composable
@@ -177,13 +180,15 @@ fun rememberPuppetViewportHost(
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
+	initialCameras: Map<AreaCameraKey, ViewportCamera> = emptyMap(),
 ): PuppetViewportBinding {
 	// The page set is deliberately NOT a key: the session swaps pages mid-document (a repack, or its
 	// undo), and that flows into the LIVE service below - re-keying here would tear down the whole GL
 	// engine and every per-area camera for what is a texture upload.
 	val service =
 		remember(puppet, liveParams) {
-			serviceFactory(puppet, atlasPages.textures, liveParams)
+			// Seeded here, inside the remember, so the cameras are in place before any area below registers.
+			serviceFactory(puppet, atlasPages.textures, liveParams).also { created -> created.seedCameras(initialCameras) }
 		}
 	DisposableEffect(service) {
 		onDispose { service.dispose() }
@@ -355,13 +360,15 @@ fun rememberPuppetViewportHost(
 				parseSelectionHighlightColor(settings.getString(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
 			service.setActiveSelectionHighlightColor(activeRed, activeGreen, activeBlue)
 			// Resolve the global-default grid geometry into the session, the single source of truth the
-			// snap commands and the renderer both read.  A stored per-file value takes precedence here once
-			// the UMA format lands; formats that do not store grid info (CMO3) keep this default.
-			val gridScale =
-				(settings.getDouble(ViewportSettings.GRID_SCALE_KEY) ?: ViewportSettings.GRID_SCALE_DEFAULT).toFloat()
-			val gridSubdivisions =
-				settings.getInt(ViewportSettings.GRID_SUBDIVISIONS_KEY) ?: ViewportSettings.GRID_SUBDIVISIONS_DEFAULT
-			session.setGridConfig(GridConfig(gridScale, gridSubdivisions))
+			// snap commands and the renderer both read.  A grid the document saved for itself takes precedence
+			// (docs/format/UMA.md § 7.4); a document without one - every CMO3 and MOC3 - keeps this default.
+			if (session.gridFollowsApplication) {
+				val gridScale =
+					(settings.getDouble(ViewportSettings.GRID_SCALE_KEY) ?: ViewportSettings.GRID_SCALE_DEFAULT).toFloat()
+				val gridSubdivisions =
+					settings.getInt(ViewportSettings.GRID_SUBDIVISIONS_KEY) ?: ViewportSettings.GRID_SUBDIVISIONS_DEFAULT
+				session.setGridConfig(GridConfig(gridScale, gridSubdivisions))
+			}
 		}
 		applyViewportSettings()
 		settings.changes.collect { key ->

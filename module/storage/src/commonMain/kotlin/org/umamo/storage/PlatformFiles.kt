@@ -14,3 +14,17 @@ import io.github.vinceglb.filekit.PlatformFile
  * @return PlatformFile The reconstructed file handle.
  */
 expect fun platformFileFromSavedPath(path: String): PlatformFile
+
+/**
+ * Writes [bytes] as this file's complete contents, never leaving a half-written file where it can be
+ * avoided.
+ *
+ * A real path takes the temporary-then-atomic-move route ([writeReplacing]), so the file on disk is either
+ * the old one or the new one.  An Android `content://` uri cannot be renamed over, so it is written in
+ * place, and only once the bytes are complete in memory - the one case where a failure mid-write can
+ * leave a partial file.
+ *
+ * @param ByteArray bytes The complete contents.
+ * @throws IOException When the write fails; the caller reports it and marks nothing saved.
+ */
+expect suspend fun PlatformFile.writeReplacing(bytes: ByteArray)
