@@ -7,6 +7,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 
 /*
@@ -260,4 +261,43 @@ private fun mergeArray(
 private fun mergeMap(retained: JsonObject?, updated: JsonElement, valueDescriptor: SerialDescriptor, identities: UmaIdentityTable): JsonElement {
 	val updatedObject = updated as? JsonObject ?: return updated
 	return JsonObject(updatedObject.mapValuesTo(LinkedHashMap()) { (key, value) -> mergeRetainedTree(retained?.get(key), value, valueDescriptor, identities) })
+}
+
+/**
+ * [patch] applied to [target] as a JSON Merge Patch (RFC 7386), which is how the editor entry is written over the
+ * tree as read (D33, docs/format/UMA.md §7.5).
+ *
+ * The editor entry is a dynamic tree with no schema descriptor to say which keys a writer knows, so it cannot go
+ * through [mergeRetainedTree].  The patch says it instead: a member it names is set, a member it names `null` is
+ * removed, and a member it does not name survives - which is what keeps a newer writer's members in the file.
+ * Objects merge member by member; any other value replaces whole.  An object the merge leaves with no members is
+ * removed in turn, so a deviation that returns to its default does not leave an empty block behind.
+ *
+ * Members keep the order [target] had them in, and new ones follow in [patch]'s order, so the same state always
+ * writes the same bytes.
+ *
+ * @param JsonObject target The tree as read.
+ * @param JsonObject patch  The members to set, and the ones to remove as nulls.
+ * @return JsonObject The merged tree, holding no null this patch placed.
+ */
+internal fun applyMergePatch(target: JsonObject, patch: JsonObject): JsonObject {
+	val merged = LinkedHashMap<String, JsonElement>(target)
+	for ((memberName, patchValue) in patch) {
+		when (patchValue) {
+			// UMA §7.5: null removes.
+			is JsonNull -> merged.remove(memberName)
+
+			is JsonObject -> {
+				val mergedChild = applyMergePatch(merged[memberName] as? JsonObject ?: JsonObject(emptyMap()), patchValue)
+				if (mergedChild.isEmpty()) {
+					merged.remove(memberName)
+				} else {
+					merged[memberName] = mergedChild
+				}
+			}
+
+			else -> merged[memberName] = patchValue
+		}
+	}
+	return JsonObject(merged)
 }

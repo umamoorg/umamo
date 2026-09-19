@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.properties.LocalPropertiesViewState
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PROPERTIES_VIEW_STATE_KEY
 import org.umamo.ui.properties.PropertiesViewState
@@ -163,7 +165,10 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 										// Only the rows that survived the search (every row when not searching).
 										for (rowIndex in visible.visibleRowIndices) {
 											key(rowIndex) {
-												visible.rows[rowIndex].content(context)
+												// A row that keeps per-area state (a relation list's dragged height) reaches it here.
+												CompositionLocalProvider(LocalPropertiesViewState provides viewState) {
+													visible.rows[rowIndex].content(context)
+												}
 											}
 										}
 									}

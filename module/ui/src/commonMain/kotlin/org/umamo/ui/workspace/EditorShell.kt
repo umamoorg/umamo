@@ -52,7 +52,9 @@ import org.umamo.ui.help.CreditsDialog
 import org.umamo.ui.kit.ConfirmDialog
 import org.umamo.ui.kit.DialogChoice
 import org.umamo.ui.kit.InlineEditController
+import org.umamo.ui.kit.KeyCaptureController
 import org.umamo.ui.kit.LocalInlineEditController
+import org.umamo.ui.kit.LocalKeyCapture
 import org.umamo.ui.kit.LocalMenuBarController
 import org.umamo.ui.kit.MenuBar
 import org.umamo.ui.kit.MenuBarController
@@ -183,6 +185,7 @@ fun EditorShell(
 	// Shared with inline editors (workspace rename) so that while one is open this shell's root key handler
 	// yields the keyboard to the field - routing Escape to cancel and suppressing its own shortcuts.
 	val inlineEditController = remember { InlineEditController() }
+	val keyCapture = remember { KeyCaptureController() }
 	// Shared with the row-dragging panels (outliner, parameters): while a row drag is in flight its cancel
 	// is parked here, so the root key handler can route Escape to abort the drag before the clear-selection
 	// branch would swallow it.  One pointer means at most one in-flight drag anywhere, so one slot serves
@@ -387,6 +390,7 @@ fun EditorShell(
 				LocalAreaDragController provides dragController,
 				LocalMenuBarController provides menuBarController,
 				LocalInlineEditController provides inlineEditController,
+				LocalKeyCapture provides keyCapture,
 				LocalRowDragCancel provides rowDragCancel,
 				LocalSplitterDragCancel provides splitterDragCancel,
 				LocalKeyableHover provides keyableHover,
@@ -429,6 +433,7 @@ fun EditorShell(
 											overlays = overlays,
 											menuBarController = menuBarController,
 											inlineEditController = inlineEditController,
+											keyCapture = keyCapture,
 											editorSession = editorSession,
 											selection = selection,
 											dragController = dragController,

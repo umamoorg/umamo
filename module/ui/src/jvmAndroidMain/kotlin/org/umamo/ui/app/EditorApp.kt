@@ -23,6 +23,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
@@ -147,9 +149,13 @@ import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.rememberPuppetViewportHost
 import org.umamo.ui.workspace.AlertRequest
+import org.umamo.ui.workspace.AreaViewStates
 import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.EDITOR_STATE_AREAS
+import org.umamo.ui.workspace.EDITOR_STATE_SESSION
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
+import org.umamo.ui.workspace.LocalAreaViewStates
 import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
@@ -165,6 +171,8 @@ import org.umamo.ui.workspace.decodeLayoutText
 import org.umamo.ui.workspace.decodeWorkspaceText
 import org.umamo.ui.workspace.exportLayoutText
 import org.umamo.ui.workspace.exportWorkspaceText
+import org.umamo.ui.workspace.sessionStateJson
+import org.umamo.ui.workspace.sessionViewStateOf
 import kotlin.random.Random
 
 /**
@@ -237,12 +245,21 @@ internal class LoggedSourceFilePresence(
  * recreated when the document swaps; null for no document. Owned at the host level so both the host's
  * own chrome (e.g. the desktop title's unsaved marker) and [EditorApp] share the one session.
  *
+ * A `.uma` opens on the session state it was saved with (docs/format/UMA.md § 7.4): the selection, the mode, the
+ * cursors, and the tool settings are laid into the session's FIRST snapshot, so none of it is an undo step.  The
+ * pose arrives the same way every document's does, through its live parameters.
+ *
  * @param Document? document The open document, or null.
  * @return EditorSession? The document's session, or null with no puppet document open.
  */
 @Composable
 fun rememberEditorSessionFor(document: Document?): EditorSession? =
-	remember(document) { (document as? PuppetDocument)?.let { EditorSession(it.puppet, it.liveParams.values) } }
+	remember(document) {
+		(document as? PuppetDocument)?.let { puppetDocument ->
+			val savedState = (puppetDocument as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_SESSION) as? JsonObject
+			EditorSession(puppetDocument.puppet, puppetDocument.liveParams.values, initialViewState = sessionViewStateOf(savedState))
+		}
+	}
 
 /**
  * Where the open document saves - one [DocumentFile] per document, keyed on the same identity as the session
@@ -400,6 +417,10 @@ fun EditorApp(
 	val currentDocument by rememberUpdatedState(document)
 	val currentDocumentFile by rememberUpdatedState(documentFile)
 	val currentAtlasPages by rememberUpdatedState(sessionAtlasPages)
+	// Every area's view state for this document, seeded from the editor state the file was saved with (UMA §7.3).
+	// Remembered here, beside the document read, so it is never paired with another document's areas.
+	val areaViewStates = remember(document) { AreaViewStates((document as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_AREAS) as? JsonObject) }
+	val currentAreaViewStates by rememberUpdatedState(areaViewStates)
 	val currentUntitledName by rememberUpdatedState(stringResource(Res.string.title_untitled_document))
 
 	// Whether Save can write now: a puppet document that did not open read-only.  Read live, for the same
@@ -436,12 +457,19 @@ fun EditorApp(
 					}
 				val snapshot = activeSession.model.value
 				val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
+				// Editor state is gathered with the model, on this thread, and rides the save without ever counting as a
+				// change to the document (UMA D7).
+				val editorState =
+					buildJsonObject {
+						put(EDITOR_STATE_AREAS, currentAreaViewStates.gather())
+						put(EDITOR_STATE_SESSION, sessionStateJson(activeSession.viewState(), activeSession.pose.value, snapshot))
+					}
 				val base = file.base ?: UmaModel.create(umamoWriterInfo())
 				file.saving = true
 				activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
 				val outcome =
 					try {
-						writeUmaDocument(puppetDocument, base, snapshot, binding, destination)
+						writeUmaDocument(puppetDocument, base, snapshot, binding, editorState, destination)
 					} finally {
 						file.saving = false
 					}
@@ -1133,17 +1161,19 @@ fun EditorApp(
 				{ commandRegistry.invoke("help.about") },
 			)
 		}
-	DocumentViewport(
-		document = document,
-		session = session,
-		sessionAtlasPages = sessionAtlasPages,
-		commandRegistry = commandRegistry,
-		appMenu = appMenu,
-		viewportServiceFactory = viewportServiceFactory,
-		artwork = artworkOperations,
-		sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
-		sourceSuggestions = SourceSuggestionState(sourceSuggestions),
-	)
+	CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
+		DocumentViewport(
+			document = document,
+			session = session,
+			sessionAtlasPages = sessionAtlasPages,
+			commandRegistry = commandRegistry,
+			appMenu = appMenu,
+			viewportServiceFactory = viewportServiceFactory,
+			artwork = artworkOperations,
+			sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
+			sourceSuggestions = SourceSuggestionState(sourceSuggestions),
+		)
+	}
 }
 
 /**
@@ -1369,6 +1399,7 @@ private fun DocumentViewport(
 						?: remember(document) { AtlasPageBinding(document.puppet.atlas, document.textures) }
 				// The factory is fixed for the app's lifetime (a platform capability, not state), so the
 				// conditional composable call is stable across recompositions.
+				val areaViewStates = LocalAreaViewStates.current
 				val viewport =
 					if (viewportServiceFactory != null) {
 						rememberPuppetViewportHost(
@@ -1378,10 +1409,24 @@ private fun DocumentViewport(
 							document.liveParams,
 							activeSession,
 							viewportServiceFactory,
+							// Each area reopens on the view it was saved with (UMA §7.3); read once, as the service is built.
+							initialCameras = remember(areaViewStates) { areaViewStates?.restoredCameras().orEmpty() },
 						)
 					} else {
 						null
 					}
+				// A save reads every area's camera through the holder, which is where both sides already meet by
+				// area id; the reader goes when the service does, so a save never asks a disposed engine.
+				val viewportService = viewport?.service
+				DisposableEffect(areaViewStates, viewportService) {
+					val reader = viewportService?.let { service -> service::cameras }
+					areaViewStates?.cameraReader = reader
+					onDispose {
+						if (areaViewStates?.cameraReader === reader) {
+							areaViewStates?.cameraReader = null
+						}
+					}
+				}
 				val liveParamsHandle = remember(document, activeSession) { LiveParamsAdapter(document.liveParams, activeSession) }
 				// Without a viewport the thumbnails come straight from the shared thumbnailer, so the
 				// outliner's hover previews work before a platform puppet renderer exists.  Keyed on the

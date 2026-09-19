@@ -102,6 +102,12 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 					false
 				}
 			}
+			// A control capturing the next key press (the keybindings editor's chord chip) owns the WHOLE keyboard:
+			// any key may be the one being bound, and Escape cancels the capture - not the Preferences overlay the
+			// control sits in, which the arm below would close.  The ladder previews every key before the control
+			// sees it, so it stands aside here and the control's own handler decides.  Below the confirm and the
+			// alerts, which paint over everything and can arrive unasked while a capture is live.
+			keyCapture.active -> false
 			// The overlays that hold their own focus - preferences, the two Help dialogs, the palette -
 			// are one family: Escape closes the topmost (instead of falling through to area.dragCancel)
 			// and every other key yields to that overlay's own content, exactly as an open inline editor

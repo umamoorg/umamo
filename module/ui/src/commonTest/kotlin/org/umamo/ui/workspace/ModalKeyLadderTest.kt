@@ -27,6 +27,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.kit.InlineEditController
+import org.umamo.ui.kit.KeyCaptureController
 import org.umamo.ui.kit.MenuBarController
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.Res
@@ -379,6 +380,48 @@ class ModalKeyLadderTest {
 
 		assertFalse(registry.invoked, "no shortcut may fire while a menu is open")
 		assertFalse(menu.closed, "and an unrelated key does not dismiss the menu either")
+	}
+
+	/**
+	 * A control capturing the next key press (the keybindings editor's chord chip) owns the whole keyboard, Escape
+	 * included: the ladder previews every key before the control does, so it has to stand aside or the overlay arm
+	 * closes Preferences behind the capture.  A confirm still outranks it - it paints over everything and can
+	 * arrive unasked while a capture is live.
+	 */
+	@Test
+	fun aLiveKeyCaptureOwnsEveryKeyOverAnOpenOverlay() {
+		val overlays = ShellOverlayState().apply { settingsVisible = true }
+		val keyCapture = KeyCaptureController()
+		val state = ShellModalState(overlays = overlays, keyCapture = keyCapture)
+
+		keyCapture.begin()
+		assertFalse(escape(state), "Escape is left to the capturing control, which cancels its capture")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+		assertFalse(press(Key.Spacebar, state), "as is every other key - any of them may be the one being bound")
+
+		overlays.pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+		assertTrue(escape(state), "a confirm raised over the capture takes its own Escape")
+		assertNull(overlays.pendingConfirm)
+		assertTrue(overlays.settingsVisible)
+
+		keyCapture.end()
+		assertTrue(escape(state), "with the capture over, Escape is the overlay's again")
+		assertFalse(overlays.settingsVisible)
+	}
+
+	/** Two captures overlapping - one chip ending as another begins - never read as no capture at all. */
+	@Test
+	fun overlappingKeyCapturesStayLiveUntilTheLastEnds() {
+		val keyCapture = KeyCaptureController()
+
+		keyCapture.begin()
+		keyCapture.begin()
+		keyCapture.end()
+		assertTrue(keyCapture.active)
+		keyCapture.end()
+		assertFalse(keyCapture.active)
+		keyCapture.end()
+		assertFalse(keyCapture.active, "an unpaired end is harmless")
 	}
 
 	@Test

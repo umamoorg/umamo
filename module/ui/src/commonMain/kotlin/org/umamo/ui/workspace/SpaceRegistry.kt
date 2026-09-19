@@ -2,9 +2,36 @@ package org.umamo.ui.workspace
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.kit.OverflowRowScope
 import org.umamo.ui.theme.UmamoIcon
+
+/**
+ * A space's view state that a saved document carries (docs/format/UMA.md §7.3): it writes itself as one member of
+ * its area's block and takes that member back when the document reopens.
+ *
+ * Nothing here marks a document dirty.  The state rides on a real save and is otherwise left alone (UMA D7).
+ */
+interface PersistentSpaceState {
+	/**
+	 * This state as its area block's member.  Every member this state knows is named: its value when it deviates
+	 * from the default, a JSON null when it does not - a merge alone could never take a deviation back out of the
+	 * file (UMA §7.5).
+	 *
+	 * @return JsonObject The member's content.
+	 */
+	fun toJson(): JsonObject
+
+	/**
+	 * Takes the state a document was saved with.  Tolerant by contract: a member of the wrong type, an unknown
+	 * name, or an id that names nothing is skipped, never thrown over (UMA §7.1).
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	fun restore(tree: JsonObject)
+}
 
 /**
  * The per-area context handed to a space's content factory and its header slot. Carries the hosting
@@ -13,26 +40,52 @@ import org.umamo.ui.theme.UmamoIcon
  * the one channel a space's header controls and its body can share state through (a CompositionLocal
  * provided inside the body never reaches the header).
  *
- * @property String areaId The id of the leaf hosting this space.
+ * @property String      areaId   The id of the leaf hosting this space.
+ * @property JsonObject? restored This area's block as the open document held it (UMA §7.3), or null.
  */
 class AreaScope(
 	val areaId: String,
+	private val restored: JsonObject? = null,
 ) {
 	/** Per-space parked state, keyed by a space-chosen string. */
 	private val spaceStates = mutableMapOf<String, Any>()
 
 	/**
-	 * Returns the state object parked under [stateKey], creating it via [factory] on first use. The
-	 * instance lives as long as this scope (the leaf's lifetime - remember(area.id) in AreaLeaf), so
-	 * it survives switching the space away and back. Keys must be namespaced by their space
-	 * ("outliner.view"); a cross-space key collision is a programming error, hence the unchecked cast.
+	 * Returns the state object parked under [stateKey], creating it via [factory] on first use.  The
+	 * instance lives as long as this scope, so it survives switching the space away and back.  A key is
+	 * the space's member name in its area block ("outliner", "keyformSheet"), which is why it carries no
+	 * dot; a cross-space key collision is a programming error, hence the unchecked cast.
+	 *
+	 * A [PersistentSpaceState] takes the document's saved member the moment it is created, before any
+	 * composable reads it, so a space never renders its defaults first and the restored state second.
 	 *
 	 * @param String stateKey The space-unique key naming the parked state.
 	 * @param Function factory Creates the state on first request.
 	 * @return StateT The one instance for this area.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	fun <StateT : Any> spaceState(stateKey: String, factory: () -> StateT): StateT = spaceStates.getOrPut(stateKey, factory) as StateT
+	fun <StateT : Any> spaceState(stateKey: String, factory: () -> StateT): StateT =
+		spaceStates.getOrPut(stateKey) {
+			factory().also { created ->
+				if (created is PersistentSpaceState) {
+					(restored?.get(stateKey) as? JsonObject)?.let(created::restore)
+				}
+			}
+		} as StateT
+
+	/**
+	 * This area's block for a save: one member per persistent state the area has shown, in the spec's order
+	 * (UMA §7.5).  A space the area never showed has no state here and so is not named, which leaves its member
+	 * as the file had it.
+	 *
+	 * @return JsonObject The block's members.
+	 */
+	fun gather(): JsonObject =
+		buildJsonObject {
+			for (stateKey in spaceStates.keys.sortedWith(compareBy({ key -> AREA_BLOCK_MEMBER_ORDER.indexOf(key).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }, { key -> key }))) {
+				(spaceStates[stateKey] as? PersistentSpaceState)?.let { state -> put(stateKey, state.toJson()) }
+			}
+		}
 }
 
 /**

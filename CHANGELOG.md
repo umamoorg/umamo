@@ -8,6 +8,8 @@ Umamo is early alpha.
 
 ### Added
 * Format: New native UMA file format!
+* Format: A UMA document remembers each panel's open branches, filters, tab, and the UV Editor's texture choice, per area.
+* Format: A UMA document reopens to the pose, selection, mode, cursors, pivot and proportional editing settings, and each viewport's pan and zoom it was saved with.
 * UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.
@@ -20,8 +22,11 @@ Umamo is early alpha.
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
 * UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
+* UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
+* UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
+* Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
 
 
 ## 0.3.0-dev - 2026-09-15
