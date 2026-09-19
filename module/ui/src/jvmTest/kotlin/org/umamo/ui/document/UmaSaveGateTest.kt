@@ -33,7 +33,9 @@ import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.repackPageSizeOf
 import org.umamo.ui.model.runAddArtwork
 import org.umamo.ui.model.runAtlasRepack
+import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.CameraSurface
 import org.umamo.ui.workspace.AreaViewStates
 import org.umamo.ui.workspace.EDITOR_STATE_AREAS
 import org.umamo.ui.workspace.EDITOR_STATE_SESSION
@@ -226,7 +228,8 @@ class UmaSaveGateTest {
 
 			val areaViewStates = AreaViewStates()
 			areaViewStates.layoutAreaIds = listOf("area-view")
-			areaViewStates.cameraReader = { mapOf("area-view" to ViewportCamera(120f, -340f, 2.5f)) }
+			val savedView = AreaCameraKey("area-view", CameraSurface.Viewport)
+			areaViewStates.cameraReader = { mapOf(savedView to ViewportCamera(120f, -340f, 2.5f)) }
 			val editorState =
 				buildJsonObject {
 					put(EDITOR_STATE_AREAS, areaViewStates.gather())
@@ -245,7 +248,7 @@ class UmaSaveGateTest {
 			assertEquals(TransformPivotMode.Cursor, reopenedSession.pivotMode.value)
 			assertFalse(reopenedSession.canUndo.value, "what a document reopens to is where its history starts")
 			assertFalse(reopenedSession.dirty.value)
-			assertEquals(mapOf("area-view" to ViewportCamera(120f, -340f, 2.5f)), AreaViewStates(savedState[EDITOR_STATE_AREAS]!!.jsonObject).restoredCameras())
+			assertEquals(mapOf(savedView to ViewportCamera(120f, -340f, 2.5f)), AreaViewStates(savedState[EDITOR_STATE_AREAS]!!.jsonObject).restoredCameras())
 
 			assertEquals(scrubbed.default, bare.liveParams.values.getValue(scrubbed.id), "a file with no editor state opens at the default pose")
 			assertTrue(diffPuppetModels(bare.puppet, reopened.puppet).isEmpty, "and the session block is no input to the puppet")

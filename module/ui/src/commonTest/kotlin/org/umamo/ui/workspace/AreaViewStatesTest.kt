@@ -7,6 +7,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.CameraSurface
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
@@ -117,30 +119,66 @@ class AreaViewStatesTest {
 	}
 
 	/**
-	 * Each area's camera goes out to seed the render service and comes back from it at a save, leading its block;
-	 * an area with a camera and no space state is still written, and a camera of the wrong shape is skipped.
+	 * A camera view as the entry writes it.
+	 *
+	 * @param Float centerX The view's center x.
+	 * @param Float centerY The view's center y.
+	 * @param Float zoom    The view's zoom.
+	 * @return JsonArray The `[centerX, centerY, zoom]` triple.
+	 */
+	private fun viewJson(centerX: Float, centerY: Float, zoom: Float): JsonArray = JsonArray(listOf(JsonPrimitive(centerX), JsonPrimitive(centerY), JsonPrimitive(zoom)))
+
+	/**
+	 * Each area's cameras go out to seed the render service and come back from it at a save, leading the block.  They
+	 * are kept apart by surface: a view of the puppet's world means nothing over a texture's pixels, so an area saved
+	 * as a UV editor and reopened as a 2D viewport must not take the page's pan and zoom.
 	 */
 	@Test
-	fun camerasAreRestoredAndGatheredByArea() {
+	fun camerasAreRestoredAndGatheredByAreaAndSurface() {
 		val saved =
 			buildJsonObject {
-				put("area-view", buildJsonObject { put("camera", JsonArray(listOf(JsonPrimitive(10f), JsonPrimitive(-20f), JsonPrimitive(1.5f)))) })
-				put("area-flat", buildJsonObject { put("camera", JsonArray(listOf(JsonPrimitive(0f), JsonPrimitive(0f), JsonPrimitive(0f)))) })
-				put("area-junk", buildJsonObject { put("camera", JsonPrimitive("wide")) })
+				put(
+					"area-both",
+					buildJsonObject {
+						put(
+							"cameras",
+							buildJsonObject {
+								put("viewport", viewJson(10f, -20f, 1.5f))
+								put("uv", viewJson(512f, 512f, 0.25f))
+							},
+						)
+					},
+				)
+				put("area-flat", buildJsonObject { put("cameras", buildJsonObject { put("viewport", viewJson(0f, 0f, 0f)) }) })
+				put("area-junk", buildJsonObject { put("cameras", JsonPrimitive("wide")) })
 			}
 		val holder = AreaViewStates(saved)
-		assertEquals(mapOf("area-view" to ViewportCamera(10f, -20f, 1.5f)), holder.restoredCameras(), "a zoom of zero and a non-array are skipped")
+		assertEquals(
+			mapOf(
+				AreaCameraKey("area-both", CameraSurface.Viewport) to ViewportCamera(10f, -20f, 1.5f),
+				AreaCameraKey("area-both", CameraSurface.Uv) to ViewportCamera(512f, 512f, 0.25f),
+			),
+			holder.restoredCameras(),
+			"a zoom of zero and a member of the wrong shape are skipped",
+		)
 
 		holder.layoutAreaIds = listOf("area-view", "area-both", "area-panel")
 		holder.scopeFor("area-both").spaceState("outliner") { ListState() }.values = listOf("part:1")
 		holder.scopeFor("area-panel").spaceState("outliner") { ListState() }
-		holder.cameraReader = { mapOf("area-view" to ViewportCamera(1f, 2f, 3f), "area-both" to ViewportCamera(4f, 5f, 6f), "area-closed" to ViewportCamera(7f, 8f, 9f)) }
+		holder.cameraReader = {
+			mapOf(
+				AreaCameraKey("area-view", CameraSurface.Viewport) to ViewportCamera(1f, 2f, 3f),
+				AreaCameraKey("area-both", CameraSurface.Uv) to ViewportCamera(4f, 5f, 6f),
+				AreaCameraKey("area-closed", CameraSurface.Viewport) to ViewportCamera(7f, 8f, 9f),
+			)
+		}
 
 		val gathered = holder.gather()
 
-		assertEquals(JsonArray(listOf(JsonPrimitive(1f), JsonPrimitive(2f), JsonPrimitive(3f))), gathered["area-view"]!!.jsonObject["camera"])
-		assertEquals(listOf("camera", "outliner"), gathered["area-both"]!!.jsonObject.keys.toList(), "the camera leads the block")
-		assertEquals(listOf("outliner"), gathered["area-panel"]!!.jsonObject.keys.toList(), "an area with no camera names none, so a saved one survives")
+		assertEquals(buildJsonObject { put("viewport", viewJson(1f, 2f, 3f)) }, gathered["area-view"]!!.jsonObject["cameras"])
+		assertEquals(listOf("cameras", "outliner"), gathered["area-both"]!!.jsonObject.keys.toList(), "the cameras lead the block")
+		assertEquals(setOf("uv"), gathered["area-both"]!!.jsonObject["cameras"]!!.jsonObject.keys, "only a surface the engine holds is named, so the saved viewport view survives the merge")
+		assertEquals(listOf("outliner"), gathered["area-panel"]!!.jsonObject.keys.toList(), "an area with no camera names none")
 		assertEquals(null, gathered["area-closed"], "a camera for an area the layout lacks is not written")
 	}
 

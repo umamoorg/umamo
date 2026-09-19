@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.render.ContentBounds
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.CameraSurface
 import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
 import java.util.concurrent.ConcurrentHashMap
@@ -20,6 +22,14 @@ internal enum class RenderScene {
 	UvScene,
 }
 
+/** The surface a scene's camera frames, which is what a remembered camera is keyed by beside its area. */
+internal val RenderScene.cameraSurface: CameraSurface
+	get() =
+		when (this) {
+			RenderScene.Puppet2D -> CameraSurface.Viewport
+			RenderScene.UvScene -> CameraSurface.Uv
+		}
+
 /** The camera and pixel size of a registered area, resolved for a CPU pick. Null-camera areas do not appear. */
 internal data class AreaView(val camera: ViewportCamera, val width: Int, val height: Int)
 
@@ -34,9 +44,10 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.
  */
 internal class AreaSlot {
-	// Whether this area renders the posed puppet or the UV editor's flat surface. Fixed at registration
-	// (register vs registerUvScene) and never retargeted; WHICH flat surface is carried by uvContent
-	// below. UI thread writes, render thread reads - a volatile publish.
+	// Whether this area renders the posed puppet or the UV editor's flat surface.  Set by whichever
+	// registration claimed the slot last (register vs registerUvScene): switching an area's editor type in
+	// place registers the new space before the old one releases, so a live slot CAN change kind.  WHICH
+	// flat surface is carried by uvContent below.  UI thread writes, render thread reads - a volatile publish.
 	@Volatile
 	var scene: RenderScene = RenderScene.Puppet2D
 
@@ -108,29 +119,31 @@ internal class ViewportAreaRegistry {
 	/** The registered areas, keyed by stable area id. Iterated by the render engine; mutated by the UI thread. */
 	val areas = ConcurrentHashMap<String, AreaSlot>()
 
-	// Cameras remembered by area id beyond a slot's composable life, so switching workspaces (which disposes
-	// the inactive workspace's viewports -> drops their slots) and returning restores the pan/zoom instead of
-	// refitting. Area ids are minted once and never reused, so entries never collide; the map grows only by
-	// areas ever shown (a few floats each) and is not evicted (session-bounded, negligible cost).
-	private val rememberedCameras = ConcurrentHashMap<String, ViewportCamera>()
+	// Cameras remembered by area AND surface beyond a slot's composable life, so switching workspaces (which
+	// disposes the inactive workspace's viewports -> drops their slots) and returning restores the pan/zoom
+	// instead of refitting.  Keyed by the surface too because a view of the puppet's world means nothing over
+	// a texture's pixels: an area switched between the 2D viewport and the UV editor keeps one view of each.
+	// Area ids are minted once and never reused, so entries never collide; the map grows only by areas ever
+	// shown (a few floats each) and is not evicted (session-bounded, negligible cost).
+	private val rememberedCameras = ConcurrentHashMap<AreaCameraKey, ViewportCamera>()
 
 	/**
-	 * Every remembered camera, by area id - the areas shown now and the ones a workspace switch put away.
+	 * Every remembered camera, by area and surface - the areas shown now and the ones a workspace switch put away.
 	 *
 	 * @return Map A copy of the remembered cameras.
 	 */
-	fun cameras(): Map<String, ViewportCamera> = HashMap(rememberedCameras)
+	fun cameras(): Map<AreaCameraKey, ViewportCamera> = HashMap(rememberedCameras)
 
 	/**
 	 * Remembers [cameras] as though each area had been shown with it, so an area registering for the first time
 	 * opens on its saved view rather than a fit.  Meant for the moment the engine is built, before any area
 	 * registers; an area that already has a camera keeps it.
 	 *
-	 * @param Map cameras The saved cameras, by area id.
+	 * @param Map cameras The saved cameras, by area and surface.
 	 */
-	fun seedCameras(cameras: Map<String, ViewportCamera>) {
-		for ((areaId, camera) in cameras) {
-			rememberedCameras.putIfAbsent(areaId, camera)
+	fun seedCameras(cameras: Map<AreaCameraKey, ViewportCamera>) {
+		for ((cameraKey, camera) in cameras) {
+			rememberedCameras.putIfAbsent(cameraKey, camera)
 		}
 	}
 
@@ -154,6 +167,7 @@ internal class ViewportAreaRegistry {
 	 */
 	fun register(areaId: String): StateFlow<RenderedFrame?> {
 		val slot = areas.getOrPut(areaId) { AreaSlot() }
+		claim(slot, RenderScene.Puppet2D, content = null)
 		slot.refCount++
 		return slot.imageState
 	}
@@ -167,19 +181,59 @@ internal class ViewportAreaRegistry {
 	 */
 	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> {
 		val slot = areas.getOrPut(areaId) { AreaSlot() }
-		// Content first, then the kind: the render thread walks the slot map, so it can see this slot
-		// mid-registration.  Publishing the content before the kind means that by the time the area reads
-		// as a UV scene it already has a surface to draw - never a UV area with nothing in it.
-		applyUvContent(slot, content)
-		slot.scene = RenderScene.UvScene
+		claim(slot, RenderScene.UvScene, content)
 		slot.refCount++
 		return slot.imageState
 	}
 
 	/**
+	 * Makes [slot] an area of [scene], whatever it was.
+	 *
+	 * A slot outlives the space that registered it whenever the next space registers first - and switching an
+	 * area's editor type in place does exactly that, the new space composing before the old one is disposed.  The
+	 * slot then holds the OLD kind, its surface, and its camera, so a registration has to claim all three or the
+	 * engine keeps drawing the UV page under a 2D viewport's gizmos (and frames the puppet with a page's pan and
+	 * zoom).  A registration of the same kind - a leaf rebuilt during a tree collapse - changes nothing here, so
+	 * the surviving viewport keeps its view.
+	 *
+	 * Order matters to the render thread, which walks the slot map and can see this slot mid-claim.  Becoming a
+	 * UV scene, the content goes first and the kind second; becoming a puppet, the kind goes first and the
+	 * content is cleared second - either way the area never reads as a UV scene with nothing to draw.  The camera
+	 * goes LAST: dropped before the kind, the render thread could re-establish the old surface's view in the gap
+	 * and keep it.  Dropped after, the worst it can do is render one frame of the new surface through the old
+	 * camera, which the fresh camera then makes stale.
+	 *
+	 * @param AreaSlot        slot    The slot to claim.
+	 * @param RenderScene     scene   The kind of area registering.
+	 * @param UvSceneContent? content What a UV area draws; null for a puppet area.
+	 */
+	private fun claim(slot: AreaSlot, scene: RenderScene, content: UvSceneContent?) {
+		val kindChanged = slot.scene != scene
+		when (scene) {
+			RenderScene.UvScene -> {
+				slot.uvContent = content
+				slot.scene = scene
+			}
+
+			RenderScene.Puppet2D -> {
+				slot.scene = scene
+				slot.uvContent = null
+			}
+		}
+		if (kindChanged) {
+			// The old surface's view stays remembered under its own key for the day the area switches back; this
+			// one is re-established from the new surface's remembered view, or a fit.  The last frame goes too:
+			// it shows the old surface, and the new space's overlays would be drawn over it until the next lands.
+			slot.camera = null
+			slot.cameraState.value = null
+			slot.imageState.value = null
+		}
+	}
+
+	/**
 	 * Retargets what an already-registered UV-editor area draws. A no-op for an unregistered area or a
-	 * puppet (2D) area - the puppet/UV split is fixed at registration, only the content within the UV
-	 * family moves.
+	 * puppet (2D) area - only a registration moves an area between the puppet and the UV family, and this
+	 * moves the content within the UV one.
 	 *
 	 * @param String         areaId  The UV-editor area to retarget.
 	 * @param UvSceneContent content The new content to draw.
@@ -402,12 +456,12 @@ internal class ViewportAreaRegistry {
 				if (slot.refitRequested) {
 					ViewportCamera.fit(contentBounds(), width, height)
 				} else {
-					rememberedCameras[areaId] ?: ViewportCamera.fit(contentBounds(), width, height)
+					rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] ?: ViewportCamera.fit(contentBounds(), width, height)
 				}
 			slot.refitRequested = false
 			slot.camera = camera
 			slot.cameraState.value = camera
-			rememberedCameras[areaId] = camera
+			rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] = camera
 		}
 		return camera
 	}
@@ -428,6 +482,6 @@ internal class ViewportAreaRegistry {
 		val updated = transform(camera)
 		slot.camera = updated
 		slot.cameraState.value = updated
-		rememberedCameras[areaId] = updated
+		rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] = updated
 	}
 }

@@ -168,8 +168,8 @@ private class SourceArtworkGaps {
  * @param EditorSession session The per-document session (its selection drives picking + tint, its model
  *   drives the visibility re-render).
  * @param PuppetViewportServiceFactory serviceFactory Creates (and starts) the platform render service.
- * @param Map initialCameras The cameras the document was saved with, by area id (docs/format/UMA.md § 7.3); read
- *   once, as the service is built.
+ * @param Map initialCameras The cameras the document was saved with, by area and surface (docs/format/UMA.md § 7.3);
+ *   read once, as the service is built.
  * @return PuppetViewportBinding The host, the render service, and the preview seams the shell and app wire up.
  */
 @Composable
@@ -180,7 +180,7 @@ fun rememberPuppetViewportHost(
 	liveParams: LiveParams,
 	session: EditorSession,
 	serviceFactory: PuppetViewportServiceFactory,
-	initialCameras: Map<String, ViewportCamera> = emptyMap(),
+	initialCameras: Map<AreaCameraKey, ViewportCamera> = emptyMap(),
 ): PuppetViewportBinding {
 	// The page set is deliberately NOT a key: the session swaps pages mid-document (a repack, or its
 	// undo), and that flows into the LIVE service below - re-keying here would tear down the whole GL

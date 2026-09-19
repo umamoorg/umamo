@@ -7,6 +7,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.CameraSurface
 
 /**
  * Every area's view state for ONE open document: the scope each area parks its space state on, seeded from what
@@ -33,25 +35,29 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 	var layoutAreaIds: List<String> = emptyList()
 
 	/**
-	 * Reads every area's camera from the platform's render service, parked here by whoever builds that service
-	 * and cleared when it goes; null where there is none (Android today).  The holder is the rendezvous because
-	 * both sides already meet at it by area id - the save path never has to reach into the viewport.
+	 * Reads every remembered camera from the platform's render service, parked here by whoever builds that
+	 * service and cleared when it goes; null where there is none (Android today).  The holder is the rendezvous
+	 * because both sides already meet at it by area id - the save path never has to reach into the viewport.
 	 */
-	var cameraReader: (() -> Map<String, ViewportCamera>)? = null
+	var cameraReader: (() -> Map<AreaCameraKey, ViewportCamera>)? = null
 
 	/**
-	 * The cameras the document was saved with, by area id (UMA §7.3): `[centerX, centerY, zoom]` with a zoom above
-	 * zero.  Anything else is skipped, and that area fits its content as a fresh one does.
+	 * The cameras the document was saved with, by area and surface (UMA §7.3): a `[centerX, centerY, zoom]` with a
+	 * zoom above zero under each surface's name.  Anything else is skipped, and that area fits its content as a
+	 * fresh one does.  Kept apart by surface because a view of the puppet's world means nothing over a texture's
+	 * pixels: an area saved as a UV editor and reopened as a 2D viewport must not take the page's pan and zoom.
 	 *
 	 * @return Map The saved cameras.
 	 */
-	fun restoredCameras(): Map<String, ViewportCamera> {
-		val cameras = HashMap<String, ViewportCamera>()
+	fun restoredCameras(): Map<AreaCameraKey, ViewportCamera> {
+		val cameras = HashMap<AreaCameraKey, ViewportCamera>()
 		for ((areaId, block) in restoredAreas.orEmpty()) {
-			val components = (block as? JsonObject)?.let { areaBlock -> floatListOf(areaBlock, AREA_CAMERA_MEMBER, 3) } ?: continue
-			val (centerX, centerY, zoom) = components
-			if (zoom > 0f) {
-				cameras[areaId] = ViewportCamera(centerX, centerY, zoom)
+			val saved = (block as? JsonObject)?.get(AREA_CAMERAS_MEMBER) as? JsonObject ?: continue
+			for (surface in CameraSurface.entries) {
+				val (centerX, centerY, zoom) = floatListOf(saved, cameraSurfaceWireName(surface), 3) ?: continue
+				if (zoom > 0f) {
+					cameras[AreaCameraKey(areaId, surface)] = ViewportCamera(centerX, centerY, zoom)
+				}
 			}
 		}
 		return cameras
@@ -89,16 +95,30 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 			val cameras = cameraReader?.invoke().orEmpty()
 			for (areaId in layoutAreaIds) {
 				val spaces = scopesByAreaId[areaId]?.gather()
-				val camera = cameras[areaId]?.takeIf { view -> view.centerX.isFinite() && view.centerY.isFinite() && view.zoom.isFinite() }
-				if (spaces == null && camera == null) {
+				val views =
+					CameraSurface.entries.mapNotNull { surface ->
+						cameras[AreaCameraKey(areaId, surface)]
+							?.takeIf { view -> view.centerX.isFinite() && view.centerY.isFinite() && view.zoom.isFinite() }
+							?.let { view -> surface to view }
+					}
+				if (spaces == null && views.isEmpty()) {
 					continue
 				}
 				put(
 					areaId,
 					buildJsonObject {
-						// UMA §7.3: `camera` leads the block.  It is named only when the engine holds one for the area; an
-						// area showing another space today keeps the view it was saved with for the day it shows a viewport again.
-						camera?.let { view -> put(AREA_CAMERA_MEMBER, JsonArray(listOf(JsonPrimitive(view.centerX), JsonPrimitive(view.centerY), JsonPrimitive(view.zoom)))) }
+						// UMA §7.3: `cameras` leads the block.  A surface is named only when the engine holds a view of
+						// it for the area, so one the area is not showing today keeps the view it was saved with.
+						if (views.isNotEmpty()) {
+							put(
+								AREA_CAMERAS_MEMBER,
+								buildJsonObject {
+									for ((surface, view) in views) {
+										put(cameraSurfaceWireName(surface), JsonArray(listOf(JsonPrimitive(view.centerX), JsonPrimitive(view.centerY), JsonPrimitive(view.zoom))))
+									}
+								},
+							)
+						}
 						spaces?.forEach { (memberName, member) -> put(memberName, member) }
 					},
 				)
