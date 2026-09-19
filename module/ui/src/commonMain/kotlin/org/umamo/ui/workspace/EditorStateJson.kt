@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
+import org.umamo.ui.viewport.CameraSurface
 
 /*
  * The editor entry's reading and writing kit (docs/format/UMA.md §7).  The entry is a dynamic tree read
@@ -20,8 +21,24 @@ import kotlinx.serialization.json.intOrNull
 /** The root member holding each area's block, keyed by area id (UMA §7.2). */
 const val EDITOR_STATE_AREAS: String = "areas"
 
+/** An area block's cameras member: a `[centerX, centerY, zoom]` per surface the area has shown (UMA §7.3). */
+internal const val AREA_CAMERAS_MEMBER: String = "cameras"
+
+/**
+ * A camera surface's name in an area block's `cameras`.
+ *
+ * @param CameraSurface surface The surface.
+ * @return String The wire name.
+ */
+internal fun cameraSurfaceWireName(surface: CameraSurface): String =
+	// UMA §7.3: `cameras`.
+	when (surface) {
+		CameraSurface.Viewport -> "viewport"
+		CameraSurface.Uv -> "uv"
+	}
+
 /** An area block's members in the order a writer lays them down (UMA §7.3, §7.5). */
-internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("camera", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
+internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("cameras", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
 
 /**
  * The strings of the array at [memberName], or null when the member is absent or not an array.  An element that

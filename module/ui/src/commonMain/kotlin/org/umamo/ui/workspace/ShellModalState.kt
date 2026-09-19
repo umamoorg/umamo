@@ -4,6 +4,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.kit.InlineEditController
+import org.umamo.ui.kit.KeyCaptureController
 import org.umamo.ui.kit.MenuBarController
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
@@ -21,6 +22,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @property ShellOverlayState overlays The modal chrome flags (confirm, alerts, palette, preferences, Help).
  * @property MenuBarController menuBarController The menu-bar seam; an open menu claims Escape.
  * @property InlineEditController inlineEditController The inline-editor seam; an open field claims the keyboard.
+ * @property KeyCaptureController keyCapture The key-capture seam; a control binding the next key press owns every key.
  * @property EditorSession? editorSession The open document's session, or null with no document.
  * @property SelectionHandle? selection The object-selection handle, or null with no document.
  * @property AreaDragController dragController The area corner-drag state; an in-flight drag defers Escape to area.dragCancel.
@@ -35,6 +37,7 @@ internal class ShellModalState(
 	val overlays: ShellOverlayState = ShellOverlayState(),
 	val menuBarController: MenuBarController = MenuBarController(),
 	val inlineEditController: InlineEditController = InlineEditController(),
+	val keyCapture: KeyCaptureController = KeyCaptureController(),
 	val editorSession: EditorSession? = null,
 	val selection: SelectionHandle? = null,
 	val dragController: AreaDragController = AreaDragController(),
