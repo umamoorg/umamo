@@ -40,14 +40,15 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Clean up the boolean logic mess in AppMenu->fileMenu().
 	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
 * Document State - One document per window instance.
-	* Opening the application should start as a fresh new document.
 * Drag and drop file opening.
-* Dirty state handling: Not all instances of dirty are handled.  For example, I can close the application without it asking to save a dirty document.
+* Save should be muted/disabled in the menu if the document is not dirty.
 
-## UI - Dialogs
-* The confirmation dialog needs to take options for the buttons.  See: confirm_discard_unsaved
-	* This can have better wording if the buttons are configurable.
-* Enter does not work for the default action.
+## UI Dialog
+* Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
+
+## Refactor SOON
+* module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
+	* Grown too big and needs to be split up by responsibility and/or move functionality into the correct files.
 
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.

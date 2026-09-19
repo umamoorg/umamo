@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -185,14 +184,12 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	val rootLabel = stringResource(Res.string.outliner_root)
 	val armatureLabel = stringResource(Res.string.outliner_armature)
 	val tree = remember(puppet, rootLabel, armatureLabel) { buildOutlinerTree(puppet, rootLabel, armatureLabel) }
-	// Expand state keyed by stable node id. Default collapsed - only the root opens (absent = collapsed,
-	// except the root). Persisted for this space instance, NOT keyed on the puppet: the model changes
-	// identity on every edit / undo, so keying on it would wipe the open branches on each rename or
-	// visibility toggle; the host remounts this space (key(document)) when the document actually changes.
-	val expanded = remember { mutableStateMapOf<String, Boolean>() }
 	// Search / filter state shared with the area-header controls (outlinerHeaderControls) through the
 	// hosting AreaScope - the header slot is a sibling subtree, so a body-local remember cannot reach it.
 	val viewState = scope.spaceState(OUTLINER_VIEW_STATE_KEY) { OutlinerViewState() }
+	// Expand state keyed by stable node id, on the view state so a saved document carries it (UMA §7.3).
+	// Default collapsed - only the root opens.
+	val expanded = viewState.expanded
 	val query = viewState.query
 	// Set when a click inside the outliner changes the selection, so the reveal effect can skip the scroll.
 	var suppressReveal by remember { mutableStateOf(false) }
@@ -203,7 +200,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// During an active search every branch opens so matches are not hidden behind the collapsed default.
 	val searching = query.isNotBlank()
 	val trimmedQuery = query.trim()
-	val isOpen: (String) -> Boolean = { id -> searching || (expanded[id] ?: (id == OUTLINER_ROOT_ID)) }
+	val isOpen: (String) -> Boolean = { id -> searching || viewState.isOpen(id) }
 	// Memoise the visible rows on what actually changes them, so the width measurement below is stable
 	// across recompositions (and unaffected by vertical scrolling).
 	val rows = remember(filteredTree, expanded.toMap(), searching) { flattenOutliner(filteredTree, isOpen) }
@@ -317,7 +314,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							matched = searching && row.node.label.contains(trimmedQuery, ignoreCase = true),
 							expanded = isOpen(row.node.id),
 							onToggle = {
-								expanded[row.node.id] = !(expanded[row.node.id] ?: (row.node.id == OUTLINER_ROOT_ID))
+								expanded[row.node.id] = !viewState.isOpen(row.node.id)
 							},
 							onSelect = { toggle, extend ->
 								val target = row.node.target

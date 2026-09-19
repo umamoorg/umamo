@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +56,7 @@ import org.umamo.ui.action.keyName
 import org.umamo.ui.action.rebindCommand
 import org.umamo.ui.action.resetKeymapOverrides
 import org.umamo.ui.action.unbindCommand
+import org.umamo.ui.kit.LocalKeyCapture
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
@@ -232,6 +234,12 @@ private fun KeybindingRow(
  * The clickable chord chip: shows the current accelerator (or "unbound"), and while capturing becomes a
  * focused key sink that turns the next key combination into a chord (bare Escape cancels capture).
  *
+ * Two things keep that true inside the shell.  The capture is announced on [LocalKeyCapture], because the shell's
+ * root handler previews every key before this chip sees it and would otherwise take Escape to close Preferences.
+ * And the chip keeps ONE focus node whether it is capturing or not: a focus node that left the composition when
+ * the capture ended would leave focus on nothing, and with nothing focused no key reaches the shell at all - the
+ * reassign prompt a taken chord raises would answer to neither Enter nor Escape.
+ *
  * @param KeyChord? chord          The currently bound chord, or null.
  * @param Boolean   capturing      Whether this chip is capturing.
  * @param Function  onStartCapture Begins capture (chip click).
@@ -255,6 +263,17 @@ private fun ChordChip(
 			focusRequester.requestFocus()
 		}
 	}
+	val keyCapture = LocalKeyCapture.current
+	DisposableEffect(capturing, keyCapture) {
+		if (capturing) {
+			keyCapture.begin()
+		}
+		onDispose {
+			if (capturing) {
+				keyCapture.end()
+			}
+		}
+	}
 	val label =
 		when {
 			capturing -> stringResource(Res.string.settings_keybindings_press_shortcut)
@@ -270,14 +289,12 @@ private fun ChordChip(
 			.background(if (capturing) colors.accent else colors.controlBackground)
 			.border(BorderStroke(1.dp, if (capturing) colors.accent else colors.controlBorder), shapes.small)
 	val chipModifier =
-		if (capturing) {
-			chipBase
-				.focusRequester(focusRequester)
-				.focusable()
-				.onPreviewKeyEvent { event -> handleCaptureKey(event, onCaptured, onCancelCapture) }
-		} else {
-			chipBase.clickable(onClick = onStartCapture)
-		}
+		chipBase
+			.focusRequester(focusRequester)
+			.onPreviewKeyEvent { event -> capturing && handleCaptureKey(event, onCaptured, onCancelCapture) }
+			// The one focus node, present in both states so it outlives the capture.
+			.focusable()
+			.clickable(enabled = !capturing, onClick = onStartCapture)
 	Box(modifier = chipModifier.padding(horizontal = 10.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
 		Text(text = label, style = typography.labelMedium, color = if (capturing) colors.accentText else colors.text)
 	}

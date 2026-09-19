@@ -107,7 +107,14 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 
 	// The configuration proportional editing re-enables with: the last falloff and radius survive an
 	// off/on toggle (the circle-select radius pattern), so O comes back the way it was left.
-	private var lastProportionalEdit = ProportionalEditState(ProportionalFalloff.Smooth, DEFAULT_PROPORTIONAL_RADIUS_WORLD)
+	private var lastProportionalEdit = DEFAULT_PROPORTIONAL_EDIT_STATE
+
+	/**
+	 * The proportional falloff, radius, and connected flag as they would apply now: the live state while
+	 * proportional editing is on, else the configuration a toggle would bring back.
+	 */
+	val proportionalSettings: ProportionalEditState
+		get() = mutableProportionalEdit.value ?: lastProportionalEdit
 
 	// The Circle-select brush radius carried across re-entry (Blender remembers it). Deliberately NOT
 	// part of EditorSnapshot - re-arming the tool restores the last size.
@@ -485,5 +492,23 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 		val clamped = state.copy(radiusWorld = state.radiusWorld.coerceIn(MIN_PROPORTIONAL_RADIUS_WORLD, MAX_PROPORTIONAL_RADIUS_WORLD))
 		lastProportionalEdit = clamped
 		mutableProportionalEdit.value = clamped
+	}
+
+	/**
+	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, proportional editing with the
+	 * configuration it would re-enable with, and the document's own grid when it saved one.  Called once, as the
+	 * session is built, so nothing here is a gesture and nothing here posts a notice.
+	 *
+	 * @param SessionViewState viewState The saved state, already fitted to the model.
+	 */
+	fun seed(viewState: SessionViewState) {
+		mutableCursor2d.value = viewState.cursor2d
+		mutableUvCursor.value = viewState.uvCursor
+		mutablePivotMode.value = viewState.pivotMode
+		viewState.proportionalSettings?.let { settings ->
+			lastProportionalEdit = settings.copy(radiusWorld = settings.radiusWorld.coerceIn(MIN_PROPORTIONAL_RADIUS_WORLD, MAX_PROPORTIONAL_RADIUS_WORLD))
+		}
+		mutableProportionalEdit.value = lastProportionalEdit.takeIf { viewState.proportionalEnabled }
+		viewState.gridConfig?.let { config -> mutableGridConfig.value = config }
 	}
 }

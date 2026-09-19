@@ -2,6 +2,7 @@ package org.umamo.storage
 
 import android.net.Uri
 import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.write
 import java.io.File
 
 /**
@@ -19,3 +20,13 @@ actual fun platformFileFromSavedPath(path: String): PlatformFile =
 	} else {
 		PlatformFile(File(path))
 	}
+
+/**
+ * Android actual: a Storage Access Framework uri has no directory to stage a temporary in and cannot be
+ * renamed over, so the bytes are written in place - complete in memory before the write begins.
+ *
+ * @param ByteArray bytes The complete contents.
+ */
+actual suspend fun PlatformFile.writeReplacing(bytes: ByteArray) {
+	write(bytes)
+}

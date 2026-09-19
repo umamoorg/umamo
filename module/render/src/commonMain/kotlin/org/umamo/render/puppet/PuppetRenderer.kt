@@ -1791,13 +1791,17 @@ class PuppetRenderer(
 
 	/**
 	 * Computes the rest-pose content bounds lazily, from a CPU eval at default parameters (shown drawables
-	 * only).  Re-armed by [updateModel] / [setShownDrawables] so a base-mesh edit re-frames view.fit.
+	 * only).  Re-armed by [updateModel] / [setShownDrawables] so a base-mesh edit re-frames view.fit.  A
+	 * model that shows nothing - a new, empty document, or a rig with every drawable hidden - frames its
+	 * canvas instead, so the view opens on the work surface rather than on nothing.
 	 */
 	private fun ensureContentBounds() {
 		if (bboxReady) {
 			return
 		}
-		val bounds = contentBoundsOf(applyCpuDeform(currentModel, preparePose(currentModel, emptyMap())), shownDrawableIds)
+		val bounds =
+			contentBoundsOf(applyCpuDeform(currentModel, preparePose(currentModel, emptyMap())), shownDrawableIds)
+				?: emptyContentBoundsOf(currentModel)
 		minX = bounds.minX
 		minY = bounds.minY
 		spanX = bounds.width

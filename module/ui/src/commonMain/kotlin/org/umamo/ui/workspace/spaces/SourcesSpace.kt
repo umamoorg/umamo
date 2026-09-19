@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -168,13 +167,11 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 	val query = viewState.query
 	val filtered = remember(tree, query, viewState.filters) { filterSourcesTree(tree, query, viewState.filters) }
-	// Expand state by node id, per space instance and NOT keyed on the puppet (the model changes
-	// identity on every edit).  Files and the unbound group open by default; layers and tiles close.
-	val expanded = remember { mutableStateMapOf<String, Boolean>() }
+	// Expand state by node id, on the view state so a saved document carries it (UMA §7.3).  Files and the
+	// unbound group open by default; layers and tiles close.
+	val expanded = viewState.expanded
 	val searching = query.isNotBlank()
-	val isOpen: (String) -> Boolean = { id ->
-		searching || (expanded[id] ?: (id.startsWith("source:") || id == SOURCES_UNBOUND_GROUP_ID))
-	}
+	val isOpen: (String) -> Boolean = { id -> searching || viewState.isOpen(id) }
 	val rows = remember(filtered, expanded.toMap(), searching) { flattenSources(filtered, isOpen) }
 	val nodeById = remember(rows) { rows.associate { row -> row.node.id to row.node } }
 
