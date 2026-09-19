@@ -56,11 +56,21 @@ class LiveParams(
  * (the desktop `UMAMO_DUMP_PARAMS` override) rewrite the values afterwards — environment reads are a
  * desktop dev affordance, not common code.
  *
- * @param PuppetModel puppet The rig (for parameter defaults).
+ * A pose the document was saved with lays over the defaults (docs/format/UMA.md § 7.4), each value clamped to its
+ * parameter's range - a range can have been narrowed since the pose was saved - and an id the rig does not have
+ * simply never matches.  The session takes these values as its initial pose, so the panel, the viewport, and the
+ * first undo snapshot agree from frame one.
+ *
+ * @param PuppetModel puppet    The rig (for parameter defaults and ranges).
+ * @param Map         savedPose The pose the document was saved with, by parameter id; empty for a plain open.
  * @return LiveParams The starting parameter values.
  */
-fun initialLiveParams(puppet: PuppetModel): LiveParams =
-	LiveParams(puppet.parameters.associate { parameter -> parameter.id to parameter.default })
+fun initialLiveParams(puppet: PuppetModel, savedPose: Map<ParameterId, Float> = emptyMap()): LiveParams =
+	LiveParams(
+		puppet.parameters.associate { parameter ->
+			parameter.id to (savedPose[parameter.id]?.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)) ?: parameter.default)
+		},
+	)
 
 /**
  * Adapts the [LiveParams] volatile hand-off to the platform-neutral [LiveParamsHandle] the common

@@ -9,7 +9,6 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
-import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.art.SourceArtImportNotice
@@ -125,7 +124,7 @@ class ArtDocumentLoadTest {
 
 		// The model's own icon is the rest-pose composite: not blank, and shaped like the drawn model
 		// (the union of the visible drawables' rest bounds), which the layered-image frame is not.
-		val modelIconPath = assertNotNull((((rereadRoot._icon64 as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath, "the model has a 64px icon")
+		val modelIconPath = assertNotNull(((rereadRoot._icon64 as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath, "the model has a 64px icon")
 		val modelIcon = PngCodec.read(assertNotNull(reread.archive.byPath(modelIconPath), "the model icon is embedded").content)
 		assertEquals(64 to 64, modelIcon.width to modelIcon.height)
 		var iconMinX = 64

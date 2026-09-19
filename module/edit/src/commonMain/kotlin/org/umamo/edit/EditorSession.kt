@@ -12,7 +12,6 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
 
 /**
  * Where the shell surfaces a [Notice]: the status-bar slot, or a transient label next to the pointer
@@ -67,19 +66,28 @@ data class Notice(
  *   agree from frame one (e.g. a headless dump's overridden pose is not reset to defaults).
  * @param Int initialHistoryLimit The retained-undo-step cap at open; [historyLimit] carries it and the
  *   host reassigns it when the preference changes.
+ * @param SessionViewState? initialViewState The session state the document was saved with, or null for a plain
+ *   open.  It is fitted to the model and laid into the FIRST snapshot and the tool latches, so what a rigger
+ *   reopens to is where the history starts - never a run of undo steps, and never a dirty mark.
  */
 class EditorSession(
 	initialModel: PuppetModel,
 	initialPose: Pose = initialModel.parameters.associate { parameter -> parameter.id to parameter.default },
 	initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
+	initialViewState: SessionViewState? = null,
 ) {
+	// The saved session state with every reference the model cannot satisfy taken out, and the snapshot the
+	// session opens on.  Declared first: the history and every snapshotted flow below start from it.
+	private val openingViewState: SessionViewState? = initialViewState?.fittedTo(initialModel)
+	private val openingSnapshot: EditorSnapshot = openingSnapshotOf(initialModel, initialPose, openingViewState)
+
 	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags), the
 	// area-request buses, the remembered-selection memory, and the tool latches; the members below
 	// delegate so the public API is unchanged, and every flow-write ordering stays in this facade.
-	private val history = HistoryCore(EditorSnapshot(initialModel, Selection(), initialPose), initialHistoryLimit)
+	private val history = HistoryCore(openingSnapshot, initialHistoryLimit)
 	private val requestBus = SessionRequestBus()
 	private val elementMemory = MeshElementMemory()
-	private val latches = ToolLatches(notify = ::emitNotice)
+	private val latches = ToolLatches(notify = ::emitNotice).also { created -> openingViewState?.let(created::seed) }
 
 	// The live step's predecessor as of the last push - the base an operation registering itself as
 	// adjustable ran from.  Consumed by the registration and voided by a restore, so a registration can
@@ -110,12 +118,12 @@ class EditorSession(
 	/** The live document model; panels read it, the render host observes it. */
 	val model: StateFlow<PuppetModel> = mutableModel.asStateFlow()
 
-	private val mutableSelection = MutableStateFlow(Selection())
+	private val mutableSelection = MutableStateFlow(openingSnapshot.selection)
 
 	/** The live object-mode selection. */
 	val selection: StateFlow<Selection> = mutableSelection.asStateFlow()
 
-	private val mutableParameterSelection = MutableStateFlow(ParameterSelection())
+	private val mutableParameterSelection = MutableStateFlow(openingSnapshot.parameterSelection)
 
 	/**
 	 * The parameters targeted for keyform authoring - which parameter an insert would write a key on.
@@ -159,7 +167,7 @@ class EditorSession(
 	/** The live pose (parameter scrub values); the render host mirrors it so undo / redo re-poses. */
 	val pose: StateFlow<Pose> = mutablePose.asStateFlow()
 
-	private val mutableMode = MutableStateFlow(EditorMode.Object)
+	private val mutableMode = MutableStateFlow(openingSnapshot.mode)
 
 	/**
 	 * The live interaction mode. Snapshotted (a mode change is its own undo step), and pose-neutral by
@@ -169,7 +177,7 @@ class EditorSession(
 	 */
 	val mode: StateFlow<EditorMode> = mutableMode.asStateFlow()
 
-	private val mutableMeshSelection = MutableStateFlow(MeshSelection())
+	private val mutableMeshSelection = MutableStateFlow(openingSnapshot.meshSelection)
 
 	/** The live Edit-mode element selection; snapshotted, so a selection gesture is undoable. */
 	val meshSelection: StateFlow<MeshSelection> = mutableMeshSelection.asStateFlow()
@@ -766,31 +774,12 @@ class EditorSession(
 					val model = mutableModel.value
 					// The session spans EVERY selected mesh-carrying drawable (multi-mesh edit, needed for
 					// glue work); the object selection's active drawable becomes the session's active mesh.
-					val selectedMeshedIds =
-						mutableSelection.value.targets
-							.filterIsInstance<SelectionTarget.Drawable>()
-							.map { target -> target.id }
-							.filter { candidateId -> model.drawables.any { drawable -> drawable.id == candidateId && drawable.mesh != null } }
-					val activeSelectedId =
-						(mutableSelection.value.active as? SelectionTarget.Drawable)?.id
-							?.takeIf { activeId -> activeId in selectedMeshedIds }
-					val rememberedDrawableId =
-						elementMemory.lastActiveDrawableId?.takeIf { remembered ->
-							model.drawables.any { drawable -> drawable.id == remembered && drawable.mesh != null }
-						}
-					val seedDrawableIds =
-						when {
-							selectedMeshedIds.isNotEmpty() -> selectedMeshedIds
-							rememberedDrawableId != null -> listOf(rememberedDrawableId)
-							else -> listOfNotNull(model.firstEditableDrawableInPanelOrder())
-						}
-					if (seedDrawableIds.isEmpty()) {
-						// The model has nothing editable, so refuse Edit rather than open an inert session
-						// (Blender needs an active object too). Stay in Object; record nothing.
-						return
-					}
-					val seedActiveId = activeSelectedId ?: seedDrawableIds.first()
-					if (activeSelectedId == null) {
+					// The model having nothing editable refuses Edit rather than opening an inert session
+					// (Blender needs an active object too): stay in Object, record nothing.
+					val editSeed = editSeedOf(model, mutableSelection.value, elementMemory.lastActiveDrawableId) ?: return
+					val seedDrawableIds = editSeed.drawableIds
+					val seedActiveId = editSeed.activeId
+					if (!editSeed.activeSelected) {
 						// Seeded from the remembered drawable or the topmost fallback: remember it so the next
 						// entry is stable. The object selection is left untouched - a soft seed, not a
 						// re-selection, matching the remembered-drawable behavior.
@@ -1479,22 +1468,50 @@ class EditorSession(
 
 	/**
 	 * The viewport grid geometry (major spacing + subdivisions) driving both the drawn backdrop grid and
-	 * the grid snap increment.  Transient session state today (deliberately NOT snapshotted - like the 2D
-	 * cursor); seeded from the global-default settings and, once the UMA format lands, from the per-file
-	 * value.  Read by the snap commands ([GridConfig.snapStep]) and pushed to the renderer by the viewport
-	 * binding.
+	 * the grid snap increment.  Session state, deliberately NOT snapshotted - like the 2D cursor.  Seeded from
+	 * the global-default settings, or from the document's own value when it saved one
+	 * ([gridFollowsApplication]).  Read by the snap commands ([GridConfig.snapStep]) and pushed to the renderer
+	 * by the viewport binding.
 	 */
 	val gridConfig: StateFlow<GridConfig> = latches.gridConfig
 
 	/**
+	 * Whether the grid follows the application's default rather than a value the document brought with it.
+	 *
+	 * The viewport binding pushes the default grid setting into the session at open and on every change to it; a
+	 * document that saved a grid of its own keeps it against that push, which is what makes it the document's.
+	 */
+	val gridFollowsApplication: Boolean = openingViewState?.gridConfig == null
+
+	/**
 	 * Sets the viewport grid geometry.  Called by the viewport binding when the global-default settings
-	 * change (and, later, when a per-file value loads); the header overlay control will call it too.
+	 * change, while the grid follows them ([gridFollowsApplication]).
 	 *
 	 * @param GridConfig config The new grid scale and subdivisions.
 	 */
 	fun setGridConfig(config: GridConfig) {
 		latches.setGridConfig(config)
 	}
+
+	/**
+	 * The session state a saved document carries (docs/format/UMA.md § 7.4), as it stands now - the gather side of
+	 * the constructor's initialViewState.  The pose is not part of it; a save reads [pose] beside it.
+	 *
+	 * @return SessionViewState The state to save.
+	 */
+	fun viewState(): SessionViewState =
+		SessionViewState(
+			selection = mutableSelection.value,
+			parameterSelection = mutableParameterSelection.value,
+			mode = mutableMode.value,
+			selectMode = mutableMeshSelection.value.selectMode,
+			cursor2d = latches.cursor2d.value,
+			uvCursor = latches.uvCursor.value,
+			pivotMode = latches.pivotMode.value,
+			proportionalEnabled = latches.proportionalEdit.value != null,
+			proportionalSettings = latches.proportionalSettings,
+			gridConfig = latches.gridConfig.value.takeUnless { gridFollowsApplication },
+		)
 
 	/**
 	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).
@@ -2055,12 +2072,22 @@ class EditorSession(
 	}
 
 	/**
-	 * Marks the current model as the saved baseline, clearing the dirty marker. Called after a successful
-	 * Save. (The PuppetModel -> CMO3 lowering that actually persists edits is a later phase; this only
-	 * moves the dirty baseline.)
+	 * Marks the live model as the saved baseline, clearing the dirty marker - the form for a save that
+	 * wrote the model that is current now.
 	 */
 	fun markSaved() {
-		history.markSaved(mutableModel.value)
+		markSaved(mutableModel.value)
+	}
+
+	/**
+	 * Marks [model] as the saved baseline: the instance a save snapshotted and wrote, which is the live
+	 * model unless an edit landed while the file was being written.  In that case the document stays
+	 * dirty, since what is on screen is not what is on disk, and undoing back to [model] clears it.
+	 *
+	 * @param PuppetModel model The model instance just persisted.
+	 */
+	fun markSaved(model: PuppetModel) {
+		history.markSaved(model)
 		refreshFlags()
 	}
 

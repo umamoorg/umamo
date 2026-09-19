@@ -5,12 +5,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
+import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
+import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MIN_WIDTH
 import org.umamo.ui.tracks.TrackWindow
+import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.finiteFloatOf
+import org.umamo.ui.workspace.floatListOf
+import org.umamo.ui.workspace.stringArrayOrNull
+import org.umamo.ui.workspace.stringListOf
 
-/** The key this space's view state is stored under on its hosting area. */
-internal const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
+/** The key this space's view state is stored under on its hosting area, and its member in an area block (UMA §7.3). */
+internal const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformSheet"
 
 /**
  * The keyform sheet's per-area view state: the label column's width, which groups are open, the zoom window.
@@ -23,7 +36,7 @@ internal const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformsheet"
  * disagree about what is selected.  It is EditorSession.keySelection now, alongside the object, mesh, and
  * parameter selections, which all made the same trade.
  */
-internal class KeyformSheetViewState {
+internal class KeyformSheetViewState : PersistentSpaceState {
 	/** The label column's width, dragged on the separator. */
 	var labelColumnWidth: Dp by mutableStateOf(TRACK_LABEL_COLUMN_DEFAULT_WIDTH)
 
@@ -94,4 +107,42 @@ internal class KeyformSheetViewState {
 
 	/** Whether every track kind is shown - what the header's funnel glyph reports. */
 	val isUnfiltered: Boolean get() = showGeometry && showChannels && showBlendShapes
+
+	/**
+	 * The keyform sheet's member of its area block.  The marquee arm, the drag preview, and the lane bounds are a
+	 * gesture in flight and layout bookkeeping, so they are not written.
+	 *
+	 * @return JsonObject The member, every known key named.
+	 */
+	override fun toJson(): JsonObject =
+		buildJsonObject {
+			// UMA §7.3: `expanded` is exactly the group rows shown, and is absent until the sheet has seeded itself
+			// with every group open - an unseeded sheet has no fold state of its own to save.
+			put("expanded", if (seeded) JsonArray(expandedKeys.sorted().map(::JsonPrimitive)) else JsonNull)
+			put("collapsedParameters", stringArrayOrNull(collapsedParameters.map { parameterId -> parameterId.raw }))
+			put("hidden", stringArrayOrNull(listOfNotNull("geometry".takeUnless { showGeometry }, "channels".takeUnless { showChannels }, "blendShapes".takeUnless { showBlendShapes })))
+			put("window", if (window == TrackWindow.Full) JsonNull else JsonArray(listOf(JsonPrimitive(window.start), JsonPrimitive(window.end))))
+			put("labelColumnWidth", if (labelColumnWidth == TRACK_LABEL_COLUMN_DEFAULT_WIDTH) JsonNull else JsonPrimitive(labelColumnWidth.value))
+		}
+
+	/**
+	 * Takes the keyform sheet state a document was saved with.  A saved fold state counts as the seed, so the
+	 * open-everything pass a fresh sheet runs does not overwrite it.
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	override fun restore(tree: JsonObject) {
+		stringListOf(tree, "expanded")?.let { groupKeys ->
+			expandedKeys = groupKeys.toSet()
+			seeded = true
+		}
+		collapsedParameters = stringListOf(tree, "collapsedParameters").orEmpty().map(::ParameterId).toSet()
+		val hidden = stringListOf(tree, "hidden").orEmpty()
+		showGeometry = "geometry" !in hidden
+		showChannels = "channels" !in hidden
+		showBlendShapes = "blendShapes" !in hidden
+		// UMA §7.3: `window` is [start, end] with 0 <= start < end <= 1; anything else keeps the whole domain.
+		window = floatListOf(tree, "window", 2)?.takeIf { (start, end) -> start >= 0f && end <= 1f && start < end }?.let { (start, end) -> TrackWindow(start, end) } ?: TrackWindow.Full
+		labelColumnWidth = finiteFloatOf(tree["labelColumnWidth"])?.dp?.coerceIn(TRACK_LABEL_COLUMN_MIN_WIDTH, TRACK_LABEL_COLUMN_MAX_WIDTH) ?: TRACK_LABEL_COLUMN_DEFAULT_WIDTH
+	}
 }

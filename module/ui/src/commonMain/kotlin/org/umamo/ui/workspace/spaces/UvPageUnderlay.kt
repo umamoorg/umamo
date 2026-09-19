@@ -2,6 +2,8 @@ package org.umamo.ui.workspace.spaces
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -21,8 +23,8 @@ import org.umamo.ui.viewport.worldToScreen
 /**
  * The UV editor's underlay: the shown surface - an atlas page or a source layer's artwork - rendered
  * by the GL engine (upright, correctly sampled, sharing the puppet's texture), clipped to its
- * on-screen rectangle with a 1.dp frame drawn around it - or the themed grid placeholder until the
- * first GL frame lands.
+ * on-screen rectangle with a 1.dp frame drawn around it - or the plain viewport backdrop color for the
+ * moment before the first GL frame lands.
  *
  * The rectangle is the full UV tile (display space [0, 0]-[pageWidth, pageHeight]) projected
  * through the FRAME's camera, so it tracks pan / zoom glued to the rendered texture.  The grid +
@@ -46,13 +48,13 @@ internal fun UvPageUnderlay(
 	heightPx: Int,
 	modifier: Modifier = Modifier,
 ) {
+	val uiColors = LocalUmamoColors.current
 	if (rendered == null) {
-		// Pre-first-frame placeholder: the themed grid backdrop until the GL frame lands and the
-		// framed texture takes over.
-		EmptyViewportBackdrop()
+		// Before the first frame there is no camera to draw anything through, so the area is just the
+		// backdrop color the frame will arrive over - no grid of its own to swap out a moment later.
+		Box(modifier = modifier.fillMaxSize().background(uiColors.viewportGridBackground))
 		return
 	}
-	val uiColors = LocalUmamoColors.current
 	val cornerLowerLeft = worldToScreen(0f, 0f, rendered.camera, IntSize(widthPx, heightPx))
 	val cornerUpperRight = worldToScreen(pageWidth.toFloat(), pageHeight.toFloat(), rendered.camera, IntSize(widthPx, heightPx))
 	val textureRect =

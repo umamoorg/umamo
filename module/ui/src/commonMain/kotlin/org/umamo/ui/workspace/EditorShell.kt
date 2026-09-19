@@ -50,8 +50,11 @@ import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.help.AboutDialog
 import org.umamo.ui.help.CreditsDialog
 import org.umamo.ui.kit.ConfirmDialog
+import org.umamo.ui.kit.DialogChoice
 import org.umamo.ui.kit.InlineEditController
+import org.umamo.ui.kit.KeyCaptureController
 import org.umamo.ui.kit.LocalInlineEditController
+import org.umamo.ui.kit.LocalKeyCapture
 import org.umamo.ui.kit.LocalMenuBarController
 import org.umamo.ui.kit.MenuBar
 import org.umamo.ui.kit.MenuBarController
@@ -182,6 +185,7 @@ fun EditorShell(
 	// Shared with inline editors (workspace rename) so that while one is open this shell's root key handler
 	// yields the keyboard to the field - routing Escape to cancel and suppressing its own shortcuts.
 	val inlineEditController = remember { InlineEditController() }
+	val keyCapture = remember { KeyCaptureController() }
 	// Shared with the row-dragging panels (outliner, parameters): while a row drag is in flight its cancel
 	// is parked here, so the root key handler can route Escape to abort the drag before the clear-selection
 	// branch would swallow it.  One pointer means at most one in-flight drag anywhere, so one slot serves
@@ -386,6 +390,7 @@ fun EditorShell(
 				LocalAreaDragController provides dragController,
 				LocalMenuBarController provides menuBarController,
 				LocalInlineEditController provides inlineEditController,
+				LocalKeyCapture provides keyCapture,
 				LocalRowDragCancel provides rowDragCancel,
 				LocalSplitterDragCancel provides splitterDragCancel,
 				LocalKeyableHover provides keyableHover,
@@ -428,6 +433,7 @@ fun EditorShell(
 											overlays = overlays,
 											menuBarController = menuBarController,
 											inlineEditController = inlineEditController,
+											keyCapture = keyCapture,
 											editorSession = editorSession,
 											selection = selection,
 											dragController = dragController,
@@ -557,6 +563,13 @@ fun EditorShell(
 							onDismiss = { overlays.openFailure = null },
 						)
 					}
+					// A message the app layer raised (document.alert), in the same modal family.
+					overlays.pendingAlert?.let { alert ->
+						MessageDialog(
+							message = stringResource(alert.message, *alert.arguments.toTypedArray()),
+							onDismiss = { overlays.pendingAlert = null },
+						)
+					}
 					// The export report, in the same modal family: advisory only - the export has already
 					// been written when it shows.
 					overlays.exportReport?.let { report ->
@@ -585,11 +598,14 @@ fun EditorShell(
 								} else {
 									stringResource(request.message, *request.arguments.toTypedArray())
 								},
-							onConfirm = {
-								request.onConfirm()
-								overlays.pendingConfirm = null
-							},
-							onCancel = { overlays.pendingConfirm = null },
+							onConfirm = { overlays.confirmPending() },
+							onCancel = { overlays.cancelPending() },
+							confirmLabel = stringResource(request.confirmLabel),
+							cancelLabel = stringResource(request.cancelLabel),
+							alternative =
+								request.alternative?.let { alternative ->
+									DialogChoice(stringResource(alternative.label)) { overlays.choosePendingAlternative() }
+								},
 						)
 					}
 				}
@@ -729,4 +745,5 @@ private fun openFailureMessage(error: DocumentOpenError): StringResource =
 		DocumentOpenError.MissingManifest -> Res.string.open_failed_missing_manifest
 		DocumentOpenError.MissingTexture -> Res.string.open_failed_missing_texture
 		DocumentOpenError.NoArtLayers -> Res.string.open_failed_no_art_layers
+		DocumentOpenError.NewerFormat -> Res.string.open_failed_newer_format
 	}

@@ -107,14 +107,20 @@ internal class HistoryCore(initialSnapshot: EditorSnapshot, initialHistoryLimit:
 	fun jumpTo(index: Int): EditorSnapshot? = history.jumpTo(index)
 
 	/**
-	 * Moves the saved baseline to the current step: [model] becomes the dirty reference and the live
-	 * stack entry becomes the panel's saved marker.
+	 * Moves the saved baseline to [model]: it becomes the dirty reference, and the stack entry holding that
+	 * instance becomes the panel's saved marker.
+	 *
+	 * The entry is found by the model's identity rather than taken to be the live one, because a save
+	 * snapshots the model and writes off-thread: an edit landed while the file was being written makes a
+	 * newer entry live, and that entry was never persisted.  Dirty then stays true (the live model is not
+	 * the saved instance) and the marker sits on the row that was.  A model no entry holds any more (the
+	 * step was trimmed) falls back to the live entry.
 	 *
 	 * @param PuppetModel model The model instance just persisted.
 	 */
 	fun markSaved(model: PuppetModel) {
 		savedModel = model
-		savedSnapshot = history.current
+		savedSnapshot = history.steps.lastOrNull { entry -> entry.snapshot.model === model }?.snapshot ?: history.current
 	}
 
 	/**

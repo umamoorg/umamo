@@ -19,26 +19,42 @@ import org.umamo.ui.resources.*
  * shell registers it (with the app's closures injected) because its operation strip needs the hovered
  * area at dispatch.
  *
- * Import / Export rather than Open / Save is deliberate: CMO3 and MOC3 are interop boundaries, and
- * Open / Save is reserved for the native UMA format.
+ * Open / Save mean the native UMA document and nothing else; CMO3 and MOC3 are interop boundaries, so they
+ * come and go through Import / Export.
  */
 
 /**
- * The import commands, one per source format.
+ * The commands that make, open, save, or replace the whole document: New, Open, Save, Save As, and one
+ * import per interop format.
  *
- * Split from [fileExportCommands] because the two register on different triggers: an import handler
- * depends on nothing that changes while the app runs, while export closes over the open document.
+ * Split from [fileExportCommands] because the two register on different triggers: these handlers read
+ * the document live through the app's holders, while export closes over the open document.  The artwork
+ * import is NOT here - it adds to the open document rather than replacing it, so it registers with the
+ * other artwork operations ([fileArtworkCommands]).
  *
- * @param Function onImportArtwork Runs the artwork import (layered art or a flat raster: picker, dirty-confirm, load).
+ * @param Function onNew Starts a new, empty document (dirty-confirm first).
+ * @param Function onOpen Opens a `.uma` (picker, dirty-confirm, load).
+ * @param Function onSave Saves to the document's `.uma`, asking where on the first save.
+ * @param Function onSaveAs Asks where to save.
+ * @param Function canSave Whether the open document can be saved, queried live (gates Save and Save As).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
  * @return List<Command> The commands to register.
  */
-internal fun fileCommands(onImportArtwork: () -> Unit, onImportCmo3: () -> Unit, onImportMoc3: () -> Unit): List<Command> =
+internal fun fileCommands(
+	onNew: () -> Unit,
+	onOpen: () -> Unit,
+	onSave: () -> Unit,
+	onSaveAs: () -> Unit,
+	canSave: () -> Boolean,
+	onImportCmo3: () -> Unit,
+	onImportMoc3: () -> Unit,
+): List<Command> =
 	listOf(
-		// Artwork is the headline entry: draw in the art program, import, rig.  Every layered and flat
-		// raster format the registry reads comes in through this one row.
-		Command("file.importArtwork", title = Res.string.cmd_import_artwork) { onImportArtwork() },
+		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
+		Command("file.open", title = Res.string.cmd_file_open) { onOpen() },
+		Command("file.save", title = Res.string.cmd_file_save, availability = CommandAvailability { canSave() }) { onSave() },
+		Command("file.saveAs", title = Res.string.cmd_file_save_as, availability = CommandAvailability { canSave() }) { onSaveAs() },
 		Command("file.importCmo3", title = Res.string.cmd_import_cmo3) { onImportCmo3() },
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
@@ -117,7 +133,7 @@ class ReloadScope(
  * app can (the picker, a path on the platform's file system) and lands the result on the session.
  * Every one takes the area its operation strip shows in, resolved by the shell at dispatch.
  *
- * @property Function addArtwork    Picks a file and adds it to the open document.
+ * @property Function importArtwork Picks an artwork file and adds it to the open document.
  * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
  *   or every one when it is null - and reloads the document from them.
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
@@ -129,7 +145,7 @@ class ReloadScope(
  * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
-	val addArtwork: (areaId: String?) -> Unit,
+	val importArtwork: (areaId: String?) -> Unit,
 	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val matchArtwork: (areaId: String?) -> Unit,
@@ -140,7 +156,7 @@ class ArtworkOperations(
 )
 
 /**
- * The artwork commands over the OPEN document: Add Artwork (a second file joins the document), Reload
+ * The artwork commands over the OPEN document: Import Artwork (a file's layers join the document), Reload
  * (every present file is re-read and the changed layers land), the Sources space's relink (a tile
  * rebound, with the layer's art pulled in), Match Automatically (the bindings the files no longer
  * resolve rebound to their confident matches), Replace Artwork (one record repointed at another file),
@@ -161,11 +177,14 @@ class ArtworkOperations(
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
 	listOf(
+		// The one way artwork enters a document, from the File menu's Import row and from the Sources
+		// space alike: a file's layers are ADDED to the open document as one undoable edit, the way
+		// importing an object into a Blender scene adds to it rather than replacing the scene.
 		Command(
-			"file.addArtwork",
-			title = Res.string.cmd_file_add_artwork,
+			"file.importArtwork",
+			title = Res.string.cmd_import_artwork,
 			availability = CommandAvailability { artwork() != null },
-		) { artwork()?.addArtwork?.invoke(routing.operationStripArea()) },
+		) { artwork()?.importArtwork?.invoke(routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,

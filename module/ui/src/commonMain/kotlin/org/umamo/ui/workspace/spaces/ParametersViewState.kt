@@ -4,19 +4,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.booleanOf
+import org.umamo.ui.workspace.stringArrayOrNull
+import org.umamo.ui.workspace.stringListOf
 
-/** The AreaScope.spaceState key the parameters panel parks its view state under. */
-internal const val PARAMETERS_VIEW_STATE_KEY = "parameters.view"
+/** The AreaScope.spaceState key the parameters panel parks its view state under, and its member in an area block (UMA §7.3). */
+internal const val PARAMETERS_VIEW_STATE_KEY = "parameters"
 
 /**
- * The parameters panel's view state, parked on the hosting AreaScope via spaceState. Lifetime follows
- * the leaf area: it survives switching the space away and back, two parameters areas each get their
- * own instance, and it resets when the leaf closes. In-memory on purpose - not a settings key; the
- * native UMA format is the intended future persistence home.
+ * The parameters panel's view state, parked on the hosting AreaScope via spaceState.  Two parameters areas
+ * each get their own instance, and the instance lives as long as the open document does.  A saved document
+ * carries the group folds, the open range editors, and the selection filter (UMA §7.3, D32); the two in-place
+ * rename slots are gestures in flight and are not.
  */
-internal class ParametersViewState {
+internal class ParametersViewState : PersistentSpaceState {
 	/**
 	 * Parameter islands whose range editor is open, keyed by the island's primary parameter id (a pad
 	 * keys on its horizontal member, so the state survives the param <-> pair row-identity change on
@@ -56,4 +64,32 @@ internal class ParametersViewState {
 	 * filter is inert (the whole list shows), so the panel is never mysteriously empty.
 	 */
 	var showOnlySelected: Boolean by mutableStateOf(false)
+
+	/**
+	 * The parameters panel's member of its area block.
+	 *
+	 * @return JsonObject The member, every known key named.
+	 */
+	override fun toJson(): JsonObject =
+		buildJsonObject {
+			// UMA §7.3: a group the rigger opened or closed; any other group follows its initiallyOpen (UMA §4.3, D28).
+			put("expandedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> open }.keys.map { groupId -> groupId.raw }))
+			put("collapsedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> !open }.keys.map { groupId -> groupId.raw }))
+			put("openRangeEditors", stringArrayOrNull(openRangeEditors.filterValues { open -> open }.keys.map { parameterId -> parameterId.raw }))
+			put("onlySelected", if (showOnlySelected) JsonPrimitive(true) else JsonNull)
+		}
+
+	/**
+	 * Takes the parameters state a document was saved with.
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	override fun restore(tree: JsonObject) {
+		expandedGroups.clear()
+		stringListOf(tree, "expandedGroups")?.forEach { raw -> expandedGroups[ParameterGroupId(raw)] = true }
+		stringListOf(tree, "collapsedGroups")?.forEach { raw -> expandedGroups[ParameterGroupId(raw)] = false }
+		openRangeEditors.clear()
+		stringListOf(tree, "openRangeEditors")?.forEach { raw -> openRangeEditors[ParameterId(raw)] = true }
+		showOnlySelected = booleanOf(tree, "onlySelected") ?: false
+	}
 }

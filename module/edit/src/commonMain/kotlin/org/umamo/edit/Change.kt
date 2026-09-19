@@ -772,7 +772,7 @@ sealed interface DocumentChange : Change {
 	 */
 	data class AddArtwork(val sourceName: String, val drawableCount: Int) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.document.addArtwork"
+		override val labelKey: String = "change.document.importArtwork"
 	}
 
 	/**

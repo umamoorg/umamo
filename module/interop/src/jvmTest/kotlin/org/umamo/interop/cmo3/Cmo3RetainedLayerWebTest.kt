@@ -19,7 +19,6 @@ import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.format.cmo3.model.type.FileRef
 import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
@@ -129,7 +128,7 @@ class Cmo3RetainedLayerWebTest {
 	private fun meshesOf(root: CModelSource): List<CArtMeshSource> =
 		Cmo3Import.elementsOf((root.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>()
 
-	private fun iconPath(icon: Any?): String? = (((icon as? CImageIcon)?.image as? CWritableImage)?.image as? FileRef)?.archivePath
+	private fun iconPath(icon: Any?): String? = ((icon as? CImageIcon)?.image as? CWritableImage)?.image?.archivePath
 
 	@Test
 	fun reloadedAddedAndNewFileArtReachTheRetainedGraphAndReadBack() {

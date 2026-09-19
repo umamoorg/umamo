@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.button.IconButton
@@ -81,6 +83,10 @@ private val RELATION_GRIP_HEIGHT = 10.dp
  * @param String emptyLabel The muted text shown when nothing is bound.
  * @param String removeDescription The accessible label of a row's remove button.
  * @param String pickDescription The accessible label of the add field's eyedropper.
+ * @param Dp? height The list's height when the caller holds it, or null for the list to hold its own.  The list
+ *   leaves the composition whenever its row does (a tab change, a folded section, another selection), so only a
+ *   caller-held height survives that.
+ * @param Function? onHeightChange Receives each dragged height, for a caller that holds it.
  */
 @Composable
 fun <T> RelationListField(
@@ -98,19 +104,28 @@ fun <T> RelationListField(
 	emptyLabel: String = "",
 	removeDescription: String = "",
 	pickDescription: String = "",
+	height: Dp? = null,
+	onHeightChange: ((Dp) -> Unit)? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val typography = LocalUmamoTypography.current
 	val density = LocalDensity.current
 	val scrollState = rememberScrollState()
-	var listHeight by remember { mutableStateOf(RELATION_LIST_DEFAULT_HEIGHT) }
+	var ownHeight by remember { mutableStateOf(RELATION_LIST_DEFAULT_HEIGHT) }
+	val listHeight = (height ?: ownHeight).coerceIn(RELATION_LIST_MIN_HEIGHT, RELATION_LIST_MAX_HEIGHT)
+	// The drag state is built once, so it reads the height and the callback through these rather than capturing
+	// the first composition's.
+	val latestHeight by rememberUpdatedState(listHeight)
+	val latestOnHeightChange by rememberUpdatedState(onHeightChange)
 	// The grip drags the list's own height; the panel around it is untouched (this is not an area splitter).
 	val dragState =
 		remember {
 			DraggableState { deltaPx ->
 				val delta = with(density) { deltaPx.toDp() }
-				listHeight = (listHeight + delta).coerceIn(RELATION_LIST_MIN_HEIGHT, RELATION_LIST_MAX_HEIGHT)
+				val dragged = (latestHeight + delta).coerceIn(RELATION_LIST_MIN_HEIGHT, RELATION_LIST_MAX_HEIGHT)
+				ownHeight = dragged
+				latestOnHeightChange?.invoke(dragged)
 			}
 		}
 

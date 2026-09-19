@@ -1,16 +1,20 @@
 package org.umamo.editor.desktop
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.github.vinceglb.filekit.FileKit
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.editor.desktop.viewport.OffscreenPuppetService
 import org.umamo.format.FileKind
 import org.umamo.runtime.model.ParameterId
@@ -20,19 +24,28 @@ import org.umamo.storage.desktopAppStorage
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.app.EditorApp
+import org.umamo.ui.app.HostOpenRequests
+import org.umamo.ui.app.rememberDocumentFileFor
 import org.umamo.ui.app.rememberEditorSessionFor
+import org.umamo.ui.app.rememberExitGuard
 import org.umamo.ui.defaultSettingsJson
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.addRecentFile
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.loadDocument
+import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
+import org.umamo.ui.resources.app_name
+import org.umamo.ui.resources.title_read_only
+import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.theme.ProvideAppThemeFromSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
+import java.awt.Desktop
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -79,6 +92,40 @@ private fun loadInitialDocument(initialPath: String?): Document? {
 }
 
 /**
+ * The window title: the app name, the open document's name, the unsaved marker, and the read-only marker.
+ *
+ * The name follows the `.uma` the document saves to once it has one, so a `Erica.cmo3` saved as `Erica.uma`
+ * reads as the latter.  A document with no file is named here rather than by [Document.displayName], which
+ * is the plain-text name the log and an export's suggested file name need; the title is chrome, so it
+ * localizes.  A read-only document says so, since Save is greyed for as long as it is open.
+ *
+ * @param Document? document  The open document.
+ * @param String?   savedPath The `.uma` the document saves to, or null before its first save.
+ * @param Boolean   readOnly  Whether the document opened read-only.
+ * @param Boolean   dirty     Whether the session has unsaved edits.
+ * @return String The title.
+ */
+@Composable
+private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Boolean, dirty: Boolean): String {
+	val untitled = stringResource(Res.string.title_untitled_document)
+	val readOnlyMarker = stringResource(Res.string.title_read_only)
+	val name = savedPath?.let(::fileDisplayName) ?: document?.let { open -> if (open.path == null) untitled else open.displayName }
+	val markers = (if (dirty) " *" else "") + (if (readOnly) " $readOnlyMarker" else "")
+	return stringResource(Res.string.app_name) + (name?.let { " - $it$markers" }.orEmpty())
+}
+
+/**
+ * Whether [path] names a document the editor opens by itself - its own `.uma`, or a `.cmo3` / `.moc3` it imports.
+ * One test for the command line and the macOS open-file event, so a file the OS hands over is accepted the same
+ * way however it arrives.  The extension only says the path is worth reading; the loader identifies the content.
+ *
+ * @param String path A path from the command line or the operating system.
+ * @return Boolean True when the path has a document extension.
+ */
+internal fun isOpenableDocumentPath(path: String): Boolean =
+	listOf(FileKind.Uma, FileKind.Cmo3, FileKind.Moc3).any { kind -> path.endsWith(".${kind.extension}", ignoreCase = true) }
+
+/**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
  * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
  * native `:storage` dialogs. An initial document may come from a `.cmo3`/`.moc3` argument or
@@ -89,25 +136,31 @@ private fun loadInitialDocument(initialPath: String?): Document? {
  * so the window state is ready before the window opens and the window is unconditional - `application {}`
  * exits if it ever has zero windows, which an async settings gate would briefly cause.
  *
- * @param Array<String> args Optional: a `.cmo3` or `.moc3` path.
+ * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path.
  */
 fun main(args: Array<String>) {
 	// FileKit's native dialogs need a one-time init; `appId` names the per-OS data/cache dirs it uses.
 	FileKit.init(appId = "umamo")
-	val initialPath =
-		args.firstOrNull { arg ->
-			// Pick the first .cmo3 or .moc3 argument; loadDocument then does the real magic-byte
-			// detection once the file is actually read (a .moc3 routes to the sidecar-discovering loader).
-			arg.endsWith(".${FileKind.Cmo3.extension}", ignoreCase = true) ||
-				arg.endsWith(".${FileKind.Moc3.extension}", ignoreCase = true)
+	// Pick the first document argument; loadDocument then does the real magic-byte detection once the file
+	// is actually read (a .moc3 routes to the sidecar-discovering loader).  This is how Windows and Linux hand
+	// over a double-clicked file.
+	val initialPath = args.firstOrNull(::isOpenableDocumentPath) ?: System.getProperty("umamo.testCmo3")
+	// macOS hands a double-clicked file over as an open-file event instead, at launch and for as long as the
+	// app runs.  Installed before the window exists: a cold launch's event can arrive before the first
+	// composition, and the requests wait in their buffer until the shell collects them.
+	val openRequests = HostOpenRequests()
+	if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_OPEN_FILE)) {
+		Desktop.getDesktop().setOpenFileHandler { event ->
+			event.files.map { file -> file.absolutePath }.firstOrNull(::isOpenableDocumentPath)?.let(openRequests::request)
 		}
-			?: System.getProperty("umamo.testCmo3")
+	}
 	// Synchronous load, like the settings below: the window opens with the document already in hand.
 	// The document reaches the first composition through a one-shot holder rather than a plain local:
 	// the application closure lives for the whole run, so a direct capture would keep the first
 	// document reachable after the user opens something else.  remember empties the holder on first
 	// composition; only the path string stays behind for the recent-files record.
-	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath))
+	// A failed or absent argv load still opens a document - the new, empty one the editor starts in.
+	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath) ?: newBlankDocument())
 	val initialDocumentPath = initialDocumentHolder.get()?.path
 	val storage = desktopAppStorage("umamo")
 	val settings = runBlocking { Settings.load(storage, defaultSettingsJson()) }
@@ -121,6 +174,10 @@ fun main(args: Array<String>) {
 		// The title's unsaved marker, mirrored from the session's dirty flag by the window content below,
 		// which is where the session lives.
 		var dirty by remember { mutableStateOf(false) }
+		// The title's file name and read-only marker, mirrored the same way from the document's save target,
+		// which is also derived inside the window content.
+		var savedPath by remember { mutableStateOf<String?>(null) }
+		var readOnly by remember { mutableStateOf(false) }
 		val windowState = remember { settings.savedWindowState() }
 		// A file opened from the command line is a real "open" - record it in recent files too.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
@@ -129,13 +186,35 @@ fun main(args: Array<String>) {
 			settings.saveWindowState(windowState)
 			exitApplication()
 		}
+		// Every way out passes through the shell's unsaved-changes guard: the window's close button here, File >
+		// Exit inside the shell, and the macOS Quit below.
+		val exitGuard = rememberExitGuard()
+		// macOS routes Cmd+Q and the Dock's Quit through the application's quit handler, not the window's
+		// close request.  Cancelling the OS's quit and asking the guard keeps one path; the handler is
+		// unsupported, and nothing is installed, on Windows and Linux.
+		DisposableEffect(exitGuard) {
+			val quitHandlerSupported = Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.APP_QUIT_HANDLER)
+			if (quitHandlerSupported) {
+				Desktop.getDesktop().setQuitHandler { _, response ->
+					response.cancelQuit()
+					exitGuard.request { closeApp() }
+				}
+			}
+			onDispose {
+				if (quitHandlerSupported) {
+					Desktop.getDesktop().setQuitHandler(null)
+				}
+			}
+		}
 		Window(
-			onCloseRequest = { closeApp() },
+			onCloseRequest = { exitGuard.request { closeApp() } },
 			state = windowState,
 			// Window + taskbar/dock icon.  painterResource decodes the bundled app_icon PNG (the same
 			// mascot the packaged installer icons derive from); regenerate via docs/design/appicon/generate.sh.
 			icon = painterResource(Res.drawable.app_icon),
-			title = "Umamo" + (document?.let { " - ${it.displayName}${if (dirty) " *" else ""}" }.orEmpty()),
+			// A document that has never been saved has no file name to show, so the title localizes its own
+			// name for it rather than showing the plain-text one the log and export names use.
+			title = windowTitleFor(document, savedPath, readOnly, dirty),
 		) {
 			// The session is derived HERE, in the composition that reads the document, and not in the
 			// application scope above.  Window content is its own composition: it reads the document
@@ -145,6 +224,11 @@ fun main(args: Array<String>) {
 			// command, the File menu, and the page resolver registered in that frame keep the stale
 			// pair.  Deriving both in one place keeps them consistent in every frame.
 			val session = rememberEditorSessionFor(document)
+			val documentFile = rememberDocumentFileFor(document)
+			LaunchedEffect(documentFile) {
+				readOnly = documentFile?.readOnly == true
+				snapshotFlow { documentFile?.umaPath }.collect { path -> savedPath = path }
+			}
 			LaunchedEffect(session) {
 				val activeSession = session
 				if (activeSession == null) {
@@ -167,11 +251,14 @@ fun main(args: Array<String>) {
 						EditorApp(
 							document = document,
 							session = session,
+							documentFile = documentFile,
 							onOpen = { document = it },
 							onExit = { closeApp() },
+							exitGuard = exitGuard,
 							viewportServiceFactory = { puppet, textures, liveParams ->
 								OffscreenPuppetService(puppet, textures, liveParams).also { it.start() }
 							},
+							openRequests = openRequests,
 						)
 					}
 				}

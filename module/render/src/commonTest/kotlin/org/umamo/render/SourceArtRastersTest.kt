@@ -284,13 +284,31 @@ class SourceArtRastersTest {
 		assertSame(first, store.rasterFor(late), "a remembered miss does not outlive the raster's arrival")
 	}
 
-	/** A tile the supplier has no bytes for decodes to nothing, and the empty store has none at all. */
+	/**
+	 * Two stores never share what was added to one of them.
+	 *
+	 * Documents hand their own store to every artwork import, which decodes into it - so a store shared
+	 * between documents would read one document's art back out under the next document's tile ids.
+	 */
+	@Test
+	fun addedRastersStayInTheStoreTheyWereAddedTo() {
+		val tileId = AtlasTileId("tile-1")
+		val store = SourceArtRasters { null }
+		val other = SourceArtRasters { null }
+
+		store.addDecoded(mapOf(tileId to DecodedImage(ByteArray(4) { 0xFF.toByte() }, 1, 1)))
+
+		assertNotNull(store.rasterFor(tileId), "the store it was added to has it")
+		assertNull(other.rasterFor(tileId), "another document's store does not")
+	}
+
+	/** A tile the supplier has no bytes for decodes to nothing, and a store over no pixels has none at all. */
 	@Test
 	fun aTileWithoutBytesDecodesToNothing() {
 		val known = AtlasTileId("a")
 		val store = SourceArtRasters.fromPng { requested -> if (requested == known) onePixelPng() else null }
 		assertNotNull(store.rasterFor(known), "a known tile decodes")
 		assertNull(store.rasterFor(AtlasTileId("missing")), "an unknown tile has no bytes")
-		assertNull(SourceArtRasters.EMPTY.rasterFor(known), "the empty store has no rasters")
+		assertNull(SourceArtRasters { null }.rasterFor(known), "a store over no pixels at all has no rasters")
 	}
 }

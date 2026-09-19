@@ -3,6 +3,10 @@ package org.umamo.ui.workspace.spaces
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
@@ -20,9 +24,12 @@ import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.GizmoMeshGeometry
 import org.umamo.ui.viewport.atlasPageIndexFor
 import org.umamo.ui.viewport.uvToDisplay
+import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.intOf
+import org.umamo.ui.workspace.stringOf
 
-/** The AreaScope.spaceState key the UV editor parks its view state under. */
-internal const val UV_EDITOR_VIEW_STATE_KEY = "uv.view"
+/** The AreaScope.spaceState key the UV editor parks its view state under, and its member in an area block (UMA §7.3). */
+internal const val UV_EDITOR_VIEW_STATE_KEY = "uv"
 
 /**
  * What the UV editor area is showing: the auto-follow default, one atlas page pinned regardless of the
@@ -48,17 +55,49 @@ internal sealed class UvTextureSelection {
 /**
  * The UV editor's per-area view state, shared between its area-header controls and its body (they
  * render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than in a
- * body-local remember).  Lifetime follows the leaf area: it survives switching the space away and
- * back, two UV editors each get their own instance, and it resets when the leaf closes.  In-memory
- * on purpose - not a settings key; the native UMA format is the intended future persistence home.
+ * body-local remember).  Two UV editors each get their own instance, and the instance lives as long as the open
+ * document does; a saved document carries it (UMA §7.3, D32).
  *
- * The leaf outlives the open document, so a pin can survive a document swap; resolution treats a pin
- * the new document cannot satisfy as Follow Selection (resolveUvEditorPage) without clearing what is
- * stored here.
+ * A pin can name a page the document does not have - a repack that shrank the atlas, a file saved by another
+ * version.  Resolution treats such a pin as Follow Selection (resolveUvEditorPage) without clearing what is
+ * stored here, so a later repack that brings the page back finds the pin still set.
  */
-internal class UvEditorViewState {
+internal class UvEditorViewState : PersistentSpaceState {
 	/** The area's texture selection: follow the session, a pinned atlas page, or the source-layer view. */
 	var textureSelection by mutableStateOf<UvTextureSelection>(UvTextureSelection.FollowSelection)
+
+	/**
+	 * The UV editor's member of its area block.
+	 *
+	 * @return JsonObject The member, every known key named.
+	 */
+	override fun toJson(): JsonObject =
+		buildJsonObject {
+			// UMA §7.3: `texture` is "follow" (the default, so absent), "sourceLayer", or { "page": N }.
+			put(
+				"texture",
+				when (val selection = textureSelection) {
+					UvTextureSelection.FollowSelection -> JsonNull
+					UvTextureSelection.SourceLayer -> JsonPrimitive("sourceLayer")
+					is UvTextureSelection.PinnedPage -> buildJsonObject { put("page", JsonPrimitive(selection.pageIndex)) }
+				},
+			)
+		}
+
+	/**
+	 * Takes the UV editor state a document was saved with.
+	 *
+	 * @param JsonObject tree The member as the file held it.
+	 */
+	override fun restore(tree: JsonObject) {
+		val pinnedPage = (tree["texture"] as? JsonObject)?.let { pin -> intOf(pin["page"]) }?.takeIf { pageIndex -> pageIndex >= 0 }
+		textureSelection =
+			when {
+				pinnedPage != null -> UvTextureSelection.PinnedPage(pinnedPage)
+				stringOf(tree, "texture") == "sourceLayer" -> UvTextureSelection.SourceLayer
+				else -> UvTextureSelection.FollowSelection
+			}
+	}
 }
 
 /**
