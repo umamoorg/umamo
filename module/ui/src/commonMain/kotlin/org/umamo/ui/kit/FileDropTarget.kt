@@ -102,7 +102,7 @@ fun FileDropTarget(onDrop: (List<String>) -> Unit, content: @Composable () -> Un
 				Modifier
 					.fillMaxSize()
 					.background(LocalUmamoColors.current.accent.copy(alpha = 0.5f), LocalUmamoShapes.current.large)
-					.border(2.dp, LocalUmamoColors.current.accent, LocalUmamoShapes.current.large)
+					.border(2.dp, LocalUmamoColors.current.accent, LocalUmamoShapes.current.large),
 			)
 		}
 	}
