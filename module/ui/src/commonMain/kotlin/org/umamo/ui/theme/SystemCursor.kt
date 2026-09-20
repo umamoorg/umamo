@@ -13,6 +13,10 @@ import androidx.compose.ui.input.pointer.PointerIcon
  *
  * Both paths therefore render the SAME UmamoCursor definitions from Cursor.kt; a control never falls back
  * to a stock OS arrow, which is what kept the designed set from applying outside the viewport before.
+ *
+ * Text entry is the one deliberate exception: the shell claims PointerIcon.Text while a field holds the
+ * keyboard, because the I-beam is the one pointer every OS already draws and every user already reads -
+ * and Foundation puts that same pointer on a text field, so hovering one and typing in one agree.
  */
 
 /**

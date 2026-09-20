@@ -574,6 +574,7 @@ private fun NumberEntryField(
 			modifier =
 				gesture
 					.then(modifier)
+					.textEntrySurface(controller)
 					.height(NUMBER_FIELD_HEIGHT)
 					.clip(shape)
 					.background(colors.controlBackground)

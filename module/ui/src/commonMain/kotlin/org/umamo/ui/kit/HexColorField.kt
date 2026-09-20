@@ -165,6 +165,7 @@ fun HexColorField(
 				cursorBrush = SolidColor(colors.text),
 				modifier =
 					gesture
+						.textEntrySurface(controller)
 						.fillMaxWidth()
 						.clip(shapes.small)
 						.background(colors.controlBackground)

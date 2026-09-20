@@ -166,6 +166,7 @@ fun TextField(
 			modifier =
 				gesture
 					.then(modifier)
+					.textEntrySurface(controller)
 					.clip(shapes.small)
 					.background(colors.controlBackground)
 					.border(1.dp, colors.controlBorder, shapes.small)

@@ -15,13 +15,27 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * through to the field instead of running its own shortcuts.  Holds null whenever no inline editor is
  * open.  Only the editor should write it.
  *
- * インライン編集（ワークスペース名の変更）とホストのキー処理をつなぐ仲介。編集中だけキャンセル関数を
- * 預け、ホストは Escape をそこへ回し、他のキーはフィールドに通す（自前のショートカットを抑止する）。
+ * The same seam answers the other question a host has about text entry: whether the press it is
+ * watching landed on the editor itself.  A press anywhere else ends text entry (the shell hands the
+ * keyboard back to its root), and only the editor's own node can say that the press was meant for it.
  *
  * @property Function cancel Cancels the open inline editor, or null when none is open.
+ * @property Boolean pressLandedOnTextEditor Whether the press being dispatched hit a text editor.
  */
 class InlineEditController {
 	var cancel: (() -> Unit)? by mutableStateOf(null)
+
+	/**
+	 * Whether the press currently being dispatched landed on a live text editor's own node.  The host
+	 * clears this on the press's Initial pass (an ancestor sees that pass before any descendant), each
+	 * text editor sets it on its own Initial pass, and the host reads it on the Final pass, after every
+	 * descendant has handled the press.  One synchronous dispatch on one thread, so the flag never has to
+	 * tell one press from the next and needs no token.
+	 *
+	 * A plain var, deliberately, where [cancel] is snapshot state: nothing displays this, and making it
+	 * observable would recompose the whole shell twice on every mouse press.
+	 */
+	var pressLandedOnTextEditor: Boolean = false
 }
 
 /**
