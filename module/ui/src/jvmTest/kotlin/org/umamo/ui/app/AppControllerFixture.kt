@@ -2,6 +2,8 @@ package org.umamo.ui.app
 
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import okio.Path.Companion.toPath
 import okio.fakefilesystem.FakeFileSystem
 import org.umamo.edit.EditorSession
@@ -27,7 +29,7 @@ import org.umamo.ui.workspace.AreaViewStates
  * @param CoroutineScope scope The scope the controllers' work runs in (a test's own scope).
  */
 internal class AppControllerFixture(
-	scope: CoroutineScope,
+	private val scope: CoroutineScope,
 ) {
 	/** Every command the controllers dispatched, in order, with its argument. */
 	val invocations = ArrayList<Pair<String, Any?>>()
@@ -65,6 +67,19 @@ internal class AppControllerFixture(
 				onOpen = { document -> opened.add(document) },
 				untitledName = { "Untitled" },
 			)
+	}
+
+	/**
+	 * Waits for the work the controllers launched to finish.
+	 *
+	 * A controller does its file reading in a coroutine on the shared scope, and the read itself runs on a
+	 * real IO dispatcher - so the test scheduler's own idle point says nothing about whether it is done.
+	 * Joining the scope's children waits for the real thing.  The caller's own job is excluded, since a
+	 * test body waiting on itself never returns.
+	 */
+	suspend fun settle() {
+		val caller = currentCoroutineContext().job
+		scope.coroutineContext.job.children.filter { child -> child !== caller }.forEach { child -> child.join() }
 	}
 
 	/**

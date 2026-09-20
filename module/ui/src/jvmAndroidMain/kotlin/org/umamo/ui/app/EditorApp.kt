@@ -20,6 +20,8 @@ import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.UmaDocument
+import org.umamo.ui.document.openDroppedFiles
+import org.umamo.ui.kit.FileDropTarget
 import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.resources.Res
@@ -230,18 +232,24 @@ fun EditorApp(
 			canExport = export.canExport,
 			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
 		)
-	CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
-		DocumentViewport(
-			document = document,
-			session = session,
-			sessionAtlasPages = sessionAtlasPages,
-			commandRegistry = commandRegistry,
-			appMenu = appMenu,
-			viewportServiceFactory = viewportServiceFactory,
-			filePicker = filePicker,
-			artwork = artwork?.operations,
-			sourceWatch = documentWatch?.state,
-			sourceSuggestions = artwork?.suggestionState,
-		)
+	// A file dropped on the window takes the same way in as one chosen from a dialog: a document replaces
+	// what is open (through the unsaved-changes gate file.openPath carries), artwork is added to it.  Both
+	// go through the registry rather than straight to a controller - that is what gives the add the hovered
+	// area its operation strip shows in, and what keeps a drop under the same availability gate as the menu.
+	FileDropTarget(onDrop = { paths -> openDroppedFiles(paths, commandRegistry) }) {
+		CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
+			DocumentViewport(
+				document = document,
+				session = session,
+				sessionAtlasPages = sessionAtlasPages,
+				commandRegistry = commandRegistry,
+				appMenu = appMenu,
+				viewportServiceFactory = viewportServiceFactory,
+				filePicker = filePicker,
+				artwork = artwork?.operations,
+				sourceWatch = documentWatch?.state,
+				sourceSuggestions = artwork?.suggestionState,
+			)
+		}
 	}
 }
