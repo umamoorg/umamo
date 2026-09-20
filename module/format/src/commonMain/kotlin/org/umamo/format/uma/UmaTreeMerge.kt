@@ -11,7 +11,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 
 /*
- * The retained-tree merge (D10, docs/format/UMA.md §4.7): a domain entry is written by laying the freshly
+ * The retained-tree merge (docs/format/UMA.md §4.7): a domain entry is written by laying the freshly
  * encoded schema object over the JSON tree the file was read with, so every key this reader does not know
  * survives the save.  The schema's own descriptors say which keys are known, so the merge never drifts from
  * the classes; the one thing they cannot say - which array elements are the same object across an edit -
@@ -265,7 +265,7 @@ private fun mergeMap(retained: JsonObject?, updated: JsonElement, valueDescripto
 
 /**
  * [patch] applied to [target] as a JSON Merge Patch (RFC 7386), which is how the editor entry is written over the
- * tree as read (D33, docs/format/UMA.md §7.5).
+ * tree as read (docs/format/UMA.md §7.5).
  *
  * The editor entry is a dynamic tree with no schema descriptor to say which keys a writer knows, so it cannot go
  * through [mergeRetainedTree].  The patch says it instead: a member it names is set, a member it names `null` is

@@ -4,10 +4,10 @@ import kotlinx.serialization.Serializable
 
 /*
  * The sources entry's schema (docs/format/UMA.md §6): the artwork files the document was imported from, each
- * with the layer inventory it had at its last read.  The source bytes themselves are never stored (D6).
+ * with the layer inventory it had at its last read.  The source bytes themselves are never stored (UMA §6).
  */
 
-/** UMA §6.4 (D16): the algorithm prefix every recorded hash carries in front of its lowercase hex digest. */
+/** UMA §6.4: the algorithm prefix every recorded hash carries in front of its lowercase hex digest. */
 public const val UMA_SHA256_PREFIX: String = "sha256:"
 
 /**

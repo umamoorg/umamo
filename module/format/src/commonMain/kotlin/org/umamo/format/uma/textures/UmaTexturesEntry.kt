@@ -18,7 +18,7 @@ import org.umamo.format.uma.identityByStringKey
  *
  * @property UmaTextures textures The index, every record naming its pixel entry.
  * @property Map         payloads The pixel paths this save owns, in write order: bytes to write stored, or
- *   null for a path the index no longer names, which is dropped (UMA §5.7, D21).
+ *   null for a path the index no longer names, which is dropped (UMA §5.7).
  */
 internal class UmaTexturesLayout(
 	val textures: UmaTextures,
@@ -38,7 +38,7 @@ internal object UmaTexturesEntry {
 	private const val THUMBNAIL_PATH_PREFIX = "thumbnail-"
 
 	/**
-	 * UMA §5.8: tiles match by id across a save; atlas pages have no identity (D12) and render pages are one
+	 * UMA §5.8: tiles match by id across a save; atlas pages have no identity and render pages are one
 	 * imported set, so both are replaced whole.
 	 */
 	val identities: UmaIdentityTable =
@@ -135,7 +135,7 @@ internal object UmaTexturesEntry {
 		val payloads = LinkedHashMap<String, ByteArray?>(written)
 		val named = namedPaths(laidOut)
 		for (path in namedPaths(retained)) {
-			// UMA §5.7 (D21): a pixel entry the index no longer names leaves the file.
+			// UMA §5.7: a pixel entry the index no longer names leaves the file.
 			if (path !in named) {
 				payloads[path] = null
 			}
@@ -284,7 +284,7 @@ internal object UmaTexturesEntry {
 	}
 
 	/**
-	 * Every pixel path [textures]'s records name: the pixel entries the textures entry owns (D21).
+	 * Every pixel path [textures]'s records name: the pixel entries the textures entry owns (UMA §5.7).
 	 *
 	 * @param UmaTextures? textures The index, or null.
 	 * @return Set<String> The paths, in index order.

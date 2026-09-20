@@ -23,7 +23,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The reopen-then-reload promise the native format makes (docs/plan/uma-format.md G4): a reload planned against a
+ * The reopen-then-reload promise the native format makes (docs/format/UMA.md §5, §6): a reload planned against a
  * document before it was saved and one planned against the same document reopened from its `.uma` are the same
  * plan, because the file carries the whole re-import baseline - the inventory with its flags and hashes, the
  * bindings, the lineage, and the tiles' pixels byte for byte.

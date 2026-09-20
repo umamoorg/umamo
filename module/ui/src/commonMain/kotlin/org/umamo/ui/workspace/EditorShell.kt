@@ -456,9 +456,9 @@ fun EditorShell(
 											)
 										if (releases) {
 											// Take focus, never clear it: a null focus owner silently kills every
-											// shortcut, which is the very bug this closes.  Moving focus still fires
-											// each control's onFocusChanged(hasFocus = false), and that is what commits
-											// an inline rename and unparks the cancel hook.
+											// shortcut.  Moving focus still fires each control's
+											// onFocusChanged(hasFocus = false), and that is what commits an inline
+											// rename and unparks the cancel hook.
 											focusRequester.requestFocus()
 										}
 									},

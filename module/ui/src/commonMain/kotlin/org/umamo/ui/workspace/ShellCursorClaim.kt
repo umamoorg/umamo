@@ -6,13 +6,13 @@ package org.umamo.ui.workspace
  * the moment the mode begins, wherever the hand happens to be.
  */
 internal enum class ShellCursorClaim {
-	//No mode is running; each panel, splitter, and gizmo keeps its own cursor.
+	// No mode is running; each panel, splitter, and gizmo keeps its own cursor.
 	None,
 
-	//A relation pick is armed: the OS pointer is hidden and the shell draws the eyedropper itself.
+	// A relation pick is armed: the OS pointer is hidden and the shell draws the eyedropper itself.
 	Hidden,
 
-	//Text entry is live: the platform's own text pointer, everywhere, until the field lets go.
+	// Text entry is live: the platform's own text pointer, everywhere, until the field lets go.
 	TextEdit,
 }
 

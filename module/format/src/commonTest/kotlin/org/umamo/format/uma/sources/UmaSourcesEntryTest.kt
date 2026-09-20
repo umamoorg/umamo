@@ -26,7 +26,7 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the sources entry (docs/format/UMA.md §6): every inventory field and flag round-trips, a hash is the one
- * form this reader knows (D16), keys a newer writer planted follow their source and layer across edits, and
+ * form this reader knows (UMA §6.4), keys a newer writer planted follow their source and layer across edits, and
  * each rule a reader enforces fails with its path.
  */
 class UmaSourcesEntryTest {

@@ -30,7 +30,7 @@ internal val UmaJson: Json =
 /**
  * The JSON a domain entry's schema classes decode from and encode to, as trees.
  *
- * Unknown keys are ignored here because the retained tree keeps them (D10); nulls are omitted, so an
+ * Unknown keys are ignored here because the retained tree keeps them (UMA §4.7); nulls are omitted, so an
  * absent optional key and a null are one thing; special floats are refused, since JSON cannot carry them.
  */
 internal val UmaEntryJson: Json =
@@ -247,9 +247,9 @@ internal fun parseUmaManifest(bytes: ByteArray): UmaParsedManifest {
 
 /**
  * The manifest [model] writes: its manifest as read with the keys this writer owns overwritten, so every
- * other key keeps its place (D10).
+ * other key keeps its place (UMA §3.5).
  *
- * Live entries are declared at this writer's schema version and requiredness (D8, always write current);
+ * Live entries are declared at this writer's schema version and requiredness (UMA §3.5, always write current);
  * preserved entries keep their records exactly.
  *
  * @param UmaModel model The document being written.

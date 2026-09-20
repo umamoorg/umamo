@@ -16,7 +16,7 @@ import org.umamo.format.uma.UmaModel
  * retained.  Everything a save changes lives here instead - the `.uma` the document now lives in and the
  * [UmaModel] the next save lays over - one holder per open document, remembered by the host beside the
  * session.  A document with no file yet (a new one, or an import that was never saved) has no path until
- * its first Save As, which is what makes that first Save a Save As (D24).
+ * its first Save As, which is what makes that first Save a Save As.
  */
 class DocumentFile(origin: Document) {
 	/**
@@ -53,10 +53,10 @@ class DocumentFile(origin: Document) {
 	 * flight lands - and not at all when it fails.
 	 *
 	 * Quitting is what makes this necessary.  The write runs on a background thread the process does not
-	 * wait for, so an exit that went ahead mid-save killed it, leaving a partial temporary on disk and no
-	 * file - for a document that reads as clean, since an import that was never edited has nothing unsaved
-	 * to ask about.  A failed save abandons the action because the rigger asked for a file and did not get
-	 * one; the failure alert says why, and quitting is theirs to ask for again.
+	 * wait for, so an exit that went ahead mid-save would kill it, leaving a partial temporary on disk and
+	 * no file - even for a document that reads as clean, since an import that was never edited has nothing
+	 * unsaved to stop the quit with.  A failed save abandons the action because the rigger asked for a file
+	 * and did not get one; the failure alert says why, and quitting is theirs to ask for again.
 	 *
 	 * @param CoroutineScope scope     The scope the wait runs in.
 	 * @param Function       onWaiting Called when there is a save to wait for, before the wait.

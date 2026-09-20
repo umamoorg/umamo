@@ -10,7 +10,7 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * Lowers a [PuppetModel]'s linked source art onto the sources entry's schema (docs/format/UMA.md §6), and back:
- * every inventory row with every flag, and the hashes in the file's prefixed form (D16).
+ * every inventory row with every flag, and the hashes in the file's prefixed form (UMA §6.4).
  */
 object UmaSourcesBridge {
 	/**

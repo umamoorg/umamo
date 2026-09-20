@@ -55,7 +55,7 @@ internal sealed class UvTextureSelection {
  * The UV editor's per-area view state, shared between its area-header controls and its body (they
  * render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than in a
  * body-local remember).  Two UV editors each get their own instance, and the instance lives as long as the open
- * document does; a saved document carries it (UMA §7.3, D32).
+ * document does; a saved document carries it (UMA §7.3).
  *
  * A pin can name a page the document does not have - a repack that shrank the atlas, a file saved by another
  * version.  Resolution treats such a pin as Follow Selection (resolveUvEditorPage) without clearing what is

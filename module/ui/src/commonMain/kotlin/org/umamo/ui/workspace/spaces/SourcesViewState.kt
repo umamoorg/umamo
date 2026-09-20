@@ -18,7 +18,7 @@ internal const val SOURCES_VIEW_STATE_KEY = "sources"
 /**
  * The Sources space's search, filter, open-row, and refresh state, shared between its area-header controls and
  * its body (sibling subtrees, so it lives on the hosting AreaScope via spaceState).  It lives as long as the open
- * document does, like the outliner's, and a saved document carries its filters and open rows (UMA §7.3, D32).
+ * document does, like the outliner's, and a saved document carries its filters and open rows (UMA §7.3).
  */
 internal class SourcesViewState : PersistentSpaceState {
 	/** The name-search query; blank shows the whole table. */

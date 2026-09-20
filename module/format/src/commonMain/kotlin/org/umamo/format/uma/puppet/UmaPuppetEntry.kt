@@ -33,7 +33,7 @@ internal object UmaPuppetEntry {
 	 * part, deformer, or drawable is its id; a link is its pair; a parameter-tree node and an org ref are
 	 * their id qualified by which kind of id it is, so a part and a drawable that share a raw id stay apart.
 	 * A grid axis, a blend shape, and a limit are their parameter; a cell is its key value on each axis; a glue is
-	 * its ordered mesh pair (D11).  Blend forms and limit points are values, replaced whole (D10).
+	 * its ordered mesh pair.  Blend forms and limit points are values, replaced whole.
 	 */
 	val identities: UmaIdentityTable =
 		UmaIdentityTable(
