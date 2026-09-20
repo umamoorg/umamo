@@ -14,7 +14,7 @@
 ~~4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening~~
 5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
 6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format (Phase G - Art Sourcing Pipeline)
+7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -37,18 +37,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
 ## Read/Write Filing Handling
-* Clean up the boolean logic mess in AppMenu->fileMenu().
-	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
-* Document State - One document per window instance.
-* Drag and drop file opening.
 * Save should be muted/disabled in the menu if the document is not dirty.
 
 ## UI Dialog
 * Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
-
-## Refactor SOON
-* module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
-	* Grown too big and needs to be split up by responsibility and/or move functionality into the correct files.
 
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.
@@ -115,11 +107,12 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Hold CTRL to enable snapping for rotation and grid placement.
 
-## Context Issues
-* If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
-
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
+
+## Snapshot/Image Export
+* Add the ability to take a snapshot of the current 2D viewport with transparency.
+	* This would also help with the UMA format thumbnail.  The UMA thumbnail is based on the part/drawable thumbnailer which does basic blending and does not respect any settings.
 
 ## Properties Panel
 * The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
@@ -143,6 +136,9 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## Workspace
 * Menu: Add Previous/Next workspace to the Workspace main menu at the top.
+
+## Menus
+* Clicking again should close instead of reopen the menu.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
@@ -216,6 +212,8 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * New Startup Settings Screen
 	* Import from pervious version.
 	* Select from binding defaults.
+	* Theme Selection
+	* Language Selection (With universal emoji icon.) - Detect from system.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 
 ## Keybindings

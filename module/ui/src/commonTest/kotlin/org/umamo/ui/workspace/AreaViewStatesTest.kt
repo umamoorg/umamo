@@ -15,7 +15,7 @@ import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 
 /**
- * Pins the per-document holder of area view state (docs/format/UMA.md §7.3, §7.5; D31): scopes live as long as
+ * Pins the per-document holder of area view state (docs/format/UMA.md §7.3, §7.5): scopes live as long as
  * the holder rather than a leaf, a saved block seeds only the area whose id it carries, and a gather writes the
  * saver's layout and takes every other id out of the file.
  */

@@ -76,7 +76,7 @@ internal class UmaRawEntry(
 /** What a manifest-listed entry holds in memory. */
 internal sealed interface UmaEntryContent {
 	/**
-	 * An entry this reader understands, held as its parsed JSON tree so unknown keys ride along (D10).
+	 * An entry this reader understands, held as its parsed JSON tree so unknown keys ride along (UMA §4.7).
 	 *
 	 * @property UmaEntryKind kind The entry's kind.
 	 * @property JsonObject   tree The entry's JSON.
@@ -260,14 +260,14 @@ public class UmaModel internal constructor(
 	 *
 	 * A dynamic tree rather than a typed decode: the entry is open-ended and read tolerantly by whoever owns each
 	 * member, so there is no schema here to decode against and nothing in it can fail a read.  It is never an input
-	 * to the puppet, the atlas, or the sources (D29).
+	 * to the puppet, the atlas, or the sources (UMA §7).
 	 */
 	public val editorState: JsonObject?
 		get() = liveContent(UmaEntryKind.Editor)
 
 	/**
 	 * This document with its puppet entry set to [puppet], laid over the entry's tree as read so every key
-	 * this writer does not own survives (D10), or added when the document has no puppet entry.
+	 * this writer does not own survives (UMA §4.7), or added when the document has no puppet entry.
 	 *
 	 * The puppet's buffer is rebuilt in the same step: every accessor in the merged tree - the new arrays and
 	 * any a newer writer left under keys this one does not know - is laid out afresh in document order.
@@ -296,12 +296,12 @@ public class UmaModel internal constructor(
 
 	/**
 	 * This document with its textures entry set to [textures], laid over the entry's tree as read so every key
-	 * this writer does not own survives (D10), or added when the document has no textures entry.
+	 * this writer does not own survives (UMA §5.8), or added when the document has no textures entry.
 	 *
 	 * The pixel entries are laid out in the same step (UMA §5.7): a tile the file holds keeps its entry byte for
 	 * byte and [pixels] is not asked for it, a new tile's PNG is written at a minted path, the render pages follow
 	 * [pixels]'s mode, the thumbnail is written when given, and every pixel entry the index no longer names leaves
-	 * the file (D21).  The paths and render pages [textures] carries are ignored.
+	 * the file (UMA §5.7).  The paths and render pages [textures] carries are ignored.
 	 *
 	 * @param UmaTextures    textures The index.
 	 * @param UmaPixelSource pixels   The pixels the save writes.
@@ -335,7 +335,7 @@ public class UmaModel internal constructor(
 
 	/**
 	 * This document with its sources entry set to [sources], laid over the entry's tree as read so every key this
-	 * writer does not own survives (D10), or added when the document has no sources entry.
+	 * writer does not own survives (UMA §6.5), or added when the document has no sources entry.
 	 *
 	 * @param UmaSources sources The sources.
 	 * @return UmaModel The updated document.

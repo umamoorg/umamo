@@ -4,6 +4,7 @@ import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.HoveredSurface
@@ -42,7 +43,7 @@ class CommandTableOrderTest {
 
 	private fun routing(): CommandRouting = CommandRouting { null }
 
-	/** The shell-chrome table: overlay toggles, the drag cancels, workspace tab navigation. */
+	/** The shell-chrome table: overlay toggles, the project links, the drag cancels, workspace tab navigation. */
 	@Test
 	fun chromeTableIsComplete() {
 		val commands =
@@ -52,7 +53,7 @@ class CommandTableOrderTest {
 				SplitterDragCancelController(),
 				RowDragCancelController(),
 				workspaces(),
-			)
+			) {}
 		assertEquals(
 			listOf(
 				"palette.toggle",
@@ -61,6 +62,9 @@ class CommandTableOrderTest {
 				"edit.preferences",
 				"help.about",
 				"help.credits",
+				"help.sourceCode",
+				"help.webSite",
+				"help.documentation",
 				"workspace.prev",
 				"workspace.next",
 			),
@@ -219,14 +223,26 @@ class CommandTableOrderTest {
 	}
 
 	/**
-	 * The app-registered file and log tables, in the order EditorApp concatenates them.  Their actions are
-	 * plain lambdas, which is what lets a commonMain test build them at all - the document layer they
-	 * actually call into is jvmAndroidMain.
+	 * The workspace layout's file table and the log table, in the order the settings-backed shell
+	 * concatenates them.  Their actions are plain lambdas, so the tables build with no picker and no settings.
 	 */
 	@Test
-	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}) + logCommands {}
-		assertEquals(listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+	fun workspaceFileAndLogTablesAreComplete() {
+		val commands = workspaceFileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
+	}
+
+	/**
+	 * The app-registered file tables.  Their actions are plain lambdas, which is what lets a commonMain test
+	 * build them at all - the document layer they actually call into is jvmAndroidMain.
+	 */
+	@Test
+	fun fileTablesAreComplete() {
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {})
+		assertEquals(
+			listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "file.openPath", "file.exit"),
+			commands.map { command -> command.id },
+		)
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
@@ -251,11 +267,46 @@ class CommandTableOrderTest {
 	}
 
 	/**
+	 * Opening a file by its path is argument-only: a recent file's row supplies the path, so the command
+	 * has no title for the palette, passes a path through untouched, and ignores anything that is not one
+	 * rather than opening a file nobody named.
+	 */
+	@Test
+	fun openingByPathTakesThePathAsItsArgument() {
+		val openedPaths = ArrayList<String>()
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, { path -> openedPaths.add(path) }, {}).first { command -> command.id == "file.openPath" }
+
+		assertNull(openPath.title, "nothing for the palette to offer without a path")
+		openPath.handler.run("/rigs/hero.uma")
+		openPath.handler.run(null)
+		openPath.handler.run(42)
+
+		assertEquals(listOf("/rigs/hero.uma"), openedPaths)
+	}
+
+	/** Each Help link command opens its own project URL, and nothing else, through the shell's opener. */
+	@Test
+	fun theHelpLinksOpenTheProjectUrls() {
+		val openedUrls = ArrayList<String>()
+		val commands =
+			chromeCommands(overlays(), AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces()) { url -> openedUrls.add(url) }
+
+		for (commandId in listOf("help.sourceCode", "help.webSite", "help.documentation")) {
+			commands.first { command -> command.id == commandId }.handler.run(null)
+		}
+
+		assertEquals(listOf(ProjectInfo.SOURCE_CODE_URL, ProjectInfo.WEB_SITE_URL, ProjectInfo.DOCUMENTATION_URL), openedUrls)
+	}
+
+	/**
 	 * The artwork commands hide themselves while no document can take artwork (the collaborator is
 	 * null), ask LIVE, and hand the handler the area its operation strip shows in - fired over the
 	 * Sources panel, that is the last work surface the pointer touched, never the panel.  Reload also
 	 * asks the collaborator whether any file can be read; relink, delete, and ignore carry their requests
 	 * through, and ignore is argument-only, so it has no title for the palette.
+	 *
+	 * The import carries an optional one: with no payload it means "ask for a file", and with one it means
+	 * "add these" - the way a drop reaches the same id.
 	 */
 	@Test
 	fun artworkCommandsFollowTheCollaboratorAndTheStripArea() {
@@ -273,6 +324,7 @@ class CommandTableOrderTest {
 		assertFalse(match.availability.isAvailable())
 		assertFalse(replace.availability.isAvailable())
 		var landedArea: String? = "untouched"
+		var landedImport: ImportArtworkRequest? = null
 		var landedRequest: RelinkRequest? = null
 		var landedScope: ReloadScope? = null
 		var landedReplace: ReplaceRequest? = null
@@ -282,7 +334,10 @@ class CommandTableOrderTest {
 		var canReload = false
 		operations =
 			ArtworkOperations(
-				importArtwork = { areaId -> landedArea = areaId },
+				importArtwork = { request, areaId ->
+					landedImport = request
+					landedArea = areaId
+				},
 				reloadArtwork = { areaId, reloadScope ->
 					landedArea = areaId
 					landedScope = reloadScope
@@ -309,6 +364,13 @@ class CommandTableOrderTest {
 		assertTrue(reload.availability.isAvailable())
 		add.handler.run(null)
 		assertEquals("area-7", landedArea, "the strip area reaches the orchestration")
+		assertEquals(null, landedImport, "no payload means ask for a file")
+		val dropped = ImportArtworkRequest(listOf("/art/face.psd", "/art/hair.psd"))
+		add.handler.run(dropped)
+		assertSame(dropped, landedImport, "the dropped files reach the orchestration")
+		assertEquals("area-7", landedArea)
+		add.handler.run("not a request")
+		assertEquals(null, landedImport, "a payload of the wrong shape asks for a file rather than adding nothing")
 		landedArea = "untouched"
 		reload.handler.run(null)
 		assertEquals("area-7", landedArea)

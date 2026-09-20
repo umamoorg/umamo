@@ -4,8 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /*
- * The puppet entry's enum values, each spelled in the file by its @SerialName (docs/format/UMA.md §4.1,
- * D18).  The serial names are the table: renaming a constant here or in the runtime model never changes a
+ * The puppet entry's enum values, each spelled in the file by its @SerialName (docs/format/UMA.md §4.1).
+ * The serial names are the table: renaming a constant here or in the runtime model never changes a
  * file.  A value this reader does not know is a malformed entry, so a writer adding a value must raise the
  * entry's minVersion.
  */

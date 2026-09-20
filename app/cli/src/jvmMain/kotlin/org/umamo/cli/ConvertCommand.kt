@@ -6,6 +6,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.cmo3AtlasPages
+import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
 import org.umamo.render.UndecodablePagePolicy
@@ -155,7 +156,8 @@ private fun convertMoc3ToCmo3(loaded: LoadedInput.Moc3Input, outputFile: File) {
 }
 
 /**
- * Prints an export report's notices to stderr - advisory, never fatal.
+ * Prints an export report's notices to stderr - advisory, never fatal.  Each line is the same one the
+ * editor's log carries for that notice, so a report reads alike whichever tool wrote the file.
  *
  * @param ExportReport report The lowering's report.
  */
@@ -165,6 +167,6 @@ private fun reportNotices(report: ExportReport) {
 	}
 	System.err.println("Export notices (${report.notices.size}):")
 	for (notice in report.notices) {
-		System.err.println("  $notice")
+		System.err.println("  ${describeExportNotice(notice)}")
 	}
 }

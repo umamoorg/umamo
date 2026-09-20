@@ -15,7 +15,7 @@ import org.umamo.format.uma.identityByStringKey
  * and the identities its arrays merge by.
  */
 internal object UmaSourcesEntry {
-	// UMA §6.4 (D16): a SHA-256 digest's length in hex digits.
+	// UMA §6.4: a SHA-256 digest's length in hex digits.
 	private const val HASH_DIGITS = 64
 
 	/** UMA §6.5: sources match by id, and a source's layers by key. */

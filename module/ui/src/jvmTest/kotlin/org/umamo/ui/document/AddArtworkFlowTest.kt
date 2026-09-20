@@ -117,10 +117,10 @@ class AddArtworkFlowTest {
 	 * The first artwork imported into a NEW document gives the rig its frame and its axes, and a second
 	 * file leaves both alone.
 	 *
-	 * This is the path every rig now starts on - a new document opens empty and artwork is imported into
-	 * it - so what the old document-creating import used to seed has to arrive here instead: the file's
-	 * canvas over the placeholder one, the world origin at its center, the parameter template, and the
-	 * flat parameter tree the CMO3 export reads.
+	 * This is the path every rig starts on - a new document opens empty and artwork is imported into
+	 * it - so the first import is what seeds the rig: the file's canvas over the placeholder one, the
+	 * world origin at its center, the parameter template, and the flat parameter tree the CMO3 export
+	 * reads.
 	 */
 	@Test
 	fun theFirstImportIntoANewDocumentSeedsItsCanvasAndParameters() =

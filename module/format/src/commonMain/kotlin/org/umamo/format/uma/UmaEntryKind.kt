@@ -18,7 +18,7 @@ package org.umamo.format.uma
  * @property Boolean required    Whether understanding the entry is necessary to interpret or edit the
  *   document at all.
  * @property String? bufferPath  The buffer entry this kind owns for its bulk arrays, or null when it has none
- *   (D19: an entry's accessors name only buffers it owns, and no two entries share one).
+ *   (UMA §4.9: an entry's accessors name only buffers it owns, and no two entries share one).
  */
 public enum class UmaEntryKind(
 	public val wireName: String,

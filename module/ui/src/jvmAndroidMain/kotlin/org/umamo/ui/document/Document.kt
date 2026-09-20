@@ -157,7 +157,7 @@ fun loadDocument(
 	runCatching {
 		val codec = FormatRegistry.detect(bytes, name)
 		if (codec == null) {
-			UmamoLog.warn("$path is not a format Umamo recognizes")
+			UmamoLog.warn("$path is not a format that Umamo recognizes")
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 		}
 		// The native document: read whole, never imported.

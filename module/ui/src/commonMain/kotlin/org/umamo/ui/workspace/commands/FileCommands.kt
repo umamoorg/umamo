@@ -10,9 +10,11 @@ import org.umamo.ui.resources.*
 /*
  * The document import / export commands.
  *
- * These are the one group the app registers rather than the shell, because their work needs the file
- * picker, the document loader, and the CMO3 codec - all of which sit above the shell (and, for the codec,
- * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
+ * These are the one group the app registers rather than the shell, because their work needs the document
+ * loader and the CMO3 codec, which sit above the shell (and, for the codec, off commonMain entirely).  The
+ * file picker alone is no reason: the workspace layout's file commands and the log export need one too,
+ * and the shell registers those, since nothing about them is a document.  Only the TABLE lives here: each
+ * builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
  * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
@@ -24,8 +26,9 @@ import org.umamo.ui.resources.*
  */
 
 /**
- * The commands that make, open, save, or replace the whole document: New, Open, Save, Save As, and one
- * import per interop format.
+ * The commands that make, open, save, or replace the whole document - New, Open, Save, Save As, one import
+ * per interop format, and a file opened by its path - and the one that ends the session altogether, Exit.
+ * What they share is the unsaved-changes gate: each would discard the editing session.
  *
  * Split from [fileExportCommands] because the two register on different triggers: these handlers read
  * the document live through the app's holders, while export closes over the open document.  The artwork
@@ -39,6 +42,8 @@ import org.umamo.ui.resources.*
  * @param Function canSave Whether the open document can be saved, queried live (gates Save and Save As).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
+ * @param Function onOpenPath Opens the file at a stored path or uri, by what the file is (dirty-confirm, load).
+ * @param Function onExit Closes the application (dirty-confirm first).
  * @return List<Command> The commands to register.
  */
 internal fun fileCommands(
@@ -49,6 +54,8 @@ internal fun fileCommands(
 	canSave: () -> Boolean,
 	onImportCmo3: () -> Unit,
 	onImportMoc3: () -> Unit,
+	onOpenPath: (path: String) -> Unit,
+	onExit: () -> Unit,
 ): List<Command> =
 	listOf(
 		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
@@ -59,6 +66,16 @@ internal fun fileCommands(
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
 		Command("file.importMoc3", title = Res.string.cmd_import_moc3) { onImportMoc3() },
+		// No title, like the other argument-only commands: the Open Recent rows supply the path, and the
+		// palette has nothing to offer without one.  Anything that opens a file it was handed belongs on this
+		// id, since the way in is what carries the unsaved-changes gate.
+		Command("file.openPath", title = null) { argument ->
+			val path = argument as? String ?: return@Command
+			onOpenPath(path)
+		},
+		// No default chord: the platform's own quit gesture (the window's close button, Cmd+Q, Android's back)
+		// reaches the same gate through the host's exit guard, and a chord is one rebind away.
+		Command("file.exit", title = Res.string.menu_exit) { onExit() },
 	)
 
 /**
@@ -84,6 +101,17 @@ class RelinkRequest(
 	 */
 	constructor(tileId: AtlasTileId, ref: SourceLayerRef?) : this(listOf(tileId), ref)
 }
+
+/**
+ * A request to add named artwork files to the open document, the optional payload of the
+ * file.importArtwork command: the files a drop handed over, in the order they were dropped.  Invoked
+ * without one, the command asks for a file instead.
+ *
+ * @property List<String> paths The artwork files' stored paths.
+ */
+class ImportArtworkRequest(
+	val paths: List<String>,
+)
 
 /**
  * A request to remove one piece of source art from the atlas, the payload of the sources.deleteArt
@@ -133,7 +161,8 @@ class ReloadScope(
  * app can (the picker, a path on the platform's file system) and lands the result on the session.
  * Every one takes the area its operation strip shows in, resolved by the shell at dispatch.
  *
- * @property Function importArtwork Picks an artwork file and adds it to the open document.
+ * @property Function importArtwork Adds the named artwork files to the open document, or picks one when
+ *   handed no request.
  * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
  *   or every one when it is null - and reloads the document from them.
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
@@ -145,7 +174,7 @@ class ReloadScope(
  * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
-	val importArtwork: (areaId: String?) -> Unit,
+	val importArtwork: (request: ImportArtworkRequest?, areaId: String?) -> Unit,
 	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val matchArtwork: (areaId: String?) -> Unit,
@@ -177,14 +206,16 @@ class ArtworkOperations(
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
 	listOf(
-		// The one way artwork enters a document, from the File menu's Import row and from the Sources
-		// space alike: a file's layers are ADDED to the open document as one undoable edit, the way
-		// importing an object into a Blender scene adds to it rather than replacing the scene.
+		// The one way artwork enters a document, from the File menu's Import row, the Sources space, and a
+		// drop on the window alike: a file's layers are ADDED to the open document as one undoable edit, the
+		// way importing an object into a Blender scene adds to it rather than replacing the scene.  With no
+		// payload it asks for a file; with one it takes the files it was handed, which is how a drop arrives on
+		// the same id - and so under the same availability gate and the same operation strip.
 		Command(
 			"file.importArtwork",
 			title = Res.string.cmd_import_artwork,
 			availability = CommandAvailability { artwork() != null },
-		) { artwork()?.importArtwork?.invoke(routing.operationStripArea()) },
+		) { argument -> artwork()?.importArtwork?.invoke(argument as? ImportArtworkRequest, routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,

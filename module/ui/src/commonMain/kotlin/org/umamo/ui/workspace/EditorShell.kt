@@ -28,10 +28,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -49,6 +51,7 @@ import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.help.AboutDialog
 import org.umamo.ui.help.CreditsDialog
+import org.umamo.ui.help.openLinkQuietly
 import org.umamo.ui.kit.ConfirmDialog
 import org.umamo.ui.kit.DialogChoice
 import org.umamo.ui.kit.InlineEditController
@@ -234,10 +237,13 @@ fun EditorShell(
 				{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
 			)
 		}
+	// Read at dispatch: the chrome table registers once, and the handler the platform provides is the
+	// composition's to change.
+	val currentUriHandler by rememberUpdatedState(LocalUriHandler.current)
 	DisposableEffect(commandRegistry, dragController) {
 		val cleanup =
 			commandRegistry.registerAll(
-				chromeCommands(overlays, dragController, splitterDragCancel, rowDragCancel, workspaces),
+				chromeCommands(overlays, dragController, splitterDragCancel, rowDragCancel, workspaces) { url -> currentUriHandler.openLinkQuietly(url) },
 			)
 		onDispose { cleanup() }
 	}
@@ -400,27 +406,63 @@ fun EditorShell(
 				LocalAreaCameraHub provides areaCameras,
 				LocalOperationStrip provides operationStrip,
 			) {
+				// The window-wide cursor: hidden under an armed relation pick (the shell draws the eyedropper
+				// itself), the editor's I-beam while text entry is live, and otherwise nothing of its own.
+				// Claiming it here rather than in each viewport is what makes a mode announce itself the
+				// instant it begins, wherever the pointer happens to be sitting.
+				val cursorClaim =
+					shellCursorClaim(
+						relationPickArmed = relationPick.request != null,
+						textEntryActive = inlineEditController.cancel != null,
+					)
+				val claimedPointerIcon =
+					remember(cursorClaim) {
+						when (cursorClaim) {
+							ShellCursorClaim.Hidden -> hiddenPointerIcon()
+							ShellCursorClaim.TextEdit -> PointerIcon.Text
+							ShellCursorClaim.None -> PointerIcon.Default
+						}
+					}
 				Surface(
 					modifier =
 						Modifier
 							.fillMaxSize()
 							.focusRequester(focusRequester)
 							.focusable()
-							// While a relation pick is armed the whole window hides the OS cursor and the shell
-							// draws the eyedropper instead (ShellRelationPickOverlay), so the affordance appears
-							// the instant the pick is armed rather than only once the pointer enters a viewport.
-							.then(
-								if (relationPick.request != null) {
-									Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
-								} else {
-									Modifier
-								},
-							)
+							// Declared once on a node that lives the whole time, never mounted when a mode starts: a
+							// hover icon that appears mid-gesture is not consulted until the pointer next MOVES, and
+							// text entry begins with a click the hand then rests on - the I-beam would never appear.
+							// The unclaimed case resolves to the plain pointer, which is what an unclaimed pointer
+							// already resolves to, so with no mode running the descendants still decide.
+							.pointerHoverIcon(claimedPointerIcon, overrideDescendants = cursorClaim.overridesDescendants)
 							// The window-space pointer tracker for the shell cursor overlays.  On the root
 							// surface, whose content Box shares this coordinate space, so the observer and
 							// the overlays agree on positions.
 							.pointerInput(Unit) {
 								observeWindowPointer { position -> shellPointerPosition = position }
+							}
+							// The press that ends text entry, so a filter cannot keep the keyboard after the pointer
+							// has moved on.  Its own observer rather than a branch of the tracker above: that one is
+							// an always-on position feed, this one is a per-press state machine over the claim slot.
+							.pointerInput(Unit) {
+								observeTextEntryPresses(
+									beginPress = { inlineEditController.pressLandedOnTextEditor = false },
+									settlePress = {
+										val releases =
+											shouldReleaseTextEntry(
+												textEntryActive = inlineEditController.cancel != null,
+												pressLandedOnTextEditor = inlineEditController.pressLandedOnTextEditor,
+												selfFocusedOverlayOpen = overlays.selfFocusedOverlayOpen,
+											)
+										if (releases) {
+											// Take focus, never clear it: a null focus owner silently kills every
+											// shortcut.  Moving focus still fires each control's
+											// onFocusChanged(hasFocus = false), and that is what commits an inline
+											// rename and unparks the cancel hook.
+											focusRequester.requestFocus()
+										}
+									},
+								)
 							}
 							// Root key handling is the modal ladder (ModalKeyLadder.kt): modal chrome and
 							// in-flight gestures pre-empt the keymap in stacking order; whatever the ladder

@@ -5,7 +5,6 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.document.fileDisplayName
-import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.resources.Res
@@ -41,31 +40,54 @@ import org.umamo.ui.resources.menu_workspace_reset
 import org.umamo.ui.resources.workspace_new
 
 /**
+ * Runs a command by id through the action registry, with the argument an argument-only command takes (a
+ * recent file's path) or null.  The one thing a menu row does.
+ */
+typealias MenuDispatch = (commandId: String, argument: Any?) -> Unit
+
+/**
+ * One menu row that stands for a command.  The row is built from the command's id ALONE: selecting it
+ * dispatches that id, and its accelerator hint is whatever chord the keymap binds to that same id.  Naming
+ * the id once is the point - a row that dispatched one id and looked its hint up under another would show
+ * no chord, or the wrong one, and nothing would say so.
+ *
+ * @param String       label     The localized row label.
+ * @param String       commandId The command the row stands for.
+ * @param Keymap       keymap    The keymap the accelerator hint is resolved against.
+ * @param MenuDispatch dispatch  Runs a command by id.
+ * @param Boolean      enabled   Whether the row can be selected.
+ * @return MenuItem.Action The row.
+ */
+private fun commandRow(
+	label: String,
+	commandId: String,
+	keymap: Keymap,
+	dispatch: MenuDispatch,
+	enabled: Boolean = true,
+): MenuItem.Action =
+	MenuItem.Action(
+		label = label,
+		onSelect = { dispatch(commandId, null) },
+		shortcut = keymap.chordFor(commandId)?.let { chord -> formatAccelerator(chord) },
+		enabled = enabled,
+	)
+
+/**
  * Builds the File menu shared by every platform's menu bar.  Open, Save, and Save As mean the native
  * `.uma` document; artwork, CMO3, and MOC3 come in through the Import submenu (artwork first: it is the
  * headline workflow's entry), and CMO3 / MOC3 are interop boundaries that leave through Export.  Every
- * row reaches its operation through the caller's handlers (which route through the file.* commands and
- * the shared FileKit picker), so the menu, the keyboard, and the palette share one path.  Both Save rows
- * are gated on [canSave] (a puppet document that did not open read-only) and both Export rows on
- * [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin document's
+ * row dispatches its file.* command, so the menu, the keyboard, and the palette share one path.  Both
+ * Save rows are gated on [canSave] (a puppet document that did not open read-only) and both Export rows
+ * on [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin document's
  * retained graph and synthesizes a fresh one otherwise); Open Recent labels each stored path via
- * fileDisplayName, disables itself when the list is empty, and opens or imports by what the file is.
+ * fileDisplayName, disables itself when the list is empty, and hands the path to file.openPath, which
+ * opens or imports by what the file is.
  *
- * @param Keymap keymap The keymap the accelerator hints are resolved against.
- * @param List recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean canExport Whether an exportable puppet document is open (gates both Export rows).
- * @param Boolean canSave Whether the open document can be saved (gates both Save rows).
- * @param Function onNew Starts a new, empty document (routes through file.new).
- * @param Function onOpen Opens a `.uma` through the picker (routes through file.open).
- * @param Function onSave Saves the document (routes through file.save).
- * @param Function onSaveAs Asks where to save (routes through file.saveAs).
- * @param Function onImportArtwork Adds an artwork file to the open document (routes through file.importArtwork).
- * @param Function onImportCmo3 Opens the CMO3 import picker (routes through file.importCmo3).
- * @param Function onOpenRecent Opens a recent file by its stored path.
- * @param Function onImportMoc3 Opens the MOC3 import picker (routes through file.importMoc3).
- * @param Function onExportCmo3 Exports the open document via a picker (routes through file.exportCmo3).
- * @param Function onExportMoc3 Exports the open document's moc family (routes through file.exportMoc3).
- * @param Function onExit Closes the application.
+ * @param Keymap       keymap      The keymap the accelerator hints are resolved against.
+ * @param List         recentFiles The recent file paths for the Open Recent submenu, most-recent first.
+ * @param Boolean      canExport   Whether an exportable puppet document is open (gates both Export rows).
+ * @param Boolean      canSave     Whether the open document can be saved (gates both Save rows).
+ * @param MenuDispatch dispatch    Runs a command by id.
  * @return TopLevelMenu The File menu.
  */
 @Composable
@@ -74,110 +96,55 @@ fun fileMenu(
 	recentFiles: List<String>,
 	canExport: Boolean,
 	canSave: Boolean,
-	onNew: () -> Unit,
-	onOpen: () -> Unit,
-	onSave: () -> Unit,
-	onSaveAs: () -> Unit,
-	onImportArtwork: () -> Unit,
-	onImportCmo3: () -> Unit,
-	onOpenRecent: (String) -> Unit,
-	onImportMoc3: () -> Unit,
-	onExportCmo3: () -> Unit,
-	onExportMoc3: () -> Unit,
-	onExit: () -> Unit,
+	dispatch: MenuDispatch,
 ): TopLevelMenu =
 	TopLevelMenu(
 		label = stringResource(Res.string.menu_file),
 		items =
 			listOf(
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_file_new),
-					onSelect = onNew,
-					shortcut = keymap.chordFor("file.new")?.let { chord -> formatAccelerator(chord) },
-				),
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_file_open),
-					onSelect = onOpen,
-					shortcut = keymap.chordFor("file.open")?.let { chord -> formatAccelerator(chord) },
-				),
+				commandRow(stringResource(Res.string.menu_file_new), "file.new", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_file_open), "file.open", keymap, dispatch),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_open_recent),
-					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { onOpenRecent(recent) }) },
+					// A recent file is a row per path rather than a command per path, so these carry their
+					// argument and show no chord.
+					items = recentFiles.map { recent -> MenuItem.Action(fileDisplayName(recent), onSelect = { dispatch("file.openPath", recent) }) },
 					enabled = recentFiles.isNotEmpty(),
 				),
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_file_save),
-					onSelect = onSave,
-					shortcut = keymap.chordFor("file.save")?.let { chord -> formatAccelerator(chord) },
-					enabled = canSave,
-				),
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_file_save_as),
-					onSelect = onSaveAs,
-					shortcut = keymap.chordFor("file.saveAs")?.let { chord -> formatAccelerator(chord) },
-					enabled = canSave,
-				),
+				commandRow(stringResource(Res.string.menu_file_save), "file.save", keymap, dispatch, enabled = canSave),
+				commandRow(stringResource(Res.string.menu_file_save_as), "file.saveAs", keymap, dispatch, enabled = canSave),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_import),
 					items =
 						listOf(
-							MenuItem.Action(
-								label = stringResource(Res.string.menu_import_artwork),
-								onSelect = onImportArtwork,
-								shortcut = keymap.chordFor("file.importArtwork")?.let { chord -> formatAccelerator(chord) },
-							),
-							MenuItem.Action(
-								label = stringResource(Res.string.menu_import_cmo3),
-								onSelect = onImportCmo3,
-								shortcut = keymap.chordFor("file.importCmo3")?.let { chord -> formatAccelerator(chord) },
-							),
-							MenuItem.Action(
-								label = stringResource(Res.string.menu_import_moc3),
-								onSelect = onImportMoc3,
-								shortcut = keymap.chordFor("file.importMoc3")?.let { chord -> formatAccelerator(chord) },
-							),
+							commandRow(stringResource(Res.string.menu_import_artwork), "file.importArtwork", keymap, dispatch),
+							commandRow(stringResource(Res.string.menu_import_cmo3), "file.importCmo3", keymap, dispatch),
+							commandRow(stringResource(Res.string.menu_import_moc3), "file.importMoc3", keymap, dispatch),
 						),
 				),
 				MenuItem.Submenu(
 					label = stringResource(Res.string.menu_export),
 					items =
 						listOf(
-							MenuItem.Action(
-								label = stringResource(Res.string.menu_export_cmo3),
-								onSelect = onExportCmo3,
-								shortcut = keymap.chordFor("file.exportCmo3")?.let { chord -> formatAccelerator(chord) },
-								enabled = canExport,
-							),
-							MenuItem.Action(
-								label = stringResource(Res.string.menu_export_moc3),
-								onSelect = onExportMoc3,
-								shortcut = keymap.chordFor("file.exportMoc3")?.let { chord -> formatAccelerator(chord) },
-								enabled = canExport,
-							),
+							commandRow(stringResource(Res.string.menu_export_cmo3), "file.exportCmo3", keymap, dispatch, enabled = canExport),
+							commandRow(stringResource(Res.string.menu_export_moc3), "file.exportMoc3", keymap, dispatch, enabled = canExport),
 						),
 				),
 				MenuItem.Separator,
-				MenuItem.Action(stringResource(Res.string.menu_exit), onSelect = onExit),
+				commandRow(stringResource(Res.string.menu_exit), "file.exit", keymap, dispatch),
 			),
 	)
 
 /**
  * Builds the Edit menu shared by every platform's menu bar, so desktop and the keyboardless tablet reach
- * the same entries from one source (the "one shared interface" guardrail).  Undo / Redo dispatch through
- * [onUndo] / [onRedo] (the caller routes them to the edit.undo / edit.redo commands) and are enabled per
- * [canUndo] / [canRedo]; Preferences dispatches through [onOpenPreferences].  Every item's accelerator
- * hint is resolved from [keymap] so each row shows the same chord the keyboard uses, and all three reach
- * their target by the one command path the keyboard and palette also use.
+ * the same entries from one source (the "one shared interface" guardrail).  Undo and Redo dispatch
+ * edit.undo / edit.redo and are enabled per [canUndo] / [canRedo]; Preferences dispatches
+ * edit.preferences, whose overlay the shell owns.
  *
- * 全プラットフォーム共通の Edit メニューを構築する。取り消し／やり直し／設定はコマンドに委譲し、メニュー・
- * キーボード・コマンドパレットが同一経路で到達する。アクセラレータはキーマップから解決する。
- *
- * @param Keymap keymap The keymap the accelerator hints are resolved against.
- * @param Boolean canUndo Whether an undo step is available (gates the Undo row).
- * @param Boolean canRedo Whether a redo step is available (gates the Redo row).
- * @param Function onUndo Undoes one step (the caller dispatches edit.undo).
- * @param Function onRedo Redoes one step (the caller dispatches edit.redo).
- * @param Function onOpenPreferences Opens the settings window (the caller dispatches edit.preferences).
+ * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
+ * @param Boolean      canUndo  Whether an undo step is available (gates the Undo row).
+ * @param Boolean      canRedo  Whether a redo step is available (gates the Redo row).
+ * @param MenuDispatch dispatch Runs a command by id.
  * @return TopLevelMenu The Edit menu.
  */
 @Composable
@@ -185,117 +152,69 @@ fun editMenu(
 	keymap: Keymap,
 	canUndo: Boolean,
 	canRedo: Boolean,
-	onUndo: () -> Unit,
-	onRedo: () -> Unit,
-	onOpenPreferences: () -> Unit,
+	dispatch: MenuDispatch,
 ): TopLevelMenu =
 	TopLevelMenu(
 		label = stringResource(Res.string.menu_edit),
 		items =
 			listOf(
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_undo),
-					onSelect = onUndo,
-					shortcut = keymap.chordFor("edit.undo")?.let { chord -> formatAccelerator(chord) },
-					enabled = canUndo,
-				),
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_redo),
-					onSelect = onRedo,
-					shortcut = keymap.chordFor("edit.redo")?.let { chord -> formatAccelerator(chord) },
-					enabled = canRedo,
-				),
+				commandRow(stringResource(Res.string.menu_undo), "edit.undo", keymap, dispatch, enabled = canUndo),
+				commandRow(stringResource(Res.string.menu_redo), "edit.redo", keymap, dispatch, enabled = canRedo),
 				MenuItem.Separator,
-				MenuItem.Action(
-					label = stringResource(Res.string.menu_preferences),
-					onSelect = onOpenPreferences,
-					shortcut = keymap.chordFor("edit.preferences")?.let { chord -> formatAccelerator(chord) },
-				),
+				commandRow(stringResource(Res.string.menu_preferences), "edit.preferences", keymap, dispatch),
 			),
 	)
 
+/**
+ * Builds the Workspace menu shared by every platform's menu bar: New (the same create path as the tab
+ * strip's "+"), Reset (the shell confirms first), and the layout's trips to and from a file.  Every row
+ * dispatches its workspace.* command.
+ *
+ * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
+ * @param MenuDispatch dispatch Runs a command by id.
+ * @return TopLevelMenu The Workspace menu.
+ */
 @Composable
 fun workspaceMenu(
 	keymap: Keymap,
-	onNewWorkspace: () -> Unit,
-	onResetWorkspace: () -> Unit,
-	onImportWorkspace: () -> Unit,
-	onExportThisWorkspace: () -> Unit,
-	onExportAllWorkspaces: () -> Unit,
+	dispatch: MenuDispatch,
 ): TopLevelMenu =
 	TopLevelMenu(
 		label = stringResource(Res.string.menu_workspace),
 		items =
 			listOf(
-				MenuItem.Action(
-					stringResource(Res.string.workspace_new),
-					onSelect = onNewWorkspace,
-					shortcut = keymap.chordFor("workspace.new")?.let { chord -> formatAccelerator(chord) },
-				),
-				MenuItem.Action(
-					stringResource(Res.string.menu_workspace_reset),
-					onSelect = onResetWorkspace,
-					shortcut = keymap.chordFor("workspace.reset")?.let { chord -> formatAccelerator(chord) },
-				),
+				commandRow(stringResource(Res.string.workspace_new), "workspace.new", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_workspace_reset), "workspace.reset", keymap, dispatch),
 				MenuItem.Separator,
-				MenuItem.Action(
-					stringResource(Res.string.menu_workspace_import),
-					onSelect = onImportWorkspace,
-					shortcut = keymap.chordFor("workspace.import")?.let { chord -> formatAccelerator(chord) },
-				),
-				MenuItem.Action(
-					stringResource(Res.string.menu_workspace_export_this),
-					onSelect = onExportThisWorkspace,
-					shortcut =
-						keymap.chordFor("workspace.export_this")
-							?.let { chord -> formatAccelerator(chord) },
-				),
-				MenuItem.Action(
-					stringResource(Res.string.menu_workspace_export_all),
-					onSelect = onExportAllWorkspaces,
-					shortcut =
-						keymap.chordFor("workspace.export_all")
-							?.let { chord -> formatAccelerator(chord) },
-				),
+				commandRow(stringResource(Res.string.menu_workspace_import), "workspace.import", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_workspace_export_this), "workspace.exportThis", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_workspace_export_all), "workspace.exportAll", keymap, dispatch),
 			),
 	)
 
 /**
- * Builds the Help menu shared by every platform's menu bar: the project links (opened through the
- * caller's browser handler) plus Credits and About, which dispatch through the help.credits /
- * help.about commands so the menu, the palette, and any future binding share one path.  The URLs
- * come from [ProjectInfo], the same source the About dialog shows.
+ * Builds the Help menu shared by every platform's menu bar: the project links, then Credits and About.
+ * Every row dispatches its help.* command - the links open through the shell's handler and the two
+ * dialogs through the overlay state the shell owns - so the palette reaches all five as well.
  *
- * 全プラットフォーム共通の Help メニュー。リンク項目とクレジット／バージョン情報（コマンド経由）。
- *
- * @param Keymap keymap The keymap the accelerator hints are resolved against (none bound today).
- * @param Function openInBrowser Opens a URL via the platform's UriHandler.
- * @param Function onOpenCredits Opens the Credits dialog (the caller dispatches help.credits).
- * @param Function onOpenAbout Opens the About dialog (the caller dispatches help.about).
+ * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
+ * @param MenuDispatch dispatch Runs a command by id.
  * @return TopLevelMenu The Help menu.
  */
 @Composable
 fun helpMenu(
 	keymap: Keymap,
-	openInBrowser: (String) -> Unit,
-	onOpenCredits: () -> Unit,
-	onOpenAbout: () -> Unit,
+	dispatch: MenuDispatch,
 ): TopLevelMenu =
 	TopLevelMenu(
 		label = stringResource(Res.string.menu_help),
 		items =
 			listOf(
-				MenuItem.Action(
-					stringResource(Res.string.menu_source_code),
-					onSelect = { openInBrowser(ProjectInfo.SOURCE_CODE_URL) },
-				),
-				MenuItem.Action(stringResource(Res.string.menu_web_site), onSelect = { openInBrowser(ProjectInfo.WEB_SITE_URL) }),
-				MenuItem.Action(
-					stringResource(Res.string.menu_documentation),
-					onSelect = { openInBrowser(ProjectInfo.DOCUMENTATION_URL) },
-				),
+				commandRow(stringResource(Res.string.menu_source_code), "help.sourceCode", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_web_site), "help.webSite", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_documentation), "help.documentation", keymap, dispatch),
 				MenuItem.Separator,
-				MenuItem.Action(stringResource(Res.string.menu_credits), onSelect = onOpenCredits),
-				MenuItem.Action(stringResource(Res.string.menu_about), onSelect = onOpenAbout),
+				commandRow(stringResource(Res.string.menu_credits), "help.credits", keymap, dispatch),
+				commandRow(stringResource(Res.string.menu_about), "help.about", keymap, dispatch),
 			),
 	)

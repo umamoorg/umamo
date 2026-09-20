@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 /**
  * Guards the retained-tree merge against schema drift: every array of objects a domain entry can hold must have a
  * list rule - an identity, or replaced whole - or a save could not decide what its elements' unknown keys belong
- * to (D10).
+ * to (UMA §4.7).
  */
 class UmaEntrySchemaTest {
 	/**

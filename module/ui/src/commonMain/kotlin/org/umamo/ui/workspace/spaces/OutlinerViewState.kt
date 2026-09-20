@@ -19,7 +19,7 @@ internal const val OUTLINER_VIEW_STATE_KEY = "outliner"
  * The outliner's search, filter, and open-branch state, shared between its area-header controls and its body
  * (they render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than in a
  * body-local remember).  Two outliner areas each get their own instance, and the instance lives as long as the
- * open document does.  A saved document carries everything here but the search query (UMA §7.3, D32): a file
+ * open document does.  A saved document carries everything here but the search query (UMA §7.3): a file
  * that reopened to last week's filtered list would read as a broken panel.
  */
 internal class OutlinerViewState : PersistentSpaceState {

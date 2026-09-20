@@ -14,7 +14,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * Pins the retained-tree merge on the puppet entry (docs/format/UMA.md §4.7, D10): keys a newer writer adds
+ * Pins the retained-tree merge on the puppet entry (docs/format/UMA.md §4.7): keys a newer writer adds
  * to any object kind survive an older writer's edits and saves, travel with their object's identity rather
  * than its position, and leave only with the object they belong to.
  */

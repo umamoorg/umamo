@@ -22,7 +22,7 @@ import okio.Buffer
 import org.umamo.format.binary.ByteReader
 
 /*
- * Bulk arrays in buffer entries (docs/format/UMA.md §4.9, D9, D10, D19).  A domain entry's per-vertex arrays
+ * Bulk arrays in buffer entries (docs/format/UMA.md §4.9).  A domain entry's per-vertex arrays
  * live in a little-endian buffer entry the domain owns, each named from the JSON by an accessor - an object
  * holding exactly `buffer`, `byteOffset`, `byteLength`, `count`, and `componentType`.
  *

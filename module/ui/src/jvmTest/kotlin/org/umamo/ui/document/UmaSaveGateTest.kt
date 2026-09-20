@@ -57,8 +57,8 @@ import kotlin.test.assertTrue
  * `.uma` with the same writer File > Save uses, mark the session saved with the same snapshot, reopen
  * through the same loader, and find the edit there.  Every origin the editor can hold takes the trip - a
  * CMO3, a MOC3 family, an artwork file, and a new document with art imported into it - plus the two rules
- * the design pins: a save after a repack derives its pages (D20), and a save of an unedited reopen writes
- * the same bytes (D4).  Gated on the corpus samples; each case self-skips without its file.
+ * the design pins: a save after a repack derives its pages (UMA §5.5), and a save of an unedited reopen writes
+ * the same bytes (UMA §3.5).  Gated on the corpus samples; each case self-skips without its file.
  */
 class UmaSaveGateTest {
 	private val cmo3Sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
@@ -140,7 +140,7 @@ class UmaSaveGateTest {
 		assertEquals(session.model.value.drawables.size, reopened.puppet.drawables.size, "every drawable came back")
 		assertEquals(session.model.value.atlas.tiles.size, reopened.puppet.atlas.tiles.size, "and every tile")
 
-		// A save of the unedited reopen writes the same bytes (D4): nothing about a document depends on how it got here.
+		// A save of the unedited reopen writes the same bytes (UMA §3.5): nothing about a document depends on how it got here.
 		val reopenedSession = EditorSession(reopened.puppet, reopened.liveParams.values)
 		val (_, second, _) = saveAndReopen(reopened, reopenedSession, AtlasPageBinding(reopened.puppet.atlas, reopened.textures), reopened.uma, directory, "again.uma")
 		assertContentEquals(file.readBytes(), second.readBytes(), "an unedited reopen saves byte for byte")
@@ -169,8 +169,8 @@ class UmaSaveGateTest {
 		}
 
 	/**
-	 * Editor state rides a save and comes back in its own area (UMA §7, D31), never dirties (D7), and is never an
-	 * input to the model (Goal 6, D29): the same document saved with and without it loads the same puppet.
+	 * Editor state rides a save and comes back in its own area (UMA §7.3), never dirties, and is never an
+	 * input to the model (UMA §7): the same document saved with and without it loads the same puppet.
 	 */
 	@Test
 	fun editorStateSurvivesASaveAndNeverTouchesTheModel() =
@@ -287,7 +287,7 @@ class UmaSaveGateTest {
 
 	/**
 	 * A repack moves the atlas off the document's baseline, so the save derives its pages rather than
-	 * storing the origin's (D20); the reopened document composes the same pages the session showed.
+	 * storing the origin's (UMA §5.5); the reopened document composes the same pages the session showed.
 	 */
 	@Test
 	fun aSaveAfterARepackDerivesItsPages() =

@@ -3,7 +3,7 @@
 # Why: Gradle's typed `libs.*` accessors beat scattered string versions in each
 # build script — one place to bump, compile-checked references.
 [versions]
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 agp = "9.3.0"
 composeMultiplatform = "1.11.1"
 ktlint = "14.2.0"
