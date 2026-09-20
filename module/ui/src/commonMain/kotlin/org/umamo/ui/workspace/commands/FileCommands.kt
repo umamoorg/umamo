@@ -10,9 +10,11 @@ import org.umamo.ui.resources.*
 /*
  * The document import / export commands.
  *
- * These are the one group the app registers rather than the shell, because their work needs the file
- * picker, the document loader, and the CMO3 codec - all of which sit above the shell (and, for the codec,
- * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
+ * These are the one group the app registers rather than the shell, because their work needs the document
+ * loader and the CMO3 codec, which sit above the shell (and, for the codec, off commonMain entirely).  The
+ * file picker alone is no reason: the workspace layout's file commands and the log export need one too,
+ * and the shell registers those, since nothing about them is a document.  Only the TABLE lives here: each
+ * builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
  * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the

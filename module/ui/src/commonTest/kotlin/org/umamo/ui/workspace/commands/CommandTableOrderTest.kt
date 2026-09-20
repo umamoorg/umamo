@@ -219,14 +219,23 @@ class CommandTableOrderTest {
 	}
 
 	/**
-	 * The app-registered file and log tables, in the order EditorApp concatenates them.  Their actions are
-	 * plain lambdas, which is what lets a commonMain test build them at all - the document layer they
-	 * actually call into is jvmAndroidMain.
+	 * The workspace layout's file table and the log table, in the order the settings-backed shell
+	 * concatenates them.  Their actions are plain lambdas, so the tables build with no picker and no settings.
 	 */
 	@Test
-	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}) + logCommands {}
-		assertEquals(listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+	fun workspaceFileAndLogTablesAreComplete() {
+		val commands = workspaceFileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
+	}
+
+	/**
+	 * The app-registered file tables.  Their actions are plain lambdas, which is what lets a commonMain test
+	 * build them at all - the document layer they actually call into is jvmAndroidMain.
+	 */
+	@Test
+	fun fileTablesAreComplete() {
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {})
+		assertEquals(listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3"), commands.map { command -> command.id })
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },

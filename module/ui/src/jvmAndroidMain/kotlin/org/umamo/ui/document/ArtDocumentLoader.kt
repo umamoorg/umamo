@@ -22,6 +22,8 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.AtlasRepackRefusalReason
+import org.umamo.ui.model.LoggedSourceFilePresence
+import org.umamo.ui.model.SourceFilePresence
 import org.umamo.ui.model.describeImportNotice
 import org.umamo.ui.model.packModelAtOpen
 import org.umamo.ui.viewport.LiveParams
@@ -84,11 +86,41 @@ class ReadArtwork(
  * @return Long? The time in epoch milliseconds, or null.
  */
 fun fileModifiedAtMillis(path: String): Long? {
-	if (path.contains("://")) {
+	if (!isFileSystemPath(path)) {
 		return null
 	}
 	return runCatching { FileSystem.SYSTEM.metadataOrNull(path.toPath())?.lastModifiedAtMillis }.getOrNull()
 }
+
+/**
+ * The file-presence probe the Sources space, the artwork operations, and the watcher all read: an okio
+ * existence check over a real path.  A uri and a path the file system refuses both read as unknown
+ * rather than missing - the space must never accuse a file it could not check.  One logged instance
+ * for the app's life, so a path is named in the log once and again only when its answer changes.
+ */
+internal val systemSourceFilePresence: SourceFilePresence =
+	LoggedSourceFilePresence { path ->
+		if (isFileSystemPath(path)) runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull() else null
+	}::probe
+
+/**
+ * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry
+ * reads.  The `.jpeg` and `.tif` aliases are listed by hand because a FileKind spells one extension per
+ * format; detection is by magic bytes, so a file under either name still routes to its codec.
+ */
+internal val artworkImportExtensions: List<String> =
+	listOf(
+		FileKind.Psd.extension,
+		FileKind.Clip.extension,
+		FileKind.Kra.extension,
+		FileKind.Png.extension,
+		FileKind.Bmp.extension,
+		FileKind.Jpeg.extension,
+		"jpeg",
+		FileKind.WebP.extension,
+		FileKind.Tiff.extension,
+		"tif",
+	)
 
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,
@@ -118,7 +150,7 @@ fun readArtwork(bytes: ByteArray, name: String): ReadArtwork? {
  * @return ReadArtwork? The art and its format, or null.
  */
 suspend fun readArtworkAt(path: String): ReadArtwork? {
-	if (path.contains("://")) {
+	if (!isFileSystemPath(path)) {
 		return null
 	}
 	val bytes =

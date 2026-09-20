@@ -1,5 +1,8 @@
 package org.umamo.ui.action
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -79,6 +82,27 @@ fun loadKeymap(settings: Settings): Keymap {
 	}
 	return Keymap(resolved)
 }
+
+/** The prefix every keymap setting sits under; a change to any key below it re-resolves the live keymap. */
+private const val KEYMAP_SETTINGS_PREFIX: String = "input.keybinding"
+
+/**
+ * The active [Keymap] as live state: resolved from the selected preset plus the user's overrides, and
+ * re-resolved whenever any input.keybinding setting changes, so a preset switch or a rebind in the
+ * settings window reaches the menu's accelerator hints, the palette, and live dispatch at once.
+ *
+ * @param Settings settings The settings store to resolve from and follow.
+ * @return State The live keymap.
+ */
+@Composable
+fun rememberLiveKeymap(settings: Settings): State<Keymap> =
+	produceState(initialValue = loadKeymap(settings), settings) {
+		settings.changes.collect { changedKey ->
+			if (changedKey.startsWith(KEYMAP_SETTINGS_PREFIX)) {
+				value = loadKeymap(settings)
+			}
+		}
+	}
 
 /**
  * Selects the built-in preset [presetId] (persisted; user overrides still layer on top).  An unknown id is
