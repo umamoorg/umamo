@@ -32,6 +32,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -49,6 +50,7 @@ import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.help.AboutDialog
 import org.umamo.ui.help.CreditsDialog
+import org.umamo.ui.help.openLinkQuietly
 import org.umamo.ui.kit.ConfirmDialog
 import org.umamo.ui.kit.DialogChoice
 import org.umamo.ui.kit.InlineEditController
@@ -234,10 +236,13 @@ fun EditorShell(
 				{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
 			)
 		}
+	// Read at dispatch: the chrome table registers once, and the handler the platform provides is the
+	// composition's to change.
+	val currentUriHandler by rememberUpdatedState(LocalUriHandler.current)
 	DisposableEffect(commandRegistry, dragController) {
 		val cleanup =
 			commandRegistry.registerAll(
-				chromeCommands(overlays, dragController, splitterDragCancel, rowDragCancel, workspaces),
+				chromeCommands(overlays, dragController, splitterDragCancel, rowDragCancel, workspaces) { url -> currentUriHandler.openLinkQuietly(url) },
 			)
 		onDispose { cleanup() }
 	}

@@ -2,9 +2,12 @@ package org.umamo.ui.l10n
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.settings.Settings
 
 /**
  * The active UI language tag (BCP-47, e.g. "en" / "ja" / "ko") for the composition, driven by the
@@ -12,6 +15,29 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * `LocalAppLocale.current`; most code just calls stringResource() and lets the catalogs resolve.
  */
 val LocalAppLocale = staticCompositionLocalOf { "en" }
+
+/** The settings key holding the UI language tag. */
+private const val LOCALE_SETTINGS_KEY: String = "localization.locale"
+
+/** The language the UI falls back to when the setting holds none. */
+private const val FALLBACK_LOCALE_TAG: String = "en"
+
+/**
+ * The UI language tag as live state: read from the localization.locale setting and updated when it
+ * changes, so whatever is keyed on it re-localizes on a runtime language switch.
+ *
+ * @param Settings settings The settings store to read and follow.
+ * @return State The live BCP-47 language tag.
+ */
+@Composable
+fun rememberLocaleTag(settings: Settings): State<String> =
+	produceState(initialValue = settings.getString(LOCALE_SETTINGS_KEY) ?: FALLBACK_LOCALE_TAG, settings) {
+		settings.changes.collect { changedKey ->
+			if (changedKey == LOCALE_SETTINGS_KEY) {
+				value = settings.getString(LOCALE_SETTINGS_KEY) ?: FALLBACK_LOCALE_TAG
+			}
+		}
+	}
 
 /**
  * Applies [languageTag] as the process resource locale on the current platform. Compose

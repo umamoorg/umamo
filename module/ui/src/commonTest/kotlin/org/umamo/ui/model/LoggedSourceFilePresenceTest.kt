@@ -1,4 +1,4 @@
-package org.umamo.ui.app
+package org.umamo.ui.model
 
 import org.umamo.storage.LogLevel
 import org.umamo.storage.UmamoLog

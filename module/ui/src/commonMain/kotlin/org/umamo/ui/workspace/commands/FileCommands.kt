@@ -10,9 +10,11 @@ import org.umamo.ui.resources.*
 /*
  * The document import / export commands.
  *
- * These are the one group the app registers rather than the shell, because their work needs the file
- * picker, the document loader, and the CMO3 codec - all of which sit above the shell (and, for the codec,
- * off commonMain entirely).  Only the TABLE lives here: each builder takes the action as a plain lambda,
+ * These are the one group the app registers rather than the shell, because their work needs the document
+ * loader and the CMO3 codec, which sit above the shell (and, for the codec, off commonMain entirely).  The
+ * file picker alone is no reason: the workspace layout's file commands and the log export need one too,
+ * and the shell registers those, since nothing about them is a document.  Only the TABLE lives here: each
+ * builder takes the action as a plain lambda,
  * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
  * document logic.  Registering them here instead would drag the whole document layer into the shell's
  * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
@@ -24,8 +26,9 @@ import org.umamo.ui.resources.*
  */
 
 /**
- * The commands that make, open, save, or replace the whole document: New, Open, Save, Save As, and one
- * import per interop format.
+ * The commands that make, open, save, or replace the whole document - New, Open, Save, Save As, one import
+ * per interop format, and a file opened by its path - and the one that ends the session altogether, Exit.
+ * What they share is the unsaved-changes gate: each would discard the editing session.
  *
  * Split from [fileExportCommands] because the two register on different triggers: these handlers read
  * the document live through the app's holders, while export closes over the open document.  The artwork
@@ -39,6 +42,8 @@ import org.umamo.ui.resources.*
  * @param Function canSave Whether the open document can be saved, queried live (gates Save and Save As).
  * @param Function onImportCmo3 Runs the CMO3 import (picker, dirty-confirm, load).
  * @param Function onImportMoc3 Runs the MOC3 import.
+ * @param Function onOpenPath Opens the file at a stored path or uri, by what the file is (dirty-confirm, load).
+ * @param Function onExit Closes the application (dirty-confirm first).
  * @return List<Command> The commands to register.
  */
 internal fun fileCommands(
@@ -49,6 +54,8 @@ internal fun fileCommands(
 	canSave: () -> Boolean,
 	onImportCmo3: () -> Unit,
 	onImportMoc3: () -> Unit,
+	onOpenPath: (path: String) -> Unit,
+	onExit: () -> Unit,
 ): List<Command> =
 	listOf(
 		Command("file.new", title = Res.string.cmd_file_new) { onNew() },
@@ -59,6 +66,16 @@ internal fun fileCommands(
 		// MOC3 comes in through its own row rather than one merged "import" filter, keeping the
 		// source-project / baked-runtime distinction visible in the UI.
 		Command("file.importMoc3", title = Res.string.cmd_import_moc3) { onImportMoc3() },
+		// No title, like the other argument-only commands: the Open Recent rows supply the path, and the
+		// palette has nothing to offer without one.  Anything that opens a file it was handed belongs on this
+		// id, since the way in is what carries the unsaved-changes gate.
+		Command("file.openPath", title = null) { argument ->
+			val path = argument as? String ?: return@Command
+			onOpenPath(path)
+		},
+		// No default chord: the platform's own quit gesture (the window's close button, Cmd+Q, Android's back)
+		// reaches the same gate through the host's exit guard, and a chord is one rebind away.
+		Command("file.exit", title = Res.string.menu_exit) { onExit() },
 	)
 
 /**

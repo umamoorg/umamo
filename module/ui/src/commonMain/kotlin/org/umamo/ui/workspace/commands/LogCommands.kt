@@ -6,10 +6,10 @@ import org.umamo.ui.resources.*
 /**
  * The diagnostic-log commands.
  *
- * Registered by the app rather than the shell for the same reason as the file commands: writing the
- * retained log buffer out needs the file picker, which lives above the shell.  The Logs panel's Export
- * button dispatches the id instead of holding a handler, so the panel itself stays in commonMain with no
- * picker dependency - and the command palette reaches the same operation for free.
+ * Registered by the settings-backed shell, beside the workspace layout's file commands: the log exists
+ * from startup whatever document is open, so the export is live from launch.  The Logs panel's Export
+ * button dispatches the id instead of holding a handler, so the panel needs no picker of its own - and the
+ * command palette reaches the same operation for free.
  *
  * @param Function onExportLog Writes the retained log buffer to a picked file.
  * @return List<Command> The commands to register.

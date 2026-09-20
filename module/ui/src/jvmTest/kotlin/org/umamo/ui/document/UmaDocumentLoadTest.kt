@@ -1,16 +1,6 @@
 package org.umamo.ui.document
 
 import org.umamo.format.uma.Uma
-import org.umamo.format.uma.UmaModel
-import org.umamo.format.uma.textures.UmaPixelSource
-import org.umamo.format.uma.textures.UmaRenderPagePixels
-import org.umamo.interop.uma.UmaDocumentBridge
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.util.zip.CRC32
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -25,58 +15,6 @@ import kotlin.test.assertTrue
  * writer would never produce.
  */
 class UmaDocumentLoadTest {
-	/**
-	 * A `.uma` the codec wrote from a new document's empty puppet.
-	 *
-	 * @return ByteArray The file.
-	 */
-	private fun emptyDocumentBytes(): ByteArray {
-		val puppet = newBlankDocument().puppet
-		val written = UmaDocumentBridge.documentOf(UmaModel.create(umamoWriterInfo()), puppet, UmaPixelSource({ null }, UmaRenderPagePixels.Derived, null))
-		return Uma.write(written)
-	}
-
-	/**
-	 * [bytes] re-zipped with its manifest text passed through [rewrite] and [extraEntries] appended, keeping
-	 * the stored mimetype first as the format requires.
-	 *
-	 * @param ByteArray bytes        A UMA file.
-	 * @param List      extraEntries Entries to append, path to contents.
-	 * @param Function  rewrite      The manifest's new text given its old one.
-	 * @return ByteArray The rewritten file.
-	 */
-	private fun rewritten(bytes: ByteArray, extraEntries: List<Pair<String, ByteArray>> = emptyList(), rewrite: (String) -> String): ByteArray {
-		val output = ByteArrayOutputStream()
-		ZipOutputStream(output).use { zip ->
-			ZipInputStream(ByteArrayInputStream(bytes)).use { input ->
-				generateSequence { input.nextEntry }.forEach { entry ->
-					val contents = input.readBytes()
-					if (entry.name == "mimetype") {
-						zip.putNextEntry(
-							ZipEntry(entry.name).apply {
-								method = ZipEntry.STORED
-								size = contents.size.toLong()
-								compressedSize = contents.size.toLong()
-								crc = CRC32().apply { update(contents) }.value
-							},
-						)
-						zip.write(contents)
-					} else {
-						zip.putNextEntry(ZipEntry(entry.name))
-						zip.write(if (entry.name == "manifest.json") rewrite(contents.decodeToString()).encodeToByteArray() else contents)
-					}
-					zip.closeEntry()
-				}
-			}
-			for ((path, contents) in extraEntries) {
-				zip.putNextEntry(ZipEntry(path))
-				zip.write(contents)
-				zip.closeEntry()
-			}
-		}
-		return output.toByteArray()
-	}
-
 	@Test
 	fun aUmaOpensAsAUmaDocumentKeptWholeForTheNextSave() {
 		val bytes = emptyDocumentBytes()
@@ -94,16 +32,7 @@ class UmaDocumentLoadTest {
 
 	@Test
 	fun aRequiredEntryThisVersionCannotReadOpensReadOnly() {
-		val bytes =
-			rewritten(
-				emptyDocumentBytes(),
-				extraEntries = listOf("future/thing.json" to "{}".encodeToByteArray()),
-			) { manifest ->
-				val record = """{ "path": "future/thing.json", "kind": "mystery", "version": 1, "minVersion": 1, "required": true }"""
-				val patched = manifest.replaceFirst("\"entries\": [", "\"entries\": [ $record,")
-				check(patched != manifest) { "the manifest's entries array was not found: $manifest" }
-				patched
-			}
+		val bytes = umaBytesWithUnknownRequiredEntry()
 
 		val document = assertIs<UmaDocument>(assertIs<DocumentLoad.Loaded>(loadDocument(bytes, "rig.uma", "/rigs/rig.uma")).document)
 

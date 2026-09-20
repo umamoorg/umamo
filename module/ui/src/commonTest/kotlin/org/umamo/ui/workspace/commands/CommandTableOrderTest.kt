@@ -4,6 +4,7 @@ import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.HoveredSurface
@@ -42,7 +43,7 @@ class CommandTableOrderTest {
 
 	private fun routing(): CommandRouting = CommandRouting { null }
 
-	/** The shell-chrome table: overlay toggles, the drag cancels, workspace tab navigation. */
+	/** The shell-chrome table: overlay toggles, the project links, the drag cancels, workspace tab navigation. */
 	@Test
 	fun chromeTableIsComplete() {
 		val commands =
@@ -52,7 +53,7 @@ class CommandTableOrderTest {
 				SplitterDragCancelController(),
 				RowDragCancelController(),
 				workspaces(),
-			)
+			) {}
 		assertEquals(
 			listOf(
 				"palette.toggle",
@@ -61,6 +62,9 @@ class CommandTableOrderTest {
 				"edit.preferences",
 				"help.about",
 				"help.credits",
+				"help.sourceCode",
+				"help.webSite",
+				"help.documentation",
 				"workspace.prev",
 				"workspace.next",
 			),
@@ -219,14 +223,26 @@ class CommandTableOrderTest {
 	}
 
 	/**
-	 * The app-registered file and log tables, in the order EditorApp concatenates them.  Their actions are
-	 * plain lambdas, which is what lets a commonMain test build them at all - the document layer they
-	 * actually call into is jvmAndroidMain.
+	 * The workspace layout's file table and the log table, in the order the settings-backed shell
+	 * concatenates them.  Their actions are plain lambdas, so the tables build with no picker and no settings.
 	 */
 	@Test
-	fun fileAndLogTablesAreComplete() {
-		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}) + logCommands {}
-		assertEquals(listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "logs.export"), commands.map { command -> command.id })
+	fun workspaceFileAndLogTablesAreComplete() {
+		val commands = workspaceFileCommands({}, {}, {}) + logCommands {}
+		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
+	}
+
+	/**
+	 * The app-registered file tables.  Their actions are plain lambdas, which is what lets a commonMain test
+	 * build them at all - the document layer they actually call into is jvmAndroidMain.
+	 */
+	@Test
+	fun fileTablesAreComplete() {
+		val commands = fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {})
+		assertEquals(
+			listOf("file.new", "file.open", "file.save", "file.saveAs", "file.importCmo3", "file.importMoc3", "file.openPath", "file.exit"),
+			commands.map { command -> command.id },
+		)
 		assertEquals(
 			listOf("file.exportCmo3", "file.exportMoc3"),
 			fileExportCommands({ true }, {}, {}).map { command -> command.id },
@@ -248,6 +264,38 @@ class CommandTableOrderTest {
 		assertFalse(export.availability.isAvailable(), "nothing to export with no document open")
 		exportable = true
 		assertTrue(export.availability.isAvailable(), "the tier is queried per call, not sampled at registration")
+	}
+
+	/**
+	 * Opening a file by its path is argument-only: a recent file's row supplies the path, so the command
+	 * has no title for the palette, passes a path through untouched, and ignores anything that is not one
+	 * rather than opening a file nobody named.
+	 */
+	@Test
+	fun openingByPathTakesThePathAsItsArgument() {
+		val openedPaths = ArrayList<String>()
+		val openPath = fileCommands({}, {}, {}, {}, { true }, {}, {}, { path -> openedPaths.add(path) }, {}).first { command -> command.id == "file.openPath" }
+
+		assertNull(openPath.title, "nothing for the palette to offer without a path")
+		openPath.handler.run("/rigs/hero.uma")
+		openPath.handler.run(null)
+		openPath.handler.run(42)
+
+		assertEquals(listOf("/rigs/hero.uma"), openedPaths)
+	}
+
+	/** Each Help link command opens its own project URL, and nothing else, through the shell's opener. */
+	@Test
+	fun theHelpLinksOpenTheProjectUrls() {
+		val openedUrls = ArrayList<String>()
+		val commands =
+			chromeCommands(overlays(), AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces()) { url -> openedUrls.add(url) }
+
+		for (commandId in listOf("help.sourceCode", "help.webSite", "help.documentation")) {
+			commands.first { command -> command.id == commandId }.handler.run(null)
+		}
+
+		assertEquals(listOf(ProjectInfo.SOURCE_CODE_URL, ProjectInfo.WEB_SITE_URL, ProjectInfo.DOCUMENTATION_URL), openedUrls)
 	}
 
 	/**

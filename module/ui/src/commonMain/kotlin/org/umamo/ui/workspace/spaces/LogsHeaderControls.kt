@@ -24,9 +24,9 @@ import org.umamo.ui.theme.LocalUmamoShapes
  *
  * Copy stays an inline handler (the clipboard is a composition-local reachable here) rather than a
  * registry command - the same direct-manipulation rationale parametersHeaderControls documents, since no
- * shortcut or menu needs to reach it.  Export is the registry command logs.export instead, because the
- * FilePicker it writes through lives at the app layer (jvmAndroidMain), out of reach of this commonMain
- * header; dispatching the command crosses that seam and reuses EditorApp's file-write path.
+ * shortcut or menu needs to reach it.  Export is the registry command logs.export instead: the shell that
+ * mounts this header holds the FilePicker the write goes through, and dispatching the command reaches it
+ * without the header taking a picker of its own - and puts the export in the palette.
  *
  * Copy and Export ride one item so the pair collapses together: they are the same "do something with
  * this log" affordance, and splitting them across the strip and the overflow panel would read as noise.

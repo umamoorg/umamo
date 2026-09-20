@@ -4,241 +4,35 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.platform.LocalUriHandler
-import io.github.vinceglb.filekit.absolutePath
-import io.github.vinceglb.filekit.name
-import io.github.vinceglb.filekit.readBytes
-import io.github.vinceglb.filekit.readString
-import io.github.vinceglb.filekit.write
-import io.github.vinceglb.filekit.writeString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import okio.FileSystem
-import okio.Path.Companion.toPath
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
-import org.umamo.edit.NoticePlacement
-import org.umamo.edit.deleteTile
-import org.umamo.edit.seed.ParameterTemplate
-import org.umamo.edit.setLayerIgnored
-import org.umamo.edit.setTileSources
-import org.umamo.format.FileKind
-import org.umamo.format.art.SourceArt
-import org.umamo.format.cmo3.Cmo3
-import org.umamo.format.cmo3.model.custom.CModelSource
-import org.umamo.format.uma.UmaModel
-import org.umamo.interop.ExportNotice
-import org.umamo.interop.ExportReport
-import org.umamo.interop.art.ArtSourceDescriptor
-import org.umamo.interop.art.SourceArtImportOptions
-import org.umamo.interop.cmo3.cmo3SourceArtOf
-import org.umamo.interop.moc3.Moc3Sidecars
-import org.umamo.reimport.InventoryLayerMatcher
-import org.umamo.reimport.PollingSourceWatcher
-import org.umamo.reimport.SourceWatchCoordinator
-import org.umamo.reimport.SourceWatchEvent
-import org.umamo.reimport.WatchMode
-import org.umamo.reimport.WatchedReloadResult
-import org.umamo.reimport.WatchedSource
-import org.umamo.runtime.model.ArtSource
-import org.umamo.runtime.model.ArtSourceId
 import org.umamo.storage.FileKitFilePicker
-import org.umamo.storage.UmamoLog
-import org.umamo.storage.contentHashOfFile
-import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.Keymap
-import org.umamo.ui.action.loadKeymap
 import org.umamo.ui.document.ArtDocument
-import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentFile
-import org.umamo.ui.document.DocumentLoad
-import org.umamo.ui.document.DocumentOpenError
-import org.umamo.ui.document.DocumentOpenFailure
-import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
-import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.UmaDocument
-import org.umamo.ui.document.UmaWriteOutcome
-import org.umamo.ui.document.addRecentFile
-import org.umamo.ui.document.artworkImportOptions
-import org.umamo.ui.document.existingBundleFiles
-import org.umamo.ui.document.exportSuggestedName
-import org.umamo.ui.document.exportedModelFor
-import org.umamo.ui.document.fileDisplayName
-import org.umamo.ui.document.fileModifiedAtMillis
-import org.umamo.ui.document.loadDocument
-import org.umamo.ui.document.newBlankDocument
-import org.umamo.ui.document.prepareCmo3Export
-import org.umamo.ui.document.prepareMoc3Export
-import org.umamo.ui.document.readArtwork
-import org.umamo.ui.document.readArtworkAt
-import org.umamo.ui.document.recentFiles
-import org.umamo.ui.document.umamoWriterInfo
-import org.umamo.ui.document.writeMoc3Bundle
-import org.umamo.ui.document.writeUmaDocument
-import org.umamo.ui.kit.TopLevelMenu
-import org.umamo.ui.l10n.applyAppLocale
-import org.umamo.ui.menu.editMenu
-import org.umamo.ui.menu.fileMenu
-import org.umamo.ui.menu.helpMenu
-import org.umamo.ui.menu.workspaceMenu
-import org.umamo.ui.model.AddArtworkRequest
-import org.umamo.ui.model.AtlasRepackHost
-import org.umamo.ui.model.DrawableThumbnailer
-import org.umamo.ui.model.LocalDrawableThumbnails
-import org.umamo.ui.model.LocalEditorMode
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalLiveParams
-import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.model.LocalPuppetRenderSync
-import org.umamo.ui.model.LocalPuppetTextures
-import org.umamo.ui.model.LocalPuppetViewportService
-import org.umamo.ui.model.LocalSelection
-import org.umamo.ui.model.LocalSessionAtlasPages
-import org.umamo.ui.model.LocalSourceArtRasters
-import org.umamo.ui.model.LocalSourceFilePresence
-import org.umamo.ui.model.LocalSourceSuggestions
-import org.umamo.ui.model.LocalSourceWatch
-import org.umamo.ui.model.MatchArtworkRequest
-import org.umamo.ui.model.RelinkArtworkRequest
-import org.umamo.ui.model.ReloadArtworkRequest
-import org.umamo.ui.model.ReloadArtworkResult
-import org.umamo.ui.model.ReloadEntry
-import org.umamo.ui.model.ReplaceArtworkRequest
+import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
-import org.umamo.ui.model.SourceFilePresence
-import org.umamo.ui.model.SourceSuggestionState
-import org.umamo.ui.model.SourceSuggestions
-import org.umamo.ui.model.SourceWatchState
-import org.umamo.ui.model.rememberSessionEditorState
-import org.umamo.ui.model.runAddArtwork
-import org.umamo.ui.model.runMatchArtwork
-import org.umamo.ui.model.runRelinkArtwork
-import org.umamo.ui.model.runReloadArtwork
-import org.umamo.ui.model.runReplaceArtwork
-import org.umamo.ui.model.scoreSourceSuggestions
-import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.alert_document_read_only
-import org.umamo.ui.resources.alert_save_failed
-import org.umamo.ui.resources.confirm_export_overwrite
-import org.umamo.ui.resources.dialog_overwrite
 import org.umamo.ui.resources.title_untitled_document
-import org.umamo.ui.settings.HistorySettings
-import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
-import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
-import org.umamo.ui.settings.IMPORT_WATCH_MODE_KEY
-import org.umamo.ui.viewport.AtlasPageBinding
-import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
-import org.umamo.ui.viewport.rememberPuppetViewportHost
-import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.AreaViewStates
-import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.EDITOR_STATE_AREAS
 import org.umamo.ui.workspace.EDITOR_STATE_SESSION
-import org.umamo.ui.workspace.ExportOptionsRequest
-import org.umamo.ui.workspace.INTERFACE_LAYOUT_KEY
 import org.umamo.ui.workspace.LocalAreaViewStates
-import org.umamo.ui.workspace.PersistentEditorShell
-import org.umamo.ui.workspace.commands.ArtworkOperations
-import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
-import org.umamo.ui.workspace.commands.RelinkRequest
-import org.umamo.ui.workspace.commands.ReloadScope
-import org.umamo.ui.workspace.commands.ReplaceRequest
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
-import org.umamo.ui.workspace.commands.logCommands
 import org.umamo.ui.workspace.commands.registerAll
-import org.umamo.ui.workspace.decodeLayout
-import org.umamo.ui.workspace.decodeLayoutText
-import org.umamo.ui.workspace.decodeWorkspaceText
-import org.umamo.ui.workspace.exportLayoutText
-import org.umamo.ui.workspace.exportWorkspaceText
-import org.umamo.ui.workspace.sessionStateJson
 import org.umamo.ui.workspace.sessionViewStateOf
-import kotlin.random.Random
-
-/**
- * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry
- * reads.  The `.jpeg` and `.tif` aliases are listed by hand because a FileKind spells one extension per
- * format; detection is by magic bytes, so a file under either name still routes to its codec.
- */
-private val artworkImportExtensions: List<String> =
-	listOf(
-		FileKind.Psd.extension,
-		FileKind.Clip.extension,
-		FileKind.Kra.extension,
-		FileKind.Png.extension,
-		FileKind.Bmp.extension,
-		FileKind.Jpeg.extension,
-		"jpeg",
-		FileKind.WebP.extension,
-		FileKind.Tiff.extension,
-		"tif",
-	)
-
-/**
- * The file-presence probe the Sources space reads: an okio existence check over a real path.  A uri
- * (Android's SAF content handles have no path to probe) and a path the file system refuses both read
- * as unknown rather than missing - the space must never accuse a file it could not check.
- */
-private val sourceFilePresence: SourceFilePresence =
-	LoggedSourceFilePresence { path ->
-		if (path.contains("://")) null else runCatching { FileSystem.SYSTEM.exists(path.toPath()) }.getOrNull()
-	}::probe
-
-/**
- * The presence probe with a log line the first time a path is asked about and whenever its answer
- * changes - found, missing, or unknowable - so a document whose recorded path is wrong shows the
- * exact path being checked.  The Sources space asks on every refresh and the watcher every second,
- * so only a change earns a line.  Shared across documents for the app's life, like the probe itself.
- *
- * @property SourceFilePresence answers The probe the answers come from.
- */
-internal class LoggedSourceFilePresence(
-	private val answers: SourceFilePresence,
-) {
-	/** The last answer per path; copy-on-write, since the watcher asks off the UI thread. */
-	@Volatile
-	private var lastAnswerByPath: Map<String, Boolean?> = emptyMap()
-
-	/**
-	 * Answers for [path], logging when the answer is new.
-	 *
-	 * @param String path The advisory path the model recorded.
-	 * @return Boolean? The answer: present, missing, or null for unknown.
-	 */
-	fun probe(path: String): Boolean? {
-		val answer = answers(path)
-		val known = lastAnswerByPath
-		if (path !in known || known[path] != answer) {
-			lastAnswerByPath = known + (path to answer)
-			when (answer) {
-				true -> UmamoLog.info("source artwork: found at $path")
-				false -> UmamoLog.warn("source artwork: missing at $path")
-				null -> UmamoLog.info("source artwork: presence unknown at $path (not a file path this platform can probe)")
-			}
-		}
-		return answer
-	}
-}
 
 /**
  * The one editing session per open puppet document (the undo history + dirty state live here),
@@ -314,11 +108,11 @@ fun EditorApp(
 	val commandRegistry = remember { CommandRegistry() }
 	// The MOC3 export dialog's session memory: sticky for the application's life, never persisted.
 	// Held here rather than in the shell because it must survive document swaps (nothing in this
-	// remember block is keyed on the document) and because the export closures below read it.
+	// remember block is keyed on the document), which is also why it outlives the export controller.
 	val moc3ExportOptions = remember { Moc3ExportSessionOptions() }
 	// The session's effective atlas pages: a repack swaps them and undo swaps them back, driven by the
 	// model through the resolver's collector.  Created up here rather than in the viewport wiring so
-	// the export closures below read the same page set the viewport shows.
+	// a save and an export read the same page set the viewport shows.
 	val sessionAtlasPages =
 		remember(document, session) {
 			if (document is PuppetDocument && session != null) {
@@ -338,840 +132,104 @@ fun EditorApp(
 			session.emitNotice("notice.import.artworkNotes")
 		}
 	}
-	val uriHandler = LocalUriHandler.current
-	// Mirror the session's undo/redo availability for the Edit menu's enabled state. produceState runs
-	// unconditionally (the session may be null with no document) and re-collects when the session swaps.
-	val canUndo by produceState(false, session) {
-		val activeSession = session
-		if (activeSession == null) {
-			value = false
-		} else {
-			activeSession.canUndo.collect { value = it }
-		}
-	}
-	val canRedo by produceState(false, session) {
-		val activeSession = session
-		if (activeSession == null) {
-			value = false
-		} else {
-			activeSession.canRedo.collect { value = it }
-		}
-	}
-	// Resolve the keymap from settings (preset + overrides) and keep it live, so the menu's accelerator hints
-	// match what the keyboard actually does after a preset switch or a rebind in the settings window.
-	val keymap by produceState(initialValue = loadKeymap(settings), settings) {
-		settings.changes.collect { changedKey ->
-			if (changedKey.startsWith("input.keybinding")) {
-				value = loadKeymap(settings)
-			}
-		}
-	}
-	// Re-read recent files whenever any setting changes, so the Open Recent menu stays current after Open.
-	val recentFiles by produceState(initialValue = settings.recentFiles(), settings) {
-		settings.changes.collect { value = settings.recentFiles() }
-	}
-	// The menu bar is built here, outside the shell's own ProvideAppLocale scope, so it must re-localize
-	// itself when localization.locale changes - otherwise a runtime language switch leaves it stale.
-	val locale by produceState(initialValue = settings.getString("localization.locale") ?: "en", settings) {
-		settings.changes.collect { changedKey ->
-			if (changedKey == "localization.locale") {
-				value = settings.getString("localization.locale") ?: "en"
-			}
-		}
-	}
-
-	// A load failure raises the shell's modal alert (the document.openFailed command) so the user sees
-	// why nothing opened; success records the recent file and swaps the document in.
-	fun applyDocumentLoad(load: DocumentLoad) {
-		when (load) {
-			is DocumentLoad.Loaded -> {
-				// Only a document that came from a file is recordable; a loaded one always did, but the read
-				// is null-safe because the type it arrives as covers the new, unsaved document too.
-				load.document.path?.let { path -> settings.addRecentFile(path) }
-				// What the document says about its artwork files, before anything probes them: the recorded
-				// path is what a reload, the watcher, and the Sources space will all go by.
-				for (source in (load.document as? PuppetDocument)?.puppet?.sources.orEmpty()) {
-					val recorded = source.path
-					if (recorded == null) {
-						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) has no recorded path")
-					} else {
-						UmamoLog.info("source artwork: '${source.name}' (${source.format}, ${source.layers.size} layer(s)) recorded at $recorded")
-					}
-				}
-				onOpen(load.document)
-				// A file that opened read-only says so once, up front: Save is greyed for the document's life, and a
-				// rigger who edits it for an hour before finding that out has been misled.
-				val opened = load.document
-				if (opened is UmaDocument && opened.isReadOnly) {
-					val entries = opened.readOnlyReasons.joinToString { reason -> "${reason.path} (${reason.kind})" }
-					commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_document_read_only, listOf(opened.displayName, entries)))
-				}
-			}
-			is DocumentLoad.Failed -> commandRegistry.invoke("document.openFailed", load.failure)
-		}
-	}
-
-	// Both gates below read the session through this holder rather than closing over the parameter.  The file
-	// commands register once against the stable registry (Ctrl+O and the palette dispatch through it), and the
-	// exit guard installs once, so a handler that captured the session directly would keep asking about
-	// whichever document was open when it was registered - none at all on a normal launch, which is a silent
-	// skip of the whole prompt.  The holder always reads the session of the composition that is live now.
-	val currentSession by rememberUpdatedState(session)
-	val currentDocument by rememberUpdatedState(document)
-	val currentDocumentFile by rememberUpdatedState(documentFile)
-	val currentAtlasPages by rememberUpdatedState(sessionAtlasPages)
 	// Every area's view state for this document, seeded from the editor state the file was saved with (UMA §7.3).
 	// Remembered here, beside the document read, so it is never paired with another document's areas.
 	val areaViewStates = remember(document) { AreaViewStates((document as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_AREAS) as? JsonObject) }
-	val currentAreaViewStates by rememberUpdatedState(areaViewStates)
+
+	// Everything derived from the open document, as one value built beside the document read.  The
+	// controllers made per document hold it; the ones that outlive documents read it through the holder
+	// below.  They register their commands once (Ctrl+O and the palette dispatch through the registry) and
+	// the exit guard installs once, so a controller that held a document would keep asking about whichever
+	// one was open when it was made - none at all on a normal launch, which is a silent skip of the whole
+	// unsaved-changes prompt.  The holder always reads the context of the composition that is live now.
+	val context =
+		remember(document, session, documentFile, sessionAtlasPages, areaViewStates) {
+			OpenDocumentContext(document, session, documentFile, sessionAtlasPages, areaViewStates)
+		}
+	val currentContext by rememberUpdatedState(context)
+	val currentOnOpen by rememberUpdatedState(onOpen)
+	val currentOnExit by rememberUpdatedState(onExit)
 	val currentUntitledName by rememberUpdatedState(stringResource(Res.string.title_untitled_document))
-
-	// Whether Save can write now: a puppet document that did not open read-only.  Read live, for the same
-	// reason the session is - the file commands register once.
-	fun canSaveNow(): Boolean = currentDocument is PuppetDocument && currentDocumentFile?.canSave == true
-
-	// Save and Save As.  The first save of a document that did not come from a .uma is a Save As suggesting
-	// the origin's name (D24); after that a plain Save writes the same file without asking.  The model and
-	// the atlas pages are snapshotted here, on the UI thread, and the writer runs off it, so the editor
-	// stays usable while a large document encodes; the session is marked saved with that same snapshot, so
-	// an edit made meanwhile keeps the document dirty.
-	fun saveDocument(saveAs: Boolean, onSaved: () -> Unit = {}) {
-		val puppetDocument = currentDocument as? PuppetDocument ?: return
-		val file = currentDocumentFile ?: return
-		val activeSession = currentSession ?: return
-		if (!file.canSave) {
-			return
+	val services =
+		remember {
+			EditorAppServices(
+				settings = settings,
+				scope = scope,
+				filePicker = filePicker,
+				commandRegistry = commandRegistry,
+				current = { currentContext },
+				onOpen = { opened -> currentOnOpen(opened) },
+				untitledName = { currentUntitledName },
+			)
 		}
-		if (file.saving) {
-			activeSession.emitNotice("notice.document.saveBusy", NoticePlacement.StatusBar)
-			return
-		}
-		// Kept on the holder as the save in flight, so a quit or a document replace asked for meanwhile waits
-		// for it instead of racing it (afterPendingSave below); it completes true only when the file landed.
-		file.saveJob =
-			scope.async {
-				val knownPath = file.umaPath
-				val destination =
-					if (!saveAs && knownPath != null) {
-						platformFileFromSavedPath(knownPath)
-					} else {
-						// The native save dialog owns the overwrite prompt: a .uma is one file, unlike the MOC3 family.
-						filePicker.saveFile(file.suggestedBaseName ?: currentUntitledName, FileKind.Uma.extension) ?: return@async false
-					}
-				val snapshot = activeSession.model.value
-				val binding = currentAtlasPages?.binding?.value ?: AtlasPageBinding(puppetDocument.puppet.atlas, puppetDocument.textures)
-				// Editor state is gathered with the model, on this thread, and rides the save without ever counting as a
-				// change to the document (UMA D7).
-				val editorState =
-					buildJsonObject {
-						put(EDITOR_STATE_AREAS, currentAreaViewStates.gather())
-						put(EDITOR_STATE_SESSION, sessionStateJson(activeSession.viewState(), activeSession.pose.value, snapshot))
-					}
-				val base = file.base ?: UmaModel.create(umamoWriterInfo())
-				file.saving = true
-				activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
-				val outcome =
-					try {
-						writeUmaDocument(puppetDocument, base, snapshot, binding, editorState, destination)
-					} finally {
-						file.saving = false
-					}
-				when (outcome) {
-					is UmaWriteOutcome.Written -> {
-						activeSession.markSaved(snapshot)
-						val path = destination.absolutePath()
-						file.umaPath = path
-						file.base = outcome.uma
-						settings.addRecentFile(path)
-						UmamoLog.info("saved $path")
-						activeSession.emitNotice("notice.document.saved", NoticePlacement.StatusBar, listOf(fileDisplayName(path)))
-						// Once per document, what a .uma of this origin does not carry (pinned with R3): shown after
-						// the saved notice, so it is the one left on screen.
-						if (!file.lossNoticeShown) {
-							file.lossNoticeShown = true
-							// Logged as well as shown: a status notice is gone in seconds, and this is the one place the
-							// rigger is told what the new file leaves behind.
-							when (puppetDocument) {
-								is Cmo3Document -> {
-									UmamoLog.info("saved $path from a CMO3: the CMO3 structure Umamo does not model is not in the .uma; exports from this session still reconcile onto the original")
-									activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
-								}
-								is Moc3Document -> {
-									UmamoLog.info("saved $path from a MOC3: physics, motions, expressions, user data, and pose are not in the .uma")
-									activeSession.emitNotice("notice.document.moc3Loss", NoticePlacement.StatusBar)
-								}
-								else -> Unit
-							}
-						}
-						onSaved()
-						true
-					}
-					is UmaWriteOutcome.Failed -> {
-						commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_save_failed, listOf(destination.name, outcome.reason)))
-						false
-					}
-				}
-			}
-	}
-
-	// A save still being written settles before anything that would end the process or replace the
-	// document.  The write runs on a thread the process does not wait for, so a quit that went ahead mid-save
-	// killed it - and a clean document (an import never edited) has nothing unsaved to stop the quit with.
-	// Waiting also keeps the unsaved-changes prompt from appearing over a save that is already running, where
-	// its Save button could only answer "a save is already in progress".
-	fun afterPendingSave(action: () -> Unit) {
-		val file = currentDocumentFile
-		if (file == null) {
-			action()
-			return
-		}
-		file.afterPendingSave(
-			scope,
-			onWaiting = { currentSession?.emitNotice("notice.document.waitingForSave", NoticePlacement.StatusBar) },
-			action = action,
-		)
-	}
-
-	// The choices a dirty document's prompt offers: go on without saving, or save first and go on once
-	// the save has landed - the latter only when the document can be saved at all.
-	fun dirtyDocumentPrompt(proceed: () -> Unit): DirtyDocumentPrompt =
-		DirtyDocumentPrompt(
-			discard = proceed,
-			save = if (canSaveNow()) ({ saveDocument(saveAs = false, onSaved = proceed) }) else null,
-		)
-
-	// Replacing the document discards its session - the undo history and any unsaved edits go with
-	// it - so a dirty document asks first.  The shell owns the confirm dialog (document.confirmReplace),
-	// keeping its Escape/Enter routing with every other overlay.
-	fun confirmIfDirty(proceed: () -> Unit) {
-		afterPendingSave {
-			if (currentSession?.dirty?.value == true) {
-				commandRegistry.invoke("document.confirmReplace", dirtyDocumentPrompt(proceed))
-			} else {
-				proceed()
-			}
-		}
-	}
-
-	// Quitting discards the session the same way, so a dirty document asks first here too
-	// (document.confirmExit).  File > Exit calls this directly; the host's window close, OS quit, and back
-	// gesture reach it through the exitGuard installed below.
-	fun confirmExit(exit: () -> Unit) {
-		afterPendingSave {
-			if (currentSession?.dirty?.value == true) {
-				commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exit))
-			} else {
-				exit()
-			}
-		}
-	}
-
-	// What an artwork import seeds with, read at the moment the import runs so the preferences row
-	// applies to the next import without a restart.
-	fun configuredArtworkImportOptions(): SourceArtImportOptions =
-		artworkImportOptions(ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)))
-
-	fun openStoredPath(path: String) {
-		confirmIfDirty {
-			scope.launch {
-				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), configuredArtworkImportOptions()))
-			}
-		}
-	}
+	val save = remember { DocumentSaveController(services) }
+	val open = remember { DocumentOpenController(services, save) }
 
 	// A file the operating system hands the running editor - a double-clicked document on macOS, a VIEW intent
-	// on Android - opens the way a recent file does, unsaved-changes check included.  The collector starts once
-	// and reads the live document through the holders above, so it never asks about a stale one.
-	val openFromHost by rememberUpdatedState(::openStoredPath)
+	// on Android - opens the way a recent file does, unsaved-changes check included.
 	LaunchedEffect(openRequests) {
-		openRequests?.requests?.collect { requestedPath -> openFromHost(requestedPath) }
+		openRequests?.requests?.collect { requestedPath -> open.openStoredPath(requestedPath) }
 	}
 
-	// The host every artwork operation over the open document lands through: the same one the repack
-	// builds, so an add, a reload, and a relink share its report route and its resolver pre-warm.
-	fun artworkHostFor(puppetDocument: PuppetDocument, activeSession: EditorSession): AtlasRepackHost =
-		AtlasRepackHost(
-			session = activeSession,
-			artRasters = puppetDocument.artRasters,
-			sessionAtlasPages = sessionAtlasPages,
-			premultipliedAlpha = puppetDocument.textures.premultipliedAlpha,
-			scope = scope,
-			report = { report -> commandRegistry.invoke("document.repackReport", report) },
-			rememberOptions = { _, _ -> },
-		)
-
-	// Picks an artwork file and reads it, describing it the way the document records a file.  A file
-	// that will not read raises the same alert an open would, and null comes back.
-	suspend fun pickArtwork(): PickedArtwork? {
-		val picked = filePicker.openFile(artworkImportExtensions) ?: return null
-		val bytes =
-			runCatching { picked.readBytes() }.getOrElse { failure ->
-				UmamoLog.error("failed to read ${picked.name}", failure)
-				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.ReadFailed, picked.name))
-				return null
-			}
-		val read =
-			readArtwork(bytes, picked.name) ?: run {
-				commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
-				return null
-			}
-		val path = picked.absolutePath()
-		return PickedArtwork(read, ArtSourceDescriptor(picked.name, path, read.kind.extension, read.contentHash, path.let(::fileModifiedAtMillis)))
-	}
-
-	// The artwork import: a file's layers are ADDED to the open document as one undoable edit - no
-	// document swap and no dirty confirm, the way importing an object into a Blender scene adds to it.
-	// Every layered and flat-raster format the registry reads comes in through this one path, from the
-	// File menu's Import row and the Sources space alike.  The area is the one the command fired over,
-	// resolved by the shell before the picker opens; it is where the operation strip shows once the
-	// import lands.  The options carry the parameter template, which seeds only when the document has no
-	// parameters of its own - a rig's first artwork.
-	fun importArtworkViaPicker(areaId: String?) {
-		val puppetDocument = document as? PuppetDocument ?: return
-		val activeSession = session ?: return
-		scope.launch {
-			val picked = pickArtwork() ?: return@launch
-			runAddArtwork(
-				artworkHostFor(puppetDocument, activeSession),
-				AddArtworkRequest(picked.read.art, picked.descriptor, configuredArtworkImportOptions()),
-				areaId,
-			)
-		}
-	}
-
-	// The suggestions the last operation that read a file scored for its unresolved bindings, for the
-	// Sources space's review chips.  An operation replaces what stands for the files it read and leaves
-	// the rest; a document swap starts empty.
-	val sourceSuggestions = remember(document, session) { MutableStateFlow<SourceSuggestions>(emptyMap()) }
-
-	// Publishes what one operation scored: the files it read take its proposals (an empty map for a
-	// file it read and found nothing for), every other file keeps whatever was published last.
-	fun publishSuggestions(covered: Set<ArtSourceId>, suggestions: SourceSuggestions) {
-		sourceSuggestions.value = sourceSuggestions.value.filterKeys { (sourceId, _) -> sourceId !in covered } + suggestions
-	}
-
-	// One listed file's art the way every operation over it reads it: from disk when the file is there
-	// and reads, else - for a CMO3-origin document - from the layer PNGs the official editor decomposed
-	// into the CMO3 at import, whether the file is gone or is one our reader refuses; null when neither
-	// can be read.
-	suspend fun readSourceArt(puppetDocument: PuppetDocument, source: ArtSource): SourceRead? {
-		val path = source.path
-		if (path == null) {
-			UmamoLog.info("read artwork: '${source.name}' has no recorded path; falling back to what the document holds")
-		} else if (sourceFilePresence(path) != true) {
-			UmamoLog.info("read artwork: '${source.name}' is not at $path; falling back to what the document holds")
-		} else {
-			val read = readArtworkAt(path)
-			if (read != null) {
-				UmamoLog.info("read artwork: '${source.name}' read from $path")
-				return SourceRead(read.art, read.contentHash, read.lastModified, fromCmo3 = false)
-			}
-			UmamoLog.warn("read artwork: '${source.name}' at $path could not be read; falling back to what the document holds")
-		}
-		val cmo3Document = puppetDocument as? Cmo3Document ?: return null
-		val root = cmo3Document.cmo3.root as? CModelSource ?: return null
-		val art = withContext(Dispatchers.Default) { cmo3SourceArtOf(root, source.id) { resource -> cmo3Document.cmo3.extractLayerPng(resource) } } ?: return null
-		return SourceRead(art, contentHash = null, lastModified = null, fromCmo3 = true)
-	}
-
-	// The document's artwork watcher: one per open puppet document, over the composable's own scope
-	// (its dispatcher confines the coordinator's state), closed when the document goes.  The mode is
-	// read live from settings at every decision, so the Import setting applies at once.
-	val documentWatch: DocumentWatch? =
-		remember(document, session) {
-			val activeSession = session
-			if (document is PuppetDocument && activeSession != null) {
-				val watcher = PollingSourceWatcher(scope, FileSystem.SYSTEM, statContext = Dispatchers.IO)
-				DocumentWatch(
-					watcher,
-					SourceWatchCoordinator(
-						scope = scope,
-						watcher = watcher,
-						hashOf = { path -> withContext(Dispatchers.IO) { contentHashOfFile(FileSystem.SYSTEM, path.toPath()) } },
-						exists = { path -> sourceFilePresence(path) },
-						modifiedAtOf = { path -> withContext(Dispatchers.IO) { fileModifiedAtMillis(path) } },
-						isIdle = { activeSession.isQuiescent },
-						mode = { WatchMode.fromKey(settings.getString(IMPORT_WATCH_MODE_KEY)) },
-					),
-				)
-			} else {
-				null
-			}
-		}
-	DisposableEffect(documentWatch) {
-		onDispose { documentWatch?.close() }
-	}
-
-	// Reloads the listed artwork files that are present on disk - those the scope names, or every one -
-	// as one undo step; a file that cannot be read is logged and skipped.  Real file-system paths only:
-	// a platform uri (an Android SAF handle) has no reader here, so a document opened through one
-	// reloads nothing.  The watcher hears how it ended, so it knows whether to wait for the model's new
-	// hashes, try again, or let go.
-	fun reloadArtworkFromDisk(areaId: String?, reloadScope: ReloadScope?) {
-		val puppetDocument = document as? PuppetDocument ?: return
-		val activeSession = session ?: return
-		scope.launch {
-			val entries = ArrayList<ReloadEntry>()
-			val covered = LinkedHashSet<ArtSourceId>()
-			for (source in activeSession.model.value.sources) {
-				if (reloadScope != null && source.id !in reloadScope.sourceIds) {
-					continue
-				}
-				val path = source.path ?: continue
-				if (sourceFilePresence(path) != true) {
-					continue
-				}
-				covered.add(source.id)
-				val read = readArtworkAt(path)
-				if (read == null) {
-					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
-					continue
-				}
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
-			}
-			if (entries.isEmpty()) {
-				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
-				documentWatch?.coordinator?.reloadFinished(covered, WatchedReloadResult.Abandoned)
-				return@launch
-			}
-			val host = artworkHostFor(puppetDocument, activeSession)
-			// A reload that lands publishes what its matcher left under the bar (scored before it minted);
-			// one that found nothing changed re-scores the files as they stand.
-			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { suggestions -> publishSuggestions(covered, suggestions) }
-			if (result == ReloadArtworkResult.NothingChanged) {
-				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
-			}
-			documentWatch?.coordinator?.reloadFinished(
-				entries.mapTo(LinkedHashSet()) { entry -> entry.sourceId },
-				when (result) {
-					ReloadArtworkResult.Applied -> WatchedReloadResult.Applied
-					ReloadArtworkResult.NothingChanged -> WatchedReloadResult.NothingChanged
-					ReloadArtworkResult.Superseded -> WatchedReloadResult.Superseded
-					ReloadArtworkResult.Refused -> WatchedReloadResult.Abandoned
-				},
-			)
-		}
-	}
-
-	// The watcher follows the model's source list (and the watch-mode setting), and its events land
-	// on the session: a due reload goes THROUGH the command registry, so the strip shows in the last
-	// work surface exactly as a pressed Reload does; the rest are notices.
-	LaunchedEffect(documentWatch, session) {
-		val watch = documentWatch ?: return@LaunchedEffect
-		val activeSession = session ?: return@LaunchedEffect
-
-		fun trackCurrentSources() {
-			watch.coordinator.track(
-				activeSession.model.value.sources.mapNotNull { source ->
-					val path = source.path?.takeIf { candidate -> !candidate.contains("://") } ?: return@mapNotNull null
-					WatchedSource(source.id, path, source.contentHash, source.lastModified)
-				},
-			)
-		}
-		launch { activeSession.model.collect { trackCurrentSources() } }
-		launch {
-			settings.changes.collect { changedKey ->
-				if (changedKey == IMPORT_WATCH_MODE_KEY) {
-					trackCurrentSources()
-				}
-			}
-		}
-		watch.coordinator.events.collect { event ->
-			when (event) {
-				is SourceWatchEvent.ReloadDue -> commandRegistry.invoke("document.reloadArtwork", ReloadScope(event.sourceIds))
-				is SourceWatchEvent.ChangedOnDisk ->
-					activeSession.emitNotice("notice.watch.changed", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
-				is SourceWatchEvent.StaleAtOpen ->
-					activeSession.emitNotice("notice.watch.staleAtOpen", NoticePlacement.StatusBar, listOf(event.sourceIds.size.toString()))
-				is SourceWatchEvent.Missing -> {
-					val name = activeSession.model.value.sources.firstOrNull { source -> source.id == event.sourceId }?.name ?: event.sourceId.raw
-					UmamoLog.warn("watch artwork: '$name' is no longer where the document read it")
-					activeSession.emitNotice("notice.watch.missing", NoticePlacement.StatusBar, listOf(name))
-				}
-			}
-		}
-	}
-
-	// Rebinds one or more tiles as one step: an unbind is the plain binding edit; a binding to a layer
-	// pulls the layer's art in when its file is on disk - or, for a CMO3-origin document whose file is
-	// not, from the layer PNGs the official editor decomposed into the CMO3 at import - and changes
-	// the bindings alone when neither can be read.
-	fun relinkArtwork(request: RelinkRequest, areaId: String?) {
-		val puppetDocument = document as? PuppetDocument ?: return
-		val activeSession = session ?: return
-		val ref = request.ref
-		if (ref == null) {
-			activeSession.setTileSources(request.tileIds, null)
-			return
-		}
-		scope.launch {
-			val source = activeSession.model.value.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
-			val read = source?.let { listed -> readSourceArt(puppetDocument, listed) }
-			if (read?.fromCmo3 == true) {
-				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
-			}
-			runRelinkArtwork(artworkHostFor(puppetDocument, activeSession), RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions(), request.retire), areaId)
-		}
-	}
-
-	// Reads every listed file it can and rebinds the bindings the files no longer resolve to the layers
-	// the matcher is confident about, as one undo step with the threshold on the strip; what it is not
-	// sure about it publishes as suggestions for the rows that need review.
-	fun matchArtwork(areaId: String?) {
-		val puppetDocument = document as? PuppetDocument ?: return
-		val activeSession = session ?: return
-		scope.launch {
-			val entries = ArrayList<ReloadEntry>()
-			for (source in activeSession.model.value.sources) {
-				val read = readSourceArt(puppetDocument, source) ?: continue
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
-			}
-			if (entries.isEmpty()) {
-				activeSession.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
-				return@launch
-			}
-			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
-			runMatchArtwork(
-				artworkHostFor(puppetDocument, activeSession),
-				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions(), standing = sourceSuggestions.value),
-				areaId,
-			) { suggestions -> publishSuggestions(covered, suggestions) }
-		}
-	}
-
-	// Repoints one listed file at another the person picks: what the new file resolves by key reloads,
-	// what the matcher is confident about rebinds, and the rest is flagged for review with suggestions
-	// scored against the new file's layers.
-	fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
-		val puppetDocument = document as? PuppetDocument ?: return
-		val activeSession = session ?: return
-		scope.launch {
-			val picked = pickArtwork() ?: return@launch
-			runReplaceArtwork(
-				artworkHostFor(puppetDocument, activeSession),
-				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
-				areaId,
-			) { suggestions -> publishSuggestions(setOf(request.sourceId), suggestions) }
-		}
-	}
-
-	// A reload has something to read when any listed file has a real path - checked without touching
-	// the disk, since the palette asks on every listing; a missing file is found out by the reload.
-	val artworkOperations =
-		ArtworkOperations(
-			importArtwork = { areaId -> importArtworkViaPicker(areaId) },
-			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
-			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
-			matchArtwork = { areaId -> matchArtwork(areaId) },
-			replaceArtwork = { request, areaId -> replaceArtwork(request, areaId) },
-			deleteArt = { request -> session?.deleteTile(request.tileId, ignoreLayer = settings.getBoolean(IMPORT_DELETE_ART_IGNORES_LAYER_KEY) == true) },
-			ignoreLayer = { request -> session?.setLayerIgnored(request.ref, request.ignored) },
-			canReload = { session?.model?.value?.sources.orEmpty().any { source -> source.path?.contains("://") == false } },
-		)
-
-	// File > New: an empty document, which replaces the open one like any other document swap - so a
-	// dirty document asks first.
-	fun newDocument() {
-		confirmIfDirty { onOpen(newBlankDocument()) }
-	}
-
-	// File > Open: the native document, read whole - the one thing Open means.  A dirty document asks first,
-	// with Save on offer, like every other document replace.
-	fun openViaPicker() {
-		confirmIfDirty {
-			scope.launch {
-				filePicker.openFile(listOf(FileKind.Uma.extension))?.let { picked ->
-					applyDocumentLoad(loadDocument(picked))
-				}
-			}
-		}
-	}
-
-	fun importCmo3ViaPicker() {
-		// FileKit's native dialog supplies its own (OS-localized) title, so none is passed here.
-		// The filter is CMO3-only: layered-art formats have no import path since :reimport is what
-		// would bind them into a session, and that binding doesn't exist yet.  MOC3 comes in through
-		// its own row (importMoc3ViaPicker), keeping the source-project / baked-runtime distinction
-		// visible in the UI.  Open/Save is reserved for the native UMA format.
-		confirmIfDirty {
-			scope.launch {
-				filePicker.openFile(listOf(FileKind.Cmo3.extension))?.let { picked ->
-					applyDocumentLoad(loadDocument(picked))
-				}
-			}
-		}
-	}
-
-	fun importMoc3ViaPicker() {
-		// The picked .moc3 routes through loadDocument's file-level MOC3 branch, which discovers the
-		// model3.json manifest, cdi3 display info, and atlas pages next to the file.
-		confirmIfDirty {
-			scope.launch {
-				filePicker.openFile(listOf(FileKind.Moc3.extension))?.let { picked ->
-					applyDocumentLoad(loadDocument(picked))
-				}
-			}
-		}
-	}
-
-	// Surfaces an export's report: every notice to the log, and the report itself to the alert the
-	// shell shows.  Both exports end this way - anything unrepresentable is stated, never dropped.
-	fun reportExport(report: ExportReport) {
-		for (notice in report.notices) {
-			UmamoLog.warn("export: ${describeExportNotice(notice)}")
-		}
-		if (!report.isEmpty) {
-			commandRegistry.invoke("document.exportReport", report)
-		}
-	}
-
-	fun exportCmo3(puppetDocument: PuppetDocument) {
-		scope.launch {
-			val suggestedName = exportSuggestedName(puppetDocument.displayName)
-			filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
-				val edited = exportedModelFor(puppetDocument, session)
-				// The session's resolved page set: the document's own instance until a repack
-				// composed a new one, which is exactly the gate the archive patch keys on.
-				val effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures
-				// Named in the log because both outcomes are otherwise silent: an unedited model exports
-				// the graph as-is with an empty report, and the document's own pages mean no page patch.
-				UmamoLog.info(
-					"export: model ${if (edited === puppetDocument.puppet) "is the unedited import" else "carries session edits"}" +
-						" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
-						" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
-				)
-				// The model's own icons come from the outliner's rest-pose composite, over the same
-				// pages the export writes - pure CPU, so the Android shell writes them too.
-				val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
-				val prepared =
-					prepareCmo3Export(
-						document = puppetDocument,
-						edited = edited,
-						effectiveTextures = effectiveTextures,
-						modelName = suggestedName,
-						nowMillis = System.currentTimeMillis(),
-						obfuscateKey = Random.nextInt(),
-						modelThumbnail = modelThumbnail,
-					)
-				destination.write(Cmo3.write(prepared.model))
-				// True export semantics: an export is not a save, so the dirty baseline stays put - only
-				// saveDocument marks the session saved, and only for the .uma it wrote.
-				reportExport(prepared.report)
-				UmamoLog.info("exported ${destination.absolutePath()}")
-			}
-		}
-	}
-
-	fun exportMoc3(puppetDocument: PuppetDocument) {
-		// Options first, destination second: the choices do not depend on where the family lands, and
-		// recording them on confirm - before the picker - keeps them sticky through a cancelled picker.
-		val moc3Document = puppetDocument as? Moc3Document
-		val seedModel = exportedModelFor(puppetDocument, session)
-		commandRegistry.invoke(
-			"document.exportOptionsMoc3",
-			ExportOptionsRequest.Moc3(
-				initial = moc3ExportOptions.dialogOptionsFor(puppetDocument.path, seedModel),
-				physicsAvailable = moc3Document?.sidecars?.any { sidecar -> sidecar.kind == Moc3Sidecars.SidecarKind.Physics } == true,
-				userDataAvailable = moc3Document?.sidecars?.any { sidecar -> sidecar.kind == Moc3Sidecars.SidecarKind.UserData } == true,
-				canvasWidth = seedModel.canvasWidth,
-				canvasHeight = seedModel.canvasHeight,
-				onConfirm = { options ->
-					moc3ExportOptions.recordConfirmed(puppetDocument.path, options)
-					scope.launch {
-						filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
-							val bundle =
-								prepareMoc3Export(
-									document = puppetDocument,
-									// Re-resolved at write time: the dialog is modeless enough that the
-									// session could undo between confirm and the picker closing.
-									edited = exportedModelFor(puppetDocument, session),
-									effectiveTextures = sessionAtlasPages?.binding?.value?.textures ?: puppetDocument.textures,
-									// FileKit appends the extension, so the picked handle's own name is authoritative.
-									destinationName = destination.name,
-									options = options,
-								)
-
-							fun writeAndReport() {
-								scope.launch {
-									val written = writeMoc3Bundle(destination, bundle)
-									reportExport(bundle.report)
-									UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
-								}
-							}
-							// The native save dialog confirmed the picked file only; the rest of the family
-							// (manifest, cdi3, textures, sidecars) lands beside it unannounced, so anything
-							// already there gets one warning naming what an OK would replace.
-							val existing = existingBundleFiles(destination, bundle)
-							if (existing.isEmpty()) {
-								writeAndReport()
-							} else {
-								commandRegistry.invoke(
-									"document.confirm",
-									ConfirmRequest(
-										message = Res.string.confirm_export_overwrite,
-										// File names are document data, listed in full - the dialog wraps, and a
-										// name the warning omitted is a file the rigger did not agree to lose.
-										arguments = listOf(existing.size, existing.joinToString()),
-										confirmLabel = Res.string.dialog_overwrite,
-										onConfirm = ::writeAndReport,
-									),
-								)
-							}
-						}
-					}
-				},
-			),
-		)
-	}
-
-	fun exportAllWorkspaces() {
-		// "the saved JSON from settings.json": the whole interface.layout, pretty-printed (null if unsaved).
-		val text = exportLayoutText(settings) ?: return
-		scope.launch {
-			filePicker.saveFile("workspaces", "json")?.let { destination ->
-				destination.writeString(text)
-				UmamoLog.info("exported all workspaces to ${destination.absolutePath()}")
-			}
-		}
-	}
-
-	fun exportThisWorkspace() {
-		// The active workspace from the persisted layout; its display name (or id) seeds the suggested filename.
-		val active = settings.get(INTERFACE_LAYOUT_KEY)?.let { element -> decodeLayout(element) }?.activeWorkspace() ?: return
-		val text = exportWorkspaceText(active)
-		scope.launch {
-			filePicker.saveFile(active.name ?: active.id, "json")?.let { destination ->
-				destination.writeString(text)
-				UmamoLog.info("exported workspace to ${destination.absolutePath()}")
-			}
-		}
-	}
-
-	fun exportLog() {
-		// The retained UmamoLog buffer as plain text, one line per entry - the same lines the terminal
-		// printed, for a user who launched without one.  Read at write time so the file captures the log
-		// as of when the save is confirmed, not when the button was pressed.
-		scope.launch {
-			filePicker.saveFile("umamo-log", "txt")?.let { destination ->
-				destination.writeString(UmamoLog.entries.value.joinToString("\n") { entry -> entry.message })
-				UmamoLog.info("exported log to ${destination.absolutePath()}")
-			}
-		}
-	}
-
-	fun importWorkspace() {
-		scope.launch {
-			filePicker.openFile(listOf("json"))?.let { picked ->
-				// Detect the file shape: a whole layout overwrites all (the shell confirms); a single workspace
-				// is appended as a new tab; anything else is rejected without touching the current layout.
-				val text = picked.readString()
-				val importedLayout = decodeLayoutText(text)
-				if (importedLayout != null) {
-					commandRegistry.invoke("workspace.applyLayout", importedLayout)
-				} else {
-					val importedWorkspace = decodeWorkspaceText(text)
-					if (importedWorkspace != null) {
-						commandRegistry.invoke("workspace.appendWorkspace", importedWorkspace)
-					} else {
-						UmamoLog.warn("invalid workspace file: ${picked.absolutePath()}")
-					}
-				}
-			}
-		}
-	}
+	// The document's artwork watcher with its whole life (see rememberDocumentWatch): it follows the
+	// model's source list and the watch-mode setting, and lands its events on the session.
+	val documentWatch = rememberDocumentWatch(document, session, scope, settings, commandRegistry)
+	// The per-document controllers, remade with the context so each works from one consistent document,
+	// session, and page set.  Artwork exists only for a puppet document; without one the shell hides its commands.
+	val artwork = remember(context, documentWatch) { context.puppet?.let { puppet -> ArtworkController(services, puppet, documentWatch) } }
+	val export = remember(context) { DocumentExportController(services, context.puppet, moc3ExportOptions) }
 
 	// The host's exits pass through the same guard as File > Exit.  Installed once per guard: the gate reads
-	// the live session, so the closure's own age does not matter.
+	// the live document, so the closure's own age does not matter.
 	DisposableEffect(exitGuard) {
-		val cleanup = exitGuard.install { exit -> confirmExit(exit) }
+		val cleanup = exitGuard.install { exit -> save.confirmExit(exit) }
 		onDispose { cleanup() }
 	}
 
-	// Register the file and log operations as real commands so the keymap and the palette drive them
-	// (Ctrl+O dispatches through the shell's registry).  The tables themselves live with every other
-	// command table in org.umamo.ui.workspace.commands; only the actions are supplied here, where the file
-	// picker and document loader are.
+	// Register the document operations as real commands so the keymap and the palette drive them (Ctrl+O
+	// dispatches through the shell's registry).  The tables themselves live with every other command table
+	// in org.umamo.ui.workspace.commands; only the actions are supplied here, where the document loader is.
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
 				fileCommands(
-					onNew = { newDocument() },
-					onOpen = { openViaPicker() },
-					onSave = { saveDocument(saveAs = false) },
-					onSaveAs = { saveDocument(saveAs = true) },
-					canSave = { canSaveNow() },
-					onImportCmo3 = { importCmo3ViaPicker() },
-					onImportMoc3 = { importMoc3ViaPicker() },
-				) + logCommands { exportLog() },
+					onNew = { open.newDocument() },
+					onOpen = { open.openViaPicker() },
+					onSave = { save.save(saveAs = false) },
+					onSaveAs = { save.save(saveAs = true) },
+					canSave = { save.canSaveNow() },
+					onImportCmo3 = { open.importCmo3ViaPicker() },
+					onImportMoc3 = { open.importMoc3ViaPicker() },
+					onOpenPath = { path -> open.openStoredPath(path) },
+					onExit = { save.confirmExit { currentOnExit() } },
+				),
 			)
 		onDispose { cleanup() }
 	}
-	// Keyed on the session as well as the document: the handler closes over BOTH, so re-registering
-	// on either change keeps the pair the export reconciles from consistent by construction.
-	DisposableEffect(commandRegistry, document, session) {
-		// Both puppet document kinds export, to either format: Export CMO3 reconciles onto a CMO3-origin
-		// document's retained graph and synthesizes a fresh one for a MOC3-origin document, while Export
-		// MOC3 bakes fresh from the model whatever the origin.
-		val exportableDocument = document as? PuppetDocument
+	// Keyed on the export controller, which is remade with the document and the session: the handlers
+	// always reach the pair the export reconciles from, consistent by construction.
+	DisposableEffect(commandRegistry, export) {
 		val cleanup =
 			commandRegistry.registerAll(
 				fileExportCommands(
-					canExport = { exportableDocument != null },
-					onExportCmo3 = { exportableDocument?.let { exportCmo3(it) } },
-					onExportMoc3 = { exportableDocument?.let { exportMoc3(it) } },
+					canExport = { export.canExport },
+					onExportCmo3 = { export.exportCmo3() },
+					onExportMoc3 = { export.exportMoc3() },
 				),
 			)
 		onDispose { cleanup() }
 	}
 
-	// key(locale) re-resolves the menu's stringResource() calls against the new catalog when the language
-	// changes (the same lever ProvideAppLocale uses for the shell's own subtree); the remember applies the
-	// JVM locale the resolution reads, before buildAppMenu runs.  Scoped to just the menu, so a language
-	// switch re-localizes the bar without re-mounting the viewport or the shell underneath.
+	// The menu bar, kept live by its own assembly (keymap, recent files, undo state, locale).  Every row
+	// stands for a command, so the registry is all it is handed.
 	val appMenu =
-		key(locale) {
-			remember(locale) { applyAppLocale(locale) }
-			buildAppMenu(
-				document,
-				recentFiles,
-				keymap,
-				canUndo,
-				canRedo,
-				::openStoredPath,
-				{ commandRegistry.invoke("file.new") },
-				{ commandRegistry.invoke("file.open") },
-				{ commandRegistry.invoke("file.save") },
-				{ commandRegistry.invoke("file.saveAs") },
-				canSaveNow(),
-				// The artwork import is the shell's command (it needs the hovered area for its operation
-				// strip), so the menu row dispatches it rather than calling the picker directly.
-				{ commandRegistry.invoke("file.importArtwork") },
-				::importCmo3ViaPicker,
-				::importMoc3ViaPicker,
-				::exportCmo3,
-				::exportMoc3,
-				{ confirmExit(onExit) },
-				// Undo / Redo dispatch through the registry like everything else, so the menu, the Ctrl/Cmd+Z
-				// binding, and the palette share the one path; the rows are gated by canUndo / canRedo above.
-				{ commandRegistry.invoke("edit.undo") },
-				{ commandRegistry.invoke("edit.redo") },
-				// The shell owns the settings overlay's visible state; the menu only dispatches the command, so
-				// the menu, the keyboard binding, and the palette share one path (the same shape as workspace.new).
-				{ commandRegistry.invoke("edit.preferences") },
-				{ commandRegistry.invoke("workspace.new") },
-				{ commandRegistry.invoke("workspace.reset") },
-				::exportThisWorkspace,
-				::exportAllWorkspaces,
-				::importWorkspace,
-				// Open the Help links through Compose's common UriHandler (browser on desktop, intent on
-				// Android), failing quietly - a log line, never a crash - when the platform refuses.
-				{ url -> runCatching { uriHandler.openUri(url) }.onFailure { failure -> UmamoLog.error("could not open $url", failure) } },
-				// The Help dialogs open through the registry (the shell owns their visible state), the same
-				// shape as edit.preferences.
-				{ commandRegistry.invoke("help.credits") },
-				{ commandRegistry.invoke("help.about") },
-			)
-		}
+		buildAppMenu(
+			settings = settings,
+			session = session,
+			canSave = save.canSaveNow(),
+			canExport = export.canExport,
+			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
+		)
 	CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
 		DocumentViewport(
 			document = document,
@@ -1180,300 +238,10 @@ fun EditorApp(
 			commandRegistry = commandRegistry,
 			appMenu = appMenu,
 			viewportServiceFactory = viewportServiceFactory,
-			artwork = artworkOperations,
-			sourceWatch = documentWatch?.let { watch -> SourceWatchState(watch.coordinator.pending, watch.coordinator.serial) },
-			sourceSuggestions = SourceSuggestionState(sourceSuggestions),
+			filePicker = filePicker,
+			artwork = artwork?.operations,
+			sourceWatch = documentWatch?.state,
+			sourceSuggestions = artwork?.suggestionState,
 		)
-	}
-}
-
-/**
- * An artwork file as picked and read for an add or a replace.
- *
- * @property ReadArtwork         read       The parsed art, its format, and its content hash.
- * @property ArtSourceDescriptor descriptor The file's name, path, format, and hash as the document records them.
- */
-private class PickedArtwork(
-	val read: ReadArtwork,
-	val descriptor: ArtSourceDescriptor,
-)
-
-/**
- * One listed file's art as an operation read it.
- *
- * @property SourceArt art         The art.
- * @property String?   contentHash  The whole-file hash of the bytes it came from, or null when it came from a CMO3's own layers.
- * @property Long?     lastModified The file's modification time when read, or null when it came from a CMO3's own layers.
- * @property Boolean   fromCmo3     Whether it was read from the CMO3's decomposed layer images rather than the file.
- */
-private class SourceRead(
-	val art: SourceArt,
-	val contentHash: String?,
-	val lastModified: Long?,
-	val fromCmo3: Boolean,
-)
-
-/**
- * One open document's artwork watcher: the platform watcher and the policy over it, closed together.
- *
- * @property PollingSourceWatcher   watcher     The file poller.
- * @property SourceWatchCoordinator coordinator The settle-hash-idle policy the app's events come from.
- */
-private class DocumentWatch(
-	val watcher: PollingSourceWatcher,
-	val coordinator: SourceWatchCoordinator,
-) {
-	/** Stops the policy and the watcher. */
-	fun close() {
-		coordinator.close()
-		watcher.close()
-	}
-}
-
-/**
- * Builds the menu-bar data for the in-window menu bar from the shared per-menu builders. Item labels
- * are localized here (in composition) and accelerators are resolved from [keymap], so a row shows the
- * same chord the keyboard uses. Item actions call the supplied operations directly, so the menu works
- * regardless of command-registration timing.
- *
- * @param Document? document The open document (gates both Export rows).
- * @param List recentFiles The recent file paths for the Open Recent submenu.
- * @param Keymap keymap The keymap accelerators are resolved against.
- * @param Boolean canUndo Whether an undo step is available (gates the Edit menu's Undo row).
- * @param Boolean canRedo Whether a redo step is available (gates the Edit menu's Redo row).
- * @param Function openRecent Opens a recent file by its stored path.
- * @param Function newDocument Starts a new, empty document (dispatches file.new).
- * @param Function openDocument Opens a `.uma` through the picker (dispatches file.open).
- * @param Function saveDocument Saves to the document's `.uma`, or asks where on the first save (dispatches file.save).
- * @param Function saveDocumentAs Asks where to save (dispatches file.saveAs).
- * @param Boolean canSave Whether the open document can be saved (gates both Save rows).
- * @param Function importArtwork Adds an artwork file to the open document (dispatches file.importArtwork).
- * @param Function importCmo3 Opens the CMO3 import picker.
- * @param Function importMoc3 Opens the MOC3 import picker.
- * @param Function exportCmo3 Exports the given puppet document via a picker (CMO3-origin
- *                            reconciles; MOC3-origin synthesizes a fresh graph).
- * @param Function exportMoc3 Exports the given puppet document's moc family via a picker.
- * @param Function onExit Closes the application, asking first over unsaved changes.
- * @param Function onUndo Undoes one step (dispatches edit.undo).
- * @param Function onRedo Redoes one step (dispatches edit.redo).
- * @param Function onOpenPreferences Opens the settings window (dispatches edit.preferences).
- * @param Function onNewWorkspace Creates a new workspace (the + create path).
- * @param Function onResetWorkspace Resets the active workspace to its default layout.
- * @param Function onExportThisWorkspace Exports the active workspace to a file.
- * @param Function onExportAllWorkspaces Exports the whole layout to a file.
- * @param Function onImportWorkspace Imports a workspace/layout file.
- * @param Function openInBrowser Opens a Help-menu URL via the platform's UriHandler.
- * @param Function onOpenCredits Opens the Credits dialog (dispatches help.credits).
- * @param Function onOpenAbout Opens the About dialog (dispatches help.about).
- * @return List The top-level menus.
- */
-@Composable
-private fun buildAppMenu(
-	document: Document?,
-	recentFiles: List<String>,
-	keymap: Keymap,
-	canUndo: Boolean,
-	canRedo: Boolean,
-	openRecent: (String) -> Unit,
-	newDocument: () -> Unit,
-	openDocument: () -> Unit,
-	saveDocument: () -> Unit,
-	saveDocumentAs: () -> Unit,
-	canSave: Boolean,
-	importArtwork: () -> Unit,
-	importCmo3: () -> Unit,
-	importMoc3: () -> Unit,
-	exportCmo3: (PuppetDocument) -> Unit,
-	exportMoc3: (PuppetDocument) -> Unit,
-	onExit: () -> Unit,
-	onUndo: () -> Unit,
-	onRedo: () -> Unit,
-	onOpenPreferences: () -> Unit,
-	onNewWorkspace: () -> Unit,
-	onResetWorkspace: () -> Unit,
-	onExportThisWorkspace: () -> Unit,
-	onExportAllWorkspaces: () -> Unit,
-	onImportWorkspace: () -> Unit,
-	openInBrowser: (String) -> Unit,
-	onOpenCredits: () -> Unit,
-	onOpenAbout: () -> Unit,
-): List<TopLevelMenu> =
-	listOf(
-		fileMenu(
-			keymap = keymap,
-			recentFiles = recentFiles,
-			canExport = document is PuppetDocument,
-			canSave = canSave,
-			onNew = newDocument,
-			onOpen = openDocument,
-			onSave = saveDocument,
-			onSaveAs = saveDocumentAs,
-			onImportArtwork = importArtwork,
-			onImportCmo3 = importCmo3,
-			onOpenRecent = openRecent,
-			onImportMoc3 = importMoc3,
-			onExportCmo3 = { (document as? PuppetDocument)?.let { exportCmo3(it) } },
-			onExportMoc3 = { (document as? PuppetDocument)?.let { exportMoc3(it) } },
-			onExit = onExit,
-		),
-		editMenu(keymap, canUndo, canRedo, onUndo, onRedo, onOpenPreferences),
-		workspaceMenu(keymap, onNewWorkspace, onResetWorkspace, onImportWorkspace, onExportThisWorkspace, onExportAllWorkspaces),
-		helpMenu(keymap, openInBrowser, onOpenCredits, onOpenAbout),
-	)
-
-/**
- * One log line for an export notice - the headless-visible mirror of the shell's report alert.
- *
- * Deliberately English and deliberately structural: the log is a diagnostic surface, read off a bug
- * report rather than by a rigger mid-edit, so it wants text that is stable across locales and greps
- * straight back to a call site.  Printing the reason itself gives that for free and, unlike a second
- * hand-written copy of the alert's prose, cannot drift from the case list it describes.
- *
- * @param ExportNotice notice The notice to describe.
- * @return String The log text.
- */
-private fun describeExportNotice(notice: ExportNotice): String =
-	when (notice) {
-		is ExportNotice.UnsupportedChange ->
-			if (notice.subject == null) {
-				"[${notice.category}] ${notice.reason}"
-			} else {
-				"[${notice.category}] ${notice.subject}: ${notice.reason}"
-			}
-		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
-		is ExportNotice.FeatureStripped ->
-			"${notice.feature} is not in the exported moc version; removed from " +
-				notice.subjects.take(8).joinToString() +
-				if (notice.subjects.size > 8) " (+${notice.subjects.size - 8} more)" else ""
-		is ExportNotice.MissingSourceArt ->
-			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
-				"so its layers are atlas slices rather than the original artwork"
-		is ExportNotice.SharedAtlasSlotKept ->
-			"twins sharing one atlas slot could not be given their own: " +
-				notice.drawableNames.take(8).joinToString() +
-				(if (notice.drawableNames.size > 8) " (+${notice.drawableNames.size - 8} more)" else "") +
-				"; the editor's layered view shows them at the first twin's placement"
-	}
-
-/**
- * Renders the open document inside the editor shell. For a puppet document (CMO3 or MOC3), a per-area
- * viewport host is injected (when the platform supplies a render-service factory) and the runtime
- * model + live params are provided to the panels; with no document, the shell shows placeholders.
- * With a null factory the model locals still mount - the outliner, parameters, and thumbnails all
- * work - only the viewport areas render placeholders. The shell's workspace layout + locale are
- * persisted via settings regardless of the open document.
- *
- * @param Document? document The open document, or null.
- * @param EditorSession? session The open document's editing session (non-null for a puppet document).
- * @param SessionAtlasPages? sessionAtlasPages The session's resolved atlas page set (repack/undo
- *   aware); null with no puppet document, in which case the document's own decoded textures are used.
- * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
- * @param List appMenu The menu-bar contents, mounted by each shell.
- * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
- * @param ArtworkOperations artwork The app's artwork orchestrations over the hovered area, handed to
- *   the shell for a puppet document only (the shell registers the commands; see fileArtworkCommands).
- * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
- * @param SourceSuggestionState sourceSuggestions The published relink suggestions for the Sources space's review chips.
- */
-@Composable
-private fun DocumentViewport(
-	document: Document?,
-	session: EditorSession?,
-	sessionAtlasPages: SessionAtlasPages?,
-	commandRegistry: CommandRegistry,
-	appMenu: List<TopLevelMenu>,
-	viewportServiceFactory: PuppetViewportServiceFactory?,
-	artwork: ArtworkOperations,
-	sourceWatch: SourceWatchState?,
-	sourceSuggestions: SourceSuggestionState,
-) {
-	when (document) {
-		is PuppetDocument ->
-			key(document) {
-				// The session is created per-document by the host and is non-null for a puppet document;
-				// the fallback only guards a desync. Panels read LocalPuppet (a live projection of the session
-				// model) and drive edits through LocalEditorSession / the session-backed selection handle.
-				val activeSession = session ?: remember(document) { EditorSession(document.puppet, document.liveParams.values) }
-				// The undo cap is a preference, not a construction-time constant, so it is applied here rather
-				// than passed to the constructor: the desktop host builds the session outside the settings
-				// provider, and a committed change has to reach the stack of the document already open. Keying
-				// the session's own remember on the value would instead discard the stack on every change.
-				val historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
-				LaunchedEffect(activeSession, historyLimit) {
-					activeSession.historyLimit = historyLimit
-				}
-				val editorState = rememberSessionEditorState(activeSession)
-				// The session's resolved page set - the pixels the model's atlas value denotes.  The
-				// fallback pair only guards the same desync the session fallback above does.
-				val atlasPages =
-					sessionAtlasPages?.binding?.value
-						?: remember(document) { AtlasPageBinding(document.puppet.atlas, document.textures) }
-				// The factory is fixed for the app's lifetime (a platform capability, not state), so the
-				// conditional composable call is stable across recompositions.
-				val areaViewStates = LocalAreaViewStates.current
-				val viewport =
-					if (viewportServiceFactory != null) {
-						rememberPuppetViewportHost(
-							document.puppet,
-							atlasPages,
-							document.artRasters,
-							document.liveParams,
-							activeSession,
-							viewportServiceFactory,
-							// Each area reopens on the view it was saved with (UMA §7.3); read once, as the service is built.
-							initialCameras = remember(areaViewStates) { areaViewStates?.restoredCameras().orEmpty() },
-						)
-					} else {
-						null
-					}
-				// A save reads every area's camera through the holder, which is where both sides already meet by
-				// area id; the reader goes when the service does, so a save never asks a disposed engine.
-				val viewportService = viewport?.service
-				DisposableEffect(areaViewStates, viewportService) {
-					val reader = viewportService?.let { service -> service::cameras }
-					areaViewStates?.cameraReader = reader
-					onDispose {
-						if (areaViewStates?.cameraReader === reader) {
-							areaViewStates?.cameraReader = null
-						}
-					}
-				}
-				val liveParamsHandle = remember(document, activeSession) { LiveParamsAdapter(document.liveParams, activeSession) }
-				// Without a viewport the thumbnails come straight from the shared thumbnailer, so the
-				// outliner's hover previews work before a platform puppet renderer exists.  Keyed on the
-				// page set: a repack stales every crop, and the live path gets the same eviction through
-				// the picker's setTextures.
-				val thumbnails =
-					viewport?.thumbnails
-						?: remember(document, atlasPages) { DrawableThumbnailer(document.puppet, atlasPages.textures) }
-				val model by activeSession.model.collectAsState()
-				CompositionLocalProvider(
-					LocalPuppet provides model,
-					LocalEditorSession provides activeSession,
-					LocalLiveParams provides liveParamsHandle,
-					LocalDrawableThumbnails provides thumbnails,
-					LocalPuppetTextures provides atlasPages.textures,
-					LocalSessionAtlasPages provides sessionAtlasPages,
-					LocalSourceArtRasters provides document.artRasters,
-					LocalSourceFilePresence provides sourceFilePresence,
-					LocalSourceWatch provides sourceWatch,
-					LocalSourceSuggestions provides sourceSuggestions,
-					LocalPuppetRenderSync provides viewport?.renderSync,
-					LocalPuppetViewportService provides viewport?.service,
-					LocalSelection provides editorState,
-					LocalEditorMode provides editorState,
-				) {
-					PersistentEditorShell(
-						viewportHost = viewport?.host,
-						commandRegistry = commandRegistry,
-						appMenu = appMenu,
-						// Registered by the shell (see fileArtworkCommands): the strip shows in the hovered work surface.
-						artwork = artwork,
-					)
-				}
-			}
-		null ->
-			// No document open: the shell renders with placeholder viewport areas (no host injected).
-			PersistentEditorShell(commandRegistry = commandRegistry, appMenu = appMenu)
 	}
 }

@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
+import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.AreaDragController
 import org.umamo.ui.workspace.ShellOverlayState
@@ -9,8 +10,8 @@ import org.umamo.ui.workspace.WorkspaceLayoutController
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 
 /**
- * The shell-chrome commands: overlay toggles (palette, preferences, Help), the drag cancels, and
- * workspace tab navigation.  All are real registry commands so a key binding (or a future menu)
+ * The shell-chrome commands: overlay toggles (palette, preferences, Help), the project links, the drag
+ * cancels, and workspace tab navigation.  All are real registry commands so a key binding (or a menu)
  * drives them through the one dispatch point - no key handling hardcoded in the shell.
  *
  * @param ShellOverlayState overlays The overlay flags the toggles flip.
@@ -19,6 +20,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  *   that drag's session lives in SplitContainer's own state, so it can only be reached through this.
  * @param RowDragCancelController rowDragCancel The panel row-drag seam row.dragCancel invokes.
  * @param WorkspaceLayoutController workspaces The layout state workspace.prev/next shift.
+ * @param Function openLink Opens a project URL through the platform's handler.
  * @return List<Command> The commands to register.
  */
 internal fun chromeCommands(
@@ -27,6 +29,7 @@ internal fun chromeCommands(
 	splitterDragCancel: SplitterDragCancelController,
 	rowDragCancel: RowDragCancelController,
 	workspaces: WorkspaceLayoutController,
+	openLink: (url: String) -> Unit,
 ): List<Command> =
 	listOf(
 		Command("palette.toggle", title = null) { overlays.paletteVisible = !overlays.paletteVisible },
@@ -48,6 +51,12 @@ internal fun chromeCommands(
 		// so they surface there for free) reach them through the one dispatch point.
 		Command("help.about", title = Res.string.menu_about) { overlays.aboutVisible = !overlays.aboutVisible },
 		Command("help.credits", title = Res.string.menu_credits) { overlays.creditsVisible = !overlays.creditsVisible },
+		// The project links are commands as well, so the Help menu's rows dispatch like every other row and
+		// the palette finds the documentation by name.  The URLs come from ProjectInfo, the same source the
+		// About dialog shows.
+		Command("help.sourceCode", title = Res.string.menu_source_code) { openLink(ProjectInfo.SOURCE_CODE_URL) },
+		Command("help.webSite", title = Res.string.menu_web_site) { openLink(ProjectInfo.WEB_SITE_URL) },
+		Command("help.documentation", title = Res.string.menu_documentation) { openLink(ProjectInfo.DOCUMENTATION_URL) },
 		// Workspace navigation: titled so they surface in the palette and resolve a shortcut hint in the tab
 		// context menu. The tab strip's Previous/Next rows dispatch the same ids, so menu and key share a path.
 		Command("workspace.prev", title = Res.string.cmd_workspace_prev) { workspaces.switchBy(-1) },

@@ -46,10 +46,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## UI Dialog
 * Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
 
-## Refactor SOON
-* module/ui/src/jvmAndroidMain/kotlin/org/umamo/ui/app/EditorApp.kt
-	* Grown too big and needs to be split up by responsibility and/or move functionality into the correct files.
-
 ## Popup Picker
 * The popup picker should use the drawable name and fallback to the ID for display.
 * UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.

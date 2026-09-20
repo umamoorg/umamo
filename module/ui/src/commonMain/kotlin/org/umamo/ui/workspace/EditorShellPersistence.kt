@@ -9,20 +9,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import org.umamo.settings.Settings
+import org.umamo.storage.FileKitFilePicker
+import org.umamo.storage.FilePicker
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.loadKeymap
+import org.umamo.ui.action.rememberLiveKeymap
 import org.umamo.ui.kit.TopLevelMenu
+import org.umamo.ui.l10n.rememberLocaleTag
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.commands.ArtworkOperations
+import org.umamo.ui.workspace.commands.logCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.viewportChromeCommands
+import org.umamo.ui.workspace.commands.workspaceFileCommands
 
 /** How long to coalesce rapid layout edits (structural bursts) before writing to disk. */
 private const val PERSIST_DEBOUNCE_MS = 400L
@@ -43,6 +49,8 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
  *   to the shell; null (the default) when no open document can take artwork.
+ * @param FilePicker filePicker The native open and save dialogs the workspace file commands and the log
+ *   export go through; the app passes the one it already holds.
  */
 @OptIn(FlowPreview::class)
 @Composable
@@ -52,6 +60,7 @@ fun PersistentEditorShell(
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	appMenu: List<TopLevelMenu> = emptyList(),
 	artwork: ArtworkOperations? = null,
+	filePicker: FilePicker = remember { FileKitFilePicker() },
 ) {
 	val settings = LocalSettings.current
 	val initialLayout = remember { loadLayout(settings) }
@@ -64,24 +73,11 @@ fun PersistentEditorShell(
 	}
 
 	// The active locale follows the localization.locale setting and updates live when it changes.
-	val locale by produceState(initialValue = settings.getString("localization.locale") ?: "en", settings) {
-		settings.changes.collect { changedKey ->
-			if (changedKey == "localization.locale") {
-				value = settings.getString("localization.locale") ?: "en"
-			}
-		}
-	}
+	val locale by rememberLocaleTag(settings)
 
-	// The active keymap is resolved from the selected preset + user overrides and re-resolved whenever any
-	// input.keybinding setting changes, so a preset switch or a rebind in the settings window takes effect
-	// across menus, the palette, and live dispatch at once.
-	val keymap by produceState(initialValue = loadKeymap(settings), settings) {
-		settings.changes.collect { changedKey ->
-			if (changedKey.startsWith("input.keybinding")) {
-				value = loadKeymap(settings)
-			}
-		}
-	}
+	// The active keymap follows the keymap settings live, so a preset switch or a rebind in the settings
+	// window takes effect across menus, the palette, and live dispatch at once.
+	val keymap by rememberLiveKeymap(settings)
 
 	// Persist layout edits, debounced: snapshotFlow observes the latest layout, drop(1) skips the
 	// initial value, and debounce coalesces a structural burst into one disk write.  The pacer holds
@@ -108,6 +104,28 @@ fun PersistentEditorShell(
 	// them, the same division as the app-registered File commands.
 	DisposableEffect(settings, commandRegistry) {
 		val cleanup = commandRegistry.registerAll(viewportChromeCommands(settings))
+		onDispose { cleanup() }
+	}
+
+	// The workspace layout's file commands and the log export register here for the same reason: the
+	// exports read the persisted layout from settings.  None of them needs a document, so they are live
+	// from launch, on every platform that mounts this shell.
+	val fileScope = rememberCoroutineScope()
+	val workspaceFiles =
+		remember(settings, filePicker, commandRegistry, savePacer) {
+			// An export commits the layout the debounce is still holding, through the pacer and so under its
+			// rules: nothing is written while a splitter drag is held, and nothing twice.
+			WorkspaceLayoutFiles(settings, filePicker, fileScope, commandRegistry) { savePacer.saveDebounced(latestLayout) }
+		}
+	DisposableEffect(workspaceFiles, commandRegistry) {
+		val cleanup =
+			commandRegistry.registerAll(
+				workspaceFileCommands(
+					onImport = workspaceFiles::importWorkspace,
+					onExportThis = workspaceFiles::exportThisWorkspace,
+					onExportAll = workspaceFiles::exportAllWorkspaces,
+				) + logCommands { exportLogToFile(filePicker, fileScope) },
+			)
 		onDispose { cleanup() }
 	}
 

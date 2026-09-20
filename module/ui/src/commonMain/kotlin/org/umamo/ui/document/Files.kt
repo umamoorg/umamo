@@ -13,6 +13,16 @@ import org.umamo.format.FileKind
 fun fileDisplayName(path: String): String = path.substringAfterLast('/').substringAfterLast('\\')
 
 /**
+ * Whether [path] is a path the file system can probe, read, and watch, as opposed to a platform uri.
+ * Android's SAF hands back `content://` handles with no path behind them, so every file-system
+ * operation over a stored path asks this first and treats a uri as unknowable rather than missing.
+ *
+ * @param String path The stored path or uri string.
+ * @return Boolean True for a file-system path, false for a uri.
+ */
+fun isFileSystemPath(path: String): Boolean = !path.contains("://")
+
+/**
  * The source extensions an export strips before suggesting a name.
  *
  * Named members rather than a filter over [FileKind]: this is the set a puppet document can be OPEN
