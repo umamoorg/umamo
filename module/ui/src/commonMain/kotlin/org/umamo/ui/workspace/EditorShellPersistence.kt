@@ -111,7 +111,12 @@ fun PersistentEditorShell(
 	// exports read the persisted layout from settings.  None of them needs a document, so they are live
 	// from launch, on every platform that mounts this shell.
 	val fileScope = rememberCoroutineScope()
-	val workspaceFiles = remember(settings, filePicker, commandRegistry) { WorkspaceLayoutFiles(settings, filePicker, fileScope, commandRegistry) }
+	val workspaceFiles =
+		remember(settings, filePicker, commandRegistry, savePacer) {
+			// An export commits the layout the debounce is still holding, through the pacer and so under its
+			// rules: nothing is written while a splitter drag is held, and nothing twice.
+			WorkspaceLayoutFiles(settings, filePicker, fileScope, commandRegistry) { savePacer.saveDebounced(latestLayout) }
+		}
 	DisposableEffect(workspaceFiles, commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(

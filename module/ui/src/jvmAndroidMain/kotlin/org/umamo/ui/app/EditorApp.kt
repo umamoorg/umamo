@@ -8,12 +8,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.storage.FileKitFilePicker
-import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.document.ArtDocument
@@ -22,7 +20,6 @@ import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.UmaDocument
-import org.umamo.ui.menu.AppMenuActions
 import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.resources.Res
@@ -135,7 +132,6 @@ fun EditorApp(
 			session.emitNotice("notice.import.artworkNotes")
 		}
 	}
-	val uriHandler = LocalUriHandler.current
 	// Every area's view state for this document, seeded from the editor state the file was saved with (UMA §7.3).
 	// Remembered here, beside the document read, so it is never paired with another document's areas.
 	val areaViewStates = remember(document) { AreaViewStates((document as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_AREAS) as? JsonObject) }
@@ -152,6 +148,7 @@ fun EditorApp(
 		}
 	val currentContext by rememberUpdatedState(context)
 	val currentOnOpen by rememberUpdatedState(onOpen)
+	val currentOnExit by rememberUpdatedState(onExit)
 	val currentUntitledName by rememberUpdatedState(stringResource(Res.string.title_untitled_document))
 	val services =
 		remember {
@@ -203,6 +200,8 @@ fun EditorApp(
 					canSave = { save.canSaveNow() },
 					onImportCmo3 = { open.importCmo3ViaPicker() },
 					onImportMoc3 = { open.importMoc3ViaPicker() },
+					onOpenPath = { path -> open.openStoredPath(path) },
+					onExit = { save.confirmExit { currentOnExit() } },
 				),
 			)
 		onDispose { cleanup() }
@@ -222,23 +221,14 @@ fun EditorApp(
 	}
 
 	// The menu bar, kept live by its own assembly (keymap, recent files, undo state, locale).  Every row
-	// that stands for a command dispatches it by id; only the rows with no command behind them are handed
-	// their action here.
+	// stands for a command, so the registry is all it is handed.
 	val appMenu =
 		buildAppMenu(
 			settings = settings,
 			session = session,
 			canSave = save.canSaveNow(),
 			canExport = export.canExport,
-			actions =
-				AppMenuActions(
-					dispatch = { commandId -> commandRegistry.invoke(commandId) },
-					openRecent = open::openStoredPath,
-					exit = { save.confirmExit(onExit) },
-					// Open the Help links through Compose's common UriHandler (browser on desktop, intent on
-					// Android), failing quietly - a log line, never a crash - when the platform refuses.
-					openInBrowser = { url -> runCatching { uriHandler.openUri(url) }.onFailure { failure -> UmamoLog.error("could not open $url", failure) } },
-				),
+			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
 		)
 	CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
 		DocumentViewport(

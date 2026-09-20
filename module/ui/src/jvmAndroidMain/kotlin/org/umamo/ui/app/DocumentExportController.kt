@@ -6,8 +6,8 @@ import io.github.vinceglb.filekit.write
 import kotlinx.coroutines.launch
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
-import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportReport
+import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.document.Moc3Document
@@ -172,37 +172,3 @@ internal class DocumentExportController(
 		}
 	}
 }
-
-/**
- * One log line for an export notice - the headless-visible mirror of the shell's report alert.
- *
- * Deliberately English and deliberately structural: the log is a diagnostic surface, read off a bug
- * report rather than by a rigger mid-edit, so it wants text that is stable across locales and greps
- * straight back to a call site.  Printing the reason itself gives that for free and, unlike a second
- * hand-written copy of the alert's prose, cannot drift from the case list it describes.
- *
- * @param ExportNotice notice The notice to describe.
- * @return String The log text.
- */
-private fun describeExportNotice(notice: ExportNotice): String =
-	when (notice) {
-		is ExportNotice.UnsupportedChange ->
-			if (notice.subject == null) {
-				"[${notice.category}] ${notice.reason}"
-			} else {
-				"[${notice.category}] ${notice.subject}: ${notice.reason}"
-			}
-		is ExportNotice.WeldDivergence -> "weld divergence on ${notice.drawableNames.joinToString()}"
-		is ExportNotice.FeatureStripped ->
-			"${notice.feature} is not in the exported moc version; removed from " +
-				notice.subjects.take(8).joinToString() +
-				if (notice.subjects.size > 8) " (+${notice.subjects.size - 8} more)" else ""
-		is ExportNotice.MissingSourceArt ->
-			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
-				"so its layers are atlas slices rather than the original artwork"
-		is ExportNotice.SharedAtlasSlotKept ->
-			"twins sharing one atlas slot could not be given their own: " +
-				notice.drawableNames.take(8).joinToString() +
-				(if (notice.drawableNames.size > 8) " (+${notice.drawableNames.size - 8} more)" else "") +
-				"; the editor's layered view shows them at the first twin's placement"
-	}

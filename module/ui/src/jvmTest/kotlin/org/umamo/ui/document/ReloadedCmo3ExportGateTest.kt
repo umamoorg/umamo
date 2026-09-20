@@ -227,8 +227,12 @@ class ReloadedCmo3ExportGateTest {
 			val tile = bound.first()
 			val target = bound.first { candidate -> candidate.source?.sourceId == tile.source?.sourceId && candidate.source?.layerKey != tile.source?.layerKey }
 			val targetRef = assertNotNull(target.source)
-			val root = assertIs<CModelSource>(document.cmo3.root)
-			val art = assertNotNull(cmo3SourceArtOf(root, targetRef.sourceId) { resource -> document.cmo3.extractLayerPng(resource) }, "the file reads back from the CMO3")
+			// Read the way the app's relink reads it: the artist's file is not on this machine, so the read
+			// falls back to the layers the official editor decomposed into the CMO3.
+			val listed = before.sources.first { source -> source.id == targetRef.sourceId }
+			val read = assertNotNull(readSourceArt(document, listed) { false }, "the file reads back from the CMO3")
+			assertTrue(read.fromCmo3)
+			val art = read.art
 			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tile.id, targetRef, art, SourceArtImportOptions()), areaId = null), "the relink pulls the decomposed layer")
 			val relinked = session.model.value
 			val replacement = relinked.atlas.tiles.first { candidate -> candidate.replaces == tile.id }

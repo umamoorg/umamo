@@ -14,24 +14,6 @@ import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.l10n.rememberLocaleTag
 
 /**
- * What the menu bar's rows do.  Every row that stands for a command names it through [dispatch], so the
- * menu, the keyboard binding, and the palette share the one path and a rebind reaches all three.  The
- * members beside it are the rows with no command behind them: each carries an argument or an effect that
- * belongs to the host (a recent file's path, a link's URL, closing the application).
- *
- * @property Function dispatch      Runs a command by id through the registry.
- * @property Function openRecent    Opens a recent file by its stored path.
- * @property Function exit          Closes the application, asking first over unsaved changes.
- * @property Function openInBrowser Opens a Help-menu URL through the platform's UriHandler.
- */
-internal class AppMenuActions(
-	val dispatch: (commandId: String) -> Unit,
-	val openRecent: (path: String) -> Unit,
-	val exit: () -> Unit,
-	val openInBrowser: (url: String) -> Unit,
-)
-
-/**
  * Builds the in-window menu bar from the shared per-menu builders, and keeps it live: the accelerators
  * follow the keymap settings (so a row shows the chord the keyboard uses after a preset switch or a
  * rebind), Open Recent follows the recent-files list, the Edit rows follow the session's undo and redo
@@ -47,7 +29,8 @@ internal class AppMenuActions(
  * @param EditorSession? session   The open document's session, or null; gates the Undo and Redo rows.
  * @param Boolean        canSave   Whether the open document can be saved (gates both Save rows).
  * @param Boolean        canExport Whether an exportable puppet document is open (gates both Export rows).
- * @param AppMenuActions actions   What the rows do.
+ * @param MenuDispatch   dispatch  Runs a command by id; every row of the bar stands for a command, so this is
+ *   all the bar needs from its host, and a rebind reaches the menu, the keyboard, and the palette alike.
  * @return List The top-level menus.
  */
 @Composable
@@ -56,7 +39,7 @@ internal fun buildAppMenu(
 	session: EditorSession?,
 	canSave: Boolean,
 	canExport: Boolean,
-	actions: AppMenuActions,
+	dispatch: MenuDispatch,
 ): List<TopLevelMenu> {
 	// produceState runs unconditionally (the session may be null with no document) and re-collects when
 	// the session swaps.
@@ -85,50 +68,10 @@ internal fun buildAppMenu(
 	return key(locale) {
 		remember(locale) { applyAppLocale(locale) }
 		listOf(
-			fileMenu(
-				keymap = keymap,
-				recentFiles = recentFiles,
-				canExport = canExport,
-				canSave = canSave,
-				onNew = { actions.dispatch("file.new") },
-				onOpen = { actions.dispatch("file.open") },
-				onSave = { actions.dispatch("file.save") },
-				onSaveAs = { actions.dispatch("file.saveAs") },
-				// The artwork import is the shell's command (it needs the hovered area for its operation
-				// strip), so the row dispatches it rather than calling a picker directly.
-				onImportArtwork = { actions.dispatch("file.importArtwork") },
-				onImportCmo3 = { actions.dispatch("file.importCmo3") },
-				onOpenRecent = actions.openRecent,
-				onImportMoc3 = { actions.dispatch("file.importMoc3") },
-				onExportCmo3 = { actions.dispatch("file.exportCmo3") },
-				onExportMoc3 = { actions.dispatch("file.exportMoc3") },
-				onExit = actions.exit,
-			),
-			// The rows are gated by canUndo / canRedo; the shell owns the settings overlay's visible state,
-			// so Preferences only dispatches its command.
-			editMenu(
-				keymap = keymap,
-				canUndo = canUndo,
-				canRedo = canRedo,
-				onUndo = { actions.dispatch("edit.undo") },
-				onRedo = { actions.dispatch("edit.redo") },
-				onOpenPreferences = { actions.dispatch("edit.preferences") },
-			),
-			workspaceMenu(
-				keymap = keymap,
-				onNewWorkspace = { actions.dispatch("workspace.new") },
-				onResetWorkspace = { actions.dispatch("workspace.reset") },
-				onImportWorkspace = { actions.dispatch("workspace.import") },
-				onExportThisWorkspace = { actions.dispatch("workspace.exportThis") },
-				onExportAllWorkspaces = { actions.dispatch("workspace.exportAll") },
-			),
-			// The Help dialogs open through the registry too: the shell owns their visible state.
-			helpMenu(
-				keymap = keymap,
-				openInBrowser = actions.openInBrowser,
-				onOpenCredits = { actions.dispatch("help.credits") },
-				onOpenAbout = { actions.dispatch("help.about") },
-			),
+			fileMenu(keymap = keymap, recentFiles = recentFiles, canExport = canExport, canSave = canSave, dispatch = dispatch),
+			editMenu(keymap = keymap, canUndo = canUndo, canRedo = canRedo, dispatch = dispatch),
+			workspaceMenu(keymap = keymap, dispatch = dispatch),
+			helpMenu(keymap = keymap, dispatch = dispatch),
 		)
 	}
 }
