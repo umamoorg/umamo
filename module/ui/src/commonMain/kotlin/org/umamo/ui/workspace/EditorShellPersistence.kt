@@ -66,7 +66,7 @@ fun PersistentEditorShell(
 	val initialLayout = remember { loadLayout(settings) }
 	var latestLayout by remember { mutableStateOf(initialLayout) }
 	val savePacer = remember(settings) { LayoutSavePacer(initialLayout) { layout -> saveLayout(settings, layout) } }
-	// The open document's view states key onto this layout's area ids, so they follow it live (UMA D31).
+	// The open document's view states key onto this layout's area ids, so they follow it live (UMA §7.3).
 	val areaViewStates = LocalAreaViewStates.current
 	SideEffect {
 		areaViewStates?.layoutAreaIds = latestLayout.workspaces.flatMap { workspace -> workspace.root.leafAreaIds() }

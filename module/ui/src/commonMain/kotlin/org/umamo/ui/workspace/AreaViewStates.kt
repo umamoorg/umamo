@@ -18,7 +18,7 @@ import org.umamo.ui.viewport.CameraSurface
  * tab switch disposes the inactive tree and recomposes it on return; with the scope held by the leaf, every space
  * would come back at its defaults.  A new document gets a new holder, so nothing carries from one rig to the next.
  *
- * The area ids are the application layout's own (`interface.layout`), borrowed as opaque keys (UMA D31): the
+ * The area ids are the application layout's own (`interface.layout`), borrowed as opaque keys (UMA §7.3): the
  * document does not own them, and a saved id the current layout lacks simply seeds nothing.
  *
  * @param JsonObject? restoredAreas The `areas` member the document was opened with, or null.

@@ -71,7 +71,7 @@ class KeymapTest {
 
 	/**
 	 * Every preset reaches the document commands a rigger starts from, under the accelerators every other
-	 * application uses for them: New, Open, Save, and Save As on their usual keys (D25), the artwork import
+	 * application uses for them: New, Open, Save, and Save As on their usual keys, the artwork import
 	 * - which ADDS to the open document - keeping the chord it has always had so a rebind saved against that
 	 * id still resolves, and Import CMO3 with no chord at all, since an import is not an open.
 	 */

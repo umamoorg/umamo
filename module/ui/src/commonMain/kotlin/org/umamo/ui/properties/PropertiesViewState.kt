@@ -25,7 +25,7 @@ internal const val PROPERTIES_VIEW_STATE_KEY = "properties"
  * render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than a
  * body-local remember).  Two Properties areas each get their own instance, and the instance lives as long as
  * the open document does.  A saved document carries the tab, the folded sections, and the relation lists'
- * heights (UMA §7.3, D32), and not the search query.
+ * heights (UMA §7.3), and not the search query.
  */
 internal class PropertiesViewState : PersistentSpaceState {
 	/** The header search query; blank shows every section. */
@@ -56,7 +56,7 @@ internal class PropertiesViewState : PersistentSpaceState {
 		buildJsonObject {
 			put("tab", if (activeTab == PropertyTabId.Document) JsonNull else JsonPrimitive(propertyTabWireName(activeTab)))
 			put("collapsedSections", stringArrayOrNull(expandedSections.filterValues { open -> !open }.keys))
-			// UMA §7.3: keyed by a fixed list name, not an object id, so an object is safe under the merge (D33).
+			// UMA §7.3: keyed by a fixed list name, not an object id, so an object is safe under the merge (UMA §7.5).
 			// A null for the whole member clears every height at once when none is held.
 			put("listHeights", if (listHeights.isEmpty()) JsonNull else buildJsonObject { listHeights.keys.sorted().forEach { listName -> put(listName, JsonPrimitive(listHeights.getValue(listName).value)) } })
 		}

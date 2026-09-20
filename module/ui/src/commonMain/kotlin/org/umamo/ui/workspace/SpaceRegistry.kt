@@ -12,7 +12,7 @@ import org.umamo.ui.theme.UmamoIcon
  * A space's view state that a saved document carries (docs/format/UMA.md §7.3): it writes itself as one member of
  * its area's block and takes that member back when the document reopens.
  *
- * Nothing here marks a document dirty.  The state rides on a real save and is otherwise left alone (UMA D7).
+ * Nothing here marks a document dirty.  The state rides on a real save and is otherwise left alone (UMA §7).
  */
 interface PersistentSpaceState {
 	/**

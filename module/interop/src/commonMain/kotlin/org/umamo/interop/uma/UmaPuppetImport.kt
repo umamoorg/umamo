@@ -70,7 +70,7 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
  * Builds a [PuppetModel] from the puppet entry (docs/format/UMA.md §4): restores each absent value to the
- * model's default and derives the render root from the organizational tree (D13).
+ * model's default and derives the render root from the organizational tree (UMA §4.2).
  *
  * The entry comes from the codec, which has already refused every shape the model cannot hold (UMA §4.8): a field
  * that belongs to another kind of object, arrays that disagree in size, and indices or keys out of range or order.
@@ -104,7 +104,7 @@ object UmaPuppetImport {
 				runtimeTarget = puppet.runtimeTarget?.toRuntime() ?: RuntimeTarget.NoTarget,
 				rendersFromSourceLayers = puppet.rendersFromSourceLayers ?: false,
 			)
-		// UMA §4.2 (D13): the render root is never written; it is always the organizational tree's derivation.
+		// UMA §4.2: the render root is never written; it is always the organizational tree's derivation.
 		return model.withDerivedRenderRoot()
 	}
 

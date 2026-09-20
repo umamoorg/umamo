@@ -131,8 +131,8 @@ internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kind
 /**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
  * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
- * native `:storage` dialogs. An initial document may come from a `.cmo3`/`.moc3` argument or
- * `-Dumamo.testCmo3`; otherwise the window opens to an "Open a file" prompt.
+ * native `:storage` dialogs. An initial document may come from a `.uma`, `.cmo3`, or `.moc3` argument or
+ * `-Dumamo.testCmo3`; otherwise the window opens into a new, empty document.
  * `UMAMO_DUMP_PNG` still dumps the first frame headlessly (the WSL verification path).
  *
  * Settings load synchronously here (the bundled default is a Compose resource, read via `runBlocking`)

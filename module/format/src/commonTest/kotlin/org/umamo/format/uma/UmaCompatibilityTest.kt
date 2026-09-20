@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 /**
  * Pins the compatibility model against files a newer writer could produce (docs/format/UMA.md §3.3):
  * what opens editable, what opens read-only, and that everything this reader does not own survives a
- * save byte for byte (D4).
+ * save byte for byte (UMA §3.3).
  */
 class UmaCompatibilityTest {
 	private val puppetRecord = recordJson("model/puppet.json", "puppet", required = true)
@@ -53,7 +53,7 @@ class UmaCompatibilityTest {
 
 	/**
 	 * A document the codec writes reads back and writes again to the same bytes, and to the same entries,
-	 * when nothing was edited (D4 as a test).
+	 * when nothing was edited (UMA §3.5).
 	 */
 	@Test
 	fun unchangedDocumentRewritesByteForByte() {
@@ -172,7 +172,7 @@ class UmaCompatibilityTest {
 
 	/**
 	 * A known kind at a newer version that older readers may still read opens live, keeps the keys this
-	 * reader does not know, and is written back at this writer's version (D8).
+	 * reader does not know, and is written back at this writer's version (UMA §3.5).
 	 */
 	@Test
 	fun additiveNewerVersionReadsLiveAndWritesCurrent() {

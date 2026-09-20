@@ -50,7 +50,7 @@ internal class DocumentSaveController(
 
 	/**
 	 * Saves the open document, or asks where first.  The first save of a document that did not come from a
-	 * `.uma` is a Save As suggesting the origin's name (D24); after that a plain Save writes the same file
+	 * `.uma` is a Save As suggesting the origin's name; after that a plain Save writes the same file
 	 * without asking.
 	 *
 	 * The document's whole context is taken ONCE, here, and everything the save gathers comes from it - so a
@@ -89,7 +89,7 @@ internal class DocumentSaveController(
 				val snapshot = activeSession.model.value
 				val binding = puppet.pageBinding()
 				// Editor state is gathered with the model, on this thread, and rides the save without ever counting as a
-				// change to the document (UMA D7).
+				// change to the document (UMA §7).
 				val editorState =
 					buildJsonObject {
 						put(EDITOR_STATE_AREAS, context.areaViewStates.gather())
@@ -113,7 +113,7 @@ internal class DocumentSaveController(
 						services.settings.addRecentFile(path)
 						UmamoLog.info("saved $path")
 						activeSession.emitNotice("notice.document.saved", NoticePlacement.StatusBar, listOf(fileDisplayName(path)))
-						// Once per document, what a .uma of this origin does not carry (pinned with R3): shown after
+						// Once per document, what a .uma of this origin does not carry: shown after
 						// the saved notice, so it is the one left on screen.
 						if (!file.lossNoticeShown) {
 							file.lossNoticeShown = true

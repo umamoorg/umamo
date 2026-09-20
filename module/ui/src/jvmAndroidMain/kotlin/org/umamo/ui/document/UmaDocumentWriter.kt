@@ -24,7 +24,7 @@ import org.umamo.storage.writeReplacing
 import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.viewport.AtlasPageBinding
 
-/** The size the saved thumbnail is fitted into (UMA D22). */
+/** The size the saved thumbnail is fitted into (UMA §5.6). */
 private const val THUMBNAIL_SIZE = 256
 
 /**
@@ -41,8 +41,8 @@ private const val THUMBNAIL_SIZE = 256
  *    its PNG from the document's own bytes where it has them (a CMO3's embedded layer, a `.uma`'s stored
  *    entry) and is encoded from its decoded raster otherwise.
  *  - The render pages are stored as the file or the origin had them while the atlas is at the document's
- *    baseline - the same identity gate the CMO3 export uses - and derive from the tiles after any repack (D20).
- *  - The thumbnail is the rest pose fitted into [THUMBNAIL_SIZE] pixels (D22).
+ *    baseline - the same identity gate the CMO3 export uses - and derive from the tiles after any repack (UMA §5.5).
+ *  - The thumbnail is the rest pose fitted into [THUMBNAIL_SIZE] pixels (UMA §5.6).
  *
  * Editor state rides on the save as a merge patch over what the base holds (docs/format/UMA.md § 7.5) and is never
  * a reason to refuse one: an editor entry too new for this version to merge into is carried as it is.

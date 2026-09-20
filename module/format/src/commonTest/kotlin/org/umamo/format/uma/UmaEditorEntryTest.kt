@@ -24,7 +24,7 @@ import kotlin.test.assertSame
 
 /**
  * Pins the editor entry (docs/format/UMA.md §7): it is written as a JSON Merge Patch over the tree as read, it is
- * never minted empty, and a file with it stripped loads the same puppet and sources (Goal 6, D29).
+ * never minted empty, and a file with it stripped loads the same puppet and sources (UMA §7).
  */
 class UmaEditorEntryTest {
 	/**
@@ -116,7 +116,7 @@ class UmaEditorEntryTest {
 		assertEquals(setOf("dopesheet", "outliner"), area.keys, "the foreign block stays beside the one this writer set")
 	}
 
-	/** A null for an area removes it: how a stale layout's ids leave the file (D31). */
+	/** A null for an area removes it: how a stale layout's ids leave the file (UMA §7.5). */
 	@Test
 	fun aNullAreaLeavesTheFile() {
 		val document = sampleDocument().withEditorState(outlinerPatch("area-stale", listOf("part:1")))
@@ -187,7 +187,7 @@ class UmaEditorEntryTest {
 	}
 
 	/**
-	 * Goal 6 (D29): a file with its editor entry and that entry's manifest record stripped loads the same puppet and
+	 * UMA §7: a file with its editor entry and that entry's manifest record stripped loads the same puppet and
 	 * the same sources, because nothing in the model is read from the editor entry.
 	 */
 	@Test

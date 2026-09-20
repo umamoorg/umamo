@@ -37,8 +37,8 @@ import kotlin.test.fail
 
 /**
  * Pins the textures entry (docs/format/UMA.md §5): every field round-trips, the layout assigns and keeps pixel
- * paths, pixel entries the index stops naming leave the file while ones it never named stay (D21), the render
- * pages follow their mode (D20), and each rule a reader enforces fails with its path.
+ * paths, pixel entries the index stops naming leave the file while ones it never named stay (UMA §5.7), the render
+ * pages follow their mode (UMA §5.5), and each rule a reader enforces fails with its path.
  */
 class UmaTexturesEntryTest {
 	private val indexPath = "textures/index.json"

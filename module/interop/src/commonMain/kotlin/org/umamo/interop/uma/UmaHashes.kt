@@ -3,7 +3,7 @@ package org.umamo.interop.uma
 import org.umamo.format.uma.sources.UMA_SHA256_PREFIX
 
 /*
- * The hash form the sources entry writes (docs/format/UMA.md §6.4, D16): the model keeps a SHA-256 digest as bare
+ * The hash form the sources entry writes (docs/format/UMA.md §6.4): the model keeps a SHA-256 digest as bare
  * lowercase hex, and the file names the algorithm in front of it.
  */
 

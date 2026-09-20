@@ -28,7 +28,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the puppet entry's buffer (docs/format/UMA.md §4.9, D9, D10, D19): what an accessor is, what a sound one
+ * Pins the puppet entry's buffer (docs/format/UMA.md §4.9): what an accessor is, what a sound one
  * must satisfy, how a save lays the owned buffer out, and that an accessor under a key this reader does not know
  * keeps its bytes when the buffer is rebuilt around it.
  */
@@ -191,7 +191,7 @@ class UmaBufferTest {
 
 	/**
 	 * An accessor a newer writer put under a key this reader does not know keeps its bytes when a mesh edit
-	 * rebuilds the buffer around it (the D10 hazard), and an accessor naming another buffer is copied into the
+	 * rebuilds the buffer around it (UMA §4.9), and an accessor naming another buffer is copied into the
 	 * owned one while that other buffer stays in the file.
 	 */
 	@Test
