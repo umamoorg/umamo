@@ -37,10 +37,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
 ## Read/Write Filing Handling
-* Clean up the boolean logic mess in AppMenu->fileMenu().
-	* module/ui/src/commonMain/kotlin/org/umamo/ui/menu/AppMenu.kt
-* Document State - One document per window instance.
-* Drag and drop file opening.
 * Save should be muted/disabled in the menu if the document is not dirty.
 
 ## UI Dialog

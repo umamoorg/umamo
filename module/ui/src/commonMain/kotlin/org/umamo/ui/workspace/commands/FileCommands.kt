@@ -103,6 +103,17 @@ class RelinkRequest(
 }
 
 /**
+ * A request to add named artwork files to the open document, the optional payload of the
+ * file.importArtwork command: the files a drop handed over, in the order they were dropped.  Invoked
+ * without one, the command asks for a file instead.
+ *
+ * @property List<String> paths The artwork files' stored paths.
+ */
+class ImportArtworkRequest(
+	val paths: List<String>,
+)
+
+/**
  * A request to remove one piece of source art from the atlas, the payload of the sources.deleteArt
  * command: a tile no drawable samples, which otherwise lingers on a page and in the Sources table.
  *
@@ -150,7 +161,8 @@ class ReloadScope(
  * app can (the picker, a path on the platform's file system) and lands the result on the session.
  * Every one takes the area its operation strip shows in, resolved by the shell at dispatch.
  *
- * @property Function importArtwork Picks an artwork file and adds it to the open document.
+ * @property Function importArtwork Adds the named artwork files to the open document, or picks one when
+ *   handed no request.
  * @property Function reloadArtwork Re-reads the listed files that are present - those the scope names,
  *   or every one when it is null - and reloads the document from them.
  * @property Function relinkArtwork  Rebinds a tile, pulling the layer's art in when its file can be read.
@@ -162,7 +174,7 @@ class ReloadScope(
  * @property Function canReload      Whether any listed file could be re-read, queried live.
  */
 class ArtworkOperations(
-	val importArtwork: (areaId: String?) -> Unit,
+	val importArtwork: (request: ImportArtworkRequest?, areaId: String?) -> Unit,
 	val reloadArtwork: (areaId: String?, scope: ReloadScope?) -> Unit,
 	val relinkArtwork: (request: RelinkRequest, areaId: String?) -> Unit,
 	val matchArtwork: (areaId: String?) -> Unit,
@@ -194,14 +206,16 @@ class ArtworkOperations(
  */
 internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> ArtworkOperations?): List<Command> =
 	listOf(
-		// The one way artwork enters a document, from the File menu's Import row and from the Sources
-		// space alike: a file's layers are ADDED to the open document as one undoable edit, the way
-		// importing an object into a Blender scene adds to it rather than replacing the scene.
+		// The one way artwork enters a document, from the File menu's Import row, the Sources space, and a
+		// drop on the window alike: a file's layers are ADDED to the open document as one undoable edit, the
+		// way importing an object into a Blender scene adds to it rather than replacing the scene.  With no
+		// payload it asks for a file; with one it takes the files it was handed, which is how a drop arrives on
+		// the same id - and so under the same availability gate and the same operation strip.
 		Command(
 			"file.importArtwork",
 			title = Res.string.cmd_import_artwork,
 			availability = CommandAvailability { artwork() != null },
-		) { artwork()?.importArtwork?.invoke(routing.operationStripArea()) },
+		) { argument -> artwork()?.importArtwork?.invoke(argument as? ImportArtworkRequest, routing.operationStripArea()) },
 		Command(
 			"document.reloadArtwork",
 			title = Res.string.cmd_document_reload_artwork,

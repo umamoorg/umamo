@@ -19,6 +19,7 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.artworkImportExtensions
 import org.umamo.ui.document.artworkImportOptions
+import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.isFileSystemPath
 import org.umamo.ui.document.readArtwork
@@ -43,6 +44,7 @@ import org.umamo.ui.model.runReplaceArtwork
 import org.umamo.ui.model.scoreSourceSuggestions
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.workspace.commands.ArtworkOperations
+import org.umamo.ui.workspace.commands.ImportArtworkRequest
 import org.umamo.ui.workspace.commands.RelinkRequest
 import org.umamo.ui.workspace.commands.ReloadScope
 import org.umamo.ui.workspace.commands.ReplaceRequest
@@ -110,7 +112,7 @@ internal class ArtworkController(
 	 */
 	val operations: ArtworkOperations =
 		ArtworkOperations(
-			importArtwork = { areaId -> importArtworkViaPicker(areaId) },
+			importArtwork = { request, areaId -> importArtwork(request, areaId) },
 			reloadArtwork = { areaId, reloadScope -> reloadArtworkFromDisk(areaId, reloadScope) },
 			relinkArtwork = { request, areaId -> relinkArtwork(request, areaId) },
 			matchArtwork = { areaId -> matchArtwork(areaId) },
@@ -155,23 +157,67 @@ internal class ArtworkController(
 	}
 
 	/**
-	 * The artwork import: a file's layers join the open document as one undoable edit.  Every layered and
-	 * flat-raster format the registry reads comes in through this one path, from the File menu's Import row
-	 * and the Sources space alike.  The options carry the parameter template, which seeds only when the
-	 * document has no parameters of its own - a rig's first artwork.
+	 * The artwork import: each file's layers join the open document as one undoable edit.  Every layered and
+	 * flat-raster format the registry reads comes in through this one path, from the File menu's Import row,
+	 * the Sources space, and a drop on the window alike.  The options carry the parameter template, which
+	 * seeds only when the document has no parameters of its own - a rig's first artwork.
 	 *
-	 * @param String? areaId The area the command fired over, resolved by the shell before the picker opens;
-	 *   it is where the operation strip shows once the import lands.
+	 * With no [request] it asks for a file.  With one it adds the files it was handed, one after another and
+	 * each awaited: an add packs against the model as it stood when it began, so two running at once would
+	 * each pack as though the other had not happened.  A file that will not read is reported and the rest
+	 * still land.
+	 *
+	 * @param ImportArtworkRequest? request The files to add, or null to ask for one.
+	 * @param String?               areaId  The area the command fired over, resolved by the shell before the
+	 *   picker opens; it is where the operation strip shows once the import lands.
 	 */
-	private fun importArtworkViaPicker(areaId: String?) {
+	private fun importArtwork(request: ImportArtworkRequest?, areaId: String?) {
 		services.scope.launch {
-			val picked = pickArtwork() ?: return@launch
-			runAddArtwork(
-				host,
-				AddArtworkRequest(picked.read.art, picked.descriptor, services.configuredArtworkImportOptions()),
-				areaId,
-			)
+			if (request == null) {
+				val picked = pickArtwork() ?: return@launch
+				addArtwork(picked, areaId)
+				return@launch
+			}
+			for (path in request.paths) {
+				addArtwork(readArtworkForPath(path) ?: continue, areaId)
+			}
 		}
+	}
+
+	/**
+	 * Reads the artwork file at [path], describing it the way the document records a file.
+	 *
+	 * A file that yields no art raises the unrecognized-file alert an open would, so a dropped file that
+	 * turns out not to be artwork is named rather than silently skipped.  The reasons are not told apart -
+	 * a file gone since the drop, one the reader refuses, and one that is simply not art all reach the same
+	 * row - because the reader reports them as one absence and the distinction would not change what the
+	 * rigger does about it.
+	 *
+	 * @param String path The file's stored path.
+	 * @return PickedArtwork? The read file, or null when no art came out of it.
+	 */
+	private suspend fun readArtworkForPath(path: String): PickedArtwork? {
+		val name = fileDisplayName(path)
+		val read =
+			readArtworkAt(path) ?: run {
+				services.commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
+				return null
+			}
+		return PickedArtwork(read, ArtSourceDescriptor(name, path, read.kind.extension, read.contentHash, read.lastModified))
+	}
+
+	/**
+	 * Adds one read file's layers to the open document as one undoable edit.
+	 *
+	 * @param PickedArtwork artwork The read file and how the document records it.
+	 * @param String?       areaId  The area the operation strip shows in.
+	 */
+	private suspend fun addArtwork(artwork: PickedArtwork, areaId: String?) {
+		runAddArtwork(
+			host,
+			AddArtworkRequest(artwork.read.art, artwork.descriptor, services.configuredArtworkImportOptions()),
+			areaId,
+		)
 	}
 
 	/**

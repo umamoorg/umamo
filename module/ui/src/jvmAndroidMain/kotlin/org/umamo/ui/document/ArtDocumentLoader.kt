@@ -6,6 +6,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.format.FileKind
+import org.umamo.format.FileRole
 import org.umamo.format.FormatCodec
 import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
@@ -104,23 +105,11 @@ internal val systemSourceFilePresence: SourceFilePresence =
 	}::probe
 
 /**
- * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry
- * reads.  The `.jpeg` and `.tif` aliases are listed by hand because a FileKind spells one extension per
- * format; detection is by magic bytes, so a file under either name still routes to its codec.
+ * The picker filter for File > Import > Artwork: every layered and flat-raster format the registry reads,
+ * its `.jpeg` and `.tif` aliases included.  Derived from the registry rather than listed here, so a new art
+ * format reaches the picker by being registered.
  */
-internal val artworkImportExtensions: List<String> =
-	listOf(
-		FileKind.Psd.extension,
-		FileKind.Clip.extension,
-		FileKind.Kra.extension,
-		FileKind.Png.extension,
-		FileKind.Bmp.extension,
-		FileKind.Jpeg.extension,
-		"jpeg",
-		FileKind.WebP.extension,
-		FileKind.Tiff.extension,
-		"tif",
-	)
+internal val artworkImportExtensions: List<String> = FormatRegistry.extensionsFor(FileRole.Artwork)
 
 /**
  * Reads [bytes] as artwork when they are one of the art formats the registry knows (PSD / CLIP / KRA,

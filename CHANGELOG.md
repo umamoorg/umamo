@@ -14,6 +14,7 @@ Umamo is early alpha.
 * UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.
+* UI: Dropping a file on the editor window opens it; dropping artwork adds it to the open document.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -26,6 +27,7 @@ Umamo is early alpha.
 * UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
 * UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
+* Format: A .jpeg or .tif file whose magic bytes are missing now routes to its reader by extension.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 * Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
 

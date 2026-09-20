@@ -16,7 +16,8 @@ import kotlinx.coroutines.runBlocking
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.editor.desktop.viewport.OffscreenPuppetService
-import org.umamo.format.FileKind
+import org.umamo.format.FileRole
+import org.umamo.format.FormatRegistry
 import org.umamo.runtime.model.ParameterId
 import org.umamo.settings.Settings
 import org.umamo.storage.UmamoLog
@@ -119,11 +120,13 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
  * One test for the command line and the macOS open-file event, so a file the OS hands over is accepted the same
  * way however it arrives.  The extension only says the path is worth reading; the loader identifies the content.
  *
+ * Artwork is deliberately not a document path: it is ADDED to whatever document is open, so a `.psd` argument
+ * would have nothing to be added to at this point in the launch.
+ *
  * @param String path A path from the command line or the operating system.
  * @return Boolean True when the path has a document extension.
  */
-internal fun isOpenableDocumentPath(path: String): Boolean =
-	listOf(FileKind.Uma, FileKind.Cmo3, FileKind.Moc3).any { kind -> path.endsWith(".${kind.extension}", ignoreCase = true) }
+internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kindForFileName(path)?.role == FileRole.Document
 
 /**
  * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state

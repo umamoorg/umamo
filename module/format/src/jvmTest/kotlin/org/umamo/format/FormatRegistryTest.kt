@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Confirms the format dispatcher routes a file to the right codec by leading magic, falls back to the
@@ -95,6 +96,36 @@ class FormatRegistryTest {
 		assertEquals(FileKind.Cmo3, FormatRegistry.detect(unknown, "/path/to/model.cmo3")?.kind, "full path -> extension")
 		assertEquals(FileKind.Png, FormatRegistry.detect(unknown, "atlas.png")?.kind, "unknown magic + .png -> Png")
 		assertEquals(FileKind.Bmp, FormatRegistry.detect(unknown, "dump.bmp")?.kind, "unknown magic + .bmp -> Bmp")
+		assertEquals(FileKind.Jpeg, FormatRegistry.detect(unknown, "photo.jpeg")?.kind, "an alias extension routes to its format too")
+		assertEquals(FileKind.Tiff, FormatRegistry.detect(unknown, "scan.TIF")?.kind, "and case-insensitively")
+	}
+
+	/**
+	 * A path with no contents in hand resolves by extension or alias, which is how a file the operating
+	 * system hands over - an argument, a double-click, a drop - is routed before anything reads it.
+	 */
+	@Test
+	fun kindForFileNameResolvesByExtensionOrAlias() {
+		assertEquals(FileKind.Uma, FormatRegistry.kindForFileName("/home/rigger/Erica.uma"))
+		assertEquals(FileKind.Uma, FormatRegistry.kindForFileName("C:\\Rigs\\ERICA.UMA"), "case-insensitive, whatever the separator")
+		assertEquals(FileKind.Cmo3, FormatRegistry.kindForFileName("Erica.cmo3"), "a bare name works as well as a path")
+		assertEquals(FileKind.Jpeg, FormatRegistry.kindForFileName("photo.jpeg"), "an alias resolves to its format")
+		assertEquals(FileKind.Tiff, FormatRegistry.kindForFileName("scan.tif"))
+		assertNull(FormatRegistry.kindForFileName("notes.txt"), "an extension no kind claims")
+		assertNull(FormatRegistry.kindForFileName("--some-flag"), "and a command-line argument that is not a path at all")
+		assertNull(FormatRegistry.kindForFileName("Makefile"), "nor is a name with no extension")
+	}
+
+	/**
+	 * A picker filter for one way in lists that way's extensions and no others, so Import Artwork cannot
+	 * offer a model file and Open cannot offer a PSD.
+	 */
+	@Test
+	fun extensionsForARoleCoverThatRoleAlone() {
+		val artwork = FormatRegistry.extensionsFor(FileRole.Artwork)
+		assertEquals(listOf("clip", "kra", "psd", "png", "bmp", "jpg", "jpeg", "webp", "tiff", "tif"), artwork, "every art format the registry reads, aliases included, in registry order")
+		assertEquals(listOf("uma", "cmo3", "moc3"), FormatRegistry.extensionsFor(FileRole.Document))
+		assertTrue(FormatRegistry.extensionsFor(FileRole.Sidecar).isEmpty(), "the JSON family has no registered codec, so nothing lists it")
 	}
 
 	@Test

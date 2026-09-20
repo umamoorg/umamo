@@ -304,6 +304,9 @@ class CommandTableOrderTest {
 	 * Sources panel, that is the last work surface the pointer touched, never the panel.  Reload also
 	 * asks the collaborator whether any file can be read; relink, delete, and ignore carry their requests
 	 * through, and ignore is argument-only, so it has no title for the palette.
+	 *
+	 * The import carries an optional one: with no payload it means "ask for a file", and with one it means
+	 * "add these" - the way a drop reaches the same id.
 	 */
 	@Test
 	fun artworkCommandsFollowTheCollaboratorAndTheStripArea() {
@@ -321,6 +324,7 @@ class CommandTableOrderTest {
 		assertFalse(match.availability.isAvailable())
 		assertFalse(replace.availability.isAvailable())
 		var landedArea: String? = "untouched"
+		var landedImport: ImportArtworkRequest? = null
 		var landedRequest: RelinkRequest? = null
 		var landedScope: ReloadScope? = null
 		var landedReplace: ReplaceRequest? = null
@@ -330,7 +334,10 @@ class CommandTableOrderTest {
 		var canReload = false
 		operations =
 			ArtworkOperations(
-				importArtwork = { areaId -> landedArea = areaId },
+				importArtwork = { request, areaId ->
+					landedImport = request
+					landedArea = areaId
+				},
 				reloadArtwork = { areaId, reloadScope ->
 					landedArea = areaId
 					landedScope = reloadScope
@@ -357,6 +364,13 @@ class CommandTableOrderTest {
 		assertTrue(reload.availability.isAvailable())
 		add.handler.run(null)
 		assertEquals("area-7", landedArea, "the strip area reaches the orchestration")
+		assertEquals(null, landedImport, "no payload means ask for a file")
+		val dropped = ImportArtworkRequest(listOf("/art/face.psd", "/art/hair.psd"))
+		add.handler.run(dropped)
+		assertSame(dropped, landedImport, "the dropped files reach the orchestration")
+		assertEquals("area-7", landedArea)
+		add.handler.run("not a request")
+		assertEquals(null, landedImport, "a payload of the wrong shape asks for a file rather than adding nothing")
 		landedArea = "untouched"
 		reload.handler.run(null)
 		assertEquals("area-7", landedArea)

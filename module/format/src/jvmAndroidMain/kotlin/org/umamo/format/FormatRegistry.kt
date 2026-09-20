@@ -49,11 +49,28 @@ public object FormatRegistry {
 	 */
 	public fun detect(bytes: ByteArray, fileName: String? = null): FormatCodec<*>? {
 		codecs.firstOrNull { codec -> codec.matches(bytes) }?.let { return it }
-		val extension = fileName?.substringAfterLast('.', "")?.lowercase()
-		if (extension.isNullOrEmpty()) {
+		val kind = fileName?.let(::kindForFileName) ?: return null
+		return forKind(kind)
+	}
+
+	/**
+	 * Identifies a file kind from its name alone - the extension or one of its aliases, case-insensitively.
+	 *
+	 * Name-only, so it says nothing about whether the bytes are what the name claims: this answers "which
+	 * way in does this path take" for a caller holding a path and no contents (a command-line argument, a
+	 * file the OS hands over, a dropped file), and it is the extension fallback [detect] uses once the
+	 * magic has not matched.  The chosen route then reads the file and detects its content for real.
+	 *
+	 * @param String fileName The file name or path; only its extension is read.
+	 * @return FileKind? The kind that claims that extension, or null when none does.
+	 */
+	public fun kindForFileName(fileName: String): FileKind? {
+		val extension = fileName.substringAfterLast('.', "").lowercase()
+		if (extension.isEmpty()) {
 			return null
 		}
-		return codecs.firstOrNull { codec -> codec.kind.extension == extension }
+		return codecs.map { codec -> codec.kind }
+			.firstOrNull { kind -> kind.extension == extension || extension in kind.extensionAliases }
 	}
 
 	/**
@@ -73,4 +90,18 @@ public object FormatRegistry {
 	 */
 	public fun readableExtensions(): List<String> =
 		codecs.filter { codec -> codec.kind.readable }.map { codec -> codec.kind.extension }.distinct()
+
+	/**
+	 * The file extensions of every registered kind that takes [role], aliases included - the single source
+	 * of truth for a picker filter over one way in (e.g. Import Artwork's filter, which is every art format
+	 * the registry reads and nothing else).
+	 *
+	 * @param FileRole role The way in to filter by.
+	 * @return List the distinct extensions, without the leading dot, in registry order.
+	 */
+	public fun extensionsFor(role: FileRole): List<String> =
+		codecs.map { codec -> codec.kind }
+			.filter { kind -> kind.role == role }
+			.flatMap { kind -> listOf(kind.extension) + kind.extensionAliases }
+			.distinct()
 }
