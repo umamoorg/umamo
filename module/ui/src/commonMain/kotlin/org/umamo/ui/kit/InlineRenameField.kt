@@ -105,6 +105,7 @@ fun InlineRenameField(
 		keyboardActions = KeyboardActions(onDone = { commit() }),
 		modifier =
 			modifier
+				.textEntrySurface(controller)
 				.focusRequester(focusRequester)
 				.onFocusChanged { focusState ->
 					// hasFocus, not isFocused: BasicTextField focuses an internal child node, so this node is

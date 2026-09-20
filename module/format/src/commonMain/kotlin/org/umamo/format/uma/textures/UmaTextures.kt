@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
  * @property List<UmaPage>?   pages                 The atlas's pages, in page order: the sizes placements index.
  * @property List<UmaTile>?   tiles                 Every piece of source art, in document order.
  * @property UmaRenderPages?  renderPages           The imported page images the drawables sample, absent when the
- *   pages derive from the tiles (D20).
+ *   pages derive from the tiles (UMA §5.5).
  * @property UmaThumbnail?    thumbnail             The document's thumbnail, absent when there is none.
  */
 @Serializable
@@ -180,7 +180,7 @@ public class UmaPixelSource(
 	public val thumbnail: ByteArray?,
 )
 
-/** What a save records about the images a document's drawables sample (UMA §5.5, D20). */
+/** What a save records about the images a document's drawables sample (UMA §5.5). */
 public sealed interface UmaRenderPagePixels {
 	/** The pages derive from the tiles placed on them, so nothing is stored. */
 	public data object Derived : UmaRenderPagePixels

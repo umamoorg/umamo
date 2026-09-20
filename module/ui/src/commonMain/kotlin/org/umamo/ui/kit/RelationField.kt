@@ -226,6 +226,7 @@ fun <T> RelationField(
 				modifier =
 					Modifier
 						.weight(1f)
+						.textEntrySurface(controller)
 						.onFocusChanged { focusState ->
 							// hasFocus (not isFocused): BasicTextField focuses an internal child.
 							if (focusState.hasFocus) {

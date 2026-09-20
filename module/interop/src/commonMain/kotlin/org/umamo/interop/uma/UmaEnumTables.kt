@@ -14,7 +14,7 @@ import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.RuntimeTarget
 
 /*
- * The runtime model's enums against the puppet entry's (docs/format/UMA.md §4.1, D18).  Every mapping is an
+ * The runtime model's enums against the puppet entry's (docs/format/UMA.md §4.1).  Every mapping is an
  * exhaustive `when` in both directions, so a constant added on either side is a compile error here rather
  * than a value that silently fails to round-trip.
  */

@@ -15,11 +15,14 @@ Umamo is early alpha.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.
 * UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
+* UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
 * UI: Add Artwork and Import Artwork have been standardized to just import and add artwork to the open document.
 * UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
+* UI: Clicking away from all text input fields should now commit the change.
+* UI: Clicking away from all text input fields should now end text entry input preventing other inputs from being eaten.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.

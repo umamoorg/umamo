@@ -45,9 +45,9 @@ import org.umamo.ui.workspace.PersistentEditorShell
 import org.umamo.ui.workspace.commands.ArtworkOperations
 
 /**
- * Renders the open document inside the editor shell. For a puppet document (CMO3 or MOC3), a per-area
- * viewport host is injected (when the platform supplies a render-service factory) and the runtime
- * model + live params are provided to the panels; with no document, the shell shows placeholders.
+ * Renders the open document inside the editor shell. For a puppet document, a per-area viewport host
+ * is injected (when the platform supplies a render-service factory) and the runtime model + live
+ * params are provided to the panels; with no document, the shell shows placeholders.
  * With a null factory the model locals still mount - the outliner, parameters, and thumbnails all
  * work - only the viewport areas render placeholders. The shell's workspace layout + locale are
  * persisted via settings regardless of the open document.

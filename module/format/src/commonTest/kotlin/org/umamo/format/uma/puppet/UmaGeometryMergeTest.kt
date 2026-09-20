@@ -15,7 +15,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * Pins the retained-tree merge on the puppet entry's geometry half (docs/format/UMA.md §4.7, D10): keys a
+ * Pins the retained-tree merge on the puppet entry's geometry half (docs/format/UMA.md §4.7): keys a
  * newer writer puts in a mesh, a grid axis, a cell, a channel track, a blend shape, a limit, or a glue survive
  * a rename, a mesh edit, and deletions that shift what follows; a cell keeps its keys at its key values; blend forms
  * are values and are replaced whole; channel tracks merge by channel.

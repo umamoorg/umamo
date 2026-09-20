@@ -21,7 +21,7 @@ internal const val PARAMETERS_VIEW_STATE_KEY = "parameters"
 /**
  * The parameters panel's view state, parked on the hosting AreaScope via spaceState.  Two parameters areas
  * each get their own instance, and the instance lives as long as the open document does.  A saved document
- * carries the group folds, the open range editors, and the selection filter (UMA §7.3, D32); the two in-place
+ * carries the group folds, the open range editors, and the selection filter (UMA §7.3); the two in-place
  * rename slots are gestures in flight and are not.
  */
 internal class ParametersViewState : PersistentSpaceState {
@@ -72,7 +72,7 @@ internal class ParametersViewState : PersistentSpaceState {
 	 */
 	override fun toJson(): JsonObject =
 		buildJsonObject {
-			// UMA §7.3: a group the rigger opened or closed; any other group follows its initiallyOpen (UMA §4.3, D28).
+			// UMA §7.3: a group the rigger opened or closed; any other group follows its initiallyOpen (UMA §4.3).
 			put("expandedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> open }.keys.map { groupId -> groupId.raw }))
 			put("collapsedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> !open }.keys.map { groupId -> groupId.raw }))
 			put("openRangeEditors", stringArrayOrNull(openRangeEditors.filterValues { open -> open }.keys.map { parameterId -> parameterId.raw }))

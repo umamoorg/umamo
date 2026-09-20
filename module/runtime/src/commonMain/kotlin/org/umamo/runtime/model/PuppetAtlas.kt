@@ -37,7 +37,7 @@ data class AtlasPage(
  * A [pinned] tile is one a rigger placed by hand and wants kept: a repack packs the other tiles
  * around it and leaves its placement - page, position, rotation, and scale - exactly as it is.
  * Record data, not editor state: it changes what a repack produces, so it persists on the tile in a
- * `.uma` (docs/format/UMA.md § 5.4, D30).  CMO3 and MOC3 have nowhere to hold it, so the model diff
+ * `.uma` (docs/format/UMA.md § 5.4).  CMO3 and MOC3 have nowhere to hold it, so the model diff
  * ignores it and an export never sees it.  A tile without a placement is never pinned - there is
  * nothing to keep.
  *

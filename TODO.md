@@ -107,11 +107,12 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Hold CTRL to enable snapping for rotation and grid placement.
 
-## Context Issues
-* If I search in an area header filter and then for example, click in the keyform sheet to scrubb, the focus is never removed from the input.  This results in confusion as to why undo/redo and other commands suddenly don't work.
-
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
+
+## Snapshot/Image Export
+* Add the ability to take a snapshot of the current 2D viewport with transparency.
+	* This would also help with the UMA format thumbnail.  The UMA thumbnail is based on the part/drawable thumbnailer which does basic blending and does not respect any settings.
 
 ## Properties Panel
 * The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
@@ -135,6 +136,9 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ## Workspace
 * Menu: Add Previous/Next workspace to the Workspace main menu at the top.
+
+## Menus
+* Clicking again should close instead of reopen the menu.
 
 ## Button UI
 * Needs a click action, either a background color change or movement.
@@ -208,6 +212,8 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * New Startup Settings Screen
 	* Import from pervious version.
 	* Select from binding defaults.
+	* Theme Selection
+	* Language Selection (With universal emoji icon.) - Detect from system.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 
 ## Keybindings
