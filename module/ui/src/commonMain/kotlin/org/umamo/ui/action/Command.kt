@@ -52,12 +52,9 @@ fun interface CommandAvailability {
  *   dispatch guard); defaults to always.
  * @property CommandSpaces spaces The editor spaces the command belongs to (palette filter + status bar
  *   suggestion, never a dispatch guard); defaults to everywhere.
- * @property StringResource? hint The short label the status bar suggests the command under ("Grab", where
- *   the title reads "Grab Vertices"), or null for a command it never suggests.  Commands sharing one
- *   label are suggested as one entry ("1/2/3 Select Mode").  The status bar recomputes its suggestions
- *   when the registered table (and so the document), the editor mode, the hovered space, or the keymap
- *   changes - so a hinted command's [availability] must depend on the document and the mode alone, or
- *   its suggestion goes stale.
+ * @property CommandHint? hint What the status bar suggests the command under and when, or null for a
+ *   command it never suggests.  A hinted command's [availability] must depend on the document and the
+ *   mode alone - see [CommandHint] for why.
  * @property CommandHandler handler The work to perform when invoked.
  */
 class Command(
@@ -65,6 +62,6 @@ class Command(
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
 	val spaces: CommandSpaces = CommandSpaces.Everywhere,
-	val hint: StringResource? = null,
+	val hint: CommandHint? = null,
 	val handler: CommandHandler,
 )

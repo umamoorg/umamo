@@ -86,7 +86,7 @@ internal fun frameCommands(commandRegistry: CommandRegistry, routing: CommandRou
 		Command(
 			"frame.all",
 			title = Res.string.cmd_frame_all,
-			spaces = CommandSpaces.of(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet),
+			spaces = CommandSpaces.WorkSurfacesAndSheet,
 		) {
 			val target = if (routing.isHovering(SpaceKind.KeyformSheet)) "keyform.frameAll" else "view.fit"
 			commandRegistry.invoke(target)

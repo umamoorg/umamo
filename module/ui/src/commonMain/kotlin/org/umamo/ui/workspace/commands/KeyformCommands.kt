@@ -7,6 +7,7 @@ import org.umamo.edit.removeKeyOnTrack
 import org.umamo.edit.removeTrackKeys
 import org.umamo.edit.removingKeys
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.resources.*
@@ -67,8 +68,8 @@ internal fun keyformCommands(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.of(SpaceKind.KeyformSheet, SpaceKind.Properties),
-			hint = Res.string.status_bind_insert_key,
+			spaces = CommandSpaces.KeyableSurfaces,
+			hint = CommandHint(Res.string.status_bind_insert_key),
 		) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
@@ -82,8 +83,8 @@ internal fun keyformCommands(
 			"keyform.delete",
 			title = Res.string.cmd_keyform_delete,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.of(SpaceKind.KeyformSheet, SpaceKind.Properties),
-			hint = Res.string.status_bind_delete_key,
+			spaces = CommandSpaces.KeyableSurfaces,
+			hint = CommandHint(Res.string.status_bind_delete_key),
 		) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->

@@ -33,8 +33,10 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the
  * status bar), but an area that is closed or joined away releases it via [releaseArea] - the same
  * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
- * general stamp (it still exists, and the next pointer event over it re-stamps the new kind) but gives
- * up its strip-host stamp at once through [releaseStripHost], since that stamp asserts a kind.
+ * stamp under its new kind through [restampKind]: the area still exists and the pointer has not moved,
+ * so it goes on being the answer, and a header-dropdown switch sends no pointer event over the leaf to
+ * wait for.  Its strip-host stamp asserts the OLD kind, so the leaf drops that first through
+ * [releaseStripHost] and the re-stamp claims it again only when the new kind hosts a strip.
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
@@ -61,8 +63,7 @@ internal class HoveredSurfaceTracker {
 
 	/**
 	 * The kind of [lastTouched], as snapshot state - display chrome's reactive view of where the pointer
-	 * is.  Written only through [lastTouched], so the two cannot disagree, and it inherits that field's
-	 * one lag: an area switched to another space reports its old kind until the next pointer event over it.
+	 * is.  Written only through [lastTouched], so the two cannot disagree.
 	 */
 	var observedKind: SpaceKind? by mutableStateOf(null)
 		private set
@@ -83,6 +84,30 @@ internal class HoveredSurfaceTracker {
 	fun releaseStripHost(areaId: String) {
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
+		}
+	}
+
+	/**
+	 * Re-stamps [areaId] under [kind] when it is the last-touched surface - the leaf calls this when its
+	 * space changes, so dispatch, the status bar, and the palette all read the space the area hosts NOW
+	 * rather than the one it hosted when the pointer last moved over it.
+	 *
+	 * Does what a pointer event over the switched area would: the stamp takes the new kind, and the
+	 * strip-host claim follows when that kind hosts a strip.  A stamp naming another area is left alone -
+	 * a space switch says nothing about where the pointer is.
+	 *
+	 * @param String areaId The leaf whose space changed.
+	 * @param SpaceKind kind The space that leaf hosts now.
+	 */
+	fun restampKind(areaId: String, kind: SpaceKind) {
+		val current = lastTouched
+		if (current == null || current.areaId != areaId || current.kind == kind) {
+			return
+		}
+		val stamp = HoveredSurface(areaId, kind)
+		lastTouched = stamp
+		if (kind.hostsOperationStrip) {
+			lastTouchedStripHost = stamp
 		}
 	}
 

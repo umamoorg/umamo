@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.SelectionOps
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
@@ -24,9 +25,17 @@ internal fun modeCommands(selection: SelectionHandle?, editorMode: EditorModeHan
 	// Selection and mode commands need an open document (its selection / mode holders exist).
 	val hasSelection = CommandAvailability { selection != null }
 	val hasMode = CommandAvailability { editorMode != null }
+	// The toggle runs from either mode, and is suggested only on the way IN: the label reads "Edit Mode",
+	// which from inside Edit mode names where the user already is.
+	val inObjectMode = CommandAvailability { editorMode?.mode == EditorMode.Object }
 	return listOf(
 		Command("select.clear", title = Res.string.cmd_select_clear, availability = hasSelection) { selection?.set(SelectionOps.clear()) },
-		Command("mode.toggleEdit", title = Res.string.cmd_mode_toggle_edit, availability = hasMode, hint = Res.string.status_bind_edit_mode) {
+		Command(
+			"mode.toggleEdit",
+			title = Res.string.cmd_mode_toggle_edit,
+			availability = hasMode,
+			hint = CommandHint(Res.string.status_bind_edit_mode, suggestedWhen = inObjectMode),
+		) {
 			editorMode?.let { it.set(if (it.mode == EditorMode.Object) EditorMode.Edit else EditorMode.Object) }
 		},
 		// Explicit set-mode commands for the viewport header's mode dropdown (and the palette).  setMode

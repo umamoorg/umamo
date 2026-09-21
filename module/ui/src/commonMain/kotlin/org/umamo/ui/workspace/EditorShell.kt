@@ -569,8 +569,16 @@ fun EditorShell(
 						// registry resolves when the chosen command runs - the list and the dispatch cannot
 						// disagree about where the pointer is.
 						val paletteSurfaceKind = remember { hoveredSurfaces.observedKind }
+						// Remembered because this scope recomposes on every pointer move (it reads the shell
+						// pointer position), and a fresh list each time would re-query every availability and
+						// recompose the palette with it.  The palette is modal, so nothing changes what applies
+						// while it is up; the revision covers the table itself.
+						val paletteList =
+							remember(commandRegistry.revision, paletteSurfaceKind) {
+								paletteCommands(commandRegistry.all(), paletteSurfaceKind)
+							}
 						CommandPalette(
-							commands = paletteCommands(commandRegistry.all(), paletteSurfaceKind),
+							commands = paletteList,
 							onDismiss = { overlays.paletteVisible = false },
 							onInvoke = { command ->
 								overlays.paletteVisible = false

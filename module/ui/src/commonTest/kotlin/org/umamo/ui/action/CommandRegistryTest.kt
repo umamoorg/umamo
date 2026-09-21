@@ -98,10 +98,17 @@ class CommandRegistryTest {
 	fun theRevisionMovesWithTheTable() {
 		val registry = CommandRegistry()
 		val initial = registry.revision
+		var runCount = 0
 
-		registry.register(Command("a", title = null, handler = {}))
+		registry.register(Command("a", title = null, handler = { runCount++ }))
 		val afterRegister = registry.revision
 		assertTrue(afterRegister != initial, "registering moves it")
+
+		// Invoked while registered, so the handler really runs: an invoke that found nothing returns before
+		// any bookkeeping a run could bump the revision from.
+		assertTrue(registry.invoke("a"))
+		assertEquals(1, runCount, "the invoke must reach the handler for this to mean anything")
+		assertEquals(afterRegister, registry.revision, "running a command does not change the table")
 
 		registry.unregister("a")
 		val afterUnregister = registry.revision
@@ -111,7 +118,7 @@ class CommandRegistryTest {
 		assertEquals(afterUnregister, registry.revision, "unregistering an id that is not there changes nothing")
 
 		registry.invoke("a")
-		assertEquals(afterUnregister, registry.revision, "and neither does an invoke")
+		assertEquals(afterUnregister, registry.revision, "and neither does invoking one")
 	}
 
 	/**

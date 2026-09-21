@@ -1,18 +1,7 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.CommandSpaces
-import org.umamo.ui.workspace.AreaCameraHub
-import org.umamo.ui.workspace.AreaDragController
-import org.umamo.ui.workspace.KeyformSheetViews
-import org.umamo.ui.workspace.OperationStripState
-import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.SplitterDragCancelController
-import org.umamo.ui.workspace.WorkspaceLayoutController
-import org.umamo.ui.workspace.defaultLayout
-import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -26,41 +15,6 @@ import kotlin.test.assertTrue
  * command that would have run, and the palette is the only place that shows.
  */
 class CommandSpacesTableTest {
-	/**
-	 * Every command table the shell and the app register, built the way CommandTableOrderTest builds them.
-	 *
-	 * @return List<Command> Every command, in registration order.
-	 */
-	private fun everyCommand(): List<Command> {
-		val overlays = ShellOverlayState()
-		val workspaces = WorkspaceLayoutController(defaultLayout()) {}
-		val routing = CommandRouting { null }
-		val availability = SessionAvailability(null)
-		val sheets = KeyformSheetViews()
-		return chromeCommands(overlays, AreaDragController(), SplitterDragCancelController(), RowDragCancelController(), workspaces) {} +
-			workspaceCommands(workspaces, overlays, "Workspace") +
-			documentCommands(overlays) +
-			viewCommands(AreaCameraHub(), routing, viewportPresent = false) +
-			frameCommands(CommandRegistry(), routing) +
-			modeCommands(null, null) +
-			historyCommands(null, availability, OperationStripState()) +
-			objectCommands(null, null, availability) +
-			transformCommands(null, routing, availability) +
-			selectCommands(null, routing, sheets, availability) +
-			snapCommands(null, routing, availability) +
-			uvCommands(null, routing, availability) +
-			topologyCommands(null, routing, availability) +
-			proportionalCommands(null, availability) +
-			displayCommands(null, availability) +
-			atlasCommands(availability, routing, null) +
-			fileArtworkCommands(routing) { null } +
-			keyformCommands(null, { null }, routing, sheets, availability) +
-			workspaceFileCommands({}, {}, {}) +
-			logCommands {} +
-			fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {}) +
-			fileExportCommands({ true }, {}, {})
-	}
-
 	/** The scoped commands, each with the spaces its handler acts in; every other command is Everywhere. */
 	@Test
 	fun theScopedCommandsAreExactlyThese() {
@@ -114,7 +68,7 @@ class CommandSpacesTableTest {
 				"keyform.delete" to keyableSurfaces,
 			)
 		val actual =
-			everyCommand()
+			everyCommandTable()
 				.mapNotNull { command -> (command.spaces as? CommandSpaces.Only)?.let { scoped -> command.id to scoped.kinds } }
 				.toMap()
 		assertEquals(expected, actual)
@@ -127,7 +81,7 @@ class CommandSpacesTableTest {
 	 */
 	@Test
 	fun everyUvCommandIsScoped() {
-		val uvCommands = everyCommand().filter { command -> command.id.startsWith("uv.") }
+		val uvCommands = everyCommandTable().filter { command -> command.id.startsWith("uv.") }
 		assertTrue(uvCommands.isNotEmpty(), "the table must actually hold uv commands for this to mean anything")
 		for (command in uvCommands) {
 			assertEquals(CommandSpaces.UvEditor, command.spaces, "${command.id} must be scoped to the UV editor")
@@ -141,7 +95,7 @@ class CommandSpacesTableTest {
 	 */
 	@Test
 	fun theSheetCommandsWithAFallbackStayEverywhere() {
-		val byId = everyCommand().associateBy { command -> command.id }
+		val byId = everyCommandTable().associateBy { command -> command.id }
 		for (id in listOf("keyform.deleteSelectedKeys", "keyform.nudgeKeyLeft", "keyform.nudgeKeyRight", "keyform.frameAll")) {
 			assertEquals(CommandSpaces.Everywhere, byId.getValue(id).spaces, "$id reaches the lone open sheet from anywhere")
 		}

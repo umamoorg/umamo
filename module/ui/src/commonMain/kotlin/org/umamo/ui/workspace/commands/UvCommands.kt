@@ -10,6 +10,7 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.placementSelectedTileIds
 import org.umamo.edit.setAtlasPins
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceKind
@@ -136,7 +137,7 @@ internal fun uvCommands(
 			title = Res.string.cmd_uv_pin_placement,
 			availability = availability.inObjectMode,
 			spaces = CommandSpaces.UvEditor,
-			hint = Res.string.status_bind_pin,
+			hint = CommandHint(Res.string.status_bind_pin),
 		) {
 			setPins(pinned = true)
 		},

@@ -50,4 +50,64 @@ class HoveredSurfaceTrackerTest {
 
 		assertEquals(SpaceKind.UvEditor, tracker.observedKind)
 	}
+
+	/**
+	 * Switching the touched area to another space re-stamps it at once.  A header-dropdown switch sends
+	 * no pointer event over the leaf, so waiting for one would leave dispatch, the status bar, and the
+	 * palette all reading the space the area used to host.
+	 */
+	@Test
+	fun switchingTheTouchedAreasSpaceRestampsItsKind() {
+		val tracker = HoveredSurfaceTracker()
+		tracker.lastTouched = HoveredSurface("area-1", SpaceKind.Viewport2D)
+
+		tracker.restampKind("area-1", SpaceKind.Outliner)
+
+		assertEquals(HoveredSurface("area-1", SpaceKind.Outliner), tracker.lastTouched)
+		assertEquals(SpaceKind.Outliner, tracker.observedKind)
+	}
+
+	/**
+	 * The strip-host claim follows the re-stamp the way it follows a pointer event: taken when the new
+	 * kind hosts a strip, and left released when it does not.
+	 */
+	@Test
+	fun theStripHostClaimFollowsTheRestampedKind() {
+		val tracker = HoveredSurfaceTracker()
+		tracker.lastTouched = HoveredSurface("area-1", SpaceKind.Outliner)
+
+		tracker.restampKind("area-1", SpaceKind.UvEditor)
+		assertEquals(HoveredSurface("area-1", SpaceKind.UvEditor), tracker.lastTouchedStripHost)
+
+		// The leaf releases the outgoing kind's claim before it re-stamps, as AreaLeaf's effect does.
+		tracker.releaseStripHost("area-1")
+		tracker.restampKind("area-1", SpaceKind.Outliner)
+		assertNull(tracker.lastTouchedStripHost, "a panel hosts no strip, so nothing claims the slot back")
+	}
+
+	/** A space switch says nothing about where the pointer is: a stamp naming another area is left alone. */
+	@Test
+	fun switchingAnotherAreasSpaceLeavesTheStampAlone() {
+		val tracker = HoveredSurfaceTracker()
+		val touched = HoveredSurface("viewport-1", SpaceKind.Viewport2D)
+		tracker.lastTouched = touched
+		tracker.lastTouchedStripHost = touched
+
+		tracker.restampKind("outliner-1", SpaceKind.UvEditor)
+
+		assertEquals(touched, tracker.lastTouched)
+		assertEquals(touched, tracker.lastTouchedStripHost)
+		assertEquals(SpaceKind.Viewport2D, tracker.observedKind)
+	}
+
+	/** Before the pointer has touched anything there is no stamp to move, so a switch leaves none behind. */
+	@Test
+	fun switchingASpaceBeforeAnyTouchStampsNothing() {
+		val tracker = HoveredSurfaceTracker()
+
+		tracker.restampKind("area-1", SpaceKind.UvEditor)
+
+		assertNull(tracker.lastTouched)
+		assertNull(tracker.lastTouchedStripHost)
+	}
 }

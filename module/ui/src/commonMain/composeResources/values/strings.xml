@@ -500,7 +500,6 @@
 	<string name="status_glues">Glues: %1$d</string>
 
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
-	<string name="status_bind_palette">Command Palette</string>
 	<string name="status_bind_confirm">LMB / Enter: Confirm</string>
 	<string name="status_bind_cancel">RMB / Esc: Cancel</string>
 	<string name="status_bind_edit_mode">Edit Mode</string>

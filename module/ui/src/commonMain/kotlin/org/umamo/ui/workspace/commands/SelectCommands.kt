@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -38,7 +39,7 @@ internal fun selectCommands(
 			"mesh.selectMode.vertex",
 			title = Res.string.cmd_mesh_select_mode_vertex,
 			availability = availability.inEditMode,
-			hint = Res.string.status_select_mode,
+			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Vertex)
 		},
@@ -46,7 +47,7 @@ internal fun selectCommands(
 			"mesh.selectMode.edge",
 			title = Res.string.cmd_mesh_select_mode_edge,
 			availability = availability.inEditMode,
-			hint = Res.string.status_select_mode,
+			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Edge)
 		},
@@ -54,7 +55,7 @@ internal fun selectCommands(
 			"mesh.selectMode.face",
 			title = Res.string.cmd_mesh_select_mode_face,
 			availability = availability.inEditMode,
-			hint = Res.string.status_select_mode,
+			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
@@ -86,7 +87,7 @@ internal fun selectCommands(
 			"mesh.boxSelect",
 			title = Res.string.cmd_mesh_box_select,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.of(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet),
+			spaces = CommandSpaces.WorkSurfacesAndSheet,
 		) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the

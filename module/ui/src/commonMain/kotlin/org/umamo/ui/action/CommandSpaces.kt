@@ -57,6 +57,9 @@ sealed interface CommandSpaces {
 	}
 
 	companion object {
+		/** The kinds behind [WorkSurfaces], held once so every set built on the work surfaces follows it. */
+		private val workSurfaceKinds = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor)
+
 		/** The 2D viewport alone: world-space operations whose overlay is the only collector. */
 		val Viewport2D: CommandSpaces = Only(setOf(SpaceKind.Viewport2D))
 
@@ -67,7 +70,20 @@ sealed interface CommandSpaces {
 		 * The two work surfaces, the 2D viewport and the UV editor: the modal transforms, the select
 		 * tools, and the camera commands.  A new camera-bearing or transform-hosting space joins here.
 		 */
-		val WorkSurfaces: CommandSpaces = Only(setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor))
+		val WorkSurfaces: CommandSpaces = Only(workSurfaceKinds)
+
+		/**
+		 * The work surfaces plus the keyform sheet: the commands that mean one thing over a work surface
+		 * and the sheet's own version of it over a sheet (Frame All, Box Select).  Derived from the work
+		 * surfaces, so a space that joins them is covered here too.
+		 */
+		val WorkSurfacesAndSheet: CommandSpaces = Only(workSurfaceKinds + SpaceKind.KeyformSheet)
+
+		/**
+		 * The surfaces showing keyable properties, the keyform sheet's lanes and the Properties rows: the
+		 * insert / delete pair that writes to whichever keyable the pointer is over.
+		 */
+		val KeyableSurfaces: CommandSpaces = Only(setOf(SpaceKind.KeyformSheet, SpaceKind.Properties))
 
 		/**
 		 * Builds the scope of a command whose spaces match none of the named sets.

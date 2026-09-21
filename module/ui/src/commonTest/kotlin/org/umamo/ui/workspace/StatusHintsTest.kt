@@ -3,6 +3,7 @@ package org.umamo.ui.workspace
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.parseKeyChord
@@ -31,6 +32,7 @@ class StatusHintsTest {
 	 * @param StringResource? hint The status label, or null for a command that is never suggested.
 	 * @param CommandSpaces spaces The spaces it belongs to.
 	 * @param Boolean available Whether it currently applies.
+	 * @param Boolean suggested Whether its hint is worth suggesting right now, on top of being available.
 	 * @return Command The command.
 	 */
 	private fun command(
@@ -38,10 +40,30 @@ class StatusHintsTest {
 		hint: StringResource?,
 		spaces: CommandSpaces = CommandSpaces.Everywhere,
 		available: Boolean = true,
-	): Command = Command(id, title = null, availability = CommandAvailability { available }, spaces = spaces, hint = hint, handler = {})
+		suggested: Boolean = true,
+	): Command =
+		Command(
+			id,
+			title = null,
+			availability = CommandAvailability { available },
+			spaces = spaces,
+			hint = hint?.let { label -> CommandHint(label, suggestedWhen = CommandAvailability { suggested }) },
+			handler = {},
+		)
 
+	/**
+	 * A keymap over chord-spec to command-id pairs.
+	 *
+	 * @param Pair<String, String> bindings Each chord spec ("KeyG") with the command id it reaches.
+	 * @return Keymap The keymap holding exactly those bindings.
+	 */
 	private fun keymap(vararg bindings: Pair<String, String>): Keymap = Keymap.fromSpecs(bindings.toMap())
 
+	/**
+	 * The labels of these suggestions, in order - what most cases below compare.
+	 *
+	 * @return List<StringResource> The suggestion labels.
+	 */
 	private fun List<StatusHint>.labels(): List<StringResource> = map { hint -> hint.label }
 
 	/** Only a command carrying a hint is ever suggested. */
@@ -70,6 +92,17 @@ class StatusHintsTest {
 		val commands = listOf(command("test.grab", hint = Res.string.status_bind_grab, available = false))
 
 		assertTrue(statusHintsFor(commands, keymap("KeyG" to "test.grab"), SpaceKind.Viewport2D).isEmpty())
+	}
+
+	/**
+	 * An available command whose hint is not worth suggesting right now stays off the bar - how Tab is
+	 * bound and runs in Edit mode while the bar suggests it only from Object mode.
+	 */
+	@Test
+	fun anAvailableCommandWhoseHintIsNotSuggestedStaysOffTheBar() {
+		val commands = listOf(command("test.editMode", hint = Res.string.status_bind_edit_mode, suggested = false))
+
+		assertTrue(statusHintsFor(commands, keymap("Tab" to "test.editMode"), SpaceKind.Viewport2D).isEmpty())
 	}
 
 	/** An unbound command is omitted, so the strip never advertises a key that does nothing. */

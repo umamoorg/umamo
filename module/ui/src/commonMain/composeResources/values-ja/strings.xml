@@ -459,7 +459,6 @@
 	<string name="status_glues">グルー: %1$d</string>
 
 	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
-	<string name="status_bind_palette">コマンドパレット</string>
 	<string name="status_bind_confirm">LMB / Enter: 確定</string>
 	<string name="status_bind_cancel">RMB / Esc: キャンセル</string>
 	<string name="status_bind_edit_mode">編集モード</string>

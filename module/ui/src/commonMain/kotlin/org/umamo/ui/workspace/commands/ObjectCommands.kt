@@ -9,6 +9,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.visibilityOf
 import org.umamo.edit.withSelectionVisibility
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
 
@@ -29,11 +30,13 @@ internal fun objectCommands(
 ): List<Command> =
 	listOf(
 		// The first real model mutation: flips the selected parts'/drawables' eyeball as one undo step.
+		// Suggested in Object mode alone: in Edit mode the key hides the very drawable being edited, which
+		// runs but is not worth advertising beside the mesh tools.
 		Command(
 			"object.toggleVisibility",
 			title = Res.string.cmd_toggle_visibility,
 			availability = availability.hasDocument,
-			hint = Res.string.status_bind_visibility,
+			hint = CommandHint(Res.string.status_bind_visibility, suggestedWhen = availability.inObjectMode),
 		) {
 			val current = selection?.selection
 			val active = current?.active

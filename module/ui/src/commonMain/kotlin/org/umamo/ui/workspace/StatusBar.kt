@@ -46,6 +46,10 @@ private val STATUS_BAR_HEIGHT = 24.dp
 // Separates the inline entries within a zone; a middot-style bar keeps the run-on counts grouped.
 private const val STAT_SEPARATOR = " | "
 
+// The hint slot's share of the flexible width, against the notice slot's 1: six hints read longer than
+// any notice, so they get the larger part of what the selected item and the stats leave over.
+private const val HINT_SLOT_WEIGHT = 2f
+
 /**
  * The bottom status strip: thin, always-present window chrome below the area tree, laid out as four
  * conceptual zones left to right - the current context's input binds, a blank flexible middle, the
@@ -72,7 +76,12 @@ fun StatusBar(modifier: Modifier = Modifier) {
 					.padding(horizontal = 8.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			ContextBindsZone()
+			// Weighted, and emitted even when it holds nothing: a weighted child is measured after the
+			// selected item and the stats, so a long hint run is cut before it can squeeze them, and a slot
+			// that is always there keeps the notice beside it from moving as the hints change.
+			Box(modifier = Modifier.weight(HINT_SLOT_WEIGHT), contentAlignment = Alignment.CenterStart) {
+				ContextBindsZone()
+			}
 			// The flexible middle doubles as the transient-notice slot: a blank gap normally, a brief message
 			// when the session emits one (e.g. an Object-mode transform blocked by a part / deformer selection).
 			Box(modifier = Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
@@ -124,10 +133,11 @@ private fun StatusNotice() {
  * than listed here - see [statusHintsFor].  Moving the pointer from a viewport to a keyform sheet
  * changes the suggestions, and a command that gains a hint appears with no edit to this zone.
  *
- * An active modal mesh operator overrides the list with its confirm / cancel pair.  Those two are
- * literal strings because the inputs live in the overlay's own pointer loop and the shell's hardcoded
- * modal branches, not in the keymap - there is nothing rebindable to resolve, and no command to derive
- * them from.
+ * An active modal transform operator - from any of the three families, since G / S / R latch the mesh,
+ * the object, or the UV operator depending on the mode and the surface - overrides the list with its
+ * confirm / cancel pair.  Those two are literal strings because the inputs live in the overlay's own
+ * pointer loop and the shell's hardcoded modal branches, not in the keymap - there is nothing rebindable
+ * to resolve, and no command to derive them from.
  */
 @Composable
 private fun ContextBindsZone() {
@@ -136,16 +146,21 @@ private fun ContextBindsZone() {
 	val hoveredKind = LocalHoveredSurfaceTracker.current?.observedKind
 	val session = LocalEditorSession.current
 	val editorMode = session?.mode?.collectAsState()?.value
-	val activeOperator = session?.activeMeshOperator?.collectAsState()?.value
+	// The three latches are separate flows and at most one is live; the session's own activeOperator is
+	// an instantaneous read, so composition collects each (as the viewport HUD does).
+	val meshOperator = session?.activeMeshOperator?.collectAsState()?.value
+	val objectOperator = session?.activeObjectOperator?.collectAsState()?.value
+	val uvOperator = session?.activeUvOperator?.collectAsState()?.value
+	val operatorActive = meshOperator != null || objectOperator != null || uvOperator != null
 	// The table is a plain map, so the revision is what re-reads it: a document swap lands its commands
 	// from effects AFTER the composition the swap caused, and only the bump brings this zone back.
 	val registered = remember(commands.revision) { commands.all() }
 	// Availability is a live query the snapshot system cannot see, so these keys ARE the contract: a
-	// hinted command's availability may depend on the registered table (and so the document), the mode,
-	// and nothing else - which is what Command.hint asks of it.
+	// hinted command's availability and its hint's suggestedWhen may depend on the registered table (and
+	// so the document), the mode, and nothing else - which is what CommandHint asks of them.
 	val hints = remember(registered, keymap, hoveredKind, editorMode) { statusHintsFor(registered, keymap, hoveredKind) }
 	val entries =
-		if (activeOperator != null) {
+		if (operatorActive) {
 			listOf(stringResource(Res.string.status_bind_confirm), stringResource(Res.string.status_bind_cancel))
 		} else {
 			hints.map { hint ->
@@ -160,6 +175,8 @@ private fun ContextBindsZone() {
 		text = entries.joinToString(separator = STAT_SEPARATOR),
 		style = LocalUmamoTypography.current.labelMedium,
 		color = LocalUmamoColors.current.textMuted,
+		maxLines = 1,
+		overflow = TextOverflow.Ellipsis,
 	)
 }
 
