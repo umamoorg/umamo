@@ -138,10 +138,6 @@ private val RANGE_FIELD_LIMIT = -1_000_000f..1_000_000f
  * the space away and back. Models without groups fall back to a flat list.  The header's search field
  * filters the list by parameter name or id, opening every group for as long as it has text in it.
  *
- * パラメータ操作盤。スライダー／2D パッド／数値入力で値をスクラブ（取り消し可能、ジェスチャ単位で1段）。
- * 各パラメータは角丸の島として区切られ、名前（または先頭のシェブロン）をクリックするとその島の中に
- * 範囲（最小・既定・最大）編集が開く。複数の島を同時に開ける（モーダルなし）。
- *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  * @param Modifier modifier The layout modifier.
  */
@@ -1150,9 +1146,6 @@ private fun RangeAxisLabel(name: String) {
  * editor is open. Editing any field commits one undo step through the session (which normalizes
  * min <= max, clamps the default into the range, and re-clamps the live pose); the model then refreshes
  * the fields. Any number of islands can hold an open range editor at once.
- *
- * パラメータ範囲（最小・既定・最大）の編集フィールド。島の中に開き、各編集はセッション経由で1つの
- * 取り消し段になる。複数の島を同時に開ける。
  *
  * @param Parameter parameter  The parameter whose range is edited.
  * @param Function  onSetRange Called with (min, default, max) to commit a range edit.
