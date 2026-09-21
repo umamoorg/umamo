@@ -46,7 +46,7 @@ class ThemeColorsTest {
 		assertEquals(Color(0xFF545454), colors.controlBackground, "controlBackground")
 		assertEquals(Color(0xFFFFFFFF), colors.controlGlyph, "controlGlyph")
 		assertEquals(Color(0xFF656565), colors.buttonHover, "buttonHover")
-		assertEquals(Color(0xFF474747), colors.buttonPressed, "buttonPressed")
+		assertEquals(Color(0xFFA96FC1), colors.buttonPressed, "buttonPressed")
 		assertEquals(Color(0xFF252525), colors.sliderTrack, "sliderTrack")
 		assertEquals(Color(0xFFD2D2D2), colors.sliderThumb, "sliderThumb")
 		assertEquals(brandPurple.copy(alpha = 0.16f), colors.dropZoneFill, "dropZoneFill")
