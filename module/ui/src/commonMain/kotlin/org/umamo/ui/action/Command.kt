@@ -46,17 +46,22 @@ fun interface CommandAvailability {
  * bindings all resolve to a Command and run its [handler]; nothing hardcodes a handler, so rebinding
  * a key or relabelling a menu changes one place.
  *
- * 名前付きの実行可能な操作。メニュー・ヘッダ・パレット・キーバインドはすべてこれを介して実行する。
- *
  * @property String id The stable dotted identifier used to look the command up and to bind keys to it.
  * @property StringResource? title The localized menu/palette label, or null for commands never shown in UI (e.g. test-only).
  * @property CommandAvailability availability Whether the command currently applies (palette filter +
  *   dispatch guard); defaults to always.
+ * @property CommandSpaces spaces The editor spaces the command belongs to (palette filter + status bar
+ *   suggestion, never a dispatch guard); defaults to everywhere.
+ * @property CommandHint? hint What the status bar suggests the command under and when, or null for a
+ *   command it never suggests.  A hinted command's [availability] must depend on the document and the
+ *   mode alone - see [CommandHint] for why.
  * @property CommandHandler handler The work to perform when invoked.
  */
 class Command(
 	val id: String,
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
+	val spaces: CommandSpaces = CommandSpaces.Everywhere,
+	val hint: CommandHint? = null,
 	val handler: CommandHandler,
 )

@@ -59,6 +59,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
+	* ALT+H (Unhide All) and SHIFT+H (Hide everything that is not selected.)
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
@@ -253,7 +254,9 @@ Sketch:
 	* Now that the hovered area is tracked everywhere we can filter by what commands are available per area.
 
 ## Status Bar
-* Needs massive improvements for the automatic shortcut suggestions to work better.  See Command Palette about filtering commands per hovered area.
+* The first iteration to improve the status bar hints was a good success.  Eventually:
+	* Hint icons (Mouse button indicator, etc.)
+	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

@@ -324,7 +324,6 @@
 	<string name="status_parameters">파라미터: %1$d</string>
 	<string name="status_deformers">디포머: %1$d</string>
 	<string name="status_glues">글루: %1$d</string>
-	<string name="status_bind_palette">커맨드 팔레트</string>
 	<string name="status_bind_confirm">LMB / Enter: 확인</string>
 	<string name="status_bind_cancel">RMB / Esc: 취소</string>
 	<string name="status_bind_edit_mode">편집 모드</string>
@@ -332,6 +331,9 @@
 	<string name="status_bind_grab">그랩</string>
 	<string name="status_bind_scale">크기 조절</string>
 	<string name="status_bind_rotate">회전</string>
+	<string name="status_bind_insert_key">키 추가</string>
+	<string name="status_bind_delete_key">키 삭제</string>
+	<string name="status_bind_pin">고정</string>
 	<string name="status_select_mode">선택 모드</string>
 	<string name="status_mesh_vertices">%1$d/%2$d개 정점</string>
 	<string name="status_mesh_edges">%1$d/%2$d개 간선</string>

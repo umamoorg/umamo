@@ -8,6 +8,7 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.snapToGrid
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceKind
 
@@ -81,27 +82,27 @@ internal fun snapCommands(
 				live.closePieMenu()
 			}
 		},
-		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument) {
+		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.CursorToSelected, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument) {
+		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.CursorToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument) {
+		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToGrid, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument) {
+		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursor, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument) {
+		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument) {
+		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},

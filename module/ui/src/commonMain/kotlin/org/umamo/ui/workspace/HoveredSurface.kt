@@ -1,5 +1,8 @@
 package org.umamo.ui.workspace
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -30,8 +33,10 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the
  * status bar), but an area that is closed or joined away releases it via [releaseArea] - the same
  * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
- * general stamp (it still exists, and the next pointer event over it re-stamps the new kind) but gives
- * up its strip-host stamp at once through [releaseStripHost], since that stamp asserts a kind.
+ * stamp under its new kind through [restampKind]: the area still exists and the pointer has not moved,
+ * so it goes on being the answer, and a header-dropdown switch sends no pointer event over the leaf to
+ * wait for.  Its strip-host stamp asserts the OLD kind, so the leaf drops that first through
+ * [releaseStripHost] and the re-stamp claims it again only when the new kind hosts a strip.
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
@@ -42,10 +47,26 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * operation that already ran; no command routes an action through it.  It must never name an area
  * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the
  * strip would show nowhere.
+ *
+ * [observedKind] is the one read composition MAY make, and it exposes the kind alone on purpose.  The
+ * status bar suggests shortcuts for the space under the pointer, which needs a reactive read; an area
+ * id read reactively is what let an overlay gate itself onto "the active area" and paint in two
+ * viewports at once.  A kind cannot do that: two viewports share one, so it names no area to gate on.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */
 	var lastTouched: HoveredSurface? = null
+		set(value) {
+			field = value
+			observedKind = value?.kind
+		}
+
+	/**
+	 * The kind of [lastTouched], as snapshot state - display chrome's reactive view of where the pointer
+	 * is.  Written only through [lastTouched], so the two cannot disagree.
+	 */
+	var observedKind: SpaceKind? by mutableStateOf(null)
+		private set
 
 	/**
 	 * The strip-hosting surface the pointer last touched, or null before any was (or after it died or
@@ -63,6 +84,30 @@ internal class HoveredSurfaceTracker {
 	fun releaseStripHost(areaId: String) {
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
+		}
+	}
+
+	/**
+	 * Re-stamps [areaId] under [kind] when it is the last-touched surface - the leaf calls this when its
+	 * space changes, so dispatch, the status bar, and the palette all read the space the area hosts NOW
+	 * rather than the one it hosted when the pointer last moved over it.
+	 *
+	 * Does what a pointer event over the switched area would: the stamp takes the new kind, and the
+	 * strip-host claim follows when that kind hosts a strip.  A stamp naming another area is left alone -
+	 * a space switch says nothing about where the pointer is.
+	 *
+	 * @param String areaId The leaf whose space changed.
+	 * @param SpaceKind kind The space that leaf hosts now.
+	 */
+	fun restampKind(areaId: String, kind: SpaceKind) {
+		val current = lastTouched
+		if (current == null || current.areaId != areaId || current.kind == kind) {
+			return
+		}
+		val stamp = HoveredSurface(areaId, kind)
+		lastTouched = stamp
+		if (kind.hostsOperationStrip) {
+			lastTouchedStripHost = stamp
 		}
 	}
 

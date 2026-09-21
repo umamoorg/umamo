@@ -48,6 +48,7 @@ import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.defaultKeymap
+import org.umamo.ui.action.paletteCommands
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.help.AboutDialog
 import org.umamo.ui.help.CreditsDialog
@@ -563,14 +564,21 @@ fun EditorShell(
 					// file-open alert, the export report, the repack refusal report, then the confirm dialog
 					// (the topmost modal).
 					if (overlays.paletteVisible) {
-						// title == null marks a command as not-a-palette-entry (internal toggles like
-						// palette.toggle / area.dragCancel, and argument-only import commands), and an
-						// unavailable command is hidden, so the palette only offers titled operations that
-						// apply in the current context (mode, armed tool, open document).
+						// The space the palette was summoned over, read once per open.  The palette's scrim
+						// keeps every leaf from stamping while it is up, so this is also the surface the
+						// registry resolves when the chosen command runs - the list and the dispatch cannot
+						// disagree about where the pointer is.
+						val paletteSurfaceKind = remember { hoveredSurfaces.observedKind }
+						// Remembered because this scope recomposes on every pointer move (it reads the shell
+						// pointer position), and a fresh list each time would re-query every availability and
+						// recompose the palette with it.  The palette is modal, so nothing changes what applies
+						// while it is up; the revision covers the table itself.
+						val paletteList =
+							remember(commandRegistry.revision, paletteSurfaceKind) {
+								paletteCommands(commandRegistry.all(), paletteSurfaceKind)
+							}
 						CommandPalette(
-							commands =
-								commandRegistry.all()
-									.filter { command -> command.title != null && command.availability.isAvailable() },
+							commands = paletteList,
 							onDismiss = { overlays.paletteVisible = false },
 							onInvoke = { command ->
 								overlays.paletteVisible = false

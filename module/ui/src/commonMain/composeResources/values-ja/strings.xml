@@ -459,7 +459,6 @@
 	<string name="status_glues">グルー: %1$d</string>
 
 	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
-	<string name="status_bind_palette">コマンドパレット</string>
 	<string name="status_bind_confirm">LMB / Enter: 確定</string>
 	<string name="status_bind_cancel">RMB / Esc: キャンセル</string>
 	<string name="status_bind_edit_mode">編集モード</string>
@@ -467,6 +466,9 @@
 	<string name="status_bind_grab">移動</string>
 	<string name="status_bind_scale">拡大縮小</string>
 	<string name="status_bind_rotate">回転</string>
+	<string name="status_bind_insert_key">キー挿入</string>
+	<string name="status_bind_delete_key">キー削除</string>
+	<string name="status_bind_pin">ピン留め</string>
 	<string name="status_select_mode">選択モード</string>
 	<string name="status_mesh_vertices">頂点 %1$d/%2$d</string>
 	<string name="status_mesh_edges">辺 %1$d/%2$d</string>

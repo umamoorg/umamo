@@ -7,6 +7,8 @@ import org.umamo.edit.removeKeyOnTrack
 import org.umamo.edit.removeTrackKeys
 import org.umamo.edit.removingKeys
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandHint
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.model.KeyformHover
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -62,7 +64,13 @@ internal fun keyformCommands(
 	 */
 	fun hoveredSheetArea(): String? = routing.areaOf(SpaceKind.KeyformSheet)
 	return listOf(
-		Command("keyform.insert", title = Res.string.cmd_keyform_insert, availability = availability.hasDocument) {
+		Command(
+			"keyform.insert",
+			title = Res.string.cmd_keyform_insert,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.KeyableSurfaces,
+			hint = CommandHint(Res.string.status_bind_insert_key),
+		) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
 					// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
@@ -71,7 +79,13 @@ internal fun keyformCommands(
 				}
 			}
 		},
-		Command("keyform.delete", title = Res.string.cmd_keyform_delete, availability = availability.hasDocument) {
+		Command(
+			"keyform.delete",
+			title = Res.string.cmd_keyform_delete,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.KeyableSurfaces,
+			hint = CommandHint(Res.string.status_bind_delete_key),
+		) {
 			editorSession?.let { session ->
 				aimedKeyable(session, hoveredKeyable())?.let { hover ->
 					// The hovered row goes with it, so the removal re-points the sheet's key selection at what
