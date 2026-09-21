@@ -82,8 +82,8 @@ private const val LOCALE_DEFAULT = "en"
  * so each auto-saves with immediate visible effect.
  *
  * Theme option labels are localized chrome.  Language names are endonyms ("English" / "日本語" /
- * "한국어") shown verbatim regardless of the active UI language - a language's own name is identity,
- * not chrome to translate, the same reasoning that keeps format-level identifiers unlocalized.
+ * "한국어" / "Français") shown verbatim regardless of the active UI language - a language's own name
+ * is identity, not chrome to translate, the same reasoning that keeps format-level identifiers unlocalized.
  */
 @Composable
 internal fun InterfaceSection() {
@@ -102,7 +102,7 @@ internal fun InterfaceSection() {
 		)
 	// One entry per composeResources/values-<tag>/ catalog; the key is the BCP-47 tag written to
 	// localization.locale, which applyAppLocale feeds to the resource environment.
-	val languageEndonyms = linkedMapOf("en" to "English", "ja" to "日本語", "ko" to "한국어")
+	val languageEndonyms = linkedMapOf("en" to "English", "ja" to "日本語", "ko" to "한국어", "fr" to "Français")
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_interface_theme)) {
