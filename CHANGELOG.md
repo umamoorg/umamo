@@ -23,6 +23,8 @@ Umamo is early alpha.
 * UI: Confirmation dialogs now take arguments for button names and actions along with a new third button.
 * UI: Clicking away from all text input fields should now commit the change.
 * UI: Clicking away from all text input fields should now end text entry input preventing other inputs from being eaten.
+* UI: The command palette now lists only the commands that apply to the editor area under the pointer.  For example, Mirror UVs no longer shows while editing a mesh in the 2D viewport.
+* UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.

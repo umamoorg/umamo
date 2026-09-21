@@ -500,7 +500,6 @@
 	<string name="status_glues">Glues: %1$d</string>
 
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
-	<string name="status_bind_palette">Command Palette</string>
 	<string name="status_bind_confirm">LMB / Enter: Confirm</string>
 	<string name="status_bind_cancel">RMB / Esc: Cancel</string>
 	<string name="status_bind_edit_mode">Edit Mode</string>
@@ -508,6 +507,9 @@
 	<string name="status_bind_grab">Grab</string>
 	<string name="status_bind_scale">Scale</string>
 	<string name="status_bind_rotate">Rotate</string>
+	<string name="status_bind_insert_key">Insert Key</string>
+	<string name="status_bind_delete_key">Delete Key</string>
+	<string name="status_bind_pin">Pin</string>
 	<string name="status_select_mode">Select Mode</string>
 	<string name="status_mesh_vertices">%1$d/%2$d vertices</string>
 	<string name="status_mesh_edges">%1$d/%2$d edges</string>

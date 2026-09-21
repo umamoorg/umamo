@@ -26,10 +26,12 @@ import org.umamo.ui.action.CommandRegistry
  *
  * @param List<Command> commands The commands to register.
  * @return Function The cleanup unregistering exactly those commands.
- * @warning Registration is insertion-ordered and re-registering MOVES a group to the tail, which the
- *   command palette shows verbatim for a blank query.  Harmless today because no group's effect key
- *   flips while a document stays open; adding an independently-flipping key to one of those effects
- *   would make the palette reorder itself at runtime.
+ * @warning Registration is insertion-ordered and re-registering MOVES a group to the tail.  Two things
+ *   read that order verbatim: the command palette, for a blank query, and the status bar, which lists
+ *   each tier's hints in it and cuts the list at STATUS_HINT_LIMIT - so the order also decides WHICH
+ *   hint falls off.  Harmless today because no group's effect key flips while a document stays open;
+ *   adding an independently-flipping key to one of those effects would make the palette reorder itself,
+ *   and the status bar swap its last suggestion, at runtime.
  */
 internal fun CommandRegistry.registerAll(commands: List<Command>): () -> Unit {
 	commands.forEach { command -> register(command) }

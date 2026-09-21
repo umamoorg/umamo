@@ -11,6 +11,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.edit.SnapRequest
+import org.umamo.edit.UvMirrorRequest
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -327,6 +328,51 @@ class CommandDispatchTest {
 			collector.cancel()
 
 			assertEquals(viewportArea, received.single().areaId)
+		}
+
+	/**
+	 * Mirror UVs fired over a 2D viewport still runs its handler - a command's spaces hide it from the
+	 * palette there, they do not gate the dispatch - and the request it emits names no area, so no UV
+	 * editor's collector matches.  That no-op is what makes hiding it safe: nothing that worked is lost.
+	 */
+	@Test
+	fun aUvMirrorOverAViewportStillDispatchesAndCarriesNoArea() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				uvCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+			val received = mutableListOf<UvMirrorRequest>()
+			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("uv.mirrorU")
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(1, received.size, "the handler ran: spaces are not a dispatch guard")
+			assertNull(received.single().areaId, "but it names no area, so no UV editor acts on it")
+		}
+
+	/** Over a UV editor the same mirror carries that editor, electing exactly one overlay. */
+	@Test
+	fun aUvMirrorOverAUvEditorCarriesIt() =
+		runTest {
+			val session = session(EditorMode.Edit)
+			val commands =
+				uvCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
+			val received = mutableListOf<UvMirrorRequest>()
+			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+
+			commands.run("uv.mirrorU")
+			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			runCurrent()
+			collector.cancel()
+
+			assertEquals(uvArea, received.single().areaId)
 		}
 
 	/**

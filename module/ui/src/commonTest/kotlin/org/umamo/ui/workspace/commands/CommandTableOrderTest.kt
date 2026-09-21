@@ -232,6 +232,15 @@ class CommandTableOrderTest {
 		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
 	}
 
+	/** The viewport chrome toggles the settings-backed shell registers; they write settings, so they build over an in-memory tree. */
+	@Test
+	fun viewportChromeTableIsComplete() {
+		assertEquals(
+			listOf("view.toggleToolbar", "view.toggleSidebar"),
+			viewportChromeCommands(inMemorySettings()).map { command -> command.id },
+		)
+	}
+
 	/**
 	 * The app-registered file tables.  Their actions are plain lambdas, which is what lets a commonMain test
 	 * build them at all - the document layer they actually call into is jvmAndroidMain.

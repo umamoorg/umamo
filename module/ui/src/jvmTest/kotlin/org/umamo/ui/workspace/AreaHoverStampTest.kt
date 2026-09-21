@@ -198,7 +198,9 @@ class AreaHoverStampTest {
 	 * Switching a work surface to a panel releases its strip-host claim at once, with no pointer event
 	 * over the area: a document-wide command fired elsewhere right after the switch would otherwise be
 	 * routed to an area whose host refuses a non-hosting kind, and its strip would show nowhere.  The
-	 * general stamp stays, since the area still exists, and follows the new kind on the next touch.
+	 * general stamp stays, since the area still exists, and takes the new kind on the same switch - a
+	 * key pressed before the pointer moves acts in the space the area hosts now, and the status bar and
+	 * the palette read that space too.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -226,7 +228,8 @@ class AreaHoverStampTest {
 			switchToLogs?.invoke()
 			waitForIdle()
 			assertNull(tracker.lastTouchedStripHost, "the strip-host claim is released by the switch itself")
-			assertEquals(HoveredSurface("area-1", SpaceKind.Viewport2D), tracker.lastTouched, "the general stamp survives until the next touch")
+			assertEquals(HoveredSurface("area-1", SpaceKind.Logs), tracker.lastTouched, "the general stamp takes the new kind with no pointer event")
+			assertEquals(SpaceKind.Logs, tracker.observedKind, "and display chrome observes it")
 
 			onNodeWithTag("leaf").performMouseInput { moveTo(Offset(210f, 200f)) }
 			assertEquals(HoveredSurface("area-1", SpaceKind.Logs), tracker.lastTouched)
