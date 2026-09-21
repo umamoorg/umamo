@@ -1,5 +1,8 @@
 package org.umamo.ui.action
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
@@ -9,11 +12,21 @@ import androidx.compose.runtime.staticCompositionLocalOf
  *
  * Insertion order is preserved (a LinkedHashMap) so the command palette can list commands in a
  * stable, registration order rather than a hash-shuffled one.
- *
- * 名前付きコマンドの登録表と唯一の実行窓口。メニュー・ヘッダ・パレット・キーマップはすべてここを通る。
  */
 class CommandRegistry {
 	private val commandsById = LinkedHashMap<String, Command>()
+
+	/**
+	 * Counts every change to the table, as snapshot state - what a composable listing [all] reads so that
+	 * it recomposes when the table changes.
+	 *
+	 * The table itself is a plain map, and the document-scoped groups re-register from effects that run
+	 * AFTER the composition a document swap caused.  Without this, a listing recomposed by that swap
+	 * reads the outgoing document's commands - whose availability still answers for the old session - and
+	 * nothing recomposes it again once the new ones land.
+	 */
+	var revision: Int by mutableIntStateOf(0)
+		private set
 
 	/**
 	 * Registers (or replaces) a command under its [Command.id].
@@ -22,6 +35,7 @@ class CommandRegistry {
 	 */
 	fun register(command: Command) {
 		commandsById[command.id] = command
+		revision++
 	}
 
 	/**
@@ -30,7 +44,9 @@ class CommandRegistry {
 	 * @param String id The command id to remove.
 	 */
 	fun unregister(id: String) {
-		commandsById.remove(id)
+		if (commandsById.remove(id) != null) {
+			revision++
+		}
 	}
 
 	/**

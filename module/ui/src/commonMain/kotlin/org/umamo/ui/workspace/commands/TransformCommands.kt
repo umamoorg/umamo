@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 
 /**
@@ -24,13 +25,31 @@ internal fun transformCommands(
 	availability: SessionAvailability,
 ): List<Command> =
 	listOf(
-		Command("mesh.grab", title = Res.string.cmd_mesh_grab, availability = availability.hasDocument) {
+		Command(
+			"mesh.grab",
+			title = Res.string.cmd_mesh_grab,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.WorkSurfaces,
+			hint = Res.string.status_bind_grab,
+		) {
 			beginTransform(editorSession, MeshOperatorKind.Grab, routing)
 		},
-		Command("mesh.scale", title = Res.string.cmd_mesh_scale, availability = availability.hasDocument) {
+		Command(
+			"mesh.scale",
+			title = Res.string.cmd_mesh_scale,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.WorkSurfaces,
+			hint = Res.string.status_bind_scale,
+		) {
 			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
 		},
-		Command("mesh.rotate", title = Res.string.cmd_mesh_rotate, availability = availability.hasDocument) {
+		Command(
+			"mesh.rotate",
+			title = Res.string.cmd_mesh_rotate,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.WorkSurfaces,
+			hint = Res.string.status_bind_rotate,
+		) {
 			beginTransform(editorSession, MeshOperatorKind.Rotate, routing)
 		},
 		// Untitled and ungated: the ladder and the overlays dispatch it as a cleanup signal, and exactly

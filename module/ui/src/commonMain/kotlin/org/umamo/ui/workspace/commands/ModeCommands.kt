@@ -26,7 +26,7 @@ internal fun modeCommands(selection: SelectionHandle?, editorMode: EditorModeHan
 	val hasMode = CommandAvailability { editorMode != null }
 	return listOf(
 		Command("select.clear", title = Res.string.cmd_select_clear, availability = hasSelection) { selection?.set(SelectionOps.clear()) },
-		Command("mode.toggleEdit", title = Res.string.cmd_mode_toggle_edit, availability = hasMode) {
+		Command("mode.toggleEdit", title = Res.string.cmd_mode_toggle_edit, availability = hasMode, hint = Res.string.status_bind_edit_mode) {
 			editorMode?.let { it.set(if (it.mode == EditorMode.Object) EditorMode.Edit else EditorMode.Object) }
 		},
 		// Explicit set-mode commands for the viewport header's mode dropdown (and the palette).  setMode

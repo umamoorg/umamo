@@ -4,6 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
@@ -33,13 +34,28 @@ internal fun selectCommands(
 		// Edit-mode select modes (Blender 1 / 2 / 3). The session guards them to no-op outside Edit mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
 		// from the palette in Object mode (there is no element domain to switch there).
-		Command("mesh.selectMode.vertex", title = Res.string.cmd_mesh_select_mode_vertex, availability = availability.inEditMode) {
+		Command(
+			"mesh.selectMode.vertex",
+			title = Res.string.cmd_mesh_select_mode_vertex,
+			availability = availability.inEditMode,
+			hint = Res.string.status_select_mode,
+		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Vertex)
 		},
-		Command("mesh.selectMode.edge", title = Res.string.cmd_mesh_select_mode_edge, availability = availability.inEditMode) {
+		Command(
+			"mesh.selectMode.edge",
+			title = Res.string.cmd_mesh_select_mode_edge,
+			availability = availability.inEditMode,
+			hint = Res.string.status_select_mode,
+		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Edge)
 		},
-		Command("mesh.selectMode.face", title = Res.string.cmd_mesh_select_mode_face, availability = availability.inEditMode) {
+		Command(
+			"mesh.selectMode.face",
+			title = Res.string.cmd_mesh_select_mode_face,
+			availability = availability.inEditMode,
+			hint = Res.string.status_select_mode,
+		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
 		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: mesh elements in Edit
@@ -66,7 +82,12 @@ internal fun selectCommands(
 		// for the same chord: a hovered keyform sheet arms its own marquee, a hovered viewport (or UV
 		// editor in Edit mode) arms the session's tool, and anything else arms nothing.  Resolved at
 		// dispatch time like every other hovered-surface command.
-		Command("mesh.boxSelect", title = Res.string.cmd_mesh_box_select, availability = availability.hasDocument) {
+		Command(
+			"mesh.boxSelect",
+			title = Res.string.cmd_mesh_box_select,
+			availability = availability.hasDocument,
+			spaces = CommandSpaces.of(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet),
+		) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the
 			// viewport for any layout that happens to have a keyform sheet open.
@@ -80,7 +101,7 @@ internal fun selectCommands(
 		// No sheet branch here, unlike Box Select: the keyform sheet has no circle brush to arm, so C over a
 		// sheet arms nothing at all - selectToolArea answers only for a viewport or an Edit-mode UV editor,
 		// and arming a viewport the pointer has left is worse than doing nothing.
-		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument) {
+		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument, spaces = CommandSpaces.WorkSurfaces) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},
 		Command("mesh.circleSelect.grow", title = Res.string.cmd_mesh_circle_grow, availability = availability.circleToolLive) {
@@ -93,13 +114,13 @@ internal fun selectCommands(
 		// the projected geometry live in the overlays, so these fire session request flows they collect.
 		// The executing area resolves HERE, at dispatch, into the request payload (the hovered surface -
 		// viewport or UV editor alike), so the collectors gate deterministically on their own area id.
-		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inEditMode) {
+		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inEditMode, spaces = CommandSpaces.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = false, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inEditMode) {
+		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inEditMode, spaces = CommandSpaces.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = true, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode) {
+		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode, spaces = CommandSpaces.Viewport2D) {
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)

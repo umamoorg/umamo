@@ -9,6 +9,7 @@ import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PieMenuKind
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 
 /**
@@ -72,6 +73,7 @@ internal fun topologyCommands(
 				CommandAvailability {
 					editorSession?.mode?.value == EditorMode.Edit && editorSession.meshSelection.value.selectMode != MeshSelectMode.Face
 				},
+			spaces = CommandSpaces.Viewport2D,
 		) { editorSession?.requestRip(routing.viewportArea()) },
 		Command("mesh.connect", title = Res.string.cmd_mesh_connect, availability = availability.inEditMode) {
 			editorSession?.connectSelectedVertices()
@@ -84,6 +86,7 @@ internal fun topologyCommands(
 					editorSession?.mode?.value == EditorMode.Edit &&
 						editorSession.meshSelection.value.activeElement?.element is MeshElement.Vertex
 				},
+			spaces = CommandSpaces.Viewport2D,
 		) {
 			routing.viewportArea()?.let { areaId -> editorSession?.beginMeshOperator(MeshOperatorKind.VertexSlide, areaId) }
 		},

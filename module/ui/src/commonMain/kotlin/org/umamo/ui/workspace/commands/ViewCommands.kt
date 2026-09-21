@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
+import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.CameraController
 import org.umamo.ui.workspace.AreaCameraHub
@@ -31,36 +32,37 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
 	 * @return CameraController? The hovered area's camera controller, or null.
 	 * @note Deliberately kind-agnostic: the hub's contract is that a future camera-bearing space joins by
 	 *   registering a controller, with no per-space branch to update here.  Hovering a space that has no
-	 *   camera (a keyform sheet, an outliner) simply resolves nothing.
+	 *   camera (a keyform sheet, an outliner) simply resolves nothing.  The one thing such a space does
+	 *   add is itself to CommandSpaces.WorkSurfaces, or the palette keeps hiding these commands over it.
 	 */
 	fun hoveredCamera(): CameraController? = routing.hovered()?.areaId?.let { areaId -> cameras.opsFor(areaId) }
 	return listOf(
-		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport) {
+		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.fit()
 		},
-		Command("view.zoomActualSize", title = Res.string.cmd_view_actual_size, availability = hasViewport) {
+		Command("view.zoomActualSize", title = Res.string.cmd_view_actual_size, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.actualSize()
 		},
-		Command("view.zoomIn", title = Res.string.cmd_view_zoom_in, availability = hasViewport) {
+		Command("view.zoomIn", title = Res.string.cmd_view_zoom_in, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.zoomIn(coarse = false)
 		},
-		Command("view.zoomOut", title = Res.string.cmd_view_zoom_out, availability = hasViewport) {
+		Command("view.zoomOut", title = Res.string.cmd_view_zoom_out, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.zoomOut(coarse = false)
 		},
 		// Coarse (Shift) variants take a larger zoom step - they are titled so they also surface in the palette.
-		Command("view.zoomInCoarse", title = Res.string.cmd_view_zoom_in_coarse, availability = hasViewport) {
+		Command("view.zoomInCoarse", title = Res.string.cmd_view_zoom_in_coarse, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.zoomIn(coarse = true)
 		},
-		Command("view.zoomOutCoarse", title = Res.string.cmd_view_zoom_out_coarse, availability = hasViewport) {
+		Command("view.zoomOutCoarse", title = Res.string.cmd_view_zoom_out_coarse, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.zoomOut(coarse = true)
 		},
 		// Zoom Region (Blender's Shift+B): arms a drag-a-box-to-frame gesture on the hovered surface.
-		Command("view.zoomRegion", title = Res.string.cmd_view_zoom_region, availability = hasViewport) {
+		Command("view.zoomRegion", title = Res.string.cmd_view_zoom_region, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.armZoomRegion()
 		},
 		// Frame Selected (Blender's numpad-period): fit the camera to the selection's bounds - world
 		// bounds in the viewport, covered UV bounds in a hovered UV editor.
-		Command("view.frameSelected", title = Res.string.cmd_view_frame_selected, availability = hasViewport) {
+		Command("view.frameSelected", title = Res.string.cmd_view_frame_selected, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.frameSelected()
 		},
 	)
@@ -81,7 +83,11 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
  */
 internal fun frameCommands(commandRegistry: CommandRegistry, routing: CommandRouting): List<Command> =
 	listOf(
-		Command("frame.all", title = Res.string.cmd_frame_all) {
+		Command(
+			"frame.all",
+			title = Res.string.cmd_frame_all,
+			spaces = CommandSpaces.of(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet),
+		) {
 			val target = if (routing.isHovering(SpaceKind.KeyformSheet)) "keyform.frameAll" else "view.fit"
 			commandRegistry.invoke(target)
 		},

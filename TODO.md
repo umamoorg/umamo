@@ -59,6 +59,7 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
+	* ALT+H (Unhide All) and SHIFT+H (Hide everything that is not selected.)
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.

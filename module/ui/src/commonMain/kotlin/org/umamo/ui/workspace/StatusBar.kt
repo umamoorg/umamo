@@ -27,7 +27,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.ui.action.Keymap
+import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.Text
@@ -119,63 +119,40 @@ private fun StatusNotice() {
 }
 
 /**
- * One "chord label" bind entry, or null when the command has no bound chord - an unbound command is
- * simply omitted so the strip never advertises a key that does nothing (and a rebind is reflected
- * automatically, since the chord always comes from the live keymap).
+ * The context-binds zone: the shortcuts worth suggesting for the space under the pointer, derived from
+ * what each command declares about itself (its spaces, its availability, its short hint label) rather
+ * than listed here - see [statusHintsFor].  Moving the pointer from a viewport to a keyform sheet
+ * changes the suggestions, and a command that gains a hint appears with no edit to this zone.
  *
- * @param Keymap keymap The active keymap.
- * @param String commandId The command whose canonical chord is shown.
- * @param String label The short localized action label.
- * @return String? The formatted entry, or null when the command is unbound.
- */
-private fun bindEntry(keymap: Keymap, commandId: String, label: String): String? {
-	val chord = keymap.chordFor(commandId) ?: return null
-	return "${formatAccelerator(chord)} $label"
-}
-
-/**
- * The context-binds zone: the handful of input binds most relevant to the current editor context -
- * no document, Object mode, Edit mode, or an active modal mesh operator. Keyboard binds always
- * resolve through the live keymap (never hardcoded, so a rebind shows here everywhere); the modal
- * operator's pointer / confirm / cancel hints are literal strings because those inputs live in the
- * overlay's own pointer loop and the shell's hardcoded modal branches, not in the keymap - there is
- * nothing rebindable to resolve.
- *
- * コンテキスト割当区画。現在の編集コンテキストで最も関係する入力割当を表示する。キーボード割当は
- * 常にキーマップから解決する（リバインドが即反映される）。
+ * An active modal mesh operator overrides the list with its confirm / cancel pair.  Those two are
+ * literal strings because the inputs live in the overlay's own pointer loop and the shell's hardcoded
+ * modal branches, not in the keymap - there is nothing rebindable to resolve, and no command to derive
+ * them from.
  */
 @Composable
 private fun ContextBindsZone() {
 	val keymap = LocalKeymap.current
+	val commands = LocalCommands.current
+	val hoveredKind = LocalHoveredSurfaceTracker.current?.observedKind
 	val session = LocalEditorSession.current
-	val entries = mutableListOf<String>()
-	if (session == null) {
-		bindEntry(keymap, "file.open", stringResource(Res.string.cmd_file_open))?.let { entry -> entries.add(entry) }
-		bindEntry(keymap, "palette.toggle", stringResource(Res.string.status_bind_palette))?.let { entry -> entries.add(entry) }
-	} else {
-		val editorMode by session.mode.collectAsState()
-		val activeOperator by session.activeMeshOperator.collectAsState()
+	val editorMode = session?.mode?.collectAsState()?.value
+	val activeOperator = session?.activeMeshOperator?.collectAsState()?.value
+	// The table is a plain map, so the revision is what re-reads it: a document swap lands its commands
+	// from effects AFTER the composition the swap caused, and only the bump brings this zone back.
+	val registered = remember(commands.revision) { commands.all() }
+	// Availability is a live query the snapshot system cannot see, so these keys ARE the contract: a
+	// hinted command's availability may depend on the registered table (and so the document), the mode,
+	// and nothing else - which is what Command.hint asks of it.
+	val hints = remember(registered, keymap, hoveredKind, editorMode) { statusHintsFor(registered, keymap, hoveredKind) }
+	val entries =
 		if (activeOperator != null) {
-			entries.add(stringResource(Res.string.status_bind_confirm))
-			entries.add(stringResource(Res.string.status_bind_cancel))
-		} else if (editorMode == EditorMode.Object) {
-			bindEntry(keymap, "mode.toggleEdit", stringResource(Res.string.status_bind_edit_mode))?.let { entry -> entries.add(entry) }
-			bindEntry(keymap, "object.toggleVisibility", stringResource(Res.string.status_bind_visibility))?.let { entry -> entries.add(entry) }
+			listOf(stringResource(Res.string.status_bind_confirm), stringResource(Res.string.status_bind_cancel))
 		} else {
-			bindEntry(keymap, "mesh.grab", stringResource(Res.string.status_bind_grab))?.let { entry -> entries.add(entry) }
-			bindEntry(keymap, "mesh.scale", stringResource(Res.string.status_bind_scale))?.let { entry -> entries.add(entry) }
-			bindEntry(keymap, "mesh.rotate", stringResource(Res.string.status_bind_rotate))?.let { entry -> entries.add(entry) }
-			// One composite entry for the three select-mode keys, shown only when all three are
-			// bound (a partial listing would misread as the full set).
-			val vertexChord = keymap.chordFor("mesh.selectMode.vertex")
-			val edgeChord = keymap.chordFor("mesh.selectMode.edge")
-			val faceChord = keymap.chordFor("mesh.selectMode.face")
-			if (vertexChord != null && edgeChord != null && faceChord != null) {
-				val chordRun = "${formatAccelerator(vertexChord)}/${formatAccelerator(edgeChord)}/${formatAccelerator(faceChord)}"
-				entries.add("$chordRun ${stringResource(Res.string.status_select_mode)}")
+			hints.map { hint ->
+				val chordRun = hint.chords.joinToString(separator = "/") { chord -> formatAccelerator(chord) }
+				"$chordRun ${stringResource(hint.label)}"
 			}
 		}
-	}
 	if (entries.isEmpty()) {
 		return
 	}

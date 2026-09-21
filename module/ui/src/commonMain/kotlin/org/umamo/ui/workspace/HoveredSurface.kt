@@ -1,5 +1,8 @@
 package org.umamo.ui.workspace
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -42,10 +45,27 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * operation that already ran; no command routes an action through it.  It must never name an area
  * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the
  * strip would show nowhere.
+ *
+ * [observedKind] is the one read composition MAY make, and it exposes the kind alone on purpose.  The
+ * status bar suggests shortcuts for the space under the pointer, which needs a reactive read; an area
+ * id read reactively is what let an overlay gate itself onto "the active area" and paint in two
+ * viewports at once.  A kind cannot do that: two viewports share one, so it names no area to gate on.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */
 	var lastTouched: HoveredSurface? = null
+		set(value) {
+			field = value
+			observedKind = value?.kind
+		}
+
+	/**
+	 * The kind of [lastTouched], as snapshot state - display chrome's reactive view of where the pointer
+	 * is.  Written only through [lastTouched], so the two cannot disagree, and it inherits that field's
+	 * one lag: an area switched to another space reports its old kind until the next pointer event over it.
+	 */
+	var observedKind: SpaceKind? by mutableStateOf(null)
+		private set
 
 	/**
 	 * The strip-hosting surface the pointer last touched, or null before any was (or after it died or

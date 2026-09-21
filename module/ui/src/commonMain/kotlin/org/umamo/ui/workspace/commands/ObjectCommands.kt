@@ -29,7 +29,12 @@ internal fun objectCommands(
 ): List<Command> =
 	listOf(
 		// The first real model mutation: flips the selected parts'/drawables' eyeball as one undo step.
-		Command("object.toggleVisibility", title = Res.string.cmd_toggle_visibility, availability = availability.hasDocument) {
+		Command(
+			"object.toggleVisibility",
+			title = Res.string.cmd_toggle_visibility,
+			availability = availability.hasDocument,
+			hint = Res.string.status_bind_visibility,
+		) {
 			val current = selection?.selection
 			val active = current?.active
 			if (editorSession != null && active != null && !current.isEmpty) {

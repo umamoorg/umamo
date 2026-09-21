@@ -89,4 +89,42 @@ class CommandRegistryTest {
 		assertEquals(listOf("a", "c"), registry.all().map { command -> command.id })
 		assertNull(registry["b"])
 	}
+
+	/**
+	 * The revision moves on every change to the table and on nothing else - it is what a composable
+	 * listing all() subscribes to, since the table itself is a plain map.
+	 */
+	@Test
+	fun theRevisionMovesWithTheTable() {
+		val registry = CommandRegistry()
+		val initial = registry.revision
+
+		registry.register(Command("a", title = null, handler = {}))
+		val afterRegister = registry.revision
+		assertTrue(afterRegister != initial, "registering moves it")
+
+		registry.unregister("a")
+		val afterUnregister = registry.revision
+		assertTrue(afterUnregister != afterRegister, "unregistering moves it")
+
+		registry.unregister("a")
+		assertEquals(afterUnregister, registry.revision, "unregistering an id that is not there changes nothing")
+
+		registry.invoke("a")
+		assertEquals(afterUnregister, registry.revision, "and neither does an invoke")
+	}
+
+	/**
+	 * A command's spaces never gate dispatch.  They filter the palette and the status bar; a chord still
+	 * reaches the handler wherever the pointer is, and the handler decides what that press means.
+	 */
+	@Test
+	fun spacesNeverGateDispatch() {
+		val registry = CommandRegistry()
+		var runCount = 0
+		registry.register(Command("test.scoped", title = null, spaces = CommandSpaces.UvEditor, handler = { runCount++ }))
+
+		assertTrue(registry.invoke("test.scoped"), "the registry knows nothing about where the pointer is")
+		assertEquals(1, runCount)
+	}
 }
