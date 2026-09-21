@@ -400,7 +400,7 @@
 	<string name="notice_uv_no_selection">대칭 복사할 대상이 없습니다.</string>
 	<string name="notice_uv_placement_layer_addressed">퍼펫의 UV가 아틀라스가 아닌 원본 아트워크를 참조하고 있으므로 이동할 배치가 없습니다.</string>
 	<string name="notice_uv_placement_no_placed_art">선택한 항목이 아틀라스 페이지에 패킹되어 있지 않거나 원본 아트워크가 없습니다.</string>
-	<string name="notice_uv_placement_page_view_only">배치를 이동하려면 UV 편집기에서 아틀라스 페이지를 표시하세요.</string>
+	<string name="notice_uv_mapping_not_on_layer">이 레이어에 표시된 선택 항목이 없습니다.</string>
 	<string name="notice_uv_placement_not_on_page">이 페이지에 배치된 선택 항목이 없습니다.</string>
 	<string name="notice_uv_placement_not_derivable">원본 아트에서 아틀라스를 재구성할 수 없으므로 배치를 이동할 수 없습니다.</string>
 	<string name="notice_uv_placement_overlap">배치가 다른 타일과 겹칩니다. 충돌을 해결하려면 아틀라스를 다시 배치하세요.</string>

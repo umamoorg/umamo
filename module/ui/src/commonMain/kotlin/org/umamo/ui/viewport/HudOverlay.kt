@@ -116,17 +116,20 @@ internal fun UvHudOverlay(
 	placementDragStatus: PlacementDragStatus?,
 	modifier: Modifier = Modifier,
 ) {
+	val mode by session.mode.collectAsState()
 	val uvOperator by session.activeUvOperator.collectAsState()
 	val axisConstraint by session.axisConstraint.collectAsState()
 	val proportionalEdit by session.proportionalEdit.collectAsState()
 	// The modal status badge (top center): only the INITIATING area shows it - the latch itself names
-	// the area, so the gate is reactive.  An Object-mode latch is a placement gesture: the badge says
-	// so and carries the host-owned drag readout (the snapped delta, angle, or factor, and any overlap
-	// or off-page warning), since the Object overlay that computes it is a sibling and can only reach
-	// this chrome through the host.
+	// the area, so the gate is reactive.  The proportional segment rides only in Edit mode, the one
+	// mode whose gesture weights a halo (Object mode moves whole islands - placements over a page, mappings
+	// over a layer - with no unselected vertices to weight).  A placement gesture also carries the
+	// host-owned drag readout (the snapped delta, angle, or factor, and any overlap or off-page
+	// warning), since the Object overlay that computes it is a sibling and can only reach this chrome
+	// through the host.
 	val badgeOperator = uvOperator?.takeIf { operator -> operator.areaId == areaId }
 	if (badgeOperator != null) {
-		val badgeRadius = if (proportionalEdit != null && placementDragStatus == null) proportionalRadiusDisplay?.roundToInt() else null
+		val badgeRadius = if (mode == EditorMode.Edit && proportionalEdit != null) proportionalRadiusDisplay?.roundToInt() else null
 		ModalOperatorBadge(
 			operatorKind = badgeOperator.kind,
 			axisConstraint = axisConstraint,

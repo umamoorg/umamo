@@ -50,6 +50,7 @@ import org.umamo.ui.viewport.UvCursorOverlay
 import org.umamo.ui.viewport.UvEditGizmoOverlay
 import org.umamo.ui.viewport.UvHudOverlay
 import org.umamo.ui.viewport.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.UvObjectSurface
 import org.umamo.ui.viewport.UvPlacementSurface
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.UvSpaceCamera
@@ -170,16 +171,23 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			}
 		}
 	// Each shown mapping in the SHOWN surface's own frame - stored coordinates over a page, recovered
-	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
-	// so the wireframe and the hit test can never disagree about where a mesh is.
-	val shownUvs =
-		remember(shownDrawables, model, layerView) {
-			shownSurfaceUvs(shownDrawables, model, layerView)
+	// ones over a layer - and its display-space gizmo geometry.  One derivation feeds both the display
+	// projection and the pick's alpha gate, so the wireframe and the hit test can never disagree about
+	// where a mesh is.
+	//
+	// Derived INCREMENTALLY, because `model` is a fresh preview instance on every pointer frame of a
+	// modal gesture and differs from the committed model in nothing but the moved drawables' uv
+	// arrays: the cache compares each island's inputs by identity and rebuilds only the islands that
+	// changed, so a page showing every visible island costs the moved island per frame, not the page.
+	// Remembered per area across frames and commits, never across documents (the slot dies with the
+	// placeholder branch above).
+	val islandCache = remember(scope.areaId) { UvIslandCache() }
+	val shownIslands =
+		remember(shownDrawables, model, layerView, displayWidth, displayHeight) {
+			islandCache.update(shownDrawables, model, layerView, displayWidth, displayHeight)
 		}
-	val geometries =
-		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
-			uvGizmoGeometries(shownDrawables, shownUvs, displayWidth, displayHeight)
-		}
+	val shownUvs = shownIslands.uvsById
+	val geometries = shownIslands.geometries
 	val liveGeometries = rememberUpdatedState(geometries)
 
 	// The space an edit here is authored in.  Over a page the display texels ARE the stored frame; over
@@ -210,7 +218,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// over the shown islands and the shown image's decoded pixels (UvIslandPick.kt).  The image is the
 	// atlas page or the source layer's artwork, and the alpha gate follows it - a click through
 	// transparent overhang falls to whatever is behind it on the surface actually being looked at.
-	val frontRank = remember(model) { restFrontRank(model) }
+	// The rank keys on the COMMITTED model: a preview never reorders anything (it carries only uv
+	// arrays - see PuppetRenderSync), so re-walking the render tree per pointer frame would buy nothing.
+	val rankModel = committedModel ?: model
+	val frontRank = remember(rankModel) { restFrontRank(rankModel) }
 	val shownImage =
 		if (layerView != null) {
 			artRasters?.rasterFor(AtlasTileId(layerView.layerKey))
@@ -266,16 +277,15 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// dismisses it.  Area-local, like the anchor it carries.
 	var overlap by remember(scope.areaId) { mutableStateOf<OverlapState?>(null) }
 
-	// The placement gesture's page: Object-mode G / S / R over the shown page's placements needs the
-	// page's texel size and the source art the pages recompose from.  Null over a source layer (a
-	// placement has no page to move on there) and while the document retains no art; the Object
-	// overlay then drops a latch with its own notice.
-	val placementSurface =
+	// What the Object overlay's G / S / R move: over a source layer the shown mappings (the art is the
+	// frame there); over a page the placements, which need the page's texel size and the source art the
+	// pages recompose from - absent that art the overlay drops the latch with its own notice.
+	val objectSurface =
 		remember(layerView, pageIndex, displayWidth, displayHeight, artRasters, shownImage) {
-			if (layerView == null && pageIndex != null && artRasters != null) {
-				UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage)
-			} else {
-				null
+			when {
+				layerView != null -> UvObjectSurface.SourceLayer
+				pageIndex != null && artRasters != null -> UvObjectSurface.AtlasPage(UvPlacementSurface(displayWidth, displayHeight, artRasters, shownImage))
+				else -> UvObjectSurface.AtlasPage(placement = null)
 			}
 		}
 	// The drag's live readout, host-owned because two sibling overlays meet on it: the Object overlay
@@ -420,7 +430,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
-					placementSurface = placementSurface,
+					surface = objectSurface,
 					placementDragStatusState = placementDragStatus,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.

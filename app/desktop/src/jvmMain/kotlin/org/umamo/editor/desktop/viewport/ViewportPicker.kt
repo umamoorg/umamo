@@ -26,8 +26,11 @@ import org.umamo.ui.model.DrawableThumbnailer
  * facade resolves each area's camera and size and forwards them here, so this class is area-agnostic.
  *
  * The model-derived lookup maps (pick indices / UVs, atlas keys, part labels) and the thumbnail provider are
- * rebuilt by [updateModel] so session-created drawables (a duplicate's fresh ".001" id) and visibility edits
- * stay pickable, sampleable, and labeled - maps frozen at construction would leave a duplicate unpickable.
+ * refreshed through [updateModel] so session-created drawables (a duplicate's fresh ".001" id) and visibility
+ * edits stay pickable, sampleable, and labeled - maps frozen at construction would leave a duplicate
+ * unpickable.  The maps rebuild LAZILY, on the first read after a push: a modal gesture pushes a preview
+ * model per pointer event and never picks mid-drag, so rebuilding four full-model walks per event would
+ * be UI-thread time spent on maps nothing reads until the gesture ends.
  *
  * ビューポートの CPU ヒットテストとアートプレビュー。UI スレッドのみ、GL 不使用。
  *
@@ -41,6 +44,11 @@ internal class ViewportPicker(
 	private var textures: PuppetTextures,
 	model: PuppetModel,
 ) {
+	// The model the lookup maps below derive from, and whether they still reflect it.  updateModel only
+	// records the model and marks the maps stale; ensureLookups rebuilds them on the next read.
+	private var lookupModel: PuppetModel = model
+	private var lookupsStale = false
+
 	// Per-drawable triangle indices for hit-testing, restricted to the drawables actually shown (the
 	// Parts-panel eyeball cascade) and to those carrying a triangle mesh. Picking iterates the pose's
 	// deformed positions and looks indices up here, so unshown / mesh-less drawables are never hit.
@@ -76,17 +84,30 @@ internal class ViewportPicker(
 	}
 
 	/**
-	 * Rebuilds the model-derived lookup maps and the thumbnail provider after a committed edit or undo, so
-	 * session-created drawables and visibility edits stay pickable, sampleable, and labeled.
+	 * Takes the current model after an edit, an undo, or a modal preview push, so session-created
+	 * drawables and visibility edits stay pickable, sampleable, and labeled.  The thumbnail provider
+	 * refreshes at once (an identity walk that evicts only what the edit staled); the lookup maps are
+	 * marked stale and rebuilt by the next read, since a preview arrives per pointer event and is never
+	 * picked against mid-gesture.
 	 *
 	 * @param PuppetModel model The current model.
 	 */
 	fun updateModel(model: PuppetModel) {
-		pickableIndices = model.pickableIndicesByDrawable()
-		pickableUvs = model.pickableUvsByDrawable()
-		partNameByDrawableId = model.partNameByDrawable()
-		atlasKeyByDrawableId = model.atlasKeyByDrawable()
+		lookupModel = model
+		lookupsStale = true
 		thumbnailer.updateModel(model)
+	}
+
+	/** Rebuilds the lookup maps from the last model taken, when a push has staled them. */
+	private fun ensureLookups() {
+		if (!lookupsStale) {
+			return
+		}
+		lookupsStale = false
+		pickableIndices = lookupModel.pickableIndicesByDrawable()
+		pickableUvs = lookupModel.pickableUvsByDrawable()
+		partNameByDrawableId = lookupModel.partNameByDrawable()
+		atlasKeyByDrawableId = lookupModel.atlasKeyByDrawable()
 	}
 
 	/**
@@ -106,6 +127,7 @@ internal class ViewportPicker(
 		if (width <= 0 || height <= 0) {
 			return null
 		}
+		ensureLookups()
 		val geometry = renderer.pickGeometry() ?: return null
 		// Screen (y-down) to world (y-up), the inverse of the camera's worldToNdc - see ScreenSpacePick.
 		val worldX = screenToWorldX(cursorXpx, camera, width)
@@ -142,6 +164,7 @@ internal class ViewportPicker(
 		if (width <= 0 || height <= 0) {
 			return emptyList()
 		}
+		ensureLookups()
 		val geometry = renderer.pickGeometry() ?: return emptyList()
 		val worldX = screenToWorldX(cursorXpx, camera, width)
 		val worldY = screenToWorldY(cursorYpx, camera, height)
@@ -188,7 +211,10 @@ internal class ViewportPicker(
 	 * @param DrawableId id The drawable to look up.
 	 * @return String The owning part's name, or null.
 	 */
-	fun partNameFor(id: DrawableId): String? = partNameByDrawableId[id]
+	fun partNameFor(id: DrawableId): String? {
+		ensureLookups()
+		return partNameByDrawableId[id]
+	}
 
 	/** The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front). */
 	private fun frontRankMap(): Map<DrawableId, Float> =
