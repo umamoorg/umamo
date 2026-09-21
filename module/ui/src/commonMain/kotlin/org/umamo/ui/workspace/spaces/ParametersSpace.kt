@@ -135,7 +135,8 @@ private val RANGE_FIELD_LIMIT = -1_000_000f..1_000_000f
  * a parameter's name (or its leading chevron) opens the range editor inside that island - minimum /
  * default / maximum, the document-level edit, distinct from scrubbing the live value - and any number of
  * islands can be open at once. The open set lives on the hosting [AreaScope], so it survives switching
- * the space away and back. Models without groups fall back to a flat list.
+ * the space away and back. Models without groups fall back to a flat list.  The header's search field
+ * filters the list by parameter name or id, opening every group for as long as it has text in it.
  *
  * パラメータ操作盤。スライダー／2D パッド／数値入力で値をスクラブ（取り消し可能、ジェスチャ単位で1段）。
  * 各パラメータは角丸の島として区切られ、名前（または先頭のシェブロン）をクリックするとその島の中に
@@ -247,23 +248,36 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 
 	// The "affects the selected object" filter: when it is on and something is selected, restrict the panel
 	// to the parameters that drive the selection (effective, through the deformer chain). Inert with no
-	// selection, so the panel is never mysteriously blank. Recomputed only on a puppet / selection / flag change.
+	// selection, so the panel is never mysteriously blank. Recomputed only on a puppet / selection / flag /
+	// query change.
 	val selection = LocalSelection.current?.selection ?: Selection()
 	// The keyform-authoring target, shared across areas via the session - a keyform sheet in another area
 	// follows whatever is picked here.
 	val parameterSelection by remember(session) { session?.parameterSelection ?: MutableStateFlow(ParameterSelection()) }.collectAsState()
+	// The header search's text, applied as a second filter over the same set. Trimmed once here so the
+	// memo key and the match both read the same string.
+	val searchQuery = viewState.query.trim()
 	val visibleParamIds =
-		remember(puppet, selection, viewState.showOnlySelected) {
-			if (viewState.showOnlySelected && !selection.isEmpty) {
-				effectiveParameterIds(puppet, selection)
-			} else {
-				null
+		remember(puppet, selection, viewState.showOnlySelected, searchQuery) {
+			val selectedFilter =
+				if (viewState.showOnlySelected && !selection.isEmpty) {
+					effectiveParameterIds(puppet, selection)
+				} else {
+					null
+				}
+			val queryFilter = if (searchQuery.isEmpty()) null else parameterIdsMatching(puppet, searchQuery)
+			// Both filters restrict, so with both on a parameter must satisfy each of them.
+			when {
+				selectedFilter == null -> queryFilter
+				queryFilter == null -> selectedFilter
+				else -> selectedFilter intersect queryFilter
 			}
 		}
 
 	// Built each recomposition so a group toggle (or a value change) reflects immediately; reading
-	// [expandedGroups] / [values] here registers the snapshot reads that drive the rebuild.
-	val rows = buildParameterRows(puppet, linkInfo, parameterById, expandedGroups, visibleParamIds)
+	// [expandedGroups] / [values] here registers the snapshot reads that drive the rebuild.  While a
+	// search is running every group renders open, so a match inside a collapsed one is still reachable.
+	val rows = buildParameterRows(puppet, linkInfo, parameterById, expandedGroups, visibleParamIds, forceExpanded = searchQuery.isNotEmpty())
 	val resetLabel = stringResource(Res.string.parameter_reset)
 	val rangeToggleLabel = stringResource(Res.string.parameter_range_section)
 	val linkLabel = stringResource(Res.string.parameter_link)

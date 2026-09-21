@@ -17,16 +17,16 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the UV editor's island-pick adapters (UvIslandPick.kt): the static rest-pose front rank, the
- * page alpha sampler, the alpha-gated front-most / stack picks over display-space islands, the
- * any-vertex box rule, and the box-selection decision table.  The shared pick internals
+ * Pins the UV editor's island-pick adapters (UvIslandPickController.kt): the static rest-pose front
+ * rank, the page alpha sampler, the alpha-gated front-most / stack picks over display-space islands,
+ * the any-vertex box rule, and the box-selection decision table.  The shared pick internals
  * (pickDrawable / pickAllDrawables) are :render-tested; these tests cover OUR bindings of them.
  *
  * The pick scene: two islands sharing one display-space triangle (0,4)-(4,4)-(0,0) on a 4x4 page
  * whose texels are all opaque except (1, 1).  The islands differ only in their stored uvs, so the
  * alpha gate samples a different texel per island at the same click.
  */
-class UvIslandPickTest {
+class UvIslandPickControllerTest {
 	private val frontId = DrawableId("front")
 	private val backId = DrawableId("back")
 
@@ -46,8 +46,8 @@ class UvIslandPickTest {
 		return DecodedImage(rgba, 4, 4)
 	}
 
-	private fun stackedIslandsPick(frontUvs: FloatArray, backUvs: FloatArray): UvIslandPick =
-		UvIslandPick(
+	private fun stackedIslandsPick(frontUvs: FloatArray, backUvs: FloatArray): UvIslandPickController =
+		UvIslandPickController(
 			displayPositionsById = mapOf(frontId to displayTriangle, backId to displayTriangle),
 			indicesById = mapOf(frontId to intArrayOf(0, 1, 2), backId to intArrayOf(0, 1, 2)),
 			meshUvsById = mapOf(frontId to frontUvs, backId to backUvs),

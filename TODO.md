@@ -42,10 +42,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## UI Dialog
 * Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
 
-## Popup Picker
-* The popup picker should use the drawable name and fallback to the ID for display.
-* UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.
-
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
 * Glue
@@ -130,19 +126,11 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Context Menus
 
 ## Parameters
-* Improvements
-	* Search in header.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 
-## Workspace
-* Menu: Add Previous/Next workspace to the Workspace main menu at the top.
-
 ## Menus
 * Clicking again should close instead of reopen the menu.
-
-## Button UI
-* Needs a click action, either a background color change or movement.
 
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
@@ -187,9 +175,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Outliner
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
-
-## Keybindings
-* The clear shortcut button Needs more right margin on the overall row to clear the scrollbar.
 
 ## UI
 * The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.

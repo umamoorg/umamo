@@ -34,6 +34,16 @@ class ParameterRowsTest {
 		Parameter(id, id.raw, min = if (animatable) -1f else 0f, max = if (animatable) 1f else 0f, default = 0f)
 
 	/**
+	 * An animatable parameter whose display name differs from its id - what the search tests need to tell
+	 * a name match from an id match.
+	 *
+	 * @param ParameterId id   The parameter id.
+	 * @param String      name The display name.
+	 * @return Parameter The fixture parameter.
+	 */
+	private fun named(id: ParameterId, name: String): Parameter = Parameter(id, name, min = -1f, max = 1f, default = 0f)
+
+	/**
 	 * A drawable-less model holding just [parameters], [links], and an optional group [tree].
 	 *
 	 * @param List parameters The parameters in document order.
@@ -222,5 +232,52 @@ class ParameterRowsTest {
 		assertEquals(1, rows.size)
 		assertEquals(angleX, (rows[0] as ParameterRow.Single).parameter.id)
 		assertTrue(rows.none { row -> row is ParameterRow.GroupHeader })
+	}
+
+	/** The header search matches a parameter's display name, case-insensitively. */
+	@Test
+	fun searchMatchesDisplayName() {
+		val puppet = model(parameters = listOf(named(angleX, "Head Turn"), named(breath, "Breathing")))
+		assertEquals(setOf(angleX), parameterIdsMatching(puppet, "head"))
+	}
+
+	/** It matches the parameter id too, so a renamed row is still reachable by the axis a rigger knows. */
+	@Test
+	fun searchMatchesParameterId() {
+		val puppet = model(parameters = listOf(named(angleX, "Head Turn"), named(breath, "Breathing")))
+		assertEquals(setOf(angleX), parameterIdsMatching(puppet, "anglex"))
+	}
+
+	/** A query matching neither field yields an empty set, which filters the panel down to nothing. */
+	@Test
+	fun searchMissMatchesNothing() {
+		val puppet = model(parameters = listOf(named(angleX, "Head Turn"), named(breath, "Breathing")))
+		assertTrue(parameterIdsMatching(puppet, "eyelid").isEmpty())
+	}
+
+	/**
+	 * A search renders a collapsed group open, so a match inside it is reachable - without touching the
+	 * fold state the rigger set (the same map still says closed).
+	 */
+	@Test
+	fun forceExpandedOpensACollapsedGroup() {
+		val groupId = ParameterGroupId("group1")
+		val puppet =
+			model(
+				parameters = listOf(parameter(angleX), parameter(angleY)),
+				tree =
+					listOf(
+						ParameterNode.Param(angleX),
+						ParameterNode.Group(groupId, "Group", initiallyOpen = false, children = listOf(ParameterNode.Param(angleY))),
+					),
+			)
+		val folded = mapOf(groupId to false)
+		val closedRows = buildParameterRows(puppet, buildLinkInfo(puppet), puppet.parameters.associateBy { it.id }, expanded = folded)
+		assertTrue(closedRows.none { row -> row is ParameterRow.Single && row.parameter.id == angleY }, "the group is closed")
+		val searchingRows =
+			buildParameterRows(puppet, buildLinkInfo(puppet), puppet.parameters.associateBy { it.id }, expanded = folded, forceExpanded = true)
+		assertTrue(searchingRows.any { row -> row is ParameterRow.Single && row.parameter.id == angleY }, "the search opens it")
+		assertTrue((searchingRows.first { row -> row is ParameterRow.GroupHeader } as ParameterRow.GroupHeader).expanded)
+		assertEquals(false, folded[groupId], "the rigger's own fold state is untouched")
 	}
 }

@@ -123,7 +123,7 @@ private class PlacementGhost(
  * @param String areaId The UV editor area this overlay covers (keys the pointer loop).
  * @param EditorSession session The session owning the object selection, the model, and the latches.
  * @param List<GizmoMeshGeometry> geometries The shown islands' display-space gizmo geometry.
- * @param UvIslandPick islandPick The shown surface's island picker (point pick, stack query, front ranks).
+ * @param UvIslandPickController islandPick The shown surface's island picker (point pick, stack query, front ranks).
  * @param UvEditFrame frame The shown surface's texel size plus how a coordinate over it reaches the
  *   stored texture coordinates (an atlas page is the stored frame itself; a source layer is not).
  * @param ViewportCamera? camera The displayed frame's camera; null hides the overlay (no frame yet).
@@ -141,7 +141,7 @@ internal fun UvObjectGizmoOverlay(
 	areaId: String,
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
-	islandPick: UvIslandPick,
+	islandPick: UvIslandPickController,
 	frame: UvEditFrame,
 	camera: ViewportCamera?,
 	widthPx: Int,

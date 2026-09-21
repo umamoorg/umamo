@@ -57,6 +57,15 @@ fun PuppetModel.partNameByDrawable(): Map<DrawableId, String> =
 	}
 
 /**
+ * Drawable id to its own display name, for the overlap-picker row labels.  Names are returned as the
+ * model holds them - a blank one is a display decision the caller makes, not a lookup failure.
+ *
+ * @return Map<DrawableId, String> Drawable id to its name.
+ */
+fun PuppetModel.drawableNameByDrawable(): Map<DrawableId, String> =
+	drawables.associate { drawable -> drawable.id to drawable.name }
+
+/**
  * Drawable id to the source-format id its atlas region is keyed by: itself, or its texture source for
  * a session-created duplicate (a copy of a copy resolves to the original).
  *

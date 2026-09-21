@@ -13,6 +13,7 @@ import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
+import org.umamo.runtime.model.drawableNameByDrawable
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
@@ -53,6 +54,9 @@ internal class ViewportPicker(
 	// Drawable id -> owning part name, for the overlap-picker row labels.
 	private var partNameByDrawableId: Map<DrawableId, String> = model.partNameByDrawable()
 
+	// Drawable id -> its own name, the other half of an overlap-picker row label.
+	private var drawableNameByDrawableId: Map<DrawableId, String> = model.drawableNameByDrawable()
+
 	// Drawable id -> atlas lookup key: the source-format id the atlas map is keyed by, resolved through
 	// textureSourceId so a duplicate samples its SOURCE's texels for the pick alpha gate.
 	private var atlasKeyByDrawableId: Map<DrawableId, String> = model.atlasKeyByDrawable()
@@ -85,6 +89,7 @@ internal class ViewportPicker(
 		pickableIndices = model.pickableIndicesByDrawable()
 		pickableUvs = model.pickableUvsByDrawable()
 		partNameByDrawableId = model.partNameByDrawable()
+		drawableNameByDrawableId = model.drawableNameByDrawable()
 		atlasKeyByDrawableId = model.atlasKeyByDrawable()
 		thumbnailer.updateModel(model)
 	}
@@ -189,6 +194,15 @@ internal class ViewportPicker(
 	 * @return String The owning part's name, or null.
 	 */
 	fun partNameFor(id: DrawableId): String? = partNameByDrawableId[id]
+
+	/**
+	 * A drawable's own display name, for the overlap-picker row labels, or null when it is not pickable
+	 * in the current model.
+	 *
+	 * @param DrawableId id The drawable to look up.
+	 * @return String The drawable's name, or null.
+	 */
+	fun drawableNameFor(id: DrawableId): String? = drawableNameByDrawableId[id]
 
 	/** The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front). */
 	private fun frontRankMap(): Map<DrawableId, Float> =
