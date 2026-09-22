@@ -18,6 +18,7 @@ Umamo is early alpha.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
 * Parameters: The parameters are now searchable.
+* Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -39,10 +40,12 @@ Umamo is early alpha.
 * UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
 * UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
 * UI: The keybindings editor's clear button no longer sits underneath the scrollbar.
+* UI: Double-clicking a workspace tab after reordering the tabs now renames the tab that was clicked instead of the tab that used to be in that spot.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Format: An artwork file whose magic bytes are missing now routes to its reader by extension.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 * Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
+* Outliner: A CTRL+Left Click or Shift+Left Click followed quickly by a plain click on the same row no longer opens rename.
 
 
 ## 0.3.0-dev - 2026-09-15

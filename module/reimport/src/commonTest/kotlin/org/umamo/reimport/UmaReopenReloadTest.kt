@@ -11,8 +11,11 @@ import org.umamo.format.uma.UmaWriterInfo
 import org.umamo.format.uma.textures.UmaPixelSource
 import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.CanvasOffset
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.placedBy
+import org.umamo.interop.art.placedFor
 import org.umamo.interop.uma.UmaDocumentBridge
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableMesh
@@ -26,7 +29,7 @@ import kotlin.test.assertTrue
  * The reopen-then-reload promise the native format makes (docs/format/UMA.md §5, §6): a reload planned against a
  * document before it was saved and one planned against the same document reopened from its `.uma` are the same
  * plan, because the file carries the whole re-import baseline - the inventory with its flags and hashes, the
- * bindings, the lineage, and the tiles' pixels byte for byte.
+ * bindings, the lineage, the file's placement on the canvas, and the tiles' pixels byte for byte.
  */
 class UmaReopenReloadTest {
 	private val options = SourceArtImportOptions(alphaThreshold = 1, birthMeshMargin = 2)
@@ -82,10 +85,12 @@ class UmaReopenReloadTest {
 	@Test
 	fun aReopenedDocumentReloadsAsTheOriginalDoes() {
 		val fileBytes = "the file as imported".encodeToByteArray()
-		val imported = SourceArtImport.fromSourceArt(TestArt(listOf(repainted, kept, removed, ignored)), ArtSourceDescriptor("a.clip", "/art/a.clip", "clip", contentHashOf(fileBytes), 1_757_894_400_000L), options)
+		// The file was placed on the canvas when it was added, so every read of it is placed the same way.
+		val offset = CanvasOffset(7, 11)
+		val imported = SourceArtImport.fromSourceArt(TestArt(listOf(repainted, kept, removed, ignored)).placedBy(offset), ArtSourceDescriptor("a.clip", "/art/a.clip", "clip", contentHashOf(fileBytes), 1_757_894_400_000L), options)
 		val sourceId = imported.puppet.sources.single().id
 		// Rig work the reload must respect: the rigger ignored the sketch layer.
-		val source = imported.puppet.sources.single()
+		val source = imported.puppet.sources.single().copy(offsetX = offset.x, offsetZ = offset.z)
 		val model = imported.puppet.copy(sources = listOf(source.copy(layers = source.layers.map { layer -> if (layer.key == "lyid:4") layer.copy(ignored = true) else layer })))
 		assertTrue(model.sources.single().layers.single { layer -> layer.key == "lyid:4" }.empty, "the sketch reads as an empty layer")
 
@@ -93,6 +98,7 @@ class UmaReopenReloadTest {
 		val saved = UmaDocumentBridge.documentOf(UmaModel.create(UmaWriterInfo("Umamo", "test")), model, UmaPixelSource({ tileId -> pngByTile[tileId] }, UmaRenderPagePixels.Derived, null))
 		val document = Uma.read(Uma.write(saved))
 		val reopened: PuppetModel = UmaDocumentBridge.modelOf(document)
+		assertEquals(offset.x to offset.z, reopened.sources.single().let { record -> record.offsetX to record.offsetZ }, "the placement survives the save")
 		val pages = UmaDocumentBridge.pagesOf(document)
 		val reopenedRasterOf: (AtlasTileId) -> LayerRaster? = { tileId -> pages.tilePng(tileId)?.let(PngCodec::read)?.let { image -> LayerRaster(image.width, image.height, image.rgba) } }
 
@@ -104,7 +110,7 @@ class UmaReopenReloadTest {
 					TestLayer("lyid:4", "Sketch", 2, LayerBounds(0, 0, 8, 8), solidRaster(8, 8, 4)),
 					TestLayer("lyid:5", "Five", 3, LayerBounds(60, 60, 3, 3), solidRaster(3, 3, 5)),
 				),
-			)
+			).placedFor(reopened.sources.single())
 		val newHash = contentHashOf("the file as saved again".encodeToByteArray())
 		val before = ArtworkReloadPlanner.plan(model, sourceId, newArt, options, { tileId -> imported.rasterByTile[tileId] }, newHash)
 		val after = ArtworkReloadPlanner.plan(reopened, sourceId, newArt, options, reopenedRasterOf, newHash)
@@ -113,6 +119,7 @@ class UmaReopenReloadTest {
 		assertTrue(plan.reload.replacedTiles.isNotEmpty(), "the repainted layer supersedes its tile")
 		assertTrue(plan.reload.additions != null, "the new layer is added")
 		assertTrue(plan.report.needsReview.isNotEmpty(), "the deleted layer is left for review")
+		assertEquals(offset.x to offset.z, plan.reload.source.let { record -> record.offsetX to record.offsetZ }, "the refreshed record keeps the placement")
 		assertEquals(fingerprintOf(before), fingerprintOf(after))
 	}
 }

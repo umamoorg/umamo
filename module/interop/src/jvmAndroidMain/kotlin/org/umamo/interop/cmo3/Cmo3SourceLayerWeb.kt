@@ -107,7 +107,9 @@ internal object Cmo3SourceLayerWeb {
 	 * layer of its file; a tile with no row or no raster is left to the crop path.
 	 *
 	 * The layered image's frame is the document canvas: an import sets the canvas from the art, and
-	 * the inventory's canvas coordinates live in that frame.
+	 * the inventory's canvas coordinates live in that frame - a later file's rows already carry the
+	 * offset it was placed by (ArtSource.offsetX), so they are written as they are.  The CMO3 keeps
+	 * no such offset of its own, so a document reopened from the export reads every file at offset 0.
 	 *
 	 * @param PuppetModel puppet      The model being converted.
 	 * @param Function    tileRasters The document's pixels for a tile, or null.

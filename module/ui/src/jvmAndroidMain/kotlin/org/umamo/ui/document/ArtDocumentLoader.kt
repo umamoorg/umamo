@@ -14,6 +14,7 @@ import org.umamo.format.binary.contentHashOf
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
@@ -51,16 +52,19 @@ class ArtDocument(
 ) : PuppetDocument
 
 /**
- * The options an artwork import runs with under [template].  The bridge takes the resolved parameter
- * list and knows nothing about templates, so the template-to-parameters step happens once here for
- * every caller: the shell resolves the preference into it, and the loaders default through it so a
- * caller with no setting to read still seeds the configured default.
+ * The options an artwork import runs with under [template] and [anchor].  The bridge takes the
+ * resolved parameter list and knows nothing about templates, so the template-to-parameters step
+ * happens once here for every caller: the shell resolves the preferences into it, and the loaders
+ * default through it so a caller with no setting to read still seeds the configured defaults.  The
+ * anchor only matters to an import into a rig that already has art; a reload or a relink reads the
+ * options for their threshold and margin alone.
  *
  * @param ParameterTemplate template The parameter set to seed.
+ * @param ArtworkAnchor     anchor   Where a later file is anchored on the rig's canvas.
  * @return SourceArtImportOptions The import options.
  */
-fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default): SourceArtImportOptions =
-	SourceArtImportOptions(parameters = template.parameters)
+fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default, anchor: ArtworkAnchor = ArtworkAnchor.Default): SourceArtImportOptions =
+	SourceArtImportOptions(parameters = template.parameters, anchor = anchor)
 
 /**
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the

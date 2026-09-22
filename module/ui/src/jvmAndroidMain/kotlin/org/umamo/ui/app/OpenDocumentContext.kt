@@ -3,6 +3,7 @@ package org.umamo.ui.app
 import kotlinx.coroutines.CoroutineScope
 import org.umamo.edit.EditorSession
 import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.settings.Settings
 import org.umamo.storage.FilePicker
@@ -12,6 +13,7 @@ import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.settings.IMPORT_ALIGNMENT_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.workspace.AreaViewStates
@@ -91,11 +93,14 @@ internal class EditorAppServices(
 	val untitledName: () -> String,
 ) {
 	/**
-	 * What an artwork import seeds with, read at the moment the import runs so the preferences row applies
-	 * to the next import without a restart.
+	 * What an artwork import seeds with and where it places a later file, read at the moment the import
+	 * runs so the preferences rows apply to the next import without a restart.
 	 *
-	 * @return SourceArtImportOptions The import options under the configured parameter template.
+	 * @return SourceArtImportOptions The import options under the configured parameter template and anchor.
 	 */
 	fun configuredArtworkImportOptions(): SourceArtImportOptions =
-		artworkImportOptions(ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)))
+		artworkImportOptions(
+			ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)),
+			ArtworkAnchor.fromKey(settings.getString(IMPORT_ALIGNMENT_KEY)),
+		)
 }
