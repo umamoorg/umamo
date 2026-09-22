@@ -13,6 +13,10 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.originRelativeX
+import org.umamo.runtime.model.originRelativeZ
+import org.umamo.runtime.model.worldXFromOriginRelative
+import org.umamo.runtime.model.worldYFromOriginRelative
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -48,7 +52,14 @@ class DrawableWorldTransformTest {
 			540f,
 		)
 
-	private fun model(): PuppetModel =
+	/**
+	 * The one-drawable model every test measures.
+	 *
+	 * @param Float canvasSize The square canvas's side, with the world origin at its center; 0 leaves both at
+	 * their (0, 0) defaults, where world and origin-relative readings coincide.
+	 * @return PuppetModel The model.
+	 */
+	private fun model(canvasSize: Float = 0f): PuppetModel =
 		PuppetModel(
 			parameters = listOf(Parameter(parameterId, "Param", min = -1f, max = 1f, default = 0f)),
 			parts = emptyList(),
@@ -76,6 +87,10 @@ class DrawableWorldTransformTest {
 				),
 			rootChildren = emptyList(),
 			rootPartId = null,
+			canvasWidth = canvasSize,
+			canvasHeight = canvasSize,
+			worldOriginX = canvasSize / 2f,
+			worldOriginY = -(canvasSize / 2f),
 		)
 
 	@Test
@@ -140,6 +155,26 @@ class DrawableWorldTransformTest {
 		// labels its rows with - so art sitting at local y 500 reads as Z -500.
 		assertEquals(500f, resized.bounds.centerX)
 		assertEquals(-500f, resized.bounds.centerY)
+	}
+
+	@Test
+	fun positionReadsFromTheWorldAxes() {
+		// A 1000 canvas puts the origin at world (500, -500) - exactly where the displayed square is centered.
+		val session = EditorSession(model(canvasSize = 1000f))
+		val puppet = session.model.value
+		val centered = drawableWorldTransform(puppet, session.pose.value, drawableId)!!
+		assertEquals(0f, puppet.originRelativeX(centered.bounds.centerX), "a mesh centered on the axes reads X 0")
+		assertEquals(0f, puppet.originRelativeZ(centered.bounds.centerY), "and Z 0, not the -500 world y")
+
+		// Typing (10, 20) goes through the same conversions the Position rows use, one axis at a time.
+		session.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(10f), puppet.worldYFromOriginRelative(20f))
+
+		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		assertEquals(10f, session.model.value.originRelativeX(moved.bounds.centerX), "what you type is what the readout becomes")
+		assertEquals(20f, session.model.value.originRelativeZ(moved.bounds.centerY), "Z counts up from the red line")
+		assertEquals(510f, moved.bounds.centerX, "the world position is the typed value plus the origin")
+		assertEquals(-480f, moved.bounds.centerY)
+		assertTrue(session.canUndo.value, "one undo step")
 	}
 
 	@Test

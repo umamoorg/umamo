@@ -47,11 +47,15 @@ data class PuppetModel(
 	/** The document canvas height in world units; see [canvasWidth]. */
 	val canvasHeight: Float = 0f,
 	/**
-	 * The world origin in WORLD space (the deform eval's output space, canvas x / negated canvas y) -
-	 * where the viewport's axis lines cross and the anchor for origin-relative operations (the 2D
-	 * cursor's snap home, frame grids).  Imported documents carry the authored origin (CMO3
-	 * CModelInfo.originInPixels, the origin MOC3 CanvasInfo exports), falling back to the canvas
-	 * center; (0, 0) when the source carried no canvas.
+	 * The world origin in WORLD space (the deform eval's output space, canvas x / negated canvas y, whose
+	 * zero is the canvas's top-left corner) - where the viewport's axis lines cross, the anchor for
+	 * origin-relative operations (the 2D cursor's snap home, frame grids), and the zero point of every
+	 * coordinate the rigger reads or types.  Never shown raw: the helpers in OriginRelativeCoordinates.kt
+	 * convert at the display boundary.
+	 *
+	 * Imported documents put it at the canvas center.  A CMO3 import derives the center rather than reading
+	 * CModelInfo.originInPixels, which is (0, 0) in every corpus model; a MOC3 import reads CanvasInfo's
+	 * origin.  (0, 0) when the source carried no canvas.
 	 */
 	val worldOriginX: Float = 0f,
 	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */

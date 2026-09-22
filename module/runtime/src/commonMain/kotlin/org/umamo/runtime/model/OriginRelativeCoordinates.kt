@@ -1,0 +1,83 @@
+package org.umamo.runtime.model
+
+/*
+ * The rigger's coordinate frame.  Every X or Z the rigger reads or types is measured from the world axes:
+ * (0, 0) is where the viewport's axis lines cross, the world origin, with X+ right and Z+ up.
+ *
+ * World space itself does not move.  Its zero stays at the canvas's top-left corner (canvas x, negated
+ * canvas y), because the evaluator, the renderer, every importer and exporter, UMA, and every undo snapshot
+ * share it, and the rigger would see no difference if it were re-based.  Only the numbers that cross the
+ * display boundary convert, through these helpers, and nothing shows a raw world coordinate.
+ *
+ * The Origin fields are the one reading that cannot be measured from the origin, because they place it.
+ * They are measured on the canvas instead, from its bottom-left corner with Z up, so they count the same
+ * direction as every other number.
+ *
+ * World y already grows upward, so the panel's Z is world y with only the origin subtracted - no sign flip.
+ */
+
+/**
+ * The origin-relative X of a world x: how far right of the world axes it sits.
+ *
+ * @param Float worldX A world-space x.
+ * @return Float The X the rigger reads.
+ */
+fun PuppetModel.originRelativeX(worldX: Float): Float = worldX - worldOriginX
+
+/**
+ * The origin-relative Z of a world y: how far above the world axes it sits.
+ *
+ * @param Float worldY A world-space y (grows upward).
+ * @return Float The Z the rigger reads.
+ */
+fun PuppetModel.originRelativeZ(worldY: Float): Float = worldY - worldOriginY
+
+/**
+ * The world x of an origin-relative X - the inverse of [originRelativeX].
+ *
+ * @param Float originRelativeX An X measured from the world axes.
+ * @return Float The world-space x.
+ */
+fun PuppetModel.worldXFromOriginRelative(originRelativeX: Float): Float = originRelativeX + worldOriginX
+
+/**
+ * The world y of an origin-relative Z - the inverse of [originRelativeZ].
+ *
+ * @param Float originRelativeZ A Z measured from the world axes.
+ * @return Float The world-space y.
+ */
+fun PuppetModel.worldYFromOriginRelative(originRelativeZ: Float): Float = originRelativeZ + worldOriginY
+
+/**
+ * How far the world origin sits from the canvas's left edge, in canvas pixels - the Origin X reading.
+ *
+ * @return Float The origin's distance from the canvas's left edge.
+ */
+fun PuppetModel.originFromCanvasLeft(): Float = worldOriginX
+
+/**
+ * How far the world origin sits above the canvas's bottom edge, in canvas pixels - the Origin Z reading.
+ *
+ * The canvas grows and shrinks at its bottom edge while the origin keeps its world point, so a canvas height
+ * change moves this reading by the same amount.  With no canvas (height 0) it is the raw world y.
+ *
+ * @return Float The origin's height above the canvas's bottom edge.
+ */
+fun PuppetModel.originFromCanvasBottom(): Float = worldOriginY + canvasHeight
+
+/**
+ * The world-origin x for an Origin X reading - the inverse of [originFromCanvasLeft].  The canvas's left edge
+ * is world x 0, so this is the identity; it exists so both Origin rows convert the same way.
+ *
+ * @param Float fromCanvasLeft The origin's distance from the canvas's left edge.
+ * @return Float The world-origin x to store.
+ */
+fun PuppetModel.worldOriginXFromCanvasLeft(fromCanvasLeft: Float): Float = fromCanvasLeft
+
+/**
+ * The world-origin y for an Origin Z reading - the inverse of [originFromCanvasBottom].
+ *
+ * @param Float fromCanvasBottom The origin's height above the canvas's bottom edge.
+ * @return Float The world-origin y to store.
+ */
+fun PuppetModel.worldOriginYFromCanvasBottom(fromCanvasBottom: Float): Float = fromCanvasBottom - canvasHeight

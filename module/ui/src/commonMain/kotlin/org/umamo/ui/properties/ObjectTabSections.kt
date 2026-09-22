@@ -25,9 +25,13 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.deformerSelfAndDescendants
+import org.umamo.runtime.model.originRelativeX
+import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.parentPartByPart
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
+import org.umamo.runtime.model.worldXFromOriginRelative
+import org.umamo.runtime.model.worldYFromOriginRelative
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.button.IconButton
@@ -114,6 +118,11 @@ internal val TransformSection =
  * inverts through the deformer chain, which is exact only at the neutral pose, so this is the panel's face
  * of the same guard that blocks a viewport object transform on a posed rig.
  *
+ * Position reads from the world axes, so it converts at this boundary: shown values subtract the world
+ * origin, and an edited value adds it back.  Only the edited axis converts - the other passes its world
+ * value through untouched, because a subtract-then-add can land one float step off and record a spurious
+ * move on an axis nobody edited.  Size is a difference and needs no conversion.
+ *
  * @param PropertyContext context The row's context (its session supplies the live pose).
  * @param DrawableId drawableId The active drawable.
  * @param Boolean showSize False for the Position pair, true for the Size pair.
@@ -138,6 +147,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 			session?.setDrawableWorldSize(drawableId, newWidth, newHeight)
 		}
 	} else {
+		val puppet = context.puppet
 		FieldStack(
 			listOf(
 				{ position ->
@@ -146,8 +156,10 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 						description = stringResource(Res.string.properties_field_position_x_description),
 					) {
 						NumberField(
-							value = bounds.centerX,
-							onValueChange = { newX -> session?.setDrawableWorldCenter(drawableId, newX, bounds.centerY) },
+							value = puppet.originRelativeX(bounds.centerX),
+							onValueChange = { newX ->
+								session?.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(newX), bounds.centerY)
+							},
 							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,
 							decimals = 1,
@@ -162,8 +174,10 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 						description = stringResource(Res.string.properties_field_position_z_description),
 					) {
 						NumberField(
-							value = bounds.centerY,
-							onValueChange = { newZ -> session?.setDrawableWorldCenter(drawableId, bounds.centerX, newZ) },
+							value = puppet.originRelativeZ(bounds.centerY),
+							onValueChange = { newZ ->
+								session?.setDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldYFromOriginRelative(newZ))
+							},
 							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,
 							decimals = 1,

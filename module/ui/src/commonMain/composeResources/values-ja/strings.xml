@@ -740,13 +740,13 @@
 
 	<!-- 行の説明（プロパティパネルと操作ストリップの行ラベルに表示されるツールチップ）。下訳、確認待ち。 -->
 	<string name="properties_field_canvas_width_description">キャンバスの幅（ピクセル）。キャンバスは右端で伸縮し、アートは動きません。</string>
-	<string name="properties_field_canvas_height_description">キャンバスの高さ（ピクセル）。キャンバスは下端で伸縮し、アートは動きません。</string>
-	<string name="properties_field_origin_x_description">モデルの原点の水平位置（キャンバスの左端からのピクセル）。ビューポートの軸線がここで交差します。</string>
-	<string name="properties_field_origin_z_description">モデルの原点の垂直位置（ピクセル）。Z はキャンバスの上端から上向きに数えるため、キャンバス上の点は負の値になります。</string>
+	<string name="properties_field_canvas_height_description">キャンバスの高さ（ピクセル）。キャンバスは下端で伸縮し、アートとワールド軸は動かないため、原点 Z も同じだけ変わります。</string>
+	<string name="properties_field_origin_x_description">ワールド軸が交差する位置（キャンバスの左端からのピクセル）。ほかのすべての位置はここを基準に測ります。</string>
+	<string name="properties_field_origin_z_description">ワールド軸が交差する位置（キャンバスの下端から上向きのピクセル）。ほかのすべての位置はここを基準に測ります。</string>
 	<string name="properties_field_source_layer_display_description">パックされたテクスチャアトラスではなく、原画からモデルを描画します。ドキュメントに保存されます。ドキュメントが保持していないアートはアトラスから描画されます。</string>
 	<string name="properties_field_runtime_target_description">このモデルの対象ランタイム。そのランタイムで再生できない機能は編集から隠され、下に一覧表示されます。「ターゲットなし」ではすべての機能を使えます。</string>
-	<string name="properties_field_position_x_description">ビューポートに表示されているメッシュの水平方向の中心。すべてのパラメータが初期値のときのみ編集できます。</string>
-	<string name="properties_field_position_z_description">ビューポートに表示されているメッシュの垂直方向の中心（上が正）。すべてのパラメータが初期値のときのみ編集できます。</string>
+	<string name="properties_field_position_x_description">ビューポートに表示されているメッシュの水平方向の中心（ワールド軸からの距離）。すべてのパラメータが初期値のときのみ編集できます。</string>
+	<string name="properties_field_position_z_description">ビューポートに表示されているメッシュの垂直方向の中心（ワールド軸から上が正）。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_size_x_description">ビューポートに表示されているメッシュの幅。中心を基準に拡大縮小します。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_size_z_description">ビューポートに表示されているメッシュの高さ。中心を基準に拡大縮小します。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_base_angle_description">デフォーマの基準となる角度（度）。各キーフォームの角度はこの値に加算されます。</string>
