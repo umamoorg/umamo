@@ -208,8 +208,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 
 	// The Object-mode island pick surface: the model's rest-pose front rank plus the CPU pick adapters
 	// over the shown islands and the shown image's decoded pixels (UvIslandPickController.kt).  The
-	// image is the atlas page or the source layer's artwork, and the alpha gate follows it - a click
-	// through transparent overhang falls to whatever is behind it on the surface actually being looked at.
+	// image is the atlas page or the source layer's artwork, and the alpha gate follows it - over
+	// overlapping islands, the one with opaque art under the click on the surface actually being
+	// looked at wins, and a click where no island is opaque falls back to the mesh itself.
 	val frontRank = remember(model) { restFrontRank(model) }
 	val shownImage =
 		if (layerView != null) {

@@ -77,7 +77,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Hover to show thumbnail of layer, reuse thumbnailer.
 
 ## Texture Authoring/UV Editor
-* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
@@ -201,6 +200,8 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* Theme Selection
 	* Language Selection (With universal emoji icon.) - Detect from system.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
+* New Settings
+	* Setting to make ALT+Click the default to activate the popup overlap picker.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.

@@ -29,6 +29,7 @@ Umamo is early alpha.
 * UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
 * UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
 * UI: Buttons now use the accent color when pressed.
+* UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.

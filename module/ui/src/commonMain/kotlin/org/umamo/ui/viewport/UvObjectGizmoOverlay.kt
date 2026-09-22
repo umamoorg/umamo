@@ -93,15 +93,17 @@ private class PlacementGhost(
  * here flows out to the viewport and the outliner.
  *
  * The interaction vocabulary is the viewport Object gizmo's, through the same
- * [ObjectPickController]: a sub-threshold primary click picks the front-most opaque island under
- * the cursor (plain replaces, Shift / Ctrl toggles membership, an unmodified click on empty canvas
+ * [ObjectPickController]: a sub-threshold primary click picks the front-most island under the
+ * cursor (plain replaces, Shift / Ctrl toggles membership, an unmodified click on empty canvas
  * clears - under Follow Selection that may hop the shown page to the first-meshed fallback, while a
  * pinned page holds), an Alt click resolves the overlap stack through the host's popup, a primary
  * drag box-selects every island with a vertex inside the box (Shift adds), and Shift+RightClick
  * places the UV cursor.
- * Picking is CPU-side over [islandPick] - display-space point-in-face with the shown image's alpha
- * gate, so a click on transparent triangle overhang falls through, exactly like the viewport's raster
- * pick.  The same overlay serves both surfaces: over a source layer it gates on that artwork's own
+ * Picking is CPU-side over [islandPick] - display-space point-in-face in two tiers.  An island
+ * whose art is opaque under the cursor wins, so over overlapping islands the visible art decides;
+ * when none is opaque there, any island whose mesh contains the point is hit, so a click on an
+ * island's transparent interior still selects it and only a click outside every mesh is empty
+ * canvas.  The same overlay serves both surfaces: over a source layer it gates on that artwork's own
  * alpha and places the cursor through the layer's frame, which is the whole of the difference.
  *
  * Over an ATLAS PAGE the overlay also owns the placement gesture: a UV operator latched in this area
