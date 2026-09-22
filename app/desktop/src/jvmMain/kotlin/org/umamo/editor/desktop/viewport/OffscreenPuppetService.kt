@@ -184,5 +184,7 @@ class OffscreenPuppetService(
 
 	override fun partNameFor(id: DrawableId): String? = picker.partNameFor(id)
 
+	override fun drawableNameFor(id: DrawableId): String? = picker.drawableNameFor(id)
+
 	override fun dispose() = engine.dispose()
 }

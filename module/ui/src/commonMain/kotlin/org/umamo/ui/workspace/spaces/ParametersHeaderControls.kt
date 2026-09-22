@@ -6,7 +6,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
@@ -22,6 +21,8 @@ import org.umamo.ui.kit.FilterSectionLabel
 import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.OverflowRowScope
+import org.umamo.ui.kit.SEARCH_FIELD_MIN_WIDTH
+import org.umamo.ui.kit.SearchField
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalEditorSession
@@ -34,9 +35,10 @@ import org.umamo.ui.workspace.AreaScope
 
 /**
  * The parameters panel's area-header controls (mounted via SpaceDescriptor.headerContent): the leading
- * Add Parameter dropdown and New Group button, then a flexible gap, then Reset All and the filter chip
- * at the header's end - so the panel body keeps its full height for the parameter list. Renders nothing
- * without an open document, matching the other header controls.
+ * Add Parameter dropdown and New Group button, the name / id search field centered in the flexible
+ * middle, then Reset All and the filter chip at the header's end - so the panel body keeps its full
+ * height for the parameter list. Renders nothing without an open document, matching the other header
+ * controls.
  *
  * These stay inline handlers rather than registry commands on purpose - adding a parameter, creating a
  * group, and resetting the pose are direct manipulation like the sliders themselves; a command becomes
@@ -61,7 +63,13 @@ internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
 			NewParameterGroupButton(viewState)
 		}
 	}
-	flexibleSpace(minWidth = 8.dp)
+	flexibleSpace()
+	item("search", minWidth = SEARCH_FIELD_MIN_WIDTH) {
+		if (LocalPuppet.current != null) {
+			SearchField(value = viewState.query, onValueChange = { newQuery -> viewState.query = newQuery })
+		}
+	}
+	flexibleSpace()
 	item("resetAll") {
 		if (LocalPuppet.current != null) {
 			ResetAllParametersButton()

@@ -79,7 +79,7 @@ internal fun pageAlphaSampler(page: DecodedImage?): (DrawableId, Float, Float) -
  * @property Function atlasSizeOf (id) -> the shown image's (width, height), or null for the untextured fallback
  *   (full centrality instead of ray-marching a fake 1x1 page).
  */
-internal class UvIslandPick(
+internal class UvIslandPickController(
 	val displayPositionsById: Map<DrawableId, FloatArray>,
 	val indicesById: Map<DrawableId, IntArray>,
 	val meshUvsById: Map<DrawableId, FloatArray>,
@@ -119,15 +119,15 @@ internal class UvIslandPick(
  * @param Map<DrawableId, Float> frontRank The model's rest-pose front rank (restFrontRank).
  * @param Map<DrawableId, FloatArray> uvsById Each island's uvs in the shown surface's frame (the alpha-sample space).
  * @param DecodedImage? image The shown surface's decoded pixels, or null for the untextured fallback.
- * @return UvIslandPick The picker.
+ * @return UvIslandPickController The picker.
  */
 internal fun uvIslandPick(
 	geometries: List<GizmoMeshGeometry>,
 	frontRank: Map<DrawableId, Float>,
 	uvsById: Map<DrawableId, FloatArray>,
 	image: DecodedImage?,
-): UvIslandPick =
-	UvIslandPick(
+): UvIslandPickController =
+	UvIslandPickController(
 		displayPositionsById = geometries.associate { geometry -> geometry.drawableId to geometry.positions },
 		indicesById = geometries.associate { geometry -> geometry.drawableId to geometry.indices },
 		meshUvsById = uvsById,

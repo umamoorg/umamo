@@ -57,6 +57,7 @@ import org.umamo.ui.action.rebindCommand
 import org.umamo.ui.action.resetKeymapOverrides
 import org.umamo.ui.action.unbindCommand
 import org.umamo.ui.kit.LocalKeyCapture
+import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.SelectField
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
@@ -141,7 +142,9 @@ internal fun KeybindingsEditor() {
 			Spacer(modifier = Modifier.height(SETTING_ROW_SPACING))
 			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
 				val scrollState = rememberScrollState()
-				Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
+				// The scrollbar is overlaid on this column's trailing edge, so the rows reserve its width
+				// or the clear button on every row sits underneath the bar.
+				Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(end = SCROLLBAR_THICKNESS)) {
 					for (command in commands.all()) {
 						val titleResource = command.title ?: continue
 						KeybindingRow(

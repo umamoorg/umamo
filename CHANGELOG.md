@@ -16,6 +16,8 @@ Umamo is early alpha.
 * UI: Opens to a new document by default with New and Open file menu operations available.
 * UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
+* UI: Previous Workspace and Next Workspace added to Workspace menu.
+* Parameters: The parameters are now searchable.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -25,12 +27,15 @@ Umamo is early alpha.
 * UI: Clicking away from all text input fields should now end text entry input preventing other inputs from being eaten.
 * UI: The command palette now lists only the commands that apply to the editor area under the pointer.  For example, Mirror UVs no longer shows while editing a mesh in the 2D viewport.
 * UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
+* UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
+* UI: Buttons now use the accent color when pressed.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
 * UI: Dirty documents were obliterated when opening a new document since the dirty check was broken.
 * UI: Panel state(open branches, filters, the UV Editor's texture choice) no longer resets when switching workspace tabs.
 * UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
+* UI: The keybindings editor's clear button no longer sits underneath the scrollbar.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Format: An artwork file whose magic bytes are missing now routes to its reader by extension.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.

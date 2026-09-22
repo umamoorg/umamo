@@ -415,6 +415,15 @@ interface PuppetViewportService {
 	 */
 	fun partNameFor(id: DrawableId): String?
 
+	/**
+	 * A drawable's own display name (the other half of an overlap-picker row label), or null when the
+	 * model holds no such drawable.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return String? The drawable's name, or null.
+	 */
+	fun drawableNameFor(id: DrawableId): String?
+
 	/** Stops the engine and releases its GPU resources; the service is unusable afterwards. */
 	fun dispose()
 }

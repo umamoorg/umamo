@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -116,7 +117,8 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape) {
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
-	val fill = accentControlFill(colors, item.selected, hovered)
+	val pressed by interaction.collectIsPressedAsState()
+	val fill = accentControlFill(colors, item.selected, hovered, pressed)
 	val iconTint = accentControlGlyph(colors, item.selected)
 	// The label doubles as the hover text, as it does on IconButton - it is the human name of the segment
 	// either way.
