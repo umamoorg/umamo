@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
-import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -85,6 +84,7 @@ import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconSlot
+import org.umamo.ui.kit.singleOrDoubleClick
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
@@ -119,9 +119,6 @@ private val ROW_HEIGHT = 22.dp
 
 /** Fixed width of the trailing restriction indicator slot. */
 private val RESTRICTION_SLOT_WIDTH = 16.dp
-
-/** Max gap between two presses on a row that opens its inline rename editor (a double-click). */
-private const val OUTLINER_DOUBLE_CLICK_MILLIS = 300L
 
 /** Pause the pointer must rest on a drawable row before its art preview pops, so a sweep does not flicker. */
 private const val OUTLINER_HOVER_DELAY_MILLIS = 10L
@@ -679,13 +676,9 @@ private fun OutlinerRowBody(
 	onHoverPreview: (SelectionTarget, HoverPreview?) -> Unit,
 ) {
 	val node = row.node
-	// The selection gesture runs in a long-lived pointerInput coroutine that only re-captures its closures
-	// when its keys (node.target, renaming) change. The lambdas below close over live state, so without
-	// rememberUpdatedState the loop would keep calling a stale lambda after the model changes. These keep
-	// the loop pointed at the latest callbacks.
-	val currentOnToggle by rememberUpdatedState(onToggle)
-	val currentOnSelect by rememberUpdatedState(onSelect)
-	val currentOnStartRename by rememberUpdatedState(onStartRename)
+	// The long-press drag runs in a long-lived pointerInput coroutine that only re-captures its closures
+	// when its keys change, and onDrop closes over live state; this keeps the drag's release pointed at the
+	// latest callback.
 	val currentOnDrop by rememberUpdatedState(onDrop)
 	// Drag feedback: this row is the one being dragged (faded), or the row the pointer is over (a drop
 	// target). Only real rows are valid drop targets.
@@ -845,41 +838,32 @@ private fun OutlinerRowBody(
 					// Publish the window bounds so a drag can hit-test the drop target against every visible row.
 					dragController.reportBounds(node.id, coordinates.boundsInWindow())
 				}
-				// Long-press then drag to reparent: distinct from the tap-to-select loop below, so a press still
+				// Long-press then drag to reparent: distinct from the tap-to-select gesture below, so a press still
 				// selects first, then a hold begins the drag.  Only real rows (a target) pick up; the drop is
 				// applied on release by the space, which reads the controller's target.
 				.dragRowOnLongPress(dragController, node.id, node.target, boundsHolder) { currentOnDrop() }
 				// Selection covers the whole row (indent, icon, label, blank space) so clicking anywhere but the
-				// chevron or eye selects; those consume their own press, which this skips via the consumed check.
-				// A second unmodified press within the double-click window opens the inline rename instead of
-				// re-selecting. While renaming the editor owns the row, so this skips its own handling.
-				.pointerInput(node.target, renaming) {
-					awaitPointerEventScope {
-						var lastPressUptime = 0L
-						while (true) {
-							val event = awaitPointerEvent()
-							// A secondary (right) press is the context-menu gesture, not a selection - let it fall
-							// through to the wrapping ContextMenuArea instead of selecting the row.
-							if (renaming || event.type != PointerEventType.Press || event.buttons.isSecondaryPressed || event.changes.any { it.isConsumed }) {
-								continue
-							}
-							if (node.target == null) {
-								currentOnToggle()
-								continue
-							}
-							val toggle = event.keyboardModifiers.isCtrlPressed || event.keyboardModifiers.isMetaPressed
-							val extend = event.keyboardModifiers.isShiftPressed
-							val pressUptime = event.changes.first().uptimeMillis
-							if (!toggle && !extend && pressUptime - lastPressUptime <= OUTLINER_DOUBLE_CLICK_MILLIS) {
-								currentOnStartRename()
-								lastPressUptime = 0L
-							} else {
-								currentOnSelect(toggle, extend)
-								lastPressUptime = pressUptime
-							}
+				// chevron or eye selects; those consume their own press, which the gesture skips.  A right press
+				// falls through to the wrapping ContextMenuArea.  A double click on a real node opens the inline
+				// rename; a synthetic node toggles on every press.  While renaming the editor owns the row, so
+				// the gesture stands down.
+				.singleOrDoubleClick(
+					enabled = !renaming,
+					onSingle = { modifiers ->
+						if (node.target == null) {
+							onToggle()
+						} else {
+							onSelect(modifiers.isCtrlPressed || modifiers.isMetaPressed, modifiers.isShiftPressed)
 						}
-					}
-				}
+					},
+					onDouble = {
+						if (node.target == null) {
+							onToggle()
+						} else {
+							onStartRename()
+						}
+					},
+				)
 				.padding(horizontal = 4.dp, vertical = 2.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {

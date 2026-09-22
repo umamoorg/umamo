@@ -1062,7 +1062,7 @@ private fun ParameterValueRow(
 			// uses raw pointerInput (never requests focus, so keyboard dispatch stays on the shell root) and
 			// fires the single click immediately - no double-tap wait. While renaming, the field below consumes
 			// its own presses, so this gesture does not fight it.
-			modifier = Modifier.weight(1f).singleOrDoubleClick(onSingle = onToggleRange, onDouble = onStartRename),
+			modifier = Modifier.weight(1f).singleOrDoubleClick(onSingle = { onToggleRange() }, onDouble = onStartRename),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
 			if (showLeadingSlot) {
@@ -1449,7 +1449,7 @@ private fun ParameterGroupHeaderBody(
 				.rowDropHighlight(nesting, shapes.small, colors)
 				// A single tap toggles the group immediately (no double-tap wait, so it never feels laggy);
 				// a double tap opens inline rename.
-				.singleOrDoubleClick(onSingle = onToggle, onDouble = onStartRename)
+				.singleOrDoubleClick(onSingle = { onToggle() }, onDouble = onStartRename)
 				.padding(horizontal = 4.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {

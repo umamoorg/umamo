@@ -133,9 +133,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
 
-## DRY
-* ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
-
 ## Workspace Tabs
 * Improvements
 	* Visual feedback of the tabs moving out of the way when reordering them.
