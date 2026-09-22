@@ -20,6 +20,7 @@ Umamo is early alpha.
 * UI: Add hover tooltips to the Properties area and Operation Strip.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
+* Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.

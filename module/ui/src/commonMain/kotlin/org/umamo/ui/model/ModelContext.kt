@@ -116,7 +116,7 @@ val LocalSourceArtRasters = staticCompositionLocalOf<SourceArtRasters?> { null }
 
 /**
  * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle].
- * The Outliner asks for a drawable's thumbnail on hover; the host backs it with the same crop-and-downsample
+ * The Outliner and the Sources space ask for a drawable's thumbnail on hover; the host backs it with the same crop-and-downsample
  * machinery the viewport's overlap picker uses (the atlas region under the mesh UV bounds). Kept an interface
  * in `:ui` commonMain so the panels stay common - the desktop wraps its Skiko rasteriser, Android will wrap
  * its own. A null provider (or a null result) means no preview, so callers simply show nothing.
@@ -144,7 +144,7 @@ interface DrawableThumbnailProvider {
 
 /**
  * The drawable-thumbnail provider for the composition, or null when none is wired (e.g. no document open,
- * or a platform without the renderer). The Outliner hover preview no-ops when it is null.
+ * or a platform without the renderer). The Outliner and Sources hover previews no-op when it is null.
  */
 val LocalDrawableThumbnails = staticCompositionLocalOf<DrawableThumbnailProvider?> { null }
 

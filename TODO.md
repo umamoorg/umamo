@@ -72,10 +72,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Sources Space
-* Improvements
-	* Hover to show thumbnail of layer, reuse thumbnailer.
-
 ## Texture Authoring/UV Editor
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
@@ -194,7 +190,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
 
 ## Settings
-* Settings Window - Curated settings.  Not everything from the settings.json can be exposed.  So each tab/section will be manually built.
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
 * New Startup Settings Screen

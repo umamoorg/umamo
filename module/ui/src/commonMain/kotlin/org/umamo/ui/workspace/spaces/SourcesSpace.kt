@@ -58,12 +58,15 @@ import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.IconSlot
+import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.LocalSourceFilePresence
 import org.umamo.ui.model.LocalSourceSuggestions
 import org.umamo.ui.model.LocalSourceWatch
+import org.umamo.ui.model.SourceTileThumbnails
 import org.umamo.ui.model.percentOf
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
@@ -108,6 +111,13 @@ internal sealed interface SourcesDragPayload {
 	data class Layer(val ref: SourceLayerRef) : SourcesDragPayload
 
 	data class Tile(val tileId: AtlasTileId) : SourcesDragPayload
+}
+
+/** The art a row previews on hover: a tile's source art, or a drawable's crop of the atlas. */
+internal sealed interface SourcesPreviewSubject {
+	data class Tile(val tileId: AtlasTileId) : SourcesPreviewSubject
+
+	data class Drawable(val drawableId: DrawableId) : SourcesPreviewSubject
 }
 
 /**
@@ -192,6 +202,13 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		dragController.end()
 	}
 
+	// Hover art preview: a layer or tile row shows its source art from the document's raster store, a
+	// drawable row the atlas crop the outliner shows.  Either provider may be absent, which previews nothing.
+	val artRasters = LocalSourceArtRasters.current
+	val tileThumbnails = remember(artRasters) { artRasters?.let { store -> SourceTileThumbnails(store) } }
+	val drawableThumbnails = LocalDrawableThumbnails.current
+	val hoverPreview = rememberRowHoverPreviewState<String>()
+
 	if (tree.isEmpty()) {
 		Box(modifier = modifier.fillMaxSize().zebraFill(listState, SOURCES_ROW_HEIGHT, colors.rowStripe))
 		return
@@ -215,8 +232,21 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 				onRelink = relink,
 				dragController = dragController,
 				onDrop = performDrop,
+				hoverPreview = hoverPreview,
 			)
 		}
+	}
+	// One art preview for the whole space, beside the rested-on row, once its art resolves.
+	val preview = hoverPreview.shown
+	val previewBitmap =
+		preview?.let { shown -> nodeById[shown.key]?.let(::sourcesPreviewSubject) }?.let { subject ->
+			when (subject) {
+				is SourcesPreviewSubject.Tile -> tileThumbnails?.thumbnailFor(subject.tileId)
+				is SourcesPreviewSubject.Drawable -> drawableThumbnails?.thumbnailFor(subject.drawableId)
+			}
+		}
+	if (preview != null && previewBitmap != null) {
+		RowThumbnailPreview(name = preview.name, thumbnail = previewBitmap, anchorRect = preview.rowBounds)
 	}
 	// A name chip follows the cursor while dragging, so there is something clearly "in hand" beyond the
 	// faded row: the row being dragged (a layer or a tile).
@@ -244,6 +274,23 @@ internal fun relinkFor(payload: SourcesDragPayload, target: SourcesNode): Pair<A
 		else -> null
 	}
 }
+
+/**
+ * The art a row previews on hover: a tile row its tile, a layer row the first tile bound to it, and a
+ * drawable row its drawable.  A layer under review still binds its old tile, so its row previews the art
+ * the review is about.  A file row, the unbound group, and a layer no tile binds preview nothing - an
+ * unbound layer's pixels live in its file, not in the document.
+ *
+ * @param SourcesNode node The hovered row.
+ * @return SourcesPreviewSubject? What the row previews, or null for nothing.
+ */
+internal fun sourcesPreviewSubject(node: SourcesNode): SourcesPreviewSubject? =
+	when (val kind = node.kind) {
+		is SourcesNodeKind.Tile -> SourcesPreviewSubject.Tile(kind.tileId)
+		is SourcesNodeKind.Layer -> node.children.firstNotNullOfOrNull { child -> (child.kind as? SourcesNodeKind.Tile)?.let { tile -> SourcesPreviewSubject.Tile(tile.tileId) } }
+		is SourcesNodeKind.Drawable -> SourcesPreviewSubject.Drawable(kind.drawableId)
+		is SourcesNodeKind.Source, SourcesNodeKind.UnboundGroup -> null
+	}
 
 /**
  * The drawables a row's click selects: a drawable row itself, a tile row every drawable over it, a
@@ -279,6 +326,7 @@ private fun selectionTargetsOf(node: SourcesNode, puppet: PuppetModel): List<Sel
  * @param Function    onRelink       Rebinds tiles to one layer (null unbinds), retiring the tiles the accepted proposal named.
  * @param RowDragController dragController The space's drag state.
  * @param Function    onDrop         Applies the drop on release.
+ * @param RowHoverPreviewState hoverPreview The space's hover preview state the row reports into.
  */
 @Composable
 private fun SourcesRowView(
@@ -291,12 +339,21 @@ private fun SourcesRowView(
 	onRelink: (List<AtlasTileId>, SourceLayerRef?, List<AtlasTileId>) -> Unit,
 	dragController: RowDragController<SourcesDragPayload>,
 	onDrop: () -> Unit,
+	hoverPreview: RowHoverPreviewState<String>,
 ) {
 	val node = row.node
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val boundsHolder = remember { RowCoordinatesHolder() }
+	ReportRowHover(
+		state = hoverPreview,
+		key = node.id,
+		name = node.label,
+		hovered = hovered,
+		enabled = sourcesPreviewSubject(node) != null,
+		boundsHolder = boundsHolder,
+	)
 	val currentOnDrop by rememberUpdatedState(onDrop)
 	// A layer under review drags nowhere: its binding is what is under review, not a layer to offer; an
 	// ignored layer stays out of the rig until its row says otherwise.

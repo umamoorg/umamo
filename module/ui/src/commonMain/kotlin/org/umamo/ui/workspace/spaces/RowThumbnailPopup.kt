@@ -29,11 +29,11 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** The square edge of the Outliner hover preview - bigger than the picker slot so the art is easy to read. */
-private val OUTLINER_PREVIEW_SIZE = 120.dp
+/** The square edge of a row's hover preview - bigger than the picker slot so the art is easy to read. */
+private val ROW_PREVIEW_SIZE = 120.dp
 
 /**
- * Positions the Outliner hover preview just to the right of the hovered row (anchored by its window
+ * Positions a row's hover preview just to the right of the hovered row (anchored by its window
  * bounds), flipping to the left when it would overflow the window's right edge and clamping to the window
  * on both axes. Unlike the menu providers this ignores the Popup's own anchor layout - the preview is
  * mounted at the space root, so the row's absolute window rectangle [anchorRect] is the real anchor.
@@ -71,19 +71,17 @@ private class RowSidePopupPositionProvider(
 }
 
 /**
- * A passive hover preview for an Outliner drawable row: the art-mesh thumbnail over the themed checker
- * (so a transparent layer reads as a silhouette) with the drawable's name beneath, in a small floating
- * card anchored beside the hovered row. Non-focusable - it never steals input or the selection; the caller
+ * A passive hover preview for a list row with art - an Outliner drawable or part, a Sources layer, tile,
+ * or drawable: the thumbnail over the themed checker (so a transparent layer reads as a silhouette) with
+ * the row's name beneath, in a small floating card anchored beside the hovered row. Non-focusable - it never steals input or the selection; the caller
  * shows and hides it purely by composing or not composing it (no dismiss handling needed).
  *
- * アウトライナーのドロウアブル行のホバープレビュー。サムネイルと名前を行の横の小さなカードに表示する。
- *
- * @param String name The drawable's display name (document data, not localized).
+ * @param String name The row's display name (document data, not localized).
  * @param ImageBitmap thumbnail The cropped art preview.
  * @param Rect anchorRect The hovered row's bounds, in window pixels, the card is placed beside.
  */
 @Composable
-fun OutlinerThumbnailPreview(name: String, thumbnail: ImageBitmap, anchorRect: Rect) {
+fun RowThumbnailPreview(name: String, thumbnail: ImageBitmap, anchorRect: Rect) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val typography = LocalUmamoTypography.current
@@ -99,7 +97,7 @@ fun OutlinerThumbnailPreview(name: String, thumbnail: ImageBitmap, anchorRect: R
 			shadowElevation = 8.dp,
 		) {
 			Column(modifier = Modifier.padding(6.dp)) {
-				ThumbnailSlot(thumbnail = thumbnail, size = OUTLINER_PREVIEW_SIZE)
+				ThumbnailSlot(thumbnail = thumbnail, size = ROW_PREVIEW_SIZE)
 				Spacer(modifier = Modifier.height(4.dp))
 				Text(
 					text = name,
@@ -107,7 +105,7 @@ fun OutlinerThumbnailPreview(name: String, thumbnail: ImageBitmap, anchorRect: R
 					color = colors.text,
 					maxLines = 2,
 					overflow = TextOverflow.Ellipsis,
-					modifier = Modifier.widthIn(max = OUTLINER_PREVIEW_SIZE),
+					modifier = Modifier.widthIn(max = ROW_PREVIEW_SIZE),
 				)
 			}
 		}

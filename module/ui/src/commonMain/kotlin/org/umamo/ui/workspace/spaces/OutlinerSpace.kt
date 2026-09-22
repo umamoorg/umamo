@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -60,7 +59,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.RowDropBand
@@ -120,21 +118,8 @@ private val ROW_HEIGHT = 22.dp
 /** Fixed width of the trailing restriction indicator slot. */
 private val RESTRICTION_SLOT_WIDTH = 16.dp
 
-/** Pause the pointer must rest on a drawable row before its art preview pops, so a sweep does not flicker. */
-private const val OUTLINER_HOVER_DELAY_MILLIS = 10L
-
 /** One outliner node paired with its tree depth, the unit a [LazyColumn] item renders. */
 private data class FlatRow(val node: OutlinerNode, val depth: Int)
-
-/**
- * A pending art hover preview: which row entity is hovered (a drawable's art mesh or a part's combined
- * art), its display name, and the hovered row's window bounds the popup anchors beside.
- *
- * @property SelectionTarget target    The hovered drawable or part.
- * @property String          name      The entity's display name (shown under the thumbnail).
- * @property Rect            rowBounds The hovered row's bounds in window pixels.
- */
-private data class HoverPreview(val target: SelectionTarget, val name: String, val rowBounds: Rect)
 
 /**
  * The outliner space: the unified Blender-style tree that folds Cubism's split Part and Deformer panels
@@ -219,22 +204,9 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 
 	// Hover art preview: the host's thumbnail provider (null on a platform / document without one, which
-	// disables the preview). [hoveredPreview] tracks the drawable under the pointer the instant it is
-	// hovered; [shownPreview] lags by [OUTLINER_HOVER_DELAY_MILLIS] so a quick sweep down the list never
-	// pops a popup. The delay re-arms whenever the hovered row changes (the effect re-keys), so only a
-	// rested pointer surfaces a preview.
+	// disables the preview), and the shared rest-delayed state the rows report into (RowHoverPreview.kt).
 	val thumbnails = LocalDrawableThumbnails.current
-	var hoveredPreview by remember { mutableStateOf<HoverPreview?>(null) }
-	var shownPreview by remember { mutableStateOf<HoverPreview?>(null) }
-	LaunchedEffect(hoveredPreview) {
-		val pending = hoveredPreview
-		if (pending == null) {
-			shownPreview = null
-		} else {
-			delay(OUTLINER_HOVER_DELAY_MILLIS)
-			shownPreview = pending
-		}
-	}
+	val hoverPreview = rememberRowHoverPreviewState<SelectionTarget>()
 
 	// The one reveal body both paths below share: open every ancestor of the target, then bring its row
 	// into view. Shared so the two entry points cannot drift into revealing a row differently.
@@ -385,15 +357,7 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 								) { nodeId -> expanded[nodeId] = true }
 							},
 							hoverPreviewsEnabled = thumbnails != null,
-							onHoverPreview = { target, preview ->
-								if (preview != null) {
-									hoveredPreview = preview
-								} else if (hoveredPreview?.target == target) {
-									// Only the row that owns the current preview may clear it, so moving onto the next
-									// row (which sets its own preview first) is not undone by the old row's exit.
-									hoveredPreview = null
-								}
-							},
+							hoverPreview = hoverPreview,
 						)
 					}
 				}
@@ -403,17 +367,17 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		// One art preview for the whole space, anchored beside the rested-on row. Gated on a provider being
 		// present and the entity actually having art (untextured drawables / art-less parts pop nothing): a
 		// drawable shows its own crop, a part shows the combined preview of every art mesh under it.
-		val preview = shownPreview
+		val preview = hoverPreview.shown
 		val previewBitmap =
-			preview?.let { pending ->
-				when (val target = pending.target) {
+			preview?.let { shown ->
+				when (val target = shown.key) {
 					is SelectionTarget.Drawable -> thumbnails?.thumbnailFor(target.id)
 					is SelectionTarget.Part -> thumbnails?.partThumbnailFor(target.id)
 					is SelectionTarget.Deformer -> null
 				}
 			}
 		if (preview != null && previewBitmap != null) {
-			OutlinerThumbnailPreview(name = preview.name, thumbnail = previewBitmap, anchorRect = preview.rowBounds)
+			RowThumbnailPreview(name = preview.name, thumbnail = previewBitmap, anchorRect = preview.rowBounds)
 		}
 		// A name chip follows the cursor while dragging, so there is something clearly "in hand".
 		val draggingLabel =
@@ -493,7 +457,7 @@ private fun performOutlinerDrop(
  * @param RowDragController<SelectionTarget> dragController Shared drag state.
  * @param Function onDrop Applies the move when a drag started on this row ends.
  * @param Boolean hoverPreviewsEnabled Whether a hovered drawable / part row reports an art preview.
- * @param Function onHoverPreview Reports this row's hover preview (or null to clear).
+ * @param RowHoverPreviewState hoverPreview The space's hover preview state the row reports into.
  */
 @Composable
 private fun OutlinerRowView(
@@ -518,7 +482,7 @@ private fun OutlinerRowView(
 	dragController: RowDragController<SelectionTarget>,
 	onDrop: () -> Unit,
 	hoverPreviewsEnabled: Boolean,
-	onHoverPreview: (SelectionTarget, HoverPreview?) -> Unit,
+	hoverPreview: RowHoverPreviewState<SelectionTarget>,
 ) {
 	val body =
 		@Composable {
@@ -543,7 +507,7 @@ private fun OutlinerRowView(
 				dragController = dragController,
 				onDrop = onDrop,
 				hoverPreviewsEnabled = hoverPreviewsEnabled,
-				onHoverPreview = onHoverPreview,
+				hoverPreview = hoverPreview,
 			)
 		}
 	val target = row.node.target
@@ -649,7 +613,7 @@ private fun outlinerRowMenuItems(
  * @param RowDragController<SelectionTarget> dragController Shared drag state; the row reports its bounds and gestures here.
  * @param Function onDrop Applies the move when a drag started on this row ends.
  * @param Boolean hoverPreviewsEnabled Whether a hovered drawable / part row should report an art preview.
- * @param Function onHoverPreview Reports this drawable / part row's hover (a preview to show, or null to clear).
+ * @param RowHoverPreviewState hoverPreview The space's hover preview state this drawable / part row reports into.
  */
 @Composable
 private fun OutlinerRowBody(
@@ -673,7 +637,7 @@ private fun OutlinerRowBody(
 	dragController: RowDragController<SelectionTarget>,
 	onDrop: () -> Unit,
 	hoverPreviewsEnabled: Boolean,
-	onHoverPreview: (SelectionTarget, HoverPreview?) -> Unit,
+	hoverPreview: RowHoverPreviewState<SelectionTarget>,
 ) {
 	val node = row.node
 	// The long-press drag runs in a long-lived pointerInput coroutine that only re-captures its closures
@@ -718,19 +682,18 @@ private fun OutlinerRowBody(
 	}
 	// Report this row's hover so the space can pop (after its rest delay) an art preview beside it: a
 	// drawable previews its own art mesh, a part the combined art of everything under it; deformers have no
-	// art. Unconditional call site (it branches inside) so the composition structure is stable across recompose.
-	LaunchedEffect(hovered, hoverPreviewsEnabled, node.target) {
-		val target = node.target
-		val previewable = target is SelectionTarget.Drawable || target is SelectionTarget.Part
-		if (!hoverPreviewsEnabled || target == null || !previewable) {
-			return@LaunchedEffect
-		}
-		if (hovered) {
-			val bounds = boundsHolder.coordinates?.boundsInWindow() ?: return@LaunchedEffect
-			onHoverPreview(target, HoverPreview(target, node.label, bounds))
-		} else {
-			onHoverPreview(target, null)
-		}
+	// art, and the synthetic root rows have no entity to report.  A row's target is fixed for its list key,
+	// so the branch never flips under a live row.
+	val hoverTarget = node.target
+	if (hoverTarget != null) {
+		ReportRowHover(
+			state = hoverPreview,
+			key = hoverTarget,
+			name = node.label,
+			hovered = hovered,
+			enabled = hoverPreviewsEnabled && (hoverTarget is SelectionTarget.Drawable || hoverTarget is SelectionTarget.Part),
+			boundsHolder = boundsHolder,
+		)
 	}
 	// Drop this row's drag-hit-test bounds when it scrolls off, so a drop never targets an off-screen row.
 	DisposableEffect(node.id) {
