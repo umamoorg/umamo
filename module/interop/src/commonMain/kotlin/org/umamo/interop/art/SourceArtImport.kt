@@ -82,7 +82,8 @@ class ArtSourceDescriptor(
  * @property ArtworkAnchor   anchor          Where a later file's canvas is anchored on the document
  *   canvas ([SourceArtImport.offsetFor]); moot for a rig's first artwork, which sets the canvas.
  * @property Int             nudgeX          Pixels added to the anchor's placement along x.
- * @property Int             nudgeY          Pixels added to the anchor's placement along y.
+ * @property Int             nudgeZ          Pixels added to the anchor's placement along z - up, the
+ *   viewport's world axis, so a negative nudge moves the art down the canvas.
  */
 class SourceArtImportOptions(
 	val parameters: List<Parameter> = emptyList(),
@@ -90,7 +91,7 @@ class SourceArtImportOptions(
 	val birthMeshMargin: Int = SourceArtImport.DEFAULT_BIRTH_MESH_MARGIN,
 	val anchor: ArtworkAnchor = ArtworkAnchor.Default,
 	val nudgeX: Int = 0,
-	val nudgeY: Int = 0,
+	val nudgeZ: Int = 0,
 ) {
 	init {
 		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
@@ -304,9 +305,11 @@ object SourceArtImport {
 
 	/**
 	 * Where [art]'s canvas lands on [model]'s: the anchor's placement of the file's size within the
-	 * document's, plus the options' nudge.  Zero for a rig's first artwork (the file sets the canvas) and
-	 * for a document with no canvas to place within.  Negative along an axis where the file is larger
-	 * than the canvas: the art overhangs the canvas the way the anchor says.
+	 * document's, plus the options' nudge, in the world axes (x right, z up).  Zero for a rig's first
+	 * artwork (the file sets the canvas) and for a document with no canvas to place within.  Negative
+	 * along x where the file is wider than the canvas (the art overhangs the way the anchor says), and
+	 * along z whenever the file's top edge sits below the document's, which is every anchor but the top
+	 * row for a file shorter than the canvas.
 	 *
 	 * @param PuppetModel            model   The model the artwork joins.
 	 * @param SourceArt              art     The file, for its canvas size.
@@ -319,14 +322,15 @@ object SourceArtImport {
 		}
 		return CanvasOffset(
 			x = anchoredOffset(model.canvasWidth.roundToInt() - art.widthPx, options.anchor.horizontal) + options.nudgeX,
-			y = anchoredOffset(model.canvasHeight.roundToInt() - art.heightPx, options.anchor.vertical) + options.nudgeY,
+			z = -anchoredOffset(model.canvasHeight.roundToInt() - art.heightPx, options.anchor.vertical) + options.nudgeZ,
 		)
 	}
 
 	/**
-	 * The offset an anchor places a file at along one axis: the spare room (the document's extent minus
-	 * the file's, negative when the file is larger) split by the anchor's fraction, rounded down so a
-	 * centered file with one odd pixel of room sits one pixel nearer the top-left.
+	 * The canvas-frame offset an anchor places a file at along one axis: the spare room (the document's
+	 * extent minus the file's, negative when the file is larger) split by the anchor's fraction, rounded
+	 * down so a centered file with one odd pixel of room sits one pixel nearer the top-left.  Canvas y
+	 * runs down, so the caller negates the vertical result into z.
 	 *
 	 * @param Int   room     The document's extent minus the file's along the axis.
 	 * @param Float fraction How far along the room the file is anchored (0, 0.5, or 1).
@@ -384,7 +388,7 @@ object SourceArtImport {
 		// A listed file's record keeps the frame it was placed in; the reload that hands its layers here
 		// has already placed the art by it.
 		val recorded = underSource?.let { listed -> existing.sources.firstOrNull { candidate -> candidate.id == listed } }
-		val recordedOffset = if (recorded == null) offset else CanvasOffset(recorded.offsetX, recorded.offsetY)
+		val recordedOffset = if (recorded == null) offset else CanvasOffset(recorded.offsetX, recorded.offsetZ)
 		val minter =
 			IdMinter(
 				nextDrawable = nextSuffix(existing.drawables.map { drawable -> drawable.id.raw }, "ArtMesh", first = 1),
@@ -562,7 +566,7 @@ object SourceArtImport {
 						source.contentHash,
 						source.lastModified,
 						offsetX = recordedOffset.x,
-						offsetY = recordedOffset.y,
+						offsetZ = recordedOffset.z,
 					),
 				tiles = tiles,
 				drawables = drawables,

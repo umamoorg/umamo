@@ -106,7 +106,8 @@ sealed interface SourcesDetail {
 
 	/**
 	 * A layer's size and position at the last read, in the FILE's own canvas (the row's document position
-	 * with the source's offset taken back out), so the numbers match what the art program shows.
+	 * with the source's offset taken back out: x subtracted, z - which is up - added), so the numbers match
+	 * what the art program shows.
 	 */
 	data class Layer(val width: Int, val height: Int, val left: Int, val top: Int) : SourcesDetail
 
@@ -283,7 +284,7 @@ fun buildSourcesTree(
 							source,
 							layer.key,
 							layer.name,
-							SourcesDetail.Layer(layer.width, layer.height, layer.left - source.offsetX, layer.top - source.offsetY),
+							SourcesDetail.Layer(layer.width, layer.height, layer.left - source.offsetX, layer.top + source.offsetZ),
 							listed = layer.present,
 							emptied = layer.empty,
 							replaced = layer.replaced,

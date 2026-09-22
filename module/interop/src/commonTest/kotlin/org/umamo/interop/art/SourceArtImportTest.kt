@@ -428,19 +428,20 @@ class SourceArtImportTest {
 		assertSame(art.groups, placed.groups)
 		for ((original, moved) in art.layers.zip(placed.layers)) {
 			assertSame(original.raster, moved.raster, "'${original.name}' keeps its raster instance")
-			assertEquals(LayerBounds(original.bounds.left + 30, original.bounds.top - 10, original.bounds.width, original.bounds.height), moved.bounds)
+			assertEquals(LayerBounds(original.bounds.left + 30, original.bounds.top + 10, original.bounds.width, original.bounds.height), moved.bounds, "z is up, so a negative z lowers the layer")
 			assertEquals(original.id, moved.id)
 			assertEquals(original.groupPath, moved.groupPath)
 			assertEquals(original.clipped, moved.clipped)
 		}
-		val source = ArtSource(ArtSourceId("art-3"), "x.psd", null, "psd", offsetX = 4, offsetY = 6)
-		assertEquals(LayerBounds(104, 56, 10, 8), art.placedFor(source).layers.first { layer -> layer.name == "Eye" }.bounds, "a record's offset places the same way")
+		val source = ArtSource(ArtSourceId("art-3"), "x.psd", null, "psd", offsetX = 4, offsetZ = 6)
+		assertEquals(LayerBounds(104, 44, 10, 8), art.placedFor(source).layers.first { layer -> layer.name == "Eye" }.bounds, "a record's offset places the same way")
 	}
 
 	/**
 	 * The anchor splits the room between the document's canvas and the file's by its fraction, rounded
-	 * down, and the nudge is added on top; a file larger than the canvas overhangs it (a negative offset);
-	 * a rig's first artwork and a document with no canvas are never placed.
+	 * down, and the nudge is added on top - in world axes, so a file placed below the document's top edge
+	 * carries a negative z; a file larger than the canvas overhangs it; a rig's first artwork and a
+	 * document with no canvas are never placed.
 	 */
 	@Test
 	fun theOffsetFollowsTheAnchorAndTheNudge() {
@@ -448,16 +449,16 @@ class SourceArtImportTest {
 		val small = FixtureArt(widthPx = 101, heightPx = 50, layers = listOf(layer("lyid:0", "Dot", order = 0, left = 0, top = 0, raster = rasterOf(2, 2))))
 		val large = FixtureArt(widthPx = 400, heightPx = 250, layers = small.layers)
 
-		fun offsetOf(art: SourceArt, anchor: ArtworkAnchor, nudgeX: Int = 0, nudgeY: Int = 0): CanvasOffset =
-			SourceArtImport.offsetFor(host, art, SourceArtImportOptions(anchor = anchor, nudgeX = nudgeX, nudgeY = nudgeY))
+		fun offsetOf(art: SourceArt, anchor: ArtworkAnchor, nudgeX: Int = 0, nudgeZ: Int = 0): CanvasOffset =
+			SourceArtImport.offsetFor(host, art, SourceArtImportOptions(anchor = anchor, nudgeX = nudgeX, nudgeZ = nudgeZ))
 
-		assertEquals(CanvasOffset(99, 100), offsetOf(small, ArtworkAnchor.Center), "199 x 200 of room, halved and rounded down")
+		assertEquals(CanvasOffset(99, -100), offsetOf(small, ArtworkAnchor.Center), "199 x 200 of room, halved and rounded down; 100 px down the canvas is z = -100")
 		assertEquals(CanvasOffset(0, 0), offsetOf(small, ArtworkAnchor.TopLeft))
-		assertEquals(CanvasOffset(199, 200), offsetOf(small, ArtworkAnchor.BottomRight))
+		assertEquals(CanvasOffset(199, -200), offsetOf(small, ArtworkAnchor.BottomRight))
 		assertEquals(CanvasOffset(99, 0), offsetOf(small, ArtworkAnchor.Top))
-		assertEquals(CanvasOffset(0, 100), offsetOf(small, ArtworkAnchor.Left))
-		assertEquals(CanvasOffset(199, 100), offsetOf(small, ArtworkAnchor.Right))
-		assertEquals(CanvasOffset(102, 96), offsetOf(small, ArtworkAnchor.Center, nudgeX = 3, nudgeY = -4), "the nudge is added to the anchor's placement")
+		assertEquals(CanvasOffset(0, -100), offsetOf(small, ArtworkAnchor.Left))
+		assertEquals(CanvasOffset(199, -100), offsetOf(small, ArtworkAnchor.Right))
+		assertEquals(CanvasOffset(102, -104), offsetOf(small, ArtworkAnchor.Center, nudgeX = 3, nudgeZ = -4), "the nudge is added to the anchor's placement")
 		assertEquals(CanvasOffset(-50, 0), offsetOf(large, ArtworkAnchor.Center), "a wider file overhangs both sides by the same amount")
 		assertEquals(CanvasOffset(-100, 0), offsetOf(large, ArtworkAnchor.BottomRight))
 
@@ -479,13 +480,13 @@ class SourceArtImportTest {
 		val offset = CanvasOffset(50, 20)
 		val added = SourceArtImport.additionsFor(fixture().placedBy(offset), ArtSourceDescriptor("second.psd", null, "psd"), SourceArtImportOptions(), existing, offset = offset).additions
 
-		assertEquals(50 to 20, added.source.offsetX to added.source.offsetY, "the new record keeps the offset")
+		assertEquals(50 to 20, added.source.offsetX to added.source.offsetZ, "the new record keeps the offset")
 		val eye = assertNotNull(added.drawables.first { drawable -> drawable.name == "Eye" }.mesh)
-		assertTrue(eye.positions.contentEquals(floatArrayOf(150f, 69f, 158f, 69f, 158f, 76f, 150f, 76f)), "the quad is the fixture's, shifted: ${eye.positions.toList()}")
-		assertEquals(150 to 70, added.source.layers.first { row -> row.name == "Eye" }.let { row -> row.left to row.top }, "the inventory row is in the document frame")
+		assertTrue(eye.positions.contentEquals(floatArrayOf(150f, 29f, 158f, 29f, 158f, 36f, 150f, 36f)), "the quad is the fixture's, shifted right and UP: ${eye.positions.toList()}")
+		assertEquals(150 to 30, added.source.layers.first { row -> row.name == "Eye" }.let { row -> row.left to row.top }, "the inventory row is in the document frame")
 
-		val listed = existing.copy(sources = existing.sources.map { source -> source.copy(offsetX = 8, offsetY = 9) })
+		val listed = existing.copy(sources = existing.sources.map { source -> source.copy(offsetX = 8, offsetZ = 9) })
 		val underListed = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(), listed, underSource = ArtSourceId("art-0"), layerKeys = setOf("lyid:1"), offset = offset).additions
-		assertEquals(8 to 9, underListed.source.offsetX to underListed.source.offsetY, "a listed file's record keeps its own offset")
+		assertEquals(8 to 9, underListed.source.offsetX to underListed.source.offsetZ, "a listed file's record keeps its own offset")
 	}
 }

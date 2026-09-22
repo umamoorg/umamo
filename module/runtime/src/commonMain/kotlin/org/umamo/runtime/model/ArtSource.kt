@@ -32,13 +32,16 @@ package org.umamo.runtime.model
  *   document last read it - or, for a CMO3-origin source, when the official editor did - or null when
  *   neither is known.  The stale-at-open check falls back to it where no hash was recorded, since a
  *   CMO3 keeps the time but not a hash.
- * @property Int                  offsetX The translation from the file's own canvas to the document
- *   canvas, in pixels: where the file's top-left corner sits on the document canvas.  Every read of the
- *   file is placed by it before the model sees the art, so the inventory rows, the birth meshes, and
- *   the reload's frame comparisons all live in the document's coordinates.  Zero for a file that set
- *   or shares the document's frame (a rig's first artwork, a CMO3's own layered image); a later file is
- *   placed by the import's Align anchor and Offset rows.
- * @property Int                  offsetY See [offsetX].
+ * @property Int                  offsetX How far right of the document canvas's top-left corner the file's
+ *   own top-left corner sits, in pixels: the translation from the file's own canvas to the document
+ *   canvas, in the viewport's world axes (x right, z up).  Every read of the file is placed by it before
+ *   the model sees the art, so the inventory rows, the birth meshes, and the reload's frame comparisons
+ *   all live in the document's coordinates.  Zero for a file that set or shares the document's frame (a
+ *   rig's first artwork, a CMO3's own layered image); a later file is placed by the import's Align anchor
+ *   and Offset rows.
+ * @property Int                  offsetZ How far UP from the document canvas's top-left corner the file's
+ *   top-left corner sits, in pixels; a file placed lower on the canvas carries a negative value, and a
+ *   layer's canvas y (down) is its own top minus this.  See [offsetX].
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -49,7 +52,7 @@ data class ArtSource(
 	val contentHash: String? = null,
 	val lastModified: Long? = null,
 	val offsetX: Int = 0,
-	val offsetY: Int = 0,
+	val offsetZ: Int = 0,
 )
 
 /**
@@ -62,9 +65,9 @@ data class ArtSource(
  * @property String  name      The layer's name at import.
  * @property String  groupPath The slash-joined enclosing-folder path at import ("" at the root).
  * @property Int     left      The layer's position on the DOCUMENT canvas, top-left origin in source
- *   pixels: the file's own position shifted by its source's [ArtSource.offsetX], the frame every
- *   drawable's positions share.
- * @property Int     top       See [left].
+ *   pixels: the file's own position plus its source's [ArtSource.offsetX], the frame every drawable's
+ *   positions share.
+ * @property Int     top       See [left]; y runs down, so it is the file's own top minus [ArtSource.offsetZ].
  * @property Int     width     The layer's raster width in source pixels.
  * @property Int     height    The layer's raster height in source pixels.
  * @property Boolean visible   The layer's own eye toggle at import.

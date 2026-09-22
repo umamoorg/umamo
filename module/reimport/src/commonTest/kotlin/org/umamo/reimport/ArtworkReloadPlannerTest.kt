@@ -215,14 +215,15 @@ class ArtworkReloadPlannerTest {
 	 */
 	@Test
 	fun aPlacedFileReloadsInTheDocumentFrameAndKeepsItsOffset() {
-		val offset = CanvasOffset(100, 200)
+		// Placed 100 px right and 200 px DOWN the canvas, which is z = -200 in the world axes.
+		val offset = CanvasOffset(100, -200)
 		val placedArt = TestArt(listOf(layer1, layer2)).placedBy(offset)
 		val placedQuad1 = SourceArtImport.birthMeshFor(placedArt.layers[0], options.alphaThreshold, options.birthMeshMargin)!!
 		val base = model()
 		val placedModel =
 			base.copy(
 				drawables = base.drawables.map { drawable -> if (drawable.id == DrawableId("d1")) drawable.copy(mesh = placedQuad1) else drawable },
-				sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(placedArt), offsetX = offset.x, offsetY = offset.y)),
+				sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(placedArt), offsetX = offset.x, offsetZ = offset.z)),
 			)
 		val record = placedModel.sources.single()
 		assertEquals(110 to 220, record.layers.first().let { row -> row.left to row.top }, "the inventory is in the document frame")
@@ -234,7 +235,7 @@ class ArtworkReloadPlannerTest {
 		assertEquals(listOf(tile1), plan.reload.replacedTiles.map { replaced -> replaced.oldId })
 		val reborn = plan.reload.drawableMeshes.getValue(DrawableId("d1"))
 		assertContentEquals(floatArrayOf(108f, 218f, 118f, 218f, 118f, 228f, 108f, 228f), reborn.positions, "re-born over the repainted art at its placed position")
-		assertEquals(offset.x to offset.y, plan.reload.source.offsetX to plan.reload.source.offsetY, "the refreshed record keeps the offset")
+		assertEquals(offset.x to offset.z, plan.reload.source.offsetX to plan.reload.source.offsetZ, "the refreshed record keeps the offset")
 		assertEquals(110 to 220, plan.reload.source.layers.first { row -> row.key == "lyid:1" }.let { row -> row.left to row.top }, "and its rows stay in the document frame")
 	}
 
@@ -246,7 +247,7 @@ class ArtworkReloadPlannerTest {
 	fun aRelinkOntoAPlacedFileCarriesAgainstThePlacedLayer() {
 		val other = ArtSourceId("art-1")
 		val layer3 = TestLayer("lyid:3", "Three", 0, LayerBounds(50, 60, 4, 4), solidRaster(4, 4, 3))
-		val otherRecord = ArtSource(other, "b.psd", "/b.psd", "psd", offsetX = -20, offsetY = -19)
+		val otherRecord = ArtSource(other, "b.psd", "/b.psd", "psd", offsetX = -20, offsetZ = 19)
 		val otherArt = TestArt(listOf(layer3)).placedFor(otherRecord)
 		val model = model().let { base -> base.copy(sources = base.sources + otherRecord.copy(layers = SourceArtImport.inventoryOf(otherArt))) }
 		val plan = assertNotNull(ArtworkReloadPlanner.planMatches(model, other, otherArt, listOf(tile2 to "lyid:3"), options, oldRasterOf))
@@ -254,7 +255,7 @@ class ArtworkReloadPlannerTest {
 		// The target sits at (30, 41) placed: the old row's (30, 40) is one pixel above it, so every
 		// coordinate moves up by a quarter of the 4 px raster.
 		assertContentEquals(floatArrayOf(0f, -0.25f, 0.25f, -0.25f, 0f, 0f), carried.uvs, "carried against the placed bounds")
-		assertEquals(-20 to -19, plan.reload.source.offsetX to plan.reload.source.offsetY, "the target's record keeps its offset")
+		assertEquals(-20 to 19, plan.reload.source.offsetX to plan.reload.source.offsetZ, "the target's record keeps its offset")
 	}
 
 	/** The read's modification time rides the refreshed record like the hash, and alone plans nothing. */
@@ -365,9 +366,9 @@ class ArtworkReloadPlannerTest {
 		assertTrue(twin.report.needsReview.isEmpty())
 
 		// The replacement stands in for the same art, so the record's placement on the canvas is kept.
-		val placedModel = model().let { base -> base.copy(sources = base.sources.map { record -> record.copy(offsetX = 5, offsetY = 6) }) }
+		val placedModel = model().let { base -> base.copy(sources = base.sources.map { record -> record.copy(offsetX = 5, offsetZ = 6) }) }
 		val placedTwin = assertNotNull(ArtworkReloadPlanner.plan(placedModel, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd")))
-		assertEquals(5 to 6, placedTwin.reload.source.offsetX to placedTwin.reload.source.offsetY, "the replaced record keeps its offset")
+		assertEquals(5 to 6, placedTwin.reload.source.offsetX to placedTwin.reload.source.offsetZ, "the replaced record keeps its offset")
 	}
 
 	@Test

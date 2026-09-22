@@ -56,7 +56,7 @@ class UmaSourcesEntryTest {
 							UmaSourceLayer("name:Sketch#2", "Sketch", "", 0, 0, 2048, 2048, visible = true),
 						),
 					offsetX = 64,
-					offsetY = -32,
+					offsetZ = -32,
 				),
 				UmaSource("guid-7", "Erica.psd", "psd"),
 			),

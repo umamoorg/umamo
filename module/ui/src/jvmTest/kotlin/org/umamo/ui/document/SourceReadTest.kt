@@ -67,14 +67,14 @@ class SourceReadTest {
 				val file = File(folder, "patch.png")
 				val rgba = ByteArray(4 * 3 * 4) { index -> if (index % 4 == 3) 0xFF.toByte() else 0x40 }
 				file.writeBytes(PngCodec.write(RasterImage(4, 3, rgba)))
-				val placed = ArtSource(ArtSourceId("art-1"), name = "patch.png", path = file.path, format = "png", offsetX = 30, offsetY = -5)
+				val placed = ArtSource(ArtSourceId("art-1"), name = "patch.png", path = file.path, format = "png", offsetX = 30, offsetZ = 5)
 
 				val read = assertNotNull(readSourceArt(newBlankDocument(), placed))
 				assertTrue(!read.fromCmo3)
-				assertEquals(LayerBounds(30, -5, 4, 3), read.art.layers.single().bounds, "the flat raster's one layer sits at the record's offset")
+				assertEquals(LayerBounds(30, -5, 4, 3), read.art.layers.single().bounds, "the flat raster's one layer sits at the record's offset, 5 px UP being canvas y -5")
 				assertNotNull(read.contentHash, "a disk read records its hash")
 
-				val unplaced = assertNotNull(readSourceArt(newBlankDocument(), placed.copy(offsetX = 0, offsetY = 0)))
+				val unplaced = assertNotNull(readSourceArt(newBlankDocument(), placed.copy(offsetX = 0, offsetZ = 0)))
 				assertEquals(LayerBounds(0, 0, 4, 3), unplaced.art.layers.single().bounds)
 			} finally {
 				folder.deleteRecursively()

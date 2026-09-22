@@ -121,8 +121,8 @@ private sealed interface AddArtworkOutcome {
  * rather than landing within it, so its step carries no placement rows.
  *
  * The Offset rows are in the viewport's world axes (X right, Z up, like the transform rows' Move Z),
- * while the options' nudge is canvas pixels with y down, so the vertical row shows the nudge negated
- * and [addArtworkOptionsOf] negates it back: a positive Offset Z moves the art up on screen.
+ * the same axes the options' nudge and the record's offset use, so a positive Offset Z moves the art
+ * up on screen; the placement negates z into canvas y where the canvas math is.
  *
  * @param SourceArtImportOptions options The options the rows show.
  * @param Boolean                placed  Whether the file was placed within an existing canvas.
@@ -140,7 +140,7 @@ internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boole
 			),
 		)
 		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_X, options.nudgeX, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
-		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Z, ImportParameterKeys.OFFSET_Z, -options.nudgeY, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Z, ImportParameterKeys.OFFSET_Z, options.nudgeZ, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
 	}
 	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.ALPHA_THRESHOLD, options.alphaThreshold, 1, 255))
 	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.MARGIN, ImportParameterKeys.MARGIN, options.birthMeshMargin, 0, IMPORT_MAX_MARGIN, unit = ParameterUnit.Pixels))
@@ -162,7 +162,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 		birthMeshMargin = parameters.intValue(ImportParameterKeys.MARGIN, fallback.birthMeshMargin).coerceIn(0, IMPORT_MAX_MARGIN),
 		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
 		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
-		nudgeY = -parameters.intValue(ImportParameterKeys.OFFSET_Z, -fallback.nudgeY).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		nudgeZ = parameters.intValue(ImportParameterKeys.OFFSET_Z, fallback.nudgeZ).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
 	)
 
 /**

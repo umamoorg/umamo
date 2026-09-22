@@ -90,7 +90,7 @@ class UmaReopenReloadTest {
 		val imported = SourceArtImport.fromSourceArt(TestArt(listOf(repainted, kept, removed, ignored)).placedBy(offset), ArtSourceDescriptor("a.clip", "/art/a.clip", "clip", contentHashOf(fileBytes), 1_757_894_400_000L), options)
 		val sourceId = imported.puppet.sources.single().id
 		// Rig work the reload must respect: the rigger ignored the sketch layer.
-		val source = imported.puppet.sources.single().copy(offsetX = offset.x, offsetY = offset.y)
+		val source = imported.puppet.sources.single().copy(offsetX = offset.x, offsetZ = offset.z)
 		val model = imported.puppet.copy(sources = listOf(source.copy(layers = source.layers.map { layer -> if (layer.key == "lyid:4") layer.copy(ignored = true) else layer })))
 		assertTrue(model.sources.single().layers.single { layer -> layer.key == "lyid:4" }.empty, "the sketch reads as an empty layer")
 
@@ -98,7 +98,7 @@ class UmaReopenReloadTest {
 		val saved = UmaDocumentBridge.documentOf(UmaModel.create(UmaWriterInfo("Umamo", "test")), model, UmaPixelSource({ tileId -> pngByTile[tileId] }, UmaRenderPagePixels.Derived, null))
 		val document = Uma.read(Uma.write(saved))
 		val reopened: PuppetModel = UmaDocumentBridge.modelOf(document)
-		assertEquals(offset.x to offset.y, reopened.sources.single().let { record -> record.offsetX to record.offsetY }, "the placement survives the save")
+		assertEquals(offset.x to offset.z, reopened.sources.single().let { record -> record.offsetX to record.offsetZ }, "the placement survives the save")
 		val pages = UmaDocumentBridge.pagesOf(document)
 		val reopenedRasterOf: (AtlasTileId) -> LayerRaster? = { tileId -> pages.tilePng(tileId)?.let(PngCodec::read)?.let { image -> LayerRaster(image.width, image.height, image.rgba) } }
 
@@ -119,7 +119,7 @@ class UmaReopenReloadTest {
 		assertTrue(plan.reload.replacedTiles.isNotEmpty(), "the repainted layer supersedes its tile")
 		assertTrue(plan.reload.additions != null, "the new layer is added")
 		assertTrue(plan.report.needsReview.isNotEmpty(), "the deleted layer is left for review")
-		assertEquals(offset.x to offset.y, plan.reload.source.let { record -> record.offsetX to record.offsetY }, "the refreshed record keeps the placement")
+		assertEquals(offset.x to offset.z, plan.reload.source.let { record -> record.offsetX to record.offsetZ }, "the refreshed record keeps the placement")
 		assertEquals(fingerprintOf(before), fingerprintOf(after))
 	}
 }

@@ -32,9 +32,11 @@ public data class UmaSources(
  * @property Long?                 lastModified The file's modification time at the last read, in epoch
  *   milliseconds, absent when unknown.
  * @property List<UmaSourceLayer>? layers       The layer inventory as of the last read, in the file's draw order.
- * @property Int?                  offsetX      Where the file's top-left corner sits on the document canvas, in
- *   pixels; absent means 0 (the file shares the document's frame).
- * @property Int?                  offsetY      See [offsetX].
+ * @property Int?                  offsetX      How far right of the document canvas's top-left corner the file's
+ *   own top-left corner sits, in pixels; absent means 0 (the file shares the document's frame).
+ * @property Int?                  offsetZ      How far UP from the document canvas's top-left corner the file's
+ *   top-left corner sits, in pixels - the viewport's world axes, so a file placed lower on the canvas carries a
+ *   negative value; absent means 0.
  */
 @Serializable
 public data class UmaSource(
@@ -45,9 +47,9 @@ public data class UmaSource(
 	val contentHash: String? = null,
 	val lastModified: Long? = null,
 	val layers: List<UmaSourceLayer>? = null,
-	// UMA §6.2: offsetX / offsetY - the file's canvas origin on the document canvas.
+	// UMA §6.2: offsetX / offsetZ - the file's canvas origin on the document canvas, x right and z up.
 	val offsetX: Int? = null,
-	val offsetY: Int? = null,
+	val offsetZ: Int? = null,
 )
 
 /**
@@ -57,8 +59,9 @@ public data class UmaSource(
  * @property String   name        The layer's name at the last read.
  * @property String   groupPath   The slash-joined enclosing folder path, empty at the root.
  * @property Int      left        The layer's x on the document canvas in source pixels (the file's own
- *   position shifted by the source's offset).
- * @property Int      top         The layer's y on the document canvas in source pixels.
+ *   position plus the source's offsetX).
+ * @property Int      top         The layer's y on the document canvas in source pixels, y down (the file's
+ *   own position minus the source's offsetZ, which is up).
  * @property Int      width       The layer's raster width in source pixels.
  * @property Int      height      The layer's raster height in source pixels.
  * @property Boolean  visible     The layer's own eye toggle at the last read.

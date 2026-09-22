@@ -438,7 +438,7 @@ internal fun sourcesDifferences(expected: PuppetModel, actual: PuppetModel): Lis
 			same("$path.contentHash", left.contentHash, right.contentHash)
 			same("$path.lastModified", left.lastModified, right.lastModified)
 			same("$path.offsetX", left.offsetX, right.offsetX)
-			same("$path.offsetY", left.offsetY, right.offsetY)
+			same("$path.offsetZ", left.offsetZ, right.offsetZ)
 			each("$path.layers", left.layers, right.layers) { layerPath, leftLayer, rightLayer -> same(layerPath, leftLayer, rightLayer) }
 		}
 	}

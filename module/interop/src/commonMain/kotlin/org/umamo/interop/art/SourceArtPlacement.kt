@@ -16,14 +16,16 @@ import org.umamo.runtime.model.ArtSource
  */
 
 /**
- * A translation from a file's own canvas to the document canvas, in pixels.
+ * A translation from a file's own canvas to the document canvas, in pixels along the viewport's world
+ * axes: x to the right and z UP.  A file whose top-left corner sits below the document's carries a
+ * negative z, and a layer's canvas top (y down) moves by -z.
  *
- * @property Int x Where the file's left edge sits on the document canvas.
- * @property Int y Where the file's top edge sits on the document canvas.
+ * @property Int x How far right of the document canvas's top-left corner the file's top-left corner sits.
+ * @property Int z How far up from the document canvas's top-left corner the file's top-left corner sits.
  */
-data class CanvasOffset(val x: Int, val y: Int) {
+data class CanvasOffset(val x: Int, val z: Int) {
 	/** Whether this offset moves nothing. */
-	val isZero: Boolean get() = x == 0 && y == 0
+	val isZero: Boolean get() = x == 0 && z == 0
 
 	companion object {
 		/** The offset of a file that shares the document's frame. */
@@ -56,7 +58,7 @@ fun SourceArt.placedBy(offset: CanvasOffset): SourceArt {
  * @param ArtSource source The file's record.
  * @return SourceArt The placed art.
  */
-fun SourceArt.placedFor(source: ArtSource): SourceArt = placedBy(CanvasOffset(source.offsetX, source.offsetY))
+fun SourceArt.placedFor(source: ArtSource): SourceArt = placedBy(CanvasOffset(source.offsetX, source.offsetZ))
 
 /** A file's art shifted onto the document canvas; see [placedBy]. */
 private class PlacedSourceArt(
@@ -77,7 +79,8 @@ private class PlacedSourceLayer(
 	override val bounds: LayerBounds =
 		LayerBounds(
 			left = original.bounds.left + offset.x,
-			top = original.bounds.top + offset.y,
+			// Canvas y runs down and z runs up, so a file placed higher has a smaller top.
+			top = original.bounds.top - offset.z,
 			width = original.bounds.width,
 			height = original.bounds.height,
 		)

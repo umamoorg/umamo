@@ -259,8 +259,8 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 ## Added artwork placement (shipped 2026-09-22) and what a CMO3 round trip loses
 
 **What.** A later artwork file is placed on the rig's canvas by the add-artwork strip's Align (nine anchors)
-and Offset X / Z rows (Z is world-up; the row layer negates it into canvas y), seeded by `import.alignment`; the resulting offset is persisted per source
-(`ArtSource.offsetX/Y`, UMA §6.2) and every disk read of a listed file is placed by it before the model sees the
+and Offset X / Z rows, seeded by `import.alignment`; the resulting offset is persisted per source
+(`ArtSource.offsetX/Z`, UMA §6.2; x right and z UP like the viewport, so the placement math negates z into canvas y) and every disk read of a listed file is placed by it before the model sees the
 art (`readListedArtworkAt`), so reload, relink, and match compare the file against the inventory in one frame.
 The Sources label takes the offset back out so its numbers match the art program.  This closes the
 "compare centers" TODO line above under Texture Authoring/UV Editor.
