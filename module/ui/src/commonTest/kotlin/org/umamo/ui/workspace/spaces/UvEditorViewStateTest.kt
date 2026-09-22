@@ -6,6 +6,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
+import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.AtlasPage
@@ -22,6 +23,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasBindingForTile
+import org.umamo.ui.viewport.GizmoMeshGeometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -609,5 +611,20 @@ class UvEditorViewStateTest {
 			uvGizmoGeometries(bare, shownSurfaceUvs(bare, modelOf(*bare.toTypedArray()), layerView = null), 64, 32).isEmpty(),
 			"a drawable with no mesh yields no geometry",
 		)
+	}
+
+	/**
+	 * The extent a fit takes in beside the surface covers every shown mesh, past the surface's edge
+	 * included - a placement moved off the page carries its islands there.  A vertex that is not a number
+	 * frames nothing, and no mesh at all yields no extent.
+	 */
+	@Test
+	fun islandExtentCoversEveryShownMesh() {
+		val onPage = GizmoMeshGeometry(DrawableId("a"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f))
+		val pastTheEdge = GizmoMeshGeometry(DrawableId("b"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(60f, -8f, 90f, -8f, Float.NaN, 5f))
+
+		assertEquals(ContentBounds(16f, 16f, 32f, 8f), shownIslandExtent(listOf(onPage)))
+		assertEquals(ContentBounds(16f, -8f, 74f, 32f), shownIslandExtent(listOf(onPage, pastTheEdge)))
+		assertNull(shownIslandExtent(emptyList()), "no mesh, no extent")
 	}
 }

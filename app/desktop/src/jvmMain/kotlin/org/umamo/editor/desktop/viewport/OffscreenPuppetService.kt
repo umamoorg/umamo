@@ -3,6 +3,7 @@ package org.umamo.editor.desktop.viewport
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
+import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -98,10 +99,11 @@ class OffscreenPuppetService(
 
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
 
-	override fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> =
-		registry.registerUvScene(areaId, content)
+	override fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?> =
+		registry.registerUvScene(areaId, content, islandExtent)
 
-	override fun setUvSceneContent(areaId: String, content: UvSceneContent) = registry.setUvSceneContent(areaId, content)
+	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) =
+		registry.setUvSceneContent(areaId, content, islandExtent)
 
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 
@@ -183,6 +185,8 @@ class OffscreenPuppetService(
 	override fun thumbnails(): DrawableThumbnailProvider = picker.thumbnails()
 
 	override fun partNameFor(id: DrawableId): String? = picker.partNameFor(id)
+
+	override fun drawableNameFor(id: DrawableId): String? = picker.drawableNameFor(id)
 
 	override fun dispose() = engine.dispose()
 }

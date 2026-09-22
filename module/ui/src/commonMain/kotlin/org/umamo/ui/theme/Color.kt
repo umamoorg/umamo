@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
  * @property Color accent             The brand accent fill: primary buttons, checkboxes, the slider fill,
  *   armed/recording states, and accent borders/marks.
  * @property Color accentHover        Accent hover state.
+ * @property Color accentPressed      Accent fill while a control is held down.
  * @property Color accentText         Text/icon on top of accent fills.
  * @property Color selection          Selected-item row background.
  * @property Color selectionText      Text and marks on selection rows.
@@ -73,6 +74,8 @@ import androidx.compose.ui.graphics.Color
  *   red of a traffic light.
  * @property Color buttonHover        Hover fill for unselected ButtonGroup segments (stronger than
  *   rowHover in dark).
+ * @property Color buttonPressed      Neutral fill while a button or segment is held down.  Hover brightens
+ *   a step from rest and a press darkens one, so the two states can never be mistaken for each other.
  * @property Color sliderTrack        Recessed slider track / pad groove (unfilled).
  * @property Color sliderThumb        Slider and 2D-pad handle.
  * @property Color dropZoneFill       Faint wash over a candidate area drop zone while dragging.
@@ -127,6 +130,7 @@ data class UmamoColors(
 	val textDisabled: Color,
 	val accent: Color,
 	val accentHover: Color,
+	val accentPressed: Color,
 	val accentText: Color,
 	val selection: Color,
 	val selectionText: Color,
@@ -143,6 +147,7 @@ data class UmamoColors(
 	val signalCaution: Color,
 	val signalBad: Color,
 	val buttonHover: Color,
+	val buttonPressed: Color,
 	val sliderTrack: Color,
 	val sliderThumb: Color,
 	val dropZoneFill: Color,
@@ -194,6 +199,7 @@ private val signalGreen = Color(0xFF58B65C)
 private val signalAmber = Color(0xFFD9A62B)
 private val signalRed = Color(0xFFE05252)
 private val brandPurpleBright = Color(0xFFD394ED)
+private val brandPurpleDim = Color(0xFFA96FC1)
 
 // The light scheme deepens the accent so white on-accent text reads at ~5.6:1 (the dark purple family
 // value is too pale against light surfaces).
@@ -237,6 +243,7 @@ val umamoDarkColors =
 		textDisabled = mutedGreyDark.copy(alpha = 0.3f),
 		accent = brandPurple,
 		accentHover = brandPurpleBright,
+		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
 		selection = brandPurple,
 		selectionText = Color(0xFFFFFFFF),
@@ -253,6 +260,7 @@ val umamoDarkColors =
 		signalCaution = signalAmber,
 		signalBad = signalRed,
 		buttonHover = Color(0xFF656565),
+		buttonPressed = brandPurpleDim,
 		sliderTrack = Color(0xFF252525),
 		sliderThumb = Color(0xFFD2D2D2),
 		dropZoneFill = brandPurple.copy(alpha = 0.16f),
@@ -307,6 +315,7 @@ val umamoLightColors =
 		textDisabled = mutedGreyLight.copy(alpha = 0.3f),
 		accent = brandPurpleDeep,
 		accentHover = brandPurpleDeepBright,
+		accentPressed = brandPurpleDim,
 		accentText = Color(0xFFFFFFFF),
 		selection = Color(0xFFDCC3EA),
 		selectionText = Color(0xFF3B2144),
@@ -323,6 +332,7 @@ val umamoLightColors =
 		signalCaution = signalAmber,
 		signalBad = signalRed,
 		buttonHover = Color(0xFFEDEDED),
+		buttonPressed = brandPurpleDim,
 		sliderTrack = Color(0xFFDCDCDC),
 		sliderThumb = Color(0xFF505050),
 		dropZoneFill = brandPurpleDeep.copy(alpha = 0.16f),

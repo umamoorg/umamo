@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -39,8 +40,6 @@ import org.umamo.ui.theme.drawIcon
  * shell root's onPreviewKeyEvent (all keyboard dispatch) dead until Tab traversal reclaims focus.  A
  * button anchored in stable chrome (a dialog header) can opt back in with [suppressFocus] = false.
  *
- * 小さなアイコンボタン。塗りなし（グリフが明暗）か、塗り付き（背景と角丸のチップ）を appearance で選ぶ。
- *
  * @param UmamoIcon            icon               The glyph to draw.
  * @param Function             onClick            Click callback.
  * @param String               contentDescription The accessible label (the face is only a glyph).
@@ -70,8 +69,10 @@ fun IconButton(
 	val colors = LocalUmamoColors.current
 	val interaction = remember { MutableInteractionSource() }
 	val hoveredLive by interaction.collectIsHoveredAsState()
-	// A disabled button shows no hover feedback (the fill and border stay at rest).
+	val pressedLive by interaction.collectIsPressedAsState()
+	// A disabled button shows no hover or press feedback (the fill and border stay at rest).
 	val hovered = hoveredLive && enabled
+	val pressed = pressedLive && enabled
 	val glyphColor =
 		when {
 			!enabled -> colors.textDisabled
@@ -87,7 +88,7 @@ fun IconButton(
 		faceModifier =
 			faceModifier
 				.clip(appearance.shape)
-				.background(accentControlFill(colors, active && enabled, hovered))
+				.background(accentControlFill(colors, active && enabled, hovered, pressed))
 				.border(
 					width = 1.dp,
 					color =
@@ -140,18 +141,24 @@ sealed interface IconButtonAppearance {
 
 /**
  * The fill behind a filled icon button or button-group segment: the neutral control fill at rest, the
- * accent while selected, both brightening one step on hover.  Shared so the header's filled buttons and
- * a [ButtonGroup]'s segments stay one visual family rather than two copies of the same ramp.
+ * accent while selected, brightening one step on hover and darkening one while held.  Shared so the
+ * header's filled buttons and a [ButtonGroup]'s segments stay one visual family rather than two copies of
+ * the same ramp; [Button] restates it only because its secondary hover is the softer rowHover.
+ *
+ * A press outranks a hover because the pointer is necessarily over a control it is pressing.
  *
  * @param UmamoColors colors   The active color scheme.
  * @param Boolean     selected Whether the control is lit (accent) rather than neutral.
  * @param Boolean     hovered  Whether the pointer is over the control.
+ * @param Boolean     pressed  Whether the control is held down.
  * @return Color The resolved fill color.
  */
-internal fun accentControlFill(colors: UmamoColors, selected: Boolean, hovered: Boolean): Color =
+internal fun accentControlFill(colors: UmamoColors, selected: Boolean, hovered: Boolean, pressed: Boolean): Color =
 	when {
+		selected && pressed -> colors.accentPressed
 		selected && hovered -> colors.accentHover
 		selected -> colors.accent
+		pressed -> colors.buttonPressed
 		hovered -> colors.buttonHover
 		else -> colors.controlBackground
 	}

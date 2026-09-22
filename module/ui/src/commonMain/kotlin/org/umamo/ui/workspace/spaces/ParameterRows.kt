@@ -88,6 +88,23 @@ internal fun buildLinkInfo(puppet: PuppetModel): LinkInfo {
 }
 
 /**
+ * The parameters whose name or id contains [query], case-insensitively - the header search's filter set,
+ * shaped to feed [buildParameterRows]'s visibleParamIds.  The id matches as well as the displayed name
+ * because a rigger migrating from Cubism knows the axis as ParamAngleX however the row was renamed; ids
+ * are format-level identifiers and are never localized, so matching them needs no locale handling.
+ *
+ * @param PuppetModel puppet The loaded rig.
+ * @param String      query  The search text; the caller skips a blank one, which would match everything.
+ * @return Set<ParameterId> The matching parameter ids.
+ */
+internal fun parameterIdsMatching(puppet: PuppetModel, query: String): Set<ParameterId> =
+	puppet.parameters
+		.filter { parameter ->
+			parameter.name.contains(query, ignoreCase = true) || parameter.id.raw.contains(query, ignoreCase = true)
+		}
+		.mapTo(HashSet()) { parameter -> parameter.id }
+
+/**
  * Flattens the parameter-panel group tree into an ordered list of render rows.  Each group emits a
  * [ParameterRow.GroupHeader] and, when expanded, recurses its children one level deeper; each run of
  * consecutive parameter siblings is paired into [ParameterRow.Single] / [ParameterRow.Pair2D].  Falls
@@ -98,8 +115,12 @@ internal fun buildLinkInfo(puppet: PuppetModel): LinkInfo {
  * @param Map         parameterById id -> Parameter, for resolving tree leaves and link partners.
  * @param Map         expanded      Live group expand state (group id -> open); absent => initiallyOpen.
  * @param Set?        visibleParamIds When non-null, only parameters in this set are emitted (the "affects
- *                                  the selected object" filter), and a group with no surviving rows is
- *                                  dropped; null means no filter (every parameter is shown).
+ *                                  the selected object" filter and the header search), and a group with
+ *                                  no surviving rows is dropped; null means no filter (every parameter
+ *                                  is shown).
+ * @param Boolean     forceExpanded When true every group renders open whatever [expanded] says - what a
+ *                                  search does, so a match cannot hide inside a collapsed group.  The
+ *                                  rigger's own fold state is read again the moment it is false.
  * @return List<ParameterRow> The rows in panel order.
  */
 internal fun buildParameterRows(
@@ -108,6 +129,7 @@ internal fun buildParameterRows(
 	parameterById: Map<ParameterId, Parameter>,
 	expanded: Map<ParameterGroupId, Boolean>,
 	visibleParamIds: Set<ParameterId>? = null,
+	forceExpanded: Boolean = false,
 ): List<ParameterRow> {
 	val rows = ArrayList<ParameterRow>()
 	if (puppet.parameterTree.isEmpty()) {
@@ -121,6 +143,7 @@ internal fun buildParameterRows(
 		parameterById = parameterById,
 		expanded = expanded,
 		visibleParamIds = visibleParamIds,
+		forceExpanded = forceExpanded,
 		out = rows,
 	)
 	return rows
@@ -137,6 +160,7 @@ internal fun buildParameterRows(
  * @param Map          parameterById id -> Parameter.
  * @param Map          expanded      Live group expand state.
  * @param Set?         visibleParamIds The filter set, or null for no filter (see [buildParameterRows]).
+ * @param Boolean      forceExpanded Whether every group renders open (see [buildParameterRows]).
  * @param MutableList  out           The accumulating row list.
  */
 private fun walkParameterNodes(
@@ -146,6 +170,7 @@ private fun walkParameterNodes(
 	parameterById: Map<ParameterId, Parameter>,
 	expanded: Map<ParameterGroupId, Boolean>,
 	visibleParamIds: Set<ParameterId>?,
+	forceExpanded: Boolean,
 	out: MutableList<ParameterRow>,
 ) {
 	val run = ArrayList<Parameter>()
@@ -165,10 +190,10 @@ private fun walkParameterNodes(
 				if (visibleParamIds != null && !groupHasVisibleParam(node, linkInfo, visibleParamIds)) {
 					continue
 				}
-				val isExpanded = expanded[node.id] ?: node.initiallyOpen
+				val isExpanded = forceExpanded || (expanded[node.id] ?: node.initiallyOpen)
 				out += ParameterRow.GroupHeader(node.id, node.name, depth, isExpanded)
 				if (isExpanded) {
-					walkParameterNodes(node.children, depth + 1, linkInfo, parameterById, expanded, visibleParamIds, out)
+					walkParameterNodes(node.children, depth + 1, linkInfo, parameterById, expanded, visibleParamIds, forceExpanded, out)
 				}
 			}
 		}

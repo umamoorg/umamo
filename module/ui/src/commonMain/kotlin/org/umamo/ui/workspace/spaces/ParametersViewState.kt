@@ -21,10 +21,17 @@ internal const val PARAMETERS_VIEW_STATE_KEY = "parameters"
 /**
  * The parameters panel's view state, parked on the hosting AreaScope via spaceState.  Two parameters areas
  * each get their own instance, and the instance lives as long as the open document does.  A saved document
- * carries the group folds, the open range editors, and the selection filter (UMA §7.3); the two in-place
- * rename slots are gestures in flight and are not.
+ * carries the group folds, the open range editors, and the selection filter (UMA §7.3); the search query
+ * and the two in-place rename slots are gestures in flight and are not.
  */
 internal class ParametersViewState : PersistentSpaceState {
+	/**
+	 * The name / id search query; blank shows every parameter the other filters leave.  Deliberately not
+	 * carried by a saved document, for the reason [OutlinerViewState.query] is not: a file that reopened
+	 * to last week's filtered list reads as a broken panel.
+	 */
+	var query by mutableStateOf("")
+
 	/**
 	 * Parameter islands whose range editor is open, keyed by the island's primary parameter id (a pad
 	 * keys on its horizontal member, so the state survives the param <-> pair row-identity change on

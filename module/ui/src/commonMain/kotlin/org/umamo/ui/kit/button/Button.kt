@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -19,8 +20,8 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
- * A small flat button: tight padding, small corners, hover-highlight (no ripple). [primary] fills with the
- * accent; otherwise a neutral control fill.
+ * A small flat button: tight padding, small corners, hover-highlight and a darker fill while held (no
+ * ripple). [primary] fills with the accent; otherwise a neutral control fill.
  *
  * @param String   label    The button text.
  * @param Function onClick  Click callback.
@@ -33,10 +34,15 @@ fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, pr
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
+	val pressed by interaction.collectIsPressedAsState()
+	// The same ramp the filled icon buttons and button-group segments use (accentControlFill), except that
+	// a secondary button's hover stays the softer rowHover it has always drawn; a press outranks a hover.
 	val fill =
 		when {
+			primary && pressed -> colors.accentPressed
 			primary && hovered -> colors.accentHover
 			primary -> colors.accent
+			pressed -> colors.buttonPressed
 			hovered -> colors.rowHover
 			else -> colors.controlBackground
 		}

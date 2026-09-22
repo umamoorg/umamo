@@ -42,10 +42,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 ## UI Dialog
 * Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
 
-## Popup Picker
-* The popup picker should use the drawable name and fallback to the ID for display.
-* UvIslandPick should be renamed to UvIslandPickController to match ObjectPickController's naming convention.
-
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
 * Glue
@@ -81,12 +77,10 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Hover to show thumbnail of layer, reuse thumbnailer.
 
 ## Texture Authoring/UV Editor
-* We should change this to also select when clicking on an UV itself.  I have found myself trying to click on alpha pixels, but on the UV and getting confused why it is not selecting.
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 	* Adding new artwork to an existing file should compare centers and place it based on that.  Right now it is based on the 0,0 top left origin.
@@ -97,7 +91,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
 	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
-	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.
@@ -130,19 +123,11 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 		* Context Menus
 
 ## Parameters
-* Improvements
-	* Search in header.
 * Parameter templates:
 	* Need a way to apply these without having to do a fresh import.
 
-## Workspace
-* Menu: Add Previous/Next workspace to the Workspace main menu at the top.
-
 ## Menus
 * Clicking again should close instead of reopen the menu.
-
-## Button UI
-* Needs a click action, either a background color change or movement.
 
 ## Tooltips
 * Consider swapping to BasicTooltipBox in the future to get rip of the desktop and Android split of TooltipArea.  BasicTooltipBox is more recent as of writing this, July 2026, is being actively iterated against.
@@ -188,9 +173,6 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * Deferred
 	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
 
-## Keybindings
-* The clear shortcut button Needs more right margin on the overall row to clear the scrollbar.
-
 ## UI
 * The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
 * Viewport view styles - Top right, in the header area.
@@ -216,6 +198,8 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* Theme Selection
 	* Language Selection (With universal emoji icon.) - Detect from system.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
+* New Settings
+	* Setting to make ALT+Click the default to activate the popup overlap picker.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.

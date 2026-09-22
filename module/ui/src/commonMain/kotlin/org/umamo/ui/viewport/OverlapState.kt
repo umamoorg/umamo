@@ -28,7 +28,7 @@ internal data class OverlapState(
  * thumbnail lookups are pure model/texture reads, so any area kind may call this - a UV-editor area
  * included.
  *
- * @param PuppetViewportService service The service that supplies (and caches) the layer thumbnails.
+ * @param PuppetViewportService service The service that supplies the row names and (cached) thumbnails.
  * @param Offset position The cursor position to anchor the popup at, in area-local pixels.
  * @param List candidates The opaque candidates under the cursor, front-to-back.
  * @param Function pick Applies the chosen drawable per the requesting overlay's mode.
@@ -44,10 +44,12 @@ internal fun overlapStateFrom(
 		anchor = IntOffset(position.x.roundToInt(), position.y.roundToInt()),
 		entries =
 			candidates.map { candidate ->
-				// "Raw (Part)" - the stable drawable id plus the owning part's name, so the rigger can tell
-				// what they are selecting; falls back to just the id for a drawable with no owning part.
-				val partName = service.partNameFor(candidate.id)
-				val label = if (partName != null) "${candidate.id.raw} ($partName)" else candidate.id.raw
+				// "Drawable (Part)" - what the rigger named the mesh plus the part that owns it, since that
+				// is what they recognize on a crowded stack.  A nameless drawable falls back to its stable
+				// id, and a drawable with no part (or a part with no name) drops the parenthetical.
+				val drawableName = service.drawableNameFor(candidate.id)?.ifBlank { null } ?: candidate.id.raw
+				val partName = service.partNameFor(candidate.id)?.ifBlank { null }
+				val label = if (partName != null) "$drawableName ($partName)" else drawableName
 				OverlapEntry(candidate.id, label, service.thumbnailFor(candidate.id))
 			},
 		defaultIndex = candidates.indices.maxByOrNull { index -> candidates[index].centrality } ?: 0,

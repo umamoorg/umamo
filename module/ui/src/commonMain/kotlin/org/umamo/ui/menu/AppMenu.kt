@@ -8,6 +8,8 @@ import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.TopLevelMenu
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.cmd_workspace_next
+import org.umamo.ui.resources.cmd_workspace_prev
 import org.umamo.ui.resources.menu_about
 import org.umamo.ui.resources.menu_credits
 import org.umamo.ui.resources.menu_documentation
@@ -166,7 +168,8 @@ fun editMenu(
 	)
 
 /**
- * Builds the Workspace menu shared by every platform's menu bar: New (the same create path as the tab
+ * Builds the Workspace menu shared by every platform's menu bar: Previous / Next (the same tab shift the
+ * strip's context menu and primary+PageUp / PageDown reach), then New (the same create path as the tab
  * strip's "+"), Reset (the shell confirms first), and the layout's trips to and from a file.  Every row
  * dispatches its workspace.* command.
  *
@@ -183,6 +186,9 @@ fun workspaceMenu(
 		label = stringResource(Res.string.menu_workspace),
 		items =
 			listOf(
+				commandRow(stringResource(Res.string.cmd_workspace_prev), "workspace.prev", keymap, dispatch),
+				commandRow(stringResource(Res.string.cmd_workspace_next), "workspace.next", keymap, dispatch),
+				MenuItem.Separator,
 				commandRow(stringResource(Res.string.workspace_new), "workspace.new", keymap, dispatch),
 				commandRow(stringResource(Res.string.menu_workspace_reset), "workspace.reset", keymap, dispatch),
 				MenuItem.Separator,

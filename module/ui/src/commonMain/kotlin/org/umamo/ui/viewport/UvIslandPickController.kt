@@ -63,13 +63,25 @@ internal fun pageAlphaSampler(page: DecodedImage?): (DrawableId, Float, Float) -
 }
 
 /**
- * The UV editor's island picker: the shared alpha-gated point pick (pickDrawable /
- * pickAllDrawables) bound to the shown surface's display-space islands.  The point is taken in
- * display (texel) space - the caller unprojects a click through the area camera first - and the
- * hit's uv is barycentric-interpolated from the mesh uvs in the SHOWN SURFACE's own frame (the
- * stored coordinates over an atlas page, the layer-frame ones over a source layer), so the alpha
- * gate samples exactly the texel the click lands on.  Front-most wins by [frontRankById]; the stack
- * query is front-to-back with per-candidate centrality for the overlap popup's default row.
+ * The alpha threshold of the geometry tier.  The shared pickers reject a hit whose sampled alpha is
+ * strictly below the threshold, and a sampler never returns less than 0, so a zero threshold admits
+ * every texel and the pick becomes a pure mesh-containment test.
+ */
+private const val GEOMETRY_TIER_ALPHA_THRESHOLD = 0f
+
+/**
+ * The UV editor's island picker: the shared point pick (pickDrawable / pickAllDrawables) bound to
+ * the shown surface's display-space islands, in two tiers.  The opaque tier is the alpha-gated
+ * pick: the hit's uv is barycentric-interpolated from the mesh uvs in the SHOWN SURFACE's own frame
+ * (the stored coordinates over an atlas page, the layer-frame ones over a source layer), so the
+ * gate samples exactly the texel the click lands on, and overlapping islands resolve by the art
+ * actually visible there.  When no island is opaque at the point, the geometry tier takes over:
+ * any island whose mesh contains the point is a hit, so a click on an island's transparent
+ * interior still selects it.  In the UV editor the mesh IS the island, which is why this fallback
+ * is here and not in the 2D viewport's raster pick.  The point is taken in display (texel) space -
+ * the caller unprojects a click through the area camera first.  Front-most wins by [frontRankById]
+ * in either tier; the stack query is front-to-back with per-candidate centrality for the overlap
+ * popup's default row.
  *
  * @property Map<DrawableId, FloatArray> displayPositionsById Interleaved display-space (x, y) vertices per island.
  * @property Map<DrawableId, IntArray> indicesById Triangle index triples per island.
@@ -79,7 +91,7 @@ internal fun pageAlphaSampler(page: DecodedImage?): (DrawableId, Float, Float) -
  * @property Function atlasSizeOf (id) -> the shown image's (width, height), or null for the untextured fallback
  *   (full centrality instead of ray-marching a fake 1x1 page).
  */
-internal class UvIslandPick(
+internal class UvIslandPickController(
 	val displayPositionsById: Map<DrawableId, FloatArray>,
 	val indicesById: Map<DrawableId, IntArray>,
 	val meshUvsById: Map<DrawableId, FloatArray>,
@@ -88,19 +100,24 @@ internal class UvIslandPick(
 	val atlasSizeOf: (DrawableId) -> Pair<Int, Int>?,
 ) {
 	/**
-	 * The front-most island whose mesh contains the point AND whose texel on the shown surface there is
-	 * opaque, or null on a miss (including a click on transparent triangle overhang).
+	 * The front-most island whose mesh contains the point and whose texel on the shown surface there is
+	 * opaque; failing that, the front-most island whose mesh contains the point at all; null only when
+	 * the point lies outside every island.
 	 *
 	 * @param Float displayX The point X in display (texel) space.
 	 * @param Float displayY The point Y in display (texel) space.
-	 * @return DrawableId? The front-most opaque hit, or null.
+	 * @return DrawableId? The front-most hit of the first tier that has one, or null.
 	 */
 	fun topmostAt(displayX: Float, displayY: Float): DrawableId? =
 		pickDrawable(displayX, displayY, displayPositionsById, indicesById, meshUvsById, frontRankById, sampleAlpha)
+			?: pickDrawable(displayX, displayY, displayPositionsById, indicesById, meshUvsById, frontRankById, sampleAlpha, alphaThreshold = GEOMETRY_TIER_ALPHA_THRESHOLD)
 
 	/**
-	 * Every opaque island under the point, front-to-back, each with its centrality - the overlap
-	 * popup's candidate list.
+	 * The islands under the point, front-to-back, each with its centrality - the overlap popup's
+	 * candidate list.  The tiers match [topmostAt]: the opaque islands when any is opaque at the point,
+	 * else every island whose mesh contains it.  Geometry-tier candidates carry one flat centrality
+	 * (no ray-march - a march from a transparent hit measures nothing), so the popup's default row is
+	 * the front-most, the island a plain click there picks.
 	 *
 	 * @param Float displayX The point X in display (texel) space.
 	 * @param Float displayY The point Y in display (texel) space.
@@ -108,6 +125,19 @@ internal class UvIslandPick(
 	 */
 	fun stackAt(displayX: Float, displayY: Float): List<PickCandidate> =
 		pickAllDrawables(displayX, displayY, displayPositionsById, indicesById, meshUvsById, frontRankById, atlasSizeOf, sampleAlpha)
+			.ifEmpty {
+				pickAllDrawables(
+					displayX,
+					displayY,
+					displayPositionsById,
+					indicesById,
+					meshUvsById,
+					frontRankById,
+					atlasSizeOf = { null },
+					sampleAlpha = sampleAlpha,
+					alphaThreshold = GEOMETRY_TIER_ALPHA_THRESHOLD,
+				)
+			}
 }
 
 /**
@@ -119,15 +149,15 @@ internal class UvIslandPick(
  * @param Map<DrawableId, Float> frontRank The model's rest-pose front rank (restFrontRank).
  * @param Map<DrawableId, FloatArray> uvsById Each island's uvs in the shown surface's frame (the alpha-sample space).
  * @param DecodedImage? image The shown surface's decoded pixels, or null for the untextured fallback.
- * @return UvIslandPick The picker.
+ * @return UvIslandPickController The picker.
  */
 internal fun uvIslandPick(
 	geometries: List<GizmoMeshGeometry>,
 	frontRank: Map<DrawableId, Float>,
 	uvsById: Map<DrawableId, FloatArray>,
 	image: DecodedImage?,
-): UvIslandPick =
-	UvIslandPick(
+): UvIslandPickController =
+	UvIslandPickController(
 		displayPositionsById = geometries.associate { geometry -> geometry.drawableId to geometry.positions },
 		indicesById = geometries.associate { geometry -> geometry.drawableId to geometry.indices },
 		meshUvsById = uvsById,

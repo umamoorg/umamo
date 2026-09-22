@@ -30,6 +30,73 @@ internal val RenderScene.cameraSurface: CameraSurface
 			RenderScene.UvScene -> CameraSurface.Uv
 		}
 
+/**
+ * Which flat surface a UV-editor camera frames: one atlas page, or one source layer.  A view of one means
+ * nothing over another - a page of thousands of texels and a layer of a few hundred share only their
+ * origin - so a UV-editor area keeps a view per surface.
+ */
+internal sealed interface UvSurfaceId {
+	/**
+	 * An atlas page, by index.
+	 *
+	 * @property Int? pageIndex The page, or null for the untextured fallback's unit square.
+	 */
+	data class Page(val pageIndex: Int?) : UvSurfaceId
+
+	/**
+	 * A source layer, by its key in the document's source-art store.
+	 *
+	 * @property String layerKey The layer's key.
+	 */
+	data class Layer(val layerKey: String) : UvSurfaceId
+}
+
+/** The surface this content shows: its identity, never its pixels, so a re-decoded layer is the same surface. */
+internal val UvSceneContent.surfaceId: UvSurfaceId
+	get() =
+		when (this) {
+			is UvSceneContent.AtlasPage -> UvSurfaceId.Page(pageIndex)
+			is UvSceneContent.SourceLayer -> UvSurfaceId.Layer(layerKey)
+		}
+
+/**
+ * A camera together with the UV surface it frames, published as ONE value so the two cannot tear: a pan on the
+ * UI thread racing a surface switch on the render thread can lose one update at worst, never file a view under
+ * the wrong surface.
+ *
+ * @property ViewportCamera camera  The pan / zoom.
+ * @property UvSurfaceId?   surface The UV surface it frames, or null for a puppet area's view of the world.
+ */
+internal data class FramedCamera(val camera: ViewportCamera, val surface: UvSurfaceId?)
+
+/**
+ * What a UV-editor view is remembered under for the session: one area showing one surface.
+ *
+ * @property String      areaId  The hosting leaf's area id.
+ * @property UvSurfaceId surface The page or layer the view frames.
+ */
+internal data class AreaUvSurfaceKey(val areaId: String, val surface: UvSurfaceId)
+
+/**
+ * The rectangle a UV-editor fit frames: the shown surface, widened to take in every shown mesh that reaches
+ * past it.  A placement moved off the page carries its islands with it, and a fit that only knew the page
+ * would frame everything but the thing just moved.
+ *
+ * @param ContentBounds  surfaceBounds The shown surface's rectangle.
+ * @param ContentBounds? islandExtent  The shown meshes' bounds, or null for none.
+ * @return ContentBounds The union of the two.
+ */
+internal fun uvFitBounds(surfaceBounds: ContentBounds, islandExtent: ContentBounds?): ContentBounds {
+	if (islandExtent == null) {
+		return surfaceBounds
+	}
+	val minX = minOf(surfaceBounds.minX, islandExtent.minX)
+	val minY = minOf(surfaceBounds.minY, islandExtent.minY)
+	val maxX = maxOf(surfaceBounds.minX + surfaceBounds.width, islandExtent.minX + islandExtent.width)
+	val maxY = maxOf(surfaceBounds.minY + surfaceBounds.height, islandExtent.minY + islandExtent.height)
+	return ContentBounds(minX, minY, maxX - minX, maxY - minY)
+}
+
 /** The camera and pixel size of a registered area, resolved for a CPU pick. Null-camera areas do not appear. */
 internal data class AreaView(val camera: ViewportCamera, val width: Int, val height: Int)
 
@@ -38,7 +105,9 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  * ([OffscreenRenderEngine]). Field-ownership contract:
  *
  *   - The @Volatile fields are written by the UI thread and read by the render thread (a volatile publish of
- *     immutable values or plain scalars): scene, uvContent, width, height, camera, refitRequested.
+ *     immutable values or plain scalars): scene, uvContent, uvIslandExtent, width, height, refitRequested.
+ *     framing is written by both: the UI thread's pan / zoom and the render thread's establish, each
+ *     replacing the whole value.
  *   - imageState / cameraState are thread-safe StateFlows; either thread may set them.
  *   - refCount is touched only on the UI thread (register/unregister run as composition effects).
  *   - The remaining plain fields (inFlight, rendered*, *RenderBumpDone) are render-thread-only bookkeeping.
@@ -63,6 +132,12 @@ internal class AreaSlot {
 	@Volatile
 	var uvContent: UvSceneContent? = null
 
+	// The display-space bounds of the meshes a UV-editor area shows, which its fit widens the surface to take
+	// in.  Read only when a fit runs, so an edit that moves an island re-renders nothing.  Written BEFORE
+	// uvContent, and read after it: a render thread that sees new content also sees the extent measured over it.
+	@Volatile
+	var uvIslandExtent: ContentBounds? = null
+
 	@Volatile
 	var width: Int = 0
 
@@ -70,11 +145,16 @@ internal class AreaSlot {
 	var height: Int = 0
 	val imageState = MutableStateFlow<RenderedFrame?>(null)
 
-	// The per-area camera (pan/zoom). null until the render thread computes the initial fit (it needs the
-	// area size + content bounds); thereafter the UI thread swaps in a new immutable camera per edit (a
-	// volatile publish). cameraState mirrors it for the overlay readout.
+	// The per-area camera (pan/zoom) with the UV surface it frames. null until the render thread computes the
+	// initial fit (it needs the area size + content bounds); thereafter each pan / zoom swaps in a new immutable
+	// value (a volatile publish), and the render thread swaps it again when a UV area's shown surface is no
+	// longer the one it frames. cameraState mirrors the camera for the overlay readout.
 	@Volatile
-	var camera: ViewportCamera? = null
+	var framing: FramedCamera? = null
+
+	/** The area's current pan / zoom, or null before the first fit. */
+	val camera: ViewportCamera?
+		get() = framing?.camera
 
 	// Set by the Fit command (UI thread), cleared by the render thread, which then recomputes a fresh fit
 	// (ignoring any remembered camera). A flag rather than camera=null so the old view shows until the refit
@@ -124,8 +204,19 @@ internal class ViewportAreaRegistry {
 	// instead of refitting.  Keyed by the surface too because a view of the puppet's world means nothing over
 	// a texture's pixels: an area switched between the 2D viewport and the UV editor keeps one view of each.
 	// Area ids are minted once and never reused, so entries never collide; the map grows only by areas ever
-	// shown (a few floats each) and is not evicted (session-bounded, negligible cost).
+	// shown (a few floats each) and is not evicted (session-bounded, negligible cost).  A UV editor's entry is
+	// the view of the page or layer it shows now - the one a save writes.
 	private val rememberedCameras = ConcurrentHashMap<AreaCameraKey, ViewportCamera>()
+
+	// A UV-editor area's view of EACH page and layer it has shown, so switching to one it has left brings back
+	// that view and one it has never shown is fitted: a page's pan and zoom over a layer a fraction of its size
+	// lands the layer tiny and in a corner.  Session state only - never in cameras(), so it never reaches a
+	// save - and dropped with the engine, so a new document starts over.  Bounded the way rememberedCameras is.
+	private val uvSurfaceCameras = ConcurrentHashMap<AreaUvSurfaceKey, ViewportCamera>()
+
+	// The areas that have shown a UV surface this session.  Until an area has, its remembered UV view can only
+	// be the one the document was saved with, which belongs to whichever surface the area opens on.
+	private val uvShownAreaIds = ConcurrentHashMap.newKeySet<String>()
 
 	/**
 	 * Every remembered camera, by area and surface - the areas shown now and the ones a workspace switch put away.
@@ -167,7 +258,7 @@ internal class ViewportAreaRegistry {
 	 */
 	fun register(areaId: String): StateFlow<RenderedFrame?> {
 		val slot = areas.getOrPut(areaId) { AreaSlot() }
-		claim(slot, RenderScene.Puppet2D, content = null)
+		claim(slot, RenderScene.Puppet2D, content = null, islandExtent = null)
 		slot.refCount++
 		return slot.imageState
 	}
@@ -175,13 +266,14 @@ internal class ViewportAreaRegistry {
 	/**
 	 * Registers a UV-editor area (the flat image underlay) and returns its image flow.
 	 *
-	 * @param String         areaId  The hosting area's stable id.
-	 * @param UvSceneContent content What the area draws.
+	 * @param String         areaId       The hosting area's stable id.
+	 * @param UvSceneContent content      What the area draws.
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 * @return StateFlow The area's image stream (null until the first render completes).
 	 */
-	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?> {
+	fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?> {
 		val slot = areas.getOrPut(areaId) { AreaSlot() }
-		claim(slot, RenderScene.UvScene, content)
+		claim(slot, RenderScene.UvScene, content, islandExtent)
 		slot.refCount++
 		return slot.imageState
 	}
@@ -203,14 +295,16 @@ internal class ViewportAreaRegistry {
 	 * and keep it.  Dropped after, the worst it can do is render one frame of the new surface through the old
 	 * camera, which the fresh camera then makes stale.
 	 *
-	 * @param AreaSlot        slot    The slot to claim.
-	 * @param RenderScene     scene   The kind of area registering.
-	 * @param UvSceneContent? content What a UV area draws; null for a puppet area.
+	 * @param AreaSlot        slot         The slot to claim.
+	 * @param RenderScene     scene        The kind of area registering.
+	 * @param UvSceneContent? content      What a UV area draws; null for a puppet area.
+	 * @param ContentBounds?  islandExtent The shown meshes' bounds a UV area's fit takes in; null for a puppet area.
 	 */
-	private fun claim(slot: AreaSlot, scene: RenderScene, content: UvSceneContent?) {
+	private fun claim(slot: AreaSlot, scene: RenderScene, content: UvSceneContent?, islandExtent: ContentBounds?) {
 		val kindChanged = slot.scene != scene
 		when (scene) {
 			RenderScene.UvScene -> {
+				slot.uvIslandExtent = islandExtent
 				slot.uvContent = content
 				slot.scene = scene
 			}
@@ -218,44 +312,54 @@ internal class ViewportAreaRegistry {
 			RenderScene.Puppet2D -> {
 				slot.scene = scene
 				slot.uvContent = null
+				slot.uvIslandExtent = null
 			}
 		}
 		if (kindChanged) {
 			// The old surface's view stays remembered under its own key for the day the area switches back; this
 			// one is re-established from the new surface's remembered view, or a fit.  The last frame goes too:
 			// it shows the old surface, and the new space's overlays would be drawn over it until the next lands.
-			slot.camera = null
+			slot.framing = null
 			slot.cameraState.value = null
 			slot.imageState.value = null
 		}
 	}
 
 	/**
-	 * Retargets what an already-registered UV-editor area draws. A no-op for an unregistered area or a
-	 * puppet (2D) area - only a registration moves an area between the puppet and the UV family, and this
-	 * moves the content within the UV one.
+	 * Retargets what an already-registered UV-editor area draws, and the mesh extent its fit takes in. A no-op
+	 * for an unregistered area or a puppet (2D) area - only a registration moves an area between the puppet and
+	 * the UV family, and this moves the content within the UV one.
 	 *
-	 * @param String         areaId  The UV-editor area to retarget.
-	 * @param UvSceneContent content The new content to draw.
+	 * A switch to another page or layer changes no camera here: the render thread sees that the surface shown is
+	 * no longer the one the camera frames and swaps the view as it establishes the next frame, so the new
+	 * surface's first frame already renders through its own view (see [establishCamera]).
+	 *
+	 * @param String         areaId       The UV-editor area to retarget.
+	 * @param UvSceneContent content      The new content to draw.
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 */
-	fun setUvSceneContent(areaId: String, content: UvSceneContent) {
+	fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) {
 		val slot = areas[areaId] ?: return
 		if (slot.scene == RenderScene.Puppet2D) {
 			return
 		}
-		applyUvContent(slot, content)
+		applyUvContent(slot, content, islandExtent)
 	}
 
 	/**
-	 * Publishes one UV content choice onto a slot, kind and payload inseparably.
+	 * Publishes one UV content choice onto a slot, kind and payload inseparably, with the mesh extent measured
+	 * over it.
 	 *
-	 * One volatile store of one immutable value, which is what makes the switch atomic - see
-	 * [AreaSlot.uvContent] for what publishing them separately would cost.
+	 * The content is one volatile store of one immutable value, which is what makes the switch atomic - see
+	 * [AreaSlot.uvContent] for what publishing them separately would cost.  The extent goes first, so a render
+	 * thread that sees the new content also sees the extent that belongs to it.
 	 *
-	 * @param AreaSlot       slot    The slot to retarget.
-	 * @param UvSceneContent content What the area draws.
+	 * @param AreaSlot       slot         The slot to retarget.
+	 * @param UvSceneContent content      What the area draws.
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 */
-	private fun applyUvContent(slot: AreaSlot, content: UvSceneContent) {
+	private fun applyUvContent(slot: AreaSlot, content: UvSceneContent, islandExtent: ContentBounds?) {
+		slot.uvIslandExtent = islandExtent
 		slot.uvContent = content
 	}
 
@@ -431,16 +535,23 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Render-thread: ensures the slot has a camera, establishing or refitting it now that the size is known.
-	 * A pending refit forces a fresh fit; otherwise a freshly-(re)registered area restores its remembered
-	 * camera (so workspace switches preserve pan/zoom), falling back to a fit the first time it is ever shown.
-	 * The content bounds are resolved lazily (only when a fit is actually needed) via [contentBounds].
+	 * Render-thread: ensures the slot has a camera for what it shows, establishing or refitting it now that the
+	 * size is known.  A pending refit forces a fresh fit.  Otherwise a freshly-(re)registered area restores its
+	 * remembered camera (so workspace switches preserve pan/zoom), and a UV-editor area whose shown page or
+	 * layer is no longer the one its camera frames swaps to the view it left that surface with - either falling
+	 * back to a fit the first time that surface is shown.  The content bounds are resolved lazily (only when a
+	 * fit is actually needed) via [contentBounds]; a UV-editor fit is widened to the shown meshes' extent.
+	 *
+	 * The kind and the content are read once, up front: the fit, the recall, and the record all have to be about
+	 * the same surface, and the UI thread can retarget the slot at any moment.  A retarget that lands after the
+	 * read leaves a camera framing a surface no longer shown, which the next call swaps in turn.
 	 *
 	 * @param AreaSlot slot The area being established.
 	 * @param String areaId The area id.
 	 * @param Int width The current area width.
 	 * @param Int height The current area height.
-	 * @param Function contentBounds Supplies the rectangle to fit, evaluated only when a fit is needed.
+	 * @param Function contentBounds Supplies the rectangle of the scene and content it is handed, evaluated only
+	 *   when a fit is needed.
 	 * @return ViewportCamera The area's current camera.
 	 */
 	fun establishCamera(
@@ -448,40 +559,101 @@ internal class ViewportAreaRegistry {
 		areaId: String,
 		width: Int,
 		height: Int,
-		contentBounds: () -> ContentBounds,
+		contentBounds: (RenderScene, UvSceneContent?) -> ContentBounds,
 	): ViewportCamera {
-		var camera = slot.camera
-		if (slot.refitRequested || camera == null) {
-			camera =
-				if (slot.refitRequested) {
-					ViewportCamera.fit(contentBounds(), width, height)
-				} else {
-					rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] ?: ViewportCamera.fit(contentBounds(), width, height)
-				}
-			slot.refitRequested = false
-			slot.camera = camera
-			slot.cameraState.value = camera
-			rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] = camera
+		val scene = slot.scene
+		val content = slot.uvContent
+		val shownSurface =
+			when (scene) {
+				RenderScene.Puppet2D -> null
+				RenderScene.UvScene -> content?.surfaceId ?: UvSurfaceId.Page(null)
+			}
+		val framing = slot.framing
+		val refit = slot.refitRequested
+		if (framing != null && !refit && framing.surface == shownSurface) {
+			return framing.camera
 		}
+		val recalled = if (refit) null else recallCamera(areaId, scene, shownSurface)
+		val camera =
+			recalled ?: run {
+				val sceneBounds = contentBounds(scene, content)
+				// Read after the content: the UI thread writes the extent first, so it belongs to this content.
+				val fitBounds =
+					when (scene) {
+						RenderScene.Puppet2D -> sceneBounds
+						RenderScene.UvScene -> uvFitBounds(sceneBounds, slot.uvIslandExtent)
+					}
+				ViewportCamera.fit(fitBounds, width, height)
+			}
+		slot.refitRequested = false
+		publishCamera(slot, areaId, FramedCamera(camera, shownSurface))
 		return camera
+	}
+
+	/**
+	 * The view an area had of a surface, for an area establishing one without a refit, or null when it has none
+	 * and the surface is fitted.
+	 *
+	 * A UV-editor area takes its own view of that page or layer first.  The area's whole-UV view - what a saved
+	 * document seeds - stands in only while the area has shown no UV surface this session: until then it can only
+	 * be the saved view, which belongs to whatever surface the area opens on.  After that it is the last surface's
+	 * view, and a different surface fits rather than inheriting it.
+	 *
+	 * @param String       areaId  The area id.
+	 * @param RenderScene  scene   The area's kind.
+	 * @param UvSurfaceId? surface The UV surface shown, or null for a puppet area.
+	 * @return ViewportCamera? The view to restore, or null to fit.
+	 */
+	private fun recallCamera(areaId: String, scene: RenderScene, surface: UvSurfaceId?): ViewportCamera? {
+		if (surface == null) {
+			return rememberedCameras[AreaCameraKey(areaId, scene.cameraSurface)]
+		}
+		uvSurfaceCameras[AreaUvSurfaceKey(areaId, surface)]?.let { remembered ->
+			return remembered
+		}
+		if (areaId in uvShownAreaIds) {
+			return null
+		}
+		return rememberedCameras[AreaCameraKey(areaId, CameraSurface.Uv)]
+	}
+
+	/**
+	 * Makes [framing] the slot's camera and remembers it: under the area and its surface kind (what a save writes
+	 * and a workspace switch restores) and, for a UV-editor view, under the page or layer it frames.  Keyed off the
+	 * framing's own surface rather than the slot's current content, so a view is always filed with the surface it
+	 * was taken of.
+	 *
+	 * @param AreaSlot     slot    The area's slot.
+	 * @param String       areaId  The area id.
+	 * @param FramedCamera framing The camera and the surface it frames.
+	 */
+	private fun publishCamera(slot: AreaSlot, areaId: String, framing: FramedCamera) {
+		slot.framing = framing
+		slot.cameraState.value = framing.camera
+		val surface = framing.surface
+		if (surface == null) {
+			rememberedCameras[AreaCameraKey(areaId, CameraSurface.Viewport)] = framing.camera
+		} else {
+			rememberedCameras[AreaCameraKey(areaId, CameraSurface.Uv)] = framing.camera
+			uvSurfaceCameras[AreaUvSurfaceKey(areaId, surface)] = framing.camera
+			uvShownAreaIds.add(areaId)
+		}
 	}
 
 	/** The zoom step in percentage points for this notch/press: the coarse (Shift) step or the fine step. */
 	private fun stepFor(coarse: Boolean): Float = if (coarse) zoomStepCoarsePercent else zoomStepPercent
 
 	/**
-	 * Applies [transform] to the area's current camera and publishes the result. No-op before the initial fit
-	 * (there is nothing to transform until the first frame establishes the view).
+	 * Applies [transform] to the area's current camera and publishes the result, still framing the surface it
+	 * framed. No-op before the initial fit (there is nothing to transform until the first frame establishes the
+	 * view).
 	 *
 	 * @param String areaId The area id.
 	 * @param Function transform Maps the current camera to its replacement.
 	 */
 	private fun updateCamera(areaId: String, transform: (ViewportCamera) -> ViewportCamera) {
 		val slot = areas[areaId] ?: return
-		val camera = slot.camera ?: return
-		val updated = transform(camera)
-		slot.camera = updated
-		slot.cameraState.value = updated
-		rememberedCameras[AreaCameraKey(areaId, slot.scene.cameraSurface)] = updated
+		val framing = slot.framing ?: return
+		publishCamera(slot, areaId, framing.copy(camera = transform(framing.camera)))
 	}
 }

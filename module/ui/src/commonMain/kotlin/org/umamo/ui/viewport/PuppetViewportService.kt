@@ -3,6 +3,7 @@ package org.umamo.ui.viewport
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.edit.GridConfig
+import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
@@ -57,9 +58,13 @@ sealed interface UvSceneContent {
 	/**
 	 * A source layer's own artwork, decoded by the caller.
 	 *
-	 * @property DecodedImage? image The layer raster to draw, or null for none (grid only).
+	 * The key is the layer's identity and the image is only its pixels: the engine remembers a view per
+	 * layer by the key, so a re-decoded image of the same layer keeps the view it had.
+	 *
+	 * @property String        layerKey The shown layer's key in the document's source-art store.
+	 * @property DecodedImage? image    The layer raster to draw, or null for none (grid only).
 	 */
-	data class SourceLayer(val image: DecodedImage?) : UvSceneContent
+	data class SourceLayer(val layerKey: String, val image: DecodedImage?) : UvSceneContent
 }
 
 /**
@@ -147,25 +152,34 @@ interface PuppetViewportService {
 	 * rendered image, its camera the one it was rendered at), driven by the same per-area camera surface
 	 * ([cameraFlow] / [resize] / [pan] / [zoomAtCursor] / [zoomCentered] / [fit] / [fitWorldRect] /
 	 * [actualSize] / [unregister]) - only the rendered content differs.  The engine fits that content's
-	 * rectangle rather than the puppet content bounds.
+	 * rectangle, widened to [islandExtent], rather than the puppet content bounds.
+	 *
+	 * The camera is kept per SURFACE as well as per area: each page and each layer the area shows keeps the
+	 * view it was left with for the rest of the session, and one the area has never shown is fitted.  Those
+	 * per-surface views are session state only - [cameras] reports just the view of the surface on screen,
+	 * which is the one a save writes (docs/format/UMA.md § 7.3).
 	 *
 	 * Retarget it with [setUvSceneContent] as the editor's shown content changes; do NOT re-register,
 	 * which takes a second reference-counted hold the area never releases.
 	 *
-	 * @param String        areaId  The hosting UV-editor area's stable id.
-	 * @param UvSceneContent content What to draw (an atlas page or a source layer image).
+	 * @param String         areaId       The hosting UV-editor area's stable id.
+	 * @param UvSceneContent content      What to draw (an atlas page or a source layer image).
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 * @return StateFlow The frame flow (null until the first render lands).
 	 */
-	fun registerUvScene(areaId: String, content: UvSceneContent): StateFlow<RenderedFrame?>
+	fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?>
 
 	/**
 	 * Retargets what an already-registered [registerUvScene] area draws, including switching between an
-	 * atlas page and a source layer.  A no-op for an unregistered area or a puppet (2D) area.
+	 * atlas page and a source layer, and updates the mesh extent its fit covers.  A switch to another
+	 * surface brings back the view the area left that surface with, or fits one it has not shown yet.  A
+	 * no-op for an unregistered area or a puppet (2D) area.
 	 *
-	 * @param String        areaId  The UV-editor area to retarget.
-	 * @param UvSceneContent content The new content to draw.
+	 * @param String         areaId       The UV-editor area to retarget.
+	 * @param UvSceneContent content      The new content to draw.
+	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 */
-	fun setUvSceneContent(areaId: String, content: UvSceneContent)
+	fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?)
 
 	/**
 	 * Releases one registration of [areaId]; the engine drops the area's resources at zero.
@@ -184,7 +198,8 @@ interface PuppetViewportService {
 
 	/**
 	 * Every camera the engine remembers, by area and surface: the areas shown now and the ones a workspace tab
-	 * switch has put away.  What a save writes as each area's views (docs/format/UMA.md § 7.3).
+	 * switch has put away.  What a save writes as each area's views (docs/format/UMA.md § 7.3).  A UV editor's
+	 * entry is the view of the page or layer it shows now; the views it keeps for the others are not here.
 	 *
 	 * @return Map The cameras.
 	 */
@@ -256,7 +271,8 @@ interface PuppetViewportService {
 	fun actualSize(areaId: String)
 
 	/**
-	 * Fits the puppet's content bounds inside [areaId], centerd.
+	 * Fits the area's content inside [areaId], centerd: the puppet's content bounds, or a UV editor's shown
+	 * surface widened to every shown mesh that reaches past it.
 	 *
 	 * @param String areaId The area to fit.
 	 */
@@ -414,6 +430,15 @@ interface PuppetViewportService {
 	 * @return String? The part name, or null.
 	 */
 	fun partNameFor(id: DrawableId): String?
+
+	/**
+	 * A drawable's own display name (the other half of an overlap-picker row label), or null when the
+	 * model holds no such drawable.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return String? The drawable's name, or null.
+	 */
+	fun drawableNameFor(id: DrawableId): String?
 
 	/** Stops the engine and releases its GPU resources; the service is unusable afterwards. */
 	fun dispose()
