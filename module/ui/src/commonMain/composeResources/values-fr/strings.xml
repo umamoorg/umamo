@@ -52,7 +52,7 @@
 	<string name="workspace_copy_suffix">copier</string>
 	<string name="workspace_delete">Supprimer</string>
 	<!-- Workspace navigation commands (action registry; palette + tab context menu). -->
-	<string name="cmd_workspace_prev">Espace de travail précédant</string>
+	<string name="cmd_workspace_prev">Espace de travail précédant</string> <!-- Should this be précédent? -->
 	<string name="cmd_workspace_next">Espace de travail suivant</string>
 	<!-- Workspace management command (action registry; palette + the Workspace menu). -->
 	<string name="cmd_workspace_reset">Réinitialiser l'espace de travail</string>
@@ -121,7 +121,7 @@
 	<string name="menu_workspace">Espace de travail</string>
 	<string name="menu_workspace_reset">Réinitialiser l'espace de travail</string>
 	<string name="menu_workspace_export_this">Exporter cet espace de travail…</string>
-	<string name="menu_workspace_export_all">Exporter tout les espaces de travail…</string>
+	<string name="menu_workspace_export_all">Exporter tous les espaces de travail…</string>
 	<string name="menu_workspace_import">Importer l'espace de travail…</string>
 
 	<!-- Dialogs (the reusable confirm dialog: actions + destructive-operation prompts). -->
@@ -132,7 +132,7 @@
 	<string name="dialog_reset">Réinitialiser</string>
 	<string name="dialog_replace">Remplacer</string>
 	<string name="dialog_overwrite">Écraser</string>
-	<string name="dialog_quit_without_saving">Quiter sans Sauvegarder</string>
+	<string name="dialog_quit_without_saving">Quitter sans Sauvegarder</string>
 	<string name="dialog_save">Sauvegarder</string>
 	<string name="dialog_dont_save">Ne pas Sauvegarder</string>
 	<string name="confirm_reset_workspace">Réinitialiser cet espace de travail à son agencement par défaut ?</string>
@@ -237,7 +237,7 @@
 	<string name="export_reason_no_texture_input_for_display">Ce drawable n'a pas d'entrée de texture pour le mode d'affichage choisi, donc il garde celui qu'il avait.</string>
 	<string name="export_reason_no_atlas_entry">Cet artwork n'est packé dans aucune page d'atlas, donc il' n'y a pas de placement à mettre à jour.</string>
 	<string name="export_reason_atlas_page_not_recomposed">Cet artwork a été bougé sur sa page d'atlas, mais la page l'affiche toujours à un ancien placement; repackez pour le redessiner.</string>
-	<string name="export_reason_atlas_tile_metadata">Le nom ou la taille de cet artwork a changé, de sorte à ce q'un placement d'atlas ne puisse pas le porte; ré-importez l'artwork à la place.</string>
+	<string name="export_reason_atlas_tile_metadata">Le nom ou la taille de cet artwork a changé, de sorte à ce qu'un placement d'atlas ne puisse pas le porte; ré-importez l'artwork à la place.</string>
 	<string name="export_reason_atlas_tile_rebinding">Ce drawable était assigné a un autre artwork, qui a besoin que l'artwork soit ré-importé au lieu de  repacké.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 enregistre des pixels entiers sur la toile, donc la taille fractionnelle de la toile n'a pas été écrite.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
@@ -265,7 +265,7 @@
 	<string name="open_failed_not_openable">%1$s ne peut pas encore être ouvert dans l'éditeur.</string>
 	<string name="open_failed_parse">Impossible d'ouvrir %1$s.  Le fichier pourrait être endommagé.</string>
 	<string name="open_failed_missing_manifest">Impossible d'importer %1$s.  Son manifeste model3.json n'a pas été trouvé à coté du fichier.</string>
-	<string name="open_failed_missing_texture">Impossible d'importer %1$s.  Une des textures référencées par son model3.json es tmanquante ou illisible.</string>
+	<string name="open_failed_missing_texture">Impossible d'importer %1$s.  Une des textures référencées par son model3.json est manquante ou illisible.</string>
 	<string name="open_failed_no_art_layers">%1$s n'a aucun calque avec des pixels à importer.</string>
 	<string name="open_failed_newer_format">%1$s a été créé par une version plus récente d'Umamo et ne peut pas être ouvert par celle-ci.</string>
 	<!-- Modal messages the app layer raises through document.alert; %2$s lists entry paths, document data. -->
@@ -314,8 +314,8 @@
 	<string name="cmd_mesh_circle_select">Sélection en cercle</string>
 	<string name="cmd_mesh_circle_grow">Augmenter le rayon du cercle</string>
 	<string name="cmd_mesh_circle_shrink">Diminuer le rayon du cercle</string>
-	<string name="cmd_uv_mirror_u">Relféter les UVs Horizontallement</string>
-	<string name="cmd_uv_mirror_v">Refléter les UVs Verticallement</string>
+	<string name="cmd_uv_mirror_u">Refléter les UVs Horizontalement</string>
+	<string name="cmd_uv_mirror_v">Refléter les UVs Verticalement</string>
 
 	<!-- UV editor viewport context menu. Short axis labels (Blender-style), distinct from the verbose command titles. -->
 	<string name="menu_uv_mirror_x">Refléter sur X</string>
@@ -367,14 +367,14 @@
 	<string name="history_selection">Sélectionner</string>
 	<string name="history_mode">Changer de Mode</string>
 	<string name="history_part_visibility">Changer la visibilité d'une partie</string>
-	<string name="history_part_rename">Rennomer la partie</string>
+	<string name="history_part_rename">Renommer la partie</string>
 	<string name="history_part_selectable">Changer la sélectionnabilité d'une partie</string>
 	<string name="history_part_move">Bouger la partie</string>
 	<string name="history_drawable_visibility">Changer la visibilité d'un mesh</string>
-	<string name="history_drawable_rename">Rennomer le Mesh</string>
-	<string name="history_drawable_selectable">Changer la séléectionnabilité d'un mesh</string>
+	<string name="history_drawable_rename">Renommer le Mesh</string>
+	<string name="history_drawable_selectable">Changer la sélectionnabilité d'un mesh</string>
 	<string name="history_drawable_move">Bouger le mesh</string>
-	<string name="history_deformer_rename">Rennomer le déformeur</string>
+	<string name="history_deformer_rename">Renommer le déformeur</string>
 	<string name="history_deformer_selectable">Changer la sélectionnabilité du déformeur</string>
 	<string name="history_deformer_move">Bouger le déformeur</string>
 	<string name="history_keyform_insert">Insérer une keyframe</string>
@@ -389,9 +389,9 @@
 	<string name="history_parameter_move">Bouger les paramètres</string>
 	<string name="history_parameter_group_create">Créer un groupe</string>
 	<string name="history_parameter_group_delete">Supprimer un groupe</string>
-	<string name="history_parameter_group_rename">Rennomer un groupe</string>
+	<string name="history_parameter_group_rename">Renommer un groupe</string>
 	<string name="history_parameter_create">Ajouter un paramètre</string>
-	<string name="history_parameter_rename">Rennomer le paramètre</string>
+	<string name="history_parameter_rename">Renommer le paramètre</string>
 	<string name="history_parameter_delete">Supprimer le paramètre</string>
 	<string name="history_mesh_move">Bouger des vertices</string>
 	<string name="history_mesh_scale">Changer la taille des vertices</string>
@@ -413,7 +413,7 @@
 	<string name="history_part_draw_order">Modifier l'ordre de Rendu des Parties</string>
 	<string name="history_part_group_mode">Modifier le mode de groupement</string>
 	<string name="history_part_composite">Définir la Composite</string>
-	<string name="history_drawable_blend_mode">Changer le mode de fuction</string>
+	<string name="history_drawable_blend_mode">Changer le mode de fusion</string> <!-- Fusion instead of fuction? -->
 	<string name="history_drawable_alpha_blend_mode">Changer le mode d'Alpha</string>
 	<string name="history_drawable_culling">Activer le Back-Face Culling</string>
 	<string name="history_drawable_invert_mask">Activer/Désactiver le masque inversé</string>
@@ -442,20 +442,20 @@
 	<string name="history_document_atlas_repack">Repacker l'atlas</string>
 	<string name="history_document_tile_source">Relier l'atlas</string>
 	<string name="history_document_tile_unbind">Déconnecter l'atlas</string>
-	<string name="history_document_delete_tile">Supprimer l'ard</string>
+	<string name="history_document_delete_tile">Supprimer l'ars</string>
 	<string name="history_document_delete_tile_ignore">Supprimer l'art, ignorer le calque</string>
 	<string name="history_document_layer_ignore">Ignorer le calque</string>
 	<string name="history_document_layer_unignore">Arrêter d'ignorer le calque</string>
 	<string name="history_document_import_artwork">Importer l'Artwork</string>
-	<string name="history_document_reload_artwork">Lecharger l'Artwork</string>
-	<string name="history_document_relink_artwork">Rlier l'Art</string>
+	<string name="history_document_reload_artwork">Recharger l'Artwork</string>
+	<string name="history_document_relink_artwork">Relier l'Art</string> <!-- Rlier? -->
 	<string name="history_document_match_artwork">Correspondre à l'Artwork</string>
 	<string name="history_document_replace_artwork">Remplacer l'Artwork</string>
 	<string name="history_document_runtime_target">Changer la cible de lancement</string>
 
 	<!-- Outliner unified tree. Twin "Armature" rows mirror Blender's armature object / armature
 	data naming. -->
-	<string name="outliner_root">Marionnete</string>
+	<string name="outliner_root">Marionette</string>
 	<string name="outliner_armature">Armature</string>
 	<string name="outliner_filter_parts">Parties</string>
 	<string name="outliner_filter_deformers">Déformeurs</string>
@@ -500,7 +500,7 @@
 	<string name="outliner_filter_drawables">Drawables</string>
 	<string name="outliner_restriction_toggles">Changeurs de restriction</string>
 	<string name="outliner_column_selectable">Colonne sélectable</string>
-	<string name="outliner_column_visibility">Clonne de visibilité</string>
+	<string name="outliner_column_visibility">Colonne de visibilité</string>
 	<string name="placeholder_empty">Vide</string>
 
 	<!-- Outliner row context menu (right-click). "Delete" removes the item itself (a part keeps its
@@ -519,11 +519,10 @@
 	<string name="status_glues">Colles: %1$d</string>
 
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
-	<string name="status_bind_palette">Palette de Commande</string>
 	<string name="status_bind_confirm">LMB / Enter: Confirmer</string>
 	<string name="status_bind_cancel">RMB / Esc: Annuler</string>
 	<string name="status_bind_edit_mode">Mode d'Édition</string>
-	<string name="status_bind_visibility">Visibilitée</string>
+	<string name="status_bind_visibility">Visibilité</string>
 	<string name="status_bind_grab">Bouger</string>
 	<string name="status_bind_scale">Changer de taille</string>
 	<string name="status_bind_rotate">Tourner</string>
@@ -754,12 +753,12 @@
 	<string name="properties_field_sketch">Image Guide</string>
 	<string name="properties_field_draw_order">Ordre de Dessin</string>
 	<string name="properties_field_group_mode">Mode de groupement</string>
-	<string name="properties_field_opacity">Opacitée</string>
+	<string name="properties_field_opacity">Opacité</string>
 	<string name="properties_field_multiply_color">Couleur de Multiplication</string>
 	<string name="properties_field_screen_color">Couleur d'Affichage</string>
 	<string name="properties_field_masked_by">Masqué Par</string>
 	<string name="properties_mask_add">Ajouter un Masque…</string>
-	<string name="properties_mask_remove">SUpprime le Masque</string>
+	<string name="properties_mask_remove">Supprime le Masque</string>
 	<string name="properties_relation_clear">Enlever la Relation</string>
 	<string name="properties_relation_pick">Choisir du viewport ou de l'outliner.</string>
 	<string name="unit_pixels">px</string>
@@ -805,8 +804,8 @@
 	<string name="blend_mode_multiply">Multiplier</string>
 	<string name="blend_mode_additive_premultiplied">Additif (Ancien)</string>
 	<string name="blend_mode_additive_glow">Additif (Briller)</string>
-	<string name="blend_mode_darken">Assombirer</string>
-	<string name="blend_mode_multiply_premultiplied">Multiplir (Ancien)</string>
+	<string name="blend_mode_darken">Assombrir</string>
+	<string name="blend_mode_multiply_premultiplied">Multiplier (Ancien)</string>
 	<string name="blend_mode_color_burn">Brulage de Couleurs</string>
 	<string name="blend_mode_linear_burn">Brulage de Couleurs Linéaire</string>
 	<string name="blend_mode_lighten">Éclaircir</string>
@@ -924,7 +923,7 @@
 	<string name="keyform_sheet_select_owner">Sélectionner %1$s</string>
 	<string name="keyform_sheet_all_filtered">Toutes les pistes sont cachées par des filtres.</string>
 	<string name="keyform_sheet_filter_geometry">Pistes de Déformation</string>
-	<string name="keyform_sheet_filter_channels">Pistes de Propriétées</string>
+	<string name="keyform_sheet_filter_channels">Pistes de Propriétés</string>
 	<string name="keyform_sheet_filter_blend_shapes">Pistes de Blendshapes</string>
 	<string name="keyform_sheet_no_tracks">Rien n'est mis sur ce paramètre pour l'instant.</string>
 	<string name="owner_kind_drawable">Drawable</string>
