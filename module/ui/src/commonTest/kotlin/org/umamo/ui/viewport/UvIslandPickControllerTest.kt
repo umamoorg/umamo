@@ -18,8 +18,9 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the UV editor's island-pick adapters (UvIslandPickController.kt): the static rest-pose front
- * rank, the page alpha sampler, the alpha-gated front-most / stack picks over display-space islands,
- * the any-vertex box rule, and the box-selection decision table.  The shared pick internals
+ * rank, the page alpha sampler, the two-tier front-most / stack picks over display-space islands
+ * (an island opaque at the click first, any island whose mesh contains it when none is), the
+ * any-vertex box rule, and the box-selection decision table.  The shared pick internals
  * (pickDrawable / pickAllDrawables) are :render-tested; these tests cover OUR bindings of them.
  *
  * The pick scene: two islands sharing one display-space triangle (0,4)-(4,4)-(0,0) on a 4x4 page
@@ -134,27 +135,76 @@ class UvIslandPickControllerTest {
 		assertEquals(frontId, pick.topmostAt(1f, 3f), "the front island takes the click")
 	}
 
-	/** A click on the front island's transparent texel falls through to the opaque island beneath. */
+	/**
+	 * A click on the front island's transparent texel falls through to the island beneath that is
+	 * opaque there: the opaque tier outranks the front island's mesh, so overlapping islands resolve
+	 * by the visible art.
+	 */
 	@Test
 	fun transparentOverhangFallsThroughToTheIslandBeneath() {
 		val pick = stackedIslandsPick(frontUvs = uvsHittingTransparentTexel, backUvs = uvsHittingOpaqueTexel)
 		assertEquals(backId, pick.topmostAt(1f, 3f), "the alpha gate rejects the front island")
 	}
 
-	/** A click outside every island misses. */
+	/** A click outside every island misses in both tiers. */
 	@Test
 	fun topmostPickMissesOutsideEveryIsland() {
 		val pick = stackedIslandsPick(frontUvs = uvsHittingOpaqueTexel, backUvs = uvsHittingOpaqueTexel)
 		assertNull(pick.topmostAt(3.5f, 0.5f), "below the hypotenuse nothing is hit")
 	}
 
-	/** The stack query lists every opaque island under the click, front-to-back. */
+	/**
+	 * The stack query lists every opaque island under the click, front-to-back; while any island is
+	 * opaque there, one that is transparent there stays out of the stack.
+	 */
 	@Test
 	fun stackListsOpaqueIslandsFrontToBack() {
 		val bothOpaque = stackedIslandsPick(frontUvs = uvsHittingOpaqueTexel, backUvs = uvsHittingOpaqueTexel)
 		assertEquals(listOf(frontId, backId), bothOpaque.stackAt(1f, 3f).map { candidate -> candidate.id }, "front first")
 		val frontTransparent = stackedIslandsPick(frontUvs = uvsHittingTransparentTexel, backUvs = uvsHittingOpaqueTexel)
 		assertEquals(listOf(backId), frontTransparent.stackAt(1f, 3f).map { candidate -> candidate.id }, "the alpha gate filters the stack too")
+	}
+
+	/** With no island opaque at the click, the geometry tier picks the front-most mesh containing it. */
+	@Test
+	fun transparentClickFallsBackToTheFrontMostMesh() {
+		val pick = stackedIslandsPick(frontUvs = uvsHittingTransparentTexel, backUvs = uvsHittingTransparentTexel)
+		assertEquals(frontId, pick.topmostAt(1f, 3f), "the front island's mesh takes the click over its transparent texel")
+	}
+
+	/** A lone island is clickable anywhere inside its mesh, including over a transparent texel. */
+	@Test
+	fun loneIslandIsClickableOverATransparentTexel() {
+		val pick =
+			UvIslandPickController(
+				displayPositionsById = mapOf(backId to displayTriangle),
+				indicesById = mapOf(backId to intArrayOf(0, 1, 2)),
+				meshUvsById = mapOf(backId to uvsHittingTransparentTexel),
+				frontRankById = mapOf(backId to 0f),
+				sampleAlpha = pageAlphaSampler(fourByFourPage()),
+				atlasSizeOf = { 4 to 4 },
+			)
+		assertEquals(backId, pick.topmostAt(1f, 3f), "the mesh is the island, whatever the texel's alpha")
+	}
+
+	/**
+	 * With no island opaque at the click, the stack lists every mesh containing it, front-to-back, and
+	 * their centralities tie - so the overlap popup's highest-centrality default resolves to the first
+	 * row, the island a plain click there picks.
+	 */
+	@Test
+	fun stackFallsBackToGeometryWhenNothingIsOpaque() {
+		val pick = stackedIslandsPick(frontUvs = uvsHittingTransparentTexel, backUvs = uvsHittingTransparentTexel)
+		val candidates = pick.stackAt(1f, 3f)
+		assertEquals(listOf(frontId, backId), candidates.map { candidate -> candidate.id }, "front first")
+		assertEquals(1, candidates.map { candidate -> candidate.centrality }.distinct().size, "geometry-tier centralities tie")
+	}
+
+	/** A stack query outside every island is empty in both tiers. */
+	@Test
+	fun stackIsEmptyOutsideEveryIsland() {
+		val pick = stackedIslandsPick(frontUvs = uvsHittingTransparentTexel, backUvs = uvsHittingTransparentTexel)
+		assertTrue(pick.stackAt(3.5f, 0.5f).isEmpty(), "below the hypotenuse nothing is hit")
 	}
 
 	/** An island is box-enclosed when ANY of its vertices falls inside; result keeps geometries order. */
