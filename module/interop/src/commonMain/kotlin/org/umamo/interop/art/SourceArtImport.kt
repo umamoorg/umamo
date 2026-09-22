@@ -34,6 +34,8 @@ import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.deriveRenderRoot
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /*
  * The SourceArt -> PuppetModel bridge: the first point where a layered file (or a flat raster)
@@ -43,6 +45,9 @@ import org.umamo.runtime.model.deriveRenderRoot
  * The model comes out UNPACKED - every tile unplaced, every drawable's coordinates addressing its own
  * art - so this stays a pure conversion that the pack at open then moves onto pages through the same
  * repack primitive the Repack Atlas command uses.  Packing here would only duplicate that path.
+ *
+ * The art arrives already in the document canvas frame (SourceArtPlacement.kt): the bridge reads
+ * bounds as document positions and never shifts them itself.
  */
 
 /**
@@ -74,11 +79,19 @@ class ArtSourceDescriptor(
  *   when a layer is trimmed for its birth mesh; the pack at open trims under the same threshold.
  * @property Int             birthMeshMargin How far, in source pixels, the birth quad extends past
  *   the layer's opaque bounds on every side.
+ * @property ArtworkAnchor   anchor          Where a later file's canvas is anchored on the document
+ *   canvas ([SourceArtImport.offsetFor]); moot for a rig's first artwork, which sets the canvas.
+ * @property Int             nudgeX          Pixels added to the anchor's placement along x.
+ * @property Int             nudgeZ          Pixels added to the anchor's placement along z - up, the
+ *   viewport's world axis, so a negative nudge moves the art down the canvas.
  */
 class SourceArtImportOptions(
 	val parameters: List<Parameter> = emptyList(),
 	val alphaThreshold: Int = DEFAULT_ALPHA_THRESHOLD,
 	val birthMeshMargin: Int = SourceArtImport.DEFAULT_BIRTH_MESH_MARGIN,
+	val anchor: ArtworkAnchor = ArtworkAnchor.Default,
+	val nudgeX: Int = 0,
+	val nudgeZ: Int = 0,
 ) {
 	init {
 		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
@@ -281,6 +294,51 @@ object SourceArtImport {
 	}
 
 	/**
+	 * Whether an artwork file added to [model] would be its FIRST: a rig with no drawable and no tile
+	 * takes its frame from the file that arrives ([withFirstArtworkState]), so the file is never placed
+	 * within a canvas - it defines the canvas.  The one test the add's framing and its placement share.
+	 *
+	 * @param PuppetModel model The model the artwork would join.
+	 * @return Boolean True when the model has no art of its own yet.
+	 */
+	fun isFirstArtwork(model: PuppetModel): Boolean = model.drawables.isEmpty() && model.atlas.tiles.isEmpty()
+
+	/**
+	 * Where [art]'s canvas lands on [model]'s: the anchor's placement of the file's size within the
+	 * document's, plus the options' nudge, in the world axes (x right, z up).  Zero for a rig's first
+	 * artwork (the file sets the canvas) and for a document with no canvas to place within.  Negative
+	 * along x where the file is wider than the canvas (the art overhangs the way the anchor says), and
+	 * along z whenever the file's top edge sits below the document's, which is every anchor but the top
+	 * row for a file shorter than the canvas.
+	 *
+	 * @param PuppetModel            model   The model the artwork joins.
+	 * @param SourceArt              art     The file, for its canvas size.
+	 * @param SourceArtImportOptions options The anchor and nudge.
+	 * @return CanvasOffset The translation to place the file's art by.
+	 */
+	fun offsetFor(model: PuppetModel, art: SourceArt, options: SourceArtImportOptions): CanvasOffset {
+		if (isFirstArtwork(model) || model.canvasWidth <= 0f || model.canvasHeight <= 0f) {
+			return CanvasOffset.Zero
+		}
+		return CanvasOffset(
+			x = anchoredOffset(model.canvasWidth.roundToInt() - art.widthPx, options.anchor.horizontal) + options.nudgeX,
+			z = -anchoredOffset(model.canvasHeight.roundToInt() - art.heightPx, options.anchor.vertical) + options.nudgeZ,
+		)
+	}
+
+	/**
+	 * The canvas-frame offset an anchor places a file at along one axis: the spare room (the document's
+	 * extent minus the file's, negative when the file is larger) split by the anchor's fraction, rounded
+	 * down so a centered file with one odd pixel of room sits one pixel nearer the top-left.  Canvas y
+	 * runs down, so the caller negates the vertical result into z.
+	 *
+	 * @param Int   room     The document's extent minus the file's along the axis.
+	 * @param Float fraction How far along the room the file is anchored (0, 0.5, or 1).
+	 * @return Int The offset.
+	 */
+	private fun anchoredOffset(room: Int, fraction: Float): Int = floor(room * fraction).toInt()
+
+	/**
 	 * The additions [art] makes to [existing]: the delta an open document appends to itself, with every
 	 * id minted past the ones the document already has.
 	 *
@@ -289,7 +347,11 @@ object SourceArtImport {
 	 * same way a duplicate layer key is.  The additions carry no placements: the caller packs them
 	 * around the document's art.
 	 *
-	 * @param SourceArt              art         The parsed source art.
+	 * The art is never placed here: [art] is expected in the DOCUMENT canvas frame already (a new file
+	 * placed by [SourceArt.placedBy], a listed file's read placed by [SourceArt.placedFor]), and the
+	 * birth meshes and inventory rows take its bounds as they are.
+	 *
+	 * @param SourceArt              art         The parsed source art, in the document canvas frame.
 	 * @param ArtSourceDescriptor    source      What to record about the file it came from.
 	 * @param SourceArtImportOptions options     The threshold and margin (the seed parameters are a fresh import's).
 	 * @param PuppetModel            existing    The model the additions will join.
@@ -307,6 +369,9 @@ object SourceArtImport {
 	 *   see the layers around them.
 	 * @param List<ArtSourceLayer>?  inventory   The inventory of [art] when the caller already computed it
 	 *   (it hashes every layer's pixels); computed here when null.
+	 * @param CanvasOffset           offset      The translation [art] was placed by, recorded on a NEW
+	 *   source's record so every later read of the file is placed the same way.  Ignored under
+	 *   [underSource], whose record keeps the offset it already carries.
 	 * @return SourceArtAdditions The delta, its tiles' pixels, and the import notices.
 	 */
 	fun additionsFor(
@@ -317,8 +382,13 @@ object SourceArtImport {
 		underSource: ArtSourceId? = null,
 		layerKeys: Set<String>? = null,
 		inventory: List<ArtSourceLayer>? = null,
+		offset: CanvasOffset = CanvasOffset.Zero,
 	): SourceArtAdditions {
 		val sourceId = underSource ?: ArtSourceId("art-${nextSuffix(existing.sources.map { candidate -> candidate.id.raw }, "art-", first = 0)}")
+		// A listed file's record keeps the frame it was placed in; the reload that hands its layers here
+		// has already placed the art by it.
+		val recorded = underSource?.let { listed -> existing.sources.firstOrNull { candidate -> candidate.id == listed } }
+		val recordedOffset = if (recorded == null) offset else CanvasOffset(recorded.offsetX, recorded.offsetZ)
 		val minter =
 			IdMinter(
 				nextDrawable = nextSuffix(existing.drawables.map { drawable -> drawable.id.raw }, "ArtMesh", first = 1),
@@ -486,7 +556,18 @@ object SourceArtImport {
 
 		return SourceArtAdditions(
 			ArtworkAdditions(
-				source = ArtSource(sourceId, source.name, source.path, source.format, inventory ?: inventoryOf(art), source.contentHash, source.lastModified),
+				source =
+					ArtSource(
+						sourceId,
+						source.name,
+						source.path,
+						source.format,
+						inventory ?: inventoryOf(art),
+						source.contentHash,
+						source.lastModified,
+						offsetX = recordedOffset.x,
+						offsetZ = recordedOffset.z,
+					),
 				tiles = tiles,
 				drawables = drawables,
 				parts = parts,

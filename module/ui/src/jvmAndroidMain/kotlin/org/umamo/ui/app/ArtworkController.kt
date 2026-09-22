@@ -10,6 +10,7 @@ import org.umamo.edit.deleteTile
 import org.umamo.edit.setLayerIgnored
 import org.umamo.edit.setTileSources
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.placedFor
 import org.umamo.reimport.InventoryLayerMatcher
 import org.umamo.reimport.WatchedReloadResult
 import org.umamo.runtime.model.ArtSourceId
@@ -24,6 +25,7 @@ import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.isFileSystemPath
 import org.umamo.ui.document.readArtwork
 import org.umamo.ui.document.readArtworkAt
+import org.umamo.ui.document.readListedArtworkAt
 import org.umamo.ui.document.readSourceArt
 import org.umamo.ui.document.systemSourceFilePresence
 import org.umamo.ui.model.AddArtworkRequest
@@ -222,9 +224,10 @@ internal class ArtworkController(
 
 	/**
 	 * Reloads the listed artwork files that are present on disk - those the scope names, or every one - as
-	 * one undo step; a file that cannot be read is logged and skipped.  Real file-system paths only: a
-	 * platform uri has no reader here, so a document opened through one reloads nothing.  The watcher hears
-	 * how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
+	 * one undo step; a file that cannot be read is logged and skipped.  Each read is placed by its record's
+	 * offset, so the planner compares the file against the inventory in one frame.  Real file-system paths
+	 * only: a platform uri has no reader here, so a document opened through one reloads nothing.  The
+	 * watcher hears how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
 	 *
 	 * @param String?      areaId      The area the operation strip shows in.
 	 * @param ReloadScope? reloadScope The files to re-read, or null for every present file.
@@ -242,7 +245,7 @@ internal class ArtworkController(
 					continue
 				}
 				covered.add(source.id)
-				val read = readArtworkAt(path)
+				val read = readListedArtworkAt(source, path)
 				if (read == null) {
 					UmamoLog.warn("reload artwork: '${source.name}' at $path could not be read; skipped")
 					continue
@@ -327,17 +330,19 @@ internal class ArtworkController(
 	/**
 	 * Repoints one listed file at another the rigger picks: what the new file resolves by key reloads, what
 	 * the matcher is confident about rebinds, and the rest is flagged for review with suggestions scored
-	 * against the new file's layers.
+	 * against the new file's layers.  The replacement keeps the record's frame: the new file is placed by
+	 * the offset the record already carries, since it stands in for the same art.
 	 *
 	 * @param ReplaceRequest request The record to repoint.
 	 * @param String?        areaId  The area the operation strip shows in.
 	 */
 	private fun replaceArtwork(request: ReplaceRequest, areaId: String?) {
 		services.scope.launch {
+			val source = puppet.session.model.value.sources.firstOrNull { candidate -> candidate.id == request.sourceId } ?: return@launch
 			val picked = pickArtwork() ?: return@launch
 			runReplaceArtwork(
 				host,
-				ReplaceArtworkRequest(request.sourceId, picked.read.art, picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art.placedFor(source), picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
 				areaId,
 			) { scored -> publishSuggestions(setOf(request.sourceId), scored) }
 		}

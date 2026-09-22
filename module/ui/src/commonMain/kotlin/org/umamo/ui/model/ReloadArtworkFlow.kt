@@ -556,7 +556,7 @@ suspend fun runRelinkArtwork(host: AtlasRepackHost, request: RelinkArtworkReques
 	if (!landRelink(host, request, modelAtStart, outcome) { model -> session.commitArtworkRelinked(request.tileIds.first(), model) }) {
 		return false
 	}
-	session.registerAdjustableOperation(session.model.value, areaId, addArtworkParameters(request.options)) { record ->
+	session.registerAdjustableOperation(session.model.value, areaId, addArtworkParameters(request.options, placed = false)) { record ->
 		host.scope.launch { adjustRelinkArtwork(host, record, request) }
 	}
 	return true

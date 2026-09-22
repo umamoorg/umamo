@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.seed.ParameterTemplate
+import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.reimport.WatchMode
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.HexColorField
@@ -42,6 +43,7 @@ import org.umamo.ui.resources.settings_colors_role_selected
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
+import org.umamo.ui.resources.settings_import_alignment
 import org.umamo.ui.resources.settings_import_delete_art_ignores_layer
 import org.umamo.ui.resources.settings_import_parameter_template
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
@@ -67,6 +69,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.workspace.artworkAnchorLabel
 
 /** The settings key + values for the UI theme mode, kept in lockstep with org.umamo.ui.theme.Theme. */
 private const val THEME_KEY = "interface.theme"
@@ -137,6 +140,9 @@ internal fun InterfaceSection() {
 /** The settings key for the parameter set an artwork import seeds; the values are ParameterTemplate keys. */
 internal const val IMPORT_PARAMETER_TEMPLATE_KEY = "import.parameterTemplate"
 
+/** The settings key for where a later artwork file is anchored on the rig's canvas; the values are ArtworkAnchor keys. */
+internal const val IMPORT_ALIGNMENT_KEY = "import.alignment"
+
 /** The settings key for what a document does when a watched artwork file changes; the values are WatchMode keys. */
 internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
 
@@ -144,12 +150,13 @@ internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
 internal const val IMPORT_DELETE_ART_IGNORES_LAYER_KEY = "import.deleteArtIgnoresLayer"
 
 /**
- * The Import section: what an artwork import seeds a new model with, what a document does when a
- * watched artwork file changes, and whether Delete Art keeps the deleted layer out of the rig.  The
- * parameter template is stored as the template's key so a later template is one more option here and
- * one more enum entry, nothing else; the import reads the key at the moment it runs, so the change
- * applies to the next import.  The watch mode is stored as the mode's key and read live by the open
- * document's watcher.  The Delete Art choice is read at each dispatch.
+ * The Import section: what an artwork import seeds a new model with, where a later file is anchored
+ * on the rig's canvas, what a document does when a watched artwork file changes, and whether Delete
+ * Art keeps the deleted layer out of the rig.  The parameter template and the anchor are stored as
+ * their keys so a later entry is one more option here and one more enum entry, nothing else; the
+ * import reads them at the moment it runs, so a change applies to the next import (and the anchor is
+ * only the default of the import's own Align row).  The watch mode is stored as the mode's key and
+ * read live by the open document's watcher.  The Delete Art choice is read at each dispatch.
  */
 @Composable
 internal fun ImportSection() {
@@ -159,6 +166,9 @@ internal fun ImportSection() {
 			ParameterTemplate.Humanoid.key to stringResource(Res.string.settings_import_parameter_template_humanoid),
 			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
 		)
+
+	var alignmentKey by rememberStringSetting(IMPORT_ALIGNMENT_KEY, ArtworkAnchor.Default.key)
+	val anchorLabels = ArtworkAnchor.entries.associate { anchor -> anchor.key to artworkAnchorLabel(anchor) }
 
 	var deleteArtIgnoresLayer by rememberBooleanSetting(IMPORT_DELETE_ART_IGNORES_LAYER_KEY, false)
 
@@ -177,6 +187,16 @@ internal fun ImportSection() {
 				options = templateLabels.keys.toList(),
 				label = { value -> templateLabels[value] ?: value },
 				onSelect = { value -> templateKey = value },
+			)
+		}
+		// The default of the import's Align row: the art programs' own canvas-resize anchors, Center
+		// being what both of them resize around unless told otherwise.
+		SettingRow(label = stringResource(Res.string.settings_import_alignment)) {
+			SelectField(
+				selected = ArtworkAnchor.fromKey(alignmentKey).key,
+				options = anchorLabels.keys.toList(),
+				label = { value -> anchorLabels[value] ?: value },
+				onSelect = { value -> alignmentKey = value },
 			)
 		}
 		// Read live by the open document's watcher, so the switch applies at once.

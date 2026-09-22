@@ -173,7 +173,7 @@ private sealed interface MatchOutcome {
  */
 internal fun matchArtworkParameters(threshold: Float, options: SourceArtImportOptions): List<OperatorParameter> =
 	listOf(OperatorParameter.FloatParameter(MatchParameterKeys.THRESHOLD, MatchParameterKeys.THRESHOLD, threshold * 100f, 0f, 100f, step = 5f, unit = ParameterUnit.Percent)) +
-		addArtworkParameters(options)
+		addArtworkParameters(options, placed = false)
 
 /**
  * The threshold [parameters] describe, as a fraction.

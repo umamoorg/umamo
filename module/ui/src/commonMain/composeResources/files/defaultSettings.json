@@ -54,6 +54,7 @@
 	},
 	"import": {
 		"parameterTemplate": "humanoid",
+		"alignment": "center",
 		"watchMode": "auto",
 		"deleteArtIgnoresLayer": false
 	},
