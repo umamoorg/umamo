@@ -45,7 +45,7 @@ import org.umamo.storage.UmamoLog
 internal object ImportParameterKeys {
 	const val ALIGN = "import.align"
 	const val OFFSET_X = "import.offsetX"
-	const val OFFSET_Y = "import.offsetY"
+	const val OFFSET_Z = "import.offsetZ"
 	const val ALPHA_THRESHOLD = "import.alphaThreshold"
 	const val MARGIN = "import.margin"
 
@@ -116,9 +116,13 @@ private sealed interface AddArtworkOutcome {
 }
 
 /**
- * The strip's rows for an add-artwork operation: Align and Offset X / Y for a file placed within the
+ * The strip's rows for an add-artwork operation: Align and Offset X / Z for a file placed within the
  * rig's canvas, then Alpha Threshold and Birth Mesh Margin.  A rig's first artwork sets the canvas
  * rather than landing within it, so its step carries no placement rows.
+ *
+ * The Offset rows are in the viewport's world axes (X right, Z up, like the transform rows' Move Z),
+ * while the options' nudge is canvas pixels with y down, so the vertical row shows the nudge negated
+ * and [addArtworkOptionsOf] negates it back: a positive Offset Z moves the art up on screen.
  *
  * @param SourceArtImportOptions options The options the rows show.
  * @param Boolean                placed  Whether the file was placed within an existing canvas.
@@ -136,7 +140,7 @@ internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boole
 			),
 		)
 		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_X, options.nudgeX, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
-		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Y, ImportParameterKeys.OFFSET_Y, options.nudgeY, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Z, ImportParameterKeys.OFFSET_Z, -options.nudgeY, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
 	}
 	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.ALPHA_THRESHOLD, options.alphaThreshold, 1, 255))
 	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.MARGIN, ImportParameterKeys.MARGIN, options.birthMeshMargin, 0, IMPORT_MAX_MARGIN, unit = ParameterUnit.Pixels))
@@ -158,7 +162,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 		birthMeshMargin = parameters.intValue(ImportParameterKeys.MARGIN, fallback.birthMeshMargin).coerceIn(0, IMPORT_MAX_MARGIN),
 		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
 		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
-		nudgeY = parameters.intValue(ImportParameterKeys.OFFSET_Y, fallback.nudgeY).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		nudgeY = -parameters.intValue(ImportParameterKeys.OFFSET_Z, -fallback.nudgeY).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
 	)
 
 /**

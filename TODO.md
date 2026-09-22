@@ -136,6 +136,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## DRY
 * ClickGestures - singleOrDoubleClick - We might be able to reuse this in other areas that experience the same issue.(WorkspaceTabs, OutlinerSpace)
 
+## Workspace Tabs
+* Improvements
+	* Visual feedback of the tabs moving out of the way when reordering them.
+
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
 
@@ -255,7 +259,7 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 ## Added artwork placement (shipped 2026-09-22) and what a CMO3 round trip loses
 
 **What.** A later artwork file is placed on the rig's canvas by the add-artwork strip's Align (nine anchors)
-and Offset X / Y rows, seeded by `import.alignment`; the resulting offset is persisted per source
+and Offset X / Z rows (Z is world-up; the row layer negates it into canvas y), seeded by `import.alignment`; the resulting offset is persisted per source
 (`ArtSource.offsetX/Y`, UMA §6.2) and every disk read of a listed file is placed by it before the model sees the
 art (`readListedArtworkAt`), so reload, relink, and match compare the file against the inventory in one frame.
 The Sources label takes the offset back out so its numbers match the art program.  This closes the

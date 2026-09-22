@@ -45,7 +45,7 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		PlacementParameterKeys.SCALE_Y -> stringResource(Res.string.placement_options_scale_y)
 		ImportParameterKeys.ALIGN -> stringResource(Res.string.import_options_align)
 		ImportParameterKeys.OFFSET_X -> stringResource(Res.string.import_options_offset_x)
-		ImportParameterKeys.OFFSET_Y -> stringResource(Res.string.import_options_offset_y)
+		ImportParameterKeys.OFFSET_Z -> stringResource(Res.string.import_options_offset_z)
 		ImportParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.import_options_alpha_threshold)
 		ImportParameterKeys.MARGIN -> stringResource(Res.string.import_options_margin)
 		MatchParameterKeys.THRESHOLD -> stringResource(Res.string.match_options_threshold)

@@ -86,14 +86,16 @@ class PlacedArtworkFlowTest {
 			assertContentEquals(floatArrayOf(24f, 24f, 32f, 24f, 32f, 32f, 24f, 32f), assertNotNull(patchDrawable.mesh).positions, "the birth quad sits at the placed position")
 			assertEquals(64f to 64f, placed.canvasWidth to placed.canvasHeight, "the canvas is the first file's still")
 
-			// Align to the top-left with a 3 px nudge along x re-lands the SAME step at (3, 0).
+			// Align to the top-left with a 3 px nudge along x and 5 px UP along Z re-lands the SAME step at
+			// canvas (3, -5): the Offset Z row is world Z (up), the canvas offset it becomes is y (down).
 			val record = assertNotNull(session.adjustableOperation.value, "the add registered on the strip")
-			assertEquals(listOf(ImportParameterKeys.ALIGN, ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_Y, ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.MARGIN), record.parameters.map { parameter -> parameter.key })
+			assertEquals(listOf(ImportParameterKeys.ALIGN, ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_Z, ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.MARGIN), record.parameters.map { parameter -> parameter.key })
 			val adjusted =
 				record.parameters.map { parameter ->
 					when {
 						parameter.key == ImportParameterKeys.ALIGN && parameter is OperatorParameter.ChoiceParameter -> parameter.copy(value = ArtworkAnchor.TopLeft.key)
 						parameter.key == ImportParameterKeys.OFFSET_X && parameter is OperatorParameter.IntParameter -> parameter.copy(value = 3)
+						parameter.key == ImportParameterKeys.OFFSET_Z && parameter is OperatorParameter.IntParameter -> parameter.copy(value = 5)
 						else -> parameter
 					}
 				}
@@ -105,8 +107,10 @@ class PlacedArtworkFlowTest {
 			}
 			val realigned = session.model.value
 			val realignedSource = realigned.sources.first { source -> source.name == "patch.png" }
-			assertEquals(3 to 0, realignedSource.offsetX to realignedSource.offsetY, "the anchor's placement plus the nudge")
-			assertContentEquals(floatArrayOf(3f, 0f, 11f, 0f, 11f, 8f, 3f, 8f), assertNotNull(realigned.drawables.first { drawable -> drawable.atlasTileId == patchTile }.mesh).positions)
+			assertEquals(3 to -5, realignedSource.offsetX to realignedSource.offsetY, "the anchor's placement plus the nudge, Z negated into canvas y")
+			assertContentEquals(floatArrayOf(3f, -5f, 11f, -5f, 11f, 3f, 3f, 3f), assertNotNull(realigned.drawables.first { drawable -> drawable.atlasTileId == patchTile }.mesh).positions)
+			val shownRows = assertNotNull(session.adjustableOperation.value).parameters
+			assertEquals(5, (shownRows.first { parameter -> parameter.key == ImportParameterKeys.OFFSET_Z } as OperatorParameter.IntParameter).value, "the row still reads as the Z the rigger typed")
 			assertEquals(placed.drawables.size, realigned.drawables.size, "re-landed, not added twice")
 			withTimeout(120_000) {
 				while (sessionAtlasPages.binding.value.atlas !== realigned.atlas) {
@@ -125,11 +129,11 @@ class PlacedArtworkFlowTest {
 			assertEquals(ReloadArtworkResult.Applied, runReloadArtwork(host, reload, areaId = null))
 			val reloaded = session.model.value
 			val reloadedSource = reloaded.sources.first { source -> source.name == "patch.png" }
-			assertEquals(3 to 0, reloadedSource.offsetX to reloadedSource.offsetY, "the reload keeps the record's offset")
-			assertEquals(5 to 2, reloadedSource.layers.single().let { row -> row.left to row.top })
+			assertEquals(3 to -5, reloadedSource.offsetX to reloadedSource.offsetY, "the reload keeps the record's offset")
+			assertEquals(5 to -3, reloadedSource.layers.single().let { row -> row.left to row.top })
 			assertNull(reloaded.atlas.tileById[patchTile], "the changed tile is replaced")
 			val reborn = reloaded.drawables.first { drawable -> drawable.atlasTileId == AtlasTileId("art-1/lyid:9~1") }
-			assertContentEquals(floatArrayOf(3f, 0f, 13f, 0f, 13f, 10f, 3f, 10f), assertNotNull(reborn.mesh).positions, "re-born over the wider art, still placed")
+			assertContentEquals(floatArrayOf(3f, -5f, 13f, -5f, 13f, 5f, 3f, 5f), assertNotNull(reborn.mesh).positions, "re-born over the wider art, still placed")
 
 			session.undo()
 			assertSame(realigned, session.model.value, "undo restores the placed model")

@@ -724,7 +724,7 @@
 	<string name="merge_target_last">最後</string>
 	<string name="import_options_align">基準位置</string>
 	<string name="import_options_offset_x">オフセット X</string>
-	<string name="import_options_offset_y">オフセット Y</string>
+	<string name="import_options_offset_z">オフセット Z</string>
 	<string name="import_options_alpha_threshold">アルファしきい値</string>
 	<string name="import_options_margin">初期メッシュの余白</string>
 	<string name="import_anchor_top_left">左上</string>

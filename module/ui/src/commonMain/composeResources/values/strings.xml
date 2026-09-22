@@ -781,7 +781,7 @@
 	<string name="merge_target_last">Last</string>
 	<string name="import_options_align">Align</string>
 	<string name="import_options_offset_x">Offset X</string>
-	<string name="import_options_offset_y">Offset Y</string>
+	<string name="import_options_offset_z">Offset Z</string>
 	<string name="import_options_alpha_threshold">Alpha Threshold</string>
 	<string name="import_options_margin">Birth Mesh Margin</string>
 	<string name="import_anchor_top_left">Top Left</string>
